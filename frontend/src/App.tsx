@@ -34,18 +34,25 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchSystemInfo();
+    let isMounted = true;
+    const loadInfo = async () => {
+      try {
+        const info = await invoke<SystemInfo>('system:getInfo');
+        if (isMounted) {
+          setSysInfo(info);
+          addLog(`تم الاتصال بنجاح بالنواة: ${info.appName} (${info.osVersion})`);
+        }
+      } catch (err: any) {
+        if (isMounted) {
+          addLog(`خطأ في جلب بيانات النظام: ${err.message}`);
+        }
+      }
+    };
+    void loadInfo();
+    return () => {
+      isMounted = false;
+    };
   }, []);
-
-  const fetchSystemInfo = async () => {
-    try {
-      const info = await invoke<SystemInfo>('system:getInfo');
-      setSysInfo(info);
-      addLog(`تم الاتصال بنجاح بالنواة: ${info.appName} (${info.osVersion})`);
-    } catch (err: any) {
-      addLog(`خطأ في جلب بيانات النظام: ${err.message}`);
-    }
-  };
 
   const testIpcLatency = async () => {
     setLoading(true);

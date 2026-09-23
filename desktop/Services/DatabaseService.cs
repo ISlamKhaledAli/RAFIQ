@@ -1,6 +1,7 @@
 using System;
 using System.IO;
-using System.Data.SQLite;
+using RafiqPOS.Database;
+using RafiqPOS.Repositories;
 
 namespace RafiqPOS.Services
 {
@@ -21,10 +22,25 @@ namespace RafiqPOS.Services
         private static string _dbPath;
         private static string _connectionString;
 
+        public static string ConnectionString
+        {
+            get { return _connectionString; }
+        }
+
+        public static string DbPath
+        {
+            get { return _dbPath; }
+        }
+
+        public static ProductRepository ProductRepo { get; private set; }
+        public static SaleRepository SaleRepo { get; private set; }
+        public static ProductService Products { get; private set; }
+        public static SaleService Sales { get; private set; }
+
         public static void Initialize()
         {
             string baseFolder;
-            
+
             // If running in development (Debug), use local data folder
             #if DEBUG
             baseFolder = AppDomain.CurrentDomain.BaseDirectory;
@@ -42,122 +58,66 @@ namespace RafiqPOS.Services
             _dbPath = Path.Combine(dataFolder, "rafiq_pos.db");
             _connectionString = string.Format("Data Source={0};Version=3;BusyTimeout=5000;", _dbPath);
 
-            using (var conn = new SQLiteConnection(_connectionString))
-            {
-                conn.Open();
+            // Execute safe migrations (Feature #1 & #4)
+            MigrationRunner.ApplyMigrations(_connectionString, _dbPath);
 
-                // Enable Write-Ahead Logging (WAL) for Power-Cut resilience
-                using (var cmd = new SQLiteCommand("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON;", conn))
-                {
-                    cmd.ExecuteNonQuery();
-                }
-
-                // Initial tables for Spike / Milestone 0 & 1
-                string initSql = @"
-                    CREATE TABLE IF NOT EXISTS schema_migrations (
-                        version INTEGER PRIMARY KEY,
-                        applied_at TEXT NOT NULL
-                    );
-
-                    CREATE TABLE IF NOT EXISTS products (
-                        id TEXT PRIMARY KEY,
-                        name TEXT NOT NULL,
-                        barcode TEXT UNIQUE,
-                        price_piasters INTEGER NOT NULL,
-                        cost_piasters INTEGER NOT NULL,
-                        stock_quantity INTEGER NOT NULL DEFAULT 0,
-                        created_at TEXT NOT NULL
-                    );
-
-                    CREATE TABLE IF NOT EXISTS sales (
-                        id TEXT PRIMARY KEY,
-                        invoice_number INTEGER NOT NULL,
-                        total_piasters INTEGER NOT NULL,
-                        paid_piasters INTEGER NOT NULL,
-                        created_at TEXT NOT NULL
-                    );
-
-                    CREATE TABLE IF NOT EXISTS sale_items (
-                        id TEXT PRIMARY KEY,
-                        sale_id TEXT NOT NULL,
-                        product_id TEXT NOT NULL,
-                        quantity INTEGER NOT NULL,
-                        unit_price_piasters INTEGER NOT NULL,
-                        FOREIGN KEY (sale_id) REFERENCES sales(id)
-                    );
-                ";
-
-                using (var cmd = new SQLiteCommand(initSql, conn))
-                {
-                    cmd.ExecuteNonQuery();
-                }
-            }
+            // Initialize Repositories and Services (Feature #5)
+            ProductRepo = new ProductRepository(_connectionString);
+            SaleRepo = new SaleRepository(_connectionString);
+            Products = new ProductService(ProductRepo);
+            Sales = new SaleService(SaleRepo, ProductRepo);
         }
 
         public static string GetStatus()
         {
-            return string.Format("SQLite 3 Connected [File: {0}, WAL Mode Active]", Path.GetFileName(_dbPath));
+            return string.Format("SQLite 3 Connected [File: {0}, WAL Mode Active, Migrated]", Path.GetFileName(_dbPath));
         }
 
         public static TransactionResult ExecuteAtomicSaleTransaction(int itemCount)
         {
-            using (var conn = new SQLiteConnection(_connectionString))
+            try
             {
-                conn.Open();
-                using (var trans = conn.BeginTransaction())
+                // Ensure sample products exist first
+                for (int i = 1; i <= itemCount; i++)
                 {
-                    try
+                    string prodId = string.Format("prod_sample_{0}", i);
+                    if (ProductRepo.GetById(prodId) == null)
                     {
-                        string saleId = Guid.NewGuid().ToString();
-                        long totalPiasters = 0;
-
-                        // Insert test sale items in single transaction
-                        for (int i = 1; i <= itemCount; i++)
+                        Products.SaveProduct(new Models.Product
                         {
-                            long price = i * 1500; // e.g. 15.00 LE in piasters
-                            totalPiasters += price;
-
-                            string insertItem = @"
-                                INSERT INTO sale_items (id, sale_id, product_id, quantity, unit_price_piasters)
-                                VALUES (@id, @sale_id, @product_id, @qty, @price);
-                            ";
-                            using (var cmd = new SQLiteCommand(insertItem, conn, trans))
-                            {
-                                cmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
-                                cmd.Parameters.AddWithValue("@sale_id", saleId);
-                                cmd.Parameters.AddWithValue("@product_id", string.Format("PROD-{0:000}", i));
-                                cmd.Parameters.AddWithValue("@qty", 1000); // 1000 milli-units / 1 piece
-                                cmd.Parameters.AddWithValue("@price", price);
-                                cmd.ExecuteNonQuery();
-                            }
-                        }
-
-                        // Insert sale master
-                        string insertSale = @"
-                            INSERT INTO sales (id, invoice_number, total_piasters, paid_piasters, created_at)
-                            VALUES (@id, (SELECT COALESCE(MAX(invoice_number), 0) + 1 FROM sales), @total, @paid, @time);
-                        ";
-                        using (var cmd = new SQLiteCommand(insertSale, conn, trans))
-                        {
-                            cmd.Parameters.AddWithValue("@id", saleId);
-                            cmd.Parameters.AddWithValue("@total", totalPiasters);
-                            cmd.Parameters.AddWithValue("@paid", totalPiasters);
-                            cmd.Parameters.AddWithValue("@time", DateTime.UtcNow.ToString("o"));
-                            cmd.ExecuteNonQuery();
-                        }
-
-                        // Commit atomically!
-                        trans.Commit();
-                        double totalPounds = totalPiasters / 100.0;
-                        string msg = string.Format("تم حفظ فاتورة بيع تحتوي على {0} أصناف بنجاح بإجمالي {1:N2} جنيه في معاملة ذرية واحدة (ACID).", itemCount, totalPounds);
-                        return new TransactionResult(true, msg);
-                    }
-                    catch (Exception ex)
-                    {
-                        trans.Rollback();
-                        return new TransactionResult(false, "فشلت المعاملة وتم التراجع التلقائي (Rollback): " + ex.Message);
+                            Id = prodId,
+                            Barcode = string.Format("62210000000{0}", i),
+                            Name = string.Format("منتج تجريبي {0}", i),
+                            PricePiasters = i * 1500, // e.g. 15.00 EGP
+                            CostPiasters = i * 1000,
+                            StockQuantityMilli = 50000, // 50 items in stock
+                            Unit = "piece"
+                        });
                     }
                 }
+
+                // Construct Sale
+                var sale = new Models.Sale();
+                for (int i = 1; i <= itemCount; i++)
+                {
+                    sale.Items.Add(new Models.SaleItem
+                    {
+                        ProductId = string.Format("prod_sample_{0}", i),
+                        ProductName = string.Format("منتج تجريبي {0}", i),
+                        QuantityMilli = 1000, // 1 piece
+                        UnitPricePiasters = i * 1500,
+                        DiscountPiasters = 0
+                    });
+                }
+
+                var processed = Sales.ProcessSale(sale);
+                double totalPounds = processed.TotalPiasters / 100.0;
+                string msg = string.Format("تم حفظ فاتورة بيع رقم #{0} تحتوي على {1} أصناف بنجاح بإجمالي {2:N2} جنيه في معاملة ذرية واحدة (ACID).", processed.InvoiceNumber, itemCount, totalPounds);
+                return new TransactionResult(true, msg);
+            }
+            catch (Exception ex)
+            {
+                return new TransactionResult(false, "فشلت المعاملة وتم التراجع التلقائي (Rollback): " + ex.Message);
             }
         }
     }

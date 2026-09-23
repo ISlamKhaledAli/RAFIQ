@@ -60,7 +60,15 @@
     </Compile>
     <Compile Include="Bridge\BridgeModels.cs" />
     <Compile Include="Bridge\IpcDispatcher.cs" />
+    <Compile Include="Common\Money.cs" />
+    <Compile Include="Database\MigrationRunner.cs" />
+    <Compile Include="Models\Product.cs" />
+    <Compile Include="Models\Sale.cs" />
+    <Compile Include="Repositories\ProductRepository.cs" />
+    <Compile Include="Repositories\SaleRepository.cs" />
     <Compile Include="Services\DatabaseService.cs" />
+    <Compile Include="Services\ProductService.cs" />
+    <Compile Include="Services\SaleService.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
