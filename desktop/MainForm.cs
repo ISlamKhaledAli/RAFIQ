@@ -21,7 +21,15 @@ namespace RafiqPOS
             this.Size = new Size(1280, 800);
             this.MinimumSize = new Size(1024, 768); // Support compact screens (Task 159)
             this.StartPosition = FormStartPosition.CenterScreen;
-            this.Icon = SystemIcons.Application;
+            string icoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app.ico");
+            if (File.Exists(icoPath))
+            {
+                try { this.Icon = new Icon(icoPath); } catch { this.Icon = SystemIcons.Application; }
+            }
+            else
+            {
+                this.Icon = SystemIcons.Application;
+            }
 
             _lblStatus = new Label
             {
@@ -73,14 +81,41 @@ namespace RafiqPOS
                     }
                 }
 
-                // 3. Runtime detection: Fixed Version 109 for Windows 7/8, Evergreen for 10/11
+                // 3. Runtime detection: Fixed Version 109 vs System Evergreen
                 string browserExecutableFolder = null;
                 string fixed109Folder = Path.Combine(baseDir, "runtimes", "fixed109");
-                bool isWin7Or8 = Environment.OSVersion.Version.Major == 6;
-
-                if (isWin7Or8 && Directory.Exists(fixed109Folder))
+                if (!Directory.Exists(fixed109Folder))
                 {
+                    string altFixed = Path.Combine(baseDir, "fixed109");
+                    if (Directory.Exists(altFixed)) fixed109Folder = altFixed;
+                }
+
+                bool isLegacyWindows = Environment.OSVersion.Version.Major == 6; // Windows 7 (6.1), Windows 8 (6.2), Windows 8.1 (6.3)
+                bool hasFixed = Directory.Exists(fixed109Folder);
+
+                if (isLegacyWindows && hasFixed)
+                {
+                    // For Windows 7/8, always use bundled Fixed Version 109 to avoid any EdgeUpdate crashes
                     browserExecutableFolder = fixed109Folder;
+                }
+                else
+                {
+                    // For Windows 10/11 or if fixed109 isn't found, try system Evergreen
+                    try
+                    {
+                        string systemVer = CoreWebView2Environment.GetAvailableBrowserVersionString();
+                        if (string.IsNullOrEmpty(systemVer) && hasFixed)
+                        {
+                            browserExecutableFolder = fixed109Folder;
+                        }
+                    }
+                    catch
+                    {
+                        if (hasFixed)
+                        {
+                            browserExecutableFolder = fixed109Folder;
+                        }
+                    }
                 }
 
                 string baseDataFolder;
@@ -125,7 +160,18 @@ namespace RafiqPOS
             }
             catch (Exception ex)
             {
-                _lblStatus.Text = string.Format("خطأ في بدء تشغيل رفيق:\n{0}\n\nيرجى التأكد من تثبيت WebView2 Runtime.", ex.Message);
+                string helpMsg = "خطأ في بدء تشغيل رفيق:\n" + ex.Message + "\n\n";
+                if (Environment.OSVersion.Version.Major == 6)
+                {
+                    helpMsg += "نظام التشغيل لديك هو (Windows 7 / 8).\n" +
+                               "يتطلب النظام مشغل WebView2 Runtime إصدار 109 المتوافق مع ويندوز 7.\n" +
+                               "يرجى تشغيل أداة التثبيت وتحديد خيار تثبيت المشغل الأوفلاين.";
+                }
+                else
+                {
+                    helpMsg += "يرجى التأكد من تثبيت Microsoft Edge WebView2 Runtime على هذا الجهاز.";
+                }
+                _lblStatus.Text = helpMsg;
                 _lblStatus.ForeColor = Color.Salmon;
             }
         }

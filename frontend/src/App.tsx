@@ -99,9 +99,11 @@ export default function App() {
       {/* Top Header */}
       <header className="flex items-center justify-between px-5 py-3 bg-slate-900 border-b border-slate-800">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/20">
-            ر
-          </div>
+          <img 
+            src="/logo.png" 
+            alt="شعار رفيق" 
+            className="w-10 h-10 rounded-lg object-contain bg-white p-0.5 border border-slate-700 shadow-md shadow-blue-500/10" 
+          />
           <div>
             <h1 className="text-lg font-bold text-white m-0 leading-tight">
               نظام رفيق لنقاط البيع — لوحة التحقق التقني (Milestone 0)

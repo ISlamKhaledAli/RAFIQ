@@ -23,6 +23,8 @@ OutputBaseFilename=RafiqPOS_Setup_v{#MyAppVersion}
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=app.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
 
 ; التوافق مع الأنظمة: ويندوز 7 الحزمة 1 كحد أدنى
 MinVersion=6.1sp1
@@ -49,8 +51,11 @@ Name: "{commonappdata}\RafiqPOS\data\webview_profile"; Permissions: users-full
 ; الملفات التنفيذية والمكتبات الأساسية للبرنامج
 Source: "..\desktop\bin\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.pdb,data\*.db,data\*.db-wal,data\*.db-shm"
 
-; حزمة تثبيت مشغل WebView2 الرسمي (تُحذف تلقائياً بعد التثبيت)
-Source: "prerequisites\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
+; مثبت WebView2 أونلاين الحديث (فقط لويندوز 10 وويندوز 11)
+Source: "prerequisites\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: IsWindows10OrLater and not IsWebView2Installed
+
+; مثبت WebView2 أوفلاين إصدار 109 الرسمي المخصص لويندوز 7 وويندوز 8
+Source: "prerequisites\MicrosoftEdgeWebView2RuntimeInstallerX86_109.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall skipifsourcedoesntexist; Check: IsLegacyWindows and not IsWebView2Installed
 
 ; حماية قاعدة البيانات: تُحفظ في C:\ProgramData\RafiqPOS\data ولا تُحذف عند إلغاء التثبيت
 Source: "..\desktop\bin\Release\data\rafiq_pos.db"; DestDir: "{commonappdata}\RafiqPOS\data"; Flags: onlyifdoesntexist uninsneveruninstall; Permissions: users-full
@@ -61,23 +66,44 @@ Name: "{group}\إلغاء تثبيت {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-; تثبيت مشغّل WebView2 تلقائياً إذا كان غير موجود على الجهاز
-Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "جاري فحص وتثبيت مشغّل WebView2 Runtime..."; Check: not IsWebView2Installed
+; 1. تثبيت WebView2 على ويندوز 10 وويندوز 11 أونلاين إذا لزم الأمر
+Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "جاري فحص وتثبيت مشغّل WebView2 Runtime لنظام ويندوز 10/11..."; Check: IsWindows10OrLater and not IsWebView2Installed
+
+; 2. تثبيت WebView2 إصدار 109 أوفلاين المخصص لويندوز 7 بدون أي اتصال بالإنترنت
+Filename: "{tmp}\MicrosoftEdgeWebView2RuntimeInstallerX86_109.exe"; Parameters: "/silent /install"; StatusMsg: "جاري تثبيت مشغّل WebView2 Runtime إصدار 109 المتوافق مع ويندوز 7..."; Check: IsLegacyWindows and not IsWebView2Installed and FileExists(ExpandConstant('{tmp}\MicrosoftEdgeWebView2RuntimeInstallerX86_109.exe'))
 
 ; تشغيل البرنامج بعد انتهاء التثبيت
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 [Code]
-// التحقق من وجود دوت نت فريموورك 4.8
-function IsDotNet48Installed(): Boolean;
+// التحقق مما إذا كان النظام ويندوز 10 أو أعلى
+function IsWindows10OrLater(): Boolean;
+var
+  Version: TWindowsVersion;
+begin
+  GetWindowsVersionEx(Version);
+  Result := (Version.Major >= 10);
+end;
+
+// التحقق مما إذا كان النظام ويندوز 7 أو 8 (Legacy)
+function IsLegacyWindows(): Boolean;
+var
+  Version: TWindowsVersion;
+begin
+  GetWindowsVersionEx(Version);
+  Result := (Version.Major < 10);
+end;
+
+// التحقق من وجود دوت نت فريموورك متوافق (.NET 4.6.2 أو أعلى)
+function IsDotNetCompatible(): Boolean;
 var
   Release: Cardinal;
 begin
   Result := False;
   if RegQueryDWordValue(HKLM, 'SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full', 'Release', Release) then
   begin
-    // 528040 هو كود إصدار .NET 4.8 على ويندوز 7 و 8.1 و 10
-    if Release >= 528040 then
+    // 394802 = .NET 4.6.2, 461808 = .NET 4.7.2, 528040 = .NET 4.8
+    if Release >= 394802 then
       Result := True;
   end;
 end;
@@ -104,10 +130,10 @@ var
 begin
   Result := True;
 
-  // 1. فحص دوت نت 4.8
-  if not IsDotNet48Installed() then
+  // 1. فحص دوت نت فريموورك المتوافق
+  if not IsDotNetCompatible() then
   begin
-    Msg := 'يتطلب تشغيل رفيق نقاط البيع وجود حزمة Microsoft .NET Framework 4.8 على هذا الجهاز.' + #13#10 +
+    Msg := 'يتطلب تشغيل رفيق نقاط البيع وجود حزمة Microsoft .NET Framework (4.6.2 أو أعلى) على هذا الجهاز.' + #13#10 +
            'يرجى تثبيتها قبل المتابعة، ثم إعادة تشغيل هذا المثبّت.';
     MsgBox(Msg, mbError, MB_OK);
     Result := False;
