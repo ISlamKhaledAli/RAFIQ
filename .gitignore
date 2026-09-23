@@ -27,10 +27,10 @@ data/
 *.db-shm
 webview_profile/
 
-# Installer Output
+# Large Installer Output & Packages
+RafiqPOS_Setup_*.exe
+*.msu
 installer/Output/
-
-# Tools & Binary executables
 tools/nuget.exe
 
 # Large Installer Prerequisites (>100MB, excluded from GitHub)

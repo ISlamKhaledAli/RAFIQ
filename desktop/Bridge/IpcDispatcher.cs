@@ -22,7 +22,7 @@ namespace RafiqPOS.Bridge
                         string osDetails = Environment.OSVersion.VersionString + (Environment.Is64BitOperatingSystem ? " (64-bit)" : " (32-bit)");
                         return BridgeResponse.Ok(request.Id, new
                         {
-                            appName = "رفيق نقاط البيع (Rafiq POS)",
+                            appName = "رفيق POS",
                             version = "1.0.0-Spike",
                             osVersion = osDetails,
                             isWebView2 = true,

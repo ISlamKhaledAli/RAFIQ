@@ -17,7 +17,7 @@ namespace RafiqPOS
 
         public MainForm()
         {
-            this.Text = "رفيق — نظام نقاط البيع والسوبرماركت (POS)";
+            this.Text = "رفيق POS";
             this.Size = new Size(1280, 800);
             this.MinimumSize = new Size(1024, 768); // Support compact screens (Task 159)
             this.StartPosition = FormStartPosition.CenterScreen;

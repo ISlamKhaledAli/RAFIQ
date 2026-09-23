@@ -102,7 +102,7 @@ export default function App() {
           <img 
             src="/logo.png" 
             alt="شعار رفيق" 
-            className="w-10 h-10 rounded-lg object-contain bg-white p-0.5 border border-slate-700 shadow-md shadow-blue-500/10" 
+            className="w-10 h-10 object-contain drop-shadow-[0_2px_8px_rgba(0,168,107,0.25)] hover:scale-105 transition-transform duration-200" 
           />
           <div>
             <h1 className="text-lg font-bold text-white m-0 leading-tight">

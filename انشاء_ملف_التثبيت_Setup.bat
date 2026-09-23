@@ -19,7 +19,7 @@ if %ERRORLEVEL% neq 0 (
 echo.
 echo [2/4] تجميع النواة المكتوبة بـ C# في وضع Release...
 cd /d "%~dp0"
-& "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\MSBuild.exe" "desktop\RafiqPOS.csproj" /p:Configuration=Release /p:Platform=x86 /v:m
+"C:\Windows\Microsoft.NET\Framework64\v4.0.30319\MSBuild.exe" "desktop\RafiqPOS.csproj" /p:Configuration=Release /p:Platform=x86 /v:m
 if %ERRORLEVEL% neq 0 (
     echo [خطأ] فشل تجميع مشروع C#!
     pause
@@ -33,7 +33,7 @@ xcopy /E /Y /Q "frontend\dist\*" "desktop\bin\Release\dist\"
 
 echo.
 echo [4/4] حزم وضغط البرنامج في ملف تثبيت واحد عبر Inno Setup...
-& "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" "installer\RafiqPOS_Setup.iss"
+"%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" "installer\RafiqPOS_Setup.iss"
 if %ERRORLEVEL% neq 0 (
     echo [خطأ] فشل إنشاء ملف التثبيت عبر Inno Setup!
     pause

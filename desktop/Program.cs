@@ -20,10 +20,10 @@ namespace RafiqPOS
             if (!createdNew)
             {
                 MessageBox.Show(
-                    "برنامج رفيق مفتوح بالفعل في نافذة أخرى.\nلا يمكن تشغيل البرنامج مرتين على نفس البيانات لتفادي تلفها.",
-                    "تنبيه — رفيق نقاط البيع",
+                    "برنامج رفيق POS قيد التشغيل بالفعل على هذا الجهاز.\nلا يمكن فتح نسختين في الوقت نفسه للحفاظ على سلامة البيانات.",
+                    "رفيق POS",
                     MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning
+                    MessageBoxIcon.Information
                 );
                 return;
             }
