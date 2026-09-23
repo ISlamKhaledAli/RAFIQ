@@ -30,6 +30,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 DisableProgramGroupPage=yes
 CloseApplications=yes
 RestartApplications=no
+PrivilegesRequired=admin
 
 [Languages]
 Name: "arabic"; MessagesFile: "compiler:Languages\Arabic.isl"
@@ -38,12 +39,21 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
+[Dirs]
+; إعطاء صلاحيات الكتابة الكاملة لجميع المستخدمين في مجلد البيانات
+Name: "{commonappdata}\RafiqPOS"; Permissions: users-full
+Name: "{commonappdata}\RafiqPOS\data"; Permissions: users-full
+Name: "{commonappdata}\RafiqPOS\data\webview_profile"; Permissions: users-full
+
 [Files]
 ; الملفات التنفيذية والمكتبات الأساسية للبرنامج
 Source: "..\desktop\bin\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.pdb,data\*.db,data\*.db-wal,data\*.db-shm"
 
-; حماية قاعدة البيانات: إذا كان هناك ملف قاعدة بيانات موجود مسبقاً، يمنع استبداله تماماً
-Source: "..\desktop\bin\Release\data\rafiq_pos.db"; DestDir: "{app}\data"; Flags: onlyifdoesntexist uninsneveruninstall; Permissions: users-full
+; حزمة تثبيت مشغل WebView2 الرسمي (تُحذف تلقائياً بعد التثبيت)
+Source: "prerequisites\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
+
+; حماية قاعدة البيانات: تُحفظ في C:\ProgramData\RafiqPOS\data ولا تُحذف عند إلغاء التثبيت
+Source: "..\desktop\bin\Release\data\rafiq_pos.db"; DestDir: "{commonappdata}\RafiqPOS\data"; Flags: onlyifdoesntexist uninsneveruninstall; Permissions: users-full
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -51,6 +61,10 @@ Name: "{group}\إلغاء تثبيت {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
+; تثبيت مشغّل WebView2 تلقائياً إذا كان غير موجود على الجهاز
+Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "جاري فحص وتثبيت مشغّل WebView2 Runtime..."; Check: not IsWebView2Installed
+
+; تشغيل البرنامج بعد انتهاء التثبيت
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 [Code]
@@ -98,19 +112,5 @@ begin
     MsgBox(Msg, mbError, MB_OK);
     Result := False;
     Exit;
-  end;
-
-  // 2. فحص مشغّل WebView2 (تنبيه توجيهي لويندوز 7 إذا لم يكن مضمناً محلياً)
-  if not IsWebView2Installed() then
-  begin
-    if FileExists(ExpandConstant('{src}\runtimes\fixed109\msedgewebview2.exe')) or
-       DirExists(ExpandConstant('{src}\runtimes\fixed109')) then
-    begin
-      // سيتم استخدام النسخة المحلية المرفقة تلقائياً
-    end
-    else
-    begin
-      Log('WebView2 Evergreen not detected. The application will use local runtime if provided.');
-    end;
   end;
 end;

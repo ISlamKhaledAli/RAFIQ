@@ -83,7 +83,19 @@ namespace RafiqPOS
                     browserExecutableFolder = fixed109Folder;
                 }
 
-                string userDataFolder = Path.Combine(baseDir, "data", "webview_profile");
+                string baseDataFolder;
+                #if DEBUG
+                baseDataFolder = Path.Combine(baseDir, "data");
+                #else
+                baseDataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "RafiqPOS", "data");
+                #endif
+
+                if (!Directory.Exists(baseDataFolder))
+                {
+                    Directory.CreateDirectory(baseDataFolder);
+                }
+
+                string userDataFolder = Path.Combine(baseDataFolder, "webview_profile");
                 var env = await CoreWebView2Environment.CreateAsync(browserExecutableFolder, userDataFolder);
 
                 await _webView.EnsureCoreWebView2Async(env);

@@ -23,8 +23,17 @@ namespace RafiqPOS.Services
 
         public static void Initialize()
         {
-            string appData = AppDomain.CurrentDomain.BaseDirectory;
-            string dataFolder = Path.Combine(appData, "data");
+            string baseFolder;
+            
+            // If running in development (Debug), use local data folder
+            #if DEBUG
+            baseFolder = AppDomain.CurrentDomain.BaseDirectory;
+            #else
+            // In Production (Program Files), use C:\ProgramData\RafiqPOS for full write permissions
+            baseFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "RafiqPOS");
+            #endif
+
+            string dataFolder = Path.Combine(baseFolder, "data");
             if (!Directory.Exists(dataFolder))
             {
                 Directory.CreateDirectory(dataFolder);
