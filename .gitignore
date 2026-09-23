@@ -32,3 +32,9 @@ installer/Output/
 
 # Tools & Binary executables
 tools/nuget.exe
+
+# Large Installer Prerequisites (>100MB, excluded from GitHub)
+installer/prerequisites/*.exe
+installer/prerequisites/*.cab
+installer/prerequisites/*.msi
+!installer/prerequisites/MicrosoftEdgeWebview2Setup.exe
