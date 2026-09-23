@@ -1,0 +1,34 @@
+# Visual Studio & MSBuild
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+
+# NuGet Packages
+desktop/packages/
+*.nupkg
+
+# Node & Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.cache/
+*.log
+
+# Databases & Runtime Data
+data/
+*.db
+*.db-wal
+*.db-shm
+webview_profile/
+
+# Installer Output
+installer/Output/
+
+# Tools & Binary executables
+tools/nuget.exe
