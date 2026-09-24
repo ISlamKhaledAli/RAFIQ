@@ -109,6 +109,28 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@prodId", item.ProductId);
                                 cmd.ExecuteNonQuery();
                             }
+
+                            // Record stock movement in ledger (Feature #35 / Tasks 35-1 & 35-2)
+                            string insertMovementSql = @"
+                                INSERT INTO stock_movements (
+                                    id, product_id, movement_type, quantity_milli, reference_id, reference_type,
+                                    unit_cost_piasters, note, batch_number, created_at
+                                ) VALUES (
+                                    @mId, @mProdId, 'SALE', @mQty, @mRefId, 'SALE',
+                                    @mUnitCost, @mNote, NULL, @mNow
+                                );
+                            ";
+                            using (var cmd = new SQLiteCommand(insertMovementSql, conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@mId", Guid.NewGuid().ToString());
+                                cmd.Parameters.AddWithValue("@mProdId", item.ProductId);
+                                cmd.Parameters.AddWithValue("@mQty", -item.QuantityMilli);
+                                cmd.Parameters.AddWithValue("@mRefId", sale.Id);
+                                cmd.Parameters.AddWithValue("@mUnitCost", item.UnitCostPiasters);
+                                cmd.Parameters.AddWithValue("@mNote", "مبيعات كاشير - فاتورة #" + (sale.InvoiceNumber > 0 ? sale.InvoiceNumber.ToString() : sale.Id));
+                                cmd.Parameters.AddWithValue("@mNow", DateTime.UtcNow.ToString("o"));
+                                cmd.ExecuteNonQuery();
+                            }
                         }
 
                         // 4. Record Payment record

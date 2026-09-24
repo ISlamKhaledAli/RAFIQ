@@ -58,16 +58,21 @@ namespace RafiqPOS.Services
         public static AuditLogRepository AuditRepo { get; private set; }
         public static CategoryRepository CategoryRepo { get; private set; }
         public static ProductPriceHistoryRepository PriceHistoryRepo { get; private set; }
+        public static StockMovementRepository StockMovementRepo { get; private set; }
+        public static QuickItemRepository QuickItemRepo { get; private set; }
         public static ProductService Products { get; private set; }
         public static SaleService Sales { get; private set; }
+        public static InventoryService Inventory { get; private set; }
         public static SettingsService Settings { get; private set; }
         public static CustomerService Customers { get; private set; }
         public static CategoryService Categories { get; private set; }
+        public static QuickItemService QuickItems { get; private set; }
         public static ReportsService Reports { get; private set; }
         public static AuditLogService Audit { get; private set; }
         public static SupportService Support { get; private set; }
         public static BenchmarkService Benchmark { get; private set; }
         public static BackupService Backup { get; private set; }
+        public static ExcelService Excel { get; private set; }
 
         public static void Initialize(string customBaseFolder = null)
         {
@@ -116,17 +121,22 @@ namespace RafiqPOS.Services
             AuditRepo = new AuditLogRepository(_connectionString);
             CategoryRepo = new CategoryRepository(_connectionString);
             PriceHistoryRepo = new ProductPriceHistoryRepository(_connectionString);
+            StockMovementRepo = new StockMovementRepository(_connectionString);
+            QuickItemRepo = new QuickItemRepository(_connectionString);
 
-            Products = new ProductService(ProductRepo, AuditRepo, PriceHistoryRepo);
+            Products = new ProductService(ProductRepo, AuditRepo, PriceHistoryRepo, StockMovementRepo);
             Sales = new SaleService(SaleRepo, ProductRepo);
+            Inventory = new InventoryService(_connectionString, StockMovementRepo, ProductRepo, AuditRepo);
             Settings = new SettingsService(SettingsRepo);
             Customers = new CustomerService(CustomerRepo);
             Categories = new CategoryService(CategoryRepo);
+            QuickItems = new QuickItemService(QuickItemRepo);
             Reports = new ReportsService(_connectionString);
             Audit = new AuditLogService(AuditRepo);
             Support = new SupportService(_connectionString, _dbPath);
             Benchmark = new BenchmarkService(_connectionString);
             Backup = new BackupService(_connectionString, _dbPath, SettingsRepo, AuditRepo);
+            Excel = new ExcelService();
         }
 
         public static DatabaseIntegrityStatus CheckDatabaseIntegrity()

@@ -416,8 +416,8 @@ export function CustomersView() {
       {/* ========================================================================= */}
       {isAddEditOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-surface rounded-lg shadow-xl border border-line w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="h-12 bg-surface-2 hairline-b px-4 flex items-center justify-between">
+          <div className="bg-surface rounded-lg shadow-xl border border-line w-full max-w-md max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="h-12 bg-surface-2 hairline-b px-4 flex items-center justify-between shrink-0">
               <span className="text-sm font-bold text-ink">
                 {editingCustomer ? 'تعديل بيانات العميل' : 'إضافة عميل جديد بالدفتر'}
               </span>
@@ -426,7 +426,7 @@ export function CustomersView() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveCustomer} className="p-4 space-y-3.5 text-xs">
+            <form onSubmit={handleSaveCustomer} className="p-4 space-y-3.5 text-xs flex-1 min-h-0 overflow-y-auto">
               <div>
                 <label className="block text-ink font-semibold mb-1">اسم العميل *</label>
                 <input 
@@ -494,8 +494,8 @@ export function CustomersView() {
       {/* ========================================================================= */}
       {isPaymentOpen && selectedCustomer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-surface rounded-lg shadow-xl border border-line w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="h-12 bg-surface-2 hairline-b px-4 flex items-center justify-between">
+          <div className="bg-surface rounded-lg shadow-xl border border-line w-full max-w-sm max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="h-12 bg-surface-2 hairline-b px-4 flex items-center justify-between shrink-0">
               <span className="text-sm font-bold text-ink flex items-center gap-1.5">
                 <CreditCard className="w-4 h-4 text-paid" />
                 <span>تسجيل دفعة سداد دين</span>
@@ -505,7 +505,7 @@ export function CustomersView() {
               </button>
             </div>
 
-            <form onSubmit={handleRecordPayment} className="p-4 space-y-3.5 text-xs">
+            <form onSubmit={handleRecordPayment} className="p-4 space-y-3.5 text-xs flex-1 min-h-0 overflow-y-auto">
               <div className="p-3 bg-surface-2 rounded border border-line space-y-1">
                 <div className="flex justify-between text-ink">
                   <span className="font-semibold">العميل:</span>

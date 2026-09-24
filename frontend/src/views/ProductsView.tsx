@@ -17,16 +17,27 @@ import {
   History,
   TrendingUp,
   Scale,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Boxes,
+  RotateCcw,
+  CheckCircle2,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Calendar,
+  Wrench,
+  Download
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
-import type { Product, Category } from '../types/models';
+import type { Product, Category, StockMovement, StockDiscrepancy } from '../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../utils/money';
+import { exportProductsToExcel } from '../utils/excelImport';
 import { MoneyInput } from '../components/MoneyInput';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { CategoryManagerModal } from '../components/CategoryManagerModal';
 import { PriceHistoryModal } from '../components/PriceHistoryModal';
 import { ExcelImportModal } from '../components/ExcelImportModal';
+import { StockMovementsModal } from '../components/StockMovementsModal';
+import { StockAdjustmentModal } from '../components/StockAdjustmentModal';
 
 export const ProductsView = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -71,9 +82,101 @@ export const ProductsView = () => {
   const [bulkMinStockValue, setBulkMinStockValue] = useState(5);
   const [bulkUpdating, setBulkUpdating] = useState(false);
 
-  // Excel Import state (Feature #21 / Story 37)
+  // Excel Import & Export state (Feature #21 / Story 37)
   const [showExcelImportModal, setShowExcelImportModal] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [importSuccessAlert, setImportSuccessAlert] = useState<string | null>(null);
+
+  const handleExportProductsToExcel = async () => {
+    setIsExportingExcel(true);
+    try {
+      const res = await exportProductsToExcel();
+      if (res.success) {
+        setImportSuccessAlert(`تم تصدير ${res.count || products.length} صنف إلى ملف إكسل ملون واحترافي بنجاح!`);
+      } else {
+        alert(`تعذر تصدير ملف الإكسل: ${res.message || 'خطأ غير معروف'}`);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(`خطأ أثناء التصدير: ${msg}`);
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
+  // Stock Movements & Inventory state (Stories 38 & 39 / Features #34 & #35)
+  const [activeSubView, setActiveSubView] = useState<'catalog' | 'movements'>('catalog');
+  const [selectedProdForMovements, setSelectedProdForMovements] = useState<Product | null>(null);
+  const [selectedProdForAdjustment, setSelectedProdForAdjustment] = useState<Product | null>(null);
+  const [allMovements, setAllMovements] = useState<StockMovement[]>([]);
+  const [movementsLoading, setMovementsLoading] = useState(false);
+  const [movementTypeFilter, setMovementTypeFilter] = useState('ALL');
+  const [movementSearchQuery, setMovementSearchQuery] = useState('');
+  const [discrepancies, setDiscrepancies] = useState<StockDiscrepancy[]>([]);
+  const [recalculating, setRecalculating] = useState(false);
+  const [recalcSuccessMsg, setRecalcSuccessMsg] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [runningTests, setRunningTests] = useState(false);
+
+  const loadMovements = async () => {
+    setMovementsLoading(true);
+    try {
+      const res = await invoke<StockMovement[]>('inventory:getMovements', {
+        movementType: movementTypeFilter === 'ALL' ? undefined : movementTypeFilter,
+        limit: 250,
+      });
+      setAllMovements(Array.isArray(res) ? res : []);
+    } catch (err) {
+      console.error('Failed to load stock movements', err);
+    } finally {
+      setMovementsLoading(false);
+    }
+  };
+
+  const checkDiscrepancies = async () => {
+    try {
+      const res = await invoke<StockDiscrepancy[]>('inventory:getDiscrepancies');
+      setDiscrepancies(Array.isArray(res) ? res : []);
+    } catch (err) {
+      console.error('Failed to check discrepancies', err);
+    }
+  };
+
+  const handleRecalculateStock = async () => {
+    setRecalculating(true);
+    setRecalcSuccessMsg(null);
+    try {
+      const res: any = await invoke('inventory:recalculate');
+      setRecalcSuccessMsg(res?.message || 'تمت إعادة حساب المخزون ومطابقة الأرصدة بنجاح.');
+      await loadProducts(searchQuery);
+      await loadMovements();
+      await checkDiscrepancies();
+    } catch (err) {
+      alert('فشلت إعادة حساب المخزون: ' + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
+  const handleRunInventoryTests = async () => {
+    setRunningTests(true);
+    setTestResult(null);
+    try {
+      const res: any = await invoke('inventory:runTests');
+      setTestResult({
+        success: res?.success ?? true,
+        message: res?.message || 'نجحت جميع اختبارات المخزون وحركات الصنف.',
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setTestResult({
+        success: false,
+        message: `فشل الاختبار الآلي: ${msg}`,
+      });
+    } finally {
+      setRunningTests(false);
+    }
+  };
 
   const openPriceHistory = (prod: Product) => {
     setPriceHistoryProdId(prod.id);
@@ -337,74 +440,138 @@ export const ProductsView = () => {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-[15px] font-bold text-ink leading-tight m-0">كتالوج السلع والمخزن</h2>
+              <h2 className="text-[15px] font-bold text-ink leading-tight m-0">إدارة المنتجات والمخزون</h2>
               <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-surface-2 border border-line text-ink-muted tabular-nums">
                 {products.length} صنف مسجل
               </span>
             </div>
           </div>
+
+          {/* SubView Segmented Switch: Catalog vs Movements Ledger */}
+          <div className="flex items-center bg-surface-2 p-0.5 rounded border border-line mr-3">
+            <button
+              type="button"
+              onClick={() => setActiveSubView('catalog')}
+              className={`px-3 py-1 rounded text-xs font-bold transition-colors ${
+                activeSubView === 'catalog'
+                  ? 'bg-surface text-brand shadow-xs'
+                  : 'text-ink-muted hover:text-ink'
+              }`}
+            >
+              كتالوج الأصناف
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveSubView('movements');
+                void loadMovements();
+                void checkDiscrepancies();
+              }}
+              className={`px-3 py-1 rounded text-xs font-bold transition-colors flex items-center gap-1.5 ${
+                activeSubView === 'movements'
+                  ? 'bg-surface text-brand shadow-xs'
+                  : 'text-ink-muted hover:text-ink'
+              }`}
+            >
+              <Boxes className="w-3.5 h-3.5" />
+              <span>حركات وجرد المخزون</span>
+              {discrepancies.length > 0 && (
+                <span className="w-2 h-2 rounded-full bg-warn animate-pulse" title="يوجد تفاوت بحاجة لمطابقة" />
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Right Search Input & Add Button */}
         <div className="flex items-center gap-2">
-          <form onSubmit={handleSearch} className="flex items-center gap-1.5">
-            <div className="relative w-64 h-[38px] flex items-center bg-surface-2 border border-line rounded px-2.5 focus-within:border-brand focus-within:bg-surface">
-              <Search className="w-4 h-4 text-ink-muted ml-2 shrink-0 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="ابحث بالاسم أو الباركود..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(normalizeArabicNumerals(e.target.value))}
-                className="w-full bg-transparent border-none text-[12px] text-ink placeholder:text-ink-muted focus:outline-none"
-              />
-              {searchQuery && (
+          {activeSubView === 'catalog' ? (
+            <>
+              <form onSubmit={handleSearch} className="flex items-center gap-1.5">
+                <div className="relative w-64 h-[38px] flex items-center bg-surface-2 border border-line rounded px-2.5 focus-within:border-brand focus-within:bg-surface">
+                  <Search className="w-4 h-4 text-ink-muted ml-2 shrink-0 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="ابحث بالاسم أو الباركود..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(normalizeArabicNumerals(e.target.value))}
+                    className="w-full bg-transparent border-none text-[12px] text-ink placeholder:text-ink-muted focus:outline-none"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery('');
+                        void loadProducts('');
+                      }}
+                      className="text-ink-muted hover:text-ink text-xs"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
                 <button
-                  type="button"
-                  onClick={() => {
-                    setSearchQuery('');
-                    void loadProducts('');
-                  }}
-                  className="text-ink-muted hover:text-ink text-xs"
+                  type="submit"
+                  className="h-[38px] px-3 bg-surface-2 hover:bg-surface border border-line text-ink rounded text-[12px] font-bold transition-colors"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  بحث
                 </button>
-              )}
+              </form>
+
+              <button
+                onClick={() => void loadProducts(searchQuery)}
+                disabled={loading}
+                className="h-[38px] w-[38px] flex items-center justify-center bg-surface-2 hover:bg-surface border border-line text-ink-muted hover:text-ink rounded transition-colors"
+                title="تحديث القائمة"
+              >
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowExcelImportModal(true)}
+                className="h-[38px] px-3 bg-surface-2 hover:bg-surface border border-line text-ink rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
+                title="استيراد وتحديث المنتجات من ملف إكسل أو CSV"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                <span>استيراد إكسل</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => void handleExportProductsToExcel()}
+                disabled={isExportingExcel}
+                className="h-[38px] px-3 bg-surface-2 hover:bg-surface border border-line text-ink rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors shadow-2xs disabled:opacity-60"
+                title="تصدير كامل كتالوج الأصناف إلى ملف إكسل ملون واحترافي"
+              >
+                <Download className={`w-4 h-4 text-emerald-700 ${isExportingExcel ? 'animate-bounce' : ''}`} />
+                <span>{isExportingExcel ? 'جاري التصدير...' : 'تصدير إكسل'}</span>
+              </button>
+
+              <button
+                onClick={openAddModal}
+                className="h-[38px] px-4 bg-brand hover:bg-brand-hover text-white rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                <span>إضافة صنف جديد</span>
+              </button>
+            </>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  void loadMovements();
+                  void checkDiscrepancies();
+                }}
+                disabled={movementsLoading}
+                className="h-[38px] px-3 bg-surface-2 hover:bg-surface border border-line text-ink rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors"
+              >
+                <RefreshCw className={`w-4 h-4 ${movementsLoading ? 'animate-spin' : ''}`} />
+                <span>تحديث الحركات</span>
+              </button>
             </div>
-
-            <button
-              type="submit"
-              className="h-[38px] px-3 bg-surface-2 hover:bg-surface border border-line text-ink rounded text-[12px] font-bold transition-colors"
-            >
-              بحث
-            </button>
-          </form>
-
-          <button
-            onClick={() => void loadProducts(searchQuery)}
-            disabled={loading}
-            className="h-[38px] w-[38px] flex items-center justify-center bg-surface-2 hover:bg-surface border border-line text-ink-muted hover:text-ink rounded transition-colors"
-            title="تحديث القائمة"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowExcelImportModal(true)}
-            className="h-[38px] px-3 bg-surface-2 hover:bg-surface border border-line text-ink rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
-            title="استيراد وتحديث المنتجات من ملف إكسل أو CSV"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-            <span>استيراد إكسل</span>
-          </button>
-
-          <button
-            onClick={openAddModal}
-            className="h-[38px] px-4 bg-brand hover:bg-brand-hover text-white rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-            <span>إضافة صنف جديد</span>
-          </button>
+          )}
         </div>
       </div>
 
@@ -425,7 +592,9 @@ export const ProductsView = () => {
         </div>
       )}
 
-      {/* Category Filter Chips Bar (Feature #16 / Task 16-3) */}
+      {activeSubView === 'catalog' ? (
+        <>
+          {/* Category Filter Chips Bar (Feature #16 / Task 16-3) */}
       <div className="bg-surface hairline-all rounded-[6px] px-3 py-2 flex items-center justify-between gap-2 overflow-x-auto shrink-0 select-none">
         <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
           <button
@@ -497,7 +666,7 @@ export const ProductsView = () => {
                 <span className="col-span-3">اسم الصنف والوصف</span>
                 <span className="col-span-2 text-left pl-2">سعر البيع</span>
                 <span className="col-span-1 text-left">التكلفة</span>
-                <span className="col-span-1 text-center">الرصيد / حد الطلب</span>
+                <span className="col-span-1 text-center" title="رصيد المخزن الحالي / حد التنبيه بالنواقص">الرصيد / حد النواقص</span>
                 <span className="col-span-1 text-center">الحالة</span>
                 <span className="col-span-1 text-center">إجراءات</span>
               </div>
@@ -603,8 +772,12 @@ export const ProductsView = () => {
                           {formatArabicCurrency(prod.costPiasters)}
                         </span>
 
-                        <div className="col-span-1 flex flex-col items-center justify-center font-mono tabular-nums leading-tight">
-                          <span className="font-bold text-ink text-[12px]">{stockDisplay}</span>
+                        <div 
+                          onClick={() => setSelectedProdForMovements(prod)}
+                          className="col-span-1 flex flex-col items-center justify-center font-mono tabular-nums leading-tight cursor-pointer hover:bg-surface-2 rounded py-0.5 group transition-colors"
+                          title="انقر لعرض كارت حركات الصنف"
+                        >
+                          <span className="font-bold text-ink text-[12px] group-hover:text-brand underline decoration-dotted underline-offset-2">{stockDisplay}</span>
                           <span className="text-[9.5px] text-ink-muted" title={`حد الطلب الأدنى: ${minStockDisplay} ${isKg ? 'كجم' : 'قطعة'}`}>
                             حد {minStockDisplay}
                           </span>
@@ -616,8 +789,22 @@ export const ProductsView = () => {
                           </span>
                         </div>
 
-                        {/* Actions: History, Edit & Soft Delete */}
+                        {/* Actions: History, Stock Adjust, Edit & Soft Delete */}
                         <div className="col-span-1 flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => setSelectedProdForMovements(prod)}
+                            className="p-1 rounded text-ink-muted hover:text-brand hover:bg-surface transition-colors"
+                            title="عرض كارت حركات الصنف"
+                          >
+                            <Boxes className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setSelectedProdForAdjustment(prod)}
+                            className="p-1 rounded text-ink-muted hover:text-amber-600 hover:bg-surface transition-colors"
+                            title="تسوية جردية للصنف"
+                          >
+                            <Scale className="w-3.5 h-3.5" />
+                          </button>
                           <button
                             onClick={() => openPriceHistory(prod)}
                             className="p-1 rounded text-ink-muted hover:text-brand hover:bg-surface transition-colors"
@@ -679,13 +866,320 @@ export const ProductsView = () => {
           <span className="font-mono tabular-nums">{products.length} منتج مسجل</span>
         </div>
       </div>
+      </>
+      ) : (
+        /* Movements & Inventory Audit SubView (Feature #35 & Feature #34) */
+        <div className="flex-1 flex flex-col gap-3 overflow-hidden select-none">
+          {/* Top Reconciliation Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0">
+            {/* 1. Total Movements Card */}
+            <div className="bg-surface p-3.5 rounded-[6px] border border-line flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded bg-brand-soft text-brand flex items-center justify-center font-bold">
+                  <Boxes className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-[11px] text-ink-muted font-bold">إجمالي الحركات المسجلة</div>
+                  <div className="text-[18px] font-mono font-bold text-ink">{allMovements.length} حركة</div>
+                </div>
+              </div>
+              <span className="text-[10px] text-ink-muted bg-surface-2 px-2 py-0.5 rounded border border-line">
+                غير قابلة للتعديل
+              </span>
+            </div>
 
-      {/* 3. Add/Edit Product Modal */}
+            {/* 2. Consistency & Discrepancies Card (Task 34-1) */}
+            <div className={`p-3.5 rounded-[6px] border flex items-center justify-between ${
+              discrepancies.length > 0 
+                ? 'bg-amber-500/10 border-amber-500/30' 
+                : 'bg-emerald-500/10 border-emerald-500/30'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded flex items-center justify-center font-bold ${
+                  discrepancies.length > 0 ? 'bg-amber-500/20 text-amber-700' : 'bg-emerald-500/20 text-emerald-700'
+                }`}>
+                  {discrepancies.length > 0 ? (
+                    <AlertTriangle className="w-5 h-5 text-amber-700" />
+                  ) : (
+                    <CheckCircle2 className="w-5 h-5 text-emerald-700" />
+                  )}
+                </div>
+                <div>
+                  <div className="text-[11px] font-bold text-ink">مطابقة المخزون الدورية</div>
+                  <div className={`text-[13px] font-bold ${discrepancies.length > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                    {discrepancies.length > 0 
+                      ? `${discrepancies.length} صنف به تفاوت بحاجة لمطابقة` 
+                      : 'الأرصدة متطابقة بنسبة 100% مع الحركات'}
+                  </div>
+                </div>
+              </div>
+              {discrepancies.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => void handleRecalculateStock()}
+                  disabled={recalculating}
+                  className="px-3 py-1 rounded bg-amber-600 text-white text-[11px] font-bold hover:bg-amber-700 transition-colors shadow-xs flex items-center gap-1"
+                >
+                  <RotateCcw className={`w-3.5 h-3.5 ${recalculating ? 'animate-spin' : ''}`} />
+                  <span>مطابقة الآن</span>
+                </button>
+              )}
+            </div>
+
+            {/* 3. Reconcile & Automated Tests Card (Tasks 34-3 & 35-4) */}
+            <div className="bg-surface p-3.5 rounded-[6px] border border-line flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => void handleRecalculateStock()}
+                disabled={recalculating}
+                className="flex-1 h-10 px-3 bg-surface-2 hover:bg-surface border border-line text-ink rounded text-[12px] font-bold flex items-center justify-center gap-1.5 transition-colors"
+                title="أداة إعادة حساب المخزون من الحركات لإصلاح أي تفاوت (Task 34-3)"
+              >
+                <RotateCcw className={`w-4 h-4 text-brand ${recalculating ? 'animate-spin' : ''}`} />
+                <span>{recalculating ? 'جاري الحساب...' : 'إعادة حساب المخزون'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => void handleRunInventoryTests()}
+                disabled={runningTests}
+                className="flex-1 h-10 px-3 bg-brand-soft hover:bg-brand-soft/80 text-brand border border-brand/20 rounded text-[12px] font-bold flex items-center justify-center gap-1.5 transition-colors"
+                title="تشغيل الاختبارات الآلية لحركات المخزون والذرية (Task 35-4)"
+              >
+                <Wrench className={`w-4 h-4 ${runningTests ? 'animate-spin' : ''}`} />
+                <span>{runningTests ? 'جاري الفحص...' : 'فحص الاختبارات الآلية'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Recalculate or Test Result Feedback Banner */}
+          {recalcSuccessMsg && (
+            <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 px-4 py-2.5 rounded-[6px] flex items-center justify-between text-xs font-bold animate-fade-in shrink-0">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>{recalcSuccessMsg}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRecalcSuccessMsg(null)}
+                className="text-emerald-700 hover:text-emerald-950 p-1"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {testResult && (
+            <div className={`border px-4 py-2.5 rounded-[6px] flex items-center justify-between text-xs font-bold animate-fade-in shrink-0 ${
+              testResult.success
+                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-800'
+                : 'bg-danger-soft border-danger/30 text-danger'
+            }`}>
+              <div className="flex items-center gap-2">
+                {testResult.success ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-danger" />
+                )}
+                <span>{testResult.message}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTestResult(null)}
+                className="p-1"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Movements Toolbar & Filters */}
+          <div className="bg-surface hairline-all rounded-[6px] px-3 py-2 flex items-center justify-between gap-3 shrink-0">
+            {/* Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto text-[11.5px]">
+              {[
+                { id: 'ALL', label: 'كل الحركات' },
+                { id: 'INITIAL', label: 'رصيد افتتاحي' },
+                { id: 'SALE', label: 'مبيعات' },
+                { id: 'PURCHASE', label: 'مشتريات' },
+                { id: 'ADJUSTMENT', label: 'تسويات جردية' },
+                { id: 'RETURN', label: 'مرتجعات' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setMovementTypeFilter(tab.id);
+                    setTimeout(() => void loadMovements(), 50);
+                  }}
+                  className={`px-3 py-1 rounded-full font-semibold transition-colors shrink-0 ${
+                    movementTypeFilter === tab.id
+                      ? 'bg-brand text-white shadow-xs'
+                      : 'bg-surface-2 text-ink-muted hover:text-ink'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Search Input for Movements */}
+            <div className="relative w-64 h-[34px] flex items-center bg-surface-2 border border-line rounded px-2.5 focus-within:border-brand focus-within:bg-surface">
+              <Search className="w-3.5 h-3.5 text-ink-muted ml-2 shrink-0 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="فلترة الحركات بالصنف..."
+                value={movementSearchQuery}
+                onChange={(e) => setMovementSearchQuery(normalizeArabicNumerals(e.target.value))}
+                className="w-full bg-transparent border-none text-[11.5px] text-ink placeholder:text-ink-muted focus:outline-none"
+              />
+              {movementSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setMovementSearchQuery('')}
+                  className="text-ink-muted hover:text-ink text-xs"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Movements Data Table */}
+          <div className="flex-1 bg-surface hairline-all rounded-[6px] flex flex-col overflow-hidden relative">
+            {/* Table Header */}
+            <div className="h-[38px] bg-surface-2 hairline-b px-4 grid grid-cols-12 items-center text-[12px] font-bold text-ink-muted shrink-0 select-none">
+              <span className="col-span-2">التاريخ والوقت</span>
+              <span className="col-span-3">اسم الصنف والباركود</span>
+              <span className="col-span-2 text-center">نوع الحركة</span>
+              <span className="col-span-2 text-center">الكمية</span>
+              <span className="col-span-1 text-left">التكلفة</span>
+              <span className="col-span-2">الملاحظات والسبب</span>
+            </div>
+
+            {/* Table Body */}
+            <div className="flex-1 overflow-y-auto divide-y divide-line">
+              {movementsLoading ? (
+                <div className="h-full flex flex-col items-center justify-center text-ink-muted gap-2 p-6">
+                  <RefreshCw className="w-8 h-8 animate-spin text-brand" />
+                  <span className="text-[13px]">جاري تحميل سجل حركات المخزون...</span>
+                </div>
+              ) : allMovements.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-ink-muted gap-2 p-6">
+                  <Boxes className="w-12 h-12 stroke-[1.2] text-ink-muted opacity-50" />
+                  <p className="text-[14px] font-semibold text-ink m-0">لا توجد حركات مخزون مسجلة مطابقة للفلتر</p>
+                  <p className="text-[12px] text-ink-muted m-0">
+                    يتم تسجيل الحركات تلقائياً مع البيع وتغيير الأرصدة.
+                  </p>
+                </div>
+              ) : (
+                allMovements
+                  .filter((m) => {
+                    if (!movementSearchQuery.trim()) return true;
+                    const q = movementSearchQuery.toLowerCase();
+                    return (
+                      (m.productName && m.productName.toLowerCase().includes(q)) ||
+                      (m.productBarcode && m.productBarcode.toLowerCase().includes(q)) ||
+                      (m.note && m.note.toLowerCase().includes(q))
+                    );
+                  })
+                  .map((m) => {
+                    const isPositive = m.quantityMilli >= 0;
+                    const isKg = m.unit === 'kg';
+                    const qtyUnits = Math.abs(m.quantityMilli / 1000);
+                    const qtyDisplay = isKg
+                      ? `${qtyUnits.toFixed(3).replace(/\.?0+$/, '')} كجم`
+                      : `${Math.round(qtyUnits)} ق`;
+
+                    let badgeClass = 'bg-surface-2 text-ink-muted border-line';
+                    if (m.movementType === 'INITIAL') badgeClass = 'bg-blue-500/10 text-blue-700 border-blue-500/20';
+                    else if (m.movementType === 'SALE') badgeClass = 'bg-red-500/10 text-red-700 border-red-500/20';
+                    else if (m.movementType === 'PURCHASE') badgeClass = 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20';
+                    else if (m.movementType === 'ADJUSTMENT') badgeClass = 'bg-amber-500/10 text-amber-700 border-amber-500/20';
+                    else if (m.movementType === 'RETURN') badgeClass = 'bg-purple-500/10 text-purple-700 border-purple-500/20';
+
+                    const dateFormatted = (() => {
+                      try {
+                        const d = new Date(m.createdAt);
+                        return d.toLocaleDateString('ar-EG', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        });
+                      } catch {
+                        return m.createdAt;
+                      }
+                    })();
+
+                    return (
+                      <div
+                        key={m.id}
+                        className="h-[46px] hairline-b px-4 grid grid-cols-12 items-center text-[12px] hover:bg-surface-2 transition-colors"
+                      >
+                        {/* 1. Date */}
+                        <div className="col-span-2 flex items-center gap-1.5 font-mono text-[11.5px] text-ink-muted">
+                          <Calendar className="w-3.5 h-3.5 text-ink-muted shrink-0" />
+                          <span>{dateFormatted}</span>
+                        </div>
+
+                        {/* 2. Product Name & Barcode */}
+                        <div className="col-span-3 flex flex-col justify-center truncate pr-1">
+                          <span className="font-semibold text-ink truncate text-[12.5px]">{m.productName || 'صنف غير معروف'}</span>
+                          {m.productBarcode && (
+                            <span className="font-mono text-[10.5px] text-ink-muted">{m.productBarcode}</span>
+                          )}
+                        </div>
+
+                        {/* 3. Movement Type */}
+                        <div className="col-span-2 flex justify-center">
+                          <span className={`px-2.5 py-0.5 rounded text-[10.5px] font-bold border ${badgeClass}`}>
+                            {m.movementTypeArabic || m.movementType}
+                          </span>
+                        </div>
+
+                        {/* 4. Signed Quantity */}
+                        <div className="col-span-2 flex items-center justify-center font-mono font-bold text-[13px] tabular-nums">
+                          <div className={`flex items-center gap-1 ${isPositive ? 'text-paid' : 'text-danger'}`}>
+                            {isPositive ? (
+                              <ArrowUpRight className="w-4 h-4" />
+                            ) : (
+                              <ArrowDownLeft className="w-4 h-4" />
+                            )}
+                            <span dir="ltr">{isPositive ? `+${qtyDisplay}` : `-${qtyDisplay}`}</span>
+                          </div>
+                        </div>
+
+                        {/* 5. Unit Cost */}
+                        <span className="col-span-1 text-left font-mono text-ink-muted tabular-nums text-[12px]">
+                          {formatArabicCurrency(m.unitCostPiasters)}
+                        </span>
+
+                        {/* 6. Note */}
+                        <div className="col-span-2 truncate text-[11px] text-ink-muted" title={m.note || ''}>
+                          {m.note || <span className="opacity-40">—</span>}
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+
+            {/* Table Footer */}
+            <div className="h-[32px] bg-surface-2 hairline-t px-4 flex items-center justify-between text-[11px] text-ink-muted shrink-0">
+              <span>جميع الحركات مسجلة بقيود ذرية غير قابلة للحذف لضمان سلامة المخزون.</span>
+              <span className="font-mono tabular-nums">{allMovements.length} حركة إجمالية</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Add/Edit Product Modal (Fully Responsive on 1024x768 & 1366x768) */}
       {showModal && (
-        <div className="fixed inset-0 bg-ink/40 z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-lg bg-surface rounded-[6px] border-2 border-brand overflow-hidden flex flex-col select-none">
-            {/* Modal Header */}
-            <div className="h-[48px] bg-surface-2 hairline-b px-4 flex items-center justify-between">
+        <div className="fixed inset-0 bg-ink/40 z-50 flex items-center justify-center p-2 sm:p-4">
+          <div className="w-full max-w-xl max-h-[92vh] bg-surface rounded-[8px] border-2 border-brand shadow-2xl overflow-hidden flex flex-col select-none animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header (Fixed at top) */}
+            <div className="h-[48px] bg-surface-2 hairline-b px-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <Package className="w-4 h-4 text-brand" />
                 <h3 className="text-[14px] font-bold text-ink m-0">
@@ -716,7 +1210,9 @@ export const ProductsView = () => {
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleSaveProduct} className="p-5 flex flex-col gap-3.5 text-[12px]">
+            <form onSubmit={handleSaveProduct} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              {/* Scrollable Form Body */}
+              <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 flex flex-col gap-3 text-[12px]">
               {formError && (
                 <div className="p-2.5 rounded bg-danger-soft border border-danger-border text-danger flex items-center gap-2 text-[12px] font-bold">
                   <AlertCircle className="w-4 h-4 shrink-0" />
@@ -1012,42 +1508,46 @@ export const ProductsView = () => {
               {/* Initial Stock, Min Stock Threshold, & Tax Rate (Feature #18 & #19) */}
               <div className="grid grid-cols-3 gap-2.5">
                 <div>
-                  <label className="block text-ink font-semibold mb-1">
-                    {unit === 'kg' ? 'الرصيد الحالي (كجم)' : 'الرصيد الحالي (قطعة)'}
+                  <label className="block text-ink font-semibold mb-1 text-[12px]">
+                    {unit === 'kg' ? 'رصيد المخزن الفعلي (كجم)' : 'رصيد المخزن الفعلي (قطعة)'}
                   </label>
                   <input
                     type="text"
                     value={stockInput}
                     onChange={(e) => setStockInput(normalizeArabicNumerals(e.target.value))}
-                    placeholder={unit === 'kg' ? 'مثال: 12.5' : 'مثال: 10'}
+                    placeholder={unit === 'kg' ? 'مثلاً: 12.5 كجم' : 'مثلاً: 10 قطع'}
                     className="w-full bg-surface border border-line rounded h-[38px] px-3 text-[13px] text-ink focus:outline-none focus:border-brand font-mono"
                   />
+                  <p className="text-[10px] text-ink-muted mt-1 leading-tight">الكمية المتوفرة حالياً على الرف</p>
                 </div>
 
                 <div>
-                  <label className="block text-ink font-semibold mb-1">
-                    {unit === 'kg' ? 'حد الطلب (كجم)' : 'حد الطلب (قطعة)'}
+                  <label className="block text-ink font-semibold mb-1 text-[12px]">
+                    {unit === 'kg' ? 'حد التنبيه بالنواقص (كجم)' : 'حد التنبيه بالنواقص (قطعة)'}
                   </label>
                   <input
                     type="text"
                     value={minStockInput}
                     onChange={(e) => setMinStockInput(normalizeArabicNumerals(e.target.value))}
-                    placeholder={unit === 'kg' ? 'مثال: 5' : 'مثال: 5'}
+                    placeholder={unit === 'kg' ? 'تنبيه عند: 5 كجم' : 'تنبيه عند: 5 قطع'}
                     className="w-full bg-surface border border-line rounded h-[38px] px-3 text-[13px] text-ink focus:outline-none focus:border-brand font-mono"
                   />
+                  <p className="text-[10px] text-ink-muted mt-1 leading-tight">ينبهك النظام لشراء بضاعة جديدة</p>
                 </div>
 
                 <div>
-                  <label className="block text-ink font-semibold mb-1">نسبة الضريبة (%)</label>
+                  <label className="block text-ink font-semibold mb-1 text-[12px]">نسبة الضريبة (%)</label>
                   <div className="relative flex items-center">
                     <input
                       type="text"
                       value={taxRatePercent}
                       onChange={(e) => setTaxRatePercent(parseInt(normalizeArabicNumerals(e.target.value), 10) || 0)}
+                      placeholder="0"
                       className="w-full bg-surface border border-line rounded h-[38px] px-3 text-[13px] text-ink focus:outline-none focus:border-brand font-mono pl-8"
                     />
                     <Percent className="w-3.5 h-3.5 text-ink-muted absolute left-3 pointer-events-none" />
                   </div>
+                  <p className="text-[10px] text-ink-muted mt-1 leading-tight">اكتب 0 للأصناف المعفية</p>
                 </div>
               </div>
 
@@ -1072,37 +1572,38 @@ export const ProductsView = () => {
                   </label>
                   <input
                     type="text"
-                    placeholder="مثال: EG-123456789-01"
+                    placeholder="اختياري - للفاتورة الإلكترونية"
                     value={taxCategoryCode}
                     onChange={(e) => setTaxCategoryCode(e.target.value)}
                     className="w-full bg-surface border border-line rounded h-[34px] px-2.5 text-[12px] text-ink focus:outline-none focus:border-brand font-mono"
                   />
                 </div>
               </div>
+            </div>
 
-              {/* Footer Actions */}
-              <div className="pt-3 border-t border-line flex items-center justify-end gap-2 mt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="h-[38px] px-4 bg-surface hover:bg-surface-2 border border-line text-ink rounded text-[12px] font-semibold transition-colors"
-                >
-                  إلغاء
-                </button>
+            {/* Footer Actions (Docked and Fixed at bottom) */}
+            <div className="h-[52px] bg-surface-2 hairline-t px-4 sm:px-5 flex items-center justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="h-[36px] px-4 bg-surface hover:bg-surface-3 border border-line text-ink rounded text-[12px] font-semibold transition-colors"
+              >
+                إلغاء
+              </button>
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="h-[38px] px-5 bg-brand hover:bg-brand-hover text-white rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors shadow-sm"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>{editingId ? 'حفظ التعديلات' : 'حفظ الصنف في قاعدة البيانات'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="h-[36px] px-5 bg-brand hover:bg-brand-hover text-white rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors shadow-sm"
+              >
+                <Check className="w-4 h-4" />
+                <span>{editingId ? 'حفظ التعديلات' : 'حفظ الصنف في قاعدة البيانات'}</span>
+              </button>
+            </div>
+          </form>
         </div>
-      )}
+      </div>
+    )}
 
       {/* Confirm Product Delete Modal (Feature #112 / Task 112-2) */}
       <ConfirmModal
@@ -1139,7 +1640,7 @@ export const ProductsView = () => {
       {/* Bulk Min Stock Update Modal (Feature #18 / Task 18-2) */}
       {showBulkMinStockModal && (
         <div className="fixed inset-0 bg-ink/40 z-50 flex items-center justify-center p-4 animate-fade-in select-none">
-          <div className="w-full max-w-sm bg-surface rounded-[6px] border border-line p-5 shadow-xl flex flex-col gap-3.5">
+          <div className="w-full max-w-sm max-h-[90vh] bg-surface rounded-[8px] border border-line p-5 shadow-2xl flex flex-col gap-3.5 overflow-y-auto">
             <div className="flex items-center justify-between pb-2 border-b border-line">
               <h3 className="text-[14px] font-bold text-ink m-0">تعديل حد الطلب جماعياً</h3>
               <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-brand-soft text-brand">
@@ -1193,6 +1694,33 @@ export const ProductsView = () => {
         }}
         existingProducts={products}
         categories={categories}
+      />
+
+      {/* Stock Movements Ledger Modal (Story 39 - Feature #35 / Task 35-3) */}
+      <StockMovementsModal
+        isOpen={selectedProdForMovements !== null}
+        onClose={() => setSelectedProdForMovements(null)}
+        productId={selectedProdForMovements?.id || ''}
+        productName={selectedProdForMovements?.name || ''}
+        unit={selectedProdForMovements?.unit || 'piece'}
+        currentStockMilli={selectedProdForMovements?.stockQuantityMilli || 0}
+        onOpenAdjustment={() => {
+          if (selectedProdForMovements) {
+            setSelectedProdForAdjustment(selectedProdForMovements);
+          }
+        }}
+      />
+
+      {/* Manual Stock Adjustment Modal (Story 39 - Feature #35 / Task 35-2) */}
+      <StockAdjustmentModal
+        isOpen={selectedProdForAdjustment !== null}
+        onClose={() => setSelectedProdForAdjustment(null)}
+        product={selectedProdForAdjustment}
+        onSuccess={() => {
+          void loadProducts(searchQuery);
+          void loadMovements();
+          void checkDiscrepancies();
+        }}
       />
     </div>
   );

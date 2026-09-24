@@ -41,6 +41,7 @@ export const ExcelImportModal = ({
   const [isDragging, setIsDragging] = useState(false);
   const [parsing, setParsing] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [parsedRows, setParsedRows] = useState<ValidatedImportRow[]>([]);
   const [duplicateStrategy, setDuplicateStrategy] = useState<'skip' | 'update' | 'error'>('skip');
   const [onlyValidRows, setOnlyValidRows] = useState(true);
@@ -202,11 +203,19 @@ export const ExcelImportModal = ({
             </div>
             <button
               type="button"
-              onClick={downloadExcelTemplate}
-              className="shrink-0 h-9 px-3.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11.5px] flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+              onClick={async () => {
+                setDownloadingTemplate(true);
+                try {
+                  await downloadExcelTemplate();
+                } finally {
+                  setDownloadingTemplate(false);
+                }
+              }}
+              disabled={downloadingTemplate}
+              className="shrink-0 h-9 px-3.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11.5px] flex items-center justify-center gap-1.5 transition-colors shadow-2xs disabled:opacity-60"
             >
               <Download className="w-4 h-4" />
-              <span>تحميل نموذج الإكسل الجاهز (.xlsx)</span>
+              <span>{downloadingTemplate ? 'جاري التحميل...' : 'تحميل نموذج الإكسل الجاهز (.xlsx)'}</span>
             </button>
           </div>
 

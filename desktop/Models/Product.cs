@@ -17,6 +17,9 @@ namespace RafiqPOS.Models
         [JsonProperty("name")]
         public string Name { get; set; }
 
+        [JsonProperty("normalizedName")]
+        public string NormalizedName { get; set; }
+
         [JsonProperty("categoryId")]
         public string CategoryId { get; set; }
 

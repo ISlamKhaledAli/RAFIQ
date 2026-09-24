@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
+import type { FC } from 'react';
 import { 
   ShoppingCart, 
   Package, 
@@ -35,11 +36,43 @@ export interface SystemInfo {
 
 export type TabType = 'pos' | 'dashboard' | 'customers' | 'products' | 'sales' | 'audit' | 'settings';
 
+const HeaderClock: FC = memo(() => {
+  const [time, setTime] = useState('');
+  const [date, setDate] = useState('');
+
+  useEffect(() => {
+    const update = () => {
+      const now = new Date();
+      setTime(now.toLocaleTimeString('en-US', {
+        hour12: true,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }));
+      setDate(now.toLocaleDateString('ar-EG', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      }));
+    };
+    update();
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="flex items-center gap-2 bg-surface-2 border border-line px-3 py-1 rounded tabular-nums text-[12px] font-semibold text-ink">
+      <Clock className="w-3.5 h-3.5 text-ink-muted" />
+      <span className="text-ink-muted font-normal text-[11px]">{date}</span>
+      <span className="text-line">|</span>
+      <span className="font-mono text-brand font-bold">{time || '00:00:00'}</span>
+    </div>
+  );
+});
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('pos');
   const [sysInfo, setSysInfo] = useState<SystemInfo | null>(null);
-  const [currentTime, setCurrentTime] = useState<string>('');
-  const [currentDate, setCurrentDate] = useState<string>('');
   const [clockWarning, setClockWarning] = useState<string | null>(null);
   const [backupWarning, setBackupWarning] = useState<string | null>(null);
   const [corruptDbStatus, setCorruptDbStatus] = useState<DatabaseIntegrityStatus | null>(null);
@@ -94,26 +127,8 @@ export default function App() {
     };
     void checkIntegrity();
 
-    const updateDateTime = () => {
-      const now = new Date();
-      setCurrentTime(now.toLocaleTimeString('ar-EG', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      }));
-      setCurrentDate(now.toLocaleDateString('ar-EG', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-      }));
-    };
-
-    updateDateTime();
-    const timer = setInterval(updateDateTime, 1000);
-
     return () => {
       isMounted = false;
-      clearInterval(timer);
     };
   }, []);
 
@@ -204,13 +219,8 @@ export default function App() {
             <span className="font-medium">كاشير الوردية (1)</span>
           </div>
 
-          {/* Date & Time */}
-          <div className="flex items-center gap-2 bg-surface-2 border border-line px-3 py-1 rounded tabular-nums text-[12px] font-semibold text-ink">
-            <Clock className="w-3.5 h-3.5 text-ink-muted" />
-            <span className="text-ink-muted font-normal text-[11px]">{currentDate}</span>
-            <span className="text-line">|</span>
-            <span className="font-mono text-brand font-bold">{currentTime || '00:00:00'}</span>
-          </div>
+          {/* Date & Time (Isolated Component) */}
+          <HeaderClock />
         </div>
       </header>
 

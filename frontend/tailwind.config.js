@@ -43,8 +43,8 @@ export default {
         },
       },
       fontFamily: {
-        sans: ["Cairo", "IBM Plex Sans Arabic", "Segoe UI", "Tahoma", "sans-serif"],
-        mono: ["IBM Plex Mono", "Consolas", "monospace"],
+        sans: ["Cairo", "Tajawal", "Segoe UI", "Tahoma", "sans-serif"],
+        mono: ["Cairo", "Consolas", "Courier New", "monospace"],
       },
     },
   },

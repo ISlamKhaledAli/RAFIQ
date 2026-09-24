@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import type { Product, Category } from '../types/models';
 import { poundsToPiasters, normalizeArabicNumerals } from './money';
+import { invoke } from '../bridge/ipc';
 
 export interface RawImportRow {
   rowIndex: number;
@@ -68,9 +69,43 @@ function matchHeader(cellValue: string): string | null {
 }
 
 /**
- * توليد وتحميل قالب إكسل رسمي باللغة العربية مع نماذج أصناف استرشادية
+ * تحميل ملف Base64 كملف محلي في المتصفح / WebView2
  */
-export function downloadExcelTemplate(): void {
+export function downloadBase64File(base64: string, fileName: string, mimeType: string = 'application/octet-stream'): void {
+  const binaryString = window.atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  const blob = new Blob([bytes], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * توليد وتحميل قالب إكسل رسمي باللغة العربية مع تنسيقات ألوان احترافية (ClosedXML / RTL)
+ */
+export async function downloadExcelTemplate(): Promise<void> {
+  try {
+    const res = await invoke<{ success: boolean; base64?: string; fileName?: string }>('excel:getTemplate');
+    if (res && res.base64) {
+      downloadBase64File(
+        res.base64,
+        res.fileName || 'قالب_استيراد_المنتجات_رفيق_POS.xlsx',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
+      return;
+    }
+  } catch {
+    // Fallback to client-side SheetJS below
+  }
   const headers = [
     'اسم الصنف *',
     'الباركود الرئيسي',
@@ -169,6 +204,27 @@ export function downloadExcelTemplate(): void {
 
   // Trigger browser download
   XLSX.writeFile(wb, 'قالب_استيراد_المنتجات_رفيق_POS.xlsx');
+}
+
+/**
+ * تصدير كامل أصناف النظام إلى ملف إكسل احترافي ملون ومفصل مع هوامش الربح
+ */
+export async function exportProductsToExcel(): Promise<{ success: boolean; count?: number; message?: string }> {
+  try {
+    const res = await invoke<{ success: boolean; base64?: string; fileName?: string; count?: number }>('excel:exportProducts');
+    if (res && res.base64) {
+      downloadBase64File(
+        res.base64,
+        res.fileName || 'كتالوج_أصناف_رفيق.xlsx',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
+      return { success: true, count: res.count };
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { success: false, message: msg };
+  }
+  return { success: false, message: 'تعذر توليد ملف الإكسل' };
 }
 
 /**

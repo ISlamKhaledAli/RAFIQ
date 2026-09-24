@@ -76,6 +76,7 @@
     <Compile Include="Common\OsDetector.cs" />
     <Compile Include="Common\Logger.cs" />
     <Compile Include="Common\TimeGuard.cs" />
+    <Compile Include="Common\WindowHelper.cs" />
     <Compile Include="Common\ArabicTextNormalizer.cs" />
     <Compile Include="Database\MigrationRunner.cs" />
     <Compile Include="Models\Product.cs" />
@@ -86,6 +87,8 @@
     <Compile Include="Models\Category.cs" />
     <Compile Include="Models\ProductPriceHistory.cs" />
     <Compile Include="Models\BatchImportModels.cs" />
+    <Compile Include="Models\StockMovement.cs" />
+    <Compile Include="Models\QuickItem.cs" />
     <Compile Include="Repositories\ProductRepository.cs" />
     <Compile Include="Repositories\SaleRepository.cs" />
     <Compile Include="Repositories\SettingsRepository.cs" />
@@ -93,17 +96,24 @@
     <Compile Include="Repositories\AuditLogRepository.cs" />
     <Compile Include="Repositories\CategoryRepository.cs" />
     <Compile Include="Repositories\ProductPriceHistoryRepository.cs" />
+    <Compile Include="Repositories\StockMovementRepository.cs" />
+    <Compile Include="Repositories\QuickItemRepository.cs" />
     <Compile Include="Services\DatabaseService.cs" />
     <Compile Include="Services\ProductService.cs" />
     <Compile Include="Services\SaleService.cs" />
+    <Compile Include="Services\InventoryService.cs" />
+    <Compile Include="Services\InventoryTestRunner.cs" />
     <Compile Include="Services\SettingsService.cs" />
     <Compile Include="Services\CustomerService.cs" />
     <Compile Include="Services\CategoryService.cs" />
+    <Compile Include="Services\QuickItemService.cs" />
     <Compile Include="Services\ReportsService.cs" />
     <Compile Include="Services\AuditLogService.cs" />
     <Compile Include="Services\SupportService.cs" />
     <Compile Include="Services\BenchmarkService.cs" />
+    <Compile Include="Services\SearchBenchmarkRunner.cs" />
     <Compile Include="Services\BackupService.cs" />
+    <Compile Include="Services\ExcelService.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

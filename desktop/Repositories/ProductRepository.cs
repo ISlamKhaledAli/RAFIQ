@@ -122,6 +122,14 @@ namespace RafiqPOS.Repositories
         public List<Product> Search(string query, int limit = 50)
         {
             var results = new List<Product>();
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                return GetAll(limit);
+            }
+
+            string cleanQuery = query.Trim();
+            string normalizedQuery = Common.ArabicTextNormalizer.Normalize(cleanQuery);
+
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
@@ -129,14 +137,33 @@ namespace RafiqPOS.Repositories
                     SELECT DISTINCT p.* FROM products p
                     LEFT JOIN product_barcodes pb ON p.id = pb.product_id
                     WHERE p.is_active = 1 
-                      AND (p.barcode = @exact OR pb.barcode = @exact OR p.internal_code = @exact OR p.name LIKE @like)
-                    ORDER BY p.name ASC 
+                      AND (
+                           p.barcode = @exact 
+                        OR pb.barcode = @exact 
+                        OR p.internal_code = @exact 
+                        OR p.normalized_name = @normExactText
+                        OR p.normalized_name LIKE @normPrefix
+                        OR p.normalized_name LIKE @normLike
+                        OR p.name LIKE @like
+                      )
+                    ORDER BY 
+                      CASE 
+                        WHEN p.barcode = @exact OR pb.barcode = @exact OR p.internal_code = @exact THEN 1
+                        WHEN p.normalized_name = @normExactText THEN 2
+                        WHEN p.normalized_name LIKE @normPrefix THEN 3
+                        WHEN p.normalized_name LIKE @normLike THEN 4
+                        ELSE 5
+                      END,
+                      p.name ASC 
                     LIMIT @limit;
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
-                    cmd.Parameters.AddWithValue("@exact", query.Trim());
-                    cmd.Parameters.AddWithValue("@like", "%" + query.Trim() + "%");
+                    cmd.Parameters.AddWithValue("@exact", cleanQuery);
+                    cmd.Parameters.AddWithValue("@normExactText", normalizedQuery);
+                    cmd.Parameters.AddWithValue("@normPrefix", normalizedQuery + "%");
+                    cmd.Parameters.AddWithValue("@normLike", "%" + normalizedQuery + "%");
+                    cmd.Parameters.AddWithValue("@like", "%" + cleanQuery + "%");
                     cmd.Parameters.AddWithValue("@limit", limit);
                     using (var reader = cmd.ExecuteReader())
                     {
@@ -145,6 +172,12 @@ namespace RafiqPOS.Repositories
                             results.Add(MapReaderToProduct(reader));
                         }
                     }
+                }
+
+                // Populate barcodes for each result
+                foreach (var prod in results)
+                {
+                    prod.Barcodes = GetBarcodesForProductInternal(conn, prod.Id);
                 }
             }
             return results;
@@ -181,18 +214,20 @@ namespace RafiqPOS.Repositories
                 {
                     try
                     {
+                        string normName = Common.ArabicTextNormalizer.Normalize(product.Name ?? "");
                         string sql = @"
                             INSERT INTO products (
-                                id, barcode, internal_code, name, category_id, price_piasters, cost_piasters, 
+                                id, barcode, internal_code, name, normalized_name, category_id, price_piasters, cost_piasters, 
                                 stock_quantity_milli, min_stock_quantity_milli, unit, tax_rate_percent, tax_category_code, is_active, created_at, updated_at
                             ) VALUES (
-                                @id, @barcode, @internalCode, @name, @categoryId, @price, @cost, 
+                                @id, @barcode, @internalCode, @name, @normName, @categoryId, @price, @cost, 
                                 @stock, @minStock, @unit, @tax, @taxCategoryCode, @isActive, @createdAt, @updatedAt
                             )
                             ON CONFLICT(id) DO UPDATE SET
                                 barcode = excluded.barcode,
                                 internal_code = excluded.internal_code,
                                 name = excluded.name,
+                                normalized_name = excluded.normalized_name,
                                 category_id = excluded.category_id,
                                 price_piasters = excluded.price_piasters,
                                 cost_piasters = excluded.cost_piasters,
@@ -210,6 +245,7 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@barcode", (object)product.Barcode ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@internalCode", (object)product.InternalCode ?? "");
                             cmd.Parameters.AddWithValue("@name", product.Name);
+                            cmd.Parameters.AddWithValue("@normName", normName);
                             cmd.Parameters.AddWithValue("@categoryId", (object)product.CategoryId ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@price", product.PricePiasters);
                             cmd.Parameters.AddWithValue("@cost", product.CostPiasters);
@@ -440,6 +476,7 @@ namespace RafiqPOS.Repositories
                                     string updateSql = @"
                                         UPDATE products SET
                                             name = @name,
+                                            normalized_name = @normName,
                                             category_id = @categoryId,
                                             price_piasters = @price,
                                             cost_piasters = @cost,
@@ -457,6 +494,7 @@ namespace RafiqPOS.Repositories
                                     {
                                         uCmd.Parameters.AddWithValue("@pid", existingProductId);
                                         uCmd.Parameters.AddWithValue("@name", item.Name.Trim());
+                                        uCmd.Parameters.AddWithValue("@normName", Common.ArabicTextNormalizer.Normalize(item.Name ?? ""));
                                         uCmd.Parameters.AddWithValue("@categoryId", (object)categoryId ?? DBNull.Value);
                                         uCmd.Parameters.AddWithValue("@price", item.PricePiasters);
                                         uCmd.Parameters.AddWithValue("@cost", item.CostPiasters);
@@ -488,10 +526,10 @@ namespace RafiqPOS.Repositories
 
                             string insertSql = @"
                                 INSERT INTO products (
-                                    id, barcode, internal_code, name, category_id, price_piasters, cost_piasters,
+                                    id, barcode, internal_code, name, normalized_name, category_id, price_piasters, cost_piasters,
                                     stock_quantity_milli, min_stock_quantity_milli, unit, tax_rate_percent, tax_category_code, is_active, created_at, updated_at
                                 ) VALUES (
-                                    @id, @barcode, @internalCode, @name, @categoryId, @price, @cost,
+                                    @id, @barcode, @internalCode, @name, @normName, @categoryId, @price, @cost,
                                     @stock, @minStock, @unit, @tax, @taxCategoryCode, 1, @now, @now
                                 );
                             ";
@@ -501,6 +539,7 @@ namespace RafiqPOS.Repositories
                                 insCmd.Parameters.AddWithValue("@barcode", primaryBarcode);
                                 insCmd.Parameters.AddWithValue("@internalCode", (object)item.InternalCode ?? "");
                                 insCmd.Parameters.AddWithValue("@name", item.Name.Trim());
+                                insCmd.Parameters.AddWithValue("@normName", Common.ArabicTextNormalizer.Normalize(item.Name ?? ""));
                                 insCmd.Parameters.AddWithValue("@categoryId", (object)categoryId ?? DBNull.Value);
                                 insCmd.Parameters.AddWithValue("@price", item.PricePiasters);
                                 insCmd.Parameters.AddWithValue("@cost", item.CostPiasters);
@@ -539,6 +578,29 @@ namespace RafiqPOS.Repositories
                                 }
                             }
 
+                            // Record Initial Stock Movement (Task 21-5 & Feature #35)
+                            if (item.StockQuantityMilli != 0)
+                            {
+                                string insertSmSql = @"
+                                    INSERT INTO stock_movements (
+                                        id, product_id, movement_type, quantity_milli, reference_id, reference_type,
+                                        unit_cost_piasters, note, batch_number, created_at
+                                    ) VALUES (
+                                        @smId, @smPid, 'INITIAL', @smQty, 'EXCEL_IMPORT', 'INITIAL_IMPORT',
+                                        @smCost, 'رصيد افتتاحي مسجل من استيراد إكسل', NULL, @now
+                                    );
+                                ";
+                                using (var smCmd = new SQLiteCommand(insertSmSql, conn, trans))
+                                {
+                                    smCmd.Parameters.AddWithValue("@smId", Guid.NewGuid().ToString());
+                                    smCmd.Parameters.AddWithValue("@smPid", newId);
+                                    smCmd.Parameters.AddWithValue("@smQty", item.StockQuantityMilli);
+                                    smCmd.Parameters.AddWithValue("@smCost", item.CostPiasters);
+                                    smCmd.Parameters.AddWithValue("@now", now);
+                                    smCmd.ExecuteNonQuery();
+                                }
+                            }
+
                             result.ImportedCount++;
                         }
 
@@ -571,6 +633,8 @@ namespace RafiqPOS.Repositories
             try { taxCategory = reader["tax_category_code"] != DBNull.Value ? reader["tax_category_code"].ToString() : ""; } catch { }
             string internalCode = "";
             try { internalCode = reader["internal_code"] != DBNull.Value ? reader["internal_code"].ToString() : ""; } catch { }
+            string normalizedName = "";
+            try { normalizedName = reader["normalized_name"] != DBNull.Value ? reader["normalized_name"].ToString() : ""; } catch { }
 
             long minStock = 5000;
             try
@@ -588,6 +652,7 @@ namespace RafiqPOS.Repositories
                 Barcode = reader["barcode"] != DBNull.Value ? reader["barcode"].ToString() : null,
                 InternalCode = internalCode,
                 Name = reader["name"].ToString(),
+                NormalizedName = normalizedName,
                 CategoryId = reader["category_id"] != DBNull.Value ? reader["category_id"].ToString() : null,
                 PricePiasters = Convert.ToInt64(reader["price_piasters"]),
                 CostPiasters = Convert.ToInt64(reader["cost_piasters"]),

@@ -11,15 +11,6 @@ namespace RafiqPOS
     {
         private static Mutex _singleInstanceMutex;
 
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool SetForegroundWindow(IntPtr hWnd);
-
-        [DllImport("user32.dll")]
-        private static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
-
-        private const int SW_RESTORE = 9;
-
         [STAThread]
         static void Main(string[] args)
         {
@@ -99,8 +90,7 @@ namespace RafiqPOS
                     Process p = processes[i];
                     if (p.Id != current.Id && p.MainWindowHandle != IntPtr.Zero)
                     {
-                        ShowWindowAsync(p.MainWindowHandle, SW_RESTORE);
-                        SetForegroundWindow(p.MainWindowHandle);
+                        WindowHelper.ForceForeground(p.MainWindowHandle);
                         return;
                     }
                 }

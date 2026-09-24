@@ -6,7 +6,7 @@ namespace RafiqPOS.Database
 {
     public static class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 7;
+        public const int LATEST_SUPPORTED_VERSION = 10;
 
         public static void ApplyMigrations(string connectionString, string dbPath)
         {
@@ -105,7 +105,28 @@ namespace RafiqPOS.Database
                     ApplyMigration7(conn);
                 }
 
-                // 11. Self-Healing Schema Guard: Automatically repair missing columns or indexes
+                // 11. Apply Migration 8: Stock Movements Ledger (Feature #35 & #34 / Tasks 35-1 & 34-1)
+                if (currentVersion < 8)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration8(conn);
+                }
+
+                // 12. Apply Migration 9: Product Normalized Name & Index for Fast Search (Feature #22 / Task 22-3)
+                if (currentVersion < 9)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration9(conn);
+                }
+
+                // 13. Apply Migration 10: Quick Items (Fast Picks) Management (Feature #20 / Task 20-1)
+                if (currentVersion < 10)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration10(conn);
+                }
+
+                // 14. Self-Healing Schema Guard: Automatically repair missing columns or indexes
                 EnsureSchemaHealth(conn);
             }
         }
@@ -291,15 +312,49 @@ namespace RafiqPOS.Database
                                 }
                             }
 
+                            if (!existingCols.Contains("normalized_name"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE products ADD COLUMN normalized_name TEXT DEFAULT '';", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+
                             // Ensure indexes for products
                             using (var idxCmd = new SQLiteCommand(@"
                                 CREATE INDEX IF NOT EXISTS idx_products_category_id ON products(category_id);
                                 CREATE INDEX IF NOT EXISTS idx_products_is_active ON products(is_active);
                                 CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);
                                 CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
+                                CREATE INDEX IF NOT EXISTS idx_products_normalized_name ON products(normalized_name);
                             ", conn, trans))
                             {
                                 idxCmd.ExecuteNonQuery();
+                            }
+
+                            // Populate any missing normalized_name
+                            var unnormalized = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, string>>();
+                            using (var missingCmd = new SQLiteCommand("SELECT id, name FROM products WHERE (normalized_name IS NULL OR normalized_name = '') AND name IS NOT NULL AND name != '';", conn, trans))
+                            using (var rdr = missingCmd.ExecuteReader())
+                            {
+                                while (rdr.Read())
+                                {
+                                    unnormalized.Add(new System.Collections.Generic.KeyValuePair<string, string>(rdr["id"].ToString(), rdr["name"].ToString()));
+                                }
+                            }
+                            if (unnormalized.Count > 0)
+                            {
+                                using (var upCmd = new SQLiteCommand("UPDATE products SET normalized_name = @norm WHERE id = @id;", conn, trans))
+                                {
+                                    var pId = upCmd.Parameters.Add("@id", System.Data.DbType.String);
+                                    var pNorm = upCmd.Parameters.Add("@norm", System.Data.DbType.String);
+                                    foreach (var item in unnormalized)
+                                    {
+                                        pId.Value = item.Key;
+                                        pNorm.Value = Common.ArabicTextNormalizer.Normalize(item.Value);
+                                        upCmd.ExecuteNonQuery();
+                                    }
+                                }
                             }
                         }
                     }
@@ -504,6 +559,38 @@ namespace RafiqPOS.Database
                                 {
                                     alter.ExecuteNonQuery();
                                 }
+                            }
+                        }
+                    }
+
+                    // 6. Health check for stock_movements table (Feature #35)
+                    using (var checkSmCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='stock_movements';", conn, trans))
+                    {
+                        var tbl = checkSmCmd.ExecuteScalar();
+                        if (tbl == null)
+                        {
+                            using (var createCmd = new SQLiteCommand(@"
+                                CREATE TABLE IF NOT EXISTS stock_movements (
+                                    id TEXT PRIMARY KEY,
+                                    product_id TEXT NOT NULL,
+                                    movement_type TEXT NOT NULL,
+                                    quantity_milli INTEGER NOT NULL,
+                                    reference_id TEXT,
+                                    reference_type TEXT,
+                                    unit_cost_piasters INTEGER NOT NULL,
+                                    note TEXT,
+                                    batch_number TEXT,
+                                    created_at TEXT NOT NULL,
+                                    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+                                );
+
+                                CREATE INDEX IF NOT EXISTS idx_stock_movements_product ON stock_movements(product_id);
+                                CREATE INDEX IF NOT EXISTS idx_stock_movements_created_at ON stock_movements(created_at);
+                                CREATE INDEX IF NOT EXISTS idx_stock_movements_type ON stock_movements(movement_type);
+                                CREATE INDEX IF NOT EXISTS idx_stock_movements_ref ON stock_movements(reference_id);
+                            ", conn, trans))
+                            {
+                                createCmd.ExecuteNonQuery();
                             }
                         }
                     }
@@ -1041,6 +1128,272 @@ namespace RafiqPOS.Database
                 }
             }
         }
+
+        private static void ApplyMigration8(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    string sql = @"
+                        CREATE TABLE IF NOT EXISTS stock_movements (
+                            id TEXT PRIMARY KEY,
+                            product_id TEXT NOT NULL,
+                            movement_type TEXT NOT NULL,
+                            quantity_milli INTEGER NOT NULL,
+                            reference_id TEXT,
+                            reference_type TEXT,
+                            unit_cost_piasters INTEGER NOT NULL,
+                            note TEXT,
+                            batch_number TEXT,
+                            created_at TEXT NOT NULL,
+                            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_stock_movements_product ON stock_movements(product_id);
+                        CREATE INDEX IF NOT EXISTS idx_stock_movements_created_at ON stock_movements(created_at);
+                        CREATE INDEX IF NOT EXISTS idx_stock_movements_type ON stock_movements(movement_type);
+                        CREATE INDEX IF NOT EXISTS idx_stock_movements_ref ON stock_movements(reference_id);
+
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (8, 'stock_movements', datetime('now'));
+                    ";
+
+                    using (var cmd = new SQLiteCommand(sql, conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // Backfill initial stock movements for any existing products that have non-zero stock
+                    var productsToBackfill = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, long[]>>();
+                    using (var readCmd = new SQLiteCommand("SELECT id, cost_piasters, stock_quantity_milli FROM products WHERE stock_quantity_milli != 0;", conn, trans))
+                    using (var reader = readCmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            string pid = reader["id"].ToString();
+                            long cost = Convert.ToInt64(reader["cost_piasters"]);
+                            long stock = Convert.ToInt64(reader["stock_quantity_milli"]);
+                            productsToBackfill.Add(new System.Collections.Generic.KeyValuePair<string, long[]>(pid, new long[] { cost, stock }));
+                        }
+                    }
+
+                    foreach (var pair in productsToBackfill)
+                    {
+                        string pid = pair.Key;
+                        long cost = pair.Value[0];
+                        long stock = pair.Value[1];
+
+                        // Check if a movement already exists for this product
+                        using (var existCmd = new SQLiteCommand("SELECT COUNT(*) FROM stock_movements WHERE product_id = @pid;", conn, trans))
+                        {
+                            existCmd.Parameters.AddWithValue("@pid", pid);
+                            long cnt = Convert.ToInt64(existCmd.ExecuteScalar());
+                            if (cnt == 0)
+                            {
+                                string insertSql = @"
+                                    INSERT INTO stock_movements (id, product_id, movement_type, quantity_milli, reference_id, reference_type, unit_cost_piasters, note, batch_number, created_at)
+                                    VALUES (@id, @pid, 'INITIAL', @stock, 'MIGRATION_BACKFILL', 'INITIAL_IMPORT', @cost, 'رصيد افتتاحي مسجل أثناء ترقية النظام', NULL, datetime('now'));
+                                ";
+                                using (var insCmd = new SQLiteCommand(insertSql, conn, trans))
+                                {
+                                    insCmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
+                                    insCmd.Parameters.AddWithValue("@pid", pid);
+                                    insCmd.Parameters.AddWithValue("@stock", stock);
+                                    insCmd.Parameters.AddWithValue("@cost", cost);
+                                    insCmd.ExecuteNonQuery();
+                                }
+                            }
+                        }
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        private static void ApplyMigration9(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // 1. Check if normalized_name column exists
+                    bool colExists = false;
+                    using (var infoCmd = new SQLiteCommand("PRAGMA table_info(products);", conn, trans))
+                    using (var reader = infoCmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            if (string.Equals(reader["name"].ToString(), "normalized_name", StringComparison.OrdinalIgnoreCase))
+                            {
+                                colExists = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!colExists)
+                    {
+                        using (var alterCmd = new SQLiteCommand("ALTER TABLE products ADD COLUMN normalized_name TEXT DEFAULT '';", conn, trans))
+                        {
+                            alterCmd.ExecuteNonQuery();
+                        }
+                    }
+
+                    // 2. Create index on normalized_name
+                    using (var idxCmd = new SQLiteCommand("CREATE INDEX IF NOT EXISTS idx_products_normalized_name ON products(normalized_name);", conn, trans))
+                    {
+                        idxCmd.ExecuteNonQuery();
+                    }
+
+                    // 3. Backfill normalized_name for all existing products
+                    var productsToNormalize = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, string>>();
+                    using (var readCmd = new SQLiteCommand("SELECT id, name FROM products WHERE name IS NOT NULL AND name != '';", conn, trans))
+                    using (var reader = readCmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            productsToNormalize.Add(new System.Collections.Generic.KeyValuePair<string, string>(
+                                reader["id"].ToString(),
+                                reader["name"].ToString()
+                            ));
+                        }
+                    }
+
+                    if (productsToNormalize.Count > 0)
+                    {
+                        using (var updateCmd = new SQLiteCommand("UPDATE products SET normalized_name = @norm WHERE id = @id;", conn, trans))
+                        {
+                            var idParam = updateCmd.Parameters.Add("@id", System.Data.DbType.String);
+                            var normParam = updateCmd.Parameters.Add("@norm", System.Data.DbType.String);
+
+                            foreach (var pair in productsToNormalize)
+                            {
+                                idParam.Value = pair.Key;
+                                normParam.Value = Common.ArabicTextNormalizer.Normalize(pair.Value);
+                                updateCmd.ExecuteNonQuery();
+                            }
+                        }
+                    }
+
+                    // 4. Record migration
+                    using (var cmd = new SQLiteCommand(@"
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (9, 'product_normalized_name_for_fast_search', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        private static void ApplyMigration10(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // 1. Create quick_items table
+                        string sqlCreate = @"
+                            CREATE TABLE IF NOT EXISTS quick_items (
+                                id TEXT PRIMARY KEY,
+                                product_id TEXT,
+                                name TEXT NOT NULL,
+                                price_piasters INTEGER NOT NULL DEFAULT 0,
+                                is_open_price INTEGER NOT NULL DEFAULT 0,
+                                unit TEXT NOT NULL DEFAULT 'piece',
+                                category_name TEXT NOT NULL DEFAULT 'عام',
+                                color TEXT DEFAULT NULL,
+                                display_order INTEGER NOT NULL DEFAULT 0,
+                                created_at TEXT NOT NULL,
+                                updated_at TEXT NOT NULL,
+                                FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
+                            );
+                            CREATE INDEX IF NOT EXISTS idx_quick_items_cat_order ON quick_items(category_name, display_order);
+                        ";
+                        using (var cmd = new SQLiteCommand(sqlCreate, conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+
+                        // 2. Check if table is empty and seed defaults if so
+                        long count = 0;
+                        using (var checkCmd = new SQLiteCommand("SELECT COUNT(*) FROM quick_items;", conn, trans))
+                        {
+                            count = Convert.ToInt64(checkCmd.ExecuteScalar());
+                        }
+
+                        if (count == 0)
+                        {
+                            string now = DateTime.UtcNow.ToString("o");
+                            string seedSql = @"
+                                INSERT INTO quick_items (id, product_id, name, price_piasters, is_open_price, unit, category_name, display_order, created_at, updated_at)
+                                VALUES 
+                                  (@id1, NULL, 'خبز بلدي طازج', 100, 0, 'piece', 'مخبوزات وبقالة', 1, @now, @now),
+                                  (@id2, NULL, 'عيش فينو كيس 5 رغيف', 1000, 0, 'piece', 'مخبوزات وبقالة', 2, @now, @now),
+                                  (@id3, NULL, 'سكر أبيض ناعم 1 كجم', 3500, 0, 'piece', 'مخبوزات وبقالة', 3, @now, @now),
+                                  (@id4, NULL, 'شاي العروسة 40 جم', 1200, 0, 'piece', 'مخبوزات وبقالة', 4, @now, @now),
+                                  (@id5, NULL, 'مياه بركة معدنية 1.5 لتر', 800, 0, 'piece', 'ألبان ومشروبات', 1, @now, @now),
+                                  (@id6, NULL, 'لبن جهينة كامل الدسم 1 لتر', 4200, 0, 'piece', 'ألبان ومشروبات', 2, @now, @now),
+                                  (@id7, NULL, 'زبادي المراعي سادة 105 جم', 850, 0, 'piece', 'ألبان ومشروبات', 3, @now, @now),
+                                  (@id8, NULL, 'بيبسي كانز 330 مل', 1500, 0, 'piece', 'ألبان ومشروبات', 4, @now, @now),
+                                  (@id9, NULL, 'طماطم بلدي طازجة', 1500, 0, 'kg', 'خضار وفاكهة', 1, @now, @now),
+                                  (@id10, NULL, 'بطاطس تحمير', 1800, 0, 'kg', 'خضار وفاكهة', 2, @now, @now),
+                                  (@id11, NULL, 'بصل أحمر كجم', 1400, 0, 'kg', 'خضار وفاكهة', 3, @now, @now),
+                                  (@id12, NULL, 'خيار صوب', 1600, 0, 'kg', 'خضار وفاكهة', 4, @now, @now);
+                            ";
+
+                            using (var seedCmd = new SQLiteCommand(seedSql, conn, trans))
+                            {
+                                seedCmd.Parameters.AddWithValue("@id1", Guid.NewGuid().ToString());
+                                seedCmd.Parameters.AddWithValue("@id2", Guid.NewGuid().ToString());
+                                seedCmd.Parameters.AddWithValue("@id3", Guid.NewGuid().ToString());
+                                seedCmd.Parameters.AddWithValue("@id4", Guid.NewGuid().ToString());
+                                seedCmd.Parameters.AddWithValue("@id5", Guid.NewGuid().ToString());
+                                seedCmd.Parameters.AddWithValue("@id6", Guid.NewGuid().ToString());
+                                seedCmd.Parameters.AddWithValue("@id7", Guid.NewGuid().ToString());
+                                seedCmd.Parameters.AddWithValue("@id8", Guid.NewGuid().ToString());
+                                seedCmd.Parameters.AddWithValue("@id9", Guid.NewGuid().ToString());
+                                seedCmd.Parameters.AddWithValue("@id10", Guid.NewGuid().ToString());
+                                seedCmd.Parameters.AddWithValue("@id11", Guid.NewGuid().ToString());
+                                seedCmd.Parameters.AddWithValue("@id12", Guid.NewGuid().ToString());
+                                seedCmd.Parameters.AddWithValue("@now", now);
+                                seedCmd.ExecuteNonQuery();
+                            }
+                        }
+
+                        // 3. Record migration
+                        using (var cmd = new SQLiteCommand(@"
+                            INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                            VALUES (10, 'quick_items_fast_picks_management', datetime('now'));
+                        ", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+
+                        trans.Commit();
+                    }
+                    catch
+                    {
+                        trans.Rollback();
+                        throw;
+                    }
+                }
+            }
+        }
     }
-}
 

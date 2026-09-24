@@ -80,6 +80,7 @@ namespace RafiqPOS
             InitializeBrandedErrorScreen();
 
             this.Load += MainForm_Load;
+            this.Shown += MainForm_Shown;
             this.FormClosing += MainForm_FormClosing;
         }
 
@@ -365,6 +366,11 @@ namespace RafiqPOS
             InitializeApplication();
         }
 
+        private void MainForm_Shown(object sender, EventArgs e)
+        {
+            WindowHelper.ActivateAndBringToFront(this);
+        }
+
         private async void InitializeApplication()
         {
 #if DEBUG
@@ -506,6 +512,8 @@ namespace RafiqPOS
                 _lblStatus.Visible = false;
                 _errorPanel.Visible = false;
                 _webView.Visible = true;
+                _webView.Focus();
+                WindowHelper.ActivateAndBringToFront(this);
             }
             catch (Exception wvEx)
             {
@@ -549,6 +557,7 @@ namespace RafiqPOS
             CenterErrorCard();
             _errorPanel.Visible = true;
             _errorPanel.BringToFront();
+            WindowHelper.ActivateAndBringToFront(this);
         }
 
         private void CoreWebView2_WebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs e)

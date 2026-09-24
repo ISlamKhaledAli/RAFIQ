@@ -29,7 +29,12 @@ namespace RafiqPOS.Bridge
                 request.Action == "categories:archive" ||
                 request.Action == "categories:reorder" ||
                 request.Action == "customers:save" ||
-                request.Action == "customers:recordPayment"))
+                request.Action == "customers:recordPayment" ||
+                request.Action == "quickItems:save" ||
+                request.Action == "quickItems:delete" ||
+                request.Action == "quickItems:reorder" ||
+                request.Action == "inventory:adjustStock" ||
+                request.Action == "inventory:recalculate"))
             {
                 return BridgeResponse.Fail(
                     request.Id,
@@ -68,12 +73,24 @@ namespace RafiqPOS.Bridge
 
                     case "products:search":
                         string query = "";
+                        int searchLimit = 50;
                         JObject searchObj = request.Payload as JObject;
-                        if (searchObj != null && searchObj["query"] != null)
+                        if (searchObj != null)
                         {
-                            query = searchObj["query"].ToString();
+                            if (searchObj["query"] != null)
+                            {
+                                query = searchObj["query"].ToString();
+                            }
+                            if (searchObj["limit"] != null)
+                            {
+                                searchLimit = searchObj["limit"].Value<int>();
+                            }
                         }
-                        var searchResults = DatabaseService.Products.Search(query);
+                        else if (request.Payload != null)
+                        {
+                            query = request.Payload.ToString().Trim('"', ' ');
+                        }
+                        var searchResults = DatabaseService.Products.Search(query, searchLimit);
                         return BridgeResponse.Ok(request.Id, searchResults);
 
                     case "products:save":
@@ -344,6 +361,51 @@ namespace RafiqPOS.Bridge
                         DatabaseService.Categories.ReorderCategories(orderedIds);
                         return BridgeResponse.Ok(request.Id, new { success = true });
 
+                    case "quickItems:getAll":
+                        var allQuickItems = DatabaseService.QuickItems.GetAll();
+                        return BridgeResponse.Ok(request.Id, allQuickItems);
+
+                    case "quickItems:save":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات الصنف السريع فارغة");
+                        }
+                        var quickItemToSave = JsonConvert.DeserializeObject<QuickItem>(request.Payload.ToString());
+                        var savedQuickItem = DatabaseService.QuickItems.Save(quickItemToSave);
+                        return BridgeResponse.Ok(request.Id, savedQuickItem);
+
+                    case "quickItems:delete":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "معرف الصنف السريع فارغ");
+                        }
+                        string deleteQuickId = "";
+                        JObject delQuickObj = request.Payload as JObject;
+                        if (delQuickObj != null && delQuickObj["id"] != null)
+                        {
+                            deleteQuickId = delQuickObj["id"].ToString();
+                        }
+                        else if (request.Payload != null)
+                        {
+                            deleteQuickId = request.Payload.ToString().Trim('"', ' ');
+                        }
+                        bool delSuccess = DatabaseService.QuickItems.Delete(deleteQuickId);
+                        return BridgeResponse.Ok(request.Id, new { success = delSuccess, id = deleteQuickId });
+
+                    case "quickItems:reorder":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "قائمة الترتيب فارغة");
+                        }
+                        JObject reorderQuickObj = request.Payload as JObject;
+                        List<string> orderedQuickIds = null;
+                        if (reorderQuickObj != null && reorderQuickObj["orderedIds"] != null)
+                        {
+                            orderedQuickIds = reorderQuickObj["orderedIds"].ToObject<List<string>>();
+                        }
+                        DatabaseService.QuickItems.Reorder(orderedQuickIds);
+                        return BridgeResponse.Ok(request.Id, new { success = true });
+
                     case "customers:getStatement":
                         string statCustId = "";
                         JObject statObj = request.Payload as JObject;
@@ -481,6 +543,119 @@ namespace RafiqPOS.Bridge
                             message = isVerified
                                 ? "تم فحص النسخة الاحتياطية بنجاح: بنية B-Tree سليمة وتطابق أعداد الأصناف والفواتير مع قاعدة البيانات الأصلية."
                                 : "فشل فحص النسخة الاحتياطية: الملف تالف أو لا يطابق سجلات النظام."
+                        });
+
+                    case "inventory:getMovements":
+                        string invPid = null;
+                        string invType = null;
+                        string invFrom = null;
+                        string invTo = null;
+                        int invLimit = 200;
+                        if (request.Payload != null)
+                        {
+                            JObject pObj = request.Payload as JObject;
+                            if (pObj != null)
+                            {
+                                if (pObj["productId"] != null) invPid = pObj["productId"].ToString();
+                                if (pObj["movementType"] != null) invType = pObj["movementType"].ToString();
+                                if (pObj["fromDate"] != null) invFrom = pObj["fromDate"].ToString();
+                                if (pObj["toDate"] != null) invTo = pObj["toDate"].ToString();
+                                if (pObj["limit"] != null) invLimit = pObj["limit"].Value<int>();
+                            }
+                        }
+                        var movements = DatabaseService.Inventory.GetMovements(invPid, invType, invFrom, invTo, invLimit);
+                        return BridgeResponse.Ok(request.Id, movements);
+
+                    case "inventory:adjustStock":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات التسوية الجردية فارغة");
+                        }
+                        JObject adjObj = request.Payload as JObject;
+                        if (adjObj == null || adjObj["productId"] == null || adjObj["newStockQuantityMilli"] == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "معرف المنتج والرصيد الجديد مطلوبان");
+                        }
+                        string adjProdId = adjObj["productId"].ToString();
+                        long newStockMilli = adjObj["newStockQuantityMilli"].Value<long>();
+                        string adjReason = adjObj["reason"] != null ? adjObj["reason"].ToString() : "";
+                        string adjUser = adjObj["userId"] != null ? adjObj["userId"].ToString() : "admin";
+                        var adjMovement = DatabaseService.Inventory.AdjustStock(adjProdId, newStockMilli, adjReason, adjUser);
+                        return BridgeResponse.Ok(request.Id, adjMovement);
+
+                    case "inventory:getDiscrepancies":
+                        var discrepancies = DatabaseService.Inventory.CheckDiscrepancies();
+                        return BridgeResponse.Ok(request.Id, discrepancies);
+
+                    case "inventory:recalculate":
+                        string recalPid = null;
+                        string recalUser = "admin";
+                        if (request.Payload != null)
+                        {
+                            JObject recObj = request.Payload as JObject;
+                            if (recObj != null)
+                            {
+                                if (recObj["productId"] != null) recalPid = recObj["productId"].ToString();
+                                if (recObj["userId"] != null) recalUser = recObj["userId"].ToString();
+                            }
+                        }
+                        int updatedCount = DatabaseService.Inventory.RecalculateStock(recalPid, recalUser);
+                        return BridgeResponse.Ok(request.Id, new
+                        {
+                            success = true,
+                            updatedCount = updatedCount,
+                            message = string.Format("تمت إعادة حساب ومطابقة المخزون بنجاح لـ {0} منتج.", updatedCount)
+                        });
+
+                    case "inventory:runTests":
+                        var testRes = InventoryTestRunner.RunAllTests();
+                        if (testRes.Success)
+                        {
+                            return BridgeResponse.Ok(request.Id, testRes);
+                        }
+                        return BridgeResponse.Fail(request.Id, "INVENTORY_TESTS_FAILED", testRes.Message);
+
+                    case "search:runBenchmark":
+                        int benchProdCount = 5000;
+                        int benchQueryCount = 100;
+                        JObject benchObj = request.Payload as JObject;
+                        if (benchObj != null)
+                        {
+                            if (benchObj["productCount"] != null) benchProdCount = benchObj["productCount"].Value<int>();
+                            if (benchObj["queryIterations"] != null) benchQueryCount = benchObj["queryIterations"].Value<int>();
+                        }
+                        var benchRunner = new SearchBenchmarkRunner(DatabaseService.ConnectionString, DatabaseService.ProductRepo);
+                        var benchRes = benchRunner.RunBenchmark(benchProdCount, benchQueryCount);
+                        return BridgeResponse.Ok(request.Id, benchRes);
+
+                    case "excel:getTemplate":
+                        string tplBase64 = DatabaseService.Excel.GenerateProductTemplateBase64();
+                        return BridgeResponse.Ok(request.Id, new
+                        {
+                            success = true,
+                            fileName = "قالب_استيراد_المنتجات_رفيق_POS.xlsx",
+                            base64 = tplBase64
+                        });
+
+                    case "excel:exportProducts":
+                        var prodsToExport = DatabaseService.ProductRepo.GetAll(50000);
+                        var cats = DatabaseService.CategoryRepo.GetAll(true);
+                        var catDict = new Dictionary<string, string>();
+                        if (cats != null)
+                        {
+                            foreach (var c in cats)
+                            {
+                                if (!string.IsNullOrEmpty(c.Id)) catDict[c.Id] = c.Name;
+                            }
+                        }
+                        string expBase64 = DatabaseService.Excel.ExportProductsBase64(prodsToExport, catDict);
+                        string exportFileName = string.Format("كتالوج_أصناف_رفيق_{0}.xlsx", DateTime.Now.ToString("yyyyMMdd_HHmm"));
+                        return BridgeResponse.Ok(request.Id, new
+                        {
+                            success = true,
+                            fileName = exportFileName,
+                            base64 = expBase64,
+                            count = prodsToExport.Count
                         });
 
                     default:

@@ -39,12 +39,18 @@ namespace RafiqPOS.Services
         private readonly ProductRepository _repo;
         private readonly AuditLogRepository _auditRepo;
         private readonly ProductPriceHistoryRepository _priceHistoryRepo;
+        private readonly StockMovementRepository _movementRepo;
 
-        public ProductService(ProductRepository repo, AuditLogRepository auditRepo = null, ProductPriceHistoryRepository priceHistoryRepo = null)
+        public ProductService(
+            ProductRepository repo,
+            AuditLogRepository auditRepo = null,
+            ProductPriceHistoryRepository priceHistoryRepo = null,
+            StockMovementRepository movementRepo = null)
         {
             _repo = repo;
             _auditRepo = auditRepo;
             _priceHistoryRepo = priceHistoryRepo;
+            _movementRepo = movementRepo;
         }
 
         public static long CalculateProfitPiasters(long pricePiasters, long costPiasters)
@@ -253,6 +259,51 @@ namespace RafiqPOS.Services
                 catch
                 {
                     // Audit failure should not break product flow if non-critical
+                }
+            }
+
+            // Stock movements ledger recording (Feature #35 / Tasks 35-1 & 35-2)
+            if (_movementRepo != null)
+            {
+                try
+                {
+                    if (existing == null && product.StockQuantityMilli != 0)
+                    {
+                        _movementRepo.Add(new StockMovement
+                        {
+                            Id = Guid.NewGuid().ToString(),
+                            ProductId = product.Id,
+                            MovementType = "INITIAL",
+                            QuantityMilli = product.StockQuantityMilli,
+                            ReferenceId = product.Id,
+                            ReferenceType = "INITIAL_CREATION",
+                            UnitCostPiasters = product.CostPiasters,
+                            Note = "رصيد افتتاحي عند تعريف الصنف",
+                            CreatedAt = DateTime.UtcNow.ToString("o")
+                        });
+                    }
+                    else if (existing != null && existing.StockQuantityMilli != product.StockQuantityMilli)
+                    {
+                        long delta = product.StockQuantityMilli - existing.StockQuantityMilli;
+                        _movementRepo.Add(new StockMovement
+                        {
+                            Id = Guid.NewGuid().ToString(),
+                            ProductId = product.Id,
+                            MovementType = "ADJUSTMENT",
+                            QuantityMilli = delta,
+                            ReferenceId = product.Id,
+                            ReferenceType = "MANUAL_ADJUSTMENT",
+                            UnitCostPiasters = product.CostPiasters,
+                            Note = string.Format("تعديل رصيد من شاشة الصنف: من {0} إلى {1}",
+                                (existing.StockQuantityMilli / 1000.0).ToString("0.###"),
+                                (product.StockQuantityMilli / 1000.0).ToString("0.###")),
+                            CreatedAt = DateTime.UtcNow.ToString("o")
+                        });
+                    }
+                }
+                catch (Exception smEx)
+                {
+                    Logger.Warn("تعذر تسجيل حركة المخزون للصنف: " + smEx.Message);
                 }
             }
 

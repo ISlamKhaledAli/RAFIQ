@@ -76,6 +76,14 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 
 [Code]
 // واجهات Win32 لإجبار نافذة التثبيت على الظهور في المقدمة وأخذ التركيز بعد تخطي رسالة UAC
+function GetForegroundWindow(): HWND;
+  external 'GetForegroundWindow@user32.dll stdcall';
+function GetWindowThreadProcessId(hWnd: HWND; lpdwProcessId: DWORD): DWORD;
+  external 'GetWindowThreadProcessId@user32.dll stdcall';
+function GetCurrentThreadId(): DWORD;
+  external 'GetCurrentThreadId@kernel32.dll stdcall';
+function AttachThreadInput(idAttach: DWORD; idAttachTo: DWORD; fAttach: BOOL): BOOL;
+  external 'AttachThreadInput@user32.dll stdcall';
 function SetForegroundWindow(hWnd: HWND): BOOL;
   external 'SetForegroundWindow@user32.dll stdcall';
 function BringWindowToTop(hWnd: HWND): BOOL;
@@ -84,31 +92,69 @@ function ShowWindow(hWnd: HWND; nCmdShow: Integer): BOOL;
   external 'ShowWindow@user32.dll stdcall';
 function SetWindowPos(hWnd: HWND; hWndInsertAfter: HWND; X, Y, cx, cy: Integer; uFlags: UINT): BOOL;
   external 'SetWindowPos@user32.dll stdcall';
-function SwitchToThisWindow(hWnd: HWND; fAltTab: BOOL): BOOL;
-  external 'SwitchToThisWindow@user32.dll stdcall';
+procedure keybd_event(bVk: Byte; bScan: Byte; dwFlags: DWORD; dwExtraInfo: LongInt);
+  external 'keybd_event@user32.dll stdcall';
+function AllowSetForegroundWindow(dwProcessId: DWORD): BOOL;
+  external 'AllowSetForegroundWindow@user32.dll stdcall';
 
 const
+  VK_MENU = $12;
+  KEYEVENTF_KEYUP = $2;
+  SW_RESTORE = 9;
   HWND_TOPMOST = -1;
   HWND_NOTOPMOST = -2;
   TOP_FLAGS = 67; // SWP_NOSIZE (1) or SWP_NOMOVE (2) or SWP_SHOWWINDOW (64)
+  ASFW_ANY = $FFFFFFFF;
 
-// إجراء لتنشيط نافذة المثبت وجعلها في المقدمة فوراً
+// إجراء لتنشيط نافذة المثبت وجعلها في المقدمة فوراً وكسر قيود Focus Stealing لنظام ويندوز
 procedure ForceWizardToForeground();
+var
+  ForeWnd: HWND;
+  ForeThread, AppThread: DWORD;
 begin
-  if WizardForm <> nil then
-  begin
-    ShowWindow(WizardForm.Handle, 9); // SW_RESTORE
+  if WizardForm = nil then Exit;
+
+  try
+    // 1. محاكاة نقر مفتاح Alt لفك قفل Windows Foreground Lock
+    keybd_event(VK_MENU, 0, 0, 0);
+    keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0);
+
+    // 2. ربط خيط معالجة الإدخال بالنافذة النشطة في الخلفية
+    ForeWnd := GetForegroundWindow();
+    if (ForeWnd <> 0) and (ForeWnd <> WizardForm.Handle) then
+    begin
+      ForeThread := GetWindowThreadProcessId(ForeWnd, 0);
+      AppThread := GetCurrentThreadId();
+      if (ForeThread <> 0) and (ForeThread <> AppThread) then
+      begin
+        AttachThreadInput(ForeThread, AppThread, True);
+        ShowWindow(WizardForm.Handle, SW_RESTORE);
+        BringWindowToTop(WizardForm.Handle);
+        SetForegroundWindow(WizardForm.Handle);
+        AttachThreadInput(ForeThread, AppThread, False);
+      end;
+    end;
+
+    // 3. رفع النافذة لأعلى ترتيب النوافذ والتركيز المباشر
+    ShowWindow(WizardForm.Handle, SW_RESTORE);
     WizardForm.BringToFront();
     SetWindowPos(WizardForm.Handle, HWND_TOPMOST, 0, 0, 0, 0, TOP_FLAGS);
-    SetWindowPos(WizardForm.Handle, HWND_NOTOPMOST, 0, 0, 0, 0, TOP_FLAGS);
     BringWindowToTop(WizardForm.Handle);
     SetForegroundWindow(WizardForm.Handle);
-    SwitchToThisWindow(WizardForm.Handle, True);
+    SetWindowPos(WizardForm.Handle, HWND_NOTOPMOST, 0, 0, 0, 0, TOP_FLAGS);
+    SetForegroundWindow(WizardForm.Handle);
+  except
   end;
+end;
+
+procedure WizardOnShow(Sender: TObject);
+begin
+  ForceWizardToForeground();
 end;
 
 procedure InitializeWizard();
 begin
+  WizardForm.OnShow := @WizardOnShow;
   ForceWizardToForeground();
 end;
 
@@ -117,7 +163,18 @@ begin
   if CurPageIndex = wpWelcome then
   begin
     ForceWizardToForeground();
+  end
+  else if CurPageIndex = wpFinished then
+  begin
+    // السماح للبرنامج المشغل عند إنهاء التثبيت بالظهور في المقدمة مباشرة
+    AllowSetForegroundWindow(ASFW_ANY);
   end;
+end;
+
+procedure DeinitializeSetup();
+begin
+  // منح الصلاحية لعملية رفيق التالية بأخذ تركيز الشاشة
+  AllowSetForegroundWindow(ASFW_ANY);
 end;
 
 // التحقق مما إذا كان النظام ويندوز 10 أو أعلى
@@ -195,5 +252,8 @@ end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  // التثبيت مكتمل ومدمج به مشغل fixed109 لويندوز 7 تلقائياً
+  if CurStep = ssDone then
+  begin
+    AllowSetForegroundWindow(ASFW_ANY);
+  end;
 end;

@@ -3,6 +3,7 @@ export interface Product {
   barcode: string | null;
   barcodes?: string[];
   name: string;
+  normalizedName?: string;
   categoryId?: string | null;
   pricePiasters: number;
   costPiasters: number;
@@ -28,6 +29,20 @@ export interface Category {
   productCount: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface QuickItem {
+  id: string;
+  productId?: string | null;
+  name: string;
+  pricePiasters: number;
+  isOpenPrice: boolean;
+  unit: string;
+  categoryName: string;
+  color?: string | null;
+  displayOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ProductPriceHistory {
@@ -143,4 +158,49 @@ export interface AuditLogEntry {
   detailsJson?: string | null;
   createdAt: string;
 }
+
+export interface StockMovement {
+  id: string;
+  productId: string;
+  productName?: string;
+  productBarcode?: string;
+  unit?: string;
+  movementType: 'INITIAL' | 'SALE' | 'PURCHASE' | 'ADJUSTMENT' | 'RETURN' | string;
+  quantityMilli: number;
+  referenceId?: string | null;
+  referenceType?: string | null;
+  unitCostPiasters: number;
+  note?: string | null;
+  batchNumber?: string | null;
+  createdAt: string;
+  movementTypeArabic?: string;
+  quantityFormatted?: string;
+  costFormatted?: string;
+}
+
+export interface StockDiscrepancy {
+  productId: string;
+  productName: string;
+  productBarcode: string;
+  unit: string;
+  cachedStockMilli: number;
+  calculatedStockMilli: number;
+  differenceMilli: number;
+}
+
+export interface SearchBenchmarkResult {
+  success: boolean;
+  totalProductsTested: number;
+  seedTimeMs: number;
+  averageSearchLatencyMs: number;
+  maxSearchLatencyMs: number;
+  minSearchLatencyMs: number;
+  meetsSlaUnder100ms: boolean;
+  normalizationTestsPassed: boolean;
+  scannerSimulationPassed: boolean;
+  summaryReport: string;
+  testLog: string[];
+}
+
+
 

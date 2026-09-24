@@ -141,9 +141,9 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
 
   return (
     <div className="fixed inset-0 z-50 bg-ink/50 backdrop-blur-xs flex items-center justify-center p-4 font-sans select-none animate-in fade-in duration-150">
-      <div className="w-full max-w-lg bg-surface rounded-[8px] shadow-2xl border border-line overflow-hidden flex flex-col text-right">
+      <div className="w-full max-w-lg max-h-[92vh] bg-surface rounded-[8px] shadow-2xl border border-line overflow-hidden flex flex-col text-right">
         {/* Modal Header */}
-        <div className="h-[48px] bg-surface-2 hairline-b px-4 flex items-center justify-between">
+        <div className="h-[48px] bg-surface-2 hairline-b px-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <Tags className="w-4 h-4 text-brand" />
             <h3 className="text-[14px] font-bold text-ink m-0">إدارة تصنيفات وأقسام المنتجات</h3>
@@ -157,7 +157,7 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
         </div>
 
         {/* Modal Body */}
-        <div className="p-4 flex flex-col gap-3 text-[12px]">
+        <div className="p-4 flex flex-col gap-3 text-[12px] flex-1 min-h-0 overflow-y-auto">
           {errorMessage && (
             <div className="p-2.5 rounded bg-danger-soft border border-danger-border text-danger flex items-center gap-2 font-bold text-[11.5px]">
               <AlertCircle className="w-4 h-4 shrink-0" />
