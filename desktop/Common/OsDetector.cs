@@ -87,5 +87,28 @@ namespace RafiqPOS.Common
             var ver = Environment.OSVersion.Version;
             return ver.Major == 6 && (ver.Minor == 1 || ver.Minor == 2 || ver.Minor == 3);
         }
+
+        public static int GetBuildNumber()
+        {
+            try
+            {
+                using (var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion"))
+                {
+                    if (key != null)
+                    {
+                        object currentBuild = key.GetValue("CurrentBuild");
+                        if (currentBuild != null)
+                        {
+                            int b;
+                            if (int.TryParse(currentBuild.ToString(), out b)) return b;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+            }
+            return Environment.OSVersion.Version.Build;
+        }
     }
 }

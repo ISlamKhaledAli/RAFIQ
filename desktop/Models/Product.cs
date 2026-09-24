@@ -11,6 +11,9 @@ namespace RafiqPOS.Models
         [JsonProperty("barcode")]
         public string Barcode { get; set; }
 
+        [JsonProperty("barcodes")]
+        public System.Collections.Generic.List<string> Barcodes { get; set; }
+
         [JsonProperty("name")]
         public string Name { get; set; }
 
@@ -26,11 +29,20 @@ namespace RafiqPOS.Models
         [JsonProperty("stockQuantityMilli")]
         public long StockQuantityMilli { get; set; }
 
+        [JsonProperty("minStockQuantityMilli")]
+        public long MinStockQuantityMilli { get; set; }
+
         [JsonProperty("unit")]
         public string Unit { get; set; }
 
         [JsonProperty("taxRatePercent")]
         public int TaxRatePercent { get; set; }
+
+        [JsonProperty("taxCategoryCode")]
+        public string TaxCategoryCode { get; set; }
+
+        [JsonProperty("internalCode")]
+        public string InternalCode { get; set; }
 
         [JsonProperty("isActive")]
         public bool IsActive { get; set; }
@@ -52,6 +64,12 @@ namespace RafiqPOS.Models
         public string StockFormatted
         {
             get { return (StockQuantityMilli / 1000.0).ToString("0.###"); }
+        }
+
+        [JsonProperty("minStockFormatted")]
+        public string MinStockFormatted
+        {
+            get { return (MinStockQuantityMilli / 1000.0).ToString("0.###"); }
         }
     }
 }

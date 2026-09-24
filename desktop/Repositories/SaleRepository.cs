@@ -126,6 +126,69 @@ namespace RafiqPOS.Repositories
                             cmd.ExecuteNonQuery();
                         }
 
+                        // 5. If sale has a customer and unpaid debt, record in customer_ledger atomically
+                        if (!string.IsNullOrWhiteSpace(sale.CustomerId))
+                        {
+                            long debtAmount = sale.TotalPiasters - sale.PaidPiasters;
+                            if (debtAmount > 0)
+                            {
+                                long currentBal = 0;
+                                string getCustSql = "SELECT balance_piasters FROM customers WHERE id = @cid LIMIT 1;";
+                                using (var cCmd = new SQLiteCommand(getCustSql, conn, trans))
+                                {
+                                    cCmd.Parameters.AddWithValue("@cid", sale.CustomerId);
+                                    object cRes = cCmd.ExecuteScalar();
+                                    if (cRes != null && cRes != DBNull.Value)
+                                    {
+                                        currentBal = Convert.ToInt64(cRes);
+                                    }
+                                }
+                                long newBal = currentBal + debtAmount;
+                                string upCustSql = "UPDATE customers SET balance_piasters = @newBal WHERE id = @cid;";
+                                using (var uCmd = new SQLiteCommand(upCustSql, conn, trans))
+                                {
+                                    uCmd.Parameters.AddWithValue("@newBal", newBal);
+                                    uCmd.Parameters.AddWithValue("@cid", sale.CustomerId);
+                                    uCmd.ExecuteNonQuery();
+                                }
+
+                                string insLedgerSql = @"
+                                    INSERT INTO customer_ledger (id, customer_id, type, sale_id, amount_piasters, balance_after_piasters, notes, created_at)
+                                    VALUES (@lid, @cid, 'sale', @sid, @amt, @after, @notes, @cat);
+                                ";
+                                using (var lCmd = new SQLiteCommand(insLedgerSql, conn, trans))
+                                {
+                                    lCmd.Parameters.AddWithValue("@lid", "led_" + Guid.NewGuid().ToString("N").Substring(0, 12));
+                                    lCmd.Parameters.AddWithValue("@cid", sale.CustomerId);
+                                    lCmd.Parameters.AddWithValue("@sid", sale.Id);
+                                    lCmd.Parameters.AddWithValue("@amt", debtAmount);
+                                    lCmd.Parameters.AddWithValue("@after", newBal);
+                                    lCmd.Parameters.AddWithValue("@notes", string.Format("فاتورة آجل رقم #{0}", sale.InvoiceNumber));
+                                    lCmd.Parameters.AddWithValue("@cat", sale.CreatedAt ?? DateTime.UtcNow.ToString("o"));
+                                    lCmd.ExecuteNonQuery();
+                                }
+                            }
+                        }
+
+                        // 6. Record sensitive sale operation in audit log inside the same atomic transaction (Feature #7)
+                        string insertAuditSql = @"
+                            INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, details_json, created_at)
+                            VALUES (@aid, @uid, 'sale_create', 'sale', @sid, @details, @now);
+                        ";
+                        using (var aCmd = new SQLiteCommand(insertAuditSql, conn, trans))
+                        {
+                            aCmd.Parameters.AddWithValue("@aid", "aud_" + Guid.NewGuid().ToString("N"));
+                            aCmd.Parameters.AddWithValue("@uid", (object)sale.CashierId ?? "usr_admin_default");
+                            aCmd.Parameters.AddWithValue("@sid", sale.Id);
+                            string detailsJson = string.Format(
+                                "{{\"invoiceNumber\":{0},\"totalPiasters\":{1},\"itemCount\":{2},\"paymentMethod\":\"{3}\"}}",
+                                sale.InvoiceNumber, sale.TotalPiasters, sale.Items != null ? sale.Items.Count : 0, sale.PaymentMethod
+                            );
+                            aCmd.Parameters.AddWithValue("@details", detailsJson);
+                            aCmd.Parameters.AddWithValue("@now", sale.CreatedAt ?? DateTime.UtcNow.ToString("o"));
+                            aCmd.ExecuteNonQuery();
+                        }
+
                         // Commit entire atomic transaction
                         trans.Commit();
                         return sale;
@@ -174,6 +237,89 @@ namespace RafiqPOS.Repositories
                 }
             }
             return sales;
+        }
+
+        public List<SaleItem> GetSaleItems(string saleId)
+        {
+            var items = new List<SaleItem>();
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = @"
+                    SELECT si.*, COALESCE(p.unit, 'piece') AS unit
+                    FROM sale_items si
+                    LEFT JOIN products p ON si.product_id = p.id
+                    WHERE si.sale_id = @saleId;
+                ";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@saleId", saleId);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            items.Add(new SaleItem
+                            {
+                                Id = reader["id"].ToString(),
+                                SaleId = reader["sale_id"].ToString(),
+                                ProductId = reader["product_id"].ToString(),
+                                ProductName = reader["product_name"].ToString(),
+                                Barcode = reader["barcode"] != DBNull.Value ? reader["barcode"].ToString() : null,
+                                QuantityMilli = Convert.ToInt64(reader["quantity_milli"]),
+                                UnitPricePiasters = Convert.ToInt64(reader["unit_price_piasters"]),
+                                UnitCostPiasters = Convert.ToInt64(reader["unit_cost_piasters"]),
+                                DiscountPiasters = Convert.ToInt64(reader["discount_piasters"]),
+                                TotalPiasters = Convert.ToInt64(reader["total_piasters"]),
+                                TaxPiasters = Convert.ToInt64(reader["tax_piasters"]),
+                                Unit = reader["unit"] != DBNull.Value ? reader["unit"].ToString() : "piece"
+                            });
+                        }
+                    }
+                }
+            }
+            return items;
+        }
+
+        public Sale GetSaleById(string id)
+        {
+            Sale sale = null;
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = "SELECT * FROM sales WHERE id = @id LIMIT 1;";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", id);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            sale = new Sale
+                            {
+                                Id = reader["id"].ToString(),
+                                InvoiceNumber = Convert.ToInt32(reader["invoice_number"]),
+                                CashierId = reader["cashier_id"] != DBNull.Value ? reader["cashier_id"].ToString() : null,
+                                CustomerId = reader["customer_id"] != DBNull.Value ? reader["customer_id"].ToString() : null,
+                                SubtotalPiasters = Convert.ToInt64(reader["subtotal_piasters"]),
+                                DiscountPiasters = Convert.ToInt64(reader["discount_piasters"]),
+                                TaxPiasters = Convert.ToInt64(reader["tax_piasters"]),
+                                TotalPiasters = Convert.ToInt64(reader["total_piasters"]),
+                                PaidPiasters = Convert.ToInt64(reader["paid_piasters"]),
+                                PaymentMethod = reader["payment_method"].ToString(),
+                                Status = reader["status"].ToString(),
+                                Notes = reader["notes"] != DBNull.Value ? reader["notes"].ToString() : null,
+                                CreatedAt = reader["created_at"].ToString()
+                            };
+                        }
+                    }
+                }
+            }
+
+            if (sale != null)
+            {
+                sale.Items = GetSaleItems(sale.Id);
+            }
+            return sale;
         }
     }
 }

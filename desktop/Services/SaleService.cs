@@ -50,6 +50,10 @@ namespace RafiqPOS.Services
                     {
                         item.Barcode = product.Barcode;
                     }
+                    if (string.IsNullOrWhiteSpace(item.Unit))
+                    {
+                        item.Unit = product.Unit;
+                    }
                 }
 
                 // Item total = (unit_price * quantity_milli / 1000) - discount
@@ -78,6 +82,12 @@ namespace RafiqPOS.Services
         public List<Sale> GetRecentSales(int limit = 20)
         {
             return _saleRepo.GetRecentSales(limit);
+        }
+
+        public Sale GetSaleById(string id)
+        {
+            if (string.IsNullOrWhiteSpace(id)) return null;
+            return _saleRepo.GetSaleById(id);
         }
     }
 }

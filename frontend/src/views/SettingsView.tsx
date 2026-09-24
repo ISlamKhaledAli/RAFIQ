@@ -9,16 +9,29 @@ import {
   Cpu, 
   Zap,
   Activity,
-  Layers
+  Layers,
+  Sliders,
+  ToggleLeft,
+  ToggleRight,
+  Package,
+  ShieldCheck,
+  Gauge,
+  Store,
+  HardDrive
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { useFeatures } from '../context/useFeatures';
 import type { SystemInfo } from '../App';
+import { BackupManager } from '../components/BackupManager';
 
 interface SettingsViewProps {
   sysInfo?: SystemInfo | null;
+  initialSubTab?: 'profile' | 'backup' | 'system';
 }
 
-export const SettingsView = ({ sysInfo }: SettingsViewProps) => {
+export const SettingsView = ({ sysInfo, initialSubTab = 'profile' }: SettingsViewProps) => {
+  const { flags, toggleFlag } = useFeatures();
+  const [subTab, setSubTab] = useState<'profile' | 'backup' | 'system'>(initialSubTab);
   const [storeName, setStoreName] = useState('سوبرماركت رفيق');
   const [phone, setPhone] = useState('01012345678');
   const [address, setAddress] = useState('فرع أسيوط الرئيسي - ش الجمهورية');
@@ -120,6 +133,45 @@ export const SettingsView = ({ sysInfo }: SettingsViewProps) => {
     }
   };
 
+  const [supportLoading, setSupportLoading] = useState(false);
+  const [supportMessage, setSupportMessage] = useState<string | null>(null);
+
+  const runCreateSupportBundle = async () => {
+    setSupportLoading(true);
+    setSupportMessage(null);
+    try {
+      const res: any = await invoke('support:createBundle');
+      if (res && res.success) {
+        setSupportMessage(res.message);
+      } else {
+        setSupportMessage(res?.message || 'تعذر استخراج حزمة الدعم الفني');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setSupportMessage(`خطأ في استخراج الحزمة: ${msg}`);
+    } finally {
+      setSupportLoading(false);
+    }
+  };
+
+  const runBenchmarkTest = async () => {
+    setDiagnosticsLoading(true);
+    setDiagnosticResult('جاري تشغيل اختبار الحمل وتوليد 3,000 صنف تجريبي وقياس سرعة SQLite WAL...');
+    try {
+      const res: any = await invoke('benchmark:run', { productCount: 3000 });
+      if (res && res.success) {
+        setDiagnosticResult(res.summaryMessage);
+      } else {
+        setDiagnosticResult(res?.summaryMessage || 'فشل تشغيل اختبار الأداء');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setDiagnosticResult(`خطأ في اختبار الحمل: ${msg}`);
+    } finally {
+      setDiagnosticsLoading(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-canvas p-4 gap-3 overflow-y-auto select-none">
       {/* 1. Top Header */}
@@ -129,9 +181,51 @@ export const SettingsView = ({ sysInfo }: SettingsViewProps) => {
             <Settings className="w-4 h-4" />
           </div>
           <div>
-            <h2 className="text-[15px] font-bold text-ink leading-tight m-0">إعدادات المحل ومعاينة الإيصال الحراري</h2>
-            <p className="text-[11px] text-ink-muted m-0">تخصيص بيانات الفاتورة وصيانة وأدوات النظام</p>
+            <h2 className="text-[15px] font-bold text-ink leading-tight m-0">إعدادات المحل وأدوات النظام</h2>
+            <p className="text-[11px] text-ink-muted m-0">تخصيص بيانات الفاتورة، النسخ الاحتياطي، وصيانة الأجهزة</p>
           </div>
+        </div>
+
+        {/* Sub-Tabs Selector */}
+        <div className="flex items-center gap-1 bg-surface-2 p-1 rounded border border-line">
+          <button
+            type="button"
+            onClick={() => setSubTab('profile')}
+            className={`px-3 py-1.5 rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors ${
+              subTab === 'profile'
+                ? 'bg-surface text-brand shadow-xs border border-line'
+                : 'text-ink-muted hover:text-ink'
+            }`}
+          >
+            <Store className="w-3.5 h-3.5" />
+            <span>بيانات المحل والفاتورة</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSubTab('backup')}
+            className={`px-3 py-1.5 rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors ${
+              subTab === 'backup'
+                ? 'bg-surface text-brand shadow-xs border border-line'
+                : 'text-ink-muted hover:text-ink'
+            }`}
+          >
+            <HardDrive className="w-3.5 h-3.5" />
+            <span>النسخ الاحتياطي وحماية البيانات</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSubTab('system')}
+            className={`px-3 py-1.5 rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors ${
+              subTab === 'system'
+                ? 'bg-surface text-brand shadow-xs border border-line'
+                : 'text-ink-muted hover:text-ink'
+            }`}
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span>مفاتيح الميزات وفحص النظام</span>
+          </button>
         </div>
 
         {saved && (
@@ -142,16 +236,18 @@ export const SettingsView = ({ sysInfo }: SettingsViewProps) => {
         )}
       </div>
 
-      {/* 2. Main Two-Column Viewport */}
-      <div className="grid grid-cols-12 gap-4 flex-1">
-        {/* RIGHT COLUMN: Store Profile Form & Maintenance (7 cols) */}
-        <div className="col-span-7 flex flex-col gap-4">
-          {/* Store Profile Form */}
-          <form onSubmit={handleSave} className="bg-surface hairline-all rounded-[6px] p-5 flex flex-col gap-3.5 text-[12px]">
-            <div className="flex items-center justify-between border-b border-line pb-2">
-              <h3 className="text-[13px] font-bold text-ink m-0">بيانات السوبرماركت والفاتورة</h3>
-              <span className="text-[11px] text-ink-muted">تنعكس فوراً على الإيصال المطبوع</span>
-            </div>
+      {/* 2. Sub-Tab Views */}
+      {subTab === 'backup' && <BackupManager />}
+
+      {subTab === 'profile' && (
+        <div className="grid grid-cols-12 gap-4 flex-1">
+          {/* RIGHT COLUMN: Store Profile Form (7 cols) */}
+          <div className="col-span-7 flex flex-col gap-4">
+            <form onSubmit={handleSave} className="bg-surface hairline-all rounded-[6px] p-5 flex flex-col gap-3.5 text-[12px]">
+              <div className="flex items-center justify-between border-b border-line pb-2">
+                <h3 className="text-[13px] font-bold text-ink m-0">بيانات السوبرماركت والفاتورة</h3>
+                <span className="text-[11px] text-ink-muted">تنعكس فوراً على الإيصال المطبوع</span>
+              </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -226,79 +322,6 @@ export const SettingsView = ({ sysInfo }: SettingsViewProps) => {
               <span>{saveLoading ? 'جاري الحفظ...' : 'حفظ وتطبيق بيانات المتجر في قاعدة البيانات'}</span>
             </button>
           </form>
-
-          {/* Maintenance & System Diagnostics Section (Cleanly Integrated from DiagnosticsView) */}
-          <div className="bg-surface hairline-all rounded-[6px] p-5 flex flex-col gap-3.5 text-[12px]">
-            <div className="flex items-center justify-between border-b border-line pb-2">
-              <div className="flex items-center gap-2">
-                <Activity className="w-4 h-4 text-brand" />
-                <h3 className="text-[13px] font-bold text-ink m-0">صيانة النظام وفحص الأجهزة</h3>
-              </div>
-              <span className="text-[11px] font-mono text-paid font-bold">SQLite WAL Active</span>
-            </div>
-
-            {/* Diagnostic Message Toast */}
-            {diagnosticResult && (
-              <div className="p-2.5 rounded bg-surface-2 border border-line text-ink font-mono text-[11px] flex items-center justify-between">
-                <span>{diagnosticResult}</span>
-                <button 
-                  onClick={() => setDiagnosticResult(null)}
-                  className="text-ink-muted hover:text-ink text-xs mr-2"
-                >
-                  ✕
-                </button>
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => void runPrinterTest()}
-                disabled={diagnosticsLoading}
-                className="h-[44px] bg-surface-2 hover:bg-surface border border-line text-ink rounded font-semibold flex items-center justify-center gap-2 transition-colors text-[12px]"
-              >
-                <Printer className="w-4 h-4 text-brand" />
-                <span>اختبار الطابعة (80 مم)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => void runSqliteTest()}
-                disabled={diagnosticsLoading}
-                className="h-[44px] bg-surface-2 hover:bg-surface border border-line text-ink rounded font-semibold flex items-center justify-center gap-2 transition-colors text-[12px]"
-              >
-                <Database className="w-4 h-4 text-paid" />
-                <span>اختبار المعاملة الذرية</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => void runPingTest()}
-                disabled={diagnosticsLoading}
-                className="h-[44px] bg-surface-2 hover:bg-surface border border-line text-ink rounded font-semibold flex items-center justify-center gap-2 transition-colors text-[12px]"
-              >
-                <Zap className="w-4 h-4 text-amber-600" />
-                <span>فحص سرعة الجسر (IPC)</span>
-              </button>
-            </div>
-
-            {/* Technical Specs Strip */}
-            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-line text-[11px] font-mono text-ink-muted">
-              <div className="flex items-center gap-1.5 p-2 rounded bg-surface-2 border border-line">
-                <Cpu className="w-3.5 h-3.5 text-brand shrink-0" />
-                <span className="truncate">{sysInfo?.osVersion ? sysInfo.osVersion.split(' ')[0] : 'Windows'}</span>
-              </div>
-              <div className="flex items-center gap-1.5 p-2 rounded bg-surface-2 border border-line">
-                <Layers className="w-3.5 h-3.5 text-paid shrink-0" />
-                <span className="truncate">{sysInfo?.isWebView2 ? 'Fixed 109' : 'Chrome/Edge'}</span>
-              </div>
-              <div className="flex items-center gap-1.5 p-2 rounded bg-surface-2 border border-line">
-                <Database className="w-3.5 h-3.5 text-brand shrink-0" />
-                <span className="truncate">Integer Piasters</span>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* LEFT COLUMN: Real 80mm Live Thermal Receipt Preview (5 cols, matching folder 80) */}
@@ -398,6 +421,220 @@ export const SettingsView = ({ sysInfo }: SettingsViewProps) => {
           </div>
         </div>
       </div>
+    )}
+
+    {/* 3. SYSTEM & DIAGNOSTICS TAB */}
+    {subTab === 'system' && (
+      <div className="flex flex-col gap-4">
+        {/* Feature Toggles Section (Feature #105: ملف تعريف المحل ومفاتيح تشغيل الميزات) */}
+        <div className="bg-surface hairline-all rounded-[6px] p-5 flex flex-col gap-3.5 text-[12px]">
+          <div className="flex items-center justify-between border-b border-line pb-2">
+            <div className="flex items-center gap-2">
+              <Sliders className="w-4 h-4 text-brand" />
+              <h3 className="text-[13px] font-bold text-ink m-0">ملف تعريف المحل ومفاتيح الميزات (Feature Toggles)</h3>
+            </div>
+            <span className="text-[11px] text-ink-muted font-sans">تخصيص النظام حسب نوع ونشاط المحل</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {[
+              {
+                key: 'feature_scale_weight',
+                title: 'دعم الميزان الإلكتروني وباركود الأوزان',
+                description: 'قراءة باركود الأوزان تلقائياً (النوع 20-29) وحساب الوزن الصافي والسعر بالقروش.',
+              },
+              {
+                key: 'feature_credit_debts',
+                title: 'نظام البيع الآجل ودفتر ديون العملاء',
+                description: 'تسجيل المبيعات على الحساب، ومتابعة كشف الحساب والحد الائتماني لكل عميل.',
+              },
+              {
+                key: 'feature_fast_buttons',
+                title: 'شبكة الأصناف السريعة (Fast Picks)',
+                description: 'عرض قائمة بالأصناف الشائعة بدون باركود (خبز، خضار، منتجات يومية) على شاشة البيع.',
+              },
+              {
+                key: 'feature_taxes',
+                title: 'منظومة الضرائب والجاهزية للإيصال الإلكتروني',
+                description: 'حساب ضريبة القيمة المضافة وإظهار حقول كود التصنيف الضريبي GS1/EGS للأصناف.',
+              },
+              {
+                key: 'feature_expiry_dates',
+                title: 'تتبع تواريخ الصلاحية وتنبيهات الرواكد',
+                description: 'تسجيل تاريخ انتهاء الصلاحية لكل دفعة وتنبيه الكاشير قبل انتهاء صلاحية السلعة.',
+              },
+              {
+                key: 'feature_multi_units',
+                title: 'الوحدات المتعددة للأصناف (كرتونة / دستة / قطعة)',
+                description: 'دعم بيع الصنف بأكثر من وحدة قياس مع تحويل تلقائي للرصيد وسعر خاص لكل وحدة.',
+              },
+            ].map((feat) => {
+              const isEnabled = flags[feat.key] ?? false;
+              return (
+                <div
+                  key={feat.key}
+                  onClick={() => void toggleFlag(feat.key, !isEnabled)}
+                  className={`p-3 rounded border transition-all cursor-pointer flex items-start justify-between gap-3 ${
+                    isEnabled
+                      ? 'bg-brand-soft/40 border-brand/30 hover:border-brand'
+                      : 'bg-surface-2 border-line hover:border-line-hover opacity-75'
+                  }`}
+                >
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-ink text-[12.5px]">{feat.title}</span>
+                      <span
+                        className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
+                          isEnabled
+                            ? 'bg-paid-soft text-paid border-paid-border'
+                            : 'bg-surface text-ink-muted border-line'
+                        }`}
+                      >
+                        {isEnabled ? 'مفعل' : 'معطل'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-ink-muted leading-relaxed m-0 font-sans">
+                      {feat.description}
+                    </p>
+                  </div>
+
+                  <div className="shrink-0 pt-0.5">
+                    {isEnabled ? (
+                      <ToggleRight className="w-6 h-6 text-brand" />
+                    ) : (
+                      <ToggleLeft className="w-6 h-6 text-ink-muted" />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Maintenance & System Diagnostics Section */}
+        <div className="bg-surface hairline-all rounded-[6px] p-5 flex flex-col gap-3.5 text-[12px]">
+          <div className="flex items-center justify-between border-b border-line pb-2">
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-brand" />
+              <h3 className="text-[13px] font-bold text-ink m-0">صيانة النظام وفحص الأجهزة</h3>
+            </div>
+            <span className="text-[11px] font-mono text-paid font-bold">SQLite WAL Active</span>
+          </div>
+
+          {/* Diagnostic Message Toast */}
+          {diagnosticResult && (
+            <div className="p-2.5 rounded bg-surface-2 border border-line text-ink font-mono text-[11px] flex items-center justify-between">
+              <span>{diagnosticResult}</span>
+              <button 
+                onClick={() => setDiagnosticResult(null)}
+                className="text-ink-muted hover:text-ink text-xs mr-2"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <button
+              type="button"
+              onClick={() => void runPrinterTest()}
+              disabled={diagnosticsLoading}
+              className="h-[44px] bg-surface-2 hover:bg-surface border border-line text-ink rounded font-semibold flex items-center justify-center gap-1.5 transition-colors text-[11.5px]"
+            >
+              <Printer className="w-4 h-4 text-brand" />
+              <span>اختبار الطابعة</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void runSqliteTest()}
+              disabled={diagnosticsLoading}
+              className="h-[44px] bg-surface-2 hover:bg-surface border border-line text-ink rounded font-semibold flex items-center justify-center gap-1.5 transition-colors text-[11.5px]"
+            >
+              <Database className="w-4 h-4 text-paid" />
+              <span>المعاملة الذرية</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void runPingTest()}
+              disabled={diagnosticsLoading}
+              className="h-[44px] bg-surface-2 hover:bg-surface border border-line text-ink rounded font-semibold flex items-center justify-center gap-1.5 transition-colors text-[11.5px]"
+            >
+              <Zap className="w-4 h-4 text-amber-600" />
+              <span>سرعة الجسر (IPC)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void runBenchmarkTest()}
+              disabled={diagnosticsLoading}
+              className="h-[44px] bg-surface-2 hover:bg-surface border border-line text-ink rounded font-semibold flex items-center justify-center gap-1.5 transition-colors text-[11.5px]"
+            >
+              <Gauge className="w-4 h-4 text-blue-600" />
+              <span>اختبار الأداء والحمل</span>
+            </button>
+          </div>
+
+          {/* Technical Specs Strip */}
+          <div className="grid grid-cols-3 gap-2 pt-2 border-t border-line text-[11px] font-mono text-ink-muted">
+            <div className="flex items-center gap-1.5 p-2 rounded bg-surface-2 border border-line">
+              <Cpu className="w-3.5 h-3.5 text-brand shrink-0" />
+              <span className="truncate">{sysInfo?.osVersion ? sysInfo.osVersion.split(' ')[0] : 'Windows'}</span>
+            </div>
+            <div className="flex items-center gap-1.5 p-2 rounded bg-surface-2 border border-line">
+              <Layers className="w-3.5 h-3.5 text-paid shrink-0" />
+              <span className="truncate">{sysInfo?.isWebView2 ? 'Fixed 109' : 'Chrome/Edge'}</span>
+            </div>
+            <div className="flex items-center gap-1.5 p-2 rounded bg-surface-2 border border-line">
+              <Database className="w-3.5 h-3.5 text-brand shrink-0" />
+              <span className="truncate">Integer Piasters</span>
+            </div>
+          </div>
+
+          {/* Support Bundle Section (Feature #111) */}
+          <div className="mt-2 p-3 rounded bg-surface-2 hairline-all flex flex-col gap-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Package className="w-4 h-4 text-brand" />
+                <span className="font-bold text-ink text-[12px]">حزمة معلومات الدعم الفني وسجل الأخطاء</span>
+              </div>
+              <div className="flex items-center gap-1 text-[11px] text-paid font-medium">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>محمية: خالية تماماً من بيانات العملاء</span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-ink-muted leading-relaxed m-0 font-sans">
+              عند مواجهة أي استفسار أو مشكلة تقنية، انقر على الزر لتوليد ملف مضغوط آمن على سطح المكتب يحتوي على سجل الأخطاء الفنية ومواصفات النظام لإرساله لفريق الدعم.
+            </p>
+
+            {supportMessage && (
+              <div className="p-2.5 rounded bg-brand-soft border border-brand/30 text-ink text-[11px] flex items-center justify-between whitespace-pre-line">
+                <span>{supportMessage}</span>
+                <button
+                  onClick={() => setSupportMessage(null)}
+                  className="text-ink-muted hover:text-ink text-xs mr-2"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => void runCreateSupportBundle()}
+              disabled={supportLoading}
+              className="h-[38px] bg-brand hover:bg-brand-hover text-white rounded font-bold flex items-center justify-center gap-2 transition-colors text-[12px]"
+            >
+              <Package className="w-4 h-4" />
+              <span>{supportLoading ? 'جاري تجهيز حزمة الدعم...' : 'جمع معلومات للدعم الفني (Support Bundle)'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </div>
   );
 };

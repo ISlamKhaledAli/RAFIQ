@@ -38,6 +38,9 @@ namespace RafiqPOS.Models
 
         [JsonProperty("taxPiasters")]
         public long TaxPiasters { get; set; }
+
+        [JsonProperty("unit")]
+        public string Unit { get; set; }
     }
 
     public class Sale

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { poundsToPiasters, piastersToPounds } from '../utils/money';
+import { poundsToPiasters, piastersToPounds, normalizeArabicNumerals } from '../utils/money';
 
 interface MoneyInputProps {
   valuePiasters: number;
@@ -38,17 +38,9 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({
     setDisplayValue(pounds === 0 ? '' : pounds.toString());
   }
 
-  // تحويل الأرقام العربية المشرقية والفارسية إلى أرقام غربية قياسية
-  const normalizeDigits = (str: string): string => {
-    return str
-      .replace(/[٠-٩]/g, (d) => (d.charCodeAt(0) - 1632).toString())
-      .replace(/[۰-۹]/g, (d) => (d.charCodeAt(0) - 1776).toString())
-      .replace(/،/g, '.');
-  };
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
-    const normalized = normalizeDigits(raw);
+    const normalized = normalizeArabicNumerals(raw);
 
     // السماح فقط بالأرقام ونقطة عشرية واحدة بحد أقصى خانتين
     if (/^[0-9]*\.?[0-9]{0,2}$/.test(normalized)) {

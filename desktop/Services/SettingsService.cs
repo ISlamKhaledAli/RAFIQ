@@ -42,5 +42,38 @@ namespace RafiqPOS.Services
             _repo.SaveBatch(newSettings);
             return GetAllSettings();
         }
+
+        /// <summary>
+        /// استرجاع مفاتيح الميزات وملف تعريف المحل (Feature #105)
+        /// </summary>
+        public Dictionary<string, bool> GetFeatureFlags()
+        {
+            var flags = new Dictionary<string, bool>();
+            var settings = _repo.GetAll();
+
+            flags["feature_scale_weight"] = GetBool(settings, "feature_scale_weight", true);
+            flags["feature_credit_debts"] = GetBool(settings, "feature_credit_debts", true);
+            flags["feature_fast_buttons"] = GetBool(settings, "feature_fast_buttons", true);
+            flags["feature_taxes"] = GetBool(settings, "feature_taxes", false);
+            flags["feature_expiry_dates"] = GetBool(settings, "feature_expiry_dates", false);
+            flags["feature_multi_units"] = GetBool(settings, "feature_multi_units", false);
+
+            return flags;
+        }
+
+        public void SetFeatureFlag(string key, bool enabled)
+        {
+            _repo.Set(key, enabled ? "1" : "0");
+        }
+
+        private static bool GetBool(Dictionary<string, string> dict, string key, bool defaultValue)
+        {
+            if (dict.ContainsKey(key))
+            {
+                string val = dict[key];
+                return val == "1" || val.ToLower() == "true";
+            }
+            return defaultValue;
+        }
     }
 }
