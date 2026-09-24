@@ -1,19 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { invoke } from './bridge/ipc';
+import { useState, useEffect } from 'react';
 import { 
-  Laptop, 
-  Database, 
-  Printer, 
-  Barcode, 
-  Cpu, 
-  Play, 
-  RefreshCw,
+  ShoppingCart, 
+  Package, 
+  FileText, 
+  Settings, 
+  User,
   Clock,
-  ShieldCheck,
-  Layers
+  WifiOff,
+  CheckCircle2
 } from 'lucide-react';
+import { invoke } from './bridge/ipc';
+import { PosView } from './views/PosView';
+import { ProductsView } from './views/ProductsView';
+import { SalesHistoryView } from './views/SalesHistoryView';
+import { SettingsView } from './views/SettingsView';
 
-interface SystemInfo {
+export interface SystemInfo {
   appName: string;
   version: string;
   osVersion: string;
@@ -21,295 +23,172 @@ interface SystemInfo {
   dbStatus: string;
 }
 
-export default function App() {
-  const [sysInfo, setSysInfo] = useState<SystemInfo | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [logMessages, setLogMessages] = useState<string[]>([]);
-  const [barcodeInput, setBarcodeInput] = useState('');
-  const [scannedHistory, setScannedHistory] = useState<string[]>([]);
-  const [pingLatency, setPingLatency] = useState<number | null>(null);
+export type TabType = 'pos' | 'products' | 'sales' | 'settings';
 
-  const addLog = (msg: string) => {
-    setLogMessages((prev) => [`[${new Date().toLocaleTimeString('ar-EG')}] ${msg}`, ...prev.slice(0, 19)]);
-  };
+export default function App() {
+  const [activeTab, setActiveTab] = useState<TabType>('pos');
+  const [sysInfo, setSysInfo] = useState<SystemInfo | null>(null);
+  const [currentTime, setCurrentTime] = useState<string>('');
+  const [currentDate, setCurrentDate] = useState<string>('');
 
   useEffect(() => {
-    fetchSystemInfo();
+    let isMounted = true;
+    const loadInfo = async () => {
+      try {
+        const info = await invoke<SystemInfo>('system:getInfo');
+        if (isMounted) {
+          setSysInfo(info);
+        }
+      } catch {
+        // Fallback for dev mode
+      }
+    };
+    void loadInfo();
+
+    const updateDateTime = () => {
+      const now = new Date();
+      setCurrentTime(now.toLocaleTimeString('ar-EG', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }));
+      setCurrentDate(now.toLocaleDateString('ar-EG', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      }));
+    };
+
+    updateDateTime();
+    const timer = setInterval(updateDateTime, 1000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(timer);
+    };
   }, []);
 
-  const fetchSystemInfo = async () => {
-    try {
-      const info = await invoke<SystemInfo>('system:getInfo');
-      setSysInfo(info);
-      addLog(`تم الاتصال بنجاح بالنواة: ${info.appName} (${info.osVersion})`);
-    } catch (err: any) {
-      addLog(`خطأ في جلب بيانات النظام: ${err.message}`);
-    }
-  };
-
-  const testIpcLatency = async () => {
-    setLoading(true);
-    const start = performance.now();
-    try {
-      await invoke('system:ping', { timestamp: Date.now() });
-      const latency = Math.round(performance.now() - start);
-      setPingLatency(latency);
-      addLog(`اختبار سرعة الجسر (IPC): تم الرد في ${latency} مللي ثانية`);
-    } catch (err: any) {
-      addLog(`فشل اختبار الجسر: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const testSqliteTransaction = async () => {
-    setLoading(true);
-    try {
-      const res = await invoke('db:testTransaction', { count: 10 });
-      addLog(`قاعدة البيانات (SQLite): ${res.message || 'تمت المعاملة بنجاح'}`);
-    } catch (err: any) {
-      addLog(`خطأ في المعاملة: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const testPrinter = async () => {
-    setLoading(true);
-    try {
-      const res = await invoke('printer:test', { width: 80 });
-      addLog(`طابعة الإيصالات: ${res.message || 'تم إرسال أمر الطباعة'}`);
-    } catch (err: any) {
-      addLog(`خطأ في الطابعة: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleBarcodeKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && barcodeInput.trim()) {
-      setScannedHistory((prev) => [barcodeInput.trim(), ...prev.slice(0, 7)]);
-      addLog(`تمت قراءة باركود: ${barcodeInput.trim()}`);
-      setBarcodeInput('');
-    }
-  };
+  const navItems = [
+    { id: 'pos' as TabType, label: 'نقطة البيع (POS)', icon: ShoppingCart, shortcut: 'F1' },
+    { id: 'products' as TabType, label: 'السلع والمخزن', icon: Package, shortcut: 'F6' },
+    { id: 'sales' as TabType, label: 'سجل الفواتير', icon: FileText, shortcut: 'F7' },
+    { id: 'settings' as TabType, label: 'إعدادات المحل والصيانة', icon: Settings, shortcut: 'F8' },
+  ];
 
   return (
-    <div className="flex flex-col h-screen bg-slate-950 text-slate-100 font-sans">
-      {/* Top Header */}
-      <header className="flex items-center justify-between px-5 py-3 bg-slate-900 border-b border-slate-800">
+    <div className="flex flex-col h-screen w-screen bg-canvas text-ink select-none overflow-hidden">
+      {/* 1. TOP BAR (60px high, hairline-b, Spans across top) */}
+      <header className="h-[60px] w-full bg-surface hairline-b flex items-center justify-between px-5 shrink-0 z-20">
+        {/* Right Side: Store Title & Status Badges */}
         <div className="flex items-center gap-3">
           <img 
             src="/logo.png" 
-            alt="شعار رفيق" 
-            className="w-10 h-10 object-contain drop-shadow-[0_2px_8px_rgba(0,168,107,0.25)] hover:scale-105 transition-transform duration-200" 
+            alt="رفيق" 
+            className="w-8 h-8 object-contain drop-shadow-sm" 
           />
           <div>
-            <h1 className="text-lg font-bold text-white m-0 leading-tight">
-              نظام رفيق لنقاط البيع — لوحة التحقق التقني (Milestone 0)
-            </h1>
-            <p className="text-xs text-slate-400 m-0">
-              بيئة تشغيل خفيفة متوافقة مع Windows 7 و Windows 10/11
-            </p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-[17px] font-bold text-ink leading-none m-0">سوبرماركت رفيق</h1>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-soft text-brand font-mono font-bold border border-line">
+                v1.0.0
+              </span>
+            </div>
+            <p className="text-[11px] text-ink-muted m-0 mt-0.5">نظام نقاط البيع وإدارة السوبرماركت (أوفلاين)</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 text-xs">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-slate-800 border border-slate-700">
-            <span className={`w-2.5 h-2.5 rounded-full ${sysInfo?.isWebView2 ? 'bg-emerald-500' : 'bg-amber-400'}`}></span>
-            <span>{sysInfo?.isWebView2 ? 'WebView2 Native' : 'Browser Dev Mode'}</span>
+        {/* Left Side: Offline status, SQLite WAL, Date, Time */}
+        <div className="flex items-center gap-3 text-xs">
+          {/* Offline Indicator matching design spec */}
+          <div className="flex items-center gap-1.5 bg-paid-soft border border-paid-border px-2.5 py-1 rounded text-paid font-medium">
+            <span className="w-2 h-2 rounded-full bg-paid animate-pulse"></span>
+            <span className="text-[11px] font-semibold">يعمل بدون إنترنت</span>
+            <WifiOff className="w-3.5 h-3.5 text-paid opacity-75 mr-0.5" />
           </div>
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-slate-800 border border-slate-700">
-            <Cpu className="w-3.5 h-3.5 text-blue-400" />
-            <span>Target: Chromium 109</span>
+
+          {/* SQLite WAL Indicator */}
+          <div className="flex items-center gap-1.5 bg-surface-2 border border-line px-2.5 py-1 rounded text-ink-muted font-mono text-[11px]">
+            <CheckCircle2 className="w-3.5 h-3.5 text-brand" />
+            <span className="text-ink font-semibold">SQLite WAL</span>
+          </div>
+
+          {/* Cashier Badge */}
+          <div className="flex items-center gap-1.5 bg-surface-2 border border-line px-2.5 py-1 rounded text-ink text-[11px]">
+            <User className="w-3.5 h-3.5 text-ink-muted" />
+            <span className="font-medium">كاشير الوردية (1)</span>
+          </div>
+
+          {/* Date & Time */}
+          <div className="flex items-center gap-2 bg-surface-2 border border-line px-3 py-1 rounded tabular-nums text-[12px] font-semibold text-ink">
+            <Clock className="w-3.5 h-3.5 text-ink-muted" />
+            <span className="text-ink-muted font-normal text-[11px]">{currentDate}</span>
+            <span className="text-line">|</span>
+            <span className="font-mono text-brand font-bold">{currentTime || '00:00:00'}</span>
           </div>
         </div>
       </header>
 
-      {/* Main Grid Content */}
-      <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-        {/* Left Column: Test Suites (8 Cols) */}
-        <div className="col-span-8 flex flex-col gap-4 overflow-y-auto pr-1">
-          {/* Status Banners */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-blue-500/10 text-blue-400">
-                <Laptop className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-xs text-slate-400">نظام التشغيل</div>
-                <div className="text-sm font-bold text-slate-200">{sysInfo?.osVersion || 'جاري الفحص...'}</div>
-              </div>
+      {/* 2. MAIN APP SHELL (Sidebar Navigation + Dynamic Content Canvas) */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Navigation Sidebar (RTL Right side, 220px fixed) */}
+        <aside className="w-[220px] bg-surface hairline-l flex flex-col justify-between shrink-0 p-3 select-none">
+          <nav className="flex flex-col gap-1.5">
+            <div className="px-2 py-1 text-[11px] font-bold text-ink-muted uppercase tracking-wider">
+              القوائم الرئيسية
             </div>
 
-            <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-400">
-                <Database className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-xs text-slate-400">قاعدة البيانات</div>
-                <div className="text-sm font-bold text-slate-200">SQLite 3 (WAL Mode)</div>
-              </div>
-            </div>
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`w-full relative flex items-center justify-between px-3 h-[46px] rounded text-[13px] transition-colors ${
+                    isActive
+                      ? 'bg-brand-soft text-brand font-bold'
+                      : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-brand' : 'text-ink-muted'}`} />
+                    <span>{item.label}</span>
+                  </div>
 
-            <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-purple-500/10 text-purple-400">
-                <Clock className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-xs text-slate-400">زمن استجابة الجسر (IPC)</div>
-                <div className="text-sm font-bold text-slate-200">
-                  {pingLatency !== null ? `${pingLatency} ms` : 'لم يتم القياس'}
-                </div>
-              </div>
-            </div>
-          </div>
+                  {isActive && (
+                    <div className="absolute right-0 top-0 bottom-0 w-[3.5px] bg-brand rounded-r"></div>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
 
-          {/* Test Cards Grid */}
-          <div className="grid grid-cols-2 gap-3.5">
-            {/* Card 1: IPC Bridge */}
-            <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-blue-400" />
-                    1. جسر الرسائل الآمن (IPC Bridge)
-                  </h3>
-                  <span className="text-xs px-2 py-0.5 rounded bg-blue-900/40 text-blue-300">تاسك 154-2</span>
-                </div>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  التحقق من تدفق الرسائل ذهاباً وإياباً بين واجهة React ومضيف C# بمهلة حماية وتوليد معرف طلب فريد.
-                </p>
-              </div>
-              <button
-                onClick={testIpcLatency}
-                disabled={loading}
-                className="mt-3.5 w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-xs font-semibold transition"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                قياس زمن الاستجابة (Ping)
-              </button>
+          {/* User & Environment Card Footer */}
+          <div className="p-3 rounded border border-line bg-surface-2 text-[11px] text-ink-muted flex flex-col gap-1.5 font-mono">
+            <div className="flex justify-between items-center text-ink font-semibold">
+              <span className="font-sans">المشغّل:</span>
+              <span className="text-brand font-bold">{sysInfo?.isWebView2 ? 'Fixed 109' : 'Dev Web'}</span>
             </div>
-
-            {/* Card 2: SQLite WAL & Power Cut */}
-            <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                    2. أمان SQLite وانقطاع الكهرباء
-                  </h3>
-                  <span className="text-xs px-2 py-0.5 rounded bg-emerald-900/40 text-emerald-300">تاسك 154-3</span>
-                </div>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  تفعيل وضع سجل الكتابة (WAL) وحفظ 10 أصناف داخل معاملة ذرية واحدة مع أمان تام من التلف.
-                </p>
-              </div>
-              <button
-                onClick={testSqliteTransaction}
-                disabled={loading}
-                className="mt-3.5 w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-xs font-semibold transition"
-              >
-                <Play className="w-3.5 h-3.5" />
-                تنفيذ معاملة بيع ذرية تجريبية
-              </button>
+            <div className="flex justify-between items-center">
+              <span className="font-sans">نظام التشغيل:</span>
+              <span className="text-[10px] text-ink truncate max-w-[110px]" title={sysInfo?.osVersion || 'Windows'}>
+                {sysInfo?.osVersion ? sysInfo.osVersion.split(' ')[0] : 'Windows'}
+              </span>
             </div>
-
-            {/* Card 3: Thermal Printer ESC/POS */}
-            <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-                    <Printer className="w-4 h-4 text-amber-400" />
-                    3. طابعة الفواتير واللغة العربية
-                  </h3>
-                  <span className="text-xs px-2 py-0.5 rounded bg-amber-900/40 text-amber-300">تاسك 154-4</span>
-                </div>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  اختبار طباعة إيصال عربي عبر Win32 Spooler بخط عربي مشبّك بدون تقطيع على ورق 80مم/58مم.
-                </p>
-              </div>
-              <button
-                onClick={testPrinter}
-                disabled={loading}
-                className="mt-3.5 w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-xs font-semibold transition"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                طباعة إيصال تجريبي
-              </button>
-            </div>
-
-            {/* Card 4: Barcode Scanner Input */}
-            <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-                    <Barcode className="w-4 h-4 text-sky-400" />
-                    4. قارئ الباركود (أي لغة كيبورد)
-                  </h3>
-                  <span className="text-xs px-2 py-0.5 rounded bg-sky-900/40 text-sky-300">تاسك 154-6</span>
-                </div>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  اضرب أي باركود بالقارئ الآن — سيتم التقاط الأرقام بشكل سليم حتى لو لغة الجهاز عربي.
-                </p>
-              </div>
-              <div className="mt-3">
-                <input
-                  type="text"
-                  placeholder="امسح الباركود هنا بالقارئ..."
-                  value={barcodeInput}
-                  onChange={(e) => setBarcodeInput(e.target.value)}
-                  onKeyDown={handleBarcodeKeyDown}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500"
-                />
-              </div>
+            <div className="flex justify-between items-center pt-1 border-t border-line">
+              <span className="font-sans">الحساب المالي:</span>
+              <span className="text-paid font-bold">Integer (قروش)</span>
             </div>
           </div>
-        </div>
+        </aside>
 
-        {/* Right Column: Console / Execution Log (4 Cols) */}
-        <div className="col-span-4 flex flex-col bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-          <div className="px-4 py-2.5 bg-slate-950/70 border-b border-slate-800 flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-300 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              سجل أحداث النواة المباشر (Audit Log)
-            </span>
-            <button
-              onClick={() => setLogMessages([])}
-              className="text-[10px] text-slate-500 hover:text-slate-300"
-            >
-              مسح
-            </button>
-          </div>
-
-          <div className="flex-1 p-3 font-mono text-xs overflow-y-auto flex flex-col gap-1.5 text-slate-300">
-            {logMessages.length === 0 ? (
-              <div className="text-center text-slate-600 mt-20 text-xs">
-                لا توجد أحداث مسجلة بعد... اضغط على أي زر تجربة.
-              </div>
-            ) : (
-              logMessages.map((log, idx) => (
-                <div key={idx} className="p-2 rounded bg-slate-950/60 border border-slate-800/80 leading-relaxed text-[11px]">
-                  {log}
-                </div>
-              ))
-            )}
-          </div>
-
-          {/* Scanned Barcode Mini History */}
-          {scannedHistory.length > 0 && (
-            <div className="p-3 bg-slate-950/80 border-t border-slate-800">
-              <div className="text-[11px] font-bold text-sky-400 mb-1.5">آخر باركودات قُرئت:</div>
-              <div className="flex flex-wrap gap-1">
-                {scannedHistory.map((bc, i) => (
-                  <span key={i} className="px-2 py-0.5 rounded bg-sky-950 text-sky-300 border border-sky-800 text-[10px] font-mono">
-                    {bc}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        {/* Dynamic Views Viewport */}
+        <main className="flex-1 h-full overflow-hidden bg-canvas">
+          {activeTab === 'pos' && <PosView />}
+          {activeTab === 'products' && <ProductsView />}
+          {activeTab === 'sales' && <SalesHistoryView />}
+          {activeTab === 'settings' && <SettingsView sysInfo={sysInfo} />}
+        </main>
       </div>
     </div>
   );

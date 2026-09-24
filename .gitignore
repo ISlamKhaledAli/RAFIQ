@@ -38,3 +38,6 @@ installer/prerequisites/*.exe
 installer/prerequisites/*.cab
 installer/prerequisites/*.msi
 !installer/prerequisites/MicrosoftEdgeWebview2Setup.exe
+
+# UI Design Reference Assets
+stitch_rafeeq_pos_system_ui_design/

@@ -7,19 +7,45 @@ export default {
   theme: {
     extend: {
       colors: {
-        pos: {
-          bg: "#0f172a",
-          card: "#1e293b",
-          border: "#334155",
-          primary: "#2563eb",
-          accent: "#10b981",
-          warning: "#f59e0b",
-          danger: "#ef4444",
-        }
+        canvas: "#F3F5F2",
+        surface: {
+          DEFAULT: "#FFFFFF",
+          pure: "#FFFFFF",
+          2: "#F7F8F6",
+          dim: "#D7DADD",
+          bright: "#F7FAFC",
+        },
+        line: "#DCE1DC",
+        brand: {
+          DEFAULT: "#0B4F42",
+          hover: "#0F6A57",
+          soft: "#E1EAE5",
+          dark: "#00372D",
+        },
+        ink: {
+          DEFAULT: "#14181A",
+          muted: "#5B6664",
+        },
+        paid: {
+          DEFAULT: "#1B7A4D",
+          soft: "#EAF5EE",
+          border: "#C4E3D0",
+        },
+        warn: {
+          DEFAULT: "#B3720E",
+          soft: "#FEF7EC",
+          border: "#F5DEB4",
+        },
+        danger: {
+          DEFAULT: "#B23A2E",
+          soft: "#FDF3F2",
+          border: "#F6CBC6",
+        },
       },
       fontFamily: {
-        arabic: ["Cairo", "Segoe UI", "Tahoma", "sans-serif"],
-      }
+        sans: ["Cairo", "IBM Plex Sans Arabic", "Segoe UI", "Tahoma", "sans-serif"],
+        mono: ["IBM Plex Mono", "Consolas", "monospace"],
+      },
     },
   },
   plugins: [],
