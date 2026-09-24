@@ -55,6 +55,16 @@ namespace RafiqPOS.Services
                 throw new ArgumentException("سعر البيع لا يمكن أن يكون سالباً");
             }
 
+            if (!string.IsNullOrWhiteSpace(product.Barcode))
+            {
+                product.Barcode = product.Barcode.Trim();
+                var existingWithBarcode = _repo.GetByBarcode(product.Barcode);
+                if (existingWithBarcode != null && existingWithBarcode.Id != product.Id)
+                {
+                    throw new InvalidOperationException("الباركود '" + product.Barcode + "' مسجل بالفعل لمنتج آخر: " + existingWithBarcode.Name);
+                }
+            }
+
             if (string.IsNullOrWhiteSpace(product.Id))
             {
                 product.Id = Guid.NewGuid().ToString();
@@ -70,6 +80,12 @@ namespace RafiqPOS.Services
 
             _repo.Upsert(product);
             return product;
+        }
+
+        public void DeleteProduct(string id)
+        {
+            if (string.IsNullOrWhiteSpace(id)) return;
+            _repo.SoftDelete(id);
         }
     }
 }

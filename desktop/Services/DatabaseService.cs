@@ -34,8 +34,10 @@ namespace RafiqPOS.Services
 
         public static ProductRepository ProductRepo { get; private set; }
         public static SaleRepository SaleRepo { get; private set; }
+        public static SettingsRepository SettingsRepo { get; private set; }
         public static ProductService Products { get; private set; }
         public static SaleService Sales { get; private set; }
+        public static SettingsService Settings { get; private set; }
 
         public static void Initialize()
         {
@@ -64,8 +66,10 @@ namespace RafiqPOS.Services
             // Initialize Repositories and Services (Feature #5)
             ProductRepo = new ProductRepository(_connectionString);
             SaleRepo = new SaleRepository(_connectionString);
+            SettingsRepo = new SettingsRepository(_connectionString);
             Products = new ProductService(ProductRepo);
             Sales = new SaleService(SaleRepo, ProductRepo);
+            Settings = new SettingsService(SettingsRepo);
         }
 
         public static string GetStatus()

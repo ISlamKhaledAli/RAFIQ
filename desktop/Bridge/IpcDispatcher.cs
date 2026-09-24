@@ -22,11 +22,11 @@ namespace RafiqPOS.Bridge
                 switch (request.Action)
                 {
                     case "system:getInfo":
-                        string osDetails = Environment.OSVersion.VersionString + (Environment.Is64BitOperatingSystem ? " (64-bit)" : " (32-bit)");
+                        string osDetails = RafiqPOS.Common.OsDetector.GetOsFriendlyName() + (Environment.Is64BitOperatingSystem ? " (64-bit)" : " (32-bit)");
                         return BridgeResponse.Ok(request.Id, new
                         {
                             appName = "رفيق POS",
-                            version = "1.0.0-Spike",
+                            version = "1.0.0",
                             osVersion = osDetails,
                             isWebView2 = true,
                             dbStatus = DatabaseService.GetStatus()
@@ -64,6 +64,20 @@ namespace RafiqPOS.Bridge
                         var savedProduct = DatabaseService.Products.SaveProduct(productToSave);
                         return BridgeResponse.Ok(request.Id, savedProduct);
 
+                    case "products:delete":
+                        string prodIdToDelete = "";
+                        JObject delObj = request.Payload as JObject;
+                        if (delObj != null && delObj["id"] != null)
+                        {
+                            prodIdToDelete = delObj["id"].ToString();
+                        }
+                        else if (request.Payload != null)
+                        {
+                            prodIdToDelete = request.Payload.ToString().Trim('"', ' ');
+                        }
+                        DatabaseService.Products.DeleteProduct(prodIdToDelete);
+                        return BridgeResponse.Ok(request.Id, new { success = true, deletedId = prodIdToDelete });
+
                     case "sales:create":
                         if (request.Payload == null)
                         {
@@ -100,6 +114,19 @@ namespace RafiqPOS.Bridge
                             success = true,
                             message = "تمت محاكاة طباعة إيصال عربي (ESC/POS) بعرض 80مم عبر Win32 Spooler بنجاح"
                         });
+
+                    case "settings:getAll":
+                        var allSettings = DatabaseService.Settings.GetAllSettings();
+                        return BridgeResponse.Ok(request.Id, allSettings);
+
+                    case "settings:save":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات الإعدادات فارغة");
+                        }
+                        var settingsDict = JsonConvert.DeserializeObject<Dictionary<string, string>>(request.Payload.ToString());
+                        var updatedSettings = DatabaseService.Settings.SaveSettings(settingsDict);
+                        return BridgeResponse.Ok(request.Id, updatedSettings);
 
                     default:
                         return BridgeResponse.Fail(request.Id, "ACTION_NOT_FOUND", "الإجراء غير مسجل في النواة: " + request.Action);

@@ -22,12 +22,25 @@ namespace RafiqPOS.Database
                 using (var cmd = new SQLiteCommand(@"
                     CREATE TABLE IF NOT EXISTS schema_migrations (
                         version INTEGER PRIMARY KEY,
-                        name TEXT NOT NULL,
+                        name TEXT,
                         applied_at TEXT NOT NULL
                     );
                 ", conn))
                 {
                     cmd.ExecuteNonQuery();
+                }
+
+                // Add 'name' column if missing from legacy spike database
+                try
+                {
+                    using (var cmd = new SQLiteCommand("ALTER TABLE schema_migrations ADD COLUMN name TEXT DEFAULT '';", conn))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+                catch
+                {
+                    // Column already exists, safe to ignore
                 }
 
                 // 3. Get current version
@@ -211,7 +224,7 @@ namespace RafiqPOS.Database
                         VALUES ('usr_admin_default', 'admin', 'مدير النظام', '1234', 'owner', 1, datetime('now'));
 
                         -- تسجيل إصدار الهيكل رقم 1
-                        INSERT INTO schema_migrations (version, name, applied_at)
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
                         VALUES (1, 'initial_enterprise_pos_schema', datetime('now'));
                     ";
 

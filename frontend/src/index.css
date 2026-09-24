@@ -3,44 +3,82 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --canvas: #F3F5F2;
+    --surface: #FFFFFF;
+    --surface-2: #F7F8F6;
+    --ink: #14181A;
+    --ink-muted: #5B6664;
+    --line: #DCE1DC;
+    --brand: #0B4F42;
+    --brand-hover: #0F6A57;
+    --brand-soft: #E1EAE5;
+    --paid: #1B7A4D;
+    --warn: #B3720E;
+    --danger: #B23A2E;
+  }
+
   * {
     box-sizing: border-box;
     user-select: none;
+    -webkit-user-select: none;
   }
   
   input, textarea {
     user-select: text;
+    -webkit-user-select: text;
   }
 
   body {
     margin: 0;
     padding: 0;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #0f172a;
-    color: #f8fafc;
+    font-family: 'Cairo', 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #F3F5F2;
+    color: #14181A;
     direction: rtl;
     text-align: right;
     overflow: hidden;
     height: 100vh;
     width: 100vw;
+    -webkit-font-smoothing: antialiased;
   }
 }
 
-/* Custom Scrollbars for Retail Screen */
+/* Tabular Numerals for Retail Accounting */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+/* Hairline Grid Borders */
+.hairline-b { border-bottom: 1px solid #DCE1DC; }
+.hairline-t { border-top: 1px solid #DCE1DC; }
+.hairline-l { border-left: 1px solid #DCE1DC; }
+.hairline-r { border-right: 1px solid #DCE1DC; }
+.hairline-all { border: 1px solid #DCE1DC; }
+
+/* Custom Retail Scrollbars */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #1e293b;
+  background: #F7F8F6;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #475569;
-  border-radius: 4px;
+  background: #DCE1DC;
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
+  background: #BFC9C4;
+}
+
+/* Thermal Paper Cut Zigzag */
+.receipt-zigzag {
+  background-image: radial-gradient(circle at 6px 0px, transparent 6px, #ffffff 6.5px);
+  background-size: 12px 10px;
+  background-repeat: repeat-x;
 }

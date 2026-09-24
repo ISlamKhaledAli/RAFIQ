@@ -154,6 +154,21 @@ namespace RafiqPOS.Repositories
             }
         }
 
+        public void SoftDelete(string id)
+        {
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = "UPDATE products SET is_active = 0, updated_at = @updatedAt WHERE id = @id;";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", id);
+                    cmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
+                    cmd.ExecuteNonQuery();
+                }
+            }
+        }
+
         private static Product MapReaderToProduct(SQLiteDataReader reader)
         {
             return new Product

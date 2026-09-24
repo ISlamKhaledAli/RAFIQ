@@ -51,12 +51,19 @@ always_on: true
    - الالتزام بصياغة C# 5 المتوافقة مع أداة MSBuild v4.0 (استخدام `get { return ...; }`، وتفادي `=>` و `nameof(...)` و pattern matching).
    - حزمة WebView2 لا تتجاوز `1.0.1518.46` (Fixed 109 لويندوز 7 و Evergreen لويندوز 10/11).
    - مسار البيانات في الإنتاج: `%ProgramData%\RafiqPOS\data\rafiq_pos.db`.
+   - كشف بيئة النظام بدقة عبر `app.manifest` ومساعد `OsDetector` لتمييز Windows 11/10 عن Windows 7/8 ومنع رسائل المحاكاة المغلوطة.
+   - **عزل الأخطاء حسب النظام الفرعي:** فصل معالجة أخطاء قاعدة البيانات عن ملفات الواجهة وعن أخطاء مشغل WebView2، وعرض رسائل عربية دقيقة توضح المشكلة الحقيقية.
 
 2. **واجهة React (Vite):**
    - هدف البناء: `chrome109` / `es2020`.
    - التنسيقات: Tailwind CSS v3.4 فقط أو Vanilla CSS (ممنوع Tailwind v4).
    - الخطوط والأصول محلية بالكامل (Self-hosted Cairo/Tajawal)، لا استدعاءات خارجية بدون إنترنت.
    - دعم الشاشات الصغيرة: 1024×768 و 1366×768 بدون تمرير أفقي.
+   - **المرجع البصري الإلزامي للواجهات:** مجلد `stitch_rafeeq_pos_system_ui_design/` وفهرسه [`UI_DESIGN_CATALOG.md`](file:///c:/Users/khale/OneDrive/Desktop/RAFIQ/UI_DESIGN_CATALOG.md). قبل بناء أي شاشة، يتم فحص `code.html` و `screen.png` ونقل التصميم لـ React بجودة أعلى، مع الحفاظ على هوية ألوان الأخضر والسطح الرمادي المريح والخطوط العربية.
+
+3. **انضباط Git:**
+   - منع أي commit أو push عشوائي بدون مبرر وموافقة واختبار كامل.
+   - استثناء ملفات التصاميم `stitch_rafeeq_pos_system_ui_design/` والملفات المؤقتة في `.gitignore`.
 
 ---
 
