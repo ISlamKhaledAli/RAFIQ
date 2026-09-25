@@ -44,7 +44,7 @@ namespace RafiqPOS.Services
                 using (var conn = new SQLiteConnection(_connectionString))
                 {
                     conn.Open();
-                    using (var cmd = new SQLiteCommand("SELECT id, name, description, icon, feature_flags_json, categories_json, quick_items_json, default_settings_json, is_active FROM store_templates WHERE is_active = 1 ORDER BY rowid ASC;", conn))
+                    using (var cmd = new SQLiteCommand("SELECT id, name, description, icon, feature_flags_json, categories_json, quick_items_json, default_settings_json, is_active FROM store_templates WHERE is_active = 1 AND id != 'accessories_gifts' ORDER BY rowid ASC;", conn))
                     {
                         using (var reader = cmd.ExecuteReader())
                         {
@@ -115,6 +115,11 @@ namespace RafiqPOS.Services
                     conn.Open();
                     using (var trans = conn.BeginTransaction())
                     {
+                        using (var cleanCmd = new SQLiteCommand("DELETE FROM store_templates WHERE id = 'accessories_gifts';", conn, trans))
+                        {
+                            cleanCmd.ExecuteNonQuery();
+                        }
+
                         for (int i = 0; i < templates.Count; i++)
                         {
                             var tpl = templates[i];

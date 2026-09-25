@@ -239,9 +239,12 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
         ]);
 
         if (active) {
-          if (Array.isArray(tplList) && tplList.length >= 8) {
-            setTemplates(tplList);
-            setSelectedTemplateId(tplList[0].id);
+          if (Array.isArray(tplList) && tplList.length > 0) {
+            const cleanList = tplList.filter((t) => t.id !== 'accessories_gifts');
+            if (cleanList.length > 0) {
+              setTemplates(cleanList);
+              setSelectedTemplateId((prev) => cleanList.some((t) => t.id === prev) ? prev : cleanList[0].id);
+            }
           }
           if (Array.isArray(printerList)) {
             setPrinters(printerList);
