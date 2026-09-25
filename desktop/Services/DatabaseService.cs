@@ -61,7 +61,9 @@ namespace RafiqPOS.Services
         public static ProductPriceHistoryRepository PriceHistoryRepo { get; private set; }
         public static StockMovementRepository StockMovementRepo { get; private set; }
         public static QuickItemRepository QuickItemRepo { get; private set; }
+        public static ProductUnitRepository ProductUnitRepo { get; private set; }
         public static ProductService Products { get; private set; }
+        public static ProductUnitService ProductUnits { get; private set; }
         public static SaleService Sales { get; private set; }
         public static InventoryService Inventory { get; private set; }
         public static SettingsService Settings { get; private set; }
@@ -131,8 +133,10 @@ namespace RafiqPOS.Services
             PriceHistoryRepo = new ProductPriceHistoryRepository(_connectionString);
             StockMovementRepo = new StockMovementRepository(_connectionString);
             QuickItemRepo = new QuickItemRepository(_connectionString);
+            ProductUnitRepo = new ProductUnitRepository(_connectionString);
 
             Products = new ProductService(ProductRepo, AuditRepo, PriceHistoryRepo, StockMovementRepo);
+            ProductUnits = new ProductUnitService(_connectionString);
             Sales = new SaleService(SaleRepo, ProductRepo);
             Inventory = new InventoryService(_connectionString, StockMovementRepo, ProductRepo, AuditRepo);
             Settings = new SettingsService(SettingsRepo);

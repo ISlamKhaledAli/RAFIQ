@@ -17,9 +17,27 @@ export interface Product {
   needsReview?: boolean;
   createdAt: string;
   updatedAt: string;
+  units?: ProductUnit[];
   priceFormatted?: string;
   stockFormatted?: string;
   minStockFormatted?: string;
+}
+
+export interface ProductUnit {
+  id?: string;
+  productId?: string;
+  unitName: string;
+  conversionFactor: number;
+  isBaseUnit: boolean;
+  sellPricePiasters: number;
+  costPricePiasters: number;
+  barcode?: string | null;
+  isDivisible: boolean;
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+  sellPriceFormatted?: string;
+  costPriceFormatted?: string;
 }
 
 export interface Category {
@@ -75,6 +93,9 @@ export interface SaleItem {
   taxPiasters: number;
   taxRatePercent?: number;
   unit?: string;
+  unitId?: string;
+  unitName?: string;
+  conversionFactor?: number;
 }
 
 export interface Sale {

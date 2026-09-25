@@ -186,6 +186,130 @@ namespace RafiqPOS.Bridge
                         var importResult = DatabaseService.Products.ImportBatch(importReq, "usr_admin_default");
                         return BridgeResponse.Ok(request.Id, importResult);
 
+                    // ==========================================
+                    // Product Units Management (Feature #161 / Tasks 161-1 to 161-15)
+                    // ==========================================
+                    case "productUnits:getByProduct":
+                        string puProdId = "";
+                        JObject puProdObj = request.Payload as JObject;
+                        if (puProdObj != null && puProdObj["productId"] != null)
+                        {
+                            puProdId = puProdObj["productId"].ToString();
+                        }
+                        else if (request.Payload != null)
+                        {
+                            puProdId = request.Payload.ToString().Trim('"', ' ');
+                        }
+                        var pUnits = DatabaseService.ProductUnits.GetUnitsForProduct(puProdId);
+                        return BridgeResponse.Ok(request.Id, pUnits);
+
+                    case "productUnits:save":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات الوحدة فارغة");
+                        }
+                        var unitToSave = JsonConvert.DeserializeObject<ProductUnit>(request.Payload.ToString());
+                        if (unitToSave == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "تعذر قراءة بيانات الوحدة");
+                        }
+                        try
+                        {
+                            ProductUnit savedUnit;
+                            if (string.IsNullOrWhiteSpace(unitToSave.Id))
+                            {
+                                savedUnit = DatabaseService.ProductUnits.CreateUnit(unitToSave);
+                            }
+                            else
+                            {
+                                var existingUnit = DatabaseService.ProductUnits.GetUnitById(unitToSave.Id);
+                                if (existingUnit == null)
+                                {
+                                    savedUnit = DatabaseService.ProductUnits.CreateUnit(unitToSave);
+                                }
+                                else
+                                {
+                                    savedUnit = DatabaseService.ProductUnits.UpdateUnit(unitToSave);
+                                }
+                            }
+                            return BridgeResponse.Ok(request.Id, savedUnit);
+                        }
+                        catch (Exception ex)
+                        {
+                            return BridgeResponse.Fail(request.Id, "SAVE_UNIT_FAILED", ex.Message);
+                        }
+
+                    case "productUnits:delete":
+                        string uIdToDelete = "";
+                        JObject uDelObj = request.Payload as JObject;
+                        if (uDelObj != null && uDelObj["unitId"] != null)
+                        {
+                            uIdToDelete = uDelObj["unitId"].ToString();
+                        }
+                        else if (uDelObj != null && uDelObj["id"] != null)
+                        {
+                            uIdToDelete = uDelObj["id"].ToString();
+                        }
+                        else if (request.Payload != null)
+                        {
+                            uIdToDelete = request.Payload.ToString().Trim('"', ' ');
+                        }
+                        try
+                        {
+                            DatabaseService.ProductUnits.DeleteUnit(uIdToDelete);
+                            return BridgeResponse.Ok(request.Id, new { success = true, deletedId = uIdToDelete });
+                        }
+                        catch (Exception ex)
+                        {
+                            return BridgeResponse.Fail(request.Id, "DELETE_UNIT_FAILED", ex.Message);
+                        }
+
+                    case "productUnits:setBase":
+                        string sbProdId = "";
+                        string sbUnitId = "";
+                        JObject sbObj = request.Payload as JObject;
+                        if (sbObj != null)
+                        {
+                            if (sbObj["productId"] != null) sbProdId = sbObj["productId"].ToString();
+                            if (sbObj["unitId"] != null) sbUnitId = sbObj["unitId"].ToString();
+                        }
+                        if (string.IsNullOrWhiteSpace(sbProdId) || string.IsNullOrWhiteSpace(sbUnitId))
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "معرف المنتج ومعرف الوحدة مطلوبان");
+                        }
+                        try
+                        {
+                            DatabaseService.ProductUnits.SetBaseUnit(sbProdId, sbUnitId);
+                            var updatedUnits = DatabaseService.ProductUnits.GetUnitsForProduct(sbProdId);
+                            return BridgeResponse.Ok(request.Id, updatedUnits);
+                        }
+                        catch (Exception ex)
+                        {
+                            return BridgeResponse.Fail(request.Id, "SET_BASE_UNIT_FAILED", ex.Message);
+                        }
+
+                    case "productUnits:calculateProfit":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "البيانات فارغة");
+                        }
+                        JObject calcObj = request.Payload as JObject;
+                        ProductUnit calcUnit = null;
+                        ProductUnit calcBaseUnit = null;
+                        if (calcObj != null)
+                        {
+                            if (calcObj["unit"] != null)
+                            {
+                                calcUnit = calcObj["unit"].ToObject<ProductUnit>();
+                            }
+                            if (calcObj["baseUnit"] != null)
+                            {
+                                calcBaseUnit = calcObj["baseUnit"].ToObject<ProductUnit>();
+                            }
+                        }
+                        var profitInfo = DatabaseService.ProductUnits.CalculateProfit(calcUnit, calcBaseUnit);
+                        return BridgeResponse.Ok(request.Id, profitInfo);
+
                     case "sales:create":
                         if (request.Payload == null)
                         {

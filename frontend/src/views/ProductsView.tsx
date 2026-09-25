@@ -27,7 +27,7 @@ import {
   Download
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
-import type { Product, Category, StockMovement, StockDiscrepancy } from '../types/models';
+import type { Product, Category, StockMovement, StockDiscrepancy, ProductUnit } from '../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../utils/money';
 import { exportProductsToExcel } from '../utils/excelImport';
 import { MoneyInput } from '../components/MoneyInput';
@@ -37,6 +37,7 @@ import { PriceHistoryModal } from '../components/PriceHistoryModal';
 import { ExcelImportModal } from '../components/ExcelImportModal';
 import { StockMovementsModal } from '../components/StockMovementsModal';
 import { StockAdjustmentModal } from '../components/StockAdjustmentModal';
+import { ProductUnitsEditor } from '../components/ProductUnitsEditor';
 
 export interface ProductsViewProps {
   subView?: 'catalog' | 'movements';
@@ -57,6 +58,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
   const [pricePiasters, setPricePiasters] = useState(0);
   const [costPiasters, setCostPiasters] = useState(0);
   const [unit, setUnit] = useState<'piece' | 'kg'>('piece');
+  const [productUnits, setProductUnits] = useState<ProductUnit[]>([]);
   const [stockInput, setStockInput] = useState('10');
   const [minStockInput, setMinStockInput] = useState('5');
   const [taxRatePercent, setTaxRatePercent] = useState(0);
@@ -300,6 +302,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
     setPricePiasters(0);
     setCostPiasters(0);
     setUnit('piece');
+    setProductUnits([{
+      unitName: 'قطعة',
+      conversionFactor: 1,
+      isBaseUnit: true,
+      sellPricePiasters: 0,
+      costPricePiasters: 0,
+      barcode: '',
+      isDivisible: false,
+      sortOrder: 0
+    }]);
     setStockInput('10');
     setMinStockInput('5');
     setTaxRatePercent(0);
@@ -323,6 +335,30 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
     setCostPiasters(prod.costPiasters);
     const u = prod.unit === 'kg' ? 'kg' : 'piece';
     setUnit(u);
+
+    // Load or initialize units for this product
+    if (prod.units && prod.units.length > 0) {
+      setProductUnits(prod.units);
+    } else {
+      setProductUnits([{
+        unitName: u === 'kg' ? 'كيلو' : 'قطعة',
+        conversionFactor: 1,
+        isBaseUnit: true,
+        sellPricePiasters: prod.pricePiasters,
+        costPricePiasters: prod.costPiasters,
+        barcode: prod.barcode || '',
+        isDivisible: u === 'kg',
+        sortOrder: 0
+      }]);
+      void invoke<ProductUnit[]>('productUnits:getByProduct', { productId: prod.id }).then((units) => {
+        if (units && units.length > 0) {
+          setProductUnits(units);
+        }
+      }).catch(() => {
+        // keep default
+      });
+    }
+
     const sKg = (prod.stockQuantityMilli / 1000).toFixed(3).replace(/\.?0+$/, '');
     setStockInput(sKg || '0');
     const msKg = ((prod.minStockQuantityMilli ?? 5000) / 1000).toFixed(3).replace(/\.?0+$/, '');
@@ -405,6 +441,20 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
       const parsedMinStock = parseFloat(normalizeArabicNumerals(minStockInput)) || 0;
       const minStockQuantityMilli = Math.round(parsedMinStock * 1000);
 
+      const synchronizedUnits = productUnits.map(u => {
+        if (u.isBaseUnit) {
+          return {
+            ...u,
+            sellPricePiasters: pricePiasters,
+            costPricePiasters: costPiasters,
+            barcode: barcode.trim() || null,
+            unitName: u.unitName.trim() || (unit === 'kg' ? 'كيلو' : 'قطعة'),
+            isDivisible: unit === 'kg' || u.isDivisible
+          };
+        }
+        return u;
+      });
+
       const productPayload: Partial<Product> & { confirmSimilarName?: boolean; confirmBelowCost?: boolean } = {
         name: name.trim(),
         barcode: barcode.trim() || (allBarcodes.length > 0 ? allBarcodes[0] : null),
@@ -417,6 +467,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
         stockQuantityMilli,
         minStockQuantityMilli,
         unit,
+        units: synchronizedUnits,
         taxRatePercent,
         isActive: true,
         confirmSimilarName: forceConfirmSimilar,
@@ -702,6 +753,20 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
 
                     const isSelected = selectedProductIds.includes(prod.id);
 
+                    const stockPcs = Math.floor(stockQuantityCurrent);
+                    const largerUnits = (prod.units || []).filter(u => !u.isBaseUnit && u.conversionFactor > 1);
+                    let unitBreakdown: string | null = null;
+                    if (largerUnits.length > 0 && stockPcs > 0 && !isKg) {
+                      const primaryLargeUnit = largerUnits[0];
+                      const wholeLarge = Math.floor(stockPcs / primaryLargeUnit.conversionFactor);
+                      const rem = stockPcs % primaryLargeUnit.conversionFactor;
+                      if (wholeLarge > 0) {
+                        unitBreakdown = rem > 0 
+                          ? `${wholeLarge} ${primaryLargeUnit.unitName} + ${rem}`
+                          : `${wholeLarge} ${primaryLargeUnit.unitName}`;
+                      }
+                    }
+
                     return (
                       <div 
                         key={prod.id} 
@@ -737,6 +802,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
                             <span className="shrink-0 px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-[10px] font-bold rounded flex items-center gap-0.5" title="يباع بالوزن (ميزان)">
                               <Scale className="w-2.5 h-2.5" />
                               <span>وزن</span>
+                            </span>
+                          )}
+                          {prod.units && prod.units.length > 1 && (
+                            <span 
+                              className="shrink-0 px-1.5 py-0.5 bg-brand-soft text-brand text-[9.5px] font-bold rounded border border-brand/20"
+                              title={`وحدات البيع المسجلة:\n${prod.units.map(u => `${u.unitName} (معامل ${u.conversionFactor})`).join('\n')}`}
+                            >
+                              {prod.units.length} وحدات
                             </span>
                           )}
                           {prod.taxRatePercent > 0 && (
@@ -776,9 +849,15 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
                           title="انقر لعرض كارت حركات الصنف"
                         >
                           <span className="font-bold text-ink text-[12px] group-hover:text-brand underline decoration-dotted underline-offset-2">{stockDisplay}</span>
-                          <span className="text-[9.5px] text-ink-muted" title={`حد الطلب الأدنى: ${minStockDisplay} ${isKg ? 'كجم' : 'قطعة'}`}>
-                            حد {minStockDisplay}
-                          </span>
+                          {unitBreakdown ? (
+                            <span className="text-[9px] text-brand font-bold truncate max-w-full" title={`المكافئ بالوحدة الكبيرة: ${unitBreakdown}`}>
+                              ≈ {unitBreakdown}
+                            </span>
+                          ) : (
+                            <span className="text-[9.5px] text-ink-muted" title={`حد الطلب الأدنى: ${minStockDisplay} ${isKg ? 'كجم' : 'قطعة'}`}>
+                              حد {minStockDisplay}
+                            </span>
+                          )}
                         </div>
 
                         <div className="col-span-1 flex justify-center">
@@ -1467,6 +1546,23 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
                   </div>
                 </div>
               )}
+
+              {/* Multi-Units Management (Feature #161 / Tasks 161-1 to 161-4 & 161-13 to 161-15) */}
+              <ProductUnitsEditor
+                units={productUnits}
+                onChange={(newUnits) => {
+                  setProductUnits(newUnits);
+                  const base = newUnits.find(u => u.isBaseUnit);
+                  if (base) {
+                    if (base.sellPricePiasters !== pricePiasters) setPricePiasters(base.sellPricePiasters);
+                    if (base.costPricePiasters !== costPiasters) setCostPiasters(base.costPricePiasters);
+                  }
+                }}
+                basePricePiasters={pricePiasters}
+                baseCostPiasters={costPiasters}
+                baseUnitName={unit === 'kg' ? 'كيلو' : 'قطعة'}
+                primaryBarcode={barcode}
+              />
 
               {/* Initial Stock, Min Stock Threshold, & Tax Rate (Feature #18 & #19) */}
               <div className="grid grid-cols-3 gap-2.5">

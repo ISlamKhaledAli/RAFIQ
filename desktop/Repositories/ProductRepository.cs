@@ -29,6 +29,7 @@ namespace RafiqPOS.Repositories
                         {
                             var prod = MapReaderToProduct(reader);
                             prod.Barcodes = GetBarcodesForProductInternal(conn, prod.Id);
+                            prod.Units = GetUnitsForProductInternal(conn, prod.Id);
                             return prod;
                         }
                     }
@@ -45,9 +46,10 @@ namespace RafiqPOS.Repositories
             {
                 conn.Open();
                 string sql = @"
-                    SELECT p.* FROM products p
+                    SELECT DISTINCT p.* FROM products p
                     LEFT JOIN product_barcodes pb ON p.id = pb.product_id
-                    WHERE p.is_active = 1 AND (p.barcode = @barcode OR pb.barcode = @barcode)
+                    LEFT JOIN product_units pu ON p.id = pu.product_id
+                    WHERE p.is_active = 1 AND (p.barcode = @barcode OR pb.barcode = @barcode OR pu.barcode = @barcode)
                     LIMIT 1;
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn))
@@ -59,6 +61,7 @@ namespace RafiqPOS.Repositories
                         {
                             var prod = MapReaderToProduct(reader);
                             prod.Barcodes = GetBarcodesForProductInternal(conn, prod.Id);
+                            prod.Units = GetUnitsForProductInternal(conn, prod.Id);
                             return prod;
                         }
                     }
@@ -75,9 +78,10 @@ namespace RafiqPOS.Repositories
             {
                 conn.Open();
                 string sql = @"
-                    SELECT p.* FROM products p
+                    SELECT DISTINCT p.* FROM products p
                     LEFT JOIN product_barcodes pb ON p.id = pb.product_id
-                    WHERE p.barcode = @barcode OR pb.barcode = @barcode
+                    LEFT JOIN product_units pu ON p.id = pu.product_id
+                    WHERE p.barcode = @barcode OR pb.barcode = @barcode OR pu.barcode = @barcode
                     LIMIT 1;
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn))
@@ -89,6 +93,7 @@ namespace RafiqPOS.Repositories
                         {
                             var prod = MapReaderToProduct(reader);
                             prod.Barcodes = GetBarcodesForProductInternal(conn, prod.Id);
+                            prod.Units = GetUnitsForProductInternal(conn, prod.Id);
                             return prod;
                         }
                     }
@@ -119,6 +124,49 @@ namespace RafiqPOS.Repositories
             return list;
         }
 
+        private static List<ProductUnit> GetUnitsForProductInternal(SQLiteConnection conn, string productId, SQLiteTransaction trans = null)
+        {
+            var list = new List<ProductUnit>();
+            try
+            {
+                string sql = @"
+                    SELECT id, product_id, unit_name, conversion_factor, is_base_unit,
+                           sell_price_piasters, cost_price_piasters, barcode, is_divisible,
+                           sort_order, created_at, updated_at
+                    FROM product_units
+                    WHERE product_id = @pid
+                    ORDER BY is_base_unit DESC, sort_order ASC, unit_name ASC;
+                ";
+                using (var cmd = new SQLiteCommand(sql, conn, trans))
+                {
+                    cmd.Parameters.AddWithValue("@pid", productId);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            list.Add(new ProductUnit
+                            {
+                                Id = reader["id"].ToString(),
+                                ProductId = reader["product_id"].ToString(),
+                                UnitName = reader["unit_name"].ToString(),
+                                ConversionFactor = Convert.ToInt32(reader["conversion_factor"]),
+                                IsBaseUnit = Convert.ToInt32(reader["is_base_unit"]) == 1,
+                                SellPricePiasters = Convert.ToInt64(reader["sell_price_piasters"]),
+                                CostPricePiasters = Convert.ToInt64(reader["cost_price_piasters"]),
+                                Barcode = reader["barcode"] == DBNull.Value ? null : reader["barcode"].ToString(),
+                                IsDivisible = Convert.ToInt32(reader["is_divisible"]) == 1,
+                                SortOrder = Convert.ToInt32(reader["sort_order"]),
+                                CreatedAt = reader["created_at"].ToString(),
+                                UpdatedAt = reader["updated_at"].ToString()
+                            });
+                        }
+                    }
+                }
+            }
+            catch { }
+            return list;
+        }
+
         public List<Product> Search(string query, int limit = 50)
         {
             var results = new List<Product>();
@@ -136,6 +184,7 @@ namespace RafiqPOS.Repositories
                 string sql = @"
                     SELECT DISTINCT p.* FROM products p
                     LEFT JOIN product_barcodes pb ON p.id = pb.product_id
+                    LEFT JOIN product_units pu ON p.id = pu.product_id
                     WHERE p.is_active = 1 
                       AND (
                            p.barcode = @exact 
@@ -174,10 +223,11 @@ namespace RafiqPOS.Repositories
                     }
                 }
 
-                // Populate barcodes for each result
+                // Populate barcodes and units for each result
                 foreach (var prod in results)
                 {
                     prod.Barcodes = GetBarcodesForProductInternal(conn, prod.Id);
+                    prod.Units = GetUnitsForProductInternal(conn, prod.Id);
                 }
             }
             return results;
@@ -200,6 +250,12 @@ namespace RafiqPOS.Repositories
                             results.Add(MapReaderToProduct(reader));
                         }
                     }
+                }
+
+                foreach (var prod in results)
+                {
+                    prod.Barcodes = GetBarcodesForProductInternal(conn, prod.Id);
+                    prod.Units = GetUnitsForProductInternal(conn, prod.Id);
                 }
             }
             return results;
@@ -318,6 +374,101 @@ namespace RafiqPOS.Repositories
                         catch
                         {
                             // Ignore if product_barcodes is not ready
+                        }
+
+                        // Synchronize product_units table
+                        try
+                        {
+                            if (product.Units != null && product.Units.Count > 0)
+                            {
+                                string upsertUnitSql = @"
+                                    INSERT INTO product_units (
+                                        id, product_id, unit_name, conversion_factor, is_base_unit,
+                                        sell_price_piasters, cost_price_piasters, barcode, is_divisible,
+                                        sort_order, created_at, updated_at
+                                    ) VALUES (
+                                        @id, @productId, @unitName, @conversionFactor, @isBaseUnit,
+                                        @sellPrice, @costPrice, @barcode, @isDivisible,
+                                        @sortOrder, @createdAt, @updatedAt
+                                    )
+                                    ON CONFLICT(id) DO UPDATE SET
+                                        unit_name = excluded.unit_name,
+                                        conversion_factor = excluded.conversion_factor,
+                                        is_base_unit = excluded.is_base_unit,
+                                        sell_price_piasters = excluded.sell_price_piasters,
+                                        cost_price_piasters = excluded.cost_price_piasters,
+                                        barcode = excluded.barcode,
+                                        is_divisible = excluded.is_divisible,
+                                        sort_order = excluded.sort_order,
+                                        updated_at = excluded.updated_at;
+                                ";
+                                foreach (var u in product.Units)
+                                {
+                                    if (string.IsNullOrWhiteSpace(u.Id)) u.Id = Guid.NewGuid().ToString("N");
+                                    u.ProductId = product.Id;
+                                    using (var uCmd = new SQLiteCommand(upsertUnitSql, conn, trans))
+                                    {
+                                        uCmd.Parameters.AddWithValue("@id", u.Id);
+                                        uCmd.Parameters.AddWithValue("@productId", product.Id);
+                                        uCmd.Parameters.AddWithValue("@unitName", u.UnitName != null ? u.UnitName.Trim() : "قطعة");
+                                        uCmd.Parameters.AddWithValue("@conversionFactor", u.ConversionFactor <= 0 ? 1 : u.ConversionFactor);
+                                        uCmd.Parameters.AddWithValue("@isBaseUnit", u.IsBaseUnit ? 1 : 0);
+                                        uCmd.Parameters.AddWithValue("@sellPrice", u.SellPricePiasters);
+                                        uCmd.Parameters.AddWithValue("@costPrice", u.CostPricePiasters);
+                                        uCmd.Parameters.AddWithValue("@barcode", string.IsNullOrWhiteSpace(u.Barcode) ? (object)DBNull.Value : u.Barcode.Trim());
+                                        uCmd.Parameters.AddWithValue("@isDivisible", u.IsDivisible ? 1 : 0);
+                                        uCmd.Parameters.AddWithValue("@sortOrder", u.SortOrder);
+                                        uCmd.Parameters.AddWithValue("@createdAt", u.CreatedAt ?? DateTime.UtcNow.ToString("o"));
+                                        uCmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
+                                        uCmd.ExecuteNonQuery();
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                string checkUnitSql = "SELECT COUNT(*) FROM product_units WHERE product_id = @pid AND is_base_unit = 1;";
+                                using (var cCmd = new SQLiteCommand(checkUnitSql, conn, trans))
+                                {
+                                    cCmd.Parameters.AddWithValue("@pid", product.Id);
+                                    long count = Convert.ToInt64(cCmd.ExecuteScalar());
+                                    if (count == 0)
+                                    {
+                                        string uName = !string.IsNullOrWhiteSpace(product.Unit) ? product.Unit.Trim() : "قطعة";
+                                        bool isDiv = uName.Equals("kg", StringComparison.OrdinalIgnoreCase) ||
+                                                     uName.Equals("كيلو", StringComparison.OrdinalIgnoreCase) ||
+                                                     uName.Equals("كجم", StringComparison.OrdinalIgnoreCase);
+
+                                        string insUnitSql = @"
+                                            INSERT OR IGNORE INTO product_units (
+                                                id, product_id, unit_name, conversion_factor, is_base_unit,
+                                                sell_price_piasters, cost_price_piasters, barcode, is_divisible,
+                                                sort_order, created_at, updated_at
+                                            ) VALUES (
+                                                @id, @productId, @unitName, 1, 1,
+                                                @sellPrice, @costPrice, @barcode, @isDivisible,
+                                                0, @createdAt, @updatedAt
+                                            );
+                                        ";
+                                        using (var insCmd = new SQLiteCommand(insUnitSql, conn, trans))
+                                        {
+                                            insCmd.Parameters.AddWithValue("@id", "punit_" + product.Id);
+                                            insCmd.Parameters.AddWithValue("@productId", product.Id);
+                                            insCmd.Parameters.AddWithValue("@unitName", uName);
+                                            insCmd.Parameters.AddWithValue("@sellPrice", product.PricePiasters);
+                                            insCmd.Parameters.AddWithValue("@costPrice", product.CostPiasters);
+                                            insCmd.Parameters.AddWithValue("@barcode", string.IsNullOrWhiteSpace(product.Barcode) ? (object)DBNull.Value : product.Barcode.Trim());
+                                            insCmd.Parameters.AddWithValue("@isDivisible", isDiv ? 1 : 0);
+                                            insCmd.Parameters.AddWithValue("@createdAt", DateTime.UtcNow.ToString("o"));
+                                            insCmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
+                                            insCmd.ExecuteNonQuery();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        catch
+                        {
+                            // Ignore if product_units is not ready
                         }
 
                         trans.Commit();

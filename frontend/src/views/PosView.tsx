@@ -21,7 +21,7 @@ import {
   X
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
-import type { Product, SaleItem, Sale, Customer, QuickItem, SalePayment } from '../types/models';
+import type { Product, SaleItem, Sale, Customer, QuickItem, SalePayment, ProductUnit } from '../types/models';
 import { formatArabicCurrency, calculateLineTotal, calculateTaxPiasters, normalizeArabicNumerals } from '../utils/money';
 import { MoneyInput } from '../components/MoneyInput';
 import { ReceiptModal } from '../components/ReceiptModal';
@@ -46,6 +46,8 @@ import { useFeatures } from '../context/useFeatures';
 interface CartItem extends SaleItem {
   taxRatePercent?: number;
   stockQuantityMilli?: number;
+  productUnits?: ProductUnit[];
+  isDivisible?: boolean;
 }
 
 export const PosView = () => {
@@ -98,6 +100,7 @@ export const PosView = () => {
     return null;
   });
   const [undoItem, setUndoItem] = useState<{ item: CartItem; index: number } | null>(null);
+  const [editingPriceIndex, setEditingPriceIndex] = useState<number | null>(null);
   const [weightModalProduct, setWeightModalProduct] = useState<{
     id?: string;
     name: string;
@@ -155,8 +158,13 @@ export const PosView = () => {
     barcodeInputRef.current?.focus();
   };
 
-  const addProductToCart = useCallback((prod: Product, customWeightMilli?: number) => {
-    if (prod.unit === 'kg' && customWeightMilli === undefined) {
+  const addProductToCart = useCallback((prod: Product, customWeightMilli?: number, specificUnit?: ProductUnit) => {
+    let unitToUse = specificUnit;
+    if (!unitToUse && prod.units && prod.units.length > 0) {
+      unitToUse = prod.units.find(u => u.isBaseUnit) || prod.units[0];
+    }
+
+    if (prod.unit === 'kg' && customWeightMilli === undefined && (!unitToUse || unitToUse.conversionFactor === 1)) {
       setInitialWeightMilli(1000);
       setWeightModalProduct({
         id: prod.id,
@@ -169,37 +177,110 @@ export const PosView = () => {
     }
 
     const qtyMilli = customWeightMilli !== undefined ? customWeightMilli : 1000;
+    const factor = unitToUse && unitToUse.conversionFactor > 0 ? unitToUse.conversionFactor : 1;
+    const unitPrice = unitToUse 
+      ? (unitToUse.sellPricePiasters > 0 ? unitToUse.sellPricePiasters : prod.pricePiasters * factor)
+      : prod.pricePiasters;
+    const unitCost = unitToUse 
+      ? (unitToUse.costPricePiasters > 0 ? unitToUse.costPricePiasters : prod.costPiasters * factor)
+      : prod.costPiasters;
+    const unitName = unitToUse ? unitToUse.unitName : prod.unit;
+    const unitId = unitToUse ? unitToUse.id : undefined;
+    const isDivisible = unitToUse ? unitToUse.isDivisible : (prod.unit === 'kg');
 
     setCart((prev) => {
-      const existingIndex = prev.findIndex((item) => item.productId === prod.id);
+      const existingIndex = prev.findIndex((item) => 
+        item.productId === prod.id && (item.unitId || '') === (unitId || '')
+      );
       if (existingIndex >= 0) {
         const updated = [...prev];
         const item = updated[existingIndex];
         const newQty = customWeightMilli !== undefined ? customWeightMilli : (item.quantityMilli + 1000);
         item.quantityMilli = newQty;
-        item.unit = prod.unit;
+        item.unit = unitName;
+        item.unitName = unitName;
+        item.unitId = unitId;
+        item.conversionFactor = factor;
+        item.isDivisible = isDivisible;
         item.totalPiasters = calculateLineTotal(item.unitPricePiasters, newQty, item.discountPiasters);
         item.taxPiasters = calculateTaxPiasters(item.totalPiasters, item.taxRatePercent || 0, true);
         return updated;
       }
 
-      const totalPiasters = calculateLineTotal(prod.pricePiasters, qtyMilli, 0);
+      const totalPiasters = calculateLineTotal(unitPrice, qtyMilli, 0);
       const taxRate = prod.taxRatePercent || 0;
       const newItem: CartItem = {
         productId: prod.id,
         productName: prod.name,
-        barcode: prod.barcode,
+        barcode: (unitToUse && unitToUse.barcode) || prod.barcode,
         quantityMilli: qtyMilli,
-        unitPricePiasters: prod.pricePiasters,
-        unitCostPiasters: prod.costPiasters,
+        unitPricePiasters: unitPrice,
+        unitCostPiasters: unitCost,
         discountPiasters: 0,
         totalPiasters: totalPiasters,
         taxPiasters: calculateTaxPiasters(totalPiasters, taxRate, true),
         taxRatePercent: taxRate,
         stockQuantityMilli: prod.stockQuantityMilli,
-        unit: prod.unit,
+        unit: unitName,
+        unitName: unitName,
+        unitId: unitId,
+        conversionFactor: factor,
+        productUnits: prod.units,
+        isDivisible: isDivisible
       };
       return [newItem, ...prev];
+    });
+  }, []);
+
+  const changeCartItemUnit = useCallback((index: number, newUnitId: string) => {
+    setCart((prev) => {
+      const updated = [...prev];
+      const item = updated[index];
+      if (!item || !item.productUnits) return prev;
+      const targetUnit = item.productUnits.find(u => u.id === newUnitId);
+      if (!targetUnit) return prev;
+
+      const baseUnit = item.productUnits.find(u => u.isBaseUnit);
+      const currentFactor = item.conversionFactor && item.conversionFactor > 0 ? item.conversionFactor : 1;
+      const basePrice = baseUnit && baseUnit.sellPricePiasters > 0 
+        ? baseUnit.sellPricePiasters 
+        : Math.round(item.unitPricePiasters / currentFactor);
+      const baseCost = baseUnit && baseUnit.costPricePiasters > 0 
+        ? baseUnit.costPricePiasters 
+        : Math.round(item.unitCostPiasters / currentFactor);
+
+      const newFactor = targetUnit.conversionFactor > 0 ? targetUnit.conversionFactor : 1;
+      const newPrice = targetUnit.sellPricePiasters > 0 ? targetUnit.sellPricePiasters : (basePrice * newFactor);
+      const newCost = targetUnit.costPricePiasters > 0 ? targetUnit.costPricePiasters : (baseCost * newFactor);
+
+      item.unitId = targetUnit.id;
+      item.unitName = targetUnit.unitName;
+      item.conversionFactor = newFactor;
+      item.unit = targetUnit.unitName;
+      item.unitPricePiasters = newPrice;
+      item.unitCostPiasters = newCost;
+      item.isDivisible = targetUnit.isDivisible;
+
+      // Task 161-14: Round quantity to whole numbers if unit is not divisible
+      if (!targetUnit.isDivisible && (item.quantityMilli % 1000 !== 0)) {
+        item.quantityMilli = Math.max(1000, Math.round(item.quantityMilli / 1000) * 1000);
+      }
+
+      item.totalPiasters = calculateLineTotal(item.unitPricePiasters, item.quantityMilli, item.discountPiasters);
+      item.taxPiasters = calculateTaxPiasters(item.totalPiasters, item.taxRatePercent || 0, true);
+      return updated;
+    });
+  }, []);
+
+  const updateItemPrice = useCallback((index: number, newPricePiasters: number) => {
+    setCart((prev) => {
+      const updated = [...prev];
+      const item = updated[index];
+      if (!item) return prev;
+      item.unitPricePiasters = Math.max(0, newPricePiasters);
+      item.totalPiasters = calculateLineTotal(item.unitPricePiasters, item.quantityMilli, item.discountPiasters);
+      item.taxPiasters = calculateTaxPiasters(item.totalPiasters, item.taxRatePercent || 0, true);
+      return updated;
     });
   }, []);
 
@@ -456,13 +537,27 @@ export const PosView = () => {
       setLoading(true);
       const results = await invoke<Product[]>('products:search', { query: scannedBarcode, limit: 5 });
       if (results && results.length > 0) {
-        const exactMatch = results.find(
-          (p) => p.barcode === scannedBarcode || (p.barcodes && p.barcodes.includes(scannedBarcode))
-        ) || results[0];
-        addProductToCart(exactMatch);
+        let matchedUnit: ProductUnit | undefined;
+        const exactMatch = results.find((p) => {
+          if (p.units && p.units.length > 0) {
+            const u = p.units.find(unit => unit.barcode === scannedBarcode);
+            if (u) {
+              matchedUnit = u;
+              return true;
+            }
+          }
+          return p.barcode === scannedBarcode || (p.barcodes && p.barcodes.includes(scannedBarcode));
+        }) || results[0];
+
+        if (!matchedUnit && exactMatch.units && exactMatch.units.length > 0) {
+          matchedUnit = exactMatch.units.find(u => u.barcode === scannedBarcode);
+        }
+
+        addProductToCart(exactMatch, undefined, matchedUnit);
         setBarcodeQuery('');
         setIsSearchDropdownOpen(false);
-        showStatus(`تم مسح الباركود وإضافة: ${exactMatch.name}`, 'success');
+        const unitSuffix = matchedUnit ? ` [${matchedUnit.unitName}]` : '';
+        showStatus(`تم مسح الباركود وإضافة: ${exactMatch.name}${unitSuffix}`, 'success');
       } else {
         // Feature #108 / Task 108-1: Prompt quick add modal for unregistered barcode
         setUnregisteredBarcode(scannedBarcode);
@@ -517,10 +612,27 @@ export const PosView = () => {
       setLoading(true);
       const results = await invoke<Product[]>('products:search', { query, limit: 10 });
       if (results && results.length > 0) {
-        addProductToCart(results[0]);
+        let matchedUnit: ProductUnit | undefined;
+        const targetProd = results.find((p) => {
+          if (p.units && p.units.length > 0) {
+            const u = p.units.find(unit => unit.barcode === query);
+            if (u) {
+              matchedUnit = u;
+              return true;
+            }
+          }
+          return p.barcode === query || (p.barcodes && p.barcodes.includes(query));
+        }) || results[0];
+
+        if (!matchedUnit && targetProd.units && targetProd.units.length > 0) {
+          matchedUnit = targetProd.units.find(u => u.barcode === query);
+        }
+
+        addProductToCart(targetProd, undefined, matchedUnit);
         setBarcodeQuery('');
         setIsSearchDropdownOpen(false);
-        showStatus(`تمت إضافة: ${results[0].name}`, 'success');
+        const unitSuffix = matchedUnit ? ` [${matchedUnit.unitName}]` : '';
+        showStatus(`تمت إضافة: ${targetProd.name}${unitSuffix}`, 'success');
       } else {
         setUnregisteredBarcode(query);
         setIsQuickAddModalOpen(true);
@@ -1273,16 +1385,70 @@ export const PosView = () => {
                             <span>وزن</span>
                           </span>
                         )}
+                        {/* Task 161-5: Unit Selector Dropdown if multiple units exist */}
+                        {item.productUnits && item.productUnits.length > 1 && (
+                          <select
+                            value={item.unitId || ''}
+                            onChange={(e) => changeCartItemUnit(index, e.target.value)}
+                            className="h-[22px] px-1 py-0 bg-brand-soft border border-brand/30 text-brand text-[10px] font-bold rounded cursor-pointer focus:outline-none shrink-0"
+                            title="تغيير وحدة البيع (قطعة، دستة، كرتونة)"
+                          >
+                            {item.productUnits.map((u) => (
+                              <option key={u.id} value={u.id}>
+                                {u.unitName} (×{u.conversionFactor})
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </div>
-                      <span className="text-[9px] sm:text-[10px] font-mono text-ink-muted truncate">
-                        {item.barcode || 'بدون باركود'}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] sm:text-[10px] font-mono text-ink-muted truncate">
+                          {item.barcode || 'بدون باركود'}
+                        </span>
+                        {item.unitName && item.conversionFactor && item.conversionFactor > 1 && (
+                          <span className="text-[9px] text-brand font-bold bg-brand-soft px-1 rounded">
+                            {item.unitName} = {item.conversionFactor} قطعة
+                          </span>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Unit Price */}
+                    {/* Unit Price (Editable on click — Task 161-6) */}
                     <div className="w-[15%] text-left tabular-nums font-mono text-ink text-xs sm:text-[13px]">
-                      <span>{formatArabicCurrency(item.unitPricePiasters)}</span>
-                      {item.unit === 'kg' && <span className="text-[9px] sm:text-[10px] text-ink-muted font-sans mr-0.5">/كجم</span>}
+                      {editingPriceIndex === index ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            step="0.25"
+                            autoFocus
+                            defaultValue={(item.unitPricePiasters / 100).toFixed(2)}
+                            onBlur={(e) => {
+                              const val = parseFloat(normalizeArabicNumerals(e.target.value));
+                              if (!isNaN(val) && val >= 0) {
+                                updateItemPrice(index, Math.round(val * 100));
+                              }
+                              setEditingPriceIndex(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.currentTarget.blur();
+                              } else if (e.key === 'Escape') {
+                                setEditingPriceIndex(null);
+                              }
+                            }}
+                            className="w-16 h-6 px-1 text-center font-mono text-xs bg-surface border-2 border-brand rounded text-brand font-bold focus:outline-none"
+                          />
+                        </div>
+                      ) : (
+                        <div 
+                          onClick={() => setEditingPriceIndex(index)}
+                          className="cursor-pointer hover:bg-surface-2 rounded px-1 inline-flex items-center gap-0.5 group"
+                          title="اضغط لتعديل السعر يدويًا لهذه الفاتورة"
+                        >
+                          <span className="group-hover:text-brand font-bold">{formatArabicCurrency(item.unitPricePiasters)}</span>
+                          <span className="text-[9px] text-ink-muted group-hover:text-brand">/{item.unit || 'قطعة'}</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Quantity Stepper or Weight Button */}

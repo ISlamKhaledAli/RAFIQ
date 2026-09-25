@@ -152,9 +152,11 @@ export function ReceiptModal({
                   <div className="font-semibold text-right text-black">{item.productName}</div>
                   <div className="flex justify-between items-baseline font-mono text-[10.5px]">
                     <span>
-                      {item.unit === 'kg' || item.quantityMilli % 1000 !== 0
-                        ? `${(item.quantityMilli / 1000).toFixed(3)} كجم`
-                        : `${item.quantityMilli / 1000} ق`} × {(item.unitPricePiasters / 100).toFixed(2)}
+                      {item.unitName
+                        ? `${item.quantityMilli % 1000 !== 0 ? (item.quantityMilli / 1000).toFixed(3) : item.quantityMilli / 1000} ${item.unitName}`
+                        : (item.unit === 'kg' || item.quantityMilli % 1000 !== 0
+                          ? `${(item.quantityMilli / 1000).toFixed(3)} كجم`
+                          : `${item.quantityMilli / 1000} ق`)} × {(item.unitPricePiasters / 100).toFixed(2)}
                     </span>
                     <span className="font-bold text-black">{(item.totalPiasters / 100).toFixed(2)} ج.م</span>
                   </div>

@@ -6,7 +6,7 @@ namespace RafiqPOS.Database
 {
     public static class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 13;
+        public const int LATEST_SUPPORTED_VERSION = 14;
 
         public static void ApplyMigrations(string connectionString, string dbPath)
         {
@@ -147,7 +147,14 @@ namespace RafiqPOS.Database
                     ApplyMigration13(conn);
                 }
 
-                // 17. Self-Healing Schema Guard: Automatically repair missing columns or indexes
+                // 17. Apply Migration 14: Product Multi-Units (Feature #161 / Tasks 161-1 & 161-2)
+                if (currentVersion < 14)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration14(conn);
+                }
+
+                // 18. Self-Healing Schema Guard: Automatically repair missing columns or indexes
                 EnsureSchemaHealth(conn);
             }
         }
@@ -653,6 +660,67 @@ namespace RafiqPOS.Database
                     ", conn, trans))
                     {
                         idxCmd.ExecuteNonQuery();
+                    }
+
+                    // 14. Ensure product_units table and sale_items unit columns exist (Feature #161 / Tasks 161-1 & 161-2)
+                    using (var checkPuCmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS product_units (
+                            id TEXT PRIMARY KEY,
+                            product_id TEXT NOT NULL,
+                            unit_name TEXT NOT NULL,
+                            conversion_factor INTEGER NOT NULL CHECK (conversion_factor > 0),
+                            is_base_unit INTEGER NOT NULL DEFAULT 0 CHECK (is_base_unit IN (0, 1)),
+                            sell_price_piasters INTEGER NOT NULL DEFAULT 0 CHECK (sell_price_piasters >= 0),
+                            cost_price_piasters INTEGER NOT NULL DEFAULT 0 CHECK (cost_price_piasters >= 0),
+                            barcode TEXT COLLATE NOCASE,
+                            is_divisible INTEGER NOT NULL DEFAULT 0 CHECK (is_divisible IN (0, 1)),
+                            sort_order INTEGER NOT NULL DEFAULT 0,
+                            created_at TEXT NOT NULL,
+                            updated_at TEXT NOT NULL,
+                            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+                            UNIQUE(product_id, unit_name)
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_product_units_product_id ON product_units(product_id);
+                        CREATE INDEX IF NOT EXISTS idx_product_units_base ON product_units(product_id, is_base_unit);
+                        CREATE INDEX IF NOT EXISTS idx_product_units_barcode ON product_units(barcode);
+                    ", conn, trans))
+                    {
+                        checkPuCmd.ExecuteNonQuery();
+                    }
+
+                    // Check sale_items columns for unit support
+                    using (var infoCmd = new SQLiteCommand("PRAGMA table_info(sale_items);", conn, trans))
+                    {
+                        var siCols = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        using (var r = infoCmd.ExecuteReader())
+                        {
+                            while (r.Read())
+                            {
+                                siCols.Add(r["name"].ToString());
+                            }
+                        }
+
+                        if (!siCols.Contains("unit_id"))
+                        {
+                            using (var alter = new SQLiteCommand("ALTER TABLE sale_items ADD COLUMN unit_id TEXT;", conn, trans))
+                            {
+                                alter.ExecuteNonQuery();
+                            }
+                        }
+                        if (!siCols.Contains("unit_name"))
+                        {
+                            using (var alter = new SQLiteCommand("ALTER TABLE sale_items ADD COLUMN unit_name TEXT;", conn, trans))
+                            {
+                                alter.ExecuteNonQuery();
+                            }
+                        }
+                        if (!siCols.Contains("conversion_factor"))
+                        {
+                            using (var alter = new SQLiteCommand("ALTER TABLE sale_items ADD COLUMN conversion_factor INTEGER DEFAULT 1;", conn, trans))
+                            {
+                                alter.ExecuteNonQuery();
+                            }
+                        }
                     }
 
                     trans.Commit();
@@ -1634,6 +1702,119 @@ namespace RafiqPOS.Database
                 }
             }
         }
+
+        private static void ApplyMigration14(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    string sql = @"
+                        -- جدول وحدات بيع وشراء المنتج (Feature #161 / Task 161-1)
+                        CREATE TABLE IF NOT EXISTS product_units (
+                            id TEXT PRIMARY KEY,
+                            product_id TEXT NOT NULL,
+                            unit_name TEXT NOT NULL,
+                            conversion_factor INTEGER NOT NULL CHECK (conversion_factor > 0),
+                            is_base_unit INTEGER NOT NULL DEFAULT 0 CHECK (is_base_unit IN (0, 1)),
+                            sell_price_piasters INTEGER NOT NULL DEFAULT 0 CHECK (sell_price_piasters >= 0),
+                            cost_price_piasters INTEGER NOT NULL DEFAULT 0 CHECK (cost_price_piasters >= 0),
+                            barcode TEXT COLLATE NOCASE,
+                            is_divisible INTEGER NOT NULL DEFAULT 0 CHECK (is_divisible IN (0, 1)),
+                            sort_order INTEGER NOT NULL DEFAULT 0,
+                            created_at TEXT NOT NULL,
+                            updated_at TEXT NOT NULL,
+                            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+                            UNIQUE(product_id, unit_name)
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_product_units_product_id ON product_units(product_id);
+                        CREATE INDEX IF NOT EXISTS idx_product_units_base ON product_units(product_id, is_base_unit);
+                        CREATE INDEX IF NOT EXISTS idx_product_units_barcode ON product_units(barcode);
+
+                        -- ترقية المنتجات الحالية لإنشاء الوحدة الأساسية الافتراضية (Task 161-2)
+                        INSERT OR IGNORE INTO product_units (
+                            id, product_id, unit_name, conversion_factor, is_base_unit,
+                            sell_price_piasters, cost_price_piasters, barcode, is_divisible, sort_order, created_at, updated_at
+                        )
+                        SELECT
+                            'punit_' || p.id,
+                            p.id,
+                            CASE 
+                                WHEN p.unit IS NOT NULL AND TRIM(p.unit) != '' THEN TRIM(p.unit)
+                                ELSE 'قطعة'
+                            END,
+                            1,
+                            1,
+                            p.price_piasters,
+                            p.cost_piasters,
+                            p.barcode,
+                            CASE WHEN p.unit IN ('kg', 'كيلو', 'كجم', 'جرام', 'gram') THEN 1 ELSE 0 END,
+                            0,
+                            datetime('now'),
+                            datetime('now')
+                        FROM products p
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM product_units pu WHERE pu.product_id = p.id AND pu.is_base_unit = 1
+                        );
+
+                        -- تسجيل إصدار الهيكل رقم 14
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (14, 'product_multi_units', datetime('now'));
+                    ";
+
+                    using (var cmd = new SQLiteCommand(sql, conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // تحديث جدول بنود الفواتير لدعم الوحدات المتعددة بأمان
+                    using (var infoCmd = new SQLiteCommand("PRAGMA table_info(sale_items);", conn, trans))
+                    {
+                        var existingCols = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        using (var reader = infoCmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                existingCols.Add(reader["name"].ToString());
+                            }
+                        }
+
+                        if (!existingCols.Contains("unit_id"))
+                        {
+                            using (var alter = new SQLiteCommand("ALTER TABLE sale_items ADD COLUMN unit_id TEXT;", conn, trans))
+                            {
+                                alter.ExecuteNonQuery();
+                            }
+                        }
+
+                        if (!existingCols.Contains("unit_name"))
+                        {
+                            using (var alter = new SQLiteCommand("ALTER TABLE sale_items ADD COLUMN unit_name TEXT;", conn, trans))
+                            {
+                                alter.ExecuteNonQuery();
+                            }
+                        }
+
+                        if (!existingCols.Contains("conversion_factor"))
+                        {
+                            using (var alter = new SQLiteCommand("ALTER TABLE sale_items ADD COLUMN conversion_factor INTEGER DEFAULT 1;", conn, trans))
+                            {
+                                alter.ExecuteNonQuery();
+                            }
+                        }
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
     }
 }
+
 

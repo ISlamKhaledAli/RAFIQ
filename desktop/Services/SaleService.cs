@@ -71,13 +71,101 @@ namespace RafiqPOS.Services
                     {
                         item.Unit = product.Unit;
                     }
+                }
 
+                // Multi-unit resolution and validation (Feature #161 / Tasks 161-6 & 161-14)
+                ProductUnit matchedUnit = null;
+                if (!string.IsNullOrWhiteSpace(item.UnitId) && DatabaseService.ProductUnits != null)
+                {
+                    matchedUnit = DatabaseService.ProductUnits.GetUnitById(item.UnitId);
+                }
+                else if (product != null && product.Units != null && product.Units.Count > 0)
+                {
+                    if (!string.IsNullOrWhiteSpace(item.Barcode))
+                    {
+                        foreach (var u in product.Units)
+                        {
+                            if (string.Equals(u.Barcode, item.Barcode, StringComparison.OrdinalIgnoreCase))
+                            {
+                                matchedUnit = u;
+                                break;
+                            }
+                        }
+                    }
+                    if (matchedUnit == null && !string.IsNullOrWhiteSpace(item.UnitName))
+                    {
+                        foreach (var u in product.Units)
+                        {
+                            if (string.Equals(u.UnitName, item.UnitName, StringComparison.OrdinalIgnoreCase))
+                            {
+                                matchedUnit = u;
+                                break;
+                            }
+                        }
+                    }
+                    if (matchedUnit == null)
+                    {
+                        foreach (var u in product.Units)
+                        {
+                            if (u.IsBaseUnit)
+                            {
+                                matchedUnit = u;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (matchedUnit != null)
+                {
+                    item.UnitId = matchedUnit.Id;
+                    item.UnitName = matchedUnit.UnitName;
+                    item.ConversionFactor = matchedUnit.ConversionFactor > 0 ? matchedUnit.ConversionFactor : 1;
+                    item.Unit = matchedUnit.UnitName;
+
+                    // Task 161-14: Prevent fractional sale for non-divisible units
+                    if (!matchedUnit.IsDivisible && (item.QuantityMilli % 1000 != 0))
+                    {
+                        string prodTitle = product != null ? product.Name : (item.ProductName ?? "");
+                        throw new InvalidOperationException(
+                            string.Format("الوحدة '{0}' للصنف '{1}' غير قابلة للتجزئة؛ يجب إدخال كمية صحيحة بدون كسور.", matchedUnit.UnitName, prodTitle)
+                        );
+                    }
+
+                    if (item.UnitCostPiasters <= 0)
+                    {
+                        if (matchedUnit.CostPricePiasters > 0)
+                        {
+                            item.UnitCostPiasters = matchedUnit.CostPricePiasters;
+                        }
+                        else if (product != null && product.CostPiasters > 0)
+                        {
+                            item.UnitCostPiasters = product.CostPiasters * item.ConversionFactor;
+                        }
+                    }
+                }
+                else
+                {
+                    if (item.ConversionFactor <= 0)
+                    {
+                        item.ConversionFactor = 1;
+                    }
+                    if (string.IsNullOrWhiteSpace(item.UnitName))
+                    {
+                        item.UnitName = item.Unit ?? "piece";
+                    }
+                }
+
+                long requiredStockBaseMilli = item.QuantityMilli * (item.ConversionFactor > 0 ? item.ConversionFactor : 1);
+
+                if (product != null)
+                {
                     // Task 30-2: Negative stock handling
-                    if (!allowNegative && product.StockQuantityMilli < item.QuantityMilli)
+                    if (!allowNegative && product.StockQuantityMilli < requiredStockBaseMilli)
                     {
                         throw new InvalidOperationException(string.Format("لا يمكن إتمام البيع: رصيد الصنف '{0}' غير كافٍ ({1:0.###}) وسياسة الرصيد السالب معطلة.", product.Name, product.StockQuantityMilli / 1000.0));
                     }
-                    else if (product.StockQuantityMilli < item.QuantityMilli)
+                    else if (product.StockQuantityMilli < requiredStockBaseMilli)
                     {
                         sale.NegativeStockWarnings.Add(string.Format("تنبيه: رصيد الصنف '{0}' قبل البيع كان ({1:0.###}) وأصبح بالسالب.", product.Name, product.StockQuantityMilli / 1000.0));
                     }

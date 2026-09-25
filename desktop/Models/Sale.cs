@@ -44,6 +44,15 @@ namespace RafiqPOS.Models
 
         [JsonProperty("unit")]
         public string Unit { get; set; }
+
+        [JsonProperty("unitId")]
+        public string UnitId { get; set; }
+
+        [JsonProperty("unitName")]
+        public string UnitName { get; set; }
+
+        [JsonProperty("conversionFactor")]
+        public int ConversionFactor { get; set; }
     }
 
     public class Sale

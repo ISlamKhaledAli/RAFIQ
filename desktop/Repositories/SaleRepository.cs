@@ -62,15 +62,20 @@ namespace RafiqPOS.Repositories
                         // 3. Insert each Sale Item and deduct inventory
                         foreach (var item in sale.Items)
                         {
+                            int factor = item.ConversionFactor > 0 ? item.ConversionFactor : 1;
+                            long baseQtyDeductionMilli = item.QuantityMilli * factor;
+
                             string insertItemSql = @"
                                 INSERT INTO sale_items (
                                     id, sale_id, product_id, product_name, barcode,
                                     quantity_milli, unit_price_piasters, unit_cost_piasters,
-                                    discount_piasters, total_piasters, tax_piasters, tax_rate_percent, unit
+                                    discount_piasters, total_piasters, tax_piasters, tax_rate_percent, unit,
+                                    unit_id, unit_name, conversion_factor
                                 ) VALUES (
                                     @id, @saleId, @productId, @productName, @barcode,
                                     @quantityMilli, @unitPrice, @unitCost,
-                                    @discount, @total, @tax, @taxRate, @unit
+                                    @discount, @total, @tax, @taxRate, @unit,
+                                    @unitId, @unitName, @conversionFactor
                                 );
                             ";
                             using (var cmd = new SQLiteCommand(insertItemSql, conn, trans))
@@ -88,10 +93,13 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@tax", item.TaxPiasters);
                                 cmd.Parameters.AddWithValue("@taxRate", item.TaxRatePercent);
                                 cmd.Parameters.AddWithValue("@unit", item.Unit ?? "piece");
+                                cmd.Parameters.AddWithValue("@unitId", (object)item.UnitId ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@unitName", (object)item.UnitName ?? (item.Unit ?? "piece"));
+                                cmd.Parameters.AddWithValue("@conversionFactor", factor);
                                 cmd.ExecuteNonQuery();
                             }
 
-                            // Deduct Stock Quantity atomically
+                            // Deduct Stock Quantity atomically by base units (Feature #161 / Task 161-6)
                             string updateStockSql = @"
                                 UPDATE products 
                                 SET stock_quantity_milli = stock_quantity_milli - @qty,
@@ -100,13 +108,13 @@ namespace RafiqPOS.Repositories
                             ";
                             using (var cmd = new SQLiteCommand(updateStockSql, conn, trans))
                             {
-                                cmd.Parameters.AddWithValue("@qty", item.QuantityMilli);
+                                cmd.Parameters.AddWithValue("@qty", baseQtyDeductionMilli);
                                 cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
                                 cmd.Parameters.AddWithValue("@prodId", item.ProductId);
                                 cmd.ExecuteNonQuery();
                             }
 
-                            // Record stock movement in ledger (Feature #35 / Tasks 35-1 & 35-2)
+                            // Record stock movement in ledger (Feature #35 & #161)
                             string insertMovementSql = @"
                                 INSERT INTO stock_movements (
                                     id, product_id, movement_type, quantity_milli, reference_id, reference_type,
@@ -120,10 +128,15 @@ namespace RafiqPOS.Repositories
                             {
                                 cmd.Parameters.AddWithValue("@mId", Guid.NewGuid().ToString());
                                 cmd.Parameters.AddWithValue("@mProdId", item.ProductId);
-                                cmd.Parameters.AddWithValue("@mQty", -item.QuantityMilli);
+                                cmd.Parameters.AddWithValue("@mQty", -baseQtyDeductionMilli);
                                 cmd.Parameters.AddWithValue("@mRefId", sale.Id);
                                 cmd.Parameters.AddWithValue("@mUnitCost", item.UnitCostPiasters);
-                                cmd.Parameters.AddWithValue("@mNote", "مبيعات كاشير - فاتورة #" + (sale.InvoiceNumber > 0 ? sale.InvoiceNumber.ToString() : sale.Id));
+                                string movementNote = "مبيعات كاشير - فاتورة #" + (sale.InvoiceNumber > 0 ? sale.InvoiceNumber.ToString() : sale.Id);
+                                if (!string.IsNullOrWhiteSpace(item.UnitName))
+                                {
+                                    movementNote += string.Format(" ({0})", item.UnitName);
+                                }
+                                cmd.Parameters.AddWithValue("@mNote", movementNote);
                                 cmd.Parameters.AddWithValue("@mNow", DateTime.UtcNow.ToString("o"));
                                 cmd.ExecuteNonQuery();
                             }
@@ -449,7 +462,10 @@ namespace RafiqPOS.Repositories
                                 TotalPiasters = Convert.ToInt64(reader["total_piasters"]),
                                 TaxPiasters = Convert.ToInt64(reader["tax_piasters"]),
                                 TaxRatePercent = reader["tax_rate_percent"] != DBNull.Value ? Convert.ToInt32(reader["tax_rate_percent"]) : 0,
-                                Unit = reader["unit"] != DBNull.Value ? reader["unit"].ToString() : "piece"
+                                Unit = reader["unit"] != DBNull.Value ? reader["unit"].ToString() : "piece",
+                                UnitId = reader["unit_id"] != DBNull.Value ? reader["unit_id"].ToString() : null,
+                                UnitName = reader["unit_name"] != DBNull.Value ? reader["unit_name"].ToString() : null,
+                                ConversionFactor = reader["conversion_factor"] != DBNull.Value ? Convert.ToInt32(reader["conversion_factor"]) : 1
                             });
                         }
                     }
@@ -626,7 +642,10 @@ namespace RafiqPOS.Repositories
                                         TotalPiasters = Convert.ToInt64(reader["total_piasters"]),
                                         TaxPiasters = Convert.ToInt64(reader["tax_piasters"]),
                                         TaxRatePercent = reader["tax_rate_percent"] != DBNull.Value ? Convert.ToInt32(reader["tax_rate_percent"]) : 0,
-                                        Unit = reader["unit"] != DBNull.Value ? reader["unit"].ToString() : "piece"
+                                        Unit = reader["unit"] != DBNull.Value ? reader["unit"].ToString() : "piece",
+                                        UnitId = reader["unit_id"] != DBNull.Value ? reader["unit_id"].ToString() : null,
+                                        UnitName = reader["unit_name"] != DBNull.Value ? reader["unit_name"].ToString() : null,
+                                        ConversionFactor = reader["conversion_factor"] != DBNull.Value ? Convert.ToInt32(reader["conversion_factor"]) : 1
                                     });
                                 }
                             }
@@ -646,9 +665,12 @@ namespace RafiqPOS.Repositories
                         string nowIso = DateTime.UtcNow.ToString("o");
                         foreach (var item in items)
                         {
+                            int factor = item.ConversionFactor > 0 ? item.ConversionFactor : 1;
+                            long restoreQtyMilli = item.QuantityMilli * factor;
+
                             using (var cmd = new SQLiteCommand("UPDATE products SET stock_quantity_milli = stock_quantity_milli + @qty, updated_at = @now WHERE id = @prodId;", conn, trans))
                             {
-                                cmd.Parameters.AddWithValue("@qty", item.QuantityMilli);
+                                cmd.Parameters.AddWithValue("@qty", restoreQtyMilli);
                                 cmd.Parameters.AddWithValue("@now", nowIso);
                                 cmd.Parameters.AddWithValue("@prodId", item.ProductId);
                                 cmd.ExecuteNonQuery();

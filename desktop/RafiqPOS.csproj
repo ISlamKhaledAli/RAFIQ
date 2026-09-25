@@ -80,6 +80,7 @@
     <Compile Include="Common\ArabicTextNormalizer.cs" />
     <Compile Include="Database\MigrationRunner.cs" />
     <Compile Include="Models\Product.cs" />
+    <Compile Include="Models\ProductUnit.cs" />
     <Compile Include="Models\Sale.cs" />
     <Compile Include="Models\Customer.cs" />
     <Compile Include="Models\DashboardSummary.cs" />
@@ -100,8 +101,10 @@
     <Compile Include="Repositories\ProductPriceHistoryRepository.cs" />
     <Compile Include="Repositories\StockMovementRepository.cs" />
     <Compile Include="Repositories\QuickItemRepository.cs" />
+    <Compile Include="Repositories\ProductUnitRepository.cs" />
     <Compile Include="Services\DatabaseService.cs" />
     <Compile Include="Services\ProductService.cs" />
+    <Compile Include="Services\ProductUnitService.cs" />
     <Compile Include="Services\SaleService.cs" />
     <Compile Include="Services\InventoryService.cs" />
     <Compile Include="Services\InventoryTestRunner.cs" />

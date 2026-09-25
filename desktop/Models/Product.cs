@@ -59,6 +59,9 @@ namespace RafiqPOS.Models
         [JsonProperty("updatedAt")]
         public string UpdatedAt { get; set; }
 
+        [JsonProperty("units")]
+        public System.Collections.Generic.List<ProductUnit> Units { get; set; }
+
         // Presentation helpers (Never used in internal DB math)
         [JsonProperty("priceFormatted")]
         public string PriceFormatted

@@ -35,6 +35,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
   onSuccess,
 }) => {
   const [actualStockInput, setActualStockInput] = useState('');
+  const [selectedUnitId, setSelectedUnitId] = useState<string>('');
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -42,15 +43,22 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
   if (!isOpen || !product) return null;
 
   const isKg = product.unit === 'kg';
+  const unitsList = product.units || [];
+  const activeUnit = unitsList.find(u => u.id === selectedUnitId) || 
+    unitsList.find(u => u.isBaseUnit) || 
+    (unitsList.length > 0 ? unitsList[0] : null);
+  const factor = activeUnit && activeUnit.conversionFactor > 0 ? activeUnit.conversionFactor : 1;
+  const unitLabel = activeUnit ? activeUnit.unitName : (isKg ? 'كجم' : 'قطعة');
+
   const currentStockUnits = (product.stockQuantityMilli || 0) / 1000;
   const currentStockDisplay = isKg
     ? `${currentStockUnits.toFixed(3).replace(/\.?0+$/, '')} كجم`
     : `${Math.round(currentStockUnits)} قطعة`;
 
-  // Parse actual entered stock
+  // Parse actual entered stock in chosen unit and convert to base milli
   const parsedActual = parseFloat(normalizeArabicNumerals(actualStockInput));
   const isValidNumber = !isNaN(parsedActual) && actualStockInput.trim() !== '';
-  const newStockMilli = isValidNumber ? Math.round(parsedActual * 1000) : product.stockQuantityMilli;
+  const newStockMilli = isValidNumber ? Math.round(parsedActual * factor * 1000) : product.stockQuantityMilli;
   const deltaMilli = newStockMilli - (product.stockQuantityMilli || 0);
   const deltaUnits = Math.abs(deltaMilli / 1000);
   const deltaDisplay = isKg
@@ -140,9 +148,28 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
 
           {/* Actual Counted Stock Input */}
           <div className="space-y-1">
-            <label className="text-[12px] font-bold text-ink block">
-              الرصيد الفعلي بالجرد ({isKg ? 'بالكيلوجرام' : 'بالقطعة'}) <span className="text-danger">*</span>
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-[12px] font-bold text-ink block">
+                الرصيد الفعلي بالجرد <span className="text-danger">*</span>
+              </label>
+              {unitsList.length > 1 && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-ink-muted">وحدة العد:</span>
+                  <select
+                    value={activeUnit ? activeUnit.id : ''}
+                    onChange={(e) => setSelectedUnitId(e.target.value)}
+                    className="h-6 px-1.5 bg-surface-2 border border-line text-brand text-[11px] font-bold rounded focus:outline-none"
+                  >
+                    {unitsList.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.unitName} (×{u.conversionFactor})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
             <div className="relative">
               <input
                 type="text"
@@ -156,9 +183,15 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
                 className="w-full h-10 px-3 font-mono text-[14px] font-bold text-ink bg-surface border border-line rounded focus:border-brand focus:outline-none"
               />
               <span className="absolute left-3 top-2.5 text-xs text-ink-muted font-bold">
-                {isKg ? 'كجم' : 'قطعة'}
+                {unitLabel}
               </span>
             </div>
+
+            {isValidNumber && factor > 1 && (
+              <p className="text-[11px] text-brand font-bold mt-1">
+                يعادل: {parsedActual * factor} قطعة في المخزن
+              </p>
+            )}
           </div>
 
           {/* Live Delta Preview */}
