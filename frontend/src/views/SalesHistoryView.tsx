@@ -802,7 +802,7 @@ export const SalesHistoryView = () => {
                   </div>
 
                   <div className="bg-danger-soft border border-danger/30 rounded p-2.5 text-[12px] text-danger font-medium leading-relaxed">
-                    ⚠️ <strong>تنبيه مالي ومخزني:</strong> سيتم إرجاع جميع كميات الأصناف إلى المخزون تلقائياً، وعكس أي قيد مالي أو رصيد آجل، ووسم الفاتورة كـ «ملغاة» في السجل. لا يمكن التراجع عن هذه الخطوة.
+                    <strong>تنبيه مالي ومخزني:</strong> سيتم إرجاع جميع كميات الأصناف إلى المخزون تلقائياً، وعكس أي قيد مالي أو رصيد آجل، ووسم الفاتورة كـ «ملغاة» في السجل. لا يمكن التراجع عن هذه الخطوة.
                   </div>
 
                   <div>

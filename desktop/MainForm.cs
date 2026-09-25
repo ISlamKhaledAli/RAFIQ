@@ -126,7 +126,7 @@ namespace RafiqPOS
             // Brand Badge
             _lblBadge = new Label
             {
-                Text = "🌿 رفيق POS — نظام نقاط البيع وإدارة المتاجر",
+                Text = "رفيق POS — نظام نقاط البيع وإدارة المتاجر",
                 Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(52, 211, 153), // Emerald 400
                 Location = new Point(24, 18),
@@ -138,7 +138,7 @@ namespace RafiqPOS
             // Alert Tag
             _lblAlertTag = new Label
             {
-                Text = "⚠ تنبيه في بدء التشغيل — تم إيقاف التحميل لحماية البيانات",
+                Text = "تنبيه في بدء التشغيل — تم إيقاف التحميل لحماية البيانات",
                 Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(248, 113, 113), // Rose 400
                 Location = new Point(24, 44),
@@ -205,7 +205,7 @@ namespace RafiqPOS
 
             _lblAdviceHeader = new Label
             {
-                Text = "💡 خطوات المعالجة المقترحة والتصحيح:",
+                Text = "خطوات المعالجة المقترحة والتصحيح:",
                 Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(52, 211, 153),
                 Location = new Point(12, 10),
@@ -238,7 +238,7 @@ namespace RafiqPOS
             // 1. Retry Button (Primary Green)
             _btnRetry = new Button
             {
-                Text = "🔄 إعادة المحاولة والتصحيح التلقائي",
+                Text = "إعادة المحاولة والتصحيح التلقائي",
                 Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
                 BackColor = Color.FromArgb(0, 109, 65), // Forest Green
                 ForeColor = Color.White,
@@ -261,7 +261,7 @@ namespace RafiqPOS
             // 2. Open Data Folder Button
             _btnOpenFolder = new Button
             {
-                Text = "📂 فتح مجلد البيانات",
+                Text = "فتح مجلد البيانات",
                 Font = new Font("Segoe UI", 9f, FontStyle.Bold),
                 BackColor = Color.FromArgb(30, 41, 59),
                 ForeColor = Color.White,
@@ -291,7 +291,7 @@ namespace RafiqPOS
             // 3. Copy Error Button
             _btnCopy = new Button
             {
-                Text = "📋 نسخ تفاصيل الخطأ",
+                Text = "نسخ تفاصيل الخطأ",
                 Font = new Font("Segoe UI", 9f, FontStyle.Bold),
                 BackColor = Color.FromArgb(30, 41, 59),
                 ForeColor = Color.White,
@@ -308,11 +308,11 @@ namespace RafiqPOS
                     if (!string.IsNullOrEmpty(_lastErrorFullText))
                     {
                         Clipboard.SetText(_lastErrorFullText);
-                        _btnCopy.Text = "✔ تم النسخ للحافظة";
+                        _btnCopy.Text = "تم النسخ للحافظة";
                         Timer t = new Timer { Interval = 2000 };
                         t.Tick += delegate(object ts, EventArgs te)
                         {
-                            _btnCopy.Text = "📋 نسخ تفاصيل الخطأ";
+                            _btnCopy.Text = "نسخ تفاصيل الخطأ";
                             t.Stop();
                             t.Dispose();
                         };
@@ -326,7 +326,7 @@ namespace RafiqPOS
             // 4. Close Button
             _btnClose = new Button
             {
-                Text = "🚪 إغلاق البرنامج",
+                Text = "إغلاق البرنامج",
                 Font = new Font("Segoe UI", 9f, FontStyle.Bold),
                 BackColor = Color.FromArgb(24, 32, 47),
                 ForeColor = Color.FromArgb(248, 113, 113),

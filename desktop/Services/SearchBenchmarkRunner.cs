@@ -260,11 +260,11 @@ namespace RafiqPOS.Services
                         "الخلاصة: النظام يحقق معايير السرعة الفائقة للكاشير بدون أي تأخير.",
                         productCount,
                         result.AverageSearchLatencyMs,
-                        result.MeetsSlaUnder100ms ? "✅ مطابق لـ SLA" : "⚠️ متجاوز",
+                        result.MeetsSlaUnder100ms ? "مطابق لـ SLA" : "متجاوز",
                         result.MinSearchLatencyMs,
                         result.MaxSearchLatencyMs,
-                        result.NormalizationTestsPassed ? "✅ ناجح بنسبة 100%" : "❌ غير مكتمل",
-                        result.ScannerSimulationPassed ? "✅ فوري" : "⚠️ بطيء"
+                        result.NormalizationTestsPassed ? "ناجح بنسبة 100%" : "غير مكتمل",
+                        result.ScannerSimulationPassed ? "فوري" : "بطيء"
                     );
 
                     Logger.Info(result.SummaryReport);

@@ -986,21 +986,21 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
         <div className="px-6 py-3 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs font-bold">
           <div className={`flex items-center gap-2 ${step === 1 ? 'text-[#006d41] font-extrabold' : 'text-slate-400'}`}>
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step === 1 ? 'bg-[#006d41] text-white' : (step > 1 ? 'bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600')}`}>
-              {step > 1 ? '✓' : '1'}
+              {step > 1 ? <Check className="w-3 h-3 stroke-[3]" /> : '1'}
             </span>
             <span>نوع المحل</span>
           </div>
           <div className="h-[2px] w-6 bg-slate-200 dark:bg-slate-700" />
           <div className={`flex items-center gap-2 ${step === 2 ? 'text-[#006d41] font-extrabold' : 'text-slate-400'}`}>
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step === 2 ? 'bg-[#006d41] text-white' : (step > 2 ? 'bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600')}`}>
-              {step > 2 ? '✓' : '2'}
+              {step > 2 ? <Check className="w-3 h-3 stroke-[3]" /> : '2'}
             </span>
             <span>بيانات الفاتورة</span>
           </div>
           <div className="h-[2px] w-6 bg-slate-200 dark:bg-slate-700" />
           <div className={`flex items-center gap-2 ${step === 3 ? 'text-[#006d41] font-extrabold' : 'text-slate-400'}`}>
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step === 3 ? 'bg-[#006d41] text-white' : (step > 3 ? 'bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600')}`}>
-              {step > 3 ? '✓' : '3'}
+              {step > 3 ? <Check className="w-3 h-3 stroke-[3]" /> : '3'}
             </span>
             <span>الأجهزة والحفظ</span>
           </div>

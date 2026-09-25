@@ -648,8 +648,8 @@ export const PaymentModal = ({
                         <div className="flex-1 flex flex-col gap-0.5">
                           <span className="font-bold">
                             {isOverLimit 
-                              ? '⚠️ تحذير حرج: تجاوز الحد الائتماني المسموح به للعميل!' 
-                              : '⚠️ تنبيه: العميل عليه مديونية سابقة مرتفعة!'}
+                              ? 'تحذير حرج: تجاوز الحد الائتماني المسموح به للعميل!' 
+                              : 'تنبيه: العميل عليه مديونية سابقة مرتفعة!'}
                           </span>
                           <p className="m-0 text-[11px] leading-relaxed">
                             {isOverLimit ? (
@@ -691,7 +691,7 @@ export const PaymentModal = ({
                       : 'bg-danger-soft text-danger border border-danger/30'
                   }`}>
                     {splitRemainingPiasters === 0
-                      ? '✓ المجموع مطابق تماماً'
+                      ? 'المجموع مطابق تماماً'
                       : `المتبقي للتوزيع: ${formatArabicCurrency(splitRemainingPiasters)}`}
                   </span>
                 </div>

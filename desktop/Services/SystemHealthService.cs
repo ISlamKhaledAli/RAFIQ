@@ -137,7 +137,15 @@ namespace RafiqPOS.Services
                         metrics.IsBackupOverdue = bStatus.IsOverdue;
                         if (!string.IsNullOrEmpty(bStatus.LastBackupAt))
                         {
-                            metrics.LastBackupFormatted = bStatus.LastBackupAt;
+                            DateTime bDt;
+                            if (DateTime.TryParse(bStatus.LastBackupAt, out bDt))
+                            {
+                                metrics.LastBackupFormatted = bDt.ToLocalTime().ToString("yyyy/MM/dd hh:mm tt");
+                            }
+                            else
+                            {
+                                metrics.LastBackupFormatted = "محفوظة اليوم";
+                            }
                         }
 
                         if (string.IsNullOrEmpty(bStatus.LastBackupAt))
@@ -262,7 +270,7 @@ namespace RafiqPOS.Services
             {
                 result.OverallStatus = "HEALTHY";
                 result.HealthScore = 100;
-                result.OneSentenceSummary = "كل شيء تمام! النظام سليم، قاعدة البيانات محمية، والنظام جاهز للبيع.";
+                result.OneSentenceSummary = "النظام جاهز تماماً لتسجيل المبيعات • قاعدة البيانات مؤمنة ومستقرة بنسبة 100%";
                 result.PrimaryIssueFixAction = null;
                 result.PrimaryIssueFixTarget = null;
             }

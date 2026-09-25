@@ -98,7 +98,7 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
                     {avgLatency.toFixed(2)} ms
                   </div>
                   <div className="text-[10px] text-paid font-semibold mt-0.5">
-                    {meetsSla ? '✅ أقل من 100ms (فائق السرعة)' : '⚠️ بطيء'}
+                    {meetsSla ? 'أقل من 100ms (فائق السرعة)' : 'بطيء'}
                   </div>
                 </div>
 

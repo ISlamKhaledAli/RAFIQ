@@ -320,7 +320,7 @@ export const SettingsView = ({
       icon: HardDrive,
     },
     printer: {
-      title: 'إعدادات الطابعة ومقاس الورق (Feature #53)',
+      title: 'إعدادات الطابعة ومقاس الورق',
       subtitle: 'تحديد طابعة الإيصالات الحرارية، مقاس بكرة الورق (80mm/57mm)، والطباعة التلقائية',
       icon: Printer,
     },
@@ -330,17 +330,17 @@ export const SettingsView = ({
       icon: Activity,
     },
     scanner: {
-      title: 'قارئ الباركود (Barcode Scanner Wedge)',
+      title: 'قارئ الباركود والماسح الضوئي',
       subtitle: 'فحص استجابة القارئ السلكي أو اللاسلكي وضبط إعدادات الـ Wedge والبادئة واللاحقة',
       icon: Barcode,
     },
     security: {
-      title: 'أمان النظام وقفل الشاشات الحساسة (Feature #52)',
+      title: 'أمان النظام وقفل الشاشات الحساسة',
       subtitle: 'حماية تعديل الأسعار، تقارير الأرباح، تسوية المخزون، واسترجاع الطوارئ بالرمز',
       icon: KeyRound,
     },
     demo: {
-      title: 'البيانات التجريبية والتدريب (Feature #113)',
+      title: 'البيانات التجريبية والتدريب',
       subtitle: 'تجربة البرنامج وتدريب الكاشير ببيانات نموذجية ومسحها ذرياً دون المساس بالبيانات الحقيقية',
       icon: FlaskConical,
     },
@@ -393,7 +393,7 @@ export const SettingsView = ({
                 <Printer className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-[15px] font-bold text-ink m-0">إعدادات الطابعة الافتراضية ومقاس الورق (Feature #53 & #31)</h3>
+                <h3 className="text-[15px] font-bold text-ink m-0">إعدادات الطابعة الافتراضية ومقاس الورق</h3>
                 <p className="text-[12px] text-ink-muted m-0">تحديد طابعة الإيصالات الحرارية، مقاس بكرة الورق، والتحكم في الطباعة التلقائية</p>
               </div>
             </div>
@@ -587,7 +587,7 @@ export const SettingsView = ({
                 <Barcode className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-[15px] font-bold text-ink m-0">إعدادات واختبار قارئ الباركود (Feature #131)</h3>
+                <h3 className="text-[15px] font-bold text-ink m-0">إعدادات واختبار قارئ الباركود</h3>
                 <p className="text-[12px] text-ink-muted m-0">دعم قراءة الباركود بنسبة 100% مع لوحات المفاتيح العربية، تمييز السرعة، وضبط المعايير</p>
               </div>
             </div>
@@ -739,7 +739,7 @@ export const SettingsView = ({
             {/* Feature #30 / Task 30-2: Negative Stock Policy Setting */}
             <div className="bg-surface-2 p-3.5 rounded border border-line flex items-center justify-between gap-4">
               <div className="flex flex-col gap-0.5">
-                <span className="font-bold text-ink text-[12.5px]">السماح بالبيع بالسالب عند نفاد المخزون (Feature #30)</span>
+                <span className="font-bold text-ink text-[12.5px]">السماح بالبيع بالسالب عند نفاد المخزون</span>
                 <span className="text-[11px] text-ink-muted">
                   موصى به في بداية التشغيل. عند تفعيله، يسمح النظام بإتمام البيع حتى لو كان رصيد الصنف صفراً أو غير كافٍ مع إظهار تحذير للكاشير دون تعطيل حركة العمل.
                 </span>
@@ -761,7 +761,7 @@ export const SettingsView = ({
             {/* Feature #110 / Task 110-1: Default Customer Credit Limit Setting */}
             <div className="bg-surface-2 p-3.5 rounded border border-line flex items-center justify-between gap-4">
               <div className="flex flex-col gap-0.5">
-                <span className="font-bold text-ink text-[12.5px]">حد التنبيه الافتراضي للعملاء الجدد (Feature #110)</span>
+                <span className="font-bold text-ink text-[12.5px]">حد التنبيه الافتراضي للعملاء الجدد</span>
                 <span className="text-[11px] text-ink-muted">
                   المبلغ الافتراضي بالجنيه لحد مديونية العميل. عند تجاوزه يظهر تحذير واضح وقت البيع الآجل دون منع البيع.
                 </span>
@@ -1111,7 +1111,7 @@ export const SettingsView = ({
                 <ShieldCheck className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-bold text-[14px] text-ink m-0">أمان النظام وقفل الشاشات الحساسة (Feature #52)</h3>
+                <h3 className="font-bold text-[14px] text-ink m-0">أمان النظام وقفل الشاشات الحساسة</h3>
                 <p className="text-[11px] text-ink-muted m-0">حماية تعديل الأسعار، تقارير الأرباح، تسوية المخزون، وتصفير قاعدة البيانات برقم سري</p>
               </div>
             </div>
@@ -1203,7 +1203,7 @@ export const SettingsView = ({
                 <FlaskConical className="w-5 h-5 text-[#006d41]" />
               </div>
               <div>
-                <h3 className="font-bold text-[14px] text-ink m-0">البيانات التجريبية وجولة النظام (Feature #113)</h3>
+                <h3 className="font-bold text-[14px] text-ink m-0">البيانات التجريبية وجولة النظام</h3>
                 <p className="text-[11px] text-ink-muted m-0">
                   تجربة البرنامج وتدريب الكاشير ببيانات نموذجية واضحة العلامة تُمسح بضغطة زر دون المساس ببيانات المحل الحقيقية
                 </p>
