@@ -11,6 +11,18 @@ namespace RafiqPOS.Models
         public bool IsOpenPrice { get; set; }
     }
 
+    public class TemplateProductItem
+    {
+        public string Name { get; set; }
+        public string Barcode { get; set; }
+        public string CategoryName { get; set; }
+        public long PricePiasters { get; set; }
+        public long CostPiasters { get; set; }
+        public long StockQuantityMilli { get; set; }
+        public long MinStockQuantityMilli { get; set; }
+        public string Unit { get; set; }
+    }
+
     public class StoreTemplate
     {
         public string Id { get; set; }
@@ -23,6 +35,7 @@ namespace RafiqPOS.Models
         public Dictionary<string, string> DefaultSettings { get; set; }
         public bool IsActive { get; set; }
         public string CreatedAt { get; set; }
+        public int ProductsCount { get; set; }
 
         public StoreTemplate()
         {
@@ -31,6 +44,7 @@ namespace RafiqPOS.Models
             QuickItems = new List<TemplateQuickItem>();
             DefaultSettings = new Dictionary<string, string>();
             IsActive = true;
+            ProductsCount = 0;
         }
     }
 
@@ -44,6 +58,12 @@ namespace RafiqPOS.Models
         public string ReceiptFooter { get; set; }
         public string DefaultPrinter { get; set; }
         public string BackupFolder { get; set; }
+        public bool SeedInitialProducts { get; set; }
+
+        public ApplyTemplateRequest()
+        {
+            SeedInitialProducts = true;
+        }
     }
 
     public class ApplyTemplateResult
@@ -52,5 +72,6 @@ namespace RafiqPOS.Models
         public string Message { get; set; }
         public int CategoriesCount { get; set; }
         public int QuickItemsCount { get; set; }
+        public int ProductsCount { get; set; }
     }
 }

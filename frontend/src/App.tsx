@@ -111,7 +111,12 @@ export default function App() {
   const [clockWarning, setClockWarning] = useState<string | null>(null);
   const [backupWarning, setBackupWarning] = useState<string | null>(null);
   const [corruptDbStatus, setCorruptDbStatus] = useState<DatabaseIntegrityStatus | null>(null);
-  const [isFirstRunWizardOpen, setIsFirstRunWizardOpen] = useState(false);
+  const [isFirstRunWizardOpen, setIsFirstRunWizardOpen] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('rafiq_first_run_completed') !== 'true';
+    }
+    return false;
+  });
   const [hasDemoData, setHasDemoData] = useState(false);
   const [isTourOpen, setIsTourOpen] = useState(false);
   const [isReadinessOpen, setIsReadinessOpen] = useState(false);
@@ -209,8 +214,15 @@ export default function App() {
     const checkFirstRun = async () => {
       try {
         const res: any = await invoke('templates:isFirstRunNeeded');
-        if (res && res.isNeeded && isMounted) {
-          setIsFirstRunWizardOpen(true);
+        if (isMounted) {
+          if (res && res.isNeeded) {
+            setIsFirstRunWizardOpen(true);
+          } else {
+            setIsFirstRunWizardOpen(false);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('rafiq_first_run_completed', 'true');
+            }
+          }
         }
       } catch {
         // Ignore in dev
@@ -334,6 +346,24 @@ export default function App() {
     { id: 'audit' as TabType, label: 'سجل العمليات الحساسة', icon: ShieldAlert, shortcut: 'Alt+6' },
     { id: 'settings' as TabType, label: 'إعدادات المتجر والصيانة', icon: Settings, shortcut: 'Alt+7' },
   ];
+
+  if (isFirstRunWizardOpen) {
+    return (
+      <div className="fixed inset-0 z-[9999] w-screen h-screen overflow-hidden select-none bg-[#f8fafc] dark:bg-slate-950" dir="rtl">
+        <FirstRunWizardModal
+          isOpen={true}
+          isFirstRun={true}
+          onClose={() => setIsFirstRunWizardOpen(false)}
+          onCompleted={() => {
+            setIsFirstRunWizardOpen(false);
+            setActiveTab('pos');
+            window.location.reload();
+          }}
+        />
+        <RafiqDialogContainer />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-screen w-screen bg-canvas text-ink select-none overflow-hidden">
@@ -755,10 +785,12 @@ export default function App() {
       {/* First Run Store Setup Wizard (Feature #106 / Task 106-4) */}
       <FirstRunWizardModal
         isOpen={isFirstRunWizardOpen}
+        isFirstRun={true}
         onClose={() => setIsFirstRunWizardOpen(false)}
         onCompleted={() => {
           setIsFirstRunWizardOpen(false);
           setActiveTab('pos');
+          window.location.reload();
         }}
       />
 
