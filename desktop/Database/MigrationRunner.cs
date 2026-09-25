@@ -6,7 +6,7 @@ namespace RafiqPOS.Database
 {
     public static class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 10;
+        public const int LATEST_SUPPORTED_VERSION = 13;
 
         public static void ApplyMigrations(string connectionString, string dbPath)
         {
@@ -126,7 +126,28 @@ namespace RafiqPOS.Database
                     ApplyMigration10(conn);
                 }
 
-                // 14. Self-Healing Schema Guard: Automatically repair missing columns or indexes
+                // 14. Apply Migration 11: Sequential Counters Table (Feature #107 / Task 107-1 & 107-2)
+                if (currentVersion < 11)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration11(conn);
+                }
+
+                // 15. Apply Migration 12: High-Performance Covering Indexes (Feature #129 / Task 129-3)
+                if (currentVersion < 12)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration12(conn);
+                }
+
+                // 16. Apply Migration 13: Store Type Templates (Feature #106 / Task 106-2)
+                if (currentVersion < 13)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration13(conn);
+                }
+
+                // 17. Self-Healing Schema Guard: Automatically repair missing columns or indexes
                 EnsureSchemaHealth(conn);
             }
         }
@@ -309,6 +330,18 @@ namespace RafiqPOS.Database
                                 using (var syncDate = new SQLiteCommand("UPDATE products SET updated_at = created_at WHERE updated_at IS NULL;", conn, trans))
                                 {
                                     syncDate.ExecuteNonQuery();
+                                }
+                            }
+
+                            if (!existingCols.Contains("needs_review"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE products ADD COLUMN needs_review INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                                using (var idx = new SQLiteCommand("CREATE INDEX IF NOT EXISTS idx_products_needs_review ON products(needs_review);", conn, trans))
+                                {
+                                    idx.ExecuteNonQuery();
                                 }
                             }
 
@@ -593,6 +626,33 @@ namespace RafiqPOS.Database
                                 createCmd.ExecuteNonQuery();
                             }
                         }
+                    }
+
+                    // 12. Ensure counters table exists and initialized (Task 107-1)
+                    using (var checkCounterCmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS counters (
+                            name TEXT PRIMARY KEY,
+                            current_value INTEGER NOT NULL,
+                            updated_at TEXT NOT NULL
+                        );
+                        INSERT OR IGNORE INTO counters (name, current_value, updated_at)
+                        VALUES ('invoice_number', COALESCE((SELECT MAX(invoice_number) FROM sales), 0), datetime('now'));
+                    ", conn, trans))
+                    {
+                        checkCounterCmd.ExecuteNonQuery();
+                    }
+
+                    // 13. Ensure Enterprise High-Performance Covering Indexes exist (Feature #129 / Task 129-3)
+                    using (var idxCmd = new SQLiteCommand(@"
+                        CREATE INDEX IF NOT EXISTS idx_stock_movements_covering ON stock_movements(product_id, quantity_milli);
+                        CREATE INDEX IF NOT EXISTS idx_sales_status ON sales(status);
+                        CREATE INDEX IF NOT EXISTS idx_sales_customer_id ON sales(customer_id);
+                        CREATE INDEX IF NOT EXISTS idx_sales_payment_method ON sales(payment_method);
+                        CREATE INDEX IF NOT EXISTS idx_sale_items_product_id ON sale_items(product_id);
+                        CREATE INDEX IF NOT EXISTS idx_product_barcodes_covering ON product_barcodes(barcode, product_id);
+                    ", conn, trans))
+                    {
+                        idxCmd.ExecuteNonQuery();
                     }
 
                     trans.Commit();
@@ -1394,6 +1454,186 @@ namespace RafiqPOS.Database
                     }
                 }
             }
+
+        private static void ApplyMigration11(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    string sql = @"
+                        -- جدول العدادات المتسلسلة التراكمية (Task 107-1)
+                        CREATE TABLE IF NOT EXISTS counters (
+                            name TEXT PRIMARY KEY,
+                            current_value INTEGER NOT NULL,
+                            updated_at TEXT NOT NULL
+                        );
+
+                        -- زرع القيمة الابتدائية لعداد الفواتير المتسلسل من واقع الفواتير المسجلة
+                        INSERT OR IGNORE INTO counters (name, current_value, updated_at)
+                        VALUES ('invoice_number', COALESCE((SELECT MAX(invoice_number) FROM sales), 0), datetime('now'));
+
+                        -- تسجيل إصدار الهيكل رقم 11
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (11, 'atomic_sequence_counters_table', datetime('now'));
+                    ";
+
+                    using (var cmd = new SQLiteCommand(sql, conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        private static void ApplyMigration12(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    string sql = @"
+                        -- 1. فهرس مغطي لحساب رصيد المخزون فورياً بدون قراءة الصفوف (Covering Index)
+                        CREATE INDEX IF NOT EXISTS idx_stock_movements_covering ON stock_movements(product_id, quantity_milli);
+
+                        -- 2. فهارس تسريع تصفية واستعلامات الفواتير والتقارير
+                        CREATE INDEX IF NOT EXISTS idx_sales_status ON sales(status);
+                        CREATE INDEX IF NOT EXISTS idx_sales_customer_id ON sales(customer_id);
+                        CREATE INDEX IF NOT EXISTS idx_sales_payment_method ON sales(payment_method);
+
+                        -- 3. فهرس بنود الفواتير حسب كود المنتج
+                        CREATE INDEX IF NOT EXISTS idx_sale_items_product_id ON sale_items(product_id);
+
+                        -- 4. فهرس مغطي للبحث السريع بالباركودات المتعددة
+                        CREATE INDEX IF NOT EXISTS idx_product_barcodes_covering ON product_barcodes(barcode, product_id);
+
+                        -- تسجيل إصدار الهيكل رقم 12
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (12, 'high_performance_covering_indexes', datetime('now'));
+                    ";
+
+                    using (var cmd = new SQLiteCommand(sql, conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        private static void ApplyMigration13(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    string sqlCreate = @"
+                        -- جدول قوالب أنواع المحلات (Feature #106 / Task 106-2)
+                        CREATE TABLE IF NOT EXISTS store_templates (
+                            id TEXT PRIMARY KEY,
+                            name TEXT NOT NULL,
+                            description TEXT,
+                            icon TEXT NOT NULL DEFAULT 'store',
+                            feature_flags_json TEXT NOT NULL,
+                            categories_json TEXT NOT NULL,
+                            quick_items_json TEXT NOT NULL,
+                            default_settings_json TEXT,
+                            is_active INTEGER NOT NULL DEFAULT 1,
+                            created_at TEXT NOT NULL
+                        );
+
+                        -- 1. قالب سوبرماركت ومواد غذائية
+                        INSERT OR REPLACE INTO store_templates (id, name, description, icon, feature_flags_json, categories_json, quick_items_json, default_settings_json, is_active, created_at)
+                        VALUES (
+                            'supermarket',
+                            'سوبرماركت ومواد غذائية',
+                            'مناسب لمحلات السوبرماركت ومحلات البقالة الكبيرة التي تستخدم الباركود والميزان والآجل',
+                            'shopping-cart',
+                            '{""feature_scale_weight"":true,""feature_credit_debts"":true,""feature_fast_buttons"":true,""feature_taxes"":false,""feature_expiry_dates"":true,""feature_multi_units"":true}',
+                            '[""معلبات وبقوليات"",""ألبان وأجبان"",""منظفات وعناية منزلية"",""بسكويت وحلويات"",""مشروبات وعصائر"",""مخبوزات"",""خضار وفاكهة""]',
+                            '[{""Name"":""خبز بلدي طازج"",""PricePiasters"":100,""Unit"":""piece"",""CategoryName"":""مخبوزات"",""IsOpenPrice"":false},{""Name"":""عيش فينو كيس 5 رغيف"",""PricePiasters"":1000,""Unit"":""piece"",""CategoryName"":""مخبوزات"",""IsOpenPrice"":false},{""Name"":""سكر حر ناعم 1 كجم"",""PricePiasters"":3500,""Unit"":""piece"",""CategoryName"":""معلبات وبقوليات"",""IsOpenPrice"":false},{""Name"":""شاي العروسة 40 جم"",""PricePiasters"":1200,""Unit"":""piece"",""CategoryName"":""معلبات وبقوليات"",""IsOpenPrice"":false},{""Name"":""مياه معدنية 1.5 لتر"",""PricePiasters"":800,""Unit"":""piece"",""CategoryName"":""مشروبات وعصائر"",""IsOpenPrice"":false},{""Name"":""لبن جهينة 1 لتر"",""PricePiasters"":4200,""Unit"":""piece"",""CategoryName"":""ألبان وأجبان"",""IsOpenPrice"":false},{""Name"":""طماطم بلدي طازجة"",""PricePiasters"":1500,""Unit"":""kg"",""CategoryName"":""خضار وفاكهة"",""IsOpenPrice"":false},{""Name"":""كيس تسوق كبير"",""PricePiasters"":150,""Unit"":""piece"",""CategoryName"":""عام"",""IsOpenPrice"":false}]',
+                            '{""receipt_header"":""أهلاً بكم في سوبرماركت رفيق"",""receipt_footer"":""شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل خلال 14 يوماً بموجب الفاتورة.""}',
+                            1,
+                            datetime('now')
+                        );
+
+                        -- 2. قالب ألبان ومخبوزات ومعلبات
+                        INSERT OR REPLACE INTO store_templates (id, name, description, icon, feature_flags_json, categories_json, quick_items_json, default_settings_json, is_active, created_at)
+                        VALUES (
+                            'dairy_bakery',
+                            'ألبان ومخبوزات ومعلبات',
+                            'مناسب لمحلات اللبانة والأجبان والمخابز التي تعتمد على البيع بالوزن والأصناف الطازجة',
+                            'milk',
+                            '{""feature_scale_weight"":true,""feature_credit_debts"":true,""feature_fast_buttons"":true,""feature_taxes"":false,""feature_expiry_dates"":true,""feature_multi_units"":false}',
+                            '[""ألبان سائبة ومعبأة"",""أجبان بيضاء ومطبوخة"",""مخبوزات طازجة"",""بيض ومستلزمات"",""معلبات وعسل""]',
+                            '[{""Name"":""لبن جاموسي طازج كجم"",""PricePiasters"":3000,""Unit"":""kg"",""CategoryName"":""ألبان سائبة ومعبأة"",""IsOpenPrice"":false},{""Name"":""لبن بقري طازج كجم"",""PricePiasters"":2600,""Unit"":""kg"",""CategoryName"":""ألبان سائبة ومعبأة"",""IsOpenPrice"":false},{""Name"":""جبنة قريش كجم"",""PricePiasters"":7000,""Unit"":""kg"",""CategoryName"":""أجبان بيضاء ومطبوخة"",""IsOpenPrice"":false},{""Name"":""جبنة براميلي فلفل كجم"",""PricePiasters"":14000,""Unit"":""kg"",""CategoryName"":""أجبان بيضاء ومطبوخة"",""IsOpenPrice"":false},{""Name"":""رغيف فينو"",""PricePiasters"":150,""Unit"":""piece"",""CategoryName"":""مخبوزات طازجة"",""IsOpenPrice"":false},{""Name"":""طبق بيض أحمر 30 بيضة"",""PricePiasters"":16500,""Unit"":""piece"",""CategoryName"":""بيض ومستلزمات"",""IsOpenPrice"":false},{""Name"":""زبادي بلدي كبير"",""PricePiasters"":800,""Unit"":""piece"",""CategoryName"":""ألبان سائبة ومعبأة"",""IsOpenPrice"":false}]',
+                            '{""receipt_header"":""ألبان ومخبوزات رفيق"",""receipt_footer"":""منتجات طازجة يومياً.. شكراً لثقتكم الغالية""}',
+                            1,
+                            datetime('now')
+                        );
+
+                        -- 3. قالب إكسسوارات ومكتبات وهدايا
+                        INSERT OR REPLACE INTO store_templates (id, name, description, icon, feature_flags_json, categories_json, quick_items_json, default_settings_json, is_active, created_at)
+                        VALUES (
+                            'accessories_gifts',
+                            'إكسسوارات ومكتبات وهدايا',
+                            'مناسب لمحلات الإكسسوارات والموبايل، الهدايا، والمكتبات (بدون ميزان وأوزان)',
+                            'gift',
+                            '{""feature_scale_weight"":false,""feature_credit_debts"":true,""feature_fast_buttons"":true,""feature_taxes"":false,""feature_expiry_dates"":false,""feature_multi_units"":false}',
+                            '[""إكسسوارات هاتف"",""أدوات مكتبية ومدرسية"",""هدايا وعطور"",""ألعاب وهوايات"",""إلكترونيات وشواحن""]',
+                            '[{""Name"":""كابل شحن سريع Type-C"",""PricePiasters"":4500,""Unit"":""piece"",""CategoryName"":""إكسسوارات هاتف"",""IsOpenPrice"":false},{""Name"":""قلم جاف أزرق فاخر"",""PricePiasters"":500,""Unit"":""piece"",""CategoryName"":""أدوات مكتبية ومدرسية"",""IsOpenPrice"":false},{""Name"":""بطارية قلم AA"",""PricePiasters"":1500,""Unit"":""piece"",""CategoryName"":""إلكترونيات وشواحن"",""IsOpenPrice"":false},{""Name"":""تغليف هدية فاخر"",""PricePiasters"":2500,""Unit"":""piece"",""CategoryName"":""هدايا وعطور"",""IsOpenPrice"":true},{""Name"":""كيس هدايا كرتون"",""PricePiasters"":1000,""Unit"":""piece"",""CategoryName"":""هدايا وعطور"",""IsOpenPrice"":false},{""Name"":""لاصقة حماية شاشة"",""PricePiasters"":3000,""Unit"":""piece"",""CategoryName"":""إكسسوارات هاتف"",""IsOpenPrice"":false}]',
+                            '{""receipt_header"":""رفيق للإكسسوارات والهدايا"",""receipt_footer"":""شكراً لزيارتكم.. نتمنى لكم يوماً سعيداً""}',
+                            1,
+                            datetime('now')
+                        );
+
+                        -- 4. قالب بقالة ومحل تجاري عام
+                        INSERT OR REPLACE INTO store_templates (id, name, description, icon, feature_flags_json, categories_json, quick_items_json, default_settings_json, is_active, created_at)
+                        VALUES (
+                            'general_grocery',
+                            'بقالة ومحل تجاري عام',
+                            'إعداد عام متوازن يناسب كافة المحلات والأنشطة التجارية المتنوعة',
+                            'store',
+                            '{""feature_scale_weight"":true,""feature_credit_debts"":true,""feature_fast_buttons"":true,""feature_taxes"":false,""feature_expiry_dates"":false,""feature_multi_units"":false}',
+                            '[""عام"",""أغذية ومشروبات"",""منظفات"",""حلويات وتسالي"",""دخان وسجائر""]',
+                            '[{""Name"":""كيس تسوق"",""PricePiasters"":100,""Unit"":""piece"",""CategoryName"":""عام"",""IsOpenPrice"":false},{""Name"":""ولاعة عادية"",""PricePiasters"":500,""Unit"":""piece"",""CategoryName"":""دخان وسجائر"",""IsOpenPrice"":false},{""Name"":""علبة كبريت"",""PricePiasters"":100,""Unit"":""piece"",""CategoryName"":""عام"",""IsOpenPrice"":false},{""Name"":""مياه صغيرة 500 مل"",""PricePiasters"":500,""Unit"":""piece"",""CategoryName"":""أغذية ومشروبات"",""IsOpenPrice"":false},{""Name"":""شيبسي عائلي"",""PricePiasters"":1500,""Unit"":""piece"",""CategoryName"":""حلويات وتسالي"",""IsOpenPrice"":false}]',
+                            '{""receipt_header"":""أهلاً بكم في متجرنا"",""receipt_footer"":""شكراً لتعاملكم معنا""}',
+                            1,
+                            datetime('now')
+                        );
+
+                        -- تسجيل إصدار الهيكل رقم 13
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (13, 'store_type_templates_table', datetime('now'));
+                    ";
+
+                    using (var cmd = new SQLiteCommand(sqlCreate, conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
         }
     }
+}
 

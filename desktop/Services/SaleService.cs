@@ -32,16 +32,33 @@ namespace RafiqPOS.Services
             Money totalDiscount = Money.FromPiasters(sale.DiscountPiasters);
             Money totalTax = Money.Zero;
 
+            if (sale.NegativeStockWarnings == null)
+            {
+                sale.NegativeStockWarnings = new List<string>();
+            }
+
+            // Check negative stock policy setting (Feature #30 / Task 30-2)
+            string allowNegativeSetting = "1";
+            if (DatabaseService.Settings != null)
+            {
+                allowNegativeSetting = DatabaseService.Settings.Get("allow_negative_stock", "1");
+            }
+            bool allowNegative = (allowNegativeSetting == "1" || string.Equals(allowNegativeSetting, "true", StringComparison.OrdinalIgnoreCase));
+
             foreach (var item in sale.Items)
             {
                 item.Id = Guid.NewGuid().ToString();
                 item.SaleId = sale.Id;
 
-                // Validate product exists or pull cost if missing
+                // Validate product exists or pull cost and tax if missing (Task 30-3)
                 var product = _productRepo.GetById(item.ProductId);
                 if (product != null)
                 {
                     item.UnitCostPiasters = product.CostPiasters;
+                    if (item.TaxRatePercent <= 0)
+                    {
+                        item.TaxRatePercent = product.TaxRatePercent;
+                    }
                     if (string.IsNullOrWhiteSpace(item.ProductName))
                     {
                         item.ProductName = product.Name;
@@ -53,6 +70,16 @@ namespace RafiqPOS.Services
                     if (string.IsNullOrWhiteSpace(item.Unit))
                     {
                         item.Unit = product.Unit;
+                    }
+
+                    // Task 30-2: Negative stock handling
+                    if (!allowNegative && product.StockQuantityMilli < item.QuantityMilli)
+                    {
+                        throw new InvalidOperationException(string.Format("لا يمكن إتمام البيع: رصيد الصنف '{0}' غير كافٍ ({1:0.###}) وسياسة الرصيد السالب معطلة.", product.Name, product.StockQuantityMilli / 1000.0));
+                    }
+                    else if (product.StockQuantityMilli < item.QuantityMilli)
+                    {
+                        sale.NegativeStockWarnings.Add(string.Format("تنبيه: رصيد الصنف '{0}' قبل البيع كان ({1:0.###}) وأصبح بالسالب.", product.Name, product.StockQuantityMilli / 1000.0));
                     }
                 }
 
@@ -76,7 +103,73 @@ namespace RafiqPOS.Services
                 sale.PaidPiasters = sale.TotalPiasters;
             }
 
-            return _saleRepo.CreateSaleAtomic(sale);
+            var result = _saleRepo.CreateSaleAtomic(sale);
+            result.NegativeStockWarnings = sale.NegativeStockWarnings;
+            return result;
+        }
+
+        /// <summary>
+        /// Task 137-3: بيعة تجريبية بعلامة «تجريبي» لا تدخل المخزون ولا ترقيم الفواتير الرسمي
+        /// </summary>
+        public Sale ProcessTestSale(Sale sale = null)
+        {
+            if (sale == null)
+            {
+                sale = new Sale();
+            }
+
+            if (sale.Items == null || sale.Items.Count == 0)
+            {
+                // Create a standard sample test sale item if empty
+                sale.Items = new List<SaleItem>
+                {
+                    new SaleItem
+                    {
+                        Id = "test_item_1",
+                        ProductId = "test_sample_prod",
+                        ProductName = "صنف تجريبي لاختبار الطابعة والفاتورة",
+                        Barcode = "62299990001",
+                        QuantityMilli = 1000,
+                        UnitPricePiasters = 2500,
+                        UnitCostPiasters = 1800,
+                        TotalPiasters = 2500,
+                        Unit = "piece"
+                    }
+                };
+            }
+
+            sale.Id = "test_sale_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            sale.InvoiceNumber = 0; // Special test sequence, official counter remains untouched
+            sale.Status = "TEST_PILOT";
+            sale.CreatedAt = DateTime.UtcNow.ToString("o");
+            sale.PaymentMethod = !string.IsNullOrEmpty(sale.PaymentMethod) ? sale.PaymentMethod : "CASH";
+            sale.Notes = "فاتورة بيع تجريبية - فحص جاهزية التشغيل (لا تدخل المخزون ولا الحسابات)";
+
+            Money subtotal = Money.Zero;
+            for (int i = 0; i < sale.Items.Count; i++)
+            {
+                var item = sale.Items[i];
+                item.Id = "test_item_" + (i + 1);
+                item.SaleId = sale.Id;
+
+                Money unitPrice = Money.FromPiasters(item.UnitPricePiasters > 0 ? item.UnitPricePiasters : 1000);
+                long qty = item.QuantityMilli > 0 ? item.QuantityMilli : 1000;
+                Money lineGross = unitPrice.MultiplyByMilliUnits(qty);
+                Money lineDiscount = Money.FromPiasters(item.DiscountPiasters);
+                Money lineTotal = lineGross.Subtract(lineDiscount);
+
+                item.TotalPiasters = lineTotal.Piasters;
+                subtotal = subtotal.Add(lineTotal);
+            }
+
+            sale.SubtotalPiasters = subtotal.Piasters;
+            Money totalDiscount = Money.FromPiasters(sale.DiscountPiasters);
+            sale.TotalPiasters = subtotal.Subtract(totalDiscount).Piasters;
+            sale.PaidPiasters = sale.TotalPiasters;
+
+            // Notice: NOT calling _saleRepo.CreateSaleAtomic, so official invoice_number counter
+            // and stock_movements are strictly not modified.
+            return sale;
         }
 
         public List<Sale> GetRecentSales(int limit = 20)
@@ -88,6 +181,34 @@ namespace RafiqPOS.Services
         {
             if (string.IsNullOrWhiteSpace(id)) return null;
             return _saleRepo.GetSaleById(id);
+        }
+
+        public Sale GetSaleByInvoiceNumber(int invoiceNumber)
+        {
+            if (invoiceNumber <= 0) return null;
+            return _saleRepo.GetSaleByInvoiceNumber(invoiceNumber);
+        }
+
+        public List<Sale> SearchSales(
+            string query = null,
+            string dateFrom = null,
+            string dateTo = null,
+            string customerId = null,
+            string status = null,
+            long? minTotal = null,
+            long? maxTotal = null,
+            int limit = 100)
+        {
+            return _saleRepo.SearchSales(query, dateFrom, dateTo, customerId, status, minTotal, maxTotal, limit);
+        }
+
+        public Sale CancelSale(string saleId, string reason, string userId = null)
+        {
+            if (string.IsNullOrWhiteSpace(saleId))
+            {
+                throw new ArgumentNullException("saleId", "معرّف الفاتورة مطلوب للإلغاء");
+            }
+            return _saleRepo.CancelSaleAtomic(saleId, reason, userId);
         }
     }
 }

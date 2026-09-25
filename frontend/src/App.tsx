@@ -8,12 +8,18 @@ import {
   User,
   Clock,
   WifiOff,
-  CheckCircle2,
   LayoutDashboard,
   Users,
   ShieldAlert,
   AlertTriangle,
-  Database
+  Database,
+  ChevronDown,
+  ChevronLeft,
+  Tag,
+  Boxes,
+  PanelRightClose,
+  PanelRightOpen,
+  CheckCircle2
 } from 'lucide-react';
 import { invoke } from './bridge/ipc';
 import { PosView } from './views/PosView';
@@ -25,6 +31,9 @@ import { AuditLogView } from './views/AuditLogView';
 import { SettingsView } from './views/SettingsView';
 import { DatabaseRecoveryModal } from './components/DatabaseRecoveryModal';
 import type { DatabaseIntegrityStatus } from './components/DatabaseRecoveryModal';
+import { FirstRunWizardModal } from './components/FirstRunWizardModal';
+import { GuidedTourModal } from './components/GuidedTourModal';
+import { ReadinessCheckModal } from './components/ReadinessCheckModal';
 
 export interface SystemInfo {
   appName: string;
@@ -72,13 +81,29 @@ const HeaderClock: FC = memo(() => {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('pos');
+  const [productsSubView, setProductsSubView] = useState<'catalog' | 'movements'>('catalog');
+  const [isProductsMenuExpanded, setIsProductsMenuExpanded] = useState(true);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('rafiq_pos_sidebar_collapsed');
+      if (saved !== null) return saved === 'true';
+      return window.innerWidth <= 1100;
+    } catch {
+      return false;
+    }
+  });
   const [sysInfo, setSysInfo] = useState<SystemInfo | null>(null);
   const [clockWarning, setClockWarning] = useState<string | null>(null);
   const [backupWarning, setBackupWarning] = useState<string | null>(null);
   const [corruptDbStatus, setCorruptDbStatus] = useState<DatabaseIntegrityStatus | null>(null);
+  const [isFirstRunWizardOpen, setIsFirstRunWizardOpen] = useState(false);
+  const [hasDemoData, setHasDemoData] = useState(false);
+  const [isTourOpen, setIsTourOpen] = useState(false);
+  const [isReadinessOpen, setIsReadinessOpen] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
+
     const loadInfo = async () => {
       try {
         const info = await invoke<SystemInfo>('system:getInfo');
@@ -127,6 +152,30 @@ export default function App() {
     };
     void checkIntegrity();
 
+    const checkFirstRun = async () => {
+      try {
+        const res: any = await invoke('templates:isFirstRunNeeded');
+        if (res && res.isNeeded && isMounted) {
+          setIsFirstRunWizardOpen(true);
+        }
+      } catch {
+        // Ignore in dev
+      }
+    };
+    void checkFirstRun();
+
+    const checkDemo = async () => {
+      try {
+        const res: any = await invoke('demo:getStatus');
+        if (res && res.hasDemoData && isMounted) {
+          setHasDemoData(true);
+        }
+      } catch {
+        // Ignore in dev
+      }
+    };
+    void checkDemo();
+
     return () => {
       isMounted = false;
     };
@@ -150,6 +199,7 @@ export default function App() {
       } else if (e.key === 'F6') {
         e.preventDefault();
         setActiveTab('products');
+        setIsProductsMenuExpanded(true);
       } else if (e.key === 'F7') {
         e.preventDefault();
         setActiveTab('sales');
@@ -188,29 +238,18 @@ export default function App() {
             className="w-8 h-8 object-contain drop-shadow-sm" 
           />
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-[17px] font-bold text-ink leading-none m-0">سوبرماركت رفيق</h1>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-soft text-brand font-mono font-bold border border-line">
-                v1.0.0
-              </span>
-            </div>
-            <p className="text-[11px] text-ink-muted m-0 mt-0.5">نظام نقاط البيع وإدارة السوبرماركت (أوفلاين)</p>
+            <h1 className="text-[17px] font-bold text-ink leading-tight m-0">سوبرماركت رفيق</h1>
+            <p className="text-[11px] text-ink-muted m-0 mt-0.5">نظام نقاط البيع وإدارة السوبرماركت</p>
           </div>
         </div>
 
-        {/* Left Side: Offline status, SQLite WAL, Date, Time */}
+        {/* Left Side: Offline status, Cashier Badge, Date, Time */}
         <div className="flex items-center gap-3 text-xs">
-          {/* Offline Indicator matching design spec */}
+          {/* Offline Indicator */}
           <div className="flex items-center gap-1.5 bg-paid-soft border border-paid-border px-2.5 py-1 rounded text-paid font-medium">
             <span className="w-2 h-2 rounded-full bg-paid animate-pulse"></span>
             <span className="text-[11px] font-semibold">يعمل بدون إنترنت</span>
             <WifiOff className="w-3.5 h-3.5 text-paid opacity-75 mr-0.5" />
-          </div>
-
-          {/* SQLite WAL Indicator */}
-          <div className="flex items-center gap-1.5 bg-surface-2 border border-line px-2.5 py-1 rounded text-ink-muted font-mono text-[11px]">
-            <CheckCircle2 className="w-3.5 h-3.5 text-brand" />
-            <span className="text-ink font-semibold">SQLite WAL</span>
           </div>
 
           {/* Cashier Badge */}
@@ -218,6 +257,17 @@ export default function App() {
             <User className="w-3.5 h-3.5 text-ink-muted" />
             <span className="font-medium">كاشير الوردية (1)</span>
           </div>
+
+          {/* Readiness Checklist Button (Feature #137) */}
+          <button
+            type="button"
+            onClick={() => setIsReadinessOpen(true)}
+            className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-[#006d41] border border-emerald-300 px-2.5 py-1 rounded text-[11px] font-bold transition-colors shadow-xs"
+            title="فحص جاهزية النظام قبل أول بيع"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            <span>جاهزية التشغيل</span>
+          </button>
 
           {/* Date & Time (Isolated Component) */}
           <HeaderClock />
@@ -269,63 +319,202 @@ export default function App() {
         </div>
       )}
 
+      {/* Demo Mode Active Banner (Feature #113 / Task 113-3) */}
+      {hasDemoData && (
+        <div className="bg-amber-500 text-amber-950 px-4 py-1.5 flex items-center justify-between text-[12px] font-bold shrink-0 animate-in slide-in-from-top-1 select-none border-b border-amber-600/30">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+            <span>وضع تجريبي نشط: يحتوي النظام على بيانات نموذجية لتدريب الكاشير وتجربة البرنامج.</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsTourOpen(true)}
+              className="bg-white/90 hover:bg-white text-amber-950 text-xs px-2.5 py-0.5 rounded font-bold transition-colors shadow-xs"
+            >
+              جولة النظام (5 خطوات)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('settings');
+              }}
+              className="bg-amber-950 hover:bg-black text-white text-xs px-2.5 py-0.5 rounded transition-colors"
+            >
+              إدارة ومسح البيانات
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 2. MAIN APP SHELL (Sidebar Navigation + Dynamic Content Canvas) */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Navigation Sidebar (RTL Right side, 220px fixed) */}
-        <aside className="w-[220px] bg-surface hairline-l flex flex-col justify-between shrink-0 p-3 select-none">
-          <nav className="flex flex-col gap-1.5">
-            <div className="px-2 py-1 text-[11px] font-bold text-ink-muted uppercase tracking-wider">
-              القوائم الرئيسية
-            </div>
+        {/* Navigation Sidebar (RTL Right side, Responsive Collapsible: 64px collapsed / 220px expanded) */}
+        <aside 
+          className={`${
+            isSidebarCollapsed ? 'w-[64px] px-1 py-2 items-center' : 'w-[220px] p-3'
+          } bg-surface hairline-l flex flex-col justify-between shrink-0 select-none transition-all duration-150`}
+        >
+          <nav className="flex flex-col gap-1.5 w-full">
+            {!isSidebarCollapsed && (
+              <div className="px-2 py-1 text-[11px] font-bold text-ink-muted uppercase tracking-wider">
+                القوائم الرئيسية
+              </div>
+            )}
 
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
+              const isProductsItem = item.id === 'products';
+
+              if (isSidebarCollapsed) {
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      if (isProductsItem) setProductsSubView('catalog');
+                    }}
+                    title={`${item.label} (${item.shortcut})`}
+                    className={`relative w-full h-[44px] rounded flex items-center justify-center transition-colors group ${
+                      isActive
+                        ? 'bg-brand-soft text-brand font-bold'
+                        : 'text-ink-muted hover:bg-surface-2 hover:text-ink'
+                    }`}
+                  >
+                    <Icon className={`w-5 h-5 ${isActive ? 'text-brand' : 'text-ink-muted group-hover:text-ink'}`} />
+                    {isActive && (
+                      <span className="absolute right-0 top-1.5 bottom-1.5 w-[3px] bg-brand rounded-r" />
+                    )}
+                    <span className="sr-only">{item.label}</span>
+                  </button>
+                );
+              }
+
               return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  className={`w-full relative flex items-center justify-between px-3 h-[46px] rounded text-[13px] transition-colors ${
-                    isActive
-                      ? 'bg-brand-soft text-brand font-bold'
-                      : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-brand' : 'text-ink-muted'}`} />
-                    <span>{item.label}</span>
-                  </div>
+                <div key={item.id} className="flex flex-col">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isProductsItem) {
+                        if (activeTab !== 'products') {
+                          setActiveTab('products');
+                          setIsProductsMenuExpanded(true);
+                        } else {
+                          setIsProductsMenuExpanded(!isProductsMenuExpanded);
+                        }
+                      } else {
+                        setActiveTab(item.id);
+                      }
+                    }}
+                    className={`w-full relative flex items-center justify-between px-3 h-[44px] rounded text-[13px] transition-colors ${
+                      isActive
+                        ? 'bg-brand-soft text-brand font-bold'
+                        : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className={`w-4 h-4 ${isActive ? 'text-brand' : 'text-ink-muted'}`} />
+                      <span>{item.label}</span>
+                    </div>
 
-                  {item.shortcut && (
-                    <span className="text-[10px] font-mono text-ink-muted/70 bg-surface-2 px-1 rounded border border-line">
-                      {item.shortcut}
-                    </span>
-                  )}
+                    <div className="flex items-center gap-1.5">
+                      {item.shortcut && (
+                        <span className="text-[10px] font-mono text-ink-muted/70 bg-surface-2 px-1 rounded border border-line">
+                          {item.shortcut}
+                        </span>
+                      )}
+                      {isProductsItem && (
+                        <span className="text-ink-muted/70">
+                          {isProductsMenuExpanded ? (
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          ) : (
+                            <ChevronLeft className="w-3.5 h-3.5" />
+                          )}
+                        </span>
+                      )}
+                    </div>
 
-                  {isActive && (
-                    <div className="absolute right-0 top-0 bottom-0 w-[3.5px] bg-brand rounded-r"></div>
+                    {isActive && (
+                      <div className="absolute right-0 top-0 bottom-0 w-[3.5px] bg-brand rounded-r"></div>
+                    )}
+                  </button>
+
+                  {/* Sub-tree for Products & Inventory */}
+                  {isProductsItem && isProductsMenuExpanded && (
+                    <div className="mr-4 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-brand/20 animate-in slide-in-from-top-1 duration-150">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('products');
+                          setProductsSubView('catalog');
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 h-[32px] rounded text-[12px] transition-colors ${
+                          activeTab === 'products' && productsSubView === 'catalog'
+                            ? 'bg-brand text-white font-bold shadow-xs'
+                            : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Tag className="w-3.5 h-3.5" />
+                          <span>كتالوج الأصناف</span>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('products');
+                          setProductsSubView('movements');
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 h-[32px] rounded text-[12px] transition-colors ${
+                          activeTab === 'products' && productsSubView === 'movements'
+                            ? 'bg-brand text-white font-bold shadow-xs'
+                            : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Boxes className="w-3.5 h-3.5" />
+                          <span>حركات وجرد المخزون</span>
+                        </div>
+                      </button>
+                    </div>
                   )}
-                </button>
+                </div>
               );
             })}
           </nav>
 
-          {/* User & Environment Card Footer */}
-          <div className="p-3 rounded border border-line bg-surface-2 text-[11px] text-ink-muted flex flex-col gap-1.5 font-mono">
-            <div className="flex justify-between items-center text-ink font-semibold">
-              <span className="font-sans">المشغّل:</span>
-              <span className="text-brand font-bold">{sysInfo?.isWebView2 ? 'Fixed 109' : 'Dev Web'}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="font-sans">نظام التشغيل:</span>
-              <span className="text-[10px] text-ink truncate max-w-[110px]" title={sysInfo?.osVersion || 'Windows'}>
-                {sysInfo?.osVersion ? sysInfo.osVersion.split(' ')[0] : 'Windows'}
-              </span>
-            </div>
-            <div className="flex justify-between items-center pt-1 border-t border-line">
-              <span className="font-sans">الحساب المالي:</span>
-              <span className="text-paid font-bold">Integer (قروش)</span>
-            </div>
+          {/* Sidebar Collapse/Expand Toggle Button (Task 159-2) */}
+          <div className="pt-2 border-t border-line w-full flex items-center justify-center">
+            <button
+              type="button"
+              onClick={() => {
+                setIsSidebarCollapsed((prev) => {
+                  const next = !prev;
+                  try {
+                    localStorage.setItem('rafiq_pos_sidebar_collapsed', String(next));
+                  } catch {
+                    // ignore
+                  }
+                  return next;
+                });
+              }}
+              title={isSidebarCollapsed ? 'توسيع القائمة الجانبية' : 'تصغير القائمة (توفير مساحة 1024x768)'}
+              className={`w-full h-[36px] rounded flex items-center justify-center gap-2 text-ink-muted hover:text-ink hover:bg-surface-2 transition-colors text-[11px] ${
+                isSidebarCollapsed ? 'px-1' : 'px-2.5'
+              }`}
+            >
+              {isSidebarCollapsed ? (
+                <PanelRightOpen className="w-4 h-4 text-brand" />
+              ) : (
+                <>
+                  <PanelRightClose className="w-4 h-4 text-ink-muted" />
+                  <span className="font-semibold">تصغير القائمة (1024×768)</span>
+                </>
+              )}
+            </button>
           </div>
         </aside>
 
@@ -335,11 +524,19 @@ export default function App() {
           {activeTab === 'dashboard' && (
             <DashboardView 
               onNavigateToPos={() => setActiveTab('pos')} 
-              onNavigateToProducts={() => setActiveTab('products')} 
+              onNavigateToProducts={() => {
+                setActiveTab('products');
+                setProductsSubView('catalog');
+                setIsProductsMenuExpanded(true);
+              }} 
+              onNavigateToCustomers={() => setActiveTab('customers')}
+              onNavigateToSales={() => setActiveTab('sales')}
             />
           )}
           {activeTab === 'customers' && <CustomersView />}
-          {activeTab === 'products' && <ProductsView />}
+          {activeTab === 'products' && (
+            <ProductsView subView={productsSubView} />
+          )}
           {activeTab === 'sales' && <SalesHistoryView />}
           {activeTab === 'audit' && <AuditLogView />}
           {activeTab === 'settings' && <SettingsView sysInfo={sysInfo} />}
@@ -353,6 +550,32 @@ export default function App() {
           onRestored={() => window.location.reload()}
         />
       )}
+
+      {/* First Run Store Setup Wizard (Feature #106 / Task 106-4) */}
+      <FirstRunWizardModal
+        isOpen={isFirstRunWizardOpen}
+        onClose={() => setIsFirstRunWizardOpen(false)}
+        onCompleted={() => {
+          setIsFirstRunWizardOpen(false);
+          setActiveTab('pos');
+        }}
+      />
+
+      {/* Guided Tour Modal (Feature #113 / Task 113-4) */}
+      <GuidedTourModal
+        isOpen={isTourOpen}
+        onClose={() => setIsTourOpen(false)}
+        hasDemoData={hasDemoData}
+      />
+
+      {/* Pilot Readiness Check Modal (Feature #137) */}
+      <ReadinessCheckModal
+        isOpen={isReadinessOpen}
+        onClose={() => setIsReadinessOpen(false)}
+        onNavigateToTab={(tab) => {
+          setActiveTab(tab as TabType);
+        }}
+      />
     </div>
   );
 }

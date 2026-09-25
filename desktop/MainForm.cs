@@ -560,6 +560,12 @@ namespace RafiqPOS
             WindowHelper.ActivateAndBringToFront(this);
         }
 
+        private static readonly JsonSerializerSettings BridgeSerializerSettings = new JsonSerializerSettings
+        {
+            ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver(),
+            NullValueHandling = NullValueHandling.Include
+        };
+
         private void CoreWebView2_WebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs e)
         {
             try
@@ -567,14 +573,14 @@ namespace RafiqPOS
                 string rawJson = e.WebMessageAsJson;
                 var request = JsonConvert.DeserializeObject<BridgeRequest>(rawJson);
                 var response = IpcDispatcher.Dispatch(request);
-                string responseJson = JsonConvert.SerializeObject(response);
+                string responseJson = JsonConvert.SerializeObject(response, BridgeSerializerSettings);
 
                 _webView.CoreWebView2.PostWebMessageAsJson(responseJson);
             }
             catch (Exception ex)
             {
                 var errResponse = BridgeResponse.Fail("", "DISPATCHER_ERROR", ex.Message);
-                _webView.CoreWebView2.PostWebMessageAsJson(JsonConvert.SerializeObject(errResponse));
+                _webView.CoreWebView2.PostWebMessageAsJson(JsonConvert.SerializeObject(errResponse, BridgeSerializerSettings));
             }
         }
 

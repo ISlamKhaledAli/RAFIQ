@@ -89,8 +89,10 @@
     <Compile Include="Models\BatchImportModels.cs" />
     <Compile Include="Models\StockMovement.cs" />
     <Compile Include="Models\QuickItem.cs" />
+    <Compile Include="Models\StoreTemplate.cs" />
     <Compile Include="Repositories\ProductRepository.cs" />
     <Compile Include="Repositories\SaleRepository.cs" />
+    <Compile Include="Repositories\CounterRepository.cs" />
     <Compile Include="Repositories\SettingsRepository.cs" />
     <Compile Include="Repositories\CustomerRepository.cs" />
     <Compile Include="Repositories\AuditLogRepository.cs" />
@@ -103,6 +105,7 @@
     <Compile Include="Services\SaleService.cs" />
     <Compile Include="Services\InventoryService.cs" />
     <Compile Include="Services\InventoryTestRunner.cs" />
+    <Compile Include="Services\CustomerLedgerTestRunner.cs" />
     <Compile Include="Services\SettingsService.cs" />
     <Compile Include="Services\CustomerService.cs" />
     <Compile Include="Services\CategoryService.cs" />
@@ -114,6 +117,12 @@
     <Compile Include="Services\SearchBenchmarkRunner.cs" />
     <Compile Include="Services\BackupService.cs" />
     <Compile Include="Services\ExcelService.cs" />
+    <Compile Include="Services\PrinterService.cs" />
+    <Compile Include="Services\SecurityService.cs" />
+    <Compile Include="Services\StoreTemplateService.cs" />
+    <Compile Include="Services\DemoDataService.cs" />
+    <Compile Include="Services\ReadinessService.cs" />
+    <Compile Include="Services\SystemHealthService.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

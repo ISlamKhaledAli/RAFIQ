@@ -8,11 +8,14 @@ import '@fontsource/cairo/800.css'
 import './index.css'
 import App from './App.tsx'
 import { FeaturesProvider } from './context/FeaturesProvider'
+import { ErrorBoundary } from './components/ErrorBoundary'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <FeaturesProvider>
-      <App />
-    </FeaturesProvider>
+    <ErrorBoundary>
+      <FeaturesProvider>
+        <App />
+      </FeaturesProvider>
+    </ErrorBoundary>
   </StrictMode>,
 )

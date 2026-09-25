@@ -21,6 +21,7 @@ namespace RafiqPOS.Bridge
             // Lock write operations immediately if database is corrupt (Task 124-1)
             if (DatabaseService.IsCorrupted && (
                 request.Action == "sales:create" ||
+                request.Action == "sales:cancel" ||
                 request.Action == "products:save" ||
                 request.Action == "products:delete" ||
                 request.Action == "products:bulkUpdateMinStock" ||
@@ -216,6 +217,87 @@ namespace RafiqPOS.Bridge
                         }
                         return BridgeResponse.Ok(request.Id, singleSale);
 
+                    case "sales:cancel":
+                        string cancelSaleId = "";
+                        string cancelReason = "إلغاء بناء على طلب الكاشير";
+                        string cancelUserId = "usr_admin_default";
+                        JObject cPayload = request.Payload as JObject;
+                        if (cPayload != null)
+                        {
+                            if (cPayload["saleId"] != null) cancelSaleId = cPayload["saleId"].ToString();
+                            else if (cPayload["id"] != null) cancelSaleId = cPayload["id"].ToString();
+                            if (cPayload["reason"] != null) cancelReason = cPayload["reason"].ToString();
+                            if (cPayload["userId"] != null) cancelUserId = cPayload["userId"].ToString();
+                        }
+                        else if (request.Payload != null)
+                        {
+                            cancelSaleId = request.Payload.ToString().Trim('"', ' ');
+                        }
+
+                        if (string.IsNullOrWhiteSpace(cancelSaleId))
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "معرّف الفاتورة مطلوب لإلغائها");
+                        }
+
+                        var cancelledSale = DatabaseService.Sales.CancelSale(cancelSaleId, cancelReason, cancelUserId);
+                        return BridgeResponse.Ok(request.Id, cancelledSale);
+
+                    case "sales:getByInvoiceNumber":
+                        int invNum = 0;
+                        JObject invPayload = request.Payload as JObject;
+                        if (invPayload != null && invPayload["invoiceNumber"] != null)
+                        {
+                            invNum = invPayload["invoiceNumber"].Value<int>();
+                        }
+                        else if (request.Payload != null)
+                        {
+                            int.TryParse(request.Payload.ToString().Trim('"', ' ', '#'), out invNum);
+                        }
+                        if (invNum <= 0)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "رقم الفاتورة غير صحيح");
+                        }
+                        var foundSale = DatabaseService.Sales.GetSaleByInvoiceNumber(invNum);
+                        return BridgeResponse.Ok(request.Id, foundSale);
+
+                    case "sales:search":
+                        string sQuery = null;
+                        string sDateFrom = null;
+                        string sDateTo = null;
+                        string sCustomerId = null;
+                        string sStatus = null;
+                        long? sMinTotal = null;
+                        long? sMaxTotal = null;
+                        int sLimit = 100;
+
+                        JObject sSearchObj = request.Payload as JObject;
+                        if (sSearchObj != null)
+                        {
+                            if (sSearchObj["query"] != null) sQuery = sSearchObj["query"].ToString();
+                            if (sSearchObj["dateFrom"] != null) sDateFrom = sSearchObj["dateFrom"].ToString();
+                            if (sSearchObj["dateTo"] != null) sDateTo = sSearchObj["dateTo"].ToString();
+                            if (sSearchObj["customerId"] != null) sCustomerId = sSearchObj["customerId"].ToString();
+                            if (sSearchObj["status"] != null) sStatus = sSearchObj["status"].ToString();
+                            if (sSearchObj["minTotal"] != null) sMinTotal = sSearchObj["minTotal"].Value<long>();
+                            if (sSearchObj["maxTotal"] != null) sMaxTotal = sSearchObj["maxTotal"].Value<long>();
+                            if (sSearchObj["limit"] != null) sLimit = sSearchObj["limit"].Value<int>();
+                        }
+                        else if (request.Payload != null)
+                        {
+                            sQuery = request.Payload.ToString().Trim('"', ' ');
+                        }
+
+                        var searchedSales = DatabaseService.Sales.SearchSales(
+                            sQuery, sDateFrom, sDateTo, sCustomerId, sStatus, sMinTotal, sMaxTotal, sLimit
+                        );
+                        return BridgeResponse.Ok(request.Id, searchedSales);
+
+                    case "counters:getNextExpectedInvoiceNumber":
+                        long nextExpected = DatabaseService.CounterRepo != null 
+                            ? DatabaseService.CounterRepo.GetNextExpectedInvoiceNumber() 
+                            : 1;
+                        return BridgeResponse.Ok(request.Id, new { nextInvoiceNumber = nextExpected });
+
                     case "db:testTransaction":
                         int count = 10;
                         JObject jObj = request.Payload as JObject;
@@ -233,12 +315,59 @@ namespace RafiqPOS.Bridge
                             return BridgeResponse.Fail(request.Id, "DB_TRANSACTION_FAILED", result.Message);
                         }
 
+                    case "printer:list":
+                        var printers = DatabaseService.Printer.GetInstalledPrinters();
+                        return BridgeResponse.Ok(request.Id, printers);
+
                     case "printer:test":
-                        return BridgeResponse.Ok(request.Id, new
+                    case "printer:testPrint":
+                        string tPrinter = null;
+                        string tWidth = null;
+                        JObject tPayload = request.Payload as JObject;
+                        if (tPayload != null)
                         {
-                            success = true,
-                            message = "تمت محاكاة طباعة إيصال عربي (ESC/POS) بعرض 80مم عبر Win32 Spooler بنجاح"
-                        });
+                            if (tPayload["printerName"] != null) tPrinter = tPayload["printerName"].ToString();
+                            if (tPayload["paperWidth"] != null) tWidth = tPayload["paperWidth"].ToString();
+                        }
+                        var testPrintResult = DatabaseService.Printer.PrintTestReceipt(tPrinter, tWidth);
+                        return BridgeResponse.Ok(request.Id, testPrintResult);
+
+                    case "printer:printReceipt":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات الفاتورة المراد طباعتها فارغة");
+                        }
+                        Sale saleToPrint = null;
+                        string pPrinter = null;
+                        string pWidth = null;
+                        bool? pDrawer = null;
+                        bool pIsCopy = false;
+
+                        JObject printPayload = request.Payload as JObject;
+                        if (printPayload != null && printPayload["sale"] != null)
+                        {
+                            saleToPrint = JsonConvert.DeserializeObject<Sale>(printPayload["sale"].ToString());
+                            if (printPayload["printerName"] != null) pPrinter = printPayload["printerName"].ToString();
+                            if (printPayload["paperWidth"] != null) pWidth = printPayload["paperWidth"].ToString();
+                            if (printPayload["openDrawer"] != null) pDrawer = printPayload["openDrawer"].Value<bool>();
+                            if (printPayload["isCopy"] != null) pIsCopy = printPayload["isCopy"].Value<bool>();
+                        }
+                        else
+                        {
+                            saleToPrint = JsonConvert.DeserializeObject<Sale>(request.Payload.ToString());
+                            if (printPayload != null && printPayload["isCopy"] != null)
+                            {
+                                pIsCopy = printPayload["isCopy"].Value<bool>();
+                            }
+                        }
+
+                        if (saleToPrint == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_SALE", "تعذر تحليل بيانات الفاتورة المراد طباعتها");
+                        }
+
+                        var printReceiptResult = DatabaseService.Printer.PrintSaleReceipt(saleToPrint, pPrinter, pWidth, pDrawer, pIsCopy);
+                        return BridgeResponse.Ok(request.Id, printReceiptResult);
 
                     case "settings:getAll":
                         var allSettings = DatabaseService.Settings.GetAllSettings();
@@ -271,6 +400,170 @@ namespace RafiqPOS.Bridge
                             return BridgeResponse.Ok(request.Id, new { key = fKey, enabled = fEnabled });
                         }
                         return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "الحقول المطلوبة (key, enabled) ناقصة");
+
+                    case "security:getStatus":
+                        var secStatus = DatabaseService.Security.GetStatus();
+                        return BridgeResponse.Ok(request.Id, secStatus);
+
+                    case "security:verifyPin":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات التحقق فارغة");
+                        }
+                        JObject verifyObj = request.Payload as JObject;
+                        string verifyPinVal = verifyObj != null && verifyObj["pin"] != null ? verifyObj["pin"].ToString() : "";
+                        string verifyActionVal = verifyObj != null && verifyObj["action"] != null ? verifyObj["action"].ToString() : "";
+                        var verifyResult = DatabaseService.Security.VerifyPin(verifyPinVal, verifyActionVal);
+                        return BridgeResponse.Ok(request.Id, verifyResult);
+
+                    case "security:setPin":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات تعيين الرقم السري فارغة");
+                        }
+                        JObject setPinObj = request.Payload as JObject;
+                        string newPin = setPinObj != null && setPinObj["newPin"] != null ? setPinObj["newPin"].ToString() : "";
+                        string currPin = setPinObj != null && setPinObj["currentPin"] != null ? setPinObj["currentPin"].ToString() : null;
+                        string recCode = setPinObj != null && setPinObj["recoveryCode"] != null ? setPinObj["recoveryCode"].ToString() : null;
+                        var setPinResult = DatabaseService.Security.SetPin(newPin, currPin, recCode);
+                        if (!setPinResult.Success)
+                        {
+                            return BridgeResponse.Fail(request.Id, "PIN_SET_FAILED", setPinResult.Message);
+                        }
+                        return BridgeResponse.Ok(request.Id, setPinResult);
+
+                    case "security:resetWithRecovery":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات الاسترجاع فارغة");
+                        }
+                        JObject recoveryPayloadObj = request.Payload as JObject;
+                        string rCode = recoveryPayloadObj != null && recoveryPayloadObj["recoveryCode"] != null ? recoveryPayloadObj["recoveryCode"].ToString() : "";
+                        string rNewPin = recoveryPayloadObj != null && recoveryPayloadObj["newPin"] != null ? recoveryPayloadObj["newPin"].ToString() : "";
+                        var recResult = DatabaseService.Security.ResetWithRecoveryCode(rCode, rNewPin);
+                        if (!recResult.Success)
+                        {
+                            return BridgeResponse.Fail(request.Id, "RECOVERY_FAILED", recResult.Message);
+                        }
+                        return BridgeResponse.Ok(request.Id, recResult);
+
+                    case "security:disablePin":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "الرقم السري الحالي مطلوب لإلغاء التفعيل");
+                        }
+                        JObject disObj = request.Payload as JObject;
+                        string disPin = disObj != null && disObj["currentPin"] != null ? disObj["currentPin"].ToString() : "";
+                        bool disabled = DatabaseService.Security.DisablePin(disPin);
+                        if (!disabled)
+                        {
+                            return BridgeResponse.Fail(request.Id, "PIN_DISABLE_FAILED", "الرقم السري غير صحيح");
+                        }
+                        return BridgeResponse.Ok(request.Id, new { success = true });
+
+                    case "security:enablePin":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "الرقم السري الحالي مطلوب للتفعيل");
+                        }
+                        JObject enObj = request.Payload as JObject;
+                        string enPin = enObj != null && enObj["currentPin"] != null ? enObj["currentPin"].ToString() : "";
+                        bool enabled = DatabaseService.Security.EnablePin(enPin);
+                        if (!enabled)
+                        {
+                            return BridgeResponse.Fail(request.Id, "PIN_ENABLE_FAILED", "الرقم السري غير صحيح");
+                        }
+                        return BridgeResponse.Ok(request.Id, new { success = true });
+
+                    case "security:saveProtectedActions":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات العمليات المحمية فارغة");
+                        }
+                        JObject actObj = request.Payload as JObject;
+                        string actPin = actObj != null && actObj["currentPin"] != null ? actObj["currentPin"].ToString() : "";
+                        Dictionary<string, bool> actionsDict = new Dictionary<string, bool>();
+                        if (actObj != null && actObj["actions"] != null)
+                        {
+                            actionsDict = JsonConvert.DeserializeObject<Dictionary<string, bool>>(actObj["actions"].ToString());
+                        }
+                        bool actSaved = DatabaseService.Security.SaveProtectedActions(actionsDict, actPin);
+                        if (!actSaved)
+                        {
+                            return BridgeResponse.Fail(request.Id, "AUTH_FAILED", "الرقم السري غير صحيح لحفظ إعدادات الحماية");
+                        }
+                        return BridgeResponse.Ok(request.Id, new { success = true });
+
+                    case "templates:getAll":
+                        var allTemplates = DatabaseService.Templates.GetAllTemplates();
+                        return BridgeResponse.Ok(request.Id, allTemplates);
+
+                    case "templates:isFirstRunNeeded":
+                        bool needed = DatabaseService.Templates.IsFirstRunNeeded();
+                        return BridgeResponse.Ok(request.Id, new { isNeeded = needed });
+
+                    case "templates:apply":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات تطبيق القالب فارغة");
+                        }
+                        var applyReq = JsonConvert.DeserializeObject<ApplyTemplateRequest>(request.Payload.ToString());
+                        var applyRes = DatabaseService.Templates.ApplyTemplate(applyReq);
+                        if (!applyRes.Success)
+                        {
+                            return BridgeResponse.Fail(request.Id, "TEMPLATE_APPLY_FAILED", applyRes.Message);
+                        }
+                        return BridgeResponse.Ok(request.Id, applyRes);
+
+                    case "demo:getStatus":
+                        var demoStatus = DatabaseService.DemoData.GetStatus();
+                        return BridgeResponse.Ok(request.Id, demoStatus);
+
+                    case "demo:load":
+                        string demoStoreType = "supermarket";
+                        if (request.Payload != null)
+                        {
+                            JObject demoLoadObj = request.Payload as JObject;
+                            if (demoLoadObj != null && demoLoadObj["storeType"] != null)
+                            {
+                                demoStoreType = demoLoadObj["storeType"].ToString();
+                            }
+                            else if (request.Payload is string)
+                            {
+                                demoStoreType = request.Payload.ToString();
+                            }
+                        }
+                        var demoLoadRes = DatabaseService.DemoData.LoadDemoData(demoStoreType);
+                        if (!demoLoadRes.Success)
+                        {
+                            return BridgeResponse.Fail(request.Id, "DEMO_LOAD_FAILED", demoLoadRes.Message);
+                        }
+                        return BridgeResponse.Ok(request.Id, demoLoadRes);
+
+                    case "demo:clear":
+                        var demoClearRes = DatabaseService.DemoData.ClearDemoData();
+                        if (!demoClearRes.Success)
+                        {
+                            return BridgeResponse.Fail(request.Id, "DEMO_CLEAR_FAILED", demoClearRes.Message);
+                        }
+                        return BridgeResponse.Ok(request.Id, demoClearRes);
+
+                    case "readiness:getStatus":
+                        var readinessStatus = DatabaseService.Readiness.GetStatus();
+                        return BridgeResponse.Ok(request.Id, readinessStatus);
+
+                    case "readiness:processTestSale":
+                        Sale inputTestSale = null;
+                        if (request.Payload != null)
+                        {
+                            inputTestSale = JsonConvert.DeserializeObject<Sale>(request.Payload.ToString());
+                        }
+                        var testSaleResult = DatabaseService.Sales.ProcessTestSale(inputTestSale);
+                        return BridgeResponse.Ok(request.Id, testSaleResult);
+
+                    case "health:getStatus":
+                        var systemHealth = DatabaseService.SystemHealth.GetSystemHealth();
+                        return BridgeResponse.Ok(request.Id, systemHealth);
 
                     case "customers:getAll":
                         int custLimit = 100;
@@ -316,6 +609,73 @@ namespace RafiqPOS.Bridge
                         string payNotes = payObj["notes"] != null ? payObj["notes"].ToString() : "";
                         var updatedCustomerAfterPay = DatabaseService.Customers.RecordPayment(payCustId, payAmount, payNotes);
                         return BridgeResponse.Ok(request.Id, updatedCustomerAfterPay);
+
+                    case "customers:cancelPayment":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات إلغاء السداد فارغة");
+                        }
+                        JObject cancelPayObj = request.Payload as JObject;
+                        if (cancelPayObj == null || cancelPayObj["customerId"] == null || cancelPayObj["ledgerEntryId"] == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات إلغاء السداد غير مكتملة");
+                        }
+                        string cpCustId = cancelPayObj["customerId"].ToString();
+                        string cpLedgerId = cancelPayObj["ledgerEntryId"].ToString();
+                        string cpReason = cancelPayObj["reason"] != null ? cancelPayObj["reason"].ToString() : "سجلت بالخطأ";
+                        string cpUser = cancelPayObj["userName"] != null ? cancelPayObj["userName"].ToString() : "الكاشير";
+                        var custAfterCancel = DatabaseService.Customers.CancelPayment(cpCustId, cpLedgerId, cpReason, cpUser);
+                        return BridgeResponse.Ok(request.Id, custAfterCancel);
+
+                    case "customers:checkPhone":
+                        string checkPhoneNum = "";
+                        string checkExcludeId = null;
+                        JObject cpObj = request.Payload as JObject;
+                        if (cpObj != null)
+                        {
+                            if (cpObj["phone"] != null) checkPhoneNum = cpObj["phone"].ToString();
+                            if (cpObj["excludeId"] != null) checkExcludeId = cpObj["excludeId"].ToString();
+                        }
+                        else if (request.Payload != null)
+                        {
+                            checkPhoneNum = request.Payload.ToString().Trim('"', ' ');
+                        }
+                        var existingCust = DatabaseService.Customers.FindByPhone(checkPhoneNum, checkExcludeId);
+                        return BridgeResponse.Ok(request.Id, new
+                        {
+                            isDuplicate = existingCust != null,
+                            existingCustomer = existingCust
+                        });
+
+                    case "customers:verifyBalance":
+                        string vbCustId = "";
+                        JObject vbObj = request.Payload as JObject;
+                        if (vbObj != null && vbObj["customerId"] != null) vbCustId = vbObj["customerId"].ToString();
+                        else if (request.Payload != null) vbCustId = request.Payload.ToString().Trim('"', ' ');
+                        var verifyRes = DatabaseService.Customers.VerifyBalance(vbCustId);
+                        return BridgeResponse.Ok(request.Id, verifyRes);
+
+                    case "customers:recalculateBalance":
+                        string rbCustId = "";
+                        JObject rbObj = request.Payload as JObject;
+                        if (rbObj != null && rbObj["customerId"] != null) rbCustId = rbObj["customerId"].ToString();
+                        else if (request.Payload != null) rbCustId = request.Payload.ToString().Trim('"', ' ');
+                        var fixedCust = DatabaseService.Customers.RecalculateAndFixBalance(rbCustId);
+                        return BridgeResponse.Ok(request.Id, fixedCust);
+
+                    case "customers:getDetailedStatement":
+                        string detCustId = "";
+                        string detStartDate = null;
+                        string detEndDate = null;
+                        JObject detObj = request.Payload as JObject;
+                        if (detObj != null)
+                        {
+                            if (detObj["customerId"] != null) detCustId = detObj["customerId"].ToString();
+                            if (detObj["startDate"] != null) detStartDate = detObj["startDate"].ToString();
+                            if (detObj["endDate"] != null) detEndDate = detObj["endDate"].ToString();
+                        }
+                        var detailedStatement = DatabaseService.Customers.GetDetailedStatement(detCustId, detStartDate, detEndDate);
+                        return BridgeResponse.Ok(request.Id, detailedStatement);
 
                     case "categories:getAll":
                         bool incArchived = false;
@@ -415,6 +775,14 @@ namespace RafiqPOS.Bridge
                         }
                         var statement = DatabaseService.Customers.GetStatement(statCustId, 50);
                         return BridgeResponse.Ok(request.Id, statement);
+
+                    case "customers:runTests":
+                        var custTestRes = CustomerLedgerTestRunner.RunAllTests();
+                        if (custTestRes.Success)
+                        {
+                            return BridgeResponse.Ok(request.Id, custTestRes);
+                        }
+                        return BridgeResponse.Fail(request.Id, "CUSTOMER_TESTS_FAILED", custTestRes.Message);
 
                     case "reports:getTodaySummary":
                         var summary = DatabaseService.Reports.GetTodaySummary();
@@ -657,6 +1025,38 @@ namespace RafiqPOS.Bridge
                             base64 = expBase64,
                             count = prodsToExport.Count
                         });
+
+                    case "excel:getCustomerTemplate":
+                        string custTplBase64 = DatabaseService.Excel.GenerateCustomerTemplateBase64();
+                        return BridgeResponse.Ok(request.Id, new
+                        {
+                            success = true,
+                            fileName = "قالب_استيراد_العملاء_رفيق_POS.xlsx",
+                            base64 = custTplBase64
+                        });
+
+                    case "excel:previewCustomerImport":
+                        string pBase64 = "";
+                        JObject prevCustObj = request.Payload as JObject;
+                        if (prevCustObj != null && prevCustObj["base64"] != null) pBase64 = prevCustObj["base64"].ToString();
+                        else if (request.Payload != null) pBase64 = request.Payload.ToString().Trim('"', ' ');
+                        var previewResult = DatabaseService.Excel.ParseCustomerImportBase64(pBase64, DatabaseService.CustomerRepo);
+                        return BridgeResponse.Ok(request.Id, previewResult);
+
+                    case "excel:importCustomers":
+                        if (request.Payload == null) return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات الاستيراد فارغة");
+                        List<CustomerImportRow> rowsToImport = null;
+                        JObject impCustObj = request.Payload as JObject;
+                        if (impCustObj != null && impCustObj["rows"] != null)
+                        {
+                            rowsToImport = impCustObj["rows"].ToObject<List<CustomerImportRow>>();
+                        }
+                        else
+                        {
+                            rowsToImport = JsonConvert.DeserializeObject<List<CustomerImportRow>>(request.Payload.ToString());
+                        }
+                        var custImportResult = DatabaseService.Customers.BatchImportCustomers(rowsToImport);
+                        return BridgeResponse.Ok(request.Id, custImportResult);
 
                     default:
                         Logger.Warn("محاولة تنفيذ إجراء غير مسجل: " + request.Action);

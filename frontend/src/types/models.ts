@@ -14,6 +14,7 @@ export interface Product {
   taxCategoryCode?: string;
   internalCode?: string;
   isActive: boolean;
+  needsReview?: boolean;
   createdAt: string;
   updatedAt: string;
   priceFormatted?: string;
@@ -72,6 +73,7 @@ export interface SaleItem {
   discountPiasters: number;
   totalPiasters: number;
   taxPiasters: number;
+  taxRatePercent?: number;
   unit?: string;
 }
 
@@ -80,6 +82,8 @@ export interface Sale {
   invoiceNumber?: number;
   cashierId?: string | null;
   customerId?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
   subtotalPiasters: number;
   discountPiasters: number;
   taxPiasters: number;
@@ -90,6 +94,16 @@ export interface Sale {
   notes?: string | null;
   createdAt?: string;
   items: SaleItem[];
+  payments?: SalePayment[];
+  negativeStockWarnings?: string[];
+}
+
+export interface SalePayment {
+  id?: string;
+  saleId?: string;
+  amountPiasters: number;
+  method: 'cash' | 'credit' | 'card';
+  createdAt?: string;
 }
 
 export interface Customer {
@@ -106,7 +120,7 @@ export interface Customer {
 export interface CustomerLedgerEntry {
   id: string;
   customerId: string;
-  type: 'sale' | 'payment' | 'opening_balance';
+  type: 'sale' | 'payment' | 'opening_balance' | 'payment_cancel' | 'refund' | 'cancellation' | string;
   saleId?: string | null;
   amountPiasters: number;
   balanceAfterPiasters: number;
@@ -114,6 +128,38 @@ export interface CustomerLedgerEntry {
   createdAt: string;
   amountFormatted?: string;
   balanceAfterFormatted?: string;
+}
+
+export interface CustomerImportRow {
+  rowIndex: number;
+  name: string;
+  phone: string;
+  initialBalancePiasters: number;
+  initialBalanceFormatted?: string;
+  creditLimitPiasters: number;
+  creditLimitFormatted?: string;
+  notes: string;
+  isValid: boolean;
+  errors: string[];
+  isPhoneDuplicateInDb: boolean;
+}
+
+export interface CustomerImportPreviewResult {
+  totalRowsCount: number;
+  validRowsCount: number;
+  invalidRowsCount: number;
+  duplicatePhonesCount: number;
+  totalOpeningDebtsPiasters: number;
+  totalOpeningDebtsFormatted?: string;
+  rows: CustomerImportRow[];
+}
+
+export interface CustomerImportResult {
+  importedCount: number;
+  skippedCount: number;
+  totalOpeningDebtsPiasters: number;
+  totalOpeningDebtsFormatted?: string;
+  message: string;
 }
 
 export interface TopSellingItem {
@@ -131,6 +177,14 @@ export interface LowStockItem {
   unit: string;
 }
 
+export interface TopDebtorItem {
+  customerId: string;
+  customerName: string;
+  customerPhone?: string;
+  balancePiasters: number;
+  balanceFormatted?: string;
+}
+
 export interface DashboardSummary {
   todaySalesPiasters: number;
   todaySalesFormatted?: string;
@@ -145,6 +199,10 @@ export interface DashboardSummary {
   cashDrawerFormatted?: string;
   topSellingProducts: TopSellingItem[];
   lowStockProducts: LowStockItem[];
+  totalCustomerDebtsPiasters?: number;
+  totalCustomerDebtsFormatted?: string;
+  debtorsCount?: number;
+  topDebtors?: TopDebtorItem[];
 }
 
 export interface AuditLogEntry {
