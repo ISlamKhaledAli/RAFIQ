@@ -39,13 +39,13 @@ namespace RafiqPOS.Bridge
             };
         }
 
-        public static BridgeResponse Fail(string id, string code, string message)
+        public static BridgeResponse Fail(string id, string code, string message, object details = null)
         {
             return new BridgeResponse
             {
                 Id = id,
                 Success = false,
-                Error = new BridgeError { Code = code, Message = message }
+                Error = new BridgeError { Code = code, Message = message, Details = details }
             };
         }
     }
@@ -57,5 +57,8 @@ namespace RafiqPOS.Bridge
 
         [JsonProperty("message")]
         public string Message { get; set; }
+
+        [JsonProperty("details", NullValueHandling = NullValueHandling.Ignore)]
+        public object Details { get; set; }
     }
 }

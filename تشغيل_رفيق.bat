@@ -1,9 +1,9 @@
 @echo off
 chcp 65001 > nul
-title تشغيل نظام رفيق لنقاط البيع
+title Rafiq POS - Desktop Application
 
 echo ===================================================
-echo     جاري تشغيل نظام رفيق لنقاط البيع (Desktop)
+echo     Starting Rafiq POS Desktop Application...
 echo ===================================================
 echo.
 

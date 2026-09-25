@@ -38,6 +38,21 @@ namespace RafiqPOS.Models
 
         [JsonProperty("taxPiasters")]
         public long TaxPiasters { get; set; }
+
+        [JsonProperty("taxRatePercent")]
+        public int TaxRatePercent { get; set; }
+
+        [JsonProperty("unit")]
+        public string Unit { get; set; }
+
+        [JsonProperty("unitId")]
+        public string UnitId { get; set; }
+
+        [JsonProperty("unitName")]
+        public string UnitName { get; set; }
+
+        [JsonProperty("conversionFactor")]
+        public int ConversionFactor { get; set; }
     }
 
     public class Sale
@@ -53,6 +68,12 @@ namespace RafiqPOS.Models
 
         [JsonProperty("customerId")]
         public string CustomerId { get; set; }
+
+        [JsonProperty("customerName")]
+        public string CustomerName { get; set; }
+
+        [JsonProperty("customerPhone")]
+        public string CustomerPhone { get; set; }
 
         [JsonProperty("subtotalPiasters")]
         public long SubtotalPiasters { get; set; }
@@ -84,9 +105,38 @@ namespace RafiqPOS.Models
         [JsonProperty("items")]
         public List<SaleItem> Items { get; set; }
 
+        [JsonProperty("payments")]
+        public List<SalePayment> Payments { get; set; }
+
+        [JsonProperty("negativeStockWarnings")]
+        public List<string> NegativeStockWarnings { get; set; }
+
+        [JsonProperty("creditLimitWarning")]
+        public string CreditLimitWarning { get; set; }
+
         public Sale()
         {
             Items = new List<SaleItem>();
+            Payments = new List<SalePayment>();
+            NegativeStockWarnings = new List<string>();
         }
+    }
+
+    public class SalePayment
+    {
+        [JsonProperty("id")]
+        public string Id { get; set; }
+
+        [JsonProperty("saleId")]
+        public string SaleId { get; set; }
+
+        [JsonProperty("amountPiasters")]
+        public long AmountPiasters { get; set; }
+
+        [JsonProperty("method")]
+        public string Method { get; set; }
+
+        [JsonProperty("createdAt")]
+        public string CreatedAt { get; set; }
     }
 }

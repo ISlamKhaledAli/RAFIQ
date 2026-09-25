@@ -1,9 +1,9 @@
 @echo off
 chcp 65001 > nul
-title رفيق — تشغيل وضع المطور (Vite Dev Server)
+title Rafiq POS - Developer Mode (Vite Dev Server)
 
 echo ===================================================
-echo     جاري تشغيل واجهة رفيق في المتصفح (وضع التطوير)
+echo     Starting Rafiq POS Dev Server (Vite)...
 echo ===================================================
 echo.
 

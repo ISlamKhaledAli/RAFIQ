@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { poundsToPiasters, piastersToPounds } from '../utils/money';
+import { poundsToPiasters, piastersToPounds, normalizeArabicNumerals } from '../utils/money';
 
 interface MoneyInputProps {
   valuePiasters: number;
@@ -38,17 +38,9 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({
     setDisplayValue(pounds === 0 ? '' : pounds.toString());
   }
 
-  // تحويل الأرقام العربية المشرقية والفارسية إلى أرقام غربية قياسية
-  const normalizeDigits = (str: string): string => {
-    return str
-      .replace(/[٠-٩]/g, (d) => (d.charCodeAt(0) - 1632).toString())
-      .replace(/[۰-۹]/g, (d) => (d.charCodeAt(0) - 1776).toString())
-      .replace(/،/g, '.');
-  };
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
-    const normalized = normalizeDigits(raw);
+    const normalized = normalizeArabicNumerals(raw);
 
     // السماح فقط بالأرقام ونقطة عشرية واحدة بحد أقصى خانتين
     if (/^[0-9]*\.?[0-9]{0,2}$/.test(normalized)) {
@@ -60,7 +52,7 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({
   };
 
   return (
-    <div className="relative flex items-center">
+    <div className="relative flex items-center w-full">
       <input
         type="text"
         inputMode="decimal"
@@ -69,9 +61,9 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({
         placeholder={placeholder}
         value={displayValue}
         onChange={handleChange}
-        className={`w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono font-bold focus:outline-none focus:border-emerald-500 transition-colors ${className}`}
+        className={`w-full bg-surface border border-line rounded px-3 py-1.5 pl-11 text-ink font-mono font-bold focus:outline-none focus:border-brand transition-colors text-right tabular-nums ${className}`}
       />
-      <span className="absolute left-3 text-xs font-semibold text-slate-400 pointer-events-none">
+      <span className="absolute left-2.5 text-[11px] font-bold text-ink-muted pointer-events-none select-none">
         ج.م
       </span>
     </div>

@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: 'class',
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
@@ -15,7 +16,10 @@ export default {
           dim: "#D7DADD",
           bright: "#F7FAFC",
         },
-        line: "#DCE1DC",
+        line: {
+          DEFAULT: "#DCE1DC",
+          hover: "#B5C0B7",
+        },
         brand: {
           DEFAULT: "#0B4F42",
           hover: "#0F6A57",
@@ -43,8 +47,8 @@ export default {
         },
       },
       fontFamily: {
-        sans: ["Cairo", "IBM Plex Sans Arabic", "Segoe UI", "Tahoma", "sans-serif"],
-        mono: ["IBM Plex Mono", "Consolas", "monospace"],
+        sans: ["Cairo", "Tajawal", "Segoe UI", "Tahoma", "sans-serif"],
+        mono: ["Cairo", "Consolas", "Courier New", "monospace"],
       },
     },
   },
