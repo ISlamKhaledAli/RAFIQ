@@ -33,6 +33,7 @@ import { PinSettingsModal } from '../components/PinSettingsModal';
 import { FirstRunWizardModal } from '../components/FirstRunWizardModal';
 import { DemoDataModal } from '../components/DemoDataModal';
 import { GuidedTourModal } from '../components/GuidedTourModal';
+import { CustomSelect } from '../components/CustomSelect';
 
 export type SettingsSubTab = 'profile' | 'backup' | 'printer' | 'system' | 'scanner' | 'security' | 'demo';
 
@@ -453,21 +454,20 @@ export const SettingsView = ({
             <div className="flex flex-col gap-4">
               <div>
                 <label className="block text-ink font-semibold text-xs mb-1.5">الطابعة الافتراضية للفواتير والإيصالات</label>
-                <select
+                <CustomSelect
                   value={selectedPrinter}
-                  onChange={(e) => setSelectedPrinter(e.target.value)}
-                  className="w-full bg-surface border border-line rounded h-[40px] px-3 text-[13px] text-ink focus:outline-none focus:border-brand font-sans"
-                >
-                  {printersList.length === 0 ? (
-                    <option value="">لا توجد طابعات مثبتة في النظام (أو جاري الفحص...)</option>
-                  ) : (
-                    printersList.map((p) => (
-                      <option key={p.name} value={p.name}>
-                        {p.name} {p.isDefault ? '(الافتراضية في ويندوز)' : ''}
-                      </option>
-                    ))
-                  )}
-                </select>
+                  onChange={(val) => setSelectedPrinter(val)}
+                  options={
+                    printersList.length === 0
+                      ? [{ value: '', label: 'لا توجد طابعات مثبتة في النظام (أو جاري الفحص...)' }]
+                      : printersList.map((p) => ({
+                          value: p.name,
+                          label: `${p.name} ${p.isDefault ? '(الافتراضية في ويندوز)' : ''}`
+                        }))
+                  }
+                  size="lg"
+                  placeholder="اختر طابعة الإيصالات..."
+                />
                 <p className="text-[11px] text-ink-muted mt-1 m-0">
                   يدعم مشغّل رفيق طابعات USB والشبكة وطابعات الإيصالات الحرارية (Xprinter, Rongta, Epson, Bixolon, Sunmi وغيرها)
                 </p>

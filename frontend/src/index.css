@@ -24,7 +24,7 @@
     -webkit-user-select: none;
   }
   
-  input, textarea {
+  input, textarea, select {
     user-select: text;
     -webkit-user-select: text;
     font-family: 'Cairo', 'Tajawal', 'Segoe UI', Tahoma, sans-serif;
@@ -35,6 +35,112 @@
     font-family: 'Cairo', 'Tajawal', 'Segoe UI', Tahoma, sans-serif !important;
     letter-spacing: 0 !important;
     opacity: 0.55;
+  }
+
+  /* Branded Retail Select Dropdown */
+  select {
+    font-family: 'Cairo', 'Tajawal', 'Segoe UI', Tahoma, sans-serif;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230B4F42' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: left 0.65rem center;
+    background-size: 0.9em 0.9em;
+    padding-left: 2rem !important;
+    cursor: pointer;
+  }
+
+  select:focus {
+    outline: none;
+    border-color: #0B4F42 !important;
+    box-shadow: 0 0 0 1px rgba(11, 79, 66, 0.25);
+  }
+
+  select option {
+    background-color: #FFFFFF;
+    color: #14181A;
+    font-family: 'Cairo', 'Tajawal', 'Segoe UI', sans-serif;
+    padding: 8px 12px;
+  }
+
+  /* =========================================================================
+     GLOBAL INTERACTION & CURSOR RULES (POINTER / HOVER AFFORDANCES)
+     ========================================================================= */
+
+  /* 1. Force pointer cursor on all clickable elements */
+  button,
+  [role="button"],
+  [role="tab"],
+  [role="menuitem"],
+  [role="option"],
+  [role="switch"],
+  [role="checkbox"],
+  [type="button"],
+  [type="submit"],
+  [type="reset"],
+  [type="checkbox"],
+  [type="radio"],
+  a,
+  label[for],
+  select,
+  summary,
+  .cursor-pointer,
+  [data-action] {
+    cursor: pointer !important;
+  }
+
+  /* 2. Disabled states */
+  button:disabled,
+  button[disabled],
+  [role="button"][aria-disabled="true"],
+  [type="button"]:disabled,
+  [type="submit"]:disabled,
+  [type="reset"]:disabled,
+  select:disabled,
+  input:disabled,
+  .cursor-not-allowed {
+    cursor: not-allowed !important;
+    opacity: 0.55;
+  }
+
+  /* 3. Smooth interaction transition on all interactive triggers */
+  button,
+  [role="button"],
+  [type="button"],
+  [type="submit"],
+  [type="reset"],
+  a,
+  .cursor-pointer {
+    transition: background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+                border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+                color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+                transform 0.08s ease;
+  }
+
+  /* 4. Active micro-press feedback */
+  button:not(:disabled):active,
+  [role="button"]:not([aria-disabled="true"]):active,
+  [type="button"]:not(:disabled):active,
+  [type="submit"]:not(:disabled):active {
+    transform: translateY(1px) scale(0.985);
+  }
+
+  /* 5. General button hover enhancement */
+  button:not(:disabled):hover,
+  [role="button"]:not([aria-disabled="true"]):hover {
+    filter: brightness(0.97);
+  }
+
+  /* 6. Interactive table rows hover */
+  tbody tr {
+    transition: background-color 0.12s ease;
+  }
+  tbody tr.cursor-pointer:hover,
+  tbody tr[role="button"]:hover,
+  tbody tr[onclick]:hover {
+    background-color: rgba(11, 79, 66, 0.04) !important;
+    cursor: pointer !important;
   }
 
   body {

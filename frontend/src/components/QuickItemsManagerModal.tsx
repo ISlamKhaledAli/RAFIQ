@@ -11,10 +11,12 @@ import {
   Package,
   Search,
   Check,
-  Tag
+  Tag,
+  FolderPlus
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { QuickItem, Product } from '../types/models';
+import { CustomSelect } from './CustomSelect';
 
 interface QuickItemsManagerModalProps {
   isOpen: boolean;
@@ -28,6 +30,14 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
   const [activeCategory, setActiveCategory] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Category Management State
+  const [customCategories, setCustomCategories] = useState<string[]>([]);
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [isRenamingCategory, setIsRenamingCategory] = useState(false);
+  const [renamedCategoryName, setRenamedCategoryName] = useState('');
+  const [deleteCategoryConfirm, setDeleteCategoryConfirm] = useState<string | null>(null);
 
   // Form State (Add / Edit)
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -100,8 +110,79 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
     return () => { active = false; };
   }, [isOpen]);
 
-  const categories = Array.from(new Set(items.map((i) => i.categoryName || 'عام')));
+  const categories = Array.from(new Set([...customCategories, ...items.map((i) => i.categoryName || 'عام')]));
   if (categories.length === 0) categories.push('عام');
+
+  const handleAddCategorySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = newCategoryName.trim();
+    if (!trimmed) {
+      setErrorMessage('يرجى كتابة اسم التصنيف الجديد');
+      return;
+    }
+    if (categories.includes(trimmed)) {
+      setErrorMessage('هذا التصنيف موجود بالفعل');
+      return;
+    }
+    setCustomCategories((prev) => [...prev, trimmed]);
+    setActiveCategory(trimmed);
+    setNewCategoryName('');
+    setIsAddingCategory(false);
+    setSuccessMessage(`تم إنشاء قسم "${trimmed}" بنجاح، يمكنك الآن إضافة أصناف إليه`);
+    setTimeout(() => setSuccessMessage(null), 3000);
+  };
+
+  const handleRenameCategorySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = renamedCategoryName.trim();
+    if (!trimmed) {
+      setErrorMessage('يرجى كتابة اسم التصنيف الجديد');
+      return;
+    }
+    if (trimmed === activeCategory) {
+      setIsRenamingCategory(false);
+      return;
+    }
+    setLoading(true);
+    setErrorMessage(null);
+    try {
+      await invoke('quickItems:renameCategory', { oldName: activeCategory, newName: trimmed });
+      setCustomCategories((prev) => prev.map((c) => (c === activeCategory ? trimmed : c)));
+      setActiveCategory(trimmed);
+      setIsRenamingCategory(false);
+      setSuccessMessage(`تم تعديل اسم القسم إلى "${trimmed}"`);
+      setTimeout(() => setSuccessMessage(null), 3000);
+      await fetchItems();
+      if (onItemsChanged) onItemsChanged();
+    } catch {
+      setErrorMessage('تعذر تعديل اسم القسم');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteCategory = async (catToDelete: string) => {
+    const itemsInCat = items.filter((i) => (i.categoryName || 'عام') === catToDelete);
+    setLoading(true);
+    setErrorMessage(null);
+    try {
+      if (itemsInCat.length > 0) {
+        await invoke('quickItems:deleteCategory', { categoryName: catToDelete });
+      }
+      setCustomCategories((prev) => prev.filter((c) => c !== catToDelete));
+      const remaining = categories.filter((c) => c !== catToDelete);
+      setActiveCategory(remaining.length > 0 ? remaining[0] : 'عام');
+      setDeleteCategoryConfirm(null);
+      setSuccessMessage(`تم حذف قسم "${catToDelete}" بنجاح`);
+      setTimeout(() => setSuccessMessage(null), 3000);
+      await fetchItems();
+      if (onItemsChanged) onItemsChanged();
+    } catch {
+      setErrorMessage('تعذر حذف القسم، يرجى المحاولة مرة أخرى');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredItems = items
     .filter((i) => (i.categoryName || 'عام') === activeCategory)
@@ -304,42 +385,205 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
           {/* Main List */}
           <div className="flex-1 flex flex-col p-4 overflow-y-auto">
             {/* Action Bar & Categories */}
-            <div className="flex items-center justify-between gap-2 mb-3 pb-2 hairline-b">
-              {/* Category Pills */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-[65%]">
-                {categories.map((cat) => {
-                  const count = items.filter((i) => (i.categoryName || 'عام') === cat).length;
-                  const isActive = activeCategory === cat;
-                  return (
-                    <button
-                      key={cat}
-                      onClick={() => {
-                        setActiveCategory(cat);
-                        setIsFormOpen(false);
-                      }}
-                      className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors shrink-0 flex items-center gap-1 ${
-                        isActive 
-                          ? 'bg-brand text-white shadow-sm' 
-                          : 'bg-surface-2 text-ink-muted hover:text-ink hover:bg-surface-3'
-                      }`}
-                    >
-                      <span>{cat}</span>
-                      <span className={`text-[10px] px-1 rounded-full ${isActive ? 'bg-white/20' : 'bg-black/5 text-ink-muted'}`}>
-                        {count}
-                      </span>
-                    </button>
-                  );
-                })}
+            <div className="flex flex-col gap-2 mb-3 pb-2 hairline-b">
+              <div className="flex items-center justify-between gap-2">
+                {/* Category Pills & Add Category Button */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-[70%]">
+                  {categories.map((cat) => {
+                    const count = items.filter((i) => (i.categoryName || 'عام') === cat).length;
+                    const isActive = activeCategory === cat;
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => {
+                          setActiveCategory(cat);
+                          setIsFormOpen(false);
+                          setIsAddingCategory(false);
+                          setIsRenamingCategory(false);
+                          setDeleteCategoryConfirm(null);
+                        }}
+                        className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors shrink-0 flex items-center gap-1 ${
+                          isActive 
+                            ? 'bg-brand text-white shadow-sm' 
+                            : 'bg-surface-2 text-ink-muted hover:text-ink hover:bg-surface-3'
+                        }`}
+                      >
+                        <span>{cat}</span>
+                        <span className={`text-[10px] px-1 rounded-full ${isActive ? 'bg-white/20' : 'bg-black/5 text-ink-muted'}`}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+
+                  {/* Add Category Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddingCategory(!isAddingCategory);
+                      setIsRenamingCategory(false);
+                      setDeleteCategoryConfirm(null);
+                      setNewCategoryName('');
+                    }}
+                    className={`h-7 px-2.5 text-xs font-semibold rounded-md border flex items-center gap-1 shrink-0 transition-colors ${
+                      isAddingCategory 
+                        ? 'bg-brand text-white border-brand' 
+                        : 'border-dashed border-brand/50 text-brand hover:bg-brand-soft'
+                    }`}
+                    title="إضافة قسم أو تصنيف جديد للأصناف السريعة"
+                  >
+                    <FolderPlus className="w-3.5 h-3.5" />
+                    <span>+ إضافة تصنيف</span>
+                  </button>
+                </div>
+
+                {/* Main Action: Add Quick Item */}
+                <button
+                  onClick={openAddForm}
+                  className="h-8 px-3 text-xs font-bold rounded bg-brand text-white hover:bg-brand-hover transition-colors flex items-center gap-1 shrink-0 shadow-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>إضافة صنف</span>
+                </button>
               </div>
 
-              {/* Add Button */}
-              <button
-                onClick={openAddForm}
-                className="h-8 px-3 text-xs font-bold rounded bg-brand text-white hover:bg-brand-hover transition-colors flex items-center gap-1 shrink-0"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>إضافة صنف</span>
-              </button>
+              {/* Active Category Controls Strip */}
+              {activeCategory && (
+                <div className="flex items-center justify-between bg-surface-2 px-2.5 py-1.5 rounded border border-line text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-ink-muted">القسم المحدد:</span>
+                    <span className="font-bold text-ink">{activeCategory}</span>
+                    <span className="text-[10px] text-ink-muted font-mono">
+                      ({items.filter((i) => (i.categoryName || 'عام') === activeCategory).length} صنف)
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRenamedCategoryName(activeCategory);
+                        setIsRenamingCategory(!isRenamingCategory);
+                        setIsAddingCategory(false);
+                        setDeleteCategoryConfirm(null);
+                      }}
+                      className="px-2 py-0.5 rounded hover:bg-surface text-ink-muted hover:text-brand flex items-center gap-1 text-[11px] transition-colors"
+                      title="تعديل اسم هذا القسم"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                      <span>تعديل الاسم</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeleteCategoryConfirm(activeCategory);
+                        setIsAddingCategory(false);
+                        setIsRenamingCategory(false);
+                      }}
+                      className="px-2 py-0.5 rounded hover:bg-danger-soft text-ink-muted hover:text-danger flex items-center gap-1 text-[11px] transition-colors"
+                      title="حذف هذا القسم بالكامل"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>حذف التصنيف</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Inline Add Category Form */}
+              {isAddingCategory && (
+                <form onSubmit={handleAddCategorySubmit} className="p-2.5 bg-brand-soft/40 border border-brand/40 rounded flex items-center gap-2 animate-in fade-in duration-100">
+                  <FolderPlus className="w-4 h-4 text-brand shrink-0" />
+                  <span className="text-xs font-bold text-brand shrink-0">اسم التصنيف الجديد:</span>
+                  <input
+                    type="text"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    placeholder="مثال: مشروبات ساخنة، عصائر فريش، إكسسوارات..."
+                    className="flex-1 h-7 px-2.5 text-xs bg-surface border border-line rounded focus:outline-none focus:border-brand font-semibold text-ink"
+                    autoFocus
+                  />
+                  <button
+                    type="submit"
+                    className="h-7 px-3 bg-brand hover:bg-brand-hover text-white text-xs font-bold rounded flex items-center gap-1 shadow-xs"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>إضافة القسم</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingCategory(false)}
+                    className="h-7 px-2.5 bg-surface hover:bg-surface-2 text-ink-muted text-xs rounded border border-line"
+                  >
+                    إلغاء
+                  </button>
+                </form>
+              )}
+
+              {/* Inline Rename Category Form */}
+              {isRenamingCategory && (
+                <form onSubmit={handleRenameCategorySubmit} className="p-2.5 bg-surface-2 border border-brand/40 rounded flex items-center gap-2 animate-in fade-in duration-100">
+                  <Edit2 className="w-4 h-4 text-brand shrink-0" />
+                  <span className="text-xs font-bold text-ink shrink-0">تعديل اسم ({activeCategory}):</span>
+                  <input
+                    type="text"
+                    value={renamedCategoryName}
+                    onChange={(e) => setRenamedCategoryName(e.target.value)}
+                    className="flex-1 h-7 px-2.5 text-xs bg-surface border border-line rounded focus:outline-none focus:border-brand font-semibold text-ink"
+                    autoFocus
+                  />
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="h-7 px-3 bg-brand hover:bg-brand-hover text-white text-xs font-bold rounded flex items-center gap-1 shadow-xs disabled:opacity-50"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>حفظ الاسم</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsRenamingCategory(false)}
+                    className="h-7 px-2.5 bg-surface hover:bg-surface-2 text-ink-muted text-xs rounded border border-line"
+                  >
+                    إلغاء
+                  </button>
+                </form>
+              )}
+
+              {/* Delete Category Confirmation Alert */}
+              {deleteCategoryConfirm && (
+                <div className="p-3 bg-danger-soft border border-danger-border rounded flex flex-col sm:flex-row sm:items-center justify-between gap-2 animate-in fade-in duration-100">
+                  <div className="flex items-center gap-2 text-danger text-xs font-semibold">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>
+                      هل أنت متأكد من حذف قسم <b className="font-bold text-ink">"{deleteCategoryConfirm}"</b>؟
+                      {(() => {
+                        const cnt = items.filter((i) => (i.categoryName || 'عام') === deleteCategoryConfirm).length;
+                        return cnt > 0 ? ` (سيتم حذف ${cnt} صنف سريع تابع له من شاشة الكاشير)` : ' (القسم فارغ)';
+                      })()}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => handleDeleteCategory(deleteCategoryConfirm)}
+                      className="h-7 px-3 bg-danger hover:bg-red-700 text-white text-xs font-bold rounded flex items-center gap-1 shadow-xs disabled:opacity-50"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>نعم، حذف القسم</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteCategoryConfirm(null)}
+                      className="h-7 px-2.5 bg-surface hover:bg-surface-2 text-ink text-xs font-semibold rounded border border-line"
+                    >
+                      إلغاء
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Items Table / Cards */}
@@ -541,16 +785,14 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                     <Tag className="w-3 h-3" />
                     <span>التبويب (القسم) *</span>
                   </label>
-                  <select
+                  <CustomSelect
                     value={formCategory}
-                    onChange={(e) => setFormCategory(e.target.value)}
-                    className="w-full px-2.5 py-1.5 text-xs bg-surface border border-line rounded focus:outline-none focus:border-brand text-ink font-semibold"
-                  >
-                    {categories.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                    <option value="__new__">+ إضافة تبويب جديد...</option>
-                  </select>
+                    onChange={(val) => setFormCategory(val)}
+                    options={[
+                      ...categories.map((c) => ({ value: c, label: c })),
+                      { value: '__new__', label: '+ إضافة تبويب جديد...', isAction: true }
+                    ]}
+                  />
                   {formCategory === '__new__' && (
                     <input
                       type="text"

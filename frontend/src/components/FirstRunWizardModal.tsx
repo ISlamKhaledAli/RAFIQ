@@ -12,9 +12,15 @@ import {
   ArrowRight, 
   Loader2, 
   ShieldCheck, 
-  X
+  X,
+  Smartphone,
+  Apple,
+  BookOpen,
+  Flame,
+  Shirt
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { CustomSelect } from './CustomSelect';
 
 export interface StoreTemplateDto {
   id: string;
@@ -33,6 +39,151 @@ export interface FirstRunWizardModalProps {
   onCompleted: () => void;
 }
 
+const INITIAL_STORE_TEMPLATES: StoreTemplateDto[] = [
+  {
+    id: 'supermarket',
+    name: 'سوبرماركت ومواد غذائية',
+    description: 'مناسب لمحلات السوبرماركت ومحلات البقالة الكبيرة التي تستخدم الباركود والميزان والآجل',
+    icon: 'shopping-cart',
+    featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: true, feature_multi_units: true },
+    categories: ['معلبات وبقوليات', 'ألبان وأجبان', 'منظفات وعناية منزلية', 'بسكويت وحلويات', 'مشروبات وعصائر', 'مخبوزات', 'خضار وفاكهة'],
+    quickItems: [
+      { Name: 'خبز بلدي طازج', PricePiasters: 100, Unit: 'piece', CategoryName: 'مخبوزات', IsOpenPrice: false },
+      { Name: 'عيش فينو كيس 5 رغيف', PricePiasters: 1000, Unit: 'piece', CategoryName: 'مخبوزات', IsOpenPrice: false },
+      { Name: 'سكر حر ناعم 1 كجم', PricePiasters: 3500, Unit: 'piece', CategoryName: 'معلبات وبقوليات', IsOpenPrice: false },
+      { Name: 'شاي العروسة 40 جم', PricePiasters: 1200, Unit: 'piece', CategoryName: 'معلبات وبقوليات', IsOpenPrice: false },
+      { Name: 'مياه معدنية 1.5 لتر', PricePiasters: 800, Unit: 'piece', CategoryName: 'مشروبات وعصائر', IsOpenPrice: false },
+      { Name: 'لبن جهينة 1 لتر', PricePiasters: 4200, Unit: 'piece', CategoryName: 'ألبان وأجبان', IsOpenPrice: false },
+      { Name: 'طماطم بلدي طازجة', PricePiasters: 1500, Unit: 'kg', CategoryName: 'خضار وفاكهة', IsOpenPrice: false },
+      { Name: 'كيس تسوق كبير', PricePiasters: 150, Unit: 'piece', CategoryName: 'عام', IsOpenPrice: false },
+    ],
+    defaultSettings: { receipt_header: 'أهلاً بكم في سوبرماركت رفيق', receipt_footer: 'شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل خلال 14 يوماً بموجب الفاتورة.' }
+  },
+  {
+    id: 'phones_electronics',
+    name: 'محلات هواتف وموبايل وإلكترونيات',
+    description: 'مخصص لمحلات الهواتف الذكية والإلكترونيات وصيانة الجوال والإكسسوارات (بدون ميزان وأوزان)',
+    icon: 'smartphone',
+    featureFlags: { feature_scale_weight: false, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false },
+    categories: ['كابلات وشواحن', 'سماعات وصوتيات', 'جرابات وحافظات', 'لاصقات حماية وشاشات', 'باور بانك وبطاريات', 'كروت ميموري وفلاشات', 'صيانة وخدمات سريعة'],
+    quickItems: [
+      { Name: 'كابل شحن سريع Type-C', PricePiasters: 4500, Unit: 'piece', CategoryName: 'كابلات وشواحن', IsOpenPrice: false },
+      { Name: 'كابل شحن آيفون Lightning', PricePiasters: 5000, Unit: 'piece', CategoryName: 'كابلات وشواحن', IsOpenPrice: false },
+      { Name: 'رأس شاحن سريع 20W', PricePiasters: 12000, Unit: 'piece', CategoryName: 'كابلات وشواحن', IsOpenPrice: false },
+      { Name: 'لاصقة حماية شاشة 9D', PricePiasters: 3000, Unit: 'piece', CategoryName: 'لاصقات حماية وشاشات', IsOpenPrice: false },
+      { Name: 'جراب سيليكون شفاف حماية', PricePiasters: 3500, Unit: 'piece', CategoryName: 'جرابات وحافظات', IsOpenPrice: false },
+      { Name: 'سماعة أذن سلكية AUX', PricePiasters: 4000, Unit: 'piece', CategoryName: 'سماعات وصوتيات', IsOpenPrice: false },
+      { Name: 'كارت ميموري 32 جيجا', PricePiasters: 9500, Unit: 'piece', CategoryName: 'كروت ميموري وفلاشات', IsOpenPrice: false },
+      { Name: 'صيانة وتركيب سريع', PricePiasters: 3000, Unit: 'piece', CategoryName: 'صيانة وخدمات سريعة', IsOpenPrice: true }
+    ],
+    defaultSettings: { receipt_header: 'متجر رفيق للهواتف والإلكترونيات', receipt_footer: 'شكراً لتعاملكم معنا! نحرص دائماً على تقديم أفضل المنتجات والضمان المعتمد.' }
+  },
+  {
+    id: 'dairy_bakery',
+    name: 'ألبان ومخبوزات ومعلبات',
+    description: 'مناسب لمحلات اللبانة والأجبان والمخابز التي تعتمد على البيع بالوزن والأصناف الطازجة',
+    icon: 'milk',
+    featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: true, feature_multi_units: false },
+    categories: ['ألبان سائبة ومعبأة', 'أجبان بيضاء ومطبوخة', 'مخبوزات طازجة', 'بيض ومستلزمات', 'معلبات وعسل'],
+    quickItems: [
+      { Name: 'لبن جاموسي طازج كجم', PricePiasters: 3000, Unit: 'kg', CategoryName: 'ألبان سائبة ومعبأة', IsOpenPrice: false },
+      { Name: 'لبن بقري طازج كجم', PricePiasters: 2600, Unit: 'kg', CategoryName: 'ألبان سائبة ومعبأة', IsOpenPrice: false },
+      { Name: 'جبنة قريش كجم', PricePiasters: 7000, Unit: 'kg', CategoryName: 'أجبان بيضاء ومطبوخة', IsOpenPrice: false },
+      { Name: 'جبنة براميلي فلفل كجم', PricePiasters: 14000, Unit: 'kg', CategoryName: 'أجبان بيضاء ومطبوخة', IsOpenPrice: false },
+      { Name: 'رغيف فينو', PricePiasters: 150, Unit: 'piece', CategoryName: 'مخبوزات طازجة', IsOpenPrice: false },
+      { Name: 'طبق بيض أحمر 30 بيضة', PricePiasters: 16500, Unit: 'piece', CategoryName: 'بيض ومستلزمات', IsOpenPrice: false },
+      { Name: 'زبادي بلدي كبير', PricePiasters: 800, Unit: 'piece', CategoryName: 'ألبان سائبة ومعبأة', IsOpenPrice: false },
+    ],
+    defaultSettings: { receipt_header: 'ألبان ومخبوزات رفيق', receipt_footer: 'منتجات طازجة يومياً.. شكراً لثقتكم الغالية' }
+  },
+  {
+    id: 'produce_butchery',
+    name: 'خضار وفاكهة ومجزر',
+    description: 'مناسب لمحلات الخضار والفاكهة والجزارة والمجمدات التي تعتمد أساسياً على الميزان الإلكتروني',
+    icon: 'apple',
+    featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false },
+    categories: ['خضروات طازجة', 'فواكه موسمية', 'ورقيات وأعشاب', 'لحوم ودواجن', 'مجمدات'],
+    quickItems: [
+      { Name: 'طماطم بلدي طازجة', PricePiasters: 1500, Unit: 'kg', CategoryName: 'خضروات طازجة', IsOpenPrice: false },
+      { Name: 'بطاطس تحمير كجم', PricePiasters: 1800, Unit: 'kg', CategoryName: 'خضروات طازجة', IsOpenPrice: false },
+      { Name: 'بصل أحمر بلدي كجم', PricePiasters: 1400, Unit: 'kg', CategoryName: 'خضروات طازجة', IsOpenPrice: false },
+      { Name: 'خيار صوب بلدي كجم', PricePiasters: 1600, Unit: 'kg', CategoryName: 'خضروات طازجة', IsOpenPrice: false },
+      { Name: 'ليمون بلدي كجم', PricePiasters: 2500, Unit: 'kg', CategoryName: 'خضروات طازجة', IsOpenPrice: false },
+      { Name: 'موز بلدي طازج كجم', PricePiasters: 2000, Unit: 'kg', CategoryName: 'فواكه موسمية', IsOpenPrice: false },
+      { Name: 'تفاح أحمر سكري كجم', PricePiasters: 4500, Unit: 'kg', CategoryName: 'فواكه موسمية', IsOpenPrice: false }
+    ],
+    defaultSettings: { receipt_header: 'أسواق رفيق للخضار والفاكهة الطازجة', receipt_footer: 'بضاعة طازجة بأعلى جودة.. شكراً لزيارتكم!' }
+  },
+  {
+    id: 'stationery_gifts',
+    name: 'مكتبات وأدوات مدرسية وهدايا',
+    description: 'مناسب للمكتبات والقرطاسية، الهدايا، الألعاب ومستلزمات الطباعة (بدون ميزان)',
+    icon: 'book',
+    featureFlags: { feature_scale_weight: false, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false },
+    categories: ['أدوات كتابة وأقلام', 'كشاكيل ودفاتر', 'أدوات هندسية ومدرسية', 'ألعاب وهدايا', 'طباعة وتصوير مستندات'],
+    quickItems: [
+      { Name: 'قلم جاف أزرق', PricePiasters: 500, Unit: 'piece', CategoryName: 'أدوات كتابة وأقلام', IsOpenPrice: false },
+      { Name: 'كشكول سلك 60 ورقة', PricePiasters: 2000, Unit: 'piece', CategoryName: 'كشاكيل ودفاتر', IsOpenPrice: false },
+      { Name: 'باكت ورق تصوير A4', PricePiasters: 18000, Unit: 'piece', CategoryName: 'طباعة وتصوير مستندات', IsOpenPrice: false },
+      { Name: 'تصوير مستند وجهين', PricePiasters: 150, Unit: 'piece', CategoryName: 'طباعة وتصوير مستندات', IsOpenPrice: false },
+      { Name: 'تغليف هدية فاخر', PricePiasters: 2500, Unit: 'piece', CategoryName: 'ألعاب وهدايا', IsOpenPrice: true },
+      { Name: 'كيس هدايا كرتون', PricePiasters: 1000, Unit: 'piece', CategoryName: 'ألعاب وهدايا', IsOpenPrice: false },
+      { Name: 'بطارية قلم AA', PricePiasters: 1500, Unit: 'piece', CategoryName: 'أدوات هندسية ومدرسية', IsOpenPrice: false }
+    ],
+    defaultSettings: { receipt_header: 'مكتبة رفيق للقرطاسية والهدايا', receipt_footer: 'نتمنى لطلابنا الأعزاء دوام التوفيق والنجاح!' }
+  },
+  {
+    id: 'spices_roastery',
+    name: 'عطارة ومحامص وبن وتوابل',
+    description: 'مناسب لمحلات العطارة والبن والمحامص والمكسرات بالأوزان والجرامات والميزان',
+    icon: 'flame',
+    featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: true, feature_multi_units: false },
+    categories: ['بن ومشروبات ساخنة', 'مكسرات ومحامص', 'توابل وبهارات', 'أعشاب طبيعية', 'ياميش وتمور'],
+    quickItems: [
+      { Name: 'ثمن بن محوج وسط', PricePiasters: 4500, Unit: 'piece', CategoryName: 'بن ومشروبات ساخنة', IsOpenPrice: false },
+      { Name: 'ربع بن سادة فاتح', PricePiasters: 7000, Unit: 'piece', CategoryName: 'بن ومشروبات ساخنة', IsOpenPrice: false },
+      { Name: 'كمون بلدي مطحون 100 جم', PricePiasters: 2500, Unit: 'piece', CategoryName: 'توابل وبهارات', IsOpenPrice: false },
+      { Name: 'فلفل أسود حب 100 جم', PricePiasters: 3500, Unit: 'piece', CategoryName: 'توابل وبهارات', IsOpenPrice: false },
+      { Name: 'فول سوداني مقشر 250 جم', PricePiasters: 2500, Unit: 'piece', CategoryName: 'مكسرات ومحامص', IsOpenPrice: false },
+      { Name: 'لب سوبر ممتاز 250 جم', PricePiasters: 3500, Unit: 'piece', CategoryName: 'مكسرات ومحامص', IsOpenPrice: false }
+    ],
+    defaultSettings: { receipt_header: 'عطارة ومحامص رفيق الفاخرة', receipt_footer: 'أجود أنواع البن والتوابل الطازجة.. بالهناء والشفاء' }
+  },
+  {
+    id: 'clothing_apparel',
+    name: 'ملابس وأحذية وأزياء',
+    description: 'مناسب لمحلات الملابس والأحذية والأزياء والحقائب (بدون ميزان وأوزان)',
+    icon: 'shirt',
+    featureFlags: { feature_scale_weight: false, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false },
+    categories: ['رجالي', 'حريمي', 'أطفال', 'أحذية ومصنوعات جلدية', 'إكسسوارات وطرح'],
+    quickItems: [
+      { Name: 'تيشيرت قطن سادة', PricePiasters: 15000, Unit: 'piece', CategoryName: 'رجالي', IsOpenPrice: false },
+      { Name: 'قميص كاجوال', PricePiasters: 25000, Unit: 'piece', CategoryName: 'رجالي', IsOpenPrice: false },
+      { Name: 'بنطلون جينز', PricePiasters: 30000, Unit: 'piece', CategoryName: 'رجالي', IsOpenPrice: false },
+      { Name: 'طرحة شيفون فاخرة', PricePiasters: 6500, Unit: 'piece', CategoryName: 'إكسسوارات وطرح', IsOpenPrice: false },
+      { Name: 'شراب قطن 3 قطع', PricePiasters: 4500, Unit: 'piece', CategoryName: 'رجالي', IsOpenPrice: false },
+      { Name: 'كيس ملابس فاخر للمحل', PricePiasters: 500, Unit: 'piece', CategoryName: 'إكسسوارات وطرح', IsOpenPrice: false }
+    ],
+    defaultSettings: { receipt_header: 'متاجر رفيق للملابس والأزياء', receipt_footer: 'شكراً لاختياركم متجرنا! الاستبدال خلال 14 يوماً مع وجود كارت الصنف والباركود.' }
+  },
+  {
+    id: 'general_grocery',
+    name: 'بقالة ومحل تجاري عام',
+    description: 'إعداد عام متوازن يناسب كافة المحلات والأنشطة التجارية المتنوعة',
+    icon: 'store',
+    featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false },
+    categories: ['عام', 'أغذية ومشروبات', 'منظفات', 'حلويات وتسالي', 'دخان وسجائر'],
+    quickItems: [
+      { Name: 'كيس تسوق', PricePiasters: 100, Unit: 'piece', CategoryName: 'عام', IsOpenPrice: false },
+      { Name: 'ولاعة عادية', PricePiasters: 500, Unit: 'piece', CategoryName: 'دخان وسجائر', IsOpenPrice: false },
+      { Name: 'علبة كبريت', PricePiasters: 100, Unit: 'piece', CategoryName: 'عام', IsOpenPrice: false },
+      { Name: 'مياه صغيرة 500 مل', PricePiasters: 500, Unit: 'piece', CategoryName: 'أغذية ومشروبات', IsOpenPrice: false },
+      { Name: 'شيبسي عائلي', PricePiasters: 1500, Unit: 'piece', CategoryName: 'حلويات وتسالي', IsOpenPrice: false },
+    ],
+    defaultSettings: { receipt_header: 'أهلاً بكم في متجرنا', receipt_footer: 'شكراً لتعاملكم معنا' }
+  }
+];
+
 export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
   isOpen,
   onClose,
@@ -43,7 +194,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   // Templates
-  const [templates, setTemplates] = useState<StoreTemplateDto[]>([]);
+  const [templates, setTemplates] = useState<StoreTemplateDto[]>(INITIAL_STORE_TEMPLATES);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('supermarket');
 
   // Step 2: Store Profile
@@ -75,7 +226,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
         ]);
 
         if (active) {
-          if (Array.isArray(tplList) && tplList.length > 0) {
+          if (Array.isArray(tplList) && tplList.length >= 8) {
             setTemplates(tplList);
             setSelectedTemplateId(tplList[0].id);
           }
@@ -109,6 +260,15 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
       }
       if (tpl.defaultSettings?.receipt_footer) {
         setReceiptFooter(tpl.defaultSettings.receipt_footer);
+      }
+      if (storeName === 'سوبرماركت رفيق' || storeName === 'متجر رفيق للهواتف والإلكترونيات' || storeName.includes('رفيق')) {
+        if (id === 'phones_electronics') setStoreName('متجر رفيق للهواتف والإلكترونيات');
+        else if (id === 'dairy_bakery') setStoreName('ألبان ومخبوزات رفيق');
+        else if (id === 'produce_butchery') setStoreName('أسواق رفيق للخضار والفاكهة');
+        else if (id === 'stationery_gifts') setStoreName('مكتبة رفيق للقرطاسية والهدايا');
+        else if (id === 'spices_roastery') setStoreName('عطارة ومحامص رفيق');
+        else if (id === 'clothing_apparel') setStoreName('متاجر رفيق للأزياء');
+        else setStoreName('سوبرماركت رفيق');
       }
     }
   };
@@ -157,13 +317,28 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
   const getTemplateIcon = (iconName: string) => {
     switch (iconName) {
       case 'shopping-cart':
-        return <ShoppingCart className="w-5 h-5 text-emerald-600" />;
+        return <ShoppingCart className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />;
+      case 'smartphone':
+      case 'phone':
+        return <Smartphone className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />;
       case 'milk':
-        return <Milk className="w-5 h-5 text-blue-600" />;
+        return <Milk className="w-5 h-5 text-sky-600 dark:text-sky-400" />;
+      case 'apple':
+      case 'produce':
+        return <Apple className="w-5 h-5 text-emerald-700 dark:text-emerald-400" />;
+      case 'book':
+      case 'stationery':
+        return <BookOpen className="w-5 h-5 text-amber-600 dark:text-amber-400" />;
+      case 'flame':
+      case 'spices':
+        return <Flame className="w-5 h-5 text-orange-600 dark:text-orange-400" />;
+      case 'shirt':
+      case 'clothing':
+        return <Shirt className="w-5 h-5 text-violet-600 dark:text-violet-400" />;
       case 'gift':
-        return <Gift className="w-5 h-5 text-purple-600" />;
+        return <Gift className="w-5 h-5 text-pink-600 dark:text-pink-400" />;
       default:
-        return <Store className="w-5 h-5 text-amber-600" />;
+        return <Store className="w-5 h-5 text-teal-600 dark:text-teal-400" />;
     }
   };
 
@@ -172,7 +347,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in text-slate-800 dark:text-slate-100">
       <div 
-        className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[92vh]"
+        className="w-full max-w-3xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[92vh]"
         role="dialog"
         aria-modal="true"
       >
@@ -185,7 +360,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
             <div>
               <h2 className="font-extrabold text-lg leading-tight">معالج التجهيز السريع للنظام</h2>
               <p className="text-xs text-emerald-100/70">
-                تهيئة وتجهيز النظام حسب نشاط محلك في أقل من دقيقتين (Feature #106)
+                تهيئة وتجهيز النظام حسب نشاط محلك في أقل من دقيقتين
               </p>
             </div>
           </div>
@@ -406,18 +581,19 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
                   اختر الطابعة المتصلة بجهاز الكاشير للطباعة الفورية للفواتير:
                 </p>
 
-                <select
+                <CustomSelect
                   value={selectedPrinter}
-                  onChange={(e) => setSelectedPrinter(e.target.value)}
-                  className="w-full px-3 py-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                >
-                  <option value="">-- بدون طابعة افتراضية (معاينة فقط) --</option>
-                  {printers.map((p) => (
-                    <option key={p.name} value={p.name}>
-                      {p.name} {p.isDefault ? '(الافتراضية في ويندوز)' : ''}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setSelectedPrinter(val)}
+                  placeholder="-- بدون طابعة افتراضية (معاينة فقط) --"
+                  options={[
+                    { value: '', label: '-- بدون طابعة افتراضية (معاينة فقط) --' },
+                    ...printers.map((p) => ({
+                      value: p.name,
+                      label: p.name,
+                      badge: p.isDefault ? 'الافتراضية في ويندوز' : undefined
+                    }))
+                  ]}
+                />
               </div>
 
               <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">

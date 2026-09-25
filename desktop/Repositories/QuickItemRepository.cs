@@ -227,5 +227,46 @@ namespace RafiqPOS.Repositories
                 }
             }
         }
+
+        public void ClearAll()
+        {
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("DELETE FROM quick_items;", conn))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+            }
+        }
+
+        public void DeleteCategory(string categoryName)
+        {
+            if (string.IsNullOrWhiteSpace(categoryName)) return;
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("DELETE FROM quick_items WHERE category_name = @cat;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@cat", categoryName);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+        }
+
+        public void RenameCategory(string oldName, string newName)
+        {
+            if (string.IsNullOrWhiteSpace(oldName) || string.IsNullOrWhiteSpace(newName)) return;
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("UPDATE quick_items SET category_name = @newName WHERE category_name = @oldName;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@oldName", oldName);
+                    cmd.Parameters.AddWithValue("@newName", newName);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+        }
     }
 }

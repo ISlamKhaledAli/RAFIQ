@@ -16,6 +16,7 @@ import {
 import { invoke } from '../bridge/ipc';
 import type { Customer, SalePayment } from '../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals, poundsToPiasters, piastersToPounds } from '../utils/money';
+import { CustomSelect } from './CustomSelect';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -563,18 +564,20 @@ export const PaymentModal = ({
                 </form>
               )}
 
-              <select
+              <CustomSelect
                 value={currentCustomerId || ''}
-                onChange={(e) => setCurrentCustomerId(e.target.value || null)}
-                className="h-[40px] px-3 bg-surface-2 border border-line rounded-md text-xs font-semibold text-ink focus:border-brand focus:outline-hidden"
-              >
-                <option value="">-- اختر العميل لتسجيل المديونية عليه --</option>
-                {localCustomers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} {c.phone ? `(${c.phone})` : ''} - الرصيد الحالي: {formatArabicCurrency(c.balancePiasters)}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setCurrentCustomerId(val || null)}
+                options={[
+                  { value: '', label: '-- اختر العميل لتسجيل المديونية عليه --' },
+                  ...localCustomers.map((c) => ({
+                    value: c.id,
+                    label: `${c.name} ${c.phone ? `(${c.phone})` : ''} - الرصيد الحالي: ${formatArabicCurrency(c.balancePiasters)}`
+                  }))
+                ]}
+                placeholder="-- اختر العميل لتسجيل المديونية عليه --"
+                size="lg"
+                searchable
+              />
 
               {selectedCustomer && (() => {
                 const totalDebtAfterPiasters = selectedCustomer.balancePiasters + netTotalPiasters;
@@ -829,18 +832,20 @@ export const PaymentModal = ({
                       </form>
                     )}
 
-                    <select
+                    <CustomSelect
                       value={currentCustomerId || ''}
-                      onChange={(e) => setCurrentCustomerId(e.target.value || null)}
-                      className="h-[36px] px-3 bg-surface border border-line rounded text-xs font-semibold text-ink focus:border-brand"
-                    >
-                      <option value="">-- اختر عميل الحساب الآجل --</option>
-                      {localCustomers.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} {c.phone ? `(${c.phone})` : ''} - الرصيد الحالي: {formatArabicCurrency(c.balancePiasters)}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setCurrentCustomerId(val || null)}
+                      options={[
+                        { value: '', label: '-- اختر عميل الحساب الآجل --' },
+                        ...localCustomers.map((c) => ({
+                          value: c.id,
+                          label: `${c.name} ${c.phone ? `(${c.phone})` : ''} - الرصيد الحالي: ${formatArabicCurrency(c.balancePiasters)}`
+                        }))
+                      ]}
+                      placeholder="-- اختر عميل الحساب الآجل --"
+                      size="md"
+                      searchable
+                    />
 
                     {selectedCustomer && (() => {
                       const totalDebtAfter = selectedCustomer.balancePiasters + totalCreditPartPiasters;

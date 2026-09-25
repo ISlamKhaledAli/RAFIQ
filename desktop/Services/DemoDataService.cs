@@ -193,13 +193,13 @@ namespace RafiqPOS.Services
 
                         using (var itemCmd = new SQLiteCommand(@"
                             INSERT INTO sale_items (
-                                id, sale_id, product_id, product_name, quantity_milli,
-                                unit_price_piasters, unit_cost_piasters, total_price_piasters
+                                id, sale_id, product_id, product_name, barcode, quantity_milli,
+                                unit_price_piasters, unit_cost_piasters, total_piasters
                             ) VALUES (
-                                'demo_item_1', 'demo_sale_1', 'demo_prod_1', 'لبن جهينة كامل الدسم 1 لتر (تجريبي)',
+                                'demo_item_1', 'demo_sale_1', 'demo_prod_1', 'لبن جهينة كامل الدسم 1 لتر (تجريبي)', '62211001',
                                 1000, 4200, 3400, 4200
                             ), (
-                                'demo_item_2', 'demo_sale_1', 'demo_prod_2', 'أرز مصري فاخر 1 كجم (تجريبي)',
+                                'demo_item_2', 'demo_sale_1', 'demo_prod_2', 'أرز مصري فاخر 1 كجم (تجريبي)', '62211002',
                                 1000, 3500, 2800, 3500
                             );
                         ", conn, trans))
@@ -315,7 +315,16 @@ namespace RafiqPOS.Services
         {
             var list = new List<Product>();
 
-            if (storeType == "dairy_bakery")
+            if (storeType == "phones_electronics" || storeType == "accessories_gifts")
+            {
+                list.Add(new Product { Id = "demo_prod_1", Name = "كابل شحن سريع Type-C (تجريبي)", Barcode = "62222001", PricePiasters = 4500, CostPiasters = 2500, StockQuantityMilli = 25000, MinStockQuantityMilli = 5000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_2", Name = "شاحن حائط سريع 20W (تجريبي)", Barcode = "62222002", PricePiasters = 12000, CostPiasters = 8000, StockQuantityMilli = 15000, MinStockQuantityMilli = 3000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_3", Name = "لاصقة حماية زجاج 9D (تجريبي)", Barcode = "62222003", PricePiasters = 3000, CostPiasters = 1200, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_4", Name = "جراب سيليكون شفاف حماية (تجريبي)", Barcode = "62222004", PricePiasters = 3500, CostPiasters = 1500, StockQuantityMilli = 40000, MinStockQuantityMilli = 8000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_5", Name = "سماعة أذن سلكية AUX (تجريبي)", Barcode = "62222005", PricePiasters = 4000, CostPiasters = 2200, StockQuantityMilli = 30000, MinStockQuantityMilli = 5000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_6", Name = "كارت ميموري 32 جيجا أصلي (تجريبي)", Barcode = "62222006", PricePiasters = 9500, CostPiasters = 7000, StockQuantityMilli = 20000, MinStockQuantityMilli = 4000, Unit = "piece" });
+            }
+            else if (storeType == "dairy_bakery")
             {
                 list.Add(new Product { Id = "demo_prod_1", Name = "لبن جاموسي طازج كجم (تجريبي)", Barcode = "62211001", PricePiasters = 3000, CostPiasters = 2400, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "kg" });
                 list.Add(new Product { Id = "demo_prod_2", Name = "جبنة براميلي فلفل كجم (تجريبي)", Barcode = "62211002", PricePiasters = 14000, CostPiasters = 11500, StockQuantityMilli = 20000, MinStockQuantityMilli = 5000, Unit = "kg" });
@@ -324,18 +333,38 @@ namespace RafiqPOS.Services
                 list.Add(new Product { Id = "demo_prod_5", Name = "عيش فينو كيس 10 أرغفة (تجريبي)", Barcode = "62211005", PricePiasters = 1500, CostPiasters = 1200, StockQuantityMilli = 30000, MinStockQuantityMilli = 10000, Unit = "piece" });
                 list.Add(new Product { Id = "demo_prod_6", Name = "طبق بيض أحمر 30 بيضة (تجريبي)", Barcode = "62211006", PricePiasters = 16500, CostPiasters = 14500, StockQuantityMilli = 12000, MinStockQuantityMilli = 3000, Unit = "piece" });
             }
-            else if (storeType == "accessories_gifts")
+            else if (storeType == "produce_butchery")
             {
-                list.Add(new Product { Id = "demo_prod_1", Name = "كابل شحن سريع Type-C (تجريبي)", Barcode = "62222001", PricePiasters = 4500, CostPiasters = 2500, StockQuantityMilli = 25000, MinStockQuantityMilli = 5000, Unit = "piece" });
-                list.Add(new Product { Id = "demo_prod_2", Name = "شاحن حائط سريع 20W (تجريبي)", Barcode = "62222002", PricePiasters = 12000, CostPiasters = 8000, StockQuantityMilli = 15000, MinStockQuantityMilli = 3000, Unit = "piece" });
-                list.Add(new Product { Id = "demo_prod_3", Name = "لاصقة حماية زجاج 9D (تجريبي)", Barcode = "62222003", PricePiasters = 3000, CostPiasters = 1200, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "piece" });
-                list.Add(new Product { Id = "demo_prod_4", Name = "قلم جاف أزرق فاخر (تجريبي)", Barcode = "62222004", PricePiasters = 500, CostPiasters = 300, StockQuantityMilli = 80000, MinStockQuantityMilli = 20000, Unit = "piece" });
-                list.Add(new Product { Id = "demo_prod_5", Name = "علبة ألوان خشب 12 لون (تجريبي)", Barcode = "62222005", PricePiasters = 3500, CostPiasters = 2400, StockQuantityMilli = 20000, MinStockQuantityMilli = 5000, Unit = "piece" });
-                list.Add(new Product { Id = "demo_prod_6", Name = "بطارية قلم دوراسيل أصلية 4 حبات (تجريبي)", Barcode = "62222006", PricePiasters = 6000, CostPiasters = 4500, StockQuantityMilli = 18000, MinStockQuantityMilli = 5000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_1", Name = "طماطم بلدي طازجة (تجريبي)", Barcode = "62270001", PricePiasters = 1500, CostPiasters = 1000, StockQuantityMilli = 80000, MinStockQuantityMilli = 15000, Unit = "kg" });
+                list.Add(new Product { Id = "demo_prod_2", Name = "بطاطس تحمير كجم (تجريبي)", Barcode = "62270002", PricePiasters = 1800, CostPiasters = 1200, StockQuantityMilli = 90000, MinStockQuantityMilli = 20000, Unit = "kg" });
+                list.Add(new Product { Id = "demo_prod_3", Name = "بصل أحمر بلدي كجم (تجريبي)", Barcode = "62270003", PricePiasters = 1400, CostPiasters = 900, StockQuantityMilli = 70000, MinStockQuantityMilli = 15000, Unit = "kg" });
+                list.Add(new Product { Id = "demo_prod_4", Name = "خيار صوب بلدي كجم (تجريبي)", Barcode = "62270004", PricePiasters = 1600, CostPiasters = 1100, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "kg" });
+                list.Add(new Product { Id = "demo_prod_5", Name = "موز بلدي كجم (تجريبي)", Barcode = "62270005", PricePiasters = 2000, CostPiasters = 1500, StockQuantityMilli = 40000, MinStockQuantityMilli = 10000, Unit = "kg" });
+            }
+            else if (storeType == "stationery_gifts")
+            {
+                list.Add(new Product { Id = "demo_prod_1", Name = "قلم جاف أزرق فاخر (تجريبي)", Barcode = "62233001", PricePiasters = 500, CostPiasters = 300, StockQuantityMilli = 80000, MinStockQuantityMilli = 20000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_2", Name = "كشكول سلك 60 ورقة (تجريبي)", Barcode = "62233002", PricePiasters = 2000, CostPiasters = 1400, StockQuantityMilli = 35000, MinStockQuantityMilli = 8000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_3", Name = "باكت ورق تصوير A4 (تجريبي)", Barcode = "62233003", PricePiasters = 18000, CostPiasters = 15000, StockQuantityMilli = 15000, MinStockQuantityMilli = 3000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_4", Name = "علبة ألوان خشب 12 لون (تجريبي)", Barcode = "62233004", PricePiasters = 3500, CostPiasters = 2400, StockQuantityMilli = 20000, MinStockQuantityMilli = 5000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_5", Name = "بطارية قلم AA أصلية (تجريبي)", Barcode = "62233005", PricePiasters = 1500, CostPiasters = 1000, StockQuantityMilli = 40000, MinStockQuantityMilli = 10000, Unit = "piece" });
+            }
+            else if (storeType == "spices_roastery")
+            {
+                list.Add(new Product { Id = "demo_prod_1", Name = "ثمن بن محوج وسط (تجريبي)", Barcode = "62244001", PricePiasters = 4500, CostPiasters = 3500, StockQuantityMilli = 30000, MinStockQuantityMilli = 5000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_2", Name = "ربع بن سادة فاتح (تجريبي)", Barcode = "62244002", PricePiasters = 7000, CostPiasters = 5500, StockQuantityMilli = 25000, MinStockQuantityMilli = 5000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_3", Name = "كمون بلدي مطحون 100 جم (تجريبي)", Barcode = "62244003", PricePiasters = 2500, CostPiasters = 1800, StockQuantityMilli = 40000, MinStockQuantityMilli = 8000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_4", Name = "فول سوداني مقشر 250 جم (تجريبي)", Barcode = "62244004", PricePiasters = 2500, CostPiasters = 1700, StockQuantityMilli = 35000, MinStockQuantityMilli = 7000, Unit = "piece" });
+            }
+            else if (storeType == "clothing_apparel")
+            {
+                list.Add(new Product { Id = "demo_prod_1", Name = "تيشيرت قطن رجالي أساسي (تجريبي)", Barcode = "62255001", PricePiasters = 15000, CostPiasters = 9500, StockQuantityMilli = 20000, MinStockQuantityMilli = 4000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_2", Name = "شراب قطن فاخر (تجريبي)", Barcode = "62255002", PricePiasters = 2500, CostPiasters = 1200, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_3", Name = "حزام جلد كلاسيك (تجريبي)", Barcode = "62255003", PricePiasters = 8500, CostPiasters = 5000, StockQuantityMilli = 15000, MinStockQuantityMilli = 3000, Unit = "piece" });
             }
             else
             {
-                // Supermarket / General
+                // Supermarket & General Grocery
                 list.Add(new Product { Id = "demo_prod_1", Name = "لبن جهينة كامل الدسم 1 لتر (تجريبي)", Barcode = "6223001234567", PricePiasters = 4200, CostPiasters = 3400, StockQuantityMilli = 45000, MinStockQuantityMilli = 10000, Unit = "piece" });
                 list.Add(new Product { Id = "demo_prod_2", Name = "أرز مصري فاخر 1 كجم (تجريبي)", Barcode = "6221009876543", PricePiasters = 3500, CostPiasters = 2800, StockQuantityMilli = 80000, MinStockQuantityMilli = 15000, Unit = "piece" });
                 list.Add(new Product { Id = "demo_prod_3", Name = "شاي العروسة ناعم 250 جم (تجريبي)", Barcode = "6224005544332", PricePiasters = 5500, CostPiasters = 4600, StockQuantityMilli = 25000, MinStockQuantityMilli = 5000, Unit = "piece" });

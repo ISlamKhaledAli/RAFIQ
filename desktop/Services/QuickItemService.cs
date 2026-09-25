@@ -71,5 +71,22 @@ namespace RafiqPOS.Services
             }
             _repo.Reorder(orderedIds);
         }
+
+        public void ClearAll()
+        {
+            _repo.ClearAll();
+        }
+
+        public void DeleteCategory(string categoryName)
+        {
+            if (string.IsNullOrWhiteSpace(categoryName)) return;
+            _repo.DeleteCategory(categoryName);
+        }
+
+        public void RenameCategory(string oldName, string newName)
+        {
+            if (string.IsNullOrWhiteSpace(oldName) || string.IsNullOrWhiteSpace(newName)) return;
+            _repo.RenameCategory(oldName, newName);
+        }
     }
 }

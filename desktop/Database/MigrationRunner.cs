@@ -533,6 +533,22 @@ namespace RafiqPOS.Database
                                 }
                             }
 
+                            // Clean up legacy 'quantity' column to prevent NOT NULL constraint failures (Feature #1 / Senior Rule #1)
+                            if (existingCols.Contains("quantity"))
+                            {
+                                try
+                                {
+                                    using (var dropCol = new SQLiteCommand("ALTER TABLE sale_items DROP COLUMN quantity;", conn, trans))
+                                    {
+                                        dropCol.ExecuteNonQuery();
+                                    }
+                                }
+                                catch
+                                {
+                                    // Non-blocking fallback for older SQLite engines
+                                }
+                            }
+
                             if (!existingCols.Contains("unit_cost_piasters"))
                             {
                                 using (var alter = new SQLiteCommand("ALTER TABLE sale_items ADD COLUMN unit_cost_piasters INTEGER NOT NULL DEFAULT 0;", conn, trans))
@@ -569,11 +585,33 @@ namespace RafiqPOS.Database
                                 }
                             }
 
+                            if (!existingCols.Contains("barcode"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE sale_items ADD COLUMN barcode TEXT DEFAULT '';", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                                if (existingCols.Contains("product_barcode"))
+                                {
+                                    using (var sync = new SQLiteCommand("UPDATE sale_items SET barcode = product_barcode WHERE (barcode IS NULL OR barcode = '') AND product_barcode IS NOT NULL AND product_barcode != '';", conn, trans))
+                                    {
+                                        sync.ExecuteNonQuery();
+                                    }
+                                }
+                            }
+
                             if (!existingCols.Contains("product_barcode"))
                             {
                                 using (var alter = new SQLiteCommand("ALTER TABLE sale_items ADD COLUMN product_barcode TEXT DEFAULT '';", conn, trans))
                                 {
                                     alter.ExecuteNonQuery();
+                                }
+                                if (existingCols.Contains("barcode"))
+                                {
+                                    using (var sync = new SQLiteCommand("UPDATE sale_items SET product_barcode = barcode WHERE (product_barcode IS NULL OR product_barcode = '') AND barcode IS NOT NULL AND barcode != '';", conn, trans))
+                                    {
+                                        sync.ExecuteNonQuery();
+                                    }
                                 }
                             }
 

@@ -33,6 +33,7 @@ import { exportProductsToExcel } from '../utils/excelImport';
 import { MoneyInput } from '../components/MoneyInput';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { CategoryManagerModal } from '../components/CategoryManagerModal';
+import { CustomSelect } from '../components/CustomSelect';
 import { PriceHistoryModal } from '../components/PriceHistoryModal';
 import { ExcelImportModal } from '../components/ExcelImportModal';
 import { StockMovementsModal } from '../components/StockMovementsModal';
@@ -1421,20 +1422,17 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
                     <span>إدارة الأقسام</span>
                   </button>
                 </div>
-                <select
+                <CustomSelect
                   value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  className="w-full bg-surface border border-line rounded h-[38px] px-3 text-[12.5px] text-ink focus:outline-none focus:border-brand font-sans"
-                >
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                  {categories.length === 0 && (
-                    <option value="cat_general">عام / متنوع</option>
-                  )}
-                </select>
+                  onChange={(val) => setCategoryId(val)}
+                  options={
+                    categories.length > 0
+                      ? categories.map((cat) => ({ value: cat.id, label: cat.name }))
+                      : [{ value: 'cat_general', label: 'عام / متنوع' }]
+                  }
+                  size="md"
+                  searchable
+                />
               </div>
 
               {/* Selling Price & Cost in Piasters */}

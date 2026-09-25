@@ -16,7 +16,10 @@ export default {
           dim: "#D7DADD",
           bright: "#F7FAFC",
         },
-        line: "#DCE1DC",
+        line: {
+          DEFAULT: "#DCE1DC",
+          hover: "#B5C0B7",
+        },
         brand: {
           DEFAULT: "#0B4F42",
           hover: "#0F6A57",

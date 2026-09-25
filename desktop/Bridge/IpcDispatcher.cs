@@ -33,6 +33,8 @@ namespace RafiqPOS.Bridge
                 request.Action == "customers:recordPayment" ||
                 request.Action == "quickItems:save" ||
                 request.Action == "quickItems:delete" ||
+                request.Action == "quickItems:deleteCategory" ||
+                request.Action == "quickItems:renameCategory" ||
                 request.Action == "quickItems:reorder" ||
                 request.Action == "inventory:adjustStock" ||
                 request.Action == "inventory:recalculate"))
@@ -315,9 +317,17 @@ namespace RafiqPOS.Bridge
                         {
                             return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات الفاتورة فارغة");
                         }
-                        var saleToCreate = JsonConvert.DeserializeObject<Sale>(request.Payload.ToString());
-                        var createdSale = DatabaseService.Sales.ProcessSale(saleToCreate);
-                        return BridgeResponse.Ok(request.Id, createdSale);
+                        try
+                        {
+                            var saleToCreate = JsonConvert.DeserializeObject<Sale>(request.Payload.ToString());
+                            var createdSale = DatabaseService.Sales.ProcessSale(saleToCreate);
+                            return BridgeResponse.Ok(request.Id, createdSale);
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Error("خطأ أثناء حفظ الفاتورة في قاعدة البيانات", ex);
+                            return BridgeResponse.Fail(request.Id, "SALE_SAVE_FAILED", "تعذر حفظ الفاتورة في قاعدة البيانات، يرجى إعادة المحاولة.");
+                        }
 
                     case "sales:getRecent":
                         var recentSales = DatabaseService.Sales.GetRecentSales(20);
@@ -891,6 +901,32 @@ namespace RafiqPOS.Bridge
                         DatabaseService.QuickItems.Reorder(orderedQuickIds);
                         return BridgeResponse.Ok(request.Id, new { success = true });
 
+                    case "quickItems:deleteCategory":
+                        string delCategoryName = "";
+                        JObject delCatObj = request.Payload as JObject;
+                        if (delCatObj != null && delCatObj["categoryName"] != null)
+                        {
+                            delCategoryName = delCatObj["categoryName"].ToString();
+                        }
+                        else if (request.Payload != null)
+                        {
+                            delCategoryName = request.Payload.ToString().Trim('"', ' ');
+                        }
+                        DatabaseService.QuickItems.DeleteCategory(delCategoryName);
+                        return BridgeResponse.Ok(request.Id, new { success = true, categoryName = delCategoryName });
+
+                    case "quickItems:renameCategory":
+                        string oldCatName = "";
+                        string newCatName = "";
+                        JObject renCatObj = request.Payload as JObject;
+                        if (renCatObj != null)
+                        {
+                            if (renCatObj["oldName"] != null) oldCatName = renCatObj["oldName"].ToString();
+                            if (renCatObj["newName"] != null) newCatName = renCatObj["newName"].ToString();
+                        }
+                        DatabaseService.QuickItems.RenameCategory(oldCatName, newCatName);
+                        return BridgeResponse.Ok(request.Id, new { success = true, oldName = oldCatName, newName = newCatName });
+
                     case "customers:getStatement":
                         string statCustId = "";
                         JObject statObj = request.Payload as JObject;
@@ -1191,7 +1227,16 @@ namespace RafiqPOS.Bridge
             catch (Exception ex)
             {
                 Logger.Error("خطأ غير متوقع أثناء معالجة طلب IPC: " + request.Action, ex);
-                return BridgeResponse.Fail(request.Id, "INTERNAL_ERROR", ex.Message);
+                string cleanMsg = "حدث خطأ أثناء معالجة العملية، يرجى المحاولة مرة أخرى.";
+                if (ex is System.Data.SQLite.SQLiteException)
+                {
+                    cleanMsg = "تعذر تحديث قاعدة البيانات، يرجى المحاولة مرة أخرى أو التأكد من سلامة البيانات.";
+                }
+                else if (!string.IsNullOrWhiteSpace(ex.Message) && !ex.Message.Contains("SQL") && !ex.Message.Contains("SQLite") && !ex.Message.Contains("table") && !ex.Message.Contains("column"))
+                {
+                    cleanMsg = ex.Message;
+                }
+                return BridgeResponse.Fail(request.Id, "INTERNAL_ERROR", cleanMsg);
             }
         }
     }

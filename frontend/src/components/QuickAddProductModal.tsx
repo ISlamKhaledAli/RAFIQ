@@ -4,6 +4,7 @@ import { Zap, X, Barcode, Check, AlertCircle } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { Product, Category } from '../types/models';
 import { poundsToPiasters } from '../utils/money';
+import { CustomSelect } from './CustomSelect';
 
 interface QuickAddProductModalProps {
   isOpen: boolean;
@@ -248,19 +249,15 @@ export function QuickAddProductModal({
 
             <div>
               <label className="block text-xs font-semibold text-ink-muted mb-1">التصنيف</label>
-              <select
+              <CustomSelect
                 value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className="w-full h-9 px-2 text-xs bg-canvas rounded-lg border border-line text-ink focus:outline-none focus:border-brand"
-              >
-                {categories.length === 0 ? (
-                  <option value="cat_general">عام / متنوع</option>
-                ) : (
-                  categories.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))
-                )}
-              </select>
+                onChange={setCategoryId}
+                options={
+                  categories.length === 0
+                    ? [{ value: 'cat_general', label: 'عام / متنوع' }]
+                    : categories.map((c) => ({ value: c.id, label: c.name }))
+                }
+              />
             </div>
           </div>
 
