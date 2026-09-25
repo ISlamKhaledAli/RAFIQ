@@ -19,7 +19,14 @@ import {
   Boxes,
   PanelRightClose,
   PanelRightOpen,
-  CheckCircle2
+  CheckCircle2,
+  Store,
+  HardDrive,
+  Printer,
+  Activity,
+  Barcode,
+  KeyRound,
+  FlaskConical
 } from 'lucide-react';
 import { invoke } from './bridge/ipc';
 import { PosView } from './views/PosView';
@@ -29,6 +36,7 @@ import { ProductsView } from './views/ProductsView';
 import { SalesHistoryView } from './views/SalesHistoryView';
 import { AuditLogView } from './views/AuditLogView';
 import { SettingsView } from './views/SettingsView';
+import type { SettingsSubTab } from './views/SettingsView';
 import { DatabaseRecoveryModal } from './components/DatabaseRecoveryModal';
 import type { DatabaseIntegrityStatus } from './components/DatabaseRecoveryModal';
 import { FirstRunWizardModal } from './components/FirstRunWizardModal';
@@ -83,6 +91,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('pos');
   const [productsSubView, setProductsSubView] = useState<'catalog' | 'movements'>('catalog');
   const [isProductsMenuExpanded, setIsProductsMenuExpanded] = useState(true);
+  const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('profile');
+  const [isSettingsMenuExpanded, setIsSettingsMenuExpanded] = useState(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem('rafiq_pos_sidebar_collapsed');
@@ -206,6 +216,7 @@ export default function App() {
       } else if (e.key === 'F8') {
         e.preventDefault();
         setActiveTab('settings');
+        setIsSettingsMenuExpanded(true);
       } else if (e.key === 'F10') {
         e.preventDefault();
         setActiveTab('audit');
@@ -215,6 +226,16 @@ export default function App() {
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
+
+  const settingsTreeItems = [
+    { id: 'profile' as SettingsSubTab, label: 'بيانات المحل والفاتورة', icon: Store },
+    { id: 'backup' as SettingsSubTab, label: 'النسخ الاحتياطي وحماية البيانات', icon: HardDrive },
+    { id: 'printer' as SettingsSubTab, label: 'إعدادات الطابعة والورق', icon: Printer },
+    { id: 'system' as SettingsSubTab, label: 'مفاتيح الميزات وفحص النظام', icon: Activity },
+    { id: 'scanner' as SettingsSubTab, label: 'قارئ الباركود (Wedge)', icon: Barcode },
+    { id: 'security' as SettingsSubTab, label: 'الرقم السري وأمان الشاشات', icon: KeyRound },
+    { id: 'demo' as SettingsSubTab, label: 'البيانات التجريبية والتدريب', icon: FlaskConical },
+  ];
 
   const navItems = [
     { id: 'pos' as TabType, label: 'نقطة البيع (POS)', icon: ShoppingCart, shortcut: 'F1' },
@@ -303,6 +324,8 @@ export default function App() {
               type="button"
               onClick={() => {
                 setActiveTab('settings');
+                setSettingsSubTab('backup');
+                setIsSettingsMenuExpanded(true);
               }} 
               className="bg-paid hover:bg-paid-hover text-white text-xs px-3 py-1 rounded font-bold transition-colors shadow-xs"
             >
@@ -338,6 +361,8 @@ export default function App() {
               type="button"
               onClick={() => {
                 setActiveTab('settings');
+                setSettingsSubTab('demo');
+                setIsSettingsMenuExpanded(true);
               }}
               className="bg-amber-950 hover:bg-black text-white text-xs px-2.5 py-0.5 rounded transition-colors"
             >
@@ -366,6 +391,7 @@ export default function App() {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
               const isProductsItem = item.id === 'products';
+              const isSettingsItem = item.id === 'settings';
 
               if (isSidebarCollapsed) {
                 return (
@@ -375,6 +401,7 @@ export default function App() {
                     onClick={() => {
                       setActiveTab(item.id);
                       if (isProductsItem) setProductsSubView('catalog');
+                      if (isSettingsItem) setSettingsSubTab('profile');
                     }}
                     title={`${item.label} (${item.shortcut})`}
                     className={`relative w-full h-[44px] rounded flex items-center justify-center transition-colors group ${
@@ -404,6 +431,13 @@ export default function App() {
                         } else {
                           setIsProductsMenuExpanded(!isProductsMenuExpanded);
                         }
+                      } else if (isSettingsItem) {
+                        if (activeTab !== 'settings') {
+                          setActiveTab('settings');
+                          setIsSettingsMenuExpanded(true);
+                        } else {
+                          setIsSettingsMenuExpanded(!isSettingsMenuExpanded);
+                        }
                       } else {
                         setActiveTab(item.id);
                       }
@@ -425,9 +459,9 @@ export default function App() {
                           {item.shortcut}
                         </span>
                       )}
-                      {isProductsItem && (
+                      {(isProductsItem || isSettingsItem) && (
                         <span className="text-ink-muted/70">
-                          {isProductsMenuExpanded ? (
+                          {(isProductsItem ? isProductsMenuExpanded : isSettingsMenuExpanded) ? (
                             <ChevronDown className="w-3.5 h-3.5" />
                           ) : (
                             <ChevronLeft className="w-3.5 h-3.5" />
@@ -479,6 +513,39 @@ export default function App() {
                           <span>حركات وجرد المخزون</span>
                         </div>
                       </button>
+                    </div>
+                  )}
+
+                  {/* Sub-tree for Settings */}
+                  {isSettingsItem && isSettingsMenuExpanded && (
+                    <div className="mr-4 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-brand/20 animate-in slide-in-from-top-1 duration-150">
+                      {settingsTreeItems.map((sub) => {
+                        const SubIcon = sub.icon;
+                        const isSubActive = activeTab === 'settings' && settingsSubTab === sub.id;
+                        return (
+                          <button
+                            key={sub.id}
+                            type="button"
+                            onClick={() => {
+                              setActiveTab('settings');
+                              setSettingsSubTab(sub.id);
+                            }}
+                            className={`w-full flex items-center justify-between px-2.5 h-[32px] rounded text-[12px] transition-colors ${
+                              isSubActive
+                                ? 'bg-brand text-white font-bold shadow-xs'
+                                : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white' : 'text-ink-muted'}`} />
+                              <span className="truncate">{sub.label}</span>
+                            </div>
+                            {sub.id === 'demo' && hasDemoData && (
+                              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -539,7 +606,13 @@ export default function App() {
           )}
           {activeTab === 'sales' && <SalesHistoryView />}
           {activeTab === 'audit' && <AuditLogView />}
-          {activeTab === 'settings' && <SettingsView sysInfo={sysInfo} />}
+          {activeTab === 'settings' && (
+            <SettingsView 
+              sysInfo={sysInfo} 
+              activeSubTab={settingsSubTab} 
+              onSubTabChange={(tab) => setSettingsSubTab(tab)} 
+            />
+          )}
         </main>
       </div>
 

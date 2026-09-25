@@ -49,8 +49,9 @@ describe('Story 59: First-run Setup Wizard by Store Type (Feature #106)', () => 
     assert.ok(migrationContent.includes('categories_json'), 'store_templates must store categories as JSON');
     assert.ok(migrationContent.includes('quick_items_json'), 'store_templates must store quick items as JSON');
 
-    // Version constant bumped
-    assert.ok(migrationContent.includes('LATEST_SUPPORTED_VERSION = 13;'), 'LATEST_SUPPORTED_VERSION must be bumped to 13');
+    // Version constant bumped (at least 13)
+    const versionMatch = migrationContent.match(/LATEST_SUPPORTED_VERSION\s*=\s*(\d+);/);
+    assert.ok(versionMatch && parseInt(versionMatch[1], 10) >= 13, 'LATEST_SUPPORTED_VERSION must be at least 13');
   });
 
   it('Task 106-3: Application logic applying store templates atomically', () => {

@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { FormEvent } from 'react';
 import { 
-  Settings, 
   Save, 
   CheckCircle, 
   Database, 
@@ -35,14 +34,21 @@ import { FirstRunWizardModal } from '../components/FirstRunWizardModal';
 import { DemoDataModal } from '../components/DemoDataModal';
 import { GuidedTourModal } from '../components/GuidedTourModal';
 
-interface SettingsViewProps {
+export type SettingsSubTab = 'profile' | 'backup' | 'printer' | 'system' | 'scanner' | 'security' | 'demo';
+
+export interface SettingsViewProps {
   sysInfo?: SystemInfo | null;
-  initialSubTab?: 'profile' | 'backup' | 'printer' | 'system' | 'scanner' | 'security' | 'demo';
+  activeSubTab?: SettingsSubTab;
+  onSubTabChange?: (tab: SettingsSubTab) => void;
+  initialSubTab?: SettingsSubTab;
 }
 
-export const SettingsView = ({ sysInfo, initialSubTab = 'profile' }: SettingsViewProps) => {
+export const SettingsView = ({ 
+  sysInfo, 
+  activeSubTab = 'profile', 
+}: SettingsViewProps) => {
   const { flags, toggleFlag } = useFeatures();
-  const [subTab, setSubTab] = useState<'profile' | 'backup' | 'printer' | 'system' | 'scanner' | 'security' | 'demo'>(initialSubTab);
+  const subTab = activeSubTab;
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
@@ -167,6 +173,23 @@ export const SettingsView = ({ sysInfo, initialSubTab = 'profile' }: SettingsVie
     }
   }, []);
 
+  // Auto-fetch data on subTab changes
+  useEffect(() => {
+    let isMounted = true;
+    if (subTab === 'security') {
+      void invoke('security:getStatus').then((res) => {
+        if (isMounted && res) setPinStatus(res);
+      }).catch(() => {});
+    } else if (subTab === 'demo') {
+      void invoke('demo:getStatus').then((res) => {
+        if (isMounted && res) setDemoStatus(res);
+      }).catch(() => {});
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [subTab]);
+
   // Maintenance & Diagnostics state
   const [diagnosticsLoading, setDiagnosticsLoading] = useState(false);
   const [diagnosticResult, setDiagnosticResult] = useState<string | null>(null);
@@ -276,132 +299,77 @@ export const SettingsView = ({ sysInfo, initialSubTab = 'profile' }: SettingsVie
     }
   };
 
+  const SUB_TAB_CONFIG: Record<SettingsSubTab, { title: string; subtitle: string; icon: React.ComponentType<{ className?: string }> }> = {
+    profile: {
+      title: 'بيانات المحل وتخصيص الفاتورة',
+      subtitle: 'اسم المتجر، رقم الهاتف، العنوان، الرقم الضريبي، وترويسة وتذييل إيصال الكاشير',
+      icon: Store,
+    },
+    backup: {
+      title: 'النسخ الاحتياطي وحماية البيانات',
+      subtitle: 'أخذ نسخة احتياطية محلية، جدول التنبيه الدوري، واستعادة البيانات بأمان',
+      icon: HardDrive,
+    },
+    printer: {
+      title: 'إعدادات الطابعة ومقاس الورق (Feature #53)',
+      subtitle: 'تحديد طابعة الإيصالات الحرارية، مقاس بكرة الورق (80mm/57mm)، والطباعة التلقائية',
+      icon: Printer,
+    },
+    system: {
+      title: 'مفاتيح الميزات وفحص النظام',
+      subtitle: 'تشخيص الجسر (IPC)، فحص قاعدة البيانات SQLite، وتفعيل الميزات المتقدمة',
+      icon: Activity,
+    },
+    scanner: {
+      title: 'قارئ الباركود (Barcode Scanner Wedge)',
+      subtitle: 'فحص استجابة القارئ السلكي أو اللاسلكي وضبط إعدادات الـ Wedge والبادئة واللاحقة',
+      icon: Barcode,
+    },
+    security: {
+      title: 'أمان النظام وقفل الشاشات الحساسة (Feature #52)',
+      subtitle: 'حماية تعديل الأسعار، تقارير الأرباح، تسوية المخزون، واسترجاع الطوارئ بالرمز',
+      icon: KeyRound,
+    },
+    demo: {
+      title: 'البيانات التجريبية والتدريب (Feature #113)',
+      subtitle: 'تجربة البرنامج وتدريب الكاشير ببيانات نموذجية ومسحها ذرياً دون المساس بالبيانات الحقيقية',
+      icon: FlaskConical,
+    },
+  };
+
+  const currentTabConfig = SUB_TAB_CONFIG[subTab] || SUB_TAB_CONFIG.profile;
+  const TabIcon = currentTabConfig.icon;
+
   return (
     <div className="flex flex-col h-full bg-canvas p-4 gap-3 overflow-y-auto select-none">
-      {/* 1. Top Header */}
-      <div className="h-[56px] bg-surface hairline-all rounded-[6px] px-4 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded bg-brand-soft text-brand flex items-center justify-center font-bold">
-            <Settings className="w-4 h-4" />
+      {/* 1. Top Header (Dynamic header driven by sidebar tree selection) */}
+      <div className="h-[58px] bg-surface hairline-all rounded-[6px] px-4 flex items-center justify-between shrink-0 shadow-2xs">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded bg-brand-soft text-brand flex items-center justify-center font-bold shrink-0">
+            <TabIcon className="w-5 h-5 text-brand" />
           </div>
           <div>
-            <h2 className="text-[15px] font-bold text-ink leading-tight m-0">إعدادات المحل وأدوات النظام</h2>
-            <p className="text-[11px] text-ink-muted m-0">تخصيص بيانات الفاتورة، النسخ الاحتياطي، وصيانة الأجهزة</p>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-ink-muted">إعدادات المحل والصيانة</span>
+              <span className="text-ink-muted/40 font-bold">/</span>
+              <h2 className="text-[14px] font-bold text-ink leading-tight m-0">
+                {currentTabConfig.title}
+              </h2>
+            </div>
+            <p className="text-[11px] text-ink-muted m-0 mt-0.5">
+              {currentTabConfig.subtitle}
+            </p>
           </div>
         </div>
 
-        {/* Sub-Tabs Selector */}
-        <div className="flex items-center gap-1 bg-surface-2 p-1 rounded border border-line">
-          <button
-            type="button"
-            onClick={() => setSubTab('profile')}
-            className={`px-3 py-1.5 rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors ${
-              subTab === 'profile'
-                ? 'bg-surface text-brand shadow-xs border border-line'
-                : 'text-ink-muted hover:text-ink'
-            }`}
-          >
-            <Store className="w-3.5 h-3.5" />
-            <span>بيانات المحل والفاتورة</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setSubTab('backup')}
-            className={`px-3 py-1.5 rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors ${
-              subTab === 'backup'
-                ? 'bg-surface text-brand shadow-xs border border-line'
-                : 'text-ink-muted hover:text-ink'
-            }`}
-          >
-            <HardDrive className="w-3.5 h-3.5" />
-            <span>النسخ الاحتياطي وحماية البيانات</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setSubTab('printer');
-              void fetchPrinters();
-            }}
-            className={`px-3 py-1.5 rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors ${
-              subTab === 'printer'
-                ? 'bg-surface text-brand shadow-xs border border-line'
-                : 'text-ink-muted hover:text-ink'
-            }`}
-          >
-            <Printer className="w-3.5 h-3.5" />
-            <span>إعدادات الطابعة والورق (Feature #53)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setSubTab('system')}
-            className={`px-3 py-1.5 rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors ${
-              subTab === 'system'
-                ? 'bg-surface text-brand shadow-xs border border-line'
-                : 'text-ink-muted hover:text-ink'
-            }`}
-          >
-            <Activity className="w-3.5 h-3.5" />
-            <span>مفاتيح الميزات وفحص النظام</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setSubTab('scanner')}
-            className={`px-3 py-1.5 rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors ${
-              subTab === 'scanner'
-                ? 'bg-surface text-brand shadow-xs border border-line'
-                : 'text-ink-muted hover:text-ink'
-            }`}
-          >
-            <Barcode className="w-3.5 h-3.5" />
-            <span>قارئ الباركود (Wedge)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setSubTab('security');
-              void loadPinStatus();
-            }}
-            className={`px-3 py-1.5 rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors ${
-              subTab === 'security'
-                ? 'bg-surface text-brand shadow-xs border border-line'
-                : 'text-ink-muted hover:text-ink'
-            }`}
-          >
-            <KeyRound className="w-3.5 h-3.5" />
-            <span>الرقم السري وأمان الشاشات (Feature #52)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setSubTab('demo');
-              void loadDemoStatus();
-            }}
-            className={`px-3 py-1.5 rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors ${
-              subTab === 'demo'
-                ? 'bg-surface text-brand shadow-xs border border-line'
-                : 'text-ink-muted hover:text-ink'
-            }`}
-          >
-            <FlaskConical className="w-3.5 h-3.5" />
-            <span>البيانات التجريبية والتدريب (Feature #113)</span>
-            {demoStatus?.hasDemoData && (
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-            )}
-          </button>
+        <div className="flex items-center gap-2">
+          {saved && (
+            <div className="flex items-center gap-1.5 text-xs text-paid font-bold bg-paid-soft border border-paid-border px-3 py-1.5 rounded-[4px] animate-in fade-in">
+              <CheckCircle className="w-4 h-4 text-paid" />
+              <span>تم حفظ الإعدادات بنجاح</span>
+            </div>
+          )}
         </div>
-
-        {saved && (
-          <div className="flex items-center gap-1.5 text-xs text-paid font-bold bg-paid-soft border border-paid-border px-3 py-1.5 rounded-[4px]">
-            <CheckCircle className="w-4 h-4" />
-            <span>تم حفظ الإعدادات بنجاح</span>
-          </div>
-        )}
       </div>
 
       {/* 2. Sub-Tab Views */}
@@ -1183,12 +1151,14 @@ export const SettingsView = ({ sysInfo, initialSubTab = 'profile' }: SettingsVie
           </div>
 
           {/* Emergency Recovery & Offline Supermarket Notes */}
-          <div className="p-3.5 bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded flex flex-col gap-2 text-xs">
-            <div className="flex items-center gap-2 font-bold text-amber-900 dark:text-amber-200">
-              <ShieldAlert className="w-4 h-4 text-amber-600" />
+          <div className="p-4 bg-amber-50 border-2 border-amber-300 rounded-xl flex flex-col gap-2.5 shadow-xs">
+            <div className="flex items-center gap-2.5 font-black text-amber-950 text-[13px]">
+              <div className="w-7 h-7 rounded-lg bg-amber-200/70 border border-amber-400/60 flex items-center justify-center shrink-0">
+                <ShieldAlert className="w-4 h-4 text-amber-900" />
+              </div>
               <span>ميزة استرجاع الطوارئ بدون فقدان بيانات (Task 52-4):</span>
             </div>
-            <p className="text-amber-800 dark:text-amber-300 leading-relaxed m-0 text-[11.5px]">
+            <p className="text-amber-950 font-semibold leading-relaxed m-0 text-[12px] pr-9.5">
               عند إنشاء الرقم السري أو تغييره، يولد النظام تلقائياً «رمز استرجاع طوارئ» فريداً يظهر لك مرة واحدة. في حال نسيان الكاشير أو صاحب المحل للرقم السري، يمكن الضغط على «نسيت الرقم السري» في نافذة الإدخال واستخدام رمز الطوارئ لإعادة التعيين فوراً دون الحاجة لاتصال بالإنترنت ودون إتلاف قاعدة البيانات.
             </p>
           </div>
@@ -1201,7 +1171,7 @@ export const SettingsView = ({ sysInfo, initialSubTab = 'profile' }: SettingsVie
           {/* Header & Quick Actions */}
           <div className="flex items-center justify-between p-4 rounded-xl bg-surface border border-line">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 flex items-center justify-center text-lg">
+              <div className="w-10 h-10 rounded-lg bg-emerald-50 text-[#006d41] border border-emerald-200 flex items-center justify-center text-lg">
                 <FlaskConical className="w-5 h-5 text-[#006d41]" />
               </div>
               <div>
@@ -1216,7 +1186,7 @@ export const SettingsView = ({ sysInfo, initialSubTab = 'profile' }: SettingsVie
               <button
                 type="button"
                 onClick={() => setIsTourModalOpen(true)}
-                className="h-[34px] px-3.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 text-[#006d41] border border-emerald-300 dark:border-emerald-800 rounded font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs"
+                className="h-[34px] px-3.5 bg-emerald-50 hover:bg-emerald-100 text-[#006d41] border border-emerald-300 rounded font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs"
               >
                 <Compass className="w-4 h-4" />
                 <span>بدء الجولة التعريفية (5 خطوات)</span>
@@ -1261,14 +1231,16 @@ export const SettingsView = ({ sysInfo, initialSubTab = 'profile' }: SettingsVie
           </div>
 
           {/* Isolation & Safety Invariant (Task 113-2 & 113-5) */}
-          <div className="p-4 bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-xl flex items-start gap-3">
-            <ShieldCheck className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
-            <div className="text-xs space-y-1">
-              <span className="font-bold text-emerald-900 dark:text-emerald-200 text-sm block">
+          <div className="p-4 bg-emerald-50 border-2 border-emerald-300 rounded-xl flex items-start gap-3 shadow-xs">
+            <div className="w-8 h-8 rounded-lg bg-emerald-100 border border-emerald-300 flex items-center justify-center shrink-0 mt-0.5">
+              <ShieldCheck className="w-5 h-5 text-[#006d41]" />
+            </div>
+            <div className="text-xs space-y-1.5 flex-1">
+              <span className="font-black text-[#00372d] text-[13px] block">
                 ضمان الأمان والعزل الكامل (Data Isolation Invariant):
               </span>
-              <p className="text-emerald-800 dark:text-emerald-300 leading-relaxed m-0">
-                جميع الكيانات التجريبية تُميّز بمعرف خاص يبدأ بـ <code className="font-mono bg-emerald-200/60 dark:bg-emerald-900/60 px-1 py-0.5 rounded text-emerald-900 font-bold">demo_</code>.
+              <p className="text-slate-900 font-semibold leading-relaxed m-0 text-[12px]">
+                جميع الكيانات التجريبية تُميّز بمعرف خاص يبدأ بـ <code className="font-mono bg-emerald-100 border border-emerald-300 px-1.5 py-0.5 rounded text-[#00372d] font-black text-[12px]">demo_</code>.
                 عند طلب مسح البيانات التجريبية، ينفذ النظام مسحاً ذرياً محصوراً في تلك السجلات فقط، وتبقى كافة فواتير وأصناف المحل الحقيقية سليمة ومحفوظة بنسبة 100%.
               </p>
             </div>
