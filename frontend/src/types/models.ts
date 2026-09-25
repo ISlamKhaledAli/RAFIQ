@@ -151,6 +151,15 @@ export interface CustomerLedgerEntry {
   balanceAfterFormatted?: string;
 }
 
+export interface CustomerBalanceVerification {
+  customerId: string;
+  storedBalancePiasters: number;
+  calculatedBalancePiasters: number;
+  isBalanced: boolean;
+  discrepancyPiasters: number;
+  totalEntriesCount: number;
+}
+
 export interface CustomerImportRow {
   rowIndex: number;
   name: string;

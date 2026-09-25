@@ -18,12 +18,13 @@ import {
   FileSpreadsheet,
   Download,
   Upload,
-  CheckCircle2
+  CheckCircle2,
+  ShieldCheck
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { MoneyInput } from '../components/MoneyInput';
 import { normalizeArabicNumerals } from '../utils/money';
-import type { Customer, CustomerLedgerEntry, CustomerImportPreviewResult, CustomerImportResult } from '../types/models';
+import type { Customer, CustomerLedgerEntry, CustomerImportPreviewResult, CustomerImportResult, CustomerBalanceVerification } from '../types/models';
 
 export function CustomersView() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -73,6 +74,12 @@ export function CustomersView() {
   const [importPreview, setImportPreview] = useState<CustomerImportPreviewResult | null>(null);
   const [importResult, setImportResult] = useState<CustomerImportResult | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+
+  // Balance Verification & Audit state
+  const [balanceVerification, setBalanceVerification] = useState<CustomerBalanceVerification | null>(null);
+  const [isVerifyingBalance, setIsVerifyingBalance] = useState(false);
+  const [isFixingBalance, setIsFixingBalance] = useState(false);
+  const [auditFeedback, setAuditFeedback] = useState<string | null>(null);
 
   const handleDownloadTemplate = async () => {
     setIsDownloadingTemplate(true);
@@ -325,6 +332,8 @@ export function CustomersView() {
     setSelectedCustomer(cust);
     setIsStatementOpen(true);
     setIsStatementLoading(true);
+    setBalanceVerification(null);
+    setAuditFeedback(null);
     try {
       const data = await invoke<CustomerLedgerEntry[]>('customers:getStatement', { customerId: cust.id });
       setStatementEntries(data || []);
@@ -332,6 +341,45 @@ export function CustomersView() {
       setStatementEntries([]);
     } finally {
       setIsStatementLoading(false);
+    }
+  };
+
+  const handleVerifyBalance = async (customerId: string) => {
+    setIsVerifyingBalance(true);
+    setAuditFeedback(null);
+    try {
+      const res = await invoke<CustomerBalanceVerification>('customers:verifyBalance', { customerId });
+      setBalanceVerification(res);
+      if (res && res.isBalanced) {
+        setAuditFeedback(`الرصيد مطابق تماماً لسجل القيود (${res.totalEntriesCount} حركة مالية).`);
+      } else if (res && !res.isBalanced) {
+        setAuditFeedback(`تنبيه: يوجد عدم تطابق قدره ${(Math.abs(res.discrepancyPiasters) / 100).toFixed(2)} ج.م بين الرصيد المسجل ومجموع القيود.`);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'فشل تدقيق الرصيد';
+      setAuditFeedback(`خطأ: ${msg}`);
+    } finally {
+      setIsVerifyingBalance(false);
+    }
+  };
+
+  const handleFixBalance = async (customerId: string) => {
+    setIsFixingBalance(true);
+    setAuditFeedback(null);
+    try {
+      const fixedCustomer = await invoke<Customer>('customers:recalculateBalance', { customerId });
+      if (fixedCustomer) {
+        setSelectedCustomer(fixedCustomer);
+        setCustomers((prev) => prev.map((c) => (c.id === fixedCustomer.id ? fixedCustomer : c)));
+        const verifyRes = await invoke<CustomerBalanceVerification>('customers:verifyBalance', { customerId });
+        setBalanceVerification(verifyRes);
+        setAuditFeedback(`تمت إعادة حساب الرصيد وتصحيحه بنجاح (${(fixedCustomer.balancePiasters / 100).toFixed(2)} ج.م).`);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'فشل تصحيح الرصيد';
+      setAuditFeedback(`خطأ: ${msg}`);
+    } finally {
+      setIsFixingBalance(false);
     }
   };
 
@@ -888,11 +936,58 @@ export function CustomersView() {
                 <span className="text-[11px] px-2 py-0.5 rounded bg-danger-soft text-danger border border-danger-border font-mono font-bold">
                   الرصيد الحالي: {(selectedCustomer.balancePiasters / 100).toFixed(2)} ج.م
                 </span>
+                <button
+                  type="button"
+                  onClick={() => void handleVerifyBalance(selectedCustomer.id)}
+                  disabled={isVerifyingBalance || isFixingBalance}
+                  className="h-6 px-2 bg-surface hover:bg-surface-2 border border-line text-ink rounded text-[10.5px] font-bold flex items-center gap-1 transition-colors disabled:opacity-50"
+                  title="مراجعة وتدقيق مطابقة الرصيد الحالي مع مجموع حركات الديون والمدفوعات"
+                >
+                  <ShieldCheck className={`w-3.5 h-3.5 text-brand ${isVerifyingBalance ? 'animate-spin' : ''}`} />
+                  <span>{isVerifyingBalance ? 'جاري التدقيق...' : 'تدقيق ومطابقة الرصيد'}</span>
+                </button>
               </div>
               <button onClick={() => setIsStatementOpen(false)} className="text-ink-muted hover:text-ink">
                 <X className="w-4 h-4" />
               </button>
             </div>
+
+            {/* Balance Verification Banner */}
+            {balanceVerification && (
+              <div className={`px-4 py-2 border-b flex items-center justify-between text-xs shrink-0 ${
+                balanceVerification.isBalanced
+                  ? 'bg-brand-soft border-brand/20 text-brand'
+                  : 'bg-danger-soft border-danger/30 text-danger'
+              }`}>
+                <div className="flex items-center gap-2 font-medium">
+                  <ShieldCheck className="w-4 h-4 shrink-0" />
+                  <span>
+                    {balanceVerification.isBalanced
+                      ? `الرصيد سليم ومطابق 100% لسجل القيود (${balanceVerification.totalEntriesCount} حركة مالية مسجلة).`
+                      : `تنبيه عدم تطابق: الرصيد المسجل (${(balanceVerification.storedBalancePiasters / 100).toFixed(2)} ج.م) يختلف عن مجموع الحركات (${(balanceVerification.calculatedBalancePiasters / 100).toFixed(2)} ج.م). الفارق: ${(Math.abs(balanceVerification.discrepancyPiasters) / 100).toFixed(2)} ج.م.`
+                    }
+                  </span>
+                </div>
+                {!balanceVerification.isBalanced && (
+                  <button
+                    type="button"
+                    onClick={() => void handleFixBalance(selectedCustomer.id)}
+                    disabled={isFixingBalance}
+                    className="px-2.5 py-1 bg-danger hover:bg-danger/90 text-white rounded text-[11px] font-bold flex items-center gap-1 transition-colors disabled:opacity-50 shrink-0"
+                  >
+                    <span>{isFixingBalance ? 'جاري التصحيح...' : 'إعادة حساب وتصحيح الرصيد'}</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Audit Feedback Toast */}
+            {auditFeedback && !balanceVerification && (
+              <div className="bg-brand-soft border-b border-brand/20 px-4 py-1.5 text-xs text-brand font-semibold flex items-center gap-1.5 shrink-0">
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                <span>{auditFeedback}</span>
+              </div>
+            )}
 
             {/* Filter Bar & Quick Dates (Story 69 / Feature #43) */}
             <div className="bg-surface-2 hairline-b px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0">

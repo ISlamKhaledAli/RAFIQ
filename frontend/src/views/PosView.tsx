@@ -311,9 +311,9 @@ export const PosView = () => {
         setQuickItems(data);
         const cats = Array.from(new Set(data.map((i) => i.categoryName || 'عام')));
         if (cats.length > 0) {
-          setActiveCategory((prev) => (!prev || !cats.includes(prev) ? cats[0] : prev));
+          setActiveCategory((prev) => (!prev ? '__ALL__' : prev));
         } else {
-          setActiveCategory('عام');
+          setActiveCategory('__ALL__');
         }
       }
     } catch {
@@ -330,9 +330,9 @@ export const PosView = () => {
           setQuickItems(data);
           const cats = Array.from(new Set(data.map((i) => i.categoryName || 'عام')));
           if (cats.length > 0) {
-            setActiveCategory((prev) => (!prev || !cats.includes(prev) ? cats[0] : prev));
+            setActiveCategory((prev) => (!prev ? '__ALL__' : prev));
           } else {
-            setActiveCategory('عام');
+            setActiveCategory('__ALL__');
           }
         }
       } catch {
@@ -1752,11 +1752,22 @@ export const PosView = () => {
               if (categories.length === 0) categories.push('عام');
               return (
                 <div className="flex flex-wrap gap-1 bg-surface p-1 rounded border border-line mb-1.5 shrink-0 max-h-20 overflow-y-auto">
+                  <button
+                    key="__ALL__"
+                    onClick={() => setActiveCategory('__ALL__')}
+                    className={`h-5 sm:h-6 text-[9px] sm:text-[10px] font-bold rounded transition-colors truncate px-1.5 py-0.5 min-w-[20%] text-center ${
+                      activeCategory === '__ALL__' 
+                        ? 'bg-brand text-white' 
+                        : 'text-ink-muted hover:text-ink hover:bg-surface-2'
+                    }`}
+                  >
+                    الكل ({quickItems.length})
+                  </button>
                   {categories.map((cat) => (
                     <button
                       key={cat}
                       onClick={() => setActiveCategory(cat)}
-                      className={`h-5 sm:h-6 text-[9px] sm:text-[10px] font-bold rounded transition-colors truncate px-1.5 py-0.5 flex-1 min-w-[30%] text-center ${
+                      className={`h-5 sm:h-6 text-[9px] sm:text-[10px] font-bold rounded transition-colors truncate px-1.5 py-0.5 flex-1 min-w-[25%] text-center ${
                         activeCategory === cat 
                           ? 'bg-brand text-white' 
                           : 'text-ink-muted hover:text-ink hover:bg-surface-2'
@@ -1772,7 +1783,7 @@ export const PosView = () => {
             {/* List of Quick Items */}
             <div className="flex-1 flex flex-col gap-1 sm:gap-1.5 overflow-y-auto pr-0.5">
               {quickItems
-                .filter((i) => (i.categoryName || 'عام') === activeCategory)
+                .filter((i) => activeCategory === '__ALL__' || (i.categoryName || 'عام') === activeCategory)
                 .sort((a, b) => a.displayOrder - b.displayOrder)
                 .map((fastItem) => (
                   <button
@@ -1796,7 +1807,7 @@ export const PosView = () => {
                   </button>
                 ))}
 
-              {quickItems.filter((i) => (i.categoryName || 'عام') === activeCategory).length === 0 && (
+              {quickItems.filter((i) => activeCategory === '__ALL__' || (i.categoryName || 'عام') === activeCategory).length === 0 && (
                 <div className="flex-1 flex flex-col items-center justify-center p-3 text-center text-ink-muted">
                   <Sparkles className="w-6 h-6 mb-1 opacity-30 text-brand" />
                   <p className="text-[11px]">لا توجد أصناف في هذا القسم</p>

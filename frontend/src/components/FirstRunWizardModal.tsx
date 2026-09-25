@@ -71,7 +71,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
         setLoading(true);
         const [tplList, printerList] = await Promise.all([
           invoke<StoreTemplateDto[]>('templates:getAll'),
-          invoke<{ name: string; isDefault: boolean }[]>('printer:getList'),
+          invoke<{ name: string; isDefault: boolean }[]>('printer:list'),
         ]);
 
         if (active) {

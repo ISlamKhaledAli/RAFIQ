@@ -30,6 +30,33 @@ export const SalesHistoryView = () => {
   const [customDate, setCustomDate] = useState('');
   const [reprintFeedback, setReprintFeedback] = useState<string | null>(null);
   const [isReprinting, setIsReprinting] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [cancelReason, setCancelReason] = useState('خطأ في تسجيل الأصناف');
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
+  const handleCancelSale = async () => {
+    if (!selectedSale) return;
+    setIsCancelling(true);
+    setCancelError(null);
+    try {
+      const cancelled = await invoke<Sale>('sales:cancel', {
+        saleId: selectedSale.id,
+        reason: cancelReason.trim() || 'إلغاء الفاتورة من شاشة السجل',
+      });
+      if (cancelled && cancelled.id) {
+        setSelectedSale(cancelled);
+        setSales((prev) => prev.map((s) => (s.id === cancelled.id ? cancelled : s)));
+        setShowCancelConfirm(false);
+        setReprintFeedback('تم إلغاء الفاتورة بنجاح، وإرجاع الأصناف للمخزون، وتوثيق العملية في سجل النظام.');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'تعذر إلغاء الفاتورة';
+      setCancelError(msg);
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   const loadSales = useCallback(async () => {
     setLoading(true);
@@ -696,9 +723,26 @@ export const SalesHistoryView = () => {
 
             {/* Modal Footer Controls */}
             <div className="h-[52px] bg-surface-2 hairline-t px-4 flex items-center justify-between shrink-0">
-              <span className="text-[11px] text-ink-muted">
-                اضغط <kbd className="bg-surface px-1.5 py-0.5 rounded border border-line text-ink font-mono">F9</kbd> لطباعة نسخة فورية
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="text-[11px] text-ink-muted">
+                  اضغط <kbd className="bg-surface px-1.5 py-0.5 rounded border border-line text-ink font-mono">F9</kbd> لطباعة نسخة
+                </span>
+                {selectedSale.status !== 'cancelled' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCancelError(null);
+                      setShowCancelConfirm(true);
+                    }}
+                    disabled={isCancelling}
+                    className="h-[32px] px-3 bg-danger-soft hover:bg-danger/20 text-danger border border-danger/30 rounded text-[11px] font-bold flex items-center gap-1.5 transition-colors"
+                    title="إلغاء الفاتورة بالكامل وإرجاع الأصناف للمخزون"
+                  >
+                    <Ban className="w-3.5 h-3.5" />
+                    <span>إلغاء الفاتورة</span>
+                  </button>
+                )}
+              </div>
 
               <div className="flex items-center gap-2">
                 <button
@@ -720,6 +764,90 @@ export const SalesHistoryView = () => {
                 </button>
               </div>
             </div>
+
+            {/* Cancel Sale Confirmation Modal */}
+            {showCancelConfirm && (
+              <div className="absolute inset-0 bg-ink/70 z-50 flex items-center justify-center p-4 animate-fade-in backdrop-blur-xs">
+                <div className="w-full max-w-md bg-surface rounded-[8px] border border-line p-5 shadow-2xl flex flex-col gap-3.5 text-right">
+                  <div className="flex items-center justify-between pb-2 border-b border-line">
+                    <div className="flex items-center gap-2 text-danger">
+                      <Ban className="w-5 h-5" />
+                      <h3 className="text-[14px] font-bold m-0">تأكيد إلغاء الفاتورة #{selectedSale.invoiceNumber}</h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowCancelConfirm(false)}
+                      className="text-ink-muted hover:text-ink text-sm"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="bg-danger-soft border border-danger/30 rounded p-2.5 text-[12px] text-danger font-medium leading-relaxed">
+                    ⚠️ <strong>تنبيه مالي ومخزني:</strong> سيتم إرجاع جميع كميات الأصناف إلى المخزون تلقائياً، وعكس أي قيد مالي أو رصيد آجل، ووسم الفاتورة كـ «ملغاة» في السجل. لا يمكن التراجع عن هذه الخطوة.
+                  </div>
+
+                  <div>
+                    <label className="block text-[12px] font-bold text-ink mb-1.5">سبب الإلغاء (إجباري):</label>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {[
+                        'خطأ في تسجيل الأصناف',
+                        'طلب العميل إلغاء الشراء',
+                        'إرجاع البضاعة كاملة',
+                        'تكرار الفاتورة سهواً'
+                      ].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setCancelReason(preset)}
+                          className={`text-[11px] px-2 py-1 rounded border transition-colors ${
+                            cancelReason === preset
+                              ? 'bg-brand text-white border-brand font-bold'
+                              : 'bg-surface-2 text-ink-muted border-line hover:text-ink'
+                          }`}
+                        >
+                          {preset}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="text"
+                      value={cancelReason}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                      placeholder="اكتب سبب الإلغاء..."
+                      className="w-full h-9 px-3 bg-canvas border border-line rounded text-[12px] text-ink focus:outline-none focus:border-brand"
+                    />
+                  </div>
+
+                  {cancelError && (
+                    <div className="p-2 rounded bg-danger-soft text-danger text-[11px] font-bold flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{cancelError}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-line">
+                    <button
+                      type="button"
+                      onClick={() => setShowCancelConfirm(false)}
+                      disabled={isCancelling}
+                      className="h-8 px-4 bg-surface hover:bg-surface-2 border border-line text-ink rounded text-[12px] font-semibold transition-colors"
+                    >
+                      تراجع
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleCancelSale()}
+                      disabled={isCancelling || !cancelReason.trim()}
+                      className="h-8 px-4 bg-danger hover:bg-danger/90 text-white rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                    >
+                      <Ban className={`w-3.5 h-3.5 ${isCancelling ? 'animate-spin' : ''}`} />
+                      <span>{isCancelling ? 'جاري الإلغاء...' : 'تأكيد إلغاء الفاتورة'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

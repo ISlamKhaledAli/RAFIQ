@@ -312,6 +312,55 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       };
     }
 
+    case 'sales:cancel': {
+      const saleId = typeof payload === 'object' && payload !== null ? (payload.saleId || payload.id) : String(payload);
+      return {
+        id: saleId || 'sale_cancelled',
+        invoiceNumber: 1042,
+        subtotalPiasters: 8000,
+        discountPiasters: 0,
+        taxPiasters: 0,
+        totalPiasters: 8000,
+        paidPiasters: 8000,
+        paymentMethod: 'cash',
+        status: 'cancelled',
+        notes: payload?.reason || 'إلغاء الفاتورة من شاشة السجل',
+        createdAt: new Date().toISOString(),
+        items: [],
+        payments: []
+      };
+    }
+
+    case 'products:getPriceHistory': {
+      const prodId = typeof payload === 'object' && payload !== null ? payload.productId : String(payload);
+      return [
+        {
+          id: 'ph_1',
+          productId: prodId || 'p_1',
+          oldPricePiasters: 4000,
+          newPricePiasters: 4200,
+          oldCostPiasters: 3200,
+          newCostPiasters: 3400,
+          changeReason: 'تعديل أسعار التوريد من الشركة',
+          createdAt: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString(),
+          oldPriceFormatted: '40.00 ج.م',
+          newPriceFormatted: '42.00 ج.م'
+        },
+        {
+          id: 'ph_2',
+          productId: prodId || 'p_1',
+          oldPricePiasters: 0,
+          newPricePiasters: 4000,
+          oldCostPiasters: 0,
+          newCostPiasters: 3200,
+          changeReason: 'تسجيل السعر الأولي للصنف',
+          createdAt: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString(),
+          oldPriceFormatted: '0.00 ج.م',
+          newPriceFormatted: '40.00 ج.م'
+        }
+      ];
+    }
+
     case 'inventory:getMovements':
       return [
         {

@@ -439,6 +439,7 @@ namespace RafiqPOS.Bridge
                             return BridgeResponse.Fail(request.Id, "DB_TRANSACTION_FAILED", result.Message);
                         }
 
+                    case "printer:getList":
                     case "printer:list":
                         var printers = DatabaseService.Printer.GetInstalledPrinters();
                         return BridgeResponse.Ok(request.Id, printers);

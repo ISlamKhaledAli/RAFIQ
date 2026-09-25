@@ -7,6 +7,8 @@
  * full Arabic-to-Latin layout translation, and rapid inter-keystroke timing analysis.
  */
 
+import { invoke } from '../bridge/ipc';
+
 export interface BarcodeScannerSettings {
   speedThresholdMs: number;         // Maximum ms between keystrokes to qualify as scanner (default: 65)
   prefix: string;                   // Custom prefix to strip if configured (default: '')
@@ -26,7 +28,6 @@ export const DEFAULT_SCANNER_SETTINGS: BarcodeScannerSettings = {
  */
 export async function loadScannerSettings(): Promise<BarcodeScannerSettings> {
   try {
-    const { invoke } = await import('../bridge/ipc');
     const all = await invoke<Record<string, string>>('settings:getAll');
     if (all) {
       return {
