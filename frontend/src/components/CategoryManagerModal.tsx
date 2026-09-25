@@ -141,7 +141,7 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
 
   return (
     <div className="fixed inset-0 z-50 bg-ink/50 backdrop-blur-xs flex items-center justify-center p-4 font-sans select-none animate-in fade-in duration-150">
-      <div className="w-full max-w-lg max-h-[92vh] bg-surface rounded-[8px] shadow-2xl border border-line overflow-hidden flex flex-col text-right">
+      <div className="w-full max-w-3xl max-h-[88vh] bg-surface rounded-[8px] shadow-2xl border border-line overflow-hidden flex flex-col text-right">
         {/* Modal Header */}
         <div className="h-[48px] bg-surface-2 hairline-b px-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">

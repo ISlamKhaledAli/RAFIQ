@@ -36,14 +36,31 @@ namespace RafiqPOS
         private string _lastErrorFullText;
         private bool _isDemoError;
 
+        public static MainForm Instance { get; private set; }
+
         public MainForm(bool isDemoError = false)
         {
+            Instance = this;
             _isDemoError = isDemoError;
-            this.Text = "رفيق POS — نظام نقاط البيع والسوبرماركت";
+            this.Text = "رفيق POS — نظام نقاط البيع وإدارة المتاجر";
             this.Size = new Size(1280, 800);
             this.MinimumSize = new Size(1024, 768); // Support compact screens (Task 159)
             this.StartPosition = FormStartPosition.CenterScreen;
             this.BackColor = Color.FromArgb(11, 20, 29);
+
+            // Default to true borderless fullscreen (Kiosk POS mode covering Windows Taskbar)
+            this.WindowState = FormWindowState.Normal;
+            this.FormBorderStyle = FormBorderStyle.None;
+            this.Bounds = Screen.PrimaryScreen.Bounds;
+            this.KeyPreview = true;
+            this.KeyDown += delegate(object s, KeyEventArgs e)
+            {
+                if (e.KeyCode == Keys.F11)
+                {
+                    e.Handled = true;
+                    ToggleFullscreen();
+                }
+            };
 
             string icoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app.ico");
             if (File.Exists(icoPath))
@@ -109,7 +126,7 @@ namespace RafiqPOS
             // Brand Badge
             _lblBadge = new Label
             {
-                Text = "🌿 رفيق POS — نظام نقاط البيع والسوبرماركت",
+                Text = "🌿 رفيق POS — نظام نقاط البيع وإدارة المتاجر",
                 Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(52, 211, 153), // Emerald 400
                 Location = new Point(24, 18),
@@ -534,7 +551,7 @@ namespace RafiqPOS
         {
             _lastErrorFullText = string.Format(
                 "====================================================\n" +
-                "رفيق لنقاط البيع وإدارة السوبرماركت — تقرير التشخيص\n" +
+                "رفيق لنقاط البيع وإدارة المتاجر — تقرير التشخيص\n" +
                 "====================================================\n" +
                 "العنوان: {0}\n" +
                 "التاريخ: {1}\n\n" +
@@ -582,6 +599,34 @@ namespace RafiqPOS
                 var errResponse = BridgeResponse.Fail("", "DISPATCHER_ERROR", ex.Message);
                 _webView.CoreWebView2.PostWebMessageAsJson(JsonConvert.SerializeObject(errResponse, BridgeSerializerSettings));
             }
+        }
+
+        public void ToggleFullscreen()
+        {
+            if (this.InvokeRequired)
+            {
+                this.Invoke(new Action(delegate { ToggleFullscreen(); }));
+                return;
+            }
+
+            if (this.FormBorderStyle == FormBorderStyle.None)
+            {
+                this.WindowState = FormWindowState.Normal;
+                this.FormBorderStyle = FormBorderStyle.Sizable;
+                this.Size = new Size(1280, 800);
+                this.CenterToScreen();
+            }
+            else
+            {
+                this.WindowState = FormWindowState.Normal;
+                this.FormBorderStyle = FormBorderStyle.None;
+                this.Bounds = Screen.FromControl(this).Bounds;
+            }
+        }
+
+        public bool IsFullscreen()
+        {
+            return this.FormBorderStyle == FormBorderStyle.None;
         }
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)

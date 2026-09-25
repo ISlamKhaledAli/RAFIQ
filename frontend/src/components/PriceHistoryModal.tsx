@@ -69,7 +69,7 @@ export const PriceHistoryModal: React.FC<PriceHistoryModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-ink/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in select-none">
-      <div className="bg-surface rounded-lg hairline-all shadow-xl w-full max-w-2xl flex flex-col max-h-[85vh] overflow-hidden">
+      <div className="bg-surface rounded-xl hairline-all shadow-2xl w-full max-w-4xl flex flex-col max-h-[88vh] overflow-hidden">
         {/* Header */}
         <div className="px-5 py-4 border-b border-line flex items-center justify-between bg-surface-2/60 shrink-0">
           <div className="flex items-center gap-2.5">
@@ -199,7 +199,7 @@ export const PriceHistoryModal: React.FC<PriceHistoryModalProps> = ({
                               </span>
                             )}
                           </td>
-                          <td className="py-2.5 px-3 text-ink-muted text-[11.5px] max-w-[150px] truncate" title={item.changeReason || ''}>
+                          <td className="py-2.5 px-3 text-ink-muted text-[11.5px] max-w-[280px] truncate" title={item.changeReason || ''}>
                             {item.changeReason || 'تعديل يدوي'}
                           </td>
                         </tr>

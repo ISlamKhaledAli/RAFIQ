@@ -17,6 +17,7 @@ import { invoke } from '../bridge/ipc';
 import type { Customer, SalePayment } from '../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals, poundsToPiasters, piastersToPounds } from '../utils/money';
 import { CustomSelect } from './CustomSelect';
+import { rafiqConfirm, rafiqAlert } from '../utils/dialogService';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -105,7 +106,11 @@ export const PaymentModal = ({
         setQuickPhone('');
       }
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'تعذر حفظ العميل');
+      void rafiqAlert({
+        title: 'فشل حفظ العميل',
+        message: err instanceof Error ? err.message : 'تعذر حفظ العميل',
+        variant: 'error',
+      });
     } finally {
       setQuickSaving(false);
     }
@@ -141,17 +146,24 @@ export const PaymentModal = ({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !loading) {
       e.preventDefault();
-      handleConfirm();
+      void handleConfirm();
     } else if (e.key === 'Escape') {
       e.preventDefault();
       onClose();
     }
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (activeTab === 'cash') {
       if (isShortPayment) {
-        if (!confirm(`تنبيه: المبلغ المدفوع (${formatArabicCurrency(receivedPiasters)}) أقل من قيمة الفاتورة (${formatArabicCurrency(netTotalPiasters)}). هل تريد المتابعة؟`)) {
+        const proceed = await rafiqConfirm({
+          title: 'تنبيه نقص المبلغ المدفوع',
+          message: `المبلغ المدفوع (${formatArabicCurrency(receivedPiasters)}) أقل من قيمة الفاتورة (${formatArabicCurrency(netTotalPiasters)}).\n\nهل تريد المتابعة وإتمام العملية؟`,
+          confirmText: 'نعم، إتمام الدفع',
+          cancelText: 'تراجع وتعديل المبلغ',
+          variant: 'warning',
+        });
+        if (!proceed) {
           return;
         }
       }
@@ -187,7 +199,11 @@ export const PaymentModal = ({
       });
     } else if (activeTab === 'credit') {
       if (!currentCustomerId) {
-        alert('يجب اختيار عميل من دفتر الآجل لإتمام البيع بالآجل!');
+        await rafiqAlert({
+          title: 'تنبيه البيع بالآجل',
+          message: 'يجب اختيار عميل من دفتر الآجل لإتمام البيع بالآجل!',
+          variant: 'warning',
+        });
         return;
       }
 
@@ -195,9 +211,13 @@ export const PaymentModal = ({
         const isExceeded = selectedCustomer.creditLimitPiasters > 0 && 
           (selectedCustomer.balancePiasters + netTotalPiasters > selectedCustomer.creditLimitPiasters);
         if (isExceeded) {
-          const confirmProceed = window.confirm(
-            `⚠️ تحذير تجاوز الحد الائتماني:\nدين العميل الحالي: ${formatArabicCurrency(selectedCustomer.balancePiasters)}\nإجمالي الدين بعد الفاتورة: ${formatArabicCurrency(selectedCustomer.balancePiasters + netTotalPiasters)}\nالحد الائتماني المسموح به: ${formatArabicCurrency(selectedCustomer.creditLimitPiasters)}\n\nهل تريد تأكيد إتمام البيع بالآجل وتجاوز الحد الائتماني؟`
-          );
+          const confirmProceed = await rafiqConfirm({
+            title: 'تحذير تجاوز الحد الائتماني للعميل',
+            message: `دين العميل الحالي: ${formatArabicCurrency(selectedCustomer.balancePiasters)}\nإجمالي الدين بعد الفاتورة: ${formatArabicCurrency(selectedCustomer.balancePiasters + netTotalPiasters)}\nالحد الائتماني المسموح به: ${formatArabicCurrency(selectedCustomer.creditLimitPiasters)}\n\nهل تريد تأكيد إتمام البيع بالآجل وتجاوز الحد الائتماني؟`,
+            confirmText: 'متابعة وتجاوز الحد',
+            cancelText: 'إلغاء العملية',
+            variant: 'danger',
+          });
           if (!confirmProceed) return;
         }
       }
@@ -218,14 +238,22 @@ export const PaymentModal = ({
       });
     } else if (activeTab === 'multi') {
       if (splitRemainingPiasters !== 0) {
-        alert(`تنبيه: مجموع الدفعات المجزأة (${formatArabicCurrency(splitTotalPaid)}) يجب أن يساوي تماماً إجمالي الفاتورة (${formatArabicCurrency(netTotalPiasters)})! الفارق: ${formatArabicCurrency(Math.abs(splitRemainingPiasters))}`);
+        await rafiqAlert({
+          title: 'عدم تطابق مبالغ الدفع المجزأ',
+          message: `مجموع الدفعات المجزأة (${formatArabicCurrency(splitTotalPaid)}) يجب أن يساوي تماماً إجمالي الفاتورة (${formatArabicCurrency(netTotalPiasters)})!\nالفارق المتبقي: ${formatArabicCurrency(Math.abs(splitRemainingPiasters))}`,
+          variant: 'warning',
+        });
         return;
       }
 
       // If any split row is 'credit' and no customer selected
       const hasCreditRow = splitRows.some((r) => r.method === 'credit');
       if (hasCreditRow && !currentCustomerId) {
-        alert('يوجد جزء مدفوع بالآجل! يجب اختيار عميل لتسجيل المتبقي عليه في حسابه.');
+        await rafiqAlert({
+          title: 'تنبيه البيع بالآجل',
+          message: 'يوجد جزء مدفوع بالآجل! يجب اختيار عميل لتسجيل المتبقي عليه في حسابه.',
+          variant: 'warning',
+        });
         return;
       }
 
@@ -236,9 +264,13 @@ export const PaymentModal = ({
         const isExceeded = selectedCustomer.creditLimitPiasters > 0 && 
           (selectedCustomer.balancePiasters + creditPart > selectedCustomer.creditLimitPiasters);
         if (isExceeded) {
-          const confirmProceed = window.confirm(
-            `⚠️ تحذير تجاوز الحد الائتماني:\nدين العميل الحالي: ${formatArabicCurrency(selectedCustomer.balancePiasters)}\nالجزء الآجل في هذه الفاتورة: ${formatArabicCurrency(creditPart)}\nإجمالي الدين بعد هذه العملية: ${formatArabicCurrency(selectedCustomer.balancePiasters + creditPart)}\nالحد الائتماني المسموح به: ${formatArabicCurrency(selectedCustomer.creditLimitPiasters)}\n\nهل تريد تأكيد إتمام الدفع المختلط وتجاوز الحد الائتماني؟`
-          );
+          const confirmProceed = await rafiqConfirm({
+            title: 'تحذير تجاوز الحد الائتماني للعميل',
+            message: `دين العميل الحالي: ${formatArabicCurrency(selectedCustomer.balancePiasters)}\nالجزء الآجل في هذه الفاتورة: ${formatArabicCurrency(creditPart)}\nإجمالي الدين بعد هذه العملية: ${formatArabicCurrency(selectedCustomer.balancePiasters + creditPart)}\nالحد الائتماني المسموح به: ${formatArabicCurrency(selectedCustomer.creditLimitPiasters)}\n\nهل تريد تأكيد إتمام الدفع المختلط وتجاوز الحد الائتماني؟`,
+            confirmText: 'متابعة وتجاوز الحد',
+            cancelText: 'إلغاء العملية',
+            variant: 'danger',
+          });
           if (!confirmProceed) return;
         }
       }
@@ -276,7 +308,7 @@ export const PaymentModal = ({
       className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4 select-none"
       onKeyDown={handleKeyDown}
     >
-      <div className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-2xl max-h-[94vh] flex flex-col overflow-hidden text-ink">
+      <div className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-3xl max-h-[94vh] flex flex-col overflow-hidden text-ink">
         {/* Header */}
         <div className="h-[60px] px-5 bg-surface-2 hairline-b flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -889,7 +921,7 @@ export const PaymentModal = ({
 
           <button
             type="button"
-            onClick={handleConfirm}
+            onClick={() => void handleConfirm()}
             disabled={loading || (activeTab === 'multi' && splitRemainingPiasters !== 0)}
             className="px-6 py-2.5 rounded-lg text-sm font-bold bg-brand hover:bg-brand-hover text-white flex items-center gap-2 shadow-sm transition-all disabled:opacity-50"
           >

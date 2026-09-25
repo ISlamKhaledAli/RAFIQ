@@ -138,7 +138,7 @@ export function QuickAddProductModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-100">
       <div 
-        className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-md overflow-hidden flex flex-col"
+        className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-lg overflow-hidden flex flex-col"
         dir="rtl"
       >
         {/* Header */}

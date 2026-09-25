@@ -27,6 +27,7 @@ import {
   Download
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { rafiqAlert } from '../utils/dialogService';
 import type { Product, Category, StockMovement, StockDiscrepancy, ProductUnit } from '../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../utils/money';
 import { exportProductsToExcel } from '../utils/excelImport';
@@ -100,11 +101,19 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
       if (res.success) {
         setImportSuccessAlert(`تم تصدير ${res.count || products.length} صنف إلى ملف إكسل ملون واحترافي بنجاح!`);
       } else {
-        alert(`تعذر تصدير ملف الإكسل: ${res.message || 'خطأ غير معروف'}`);
+        void rafiqAlert({
+          title: 'فشل تصدير ملف الإكسل',
+          message: `تعذر تصدير ملف الإكسل: ${res.message || 'خطأ غير معروف'}`,
+          variant: 'error',
+        });
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      alert(`خطأ أثناء التصدير: ${msg}`);
+      void rafiqAlert({
+        title: 'خطأ أثناء التصدير',
+        message: `خطأ أثناء التصدير: ${msg}`,
+        variant: 'error',
+      });
     } finally {
       setIsExportingExcel(false);
     }
@@ -196,7 +205,11 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
       await loadMovements();
       await checkDiscrepancies();
     } catch (err) {
-      alert('فشلت إعادة حساب المخزون: ' + (err instanceof Error ? err.message : String(err)));
+      void rafiqAlert({
+        title: 'فشلت إعادة حساب المخزون',
+        message: 'فشلت إعادة حساب المخزون: ' + (err instanceof Error ? err.message : String(err)),
+        variant: 'error',
+      });
     } finally {
       setRecalculating(false);
     }
@@ -650,10 +663,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
           <button
             type="button"
             onClick={() => setSelectedCategoryFilter('all')}
-            className={`px-3 py-1 rounded-full text-[11.5px] font-semibold transition-colors flex items-center gap-1 shrink-0 ${
+            className={`px-3 py-1 rounded-full text-[11.5px] font-bold transition-all flex items-center gap-1.5 shrink-0 border shadow-2xs ${
               selectedCategoryFilter === 'all'
-                ? 'bg-brand text-white shadow-xs'
-                : 'bg-surface-2 text-ink-muted hover:text-ink hover:bg-surface'
+                ? 'bg-brand text-white border-brand shadow-xs ring-1 ring-brand/30'
+                : 'bg-surface text-slate-700 border-slate-300 hover:border-brand/70 hover:bg-brand-soft/40 hover:text-brand hover:-translate-y-0.5'
             }`}
           >
             <span>كل الأصناف</span>
@@ -669,10 +682,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
                 key={cat.id}
                 type="button"
                 onClick={() => setSelectedCategoryFilter(cat.id)}
-                className={`px-3 py-1 rounded-full text-[11.5px] font-semibold transition-colors flex items-center gap-1 shrink-0 ${
+                className={`px-3 py-1 rounded-full text-[11.5px] font-bold transition-all flex items-center gap-1.5 shrink-0 border shadow-2xs ${
                   isSelected
-                    ? 'bg-brand text-white shadow-xs'
-                    : 'bg-surface-2 text-ink-muted hover:text-ink hover:bg-surface'
+                    ? 'bg-brand text-white border-brand shadow-xs ring-1 ring-brand/30'
+                    : 'bg-surface text-slate-700 border-slate-300 hover:border-brand/70 hover:bg-brand-soft/40 hover:text-brand hover:-translate-y-0.5'
                 }`}
               >
                 <span>{cat.name}</span>
@@ -1220,7 +1233,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
       {/* 3. Add/Edit Product Modal (Fully Responsive on 1024x768 & 1366x768) */}
       {showModal && (
         <div className="fixed inset-0 bg-ink/40 z-50 flex items-center justify-center p-2 sm:p-4">
-          <div className="w-full max-w-xl max-h-[92vh] bg-surface rounded-[8px] border-2 border-brand shadow-2xl overflow-hidden flex flex-col select-none animate-in fade-in zoom-in-95 duration-150">
+          <div className="w-full max-w-3xl max-h-[92vh] bg-surface rounded-xl border border-brand/50 shadow-2xl overflow-hidden flex flex-col select-none animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header (Fixed at top) */}
             <div className="h-[48px] bg-surface-2 hairline-b px-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">

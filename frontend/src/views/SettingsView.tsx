@@ -28,6 +28,7 @@ import { invoke } from '../bridge/ipc';
 import { useFeatures } from '../context/useFeatures';
 import type { SystemInfo } from '../App';
 import { BackupManager } from '../components/BackupManager';
+import { rafiqAlert } from '../utils/dialogService';
 import { BarcodeScannerSettingsModal } from '../components/BarcodeScannerSettingsModal';
 import { PinSettingsModal } from '../components/PinSettingsModal';
 import { FirstRunWizardModal } from '../components/FirstRunWizardModal';
@@ -57,11 +58,12 @@ export const SettingsView = ({
   const [isTourModalOpen, setIsTourModalOpen] = useState(false);
   const [pinStatus, setPinStatus] = useState<any>(null);
   const [demoStatus, setDemoStatus] = useState<any>(null);
-  const [storeName, setStoreName] = useState('سوبرماركت رفيق');
-  const [phone, setPhone] = useState('01012345678');
-  const [address, setAddress] = useState('فرع أسيوط الرئيسي - ش الجمهورية');
-  const [taxNumber, setTaxNumber] = useState('123-456-789');
-  const [receiptHeader, setReceiptHeader] = useState('أهلاً بكم في سوبرماركت رفيق');
+  const [storeName, setStoreName] = useState('متجر رفيق');
+  const [cashierName, setCashierName] = useState('كاشير (1)');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('الفرع الرئيسي');
+  const [taxNumber, setTaxNumber] = useState('');
+  const [receiptHeader, setReceiptHeader] = useState('أهلاً بكم في متجرنا');
   const [receiptFooter, setReceiptFooter] = useState('شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل خلال 14 يوماً بموجب الفاتورة.');
   const [allowNegativeStock, setAllowNegativeStock] = useState(true);
   const [defaultCustomerCreditLimitEgp, setDefaultCustomerCreditLimitEgp] = useState(1000);
@@ -110,6 +112,7 @@ export const SettingsView = ({
         if (!active) return;
         if (settings) {
           if (settings.store_name) setStoreName(settings.store_name);
+          if (settings.cashier_name) setCashierName(settings.cashier_name);
           if (settings.store_phone) setPhone(settings.store_phone);
           if (settings.store_address) setAddress(settings.store_address);
           if (settings.tax_number) setTaxNumber(settings.tax_number);
@@ -201,6 +204,7 @@ export const SettingsView = ({
     try {
       const payload: Record<string, string> = {
         store_name: storeName.trim(),
+        cashier_name: cashierName.trim(),
         store_phone: phone.trim(),
         store_address: address.trim(),
         tax_number: taxNumber.trim(),
@@ -214,7 +218,11 @@ export const SettingsView = ({
       setTimeout(() => setSaved(false), 3500);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      alert(`فشل حفظ الإعدادات: ${msg}`);
+      void rafiqAlert({
+        title: 'فشل حفظ الإعدادات',
+        message: `فشل حفظ الإعدادات: ${msg}`,
+        variant: 'error',
+      });
     } finally {
       setSaveLoading(false);
     }
@@ -477,7 +485,7 @@ export const SettingsView = ({
                 <label className="block text-ink font-semibold text-xs mb-2">مقاس ورق الإيصال (Paper Width)</label>
                 <div className="grid grid-cols-3 gap-2.5">
                   {[
-                    { id: '80mm', title: '80 مم (حراري)', desc: 'الأكثر شيوعاً بالسوبرماركت' },
+                    { id: '80mm', title: '80 مم (حراري)', desc: 'المقاس القياسي لطابعات الإيصالات' },
                     { id: '57mm', title: '57 مم (حراري)', desc: 'بكرات الإيصالات الصغيرة' },
                     { id: 'a4', title: 'A4 (عادي)', desc: 'ورق تقارير وفواتير كاملة' },
                   ].map((pw) => (
@@ -551,7 +559,11 @@ export const SettingsView = ({
                     setTimeout(() => setPrinterSaveSuccess(false), 3500);
                   } catch (err: unknown) {
                     const msg = err instanceof Error ? err.message : String(err);
-                    alert(`فشل حفظ إعدادات الطابعة: ${msg}`);
+                    void rafiqAlert({
+                      title: 'فشل حفظ إعدادات الطابعة',
+                      message: `فشل حفظ إعدادات الطابعة: ${msg}`,
+                      variant: 'error',
+                    });
                   } finally {
                     setSaveLoading(false);
                   }
@@ -631,7 +643,7 @@ export const SettingsView = ({
             <form onSubmit={handleSave} className="bg-surface hairline-all rounded-[6px] p-5 flex flex-col gap-3.5 text-[12px]">
               <div className="flex items-center justify-between border-b border-line pb-2">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-[13px] font-bold text-ink m-0">بيانات السوبرماركت والفاتورة</h3>
+                  <h3 className="text-[13px] font-bold text-ink m-0">بيانات المتجر والفاتورة</h3>
                   <span className="text-[11px] text-ink-muted">تنعكس فوراً على الإيصال المطبوع</span>
                 </div>
                 <button
@@ -644,45 +656,61 @@ export const SettingsView = ({
                 </button>
               </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
-                <label className="block text-ink font-semibold mb-1">اسم المحل *</label>
+                <label className="block text-ink font-semibold mb-1">اسم المتجر أو المنشأة *</label>
                 <input
                   type="text"
                   value={storeName}
                   onChange={(e) => setStoreName(e.target.value)}
+                  placeholder="مثال: متجر رفيق"
+                  className="w-full bg-surface border border-line rounded h-[38px] px-3 text-[13px] text-ink focus:outline-none focus:border-brand font-sans"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-ink font-semibold mb-1">اسم الكاشير أو الوردية الافتراضي</label>
+                <input
+                  type="text"
+                  value={cashierName}
+                  onChange={(e) => setCashierName(e.target.value)}
+                  placeholder="مثال: كاشير الوردية (1)"
                   className="w-full bg-surface border border-line rounded h-[38px] px-3 text-[13px] text-ink focus:outline-none focus:border-brand font-sans"
                 />
               </div>
 
               <div>
-                <label className="block text-ink font-semibold mb-1">رقم الهاتف *</label>
+                <label className="block text-ink font-semibold mb-1">رقم الهاتف للتواصل</label>
                 <input
                   type="text"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
+                  placeholder="مثال: 01000000000"
                   className="w-full bg-surface border border-line rounded h-[38px] px-3 text-[13px] text-ink focus:outline-none focus:border-brand font-mono"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="block text-ink font-semibold mb-1">العنوان والفرع</label>
                 <input
                   type="text"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
+                  placeholder="مثال: الفرع الرئيسي - وسط المدينة"
                   className="w-full bg-surface border border-line rounded h-[38px] px-3 text-[13px] text-ink focus:outline-none focus:border-brand font-sans"
                 />
               </div>
 
               <div>
-                <label className="block text-ink font-semibold mb-1">الرقم الضريبي / السجل</label>
+                <label className="block text-ink font-semibold mb-1">الرقم الضريبي / السجل التجاري (اختياري)</label>
                 <input
                   type="text"
                   value={taxNumber}
                   onChange={(e) => setTaxNumber(e.target.value)}
+                  placeholder="مثال: 123-456-789"
                   className="w-full bg-surface border border-line rounded h-[38px] px-3 text-[13px] text-ink focus:outline-none focus:border-brand font-mono"
                 />
               </div>
@@ -778,7 +806,7 @@ export const SettingsView = ({
 
             {/* Receipt Header */}
             <div className="text-center flex flex-col gap-0.5">
-              <h4 className="text-[16px] font-bold m-0 font-sans">{storeName || 'سوبرماركت رفيق'}</h4>
+              <h4 className="text-[16px] font-bold m-0 font-sans">{storeName || 'متجر رفيق'}</h4>
               <p className="text-[11px] text-gray-700 m-0">{address}</p>
               <p className="text-[11px] text-gray-700 m-0">هاتف: {phone}</p>
               <p className="text-[10px] text-gray-500 m-0">ر.ض: {taxNumber}</p>

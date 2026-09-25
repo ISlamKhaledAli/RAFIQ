@@ -48,6 +48,8 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
   const [newPinConfirm, setNewPinConfirm] = useState('');
   const [generatedRecoveryCode, setGeneratedRecoveryCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [isConfirmToggleOpen, setIsConfirmToggleOpen] = useState(false);
+  const [togglePinInput, setTogglePinInput] = useState('');
 
   // Load status
   const loadStatus = async () => {
@@ -151,21 +153,28 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
     }
   };
 
-  const handleToggleEnable = async () => {
+  const handleToggleEnable = () => {
     if (!isPinSet) return;
-    const pinInput = prompt('أدخل الرقم السري الحالي لتأكيد تغيير حالة التفعيل:');
-    if (!pinInput) return;
+    setTogglePinInput('');
+    setIsConfirmToggleOpen(true);
+  };
+
+  const submitToggleEnable = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!togglePinInput.trim()) return;
 
     setLoading(true);
     setError(null);
     try {
       if (isEnabled) {
-        await invoke('security:disablePin', { currentPin: pinInput });
+        await invoke('security:disablePin', { currentPin: togglePinInput.trim() });
         setSuccessMsg('تم إيقاف تفعيل قفل الشاشات بالرقم السري.');
       } else {
-        await invoke('security:enablePin', { currentPin: pinInput });
+        await invoke('security:enablePin', { currentPin: togglePinInput.trim() });
         setSuccessMsg('تم تفعيل قفل الشاشات بالرقم السري.');
       }
+      setIsConfirmToggleOpen(false);
+      setTogglePinInput('');
       await loadStatus();
       if (onStatusChanged) onStatusChanged();
     } catch (err: unknown) {
@@ -400,6 +409,62 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
           </form>
         </div>
       </div>
+
+      {/* Confirmation Modal for Toggle */}
+      {isConfirmToggleOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
+            <div className="bg-[#00372d] text-white px-5 py-3.5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Lock className="w-4 h-4 text-emerald-300" />
+                <h4 className="font-bold text-sm">تأكيد العملية الحساسة</h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsConfirmToggleOpen(false)}
+                className="p-1 rounded text-emerald-200 hover:text-white hover:bg-white/10"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={submitToggleEnable} className="p-5 space-y-4">
+              <p className="text-xs text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
+                أدخل الرقم السري الحالي لتأكيد {isEnabled ? 'إيقاف تفعيل' : 'تفعيل'} نظام حماية الشاشات:
+              </p>
+              <div>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={8}
+                  autoFocus
+                  value={togglePinInput}
+                  onChange={(e) => setTogglePinInput(e.target.value.replace(/\D/g, ''))}
+                  placeholder="••••"
+                  className="w-full text-center px-4 py-3 text-lg rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono tracking-widest focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  required
+                />
+              </div>
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsConfirmToggleOpen(false)}
+                  className="flex-1 py-2 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600 dark:text-slate-400"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || !togglePinInput.trim()}
+                  className="flex-1 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                  <span>تأكيد</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

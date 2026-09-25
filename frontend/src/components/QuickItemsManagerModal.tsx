@@ -342,7 +342,7 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div 
-        className="bg-surface border border-line rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden text-ink"
+        className="bg-surface border border-line rounded-xl shadow-2xl w-full max-w-5xl h-[88vh] max-h-[850px] flex flex-col overflow-hidden text-ink animate-in fade-in zoom-in-95 duration-150"
         dir="rtl"
       >
         {/* Header */}
@@ -388,7 +388,7 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
             <div className="flex flex-col gap-2 mb-3 pb-2 hairline-b">
               <div className="flex items-center justify-between gap-2">
                 {/* Category Pills & Add Category Button */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-[70%]">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 flex-1">
                   {categories.map((cat) => {
                     const count = items.filter((i) => (i.categoryName || 'عام') === cat).length;
                     const isActive = activeCategory === cat;
@@ -402,14 +402,18 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                           setIsRenamingCategory(false);
                           setDeleteCategoryConfirm(null);
                         }}
-                        className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors shrink-0 flex items-center gap-1 ${
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all shrink-0 flex items-center gap-1.5 shadow-2xs border ${
                           isActive 
-                            ? 'bg-brand text-white shadow-sm' 
-                            : 'bg-surface-2 text-ink-muted hover:text-ink hover:bg-surface-3'
+                            ? 'bg-brand text-white border-brand shadow-sm ring-2 ring-brand/20' 
+                            : 'bg-surface text-slate-700 border-slate-300 hover:border-brand/70 hover:bg-brand-soft/40 hover:text-brand hover:shadow-xs hover:-translate-y-0.5'
                         }`}
                       >
                         <span>{cat}</span>
-                        <span className={`text-[10px] px-1 rounded-full ${isActive ? 'bg-white/20' : 'bg-black/5 text-ink-muted'}`}>
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                          isActive 
+                            ? 'bg-white/25 text-white' 
+                            : 'bg-slate-100 text-slate-600 border border-slate-200'
+                        }`}>
                           {count}
                         </span>
                       </button>
@@ -425,10 +429,10 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                       setDeleteCategoryConfirm(null);
                       setNewCategoryName('');
                     }}
-                    className={`h-7 px-2.5 text-xs font-semibold rounded-md border flex items-center gap-1 shrink-0 transition-colors ${
+                    className={`h-[32px] px-3 text-xs font-bold rounded-lg border-2 flex items-center gap-1.5 shrink-0 transition-all shadow-2xs ${
                       isAddingCategory 
-                        ? 'bg-brand text-white border-brand' 
-                        : 'border-dashed border-brand/50 text-brand hover:bg-brand-soft'
+                        ? 'bg-brand text-white border-brand shadow-sm' 
+                        : 'border-dashed border-brand/60 bg-brand-soft/30 text-brand hover:bg-brand hover:text-white hover:border-brand hover:shadow-xs hover:-translate-y-0.5'
                     }`}
                     title="إضافة قسم أو تصنيف جديد للأصناف السريعة"
                   >
@@ -467,10 +471,10 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                         setIsAddingCategory(false);
                         setDeleteCategoryConfirm(null);
                       }}
-                      className="px-2 py-0.5 rounded hover:bg-surface text-ink-muted hover:text-brand flex items-center gap-1 text-[11px] transition-colors"
+                      className="px-2.5 py-1 rounded-md bg-surface border border-slate-300 hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-slate-700 flex items-center gap-1.5 text-[11px] font-bold shadow-2xs transition-all hover:-translate-y-0.5"
                       title="تعديل اسم هذا القسم"
                     >
-                      <Edit2 className="w-3 h-3" />
+                      <Edit2 className="w-3.5 h-3.5 text-brand" />
                       <span>تعديل الاسم</span>
                     </button>
 
@@ -481,10 +485,10 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                         setIsAddingCategory(false);
                         setIsRenamingCategory(false);
                       }}
-                      className="px-2 py-0.5 rounded hover:bg-danger-soft text-ink-muted hover:text-danger flex items-center gap-1 text-[11px] transition-colors"
+                      className="px-2.5 py-1 rounded-md bg-surface border border-slate-300 hover:border-danger hover:text-danger hover:bg-danger-soft/40 text-slate-700 flex items-center gap-1.5 text-[11px] font-bold shadow-2xs transition-all hover:-translate-y-0.5"
                       title="حذف هذا القسم بالكامل"
                     >
-                      <Trash2 className="w-3 h-3" />
+                      <Trash2 className="w-3.5 h-3.5 text-danger" />
                       <span>حذف التصنيف</span>
                     </button>
                   </div>
@@ -603,19 +607,19 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                 </button>
               </div>
             ) : (
-              <div className="flex flex-col gap-2">
+              <div className={isFormOpen ? "flex flex-col gap-2.5" : "grid grid-cols-1 md:grid-cols-2 gap-3"}>
                 {filteredItems.map((item, index) => (
                   <div
                     key={item.id}
-                    className="p-3 bg-surface-2 border border-line rounded flex items-center justify-between hover:border-brand/40 transition-colors"
+                    className="p-3 bg-surface border border-slate-200 rounded-lg flex items-center justify-between hover:border-brand/60 hover:shadow-xs transition-all"
                   >
                     <div className="flex items-center gap-3">
                       {/* Reorder Buttons */}
-                      <div className="flex flex-col gap-0.5">
+                      <div className="flex flex-col gap-1">
                         <button
                           onClick={() => handleMove(index, 'up')}
                           disabled={index === 0}
-                          className="p-1 rounded text-ink-muted hover:text-ink disabled:opacity-30 hover:bg-surface"
+                          className="p-1 rounded bg-surface border border-slate-200 text-slate-600 hover:text-brand hover:border-brand disabled:opacity-20 shadow-2xs transition-all"
                           title="تحريك لأعلى"
                         >
                           <ArrowUp className="w-3 h-3" />
@@ -623,7 +627,7 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                         <button
                           onClick={() => handleMove(index, 'down')}
                           disabled={index === filteredItems.length - 1}
-                          className="p-1 rounded text-ink-muted hover:text-ink disabled:opacity-30 hover:bg-surface"
+                          className="p-1 rounded bg-surface border border-slate-200 text-slate-600 hover:text-brand hover:border-brand disabled:opacity-20 shadow-2xs transition-all"
                           title="تحريك لأسفل"
                         >
                           <ArrowDown className="w-3 h-3" />
@@ -679,14 +683,14 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                         <>
                           <button
                             onClick={() => openEditForm(item)}
-                            className="p-1.5 rounded hover:bg-surface text-ink-muted hover:text-ink border border-line transition-colors"
+                            className="p-1.5 rounded-md bg-surface border border-slate-300 hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-slate-600 shadow-2xs transition-all hover:-translate-y-0.5"
                             title="تعديل"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => setDeleteConfirmId(item.id)}
-                            className="p-1.5 rounded hover:bg-red-50 text-ink-muted hover:text-red-600 border border-line transition-colors"
+                            className="p-1.5 rounded-md bg-surface border border-slate-300 hover:border-danger hover:text-danger hover:bg-danger-soft/40 text-slate-600 shadow-2xs transition-all hover:-translate-y-0.5"
                             title="حذف"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -702,7 +706,7 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
 
           {/* Form Sidebar (Add / Edit) */}
           {isFormOpen && (
-            <div className="w-[320px] hairline-r bg-surface-2 p-4 flex flex-col justify-between overflow-y-auto">
+            <div className="w-[360px] hairline-r bg-surface-2 p-5 flex flex-col justify-between overflow-y-auto shrink-0 animate-in slide-in-from-left-2 duration-150">
               <form onSubmit={handleSaveItem} className="space-y-3">
                 <div className="flex items-center justify-between pb-2 hairline-b">
                   <span className="text-xs font-bold text-ink">

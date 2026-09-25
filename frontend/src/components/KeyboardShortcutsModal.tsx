@@ -62,7 +62,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
       onClick={onClose}
     >
       <div 
-        className="w-full max-w-2xl bg-surface rounded-[6px] border-2 border-brand shadow-2xl overflow-hidden flex flex-col"
+        className="w-full max-w-4xl bg-surface rounded-xl border border-brand/40 shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

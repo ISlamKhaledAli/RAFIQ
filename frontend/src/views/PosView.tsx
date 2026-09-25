@@ -114,6 +114,14 @@ export const PosView = () => {
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
+  // Branded Discount Modal State (Replacing raw window.prompt)
+  const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
+  const [discountInputEgp, setDiscountInputEgp] = useState('');
+
+  // Branded Quantity Modal State (Replacing raw window.prompt)
+  const [quantityModalItem, setQuantityModalItem] = useState<{ index: number; name: string; currentQty: number } | null>(null);
+  const [quantityInputVal, setQuantityInputVal] = useState('');
+
   // Live Instant Search State (Task 22-4)
   const [liveSearchResults, setLiveSearchResults] = useState<Product[]>([]);
   const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
@@ -883,13 +891,12 @@ export const PosView = () => {
           if (lastItem.unit === 'kg') {
             openWeightEditorForCartItem(lastIdx);
           } else {
-            const inputVal = window.prompt(`تعديل كمية "${lastItem.productName}":`, String(lastItem.quantityMilli / 1000));
-            if (inputVal !== null) {
-              const num = parseFloat(normalizeArabicNumerals(inputVal.trim()));
-              if (!isNaN(num) && num > 0) {
-                setDirectQuantity(lastIdx, num);
-              }
-            }
+            setQuantityModalItem({
+              index: lastIdx,
+              name: lastItem.productName,
+              currentQty: lastItem.quantityMilli / 1000
+            });
+            setQuantityInputVal(String(lastItem.quantityMilli / 1000));
           }
         } else {
           showStatus('السلة فارغة. يرجى إضافة صنف أولاً لتعديل كميته', 'warning');
@@ -900,14 +907,8 @@ export const PosView = () => {
       // F4: Edit Discount
       if (e.key === 'F4') {
         e.preventDefault();
-        const discVal = window.prompt('أدخل قيمة الخصم المالي الإجمالي بالجنيه:', String(discountPiasters / 100));
-        if (discVal !== null) {
-          const num = parseFloat(normalizeArabicNumerals(discVal.trim()));
-          if (!isNaN(num) && num >= 0) {
-            setDiscountPiasters(Math.round(num * 100));
-            showStatus(`تم تطبيق خصم بقيمة ${num.toFixed(2)} ج.م`, 'success');
-          }
-        }
+        setDiscountInputEgp(discountPiasters > 0 ? (discountPiasters / 100).toFixed(2) : '');
+        setIsDiscountModalOpen(true);
         return;
       }
 
@@ -1554,14 +1555,14 @@ export const PosView = () => {
               const categories = Array.from(new Set(quickItems.map((i) => i.categoryName || 'عام')));
               if (categories.length === 0) categories.push('عام');
               return (
-                <div className="flex flex-wrap gap-1 bg-surface p-1 rounded border border-line mb-2 shrink-0 max-h-24 overflow-y-auto">
+                <div className="flex flex-wrap gap-1.5 bg-surface-2 p-1.5 rounded-lg border border-line mb-2 shrink-0 max-h-28 overflow-y-auto">
                   <button
                     key="__ALL__"
                     onClick={() => setActiveCategory('__ALL__')}
-                    className={`h-6 text-[10px] sm:text-[11px] font-bold rounded transition-all px-2.5 py-0.5 text-center cursor-pointer ${
+                    className={`h-7 text-[10px] sm:text-[11px] font-bold rounded-md transition-all px-2.5 py-0.5 text-center cursor-pointer border shadow-2xs flex items-center gap-1 ${
                       activeCategory === '__ALL__' 
-                        ? 'bg-brand text-white shadow-xs' 
-                        : 'text-ink-muted hover:text-brand hover:bg-brand-soft/50'
+                        ? 'bg-brand text-white border-brand shadow-xs ring-1 ring-brand/30' 
+                        : 'bg-surface text-slate-700 border-slate-300 hover:border-brand/70 hover:bg-brand-soft/50 hover:text-brand hover:-translate-y-0.5'
                     }`}
                   >
                     الكل ({quickItems.length})
@@ -1570,10 +1571,10 @@ export const PosView = () => {
                     <button
                       key={cat}
                       onClick={() => setActiveCategory(cat)}
-                      className={`h-6 text-[10px] sm:text-[11px] font-bold rounded transition-all px-2.5 py-0.5 text-center cursor-pointer ${
+                      className={`h-7 text-[10px] sm:text-[11px] font-bold rounded-md transition-all px-2.5 py-0.5 text-center cursor-pointer border shadow-2xs flex items-center gap-1 ${
                         activeCategory === cat 
-                          ? 'bg-brand text-white shadow-xs' 
-                          : 'text-ink-muted hover:text-brand hover:bg-brand-soft/50'
+                          ? 'bg-brand text-white border-brand shadow-xs ring-1 ring-brand/30' 
+                          : 'bg-surface text-slate-700 border-slate-300 hover:border-brand/70 hover:bg-brand-soft/50 hover:text-brand hover:-translate-y-0.5'
                       }`}
                     >
                       {cat}
@@ -1869,15 +1870,43 @@ export const PosView = () => {
             <span>بحث</span>
           </div>
           <span className="text-line">|</span>
-          <div className="flex items-center gap-1">
+          <button 
+            type="button"
+            onClick={() => {
+              if (cart.length > 0) {
+                const lastIdx = cart.length - 1;
+                const lastItem = cart[lastIdx];
+                if (lastItem.unit === 'kg') {
+                  openWeightEditorForCartItem(lastIdx);
+                } else {
+                  setQuantityModalItem({
+                    index: lastIdx,
+                    name: lastItem.productName,
+                    currentQty: lastItem.quantityMilli / 1000
+                  });
+                  setQuantityInputVal(String(lastItem.quantityMilli / 1000));
+                }
+              } else {
+                showStatus('السلة فارغة. يرجى إضافة صنف أولاً لتعديل كميته', 'warning');
+              }
+            }}
+            className="flex items-center gap-1 hover:text-brand transition-colors cursor-pointer"
+          >
             <span className="font-mono font-bold text-ink px-1.5 py-0.5 bg-surface border border-line rounded text-[10px]">F3</span>
             <span>كمية (+/-)</span>
-          </div>
+          </button>
           <span className="text-line">|</span>
-          <div className="flex items-center gap-1">
+          <button 
+            type="button"
+            onClick={() => {
+              setDiscountInputEgp(discountPiasters > 0 ? (discountPiasters / 100).toFixed(2) : '');
+              setIsDiscountModalOpen(true);
+            }}
+            className="flex items-center gap-1 hover:text-brand transition-colors cursor-pointer"
+          >
             <span className="font-mono font-bold text-ink px-1.5 py-0.5 bg-surface border border-line rounded text-[10px]">F4</span>
             <span>خصم</span>
-          </div>
+          </button>
           <span className="text-line">|</span>
           <div className="flex items-center gap-1">
             <span className="font-mono font-bold text-ink px-1.5 py-0.5 bg-surface border border-line rounded text-[10px]">F6</span>
@@ -2066,6 +2095,249 @@ export const PosView = () => {
         }}
         onProductCreated={handleQuickProductCreated}
       />
+
+      {/* 13. BRANDED DISCOUNT MODAL (Replacing window.prompt for F4) */}
+      {isDiscountModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-md p-5 animate-in fade-in zoom-in-95 duration-150 text-right select-none">
+            <div className="flex items-center justify-between mb-4 pb-2 hairline-b">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-700 flex items-center justify-center font-bold text-sm">
+                  %
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-ink m-0">تطبيق خصم مالي على الفاتورة</h3>
+                  <p className="text-[11px] text-ink-muted m-0">
+                    إجمالي السلة قبل الخصم: <span className="font-mono font-bold text-brand">{formatArabicCurrency(subtotalPiasters)}</span>
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => {
+                  setIsDiscountModalOpen(false);
+                  barcodeInputRef.current?.focus();
+                }}
+                className="text-ink-muted hover:text-ink p-1 rounded hover:bg-surface-2 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const num = parseFloat(normalizeArabicNumerals(discountInputEgp.trim()));
+                if (!isNaN(num) && num >= 0) {
+                  const maxAllowedPiasters = subtotalPiasters;
+                  const discountPiastersVal = Math.min(Math.round(num * 100), maxAllowedPiasters);
+                  setDiscountPiasters(discountPiastersVal);
+                  showStatus(discountPiastersVal > 0 ? `تم تطبيق خصم بقيمة ${(discountPiastersVal / 100).toFixed(2)} ج.م` : 'تم إلغاء الخصم', 'success');
+                }
+                setIsDiscountModalOpen(false);
+                barcodeInputRef.current?.focus();
+              }}
+            >
+              <label className="block text-xs font-bold text-ink-muted mb-1.5">
+                أدخل قيمة الخصم المالي بالجنيه (ج.م):
+              </label>
+              <div className="relative mb-3">
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="0.00"
+                  value={discountInputEgp}
+                  onChange={(e) => setDiscountInputEgp(normalizeArabicNumerals(e.target.value))}
+                  className="w-full text-center text-3xl font-mono font-bold text-brand bg-surface-2 border-2 border-brand/50 focus:border-brand rounded-lg p-3 text-ink focus:outline-none shadow-inner"
+                />
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-muted font-sans">
+                  جنيه مصري
+                </span>
+              </div>
+
+              {/* Quick Preset Buttons */}
+              <div className="mb-4">
+                <span className="block text-[11px] font-bold text-ink-muted mb-1.5">اختصارات سريعة للخصم:</span>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[5, 10, 20, 50].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setDiscountInputEgp(String(val))}
+                      className="h-8 rounded bg-surface border border-slate-300 hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-slate-700 text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
+                    >
+                      {val} ج.م
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const fivePct = Math.round(subtotalPiasters * 0.05) / 100;
+                      setDiscountInputEgp(fivePct.toFixed(2));
+                    }}
+                    className="h-8 rounded bg-surface border border-slate-300 hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-slate-700 text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
+                  >
+                    5%
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const tenPct = Math.round(subtotalPiasters * 0.10) / 100;
+                      setDiscountInputEgp(tenPct.toFixed(2));
+                    }}
+                    className="h-8 rounded bg-surface border border-slate-300 hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-slate-700 text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
+                  >
+                    10%
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDiscountInputEgp('0')}
+                    className="col-span-2 h-8 rounded bg-surface border border-slate-300 hover:border-danger hover:text-danger hover:bg-danger-soft/40 text-slate-700 text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
+                  >
+                    إلغاء الخصم (0 ج.م)
+                  </button>
+                </div>
+              </div>
+
+              {/* Real-time Preview */}
+              {(() => {
+                const parsed = parseFloat(normalizeArabicNumerals(discountInputEgp.trim())) || 0;
+                const piastersVal = Math.round(parsed * 100);
+                const previewNet = Math.max(0, subtotalPiasters - piastersVal);
+                return (
+                  <div className="p-2.5 rounded-lg bg-surface-2 border border-line flex items-center justify-between mb-4 text-xs font-bold">
+                    <span className="text-ink-muted">الصافي المطلوب بعد الخصم:</span>
+                    <span className="font-mono text-brand text-sm">{formatArabicCurrency(previewNet)}</span>
+                  </div>
+                );
+              })()}
+
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  className="flex-1 h-10 bg-brand hover:bg-brand-hover text-white font-bold rounded-lg transition-colors shadow-xs"
+                >
+                  تطبيق الخصم (Enter)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsDiscountModalOpen(false);
+                    barcodeInputRef.current?.focus();
+                  }}
+                  className="px-4 h-10 bg-surface hover:bg-surface-2 border border-line text-ink font-semibold rounded-lg transition-colors"
+                >
+                  إلغاء (Esc)
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 14. BRANDED QUANTITY MODAL (Replacing window.prompt for F3) */}
+      {quantityModalItem && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-sm p-5 animate-in fade-in zoom-in-95 duration-150 text-right select-none">
+            <div className="flex items-center justify-between mb-4 pb-2 hairline-b">
+              <div>
+                <h3 className="text-base font-bold text-ink m-0">تعديل كمية الصنف</h3>
+                <p className="text-[12px] font-bold text-brand m-0 truncate max-w-[260px]">
+                  {quantityModalItem.name}
+                </p>
+              </div>
+              <button 
+                type="button"
+                onClick={() => {
+                  setQuantityModalItem(null);
+                  barcodeInputRef.current?.focus();
+                }}
+                className="text-ink-muted hover:text-ink p-1 rounded hover:bg-surface-2 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const num = parseFloat(normalizeArabicNumerals(quantityInputVal.trim()));
+                if (!isNaN(num) && num > 0) {
+                  setDirectQuantity(quantityModalItem.index, num);
+                }
+                setQuantityModalItem(null);
+                barcodeInputRef.current?.focus();
+              }}
+            >
+              <label className="block text-xs font-bold text-ink-muted mb-1.5">
+                الكمية المطلوبة (عدد القطع):
+              </label>
+              <div className="flex items-center gap-2 mb-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const curr = parseFloat(quantityInputVal) || 1;
+                    if (curr > 1) setQuantityInputVal(String(curr - 1));
+                  }}
+                  className="w-11 h-11 rounded-lg bg-surface border border-slate-300 hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-ink font-bold text-lg flex items-center justify-center shadow-2xs"
+                >
+                  -
+                </button>
+                <input
+                  type="text"
+                  autoFocus
+                  value={quantityInputVal}
+                  onChange={(e) => setQuantityInputVal(normalizeArabicNumerals(e.target.value))}
+                  className="flex-1 h-11 text-center text-3xl font-mono font-bold text-brand bg-surface-2 border-2 border-brand/50 focus:border-brand rounded-lg text-ink focus:outline-none shadow-inner"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const curr = parseFloat(quantityInputVal) || 0;
+                    setQuantityInputVal(String(curr + 1));
+                  }}
+                  className="w-11 h-11 rounded-lg bg-surface border border-slate-300 hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-ink font-bold text-lg flex items-center justify-center shadow-2xs"
+                >
+                  +
+                </button>
+              </div>
+
+              {/* Quick Quantity Buttons */}
+              <div className="grid grid-cols-4 gap-1.5 mb-4">
+                {[1, 2, 3, 4, 5, 6, 10, 12].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setQuantityInputVal(String(n))}
+                    className="h-8 rounded bg-surface border border-slate-300 hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-slate-700 text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  className="flex-1 h-10 bg-brand hover:bg-brand-hover text-white font-bold rounded-lg transition-colors shadow-xs"
+                >
+                  تأكيد الكمية (Enter)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuantityModalItem(null);
+                    barcodeInputRef.current?.focus();
+                  }}
+                  className="px-4 h-10 bg-surface hover:bg-surface-2 border border-line text-ink font-semibold rounded-lg transition-colors"
+                >
+                  إلغاء (Esc)
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

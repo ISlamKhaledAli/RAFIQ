@@ -119,7 +119,7 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-ink/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in select-none">
-      <div className="bg-surface rounded-lg hairline-all shadow-xl w-full max-w-3xl flex flex-col max-h-[85vh] overflow-hidden">
+      <div className="bg-surface rounded-xl hairline-all shadow-2xl w-full max-w-5xl flex flex-col max-h-[88vh] overflow-hidden">
         {/* Header */}
         <div className="px-5 py-4 border-b border-line flex items-center justify-between bg-surface-2/60 shrink-0">
           <div className="flex items-center gap-2.5">
@@ -258,7 +258,7 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
                           {formatArabicCurrency(m.unitCostPiasters)}
                         </td>
 
-                        <td className="py-2.5 px-3 text-ink-muted text-[11px] max-w-xs truncate" title={m.note || ''}>
+                        <td className="py-2.5 px-3 text-ink-muted text-[11px] max-w-sm truncate" title={m.note || ''}>
                           {m.note ? (
                             <span>{m.note}</span>
                           ) : (

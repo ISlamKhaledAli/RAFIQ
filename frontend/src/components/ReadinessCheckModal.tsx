@@ -133,7 +133,7 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
         <div
-          className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden flex flex-col max-h-[92vh]"
+          className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden flex flex-col max-h-[92vh]"
           dir="rtl"
         >
           {/* Header with Readiness Percentage */}

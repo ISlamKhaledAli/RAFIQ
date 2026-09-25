@@ -20,13 +20,16 @@ import {
   PanelRightClose,
   PanelRightOpen,
   CheckCircle2,
+  Maximize2,
+  Minimize2,
   Store,
   HardDrive,
   Printer,
   Activity,
   Barcode,
   KeyRound,
-  FlaskConical
+  FlaskConical,
+  Power
 } from 'lucide-react';
 import { invoke } from './bridge/ipc';
 import { PosView } from './views/PosView';
@@ -42,6 +45,8 @@ import type { DatabaseIntegrityStatus } from './components/DatabaseRecoveryModal
 import { FirstRunWizardModal } from './components/FirstRunWizardModal';
 import { GuidedTourModal } from './components/GuidedTourModal';
 import { ReadinessCheckModal } from './components/ReadinessCheckModal';
+import { RafiqDialogContainer } from './components/RafiqDialog';
+import { rafiqConfirm } from './utils/dialogService';
 
 export interface SystemInfo {
   appName: string;
@@ -90,9 +95,9 @@ const HeaderClock: FC = memo(() => {
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('pos');
   const [productsSubView, setProductsSubView] = useState<'catalog' | 'movements'>('catalog');
-  const [isProductsMenuExpanded, setIsProductsMenuExpanded] = useState(true);
+  const [isProductsMenuExpanded, setIsProductsMenuExpanded] = useState(false);
   const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('profile');
-  const [isSettingsMenuExpanded, setIsSettingsMenuExpanded] = useState(true);
+  const [isSettingsMenuExpanded, setIsSettingsMenuExpanded] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem('rafiq_pos_sidebar_collapsed');
@@ -110,6 +115,33 @@ export default function App() {
   const [hasDemoData, setHasDemoData] = useState(false);
   const [isTourOpen, setIsTourOpen] = useState(false);
   const [isReadinessOpen, setIsReadinessOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(true);
+  const [storeName, setStoreName] = useState('رفيق POS');
+  const [cashierName, setCashierName] = useState('كاشير (1)');
+
+  const handleToggleFullscreen = async () => {
+    try {
+      const res = await invoke<{ isFullscreen: boolean }>('window:toggleFullscreen');
+      if (res && typeof res.isFullscreen === 'boolean') {
+        setIsFullscreen(res.isFullscreen);
+        return;
+      }
+    } catch {
+      // web preview fallback
+    }
+
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+        setIsFullscreen(true);
+      } else {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    } catch {
+      setIsFullscreen((prev) => !prev);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -137,6 +169,18 @@ export default function App() {
       }
     };
     void checkClock();
+
+    const checkFullscreen = async () => {
+      try {
+        const res = await invoke<{ isFullscreen: boolean }>('window:isFullscreen');
+        if (res && typeof res.isFullscreen === 'boolean' && isMounted) {
+          setIsFullscreen(res.isFullscreen);
+        }
+      } catch {
+        // web fallback
+      }
+    };
+    void checkFullscreen();
 
     const checkBackup = async () => {
       try {
@@ -184,51 +228,95 @@ export default function App() {
         // Ignore in dev
       }
     };
+    const checkSettings = async () => {
+      try {
+        const s: any = await invoke('settings:getAll');
+        if (s && isMounted) {
+          if (s.store_name) setStoreName(s.store_name);
+          if (s.cashier_name) setCashierName(s.cashier_name);
+        }
+      } catch {
+        // Ignore in dev
+      }
+    };
     void checkDemo();
+    void checkSettings();
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [activeTab]);
 
-  // Global F-keys shortcuts for switching tabs
+  // Global keyboard shortcuts for switching tabs and system actions
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      // Don't intercept if modifier keys are pressed
-      if (e.ctrlKey || e.altKey || e.shiftKey) return;
+      // 1. Alt + Number shortcuts for main system navigation (avoids any collision with POS cashier F-keys)
+      if (e.altKey && !e.ctrlKey && !e.shiftKey) {
+        if (e.key === '1') {
+          e.preventDefault();
+          setActiveTab('pos');
+        } else if (e.key === '2') {
+          e.preventDefault();
+          setActiveTab('dashboard');
+        } else if (e.key === '3') {
+          e.preventDefault();
+          setActiveTab('customers');
+        } else if (e.key === '4') {
+          e.preventDefault();
+          setActiveTab('products');
+          setIsProductsMenuExpanded(true);
+        } else if (e.key === '5') {
+          e.preventDefault();
+          setActiveTab('sales');
+        } else if (e.key === '6') {
+          e.preventDefault();
+          setActiveTab('audit');
+        } else if (e.key === '7') {
+          e.preventDefault();
+          setActiveTab('settings');
+          setIsSettingsMenuExpanded(true);
+        }
+        return;
+      }
 
-      if (e.key === 'F1') {
+      // 2. F11 for Fullscreen Toggle (always global)
+      if (e.key === 'F11') {
+        e.preventDefault();
+        void handleToggleFullscreen();
+        return;
+      }
+
+      // 3. If NOT on POS view, pressing F1 returns to POS view
+      if (e.key === 'F1' && activeTab !== 'pos') {
         e.preventDefault();
         setActiveTab('pos');
-      } else if (e.key === 'F2') {
-        // Only switch to dashboard if not currently in POS with cart
-        // But POS handles F2 internally if focused on POS
-      } else if (e.key === 'F4') {
-        e.preventDefault();
-        setActiveTab('customers');
-      } else if (e.key === 'F6') {
-        e.preventDefault();
-        setActiveTab('products');
-        setIsProductsMenuExpanded(true);
-      } else if (e.key === 'F7') {
-        e.preventDefault();
-        setActiveTab('sales');
-      } else if (e.key === 'F8') {
-        e.preventDefault();
-        setActiveTab('settings');
-        setIsSettingsMenuExpanded(true);
-      } else if (e.key === 'F10') {
-        e.preventDefault();
-        setActiveTab('audit');
+        return;
       }
     };
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, []);
+  }, [activeTab]);
+
+  const handleExitApp = async () => {
+    const confirmed = await rafiqConfirm({
+      title: 'إغلاق البرنامج والخروج',
+      message: 'هل تريد حقاً إغلاق نظام رفيق والخروج؟\nسيتم حفظ وتأمين كافة بيانات العمليات والنسخ الاحتياطي تلقائياً.',
+      confirmText: 'نعم، إغلاق البرنامج',
+      cancelText: 'إلغاء واستمرار العمل',
+      variant: 'danger',
+    });
+    if (confirmed) {
+      try {
+        await invoke('window:close');
+      } catch {
+        window.close();
+      }
+    }
+  };
 
   const settingsTreeItems = [
-    { id: 'profile' as SettingsSubTab, label: 'بيانات المحل والفاتورة', icon: Store },
+    { id: 'profile' as SettingsSubTab, label: 'بيانات المتجر والفاتورة', icon: Store },
     { id: 'backup' as SettingsSubTab, label: 'النسخ الاحتياطي وحماية البيانات', icon: HardDrive },
     { id: 'printer' as SettingsSubTab, label: 'إعدادات الطابعة والورق', icon: Printer },
     { id: 'system' as SettingsSubTab, label: 'مفاتيح الميزات وفحص النظام', icon: Activity },
@@ -238,13 +326,13 @@ export default function App() {
   ];
 
   const navItems = [
-    { id: 'pos' as TabType, label: 'نقطة البيع (POS)', icon: ShoppingCart, shortcut: 'F1' },
-    { id: 'dashboard' as TabType, label: 'لوحة اليوم والمتابعة', icon: LayoutDashboard, shortcut: 'لوحة' },
-    { id: 'customers' as TabType, label: 'العملاء والآجل', icon: Users, shortcut: 'F4' },
-    { id: 'products' as TabType, label: 'السلع والمخزن', icon: Package, shortcut: 'F6' },
-    { id: 'sales' as TabType, label: 'سجل الفواتير', icon: FileText, shortcut: 'F7' },
-    { id: 'audit' as TabType, label: 'سجل العمليات الحساسة', icon: ShieldAlert, shortcut: 'F10' },
-    { id: 'settings' as TabType, label: 'إعدادات المحل والصيانة', icon: Settings, shortcut: 'F8' },
+    { id: 'pos' as TabType, label: 'نقطة البيع (POS)', icon: ShoppingCart, shortcut: 'F1 / Alt+1' },
+    { id: 'dashboard' as TabType, label: 'لوحة اليوم والمتابعة', icon: LayoutDashboard, shortcut: 'Alt+2' },
+    { id: 'customers' as TabType, label: 'العملاء والآجل', icon: Users, shortcut: 'Alt+3' },
+    { id: 'products' as TabType, label: 'السلع والمخزن', icon: Package, shortcut: 'Alt+4' },
+    { id: 'sales' as TabType, label: 'سجل الفواتير', icon: FileText, shortcut: 'Alt+5' },
+    { id: 'audit' as TabType, label: 'سجل العمليات الحساسة', icon: ShieldAlert, shortcut: 'Alt+6' },
+    { id: 'settings' as TabType, label: 'إعدادات المتجر والصيانة', icon: Settings, shortcut: 'Alt+7' },
   ];
 
   return (
@@ -259,8 +347,8 @@ export default function App() {
             className="w-8 h-8 object-contain drop-shadow-sm" 
           />
           <div>
-            <h1 className="text-[17px] font-bold text-ink leading-tight m-0">سوبرماركت رفيق</h1>
-            <p className="text-[11px] text-ink-muted m-0 mt-0.5">نظام نقاط البيع وإدارة السوبرماركت</p>
+            <h1 className="text-[17px] font-bold text-ink leading-tight m-0">{storeName || 'رفيق POS'}</h1>
+            <p className="text-[11px] text-ink-muted m-0 mt-0.5">نظام نقاط البيع وإدارة المتاجر</p>
           </div>
         </div>
 
@@ -276,7 +364,7 @@ export default function App() {
           {/* Cashier Badge */}
           <div className="flex items-center gap-1.5 bg-surface-2 border border-line px-2.5 py-1 rounded text-ink text-[11px]">
             <User className="w-3.5 h-3.5 text-ink-muted" />
-            <span className="font-medium">كاشير الوردية (1)</span>
+            <span className="font-medium">{cashierName || 'كاشير (1)'}</span>
           </div>
 
           {/* Readiness Checklist Button (Feature #137) */}
@@ -288,6 +376,26 @@ export default function App() {
           >
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
             <span>جاهزية التشغيل</span>
+          </button>
+
+          {/* Fullscreen Kiosk Mode Toggle */}
+          <button
+            type="button"
+            onClick={handleToggleFullscreen}
+            className="flex items-center gap-1.5 bg-surface-2 hover:bg-brand-soft hover:text-brand border border-line px-2.5 py-1 rounded text-ink text-[11px] font-medium transition-colors shadow-xs"
+            title={isFullscreen ? 'الخروج من ملء الشاشة (F11)' : 'ملء الشاشة بالكامل وإخفاء شريط ويندوز (F11)'}
+          >
+            {isFullscreen ? (
+              <>
+                <Minimize2 className="w-3.5 h-3.5 text-ink-muted" />
+                <span className="hidden sm:inline">نافذة عادية</span>
+              </>
+            ) : (
+              <>
+                <Maximize2 className="w-3.5 h-3.5 text-brand" />
+                <span className="hidden sm:inline">ملء الشاشة</span>
+              </>
+            )}
           </button>
 
           {/* Date & Time (Isolated Component) */}
@@ -377,15 +485,43 @@ export default function App() {
         {/* Navigation Sidebar (RTL Right side, Responsive Collapsible: 64px collapsed / 220px expanded) */}
         <aside 
           className={`${
-            isSidebarCollapsed ? 'w-[64px] px-1 py-2 items-center' : 'w-[220px] p-3'
-          } bg-surface hairline-l flex flex-col justify-between shrink-0 select-none transition-all duration-150`}
+            isSidebarCollapsed ? 'w-[64px] px-1 py-2 items-center' : 'w-[225px] p-3'
+          } bg-surface hairline-l flex flex-col shrink-0 select-none transition-all duration-150 h-full min-h-0 overflow-hidden`}
         >
-          <nav className="flex flex-col gap-1.5 w-full">
+          {/* Top Header of Sidebar: Title + Toggle Icon Button */}
+          <div className={`w-full flex items-center mb-2 pb-2 border-b border-line shrink-0 ${
+            isSidebarCollapsed ? 'justify-center' : 'justify-between px-1'
+          }`}>
             {!isSidebarCollapsed && (
-              <div className="px-2 py-1 text-[11px] font-bold text-ink-muted uppercase tracking-wider">
+              <span className="text-[11px] font-bold text-ink-muted uppercase tracking-wider">
                 القوائم الرئيسية
-              </div>
+              </span>
             )}
+            <button
+              type="button"
+              onClick={() => {
+                setIsSidebarCollapsed((prev) => {
+                  const next = !prev;
+                  try {
+                    localStorage.setItem('rafiq_pos_sidebar_collapsed', String(next));
+                  } catch {
+                    // ignore
+                  }
+                  return next;
+                });
+              }}
+              title={isSidebarCollapsed ? 'توسيع القائمة الجانبية' : 'تصغير القائمة الجانبية'}
+              className="w-7 h-7 rounded-md flex items-center justify-center text-ink-muted hover:text-brand hover:bg-brand-soft/70 transition-colors"
+            >
+              {isSidebarCollapsed ? (
+                <PanelRightOpen className="w-4 h-4 text-brand" />
+              ) : (
+                <PanelRightClose className="w-4 h-4 text-ink-muted hover:text-brand" />
+              )}
+            </button>
+          </div>
+
+          <nav className="flex-1 flex flex-col gap-1.5 w-full overflow-y-auto overflow-x-hidden min-h-0 py-0.5">
 
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -526,6 +662,7 @@ export default function App() {
                           <button
                             key={sub.id}
                             type="button"
+                            title={sub.label}
                             onClick={() => {
                               setActiveTab('settings');
                               setSettingsSubTab(sub.id);
@@ -553,33 +690,24 @@ export default function App() {
             })}
           </nav>
 
-          {/* Sidebar Collapse/Expand Toggle Button (Task 159-2) */}
-          <div className="pt-2 border-t border-line w-full flex items-center justify-center">
+          {/* Bottom Exit App Button */}
+          <div className="pt-2 mt-auto border-t border-line shrink-0 w-full">
             <button
               type="button"
-              onClick={() => {
-                setIsSidebarCollapsed((prev) => {
-                  const next = !prev;
-                  try {
-                    localStorage.setItem('rafiq_pos_sidebar_collapsed', String(next));
-                  } catch {
-                    // ignore
-                  }
-                  return next;
-                });
-              }}
-              title={isSidebarCollapsed ? 'توسيع القائمة الجانبية' : 'تصغير القائمة (توفير مساحة 1024x768)'}
-              className={`w-full h-[36px] rounded flex items-center justify-center gap-2 text-ink-muted hover:text-ink hover:bg-surface-2 transition-colors text-[11px] ${
-                isSidebarCollapsed ? 'px-1' : 'px-2.5'
+              onClick={() => void handleExitApp()}
+              title="إغلاق البرنامج والخروج بأمان"
+              className={`w-full rounded-xl transition-all duration-150 flex items-center gap-2.5 font-bold ${
+                isSidebarCollapsed
+                  ? 'h-[44px] justify-center text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-transparent hover:border-rose-200'
+                  : 'px-3 py-2.5 text-xs text-rose-600 hover:text-rose-700 bg-rose-50/60 hover:bg-rose-100/80 dark:bg-rose-950/30 dark:hover:bg-rose-950/60 border border-rose-200/80 dark:border-rose-900/50 shadow-xs'
               }`}
             >
-              {isSidebarCollapsed ? (
-                <PanelRightOpen className="w-4 h-4 text-brand" />
-              ) : (
-                <>
-                  <PanelRightClose className="w-4 h-4 text-ink-muted" />
-                  <span className="font-semibold">تصغير القائمة (1024×768)</span>
-                </>
+              <Power className="w-4 h-4 text-rose-600 shrink-0" />
+              {!isSidebarCollapsed && (
+                <div className="flex items-center justify-between flex-1 min-w-0">
+                  <span className="truncate">إغلاق البرنامج</span>
+                  <span className="font-mono text-[10px] text-rose-400 bg-rose-100/80 dark:bg-rose-900/40 px-1.5 py-0.5 rounded">خروج</span>
+                </div>
               )}
             </button>
           </div>
@@ -649,6 +777,9 @@ export default function App() {
           setActiveTab(tab as TabType);
         }}
       />
+
+      {/* Global Rafiq Custom Dialog Modal System */}
+      <RafiqDialogContainer />
     </div>
   );
 }

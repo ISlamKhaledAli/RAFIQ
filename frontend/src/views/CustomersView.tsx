@@ -24,6 +24,7 @@ import {
 import { invoke } from '../bridge/ipc';
 import { MoneyInput } from '../components/MoneyInput';
 import { normalizeArabicNumerals } from '../utils/money';
+import { rafiqConfirm, rafiqAlert } from '../utils/dialogService';
 import type { Customer, CustomerLedgerEntry, CustomerImportPreviewResult, CustomerImportResult, CustomerBalanceVerification } from '../types/models';
 
 export function CustomersView() {
@@ -278,9 +279,13 @@ export function CustomersView() {
     if (!name.trim()) return;
 
     if (duplicateCustomer) {
-      const confirmProceed = window.confirm(
-        `تنبيه تكرار رقم الهاتف:\nرقم الهاتف (${phone}) مسجل بالفعل للعميل «${duplicateCustomer.name}» برصيد (${(duplicateCustomer.balancePiasters / 100).toFixed(2)} ج.م).\n\nهل تريد تأكيد حفظ عميل جديد بنفس رقم الهاتف؟`
-      );
+      const confirmProceed = await rafiqConfirm({
+        title: 'تنبيه تكرار رقم الهاتف',
+        message: `رقم الهاتف (${phone}) مسجل بالفعل للعميل «${duplicateCustomer.name}» برصيد (${(duplicateCustomer.balancePiasters / 100).toFixed(2)} ج.م).\n\nهل تريد تأكيد حفظ عميل جديد بنفس رقم الهاتف؟`,
+        confirmText: 'نعم، حفظ العميل',
+        cancelText: 'إلغاء',
+        variant: 'warning',
+      });
       if (!confirmProceed) return;
     }
 
@@ -298,7 +303,11 @@ export function CustomersView() {
       setDuplicateCustomer(null);
       void loadCustomers();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'تعذر حفظ العميل');
+      void rafiqAlert({
+        title: 'فشل حفظ العميل',
+        message: err instanceof Error ? err.message : 'تعذر حفظ العميل',
+        variant: 'error',
+      });
     }
   };
 
@@ -323,7 +332,11 @@ export function CustomersView() {
       setIsPaymentOpen(false);
       void loadCustomers();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'تعذر تسجيل السداد');
+      void rafiqAlert({
+        title: 'فشل تسجيل السداد',
+        message: err instanceof Error ? err.message : 'تعذر تسجيل السداد',
+        variant: 'error',
+      });
     }
   };
 
@@ -466,7 +479,11 @@ export function CustomersView() {
       setCancelReasonPreset('سجلت بالخطأ');
       void loadCustomers();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'تعذر إلغاء دفعة السداد');
+      void rafiqAlert({
+        title: 'فشل إلغاء دفعة السداد',
+        message: err instanceof Error ? err.message : 'تعذر إلغاء دفعة السداد',
+        variant: 'error',
+      });
     } finally {
       setIsCancellingPayment(false);
     }
@@ -545,22 +562,34 @@ export function CustomersView() {
 
         <div className="flex items-center gap-3">
           {/* Filters */}
-          <div className="flex items-center bg-surface-2 p-0.5 rounded border border-line text-xs">
+          <div className="flex items-center gap-1 bg-surface-2 p-1 rounded-lg border border-line text-xs">
             <button
               onClick={() => setFilterType('all')}
-              className={`px-3 py-1 rounded font-medium ${filterType === 'all' ? 'bg-surface shadow-xs text-ink font-bold' : 'text-ink-muted hover:text-ink'}`}
+              className={`px-3 py-1 rounded-md text-[11.5px] font-bold transition-all shadow-2xs border ${
+                filterType === 'all' 
+                  ? 'bg-brand text-white border-brand shadow-xs' 
+                  : 'bg-surface text-slate-700 border-slate-300 hover:border-brand/70 hover:text-brand hover:bg-brand-soft/40'
+              }`}
             >
               الكل ({customers.length})
             </button>
             <button
               onClick={() => setFilterType('debtors')}
-              className={`px-3 py-1 rounded font-medium ${filterType === 'debtors' ? 'bg-danger-soft text-danger font-bold' : 'text-ink-muted hover:text-ink'}`}
+              className={`px-3 py-1 rounded-md text-[11.5px] font-bold transition-all shadow-2xs border ${
+                filterType === 'debtors' 
+                  ? 'bg-danger text-white border-danger shadow-xs' 
+                  : 'bg-surface text-slate-700 border-slate-300 hover:border-danger/70 hover:text-danger hover:bg-danger-soft/40'
+              }`}
             >
               عليهم دين ({debtorsCount})
             </button>
             <button
               onClick={() => setFilterType('settled')}
-              className={`px-3 py-1 rounded font-medium ${filterType === 'settled' ? 'bg-surface shadow-xs text-ink font-bold' : 'text-ink-muted hover:text-ink'}`}
+              className={`px-3 py-1 rounded-md text-[11.5px] font-bold transition-all shadow-2xs border ${
+                filterType === 'settled' 
+                  ? 'bg-paid text-white border-paid shadow-xs' 
+                  : 'bg-surface text-slate-700 border-slate-300 hover:border-paid/70 hover:text-paid hover:bg-paid-soft/40'
+              }`}
             >
               مسددون ({customers.length - debtorsCount})
             </button>
@@ -723,7 +752,7 @@ export function CustomersView() {
       {/* ========================================================================= */}
       {isAddEditOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-surface rounded-lg shadow-xl border border-line w-full max-w-md max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="h-12 bg-surface-2 hairline-b px-4 flex items-center justify-between shrink-0">
               <span className="text-sm font-bold text-ink">
                 {editingCustomer ? 'تعديل بيانات العميل' : 'إضافة عميل جديد بالدفتر'}
@@ -925,7 +954,7 @@ export function CustomersView() {
       {/* ========================================================================= */}
       {isStatementOpen && selectedCustomer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-surface rounded-lg shadow-xl border border-line w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             {/* Header */}
             <div className="h-12 bg-surface-2 hairline-b px-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
@@ -1323,7 +1352,7 @@ export function CustomersView() {
       {/* ========================================================================= */}
       {isPrintStatementOpen && selectedCustomer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-surface rounded-lg shadow-2xl border border-line w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             {/* Header with Mode Toggle & Actions */}
             <div className="h-12 bg-surface-2 hairline-b px-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
@@ -1368,7 +1397,7 @@ export function CustomersView() {
               >
                 {/* Store Header */}
                 <div className="text-center pb-3 border-b border-black mb-3">
-                  <h2 className="text-base font-extrabold tracking-wide mb-0.5">رفيق لنقاط البيع والسوبرماركت</h2>
+                  <h2 className="text-base font-extrabold tracking-wide mb-0.5">رفيق لنقاط البيع وإدارة المتاجر</h2>
                   <p className="text-[11px] text-neutral-600 font-semibold">كشف حساب عميل تفصيلي</p>
                   <p className="text-[10px] text-neutral-500 font-mono mt-0.5">
                     تاريخ الاستخراج: {new Date().toLocaleString('ar-EG')}
@@ -1499,7 +1528,7 @@ export function CustomersView() {
       {/* 9. EXCEL IMPORT MODAL (Story 71 / Feature #109 / Task 109-3) */}
       {isImportModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-surface border border-line rounded-lg shadow-2xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in duration-200">
+          <div className="bg-surface border border-line rounded-xl shadow-2xl max-w-5xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in duration-200">
             {/* Modal Header */}
             <div className="h-14 px-5 bg-surface-2 hairline-b flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">

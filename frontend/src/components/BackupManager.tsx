@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { DatabaseRecoveryModal } from './DatabaseRecoveryModal';
+import { rafiqAlert } from '../utils/dialogService';
 
 interface BackupFileInfo {
   fileName: string;
@@ -176,7 +177,11 @@ export const BackupManager = () => {
       await fetchBackupStatus();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      alert(`فشل حفظ إعدادات النسخ: ${msg}`);
+      void rafiqAlert({
+        title: 'فشل حفظ إعدادات النسخ الاحتياطي',
+        message: `فشل حفظ إعدادات النسخ: ${msg}`,
+        variant: 'error',
+      });
     }
   };
 

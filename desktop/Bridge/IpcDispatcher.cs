@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Windows.Forms;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using RafiqPOS.Common;
@@ -63,6 +64,32 @@ namespace RafiqPOS.Bridge
 
                     case "system:ping":
                         return BridgeResponse.Ok(request.Id, new { timestamp = DateTime.UtcNow.ToString("o") });
+
+                    case "window:toggleFullscreen":
+                        if (RafiqPOS.MainForm.Instance != null)
+                        {
+                            RafiqPOS.MainForm.Instance.ToggleFullscreen();
+                            return BridgeResponse.Ok(request.Id, new { isFullscreen = RafiqPOS.MainForm.Instance.IsFullscreen() });
+                        }
+                        return BridgeResponse.Ok(request.Id, new { isFullscreen = true });
+
+                    case "window:isFullscreen":
+                        bool isFs = RafiqPOS.MainForm.Instance != null && RafiqPOS.MainForm.Instance.IsFullscreen();
+                        return BridgeResponse.Ok(request.Id, new { isFullscreen = isFs });
+
+                    case "window:minimize":
+                        if (RafiqPOS.MainForm.Instance != null)
+                        {
+                            RafiqPOS.MainForm.Instance.Invoke(new Action(delegate { RafiqPOS.MainForm.Instance.WindowState = FormWindowState.Minimized; }));
+                        }
+                        return BridgeResponse.Ok(request.Id, new { success = true });
+
+                    case "window:close":
+                        if (RafiqPOS.MainForm.Instance != null)
+                        {
+                            RafiqPOS.MainForm.Instance.Invoke(new Action(delegate { RafiqPOS.MainForm.Instance.Close(); }));
+                        }
+                        return BridgeResponse.Ok(request.Id, new { success = true });
 
                     case "products:getAll":
                         int limit = 100;

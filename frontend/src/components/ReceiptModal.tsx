@@ -17,13 +17,36 @@ export function ReceiptModal({
   isOpen,
   onClose,
   sale,
-  storeName = 'سوبرماركت رفيق',
-  storePhone = '01012345678',
-  storeAddress = 'جمهورية مصر العربية',
-  receiptFooter = 'شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل خلال 14 يوم'
+  storeName = 'متجر رفيق',
+  storePhone = '',
+  storeAddress = '',
+  receiptFooter = 'شكراً لتعاملكم معنا! البضاعة المباعة ترد وتستبدل وفقاً لسياسة المتجر.'
 }: ReceiptModalProps) {
   const [isPrinting, setIsPrinting] = useState(false);
   const [printStatus, setPrintStatus] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [liveSettings, setLiveSettings] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+    (async () => {
+      try {
+        const s = await invoke<Record<string, string>>('settings:getAll');
+        if (active && s) setLiveSettings(s);
+      } catch {
+        // fallback
+      }
+    })();
+    return () => { active = false; };
+  }, [isOpen]);
+
+  const activeStoreName = liveSettings.store_name || storeName;
+  const activePhone = liveSettings.store_phone || storePhone;
+  const activeAddress = liveSettings.store_address || storeAddress;
+  const activeTaxNumber = liveSettings.tax_number || '';
+  const activeHeader = liveSettings.receipt_header || '';
+  const activeFooter = liveSettings.receipt_footer || receiptFooter;
+  const activeCashier = liveSettings.cashier_name || 'كاشير (1)';
 
   const handlePrint = useCallback(async () => {
     if (!sale || isPrinting) return;
@@ -119,10 +142,11 @@ export function ReceiptModal({
             dir="rtl"
           >
             {/* Header */}
-            <div className="text-center font-bold text-[15px] pb-0.5 text-black font-sans">{storeName}</div>
-            <div className="text-center text-[10px] text-gray-700">{storeAddress}</div>
-            <div className="text-center text-[10px] text-gray-700">ت: {storePhone}</div>
-            <div className="text-center text-[10px] text-gray-700">الرقم الضريبي: 100-245-890</div>
+            <div className="text-center font-bold text-[15px] pb-0.5 text-black font-sans">{activeStoreName}</div>
+            {activeAddress && <div className="text-center text-[10px] text-gray-700">{activeAddress}</div>}
+            {activePhone && <div className="text-center text-[10px] text-gray-700">ت: {activePhone}</div>}
+            {activeTaxNumber && <div className="text-center text-[10px] text-gray-700">الرقم الضريبي: {activeTaxNumber}</div>}
+            {activeHeader && <div className="text-center text-[10.5px] font-semibold text-gray-800 my-0.5">{activeHeader}</div>}
 
             {/* Dotted Divider */}
             <div className="border-t border-dotted border-black my-2"></div>
@@ -133,7 +157,7 @@ export function ReceiptModal({
               <span>التاريخ: {formattedDate}</span>
             </div>
             <div className="flex justify-between text-[10px] font-sans">
-              <span>الكاشير: كاشير 1</span>
+              <span>الكاشير: {activeCashier}</span>
               <span>الوقت: {formattedTime}</span>
             </div>
             {sale.customerId && (
@@ -216,7 +240,7 @@ export function ReceiptModal({
 
             {/* Footer and Simulated Barcode */}
             <div className="text-center space-y-1">
-              <div className="text-[10px] text-gray-700 font-sans">{receiptFooter}</div>
+              <div className="text-[10px] text-gray-700 font-sans">{activeFooter}</div>
               <div className="py-1">
                 <div className="inline-block tracking-[4px] font-mono text-[14px] font-bold text-black border-y border-black px-3 py-0.5">
                   ||||| | |||| || |||||

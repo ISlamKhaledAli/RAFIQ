@@ -44,7 +44,7 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-surface rounded-xl border hairline-all shadow-2xl max-w-2xl w-full flex flex-col overflow-hidden text-right animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-surface rounded-xl border hairline-all shadow-2xl max-w-4xl max-h-[90vh] w-full flex flex-col overflow-hidden text-right animate-in fade-in zoom-in-95 duration-150">
         
         {/* Header */}
         <div className="px-6 py-4 bg-surface-2 hairline-b flex items-center justify-between">

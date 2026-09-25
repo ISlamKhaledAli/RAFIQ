@@ -30,7 +30,7 @@ namespace RafiqPOS.Services
                 // 1. Title Banner (Row 1)
                 ws.Range("A1:L1").Merge();
                 var titleCell = ws.Cell("A1");
-                titleCell.Value = "رفيق لنقاط البيع وإدارة السوبرماركت (Rafiq POS) - نموذج استيراد الأصناف المعتمد";
+                titleCell.Value = "رفيق POS - نموذج استيراد الأصناف المعتمد للمتاجر";
                 titleCell.Style.Font.Bold = true;
                 titleCell.Style.Font.FontSize = 13;
                 titleCell.Style.Font.FontColor = XLColor.White;
@@ -221,7 +221,7 @@ namespace RafiqPOS.Services
                 ws.Range("A2:N2").Merge();
                 var metaCell = ws.Cell("A2");
                 metaCell.Value = string.Format(
-                    "تاريخ التصدير: {0} | إجمالي الأصناف المسجلة: {1} صنف | نظام رفيق لإدارة السوبرماركت والمخازن",
+                    "تاريخ التصدير: {0} | إجمالي الأصناف المسجلة: {1} صنف | نظام رفيق لإدارة المبيعات والمخازن",
                     DateTime.Now.ToString("yyyy/MM/dd HH:mm"),
                     products.Count
                 );
@@ -423,7 +423,7 @@ namespace RafiqPOS.Services
                 // 1. Title Banner
                 ws.Range("A1:E1").Merge();
                 var titleCell = ws.Cell("A1");
-                titleCell.Value = "رفيق لنقاط البيع وإدارة السوبرماركت (Rafiq POS) - نموذج استيراد بيانات العملاء والديون الافتتاحية";
+                titleCell.Value = "رفيق POS - نموذج استيراد بيانات العملاء والديون الافتتاحية للمتاجر";
                 titleCell.Style.Font.Bold = true;
                 titleCell.Style.Font.FontSize = 13;
                 titleCell.Style.Font.FontColor = XLColor.White;

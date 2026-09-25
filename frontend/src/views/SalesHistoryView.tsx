@@ -346,47 +346,57 @@ export const SalesHistoryView = () => {
         </div>
 
         {/* Date Filter Pills */}
-        <div className="flex items-center gap-1 bg-surface-2 p-1 rounded hairline-all text-xs">
+        <div className="flex items-center gap-1.5 bg-surface-2 p-1 rounded-lg border border-line text-xs">
           <button
             onClick={() => setDateFilter('all')}
-            className={`px-2.5 py-1 rounded font-semibold transition-colors ${
-              dateFilter === 'all' ? 'bg-surface text-brand shadow-xs' : 'text-ink-muted hover:text-ink'
+            className={`px-3 py-1 rounded-md text-[11.5px] font-bold transition-all shadow-2xs border ${
+              dateFilter === 'all' 
+                ? 'bg-brand text-white border-brand shadow-xs' 
+                : 'bg-surface text-slate-700 border-slate-300 hover:border-brand/70 hover:text-brand hover:bg-brand-soft/40'
             }`}
           >
             الكل
           </button>
           <button
             onClick={() => setDateFilter('today')}
-            className={`px-2.5 py-1 rounded font-semibold transition-colors ${
-              dateFilter === 'today' ? 'bg-surface text-brand shadow-xs' : 'text-ink-muted hover:text-ink'
+            className={`px-3 py-1 rounded-md text-[11.5px] font-bold transition-all shadow-2xs border ${
+              dateFilter === 'today' 
+                ? 'bg-brand text-white border-brand shadow-xs' 
+                : 'bg-surface text-slate-700 border-slate-300 hover:border-brand/70 hover:text-brand hover:bg-brand-soft/40'
             }`}
           >
             اليوم
           </button>
           <button
             onClick={() => setDateFilter('yesterday')}
-            className={`px-2.5 py-1 rounded font-semibold transition-colors ${
-              dateFilter === 'yesterday' ? 'bg-surface text-brand shadow-xs' : 'text-ink-muted hover:text-ink'
+            className={`px-3 py-1 rounded-md text-[11.5px] font-bold transition-all shadow-2xs border ${
+              dateFilter === 'yesterday' 
+                ? 'bg-brand text-white border-brand shadow-xs' 
+                : 'bg-surface text-slate-700 border-slate-300 hover:border-brand/70 hover:text-brand hover:bg-brand-soft/40'
             }`}
           >
             الأمس
           </button>
           <button
             onClick={() => setDateFilter('week')}
-            className={`px-2.5 py-1 rounded font-semibold transition-colors ${
-              dateFilter === 'week' ? 'bg-surface text-brand shadow-xs' : 'text-ink-muted hover:text-ink'
+            className={`px-3 py-1 rounded-md text-[11.5px] font-bold transition-all shadow-2xs border ${
+              dateFilter === 'week' 
+                ? 'bg-brand text-white border-brand shadow-xs' 
+                : 'bg-surface text-slate-700 border-slate-300 hover:border-brand/70 hover:text-brand hover:bg-brand-soft/40'
             }`}
           >
             آخر 7 أيام
           </button>
           <button
             onClick={() => setDateFilter('custom')}
-            className={`px-2 py-1 rounded font-semibold flex items-center gap-1 transition-colors ${
-              dateFilter === 'custom' ? 'bg-surface text-brand shadow-xs' : 'text-ink-muted hover:text-ink'
+            className={`px-2.5 py-1 rounded-md text-[11.5px] font-bold flex items-center gap-1 transition-all shadow-2xs border ${
+              dateFilter === 'custom' 
+                ? 'bg-brand text-white border-brand shadow-xs' 
+                : 'bg-surface text-slate-700 border-slate-300 hover:border-brand/70 hover:text-brand hover:bg-brand-soft/40'
             }`}
             title="تحديد تاريخ معين"
           >
-            <Calendar className="w-3 h-3" />
+            <Calendar className="w-3.5 h-3.5" />
             <span>تاريخ</span>
           </button>
         </div>
@@ -397,40 +407,48 @@ export const SalesHistoryView = () => {
             type="date"
             value={customDate}
             onChange={(e) => setCustomDate(e.target.value)}
-            className="h-8 px-2 text-xs bg-canvas rounded border border-line text-ink focus:outline-none focus:border-brand font-mono"
+            className="h-8 px-2.5 text-xs bg-surface rounded-md border border-brand text-ink focus:outline-none focus:ring-1 focus:ring-brand font-mono shadow-2xs"
           />
         )}
 
         {/* Status Filter Pills (Task 133-2) */}
-        <div className="flex items-center gap-1 bg-surface-2 p-1 rounded hairline-all text-xs">
+        <div className="flex items-center gap-1.5 bg-surface-2 p-1 rounded-lg border border-line text-xs">
           <button
             onClick={() => setStatusFilter('all')}
-            className={`px-2.5 py-1 rounded font-semibold transition-colors ${
-              statusFilter === 'all' ? 'bg-surface text-ink shadow-xs' : 'text-ink-muted hover:text-ink'
+            className={`px-3 py-1 rounded-md text-[11.5px] font-bold transition-all shadow-2xs border ${
+              statusFilter === 'all' 
+                ? 'bg-brand text-white border-brand shadow-xs' 
+                : 'bg-surface text-slate-700 border-slate-300 hover:border-brand/70 hover:text-brand hover:bg-brand-soft/40'
             }`}
           >
             كافة الحالات
           </button>
           <button
             onClick={() => setStatusFilter('completed')}
-            className={`px-2.5 py-1 rounded font-semibold transition-colors ${
-              statusFilter === 'completed' ? 'bg-paid text-white shadow-xs' : 'text-ink-muted hover:text-ink'
+            className={`px-3 py-1 rounded-md text-[11.5px] font-bold transition-all shadow-2xs border ${
+              statusFilter === 'completed' 
+                ? 'bg-paid text-white border-paid shadow-xs' 
+                : 'bg-surface text-slate-700 border-slate-300 hover:border-paid/70 hover:text-paid hover:bg-paid-soft/40'
             }`}
           >
             سليمة
           </button>
           <button
             onClick={() => setStatusFilter('cancelled')}
-            className={`px-2.5 py-1 rounded font-semibold transition-colors ${
-              statusFilter === 'cancelled' ? 'bg-danger text-white shadow-xs' : 'text-ink-muted hover:text-ink'
+            className={`px-3 py-1 rounded-md text-[11.5px] font-bold transition-all shadow-2xs border ${
+              statusFilter === 'cancelled' 
+                ? 'bg-danger text-white border-danger shadow-xs' 
+                : 'bg-surface text-slate-700 border-slate-300 hover:border-danger/70 hover:text-danger hover:bg-danger-soft/40'
             }`}
           >
             ملغاة
           </button>
           <button
             onClick={() => setStatusFilter('refunded')}
-            className={`px-2.5 py-1 rounded font-semibold transition-colors ${
-              statusFilter === 'refunded' ? 'bg-warning text-white shadow-xs' : 'text-ink-muted hover:text-ink'
+            className={`px-3 py-1 rounded-md text-[11.5px] font-bold transition-all shadow-2xs border ${
+              statusFilter === 'refunded' 
+                ? 'bg-amber-600 text-white border-amber-600 shadow-xs' 
+                : 'bg-surface text-slate-700 border-slate-300 hover:border-amber-600/70 hover:text-amber-700 hover:bg-amber-50'
             }`}
           >
             مرتجع
@@ -570,7 +588,7 @@ export const SalesHistoryView = () => {
       {/* 4. Full Invoice Details Modal (Task 133-2 & 133-3) */}
       {selectedSale && (
         <div className="fixed inset-0 bg-ink/40 z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-xl bg-surface rounded-[6px] border-2 border-brand shadow-2xl overflow-hidden flex flex-col select-none max-h-[90vh]">
+          <div className="w-full max-w-3xl bg-surface rounded-xl border border-brand/50 shadow-2xl overflow-hidden flex flex-col select-none max-h-[90vh] animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
             <div className="h-[48px] bg-surface-2 hairline-b px-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
@@ -678,7 +696,7 @@ export const SalesHistoryView = () => {
                     ))
                   ) : (
                     <div className="p-3 text-center text-ink-muted text-xs">
-                      تم حفظ تفاصيل البنود في قاعدة بيانات السوبرماركت
+                      تم حفظ تفاصيل البنود في قاعدة بيانات المتجر
                     </div>
                   )}
                 </div>

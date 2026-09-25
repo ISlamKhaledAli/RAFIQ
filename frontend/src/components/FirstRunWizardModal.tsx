@@ -198,7 +198,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('supermarket');
 
   // Step 2: Store Profile
-  const [storeName, setStoreName] = useState('سوبرماركت رفيق');
+  const [storeName, setStoreName] = useState('متجر رفيق');
   const [phone, setPhone] = useState('01012345678');
   const [address, setAddress] = useState('الشارع الرئيسي - وسط البلد');
   const [receiptHeader, setReceiptHeader] = useState('أهلاً بكم في متجرنا');
@@ -268,7 +268,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
         else if (id === 'stationery_gifts') setStoreName('مكتبة رفيق للقرطاسية والهدايا');
         else if (id === 'spices_roastery') setStoreName('عطارة ومحامص رفيق');
         else if (id === 'clothing_apparel') setStoreName('متاجر رفيق للأزياء');
-        else setStoreName('سوبرماركت رفيق');
+        else setStoreName('متجر رفيق');
       }
     }
   };
@@ -347,7 +347,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in text-slate-800 dark:text-slate-100">
       <div 
-        className="w-full max-w-3xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[92vh]"
+        className="w-full max-w-4xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[92vh]"
         role="dialog"
         aria-modal="true"
       >

@@ -135,12 +135,12 @@ namespace RafiqPOS.Services
             try
             {
                 var store = _settings != null ? _settings.GetAllSettings() : new Dictionary<string, string>();
-                string storeName = store.ContainsKey("store_name") ? store["store_name"] : "سوبرماركت رفيق";
+                string storeName = store.ContainsKey("store_name") ? store["store_name"] : "متجر رفيق";
                 string phone = store.ContainsKey("store_phone") ? store["store_phone"] : "";
                 string address = store.ContainsKey("store_address") ? store["store_address"] : "";
                 string taxNumber = store.ContainsKey("tax_number") ? store["tax_number"] : "";
                 string header = store.ContainsKey("receipt_header") ? store["receipt_header"] : "أهلاً بكم في متجرنا";
-                string footer = store.ContainsKey("receipt_footer") ? store["receipt_footer"] : "شكراً لزيارتكم!";
+                string footer = store.ContainsKey("receipt_footer") ? store["receipt_footer"] : "شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل وفقاً لسياسة المتجر.";
 
                 // Determine paper width in points (1 inch = 72 points, 100 hundredths of an inch)
                 // 80mm ~ 3.15 inches ~ 315 (standard printable ~ 285)
