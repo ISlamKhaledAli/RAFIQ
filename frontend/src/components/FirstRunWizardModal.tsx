@@ -17,7 +17,9 @@ import {
   Apple,
   BookOpen,
   Flame,
-  Shirt
+  Shirt,
+  Check,
+  Receipt
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { CustomSelect } from './CustomSelect';
@@ -31,12 +33,14 @@ export interface StoreTemplateDto {
   categories: string[];
   quickItems: { Name: string; PricePiasters: number; Unit: string; CategoryName: string; IsOpenPrice?: boolean }[];
   defaultSettings?: Record<string, string>;
+  productsCount?: number;
 }
 
 export interface FirstRunWizardModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCompleted: () => void;
+  isFirstRun?: boolean;
 }
 
 const INITIAL_STORE_TEMPLATES: StoreTemplateDto[] = [
@@ -57,6 +61,7 @@ const INITIAL_STORE_TEMPLATES: StoreTemplateDto[] = [
       { Name: 'طماطم بلدي طازجة', PricePiasters: 1500, Unit: 'kg', CategoryName: 'خضار وفاكهة', IsOpenPrice: false },
       { Name: 'كيس تسوق كبير', PricePiasters: 150, Unit: 'piece', CategoryName: 'عام', IsOpenPrice: false },
     ],
+    productsCount: 35,
     defaultSettings: { receipt_header: 'أهلاً بكم في سوبرماركت رفيق', receipt_footer: 'شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل خلال 14 يوماً بموجب الفاتورة.' }
   },
   {
@@ -76,6 +81,7 @@ const INITIAL_STORE_TEMPLATES: StoreTemplateDto[] = [
       { Name: 'كارت ميموري 32 جيجا', PricePiasters: 9500, Unit: 'piece', CategoryName: 'كروت ميموري وفلاشات', IsOpenPrice: false },
       { Name: 'صيانة وتركيب سريع', PricePiasters: 3000, Unit: 'piece', CategoryName: 'صيانة وخدمات سريعة', IsOpenPrice: true }
     ],
+    productsCount: 28,
     defaultSettings: { receipt_header: 'متجر رفيق للهواتف والإلكترونيات', receipt_footer: 'شكراً لتعاملكم معنا! نحرص دائماً على تقديم أفضل المنتجات والضمان المعتمد.' }
   },
   {
@@ -94,6 +100,7 @@ const INITIAL_STORE_TEMPLATES: StoreTemplateDto[] = [
       { Name: 'طبق بيض أحمر 30 بيضة', PricePiasters: 16500, Unit: 'piece', CategoryName: 'بيض ومستلزمات', IsOpenPrice: false },
       { Name: 'زبادي بلدي كبير', PricePiasters: 800, Unit: 'piece', CategoryName: 'ألبان سائبة ومعبأة', IsOpenPrice: false },
     ],
+    productsCount: 24,
     defaultSettings: { receipt_header: 'ألبان ومخبوزات رفيق', receipt_footer: 'منتجات طازجة يومياً.. شكراً لثقتكم الغالية' }
   },
   {
@@ -112,6 +119,7 @@ const INITIAL_STORE_TEMPLATES: StoreTemplateDto[] = [
       { Name: 'موز بلدي طازج كجم', PricePiasters: 2000, Unit: 'kg', CategoryName: 'فواكه موسمية', IsOpenPrice: false },
       { Name: 'تفاح أحمر سكري كجم', PricePiasters: 4500, Unit: 'kg', CategoryName: 'فواكه موسمية', IsOpenPrice: false }
     ],
+    productsCount: 30,
     defaultSettings: { receipt_header: 'أسواق رفيق للخضار والفاكهة الطازجة', receipt_footer: 'بضاعة طازجة بأعلى جودة.. شكراً لزيارتكم!' }
   },
   {
@@ -130,6 +138,7 @@ const INITIAL_STORE_TEMPLATES: StoreTemplateDto[] = [
       { Name: 'كيس هدايا كرتون', PricePiasters: 1000, Unit: 'piece', CategoryName: 'ألعاب وهدايا', IsOpenPrice: false },
       { Name: 'بطارية قلم AA', PricePiasters: 1500, Unit: 'piece', CategoryName: 'أدوات هندسية ومدرسية', IsOpenPrice: false }
     ],
+    productsCount: 27,
     defaultSettings: { receipt_header: 'مكتبة رفيق للقرطاسية والهدايا', receipt_footer: 'نتمنى لطلابنا الأعزاء دوام التوفيق والنجاح!' }
   },
   {
@@ -147,6 +156,7 @@ const INITIAL_STORE_TEMPLATES: StoreTemplateDto[] = [
       { Name: 'فول سوداني مقشر 250 جم', PricePiasters: 2500, Unit: 'piece', CategoryName: 'مكسرات ومحامص', IsOpenPrice: false },
       { Name: 'لب سوبر ممتاز 250 جم', PricePiasters: 3500, Unit: 'piece', CategoryName: 'مكسرات ومحامص', IsOpenPrice: false }
     ],
+    productsCount: 30,
     defaultSettings: { receipt_header: 'عطارة ومحامص رفيق الفاخرة', receipt_footer: 'أجود أنواع البن والتوابل الطازجة.. بالهناء والشفاء' }
   },
   {
@@ -164,6 +174,7 @@ const INITIAL_STORE_TEMPLATES: StoreTemplateDto[] = [
       { Name: 'شراب قطن 3 قطع', PricePiasters: 4500, Unit: 'piece', CategoryName: 'رجالي', IsOpenPrice: false },
       { Name: 'كيس ملابس فاخر للمحل', PricePiasters: 500, Unit: 'piece', CategoryName: 'إكسسوارات وطرح', IsOpenPrice: false }
     ],
+    productsCount: 25,
     defaultSettings: { receipt_header: 'متاجر رفيق للملابس والأزياء', receipt_footer: 'شكراً لاختياركم متجرنا! الاستبدال خلال 14 يوماً مع وجود كارت الصنف والباركود.' }
   },
   {
@@ -180,6 +191,7 @@ const INITIAL_STORE_TEMPLATES: StoreTemplateDto[] = [
       { Name: 'مياه صغيرة 500 مل', PricePiasters: 500, Unit: 'piece', CategoryName: 'أغذية ومشروبات', IsOpenPrice: false },
       { Name: 'شيبسي عائلي', PricePiasters: 1500, Unit: 'piece', CategoryName: 'حلويات وتسالي', IsOpenPrice: false },
     ],
+    productsCount: 25,
     defaultSettings: { receipt_header: 'أهلاً بكم في متجرنا', receipt_footer: 'شكراً لتعاملكم معنا' }
   }
 ];
@@ -188,6 +200,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
   isOpen,
   onClose,
   onCompleted,
+  isFirstRun = false,
 }) => {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [loading, setLoading] = useState(false);
@@ -208,10 +221,10 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
   const [printers, setPrinters] = useState<{ name: string; isDefault: boolean }[]>([]);
   const [selectedPrinter, setSelectedPrinter] = useState<string>('');
   const [backupFolder, setBackupFolder] = useState<string>('D:\\RafiqBackups');
-  const [loadDemoData, setLoadDemoData] = useState<boolean>(false);
+  const [seedInitialProducts, setSeedInitialProducts] = useState<boolean>(true);
 
   // Result state
-  const [appliedStats, setAppliedStats] = useState<{ categoriesCount: number; quickItemsCount: number } | null>(null);
+  const [appliedStats, setAppliedStats] = useState<{ categoriesCount: number; quickItemsCount: number; productsCount: number } | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -226,9 +239,12 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
         ]);
 
         if (active) {
-          if (Array.isArray(tplList) && tplList.length >= 8) {
-            setTemplates(tplList);
-            setSelectedTemplateId(tplList[0].id);
+          if (Array.isArray(tplList) && tplList.length > 0) {
+            const cleanList = tplList.filter((t) => t.id !== 'accessories_gifts');
+            if (cleanList.length > 0) {
+              setTemplates(cleanList);
+              setSelectedTemplateId((prev) => cleanList.some((t) => t.id === prev) ? prev : cleanList[0].id);
+            }
           }
           if (Array.isArray(printerList)) {
             setPrinters(printerList);
@@ -286,23 +302,18 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
         receiptFooter: receiptFooter.trim(),
         defaultPrinter: selectedPrinter,
         backupFolder: backupFolder.trim(),
+        seedInitialProducts: seedInitialProducts,
       });
 
       if (res && res.success) {
-        if (loadDemoData) {
-          try {
-            await invoke('demo:load', { storeType: selectedTemplateId });
-          } catch {
-            // Non-blocking
-          }
-        }
         setAppliedStats({
           categoriesCount: res.categoriesCount || 0,
           quickItemsCount: res.quickItemsCount || 0,
+          productsCount: res.productsCount != null ? res.productsCount : (seedInitialProducts ? (selectedTemplate.productsCount || 30) : 0),
         });
         setTimeout(() => {
           onCompleted();
-        }, 1200);
+        }, 1400);
       } else {
         setError(res?.message || 'فشل تطبيق القالب');
       }
@@ -344,10 +355,608 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
 
   if (!isOpen) return null;
 
+  // STEP RENDERER HELPER
+  const renderStepBody = () => {
+    if (appliedStats) {
+      return (
+        <div className="p-8 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-3xl text-center space-y-4 max-w-2xl mx-auto my-8 shadow-sm">
+          <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-300 mx-auto flex items-center justify-center shadow-sm">
+            <CheckCircle2 className="w-10 h-10" />
+          </div>
+          <h3 className="font-black text-2xl text-emerald-950 dark:text-emerald-200">
+            تم تهيئة وتجهيز النظام بنجاح!
+          </h3>
+          <p className="text-sm text-emerald-800 dark:text-emerald-300 font-semibold leading-relaxed">
+            تم إنشاء <span className="font-extrabold text-emerald-950 dark:text-white">{appliedStats.categoriesCount}</span> تصنيفات رئيسية، و <span className="font-extrabold text-emerald-950 dark:text-white">{appliedStats.productsCount}</span> صنف فعلي بباركود حقيقي جاهز للبيع فوراً، و <span className="font-extrabold text-emerald-950 dark:text-white">{appliedStats.quickItemsCount}</span> أزرار كاشير سريعة. جاري نقلك فوراً لشاشة نقطة البيع...
+          </p>
+          <div className="pt-2 flex justify-center">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold shadow-sm">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>جاري تحميل بيانات المتجر الجديد...</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (step === 1) {
+      return (
+        <div className="space-y-4">
+          <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl flex items-center justify-between text-xs text-emerald-950 dark:text-emerald-200">
+            <div className="flex items-center gap-2.5">
+              <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span className="font-bold leading-relaxed">
+                اختر القالب الأقرب لطبيعة محلك؛ سيقوم رفيق بضبط الميزات (مثل الميزان أو الصلاحية)، وإنشاء الفئات، وتجهيز كتالوج أصناف فعلية بأسعار وباركودات قابلة للمسح فوراً:
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
+            {templates.map((tpl) => {
+              const isSelected = tpl.id === selectedTemplateId;
+              return (
+                <div
+                  key={tpl.id}
+                  onClick={() => handleSelectTemplate(tpl.id)}
+                  className={`p-5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between gap-4 ${
+                    isSelected
+                      ? 'border-[#006d41] bg-emerald-50/70 dark:bg-emerald-950/40 ring-4 ring-emerald-500/10 shadow-md scale-[1.01]'
+                      : 'border-slate-200 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800/60 hover:shadow-sm'
+                  }`}
+                >
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-700/80 flex items-center justify-center shrink-0 shadow-xs">
+                      {getTemplateIcon(tpl.icon)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-extrabold text-base text-slate-900 dark:text-white truncate">
+                          {tpl.name}
+                        </span>
+                        {isSelected && (
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-[#006d41] text-white shrink-0 flex items-center gap-1 shadow-xs">
+                            <Check className="w-3 h-3 stroke-[3]" />
+                            <span>تم الاختيار</span>
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                        {tpl.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Summary Tags */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-3 border-t border-slate-100 dark:border-slate-800/80 text-[11px]">
+                    <span className="px-2.5 py-1 rounded-lg bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 font-black flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-emerald-600" />
+                      <span>{tpl.productsCount || 30} صنف جاهز للبيع</span>
+                    </span>
+                    <span className="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-700/80 text-slate-700 dark:text-slate-300 font-bold">
+                      {tpl.categories.length} أقسام
+                    </span>
+                    <span className="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-700/80 text-slate-700 dark:text-slate-300 font-bold">
+                      {tpl.quickItems.length} أزرار سريعة
+                    </span>
+                    {tpl.featureFlags?.feature_scale_weight && (
+                      <span className="px-2 py-1 rounded-lg bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 font-bold">
+                        دعم الميزان
+                      </span>
+                    )}
+                    {tpl.featureFlags?.feature_expiry_dates && (
+                      <span className="px-2 py-1 rounded-lg bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 font-bold">
+                        تاريخ الصلاحية
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    if (step === 2) {
+      return (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Inputs Column */}
+          <div className="lg:col-span-7 space-y-4 bg-white dark:bg-slate-800/60 p-6 rounded-3xl border border-slate-200 dark:border-slate-700/80 shadow-xs">
+            <h3 className="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-2 border-b border-slate-100 dark:border-slate-700/60 pb-3">
+              <Store className="w-4 h-4 text-emerald-600" />
+              <span>معلومات المنشأة وعناوين الإيصال</span>
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  اسم المحل / المنشأة *
+                </label>
+                <input
+                  type="text"
+                  value={storeName}
+                  onChange={(e) => setStoreName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-extrabold text-slate-900 dark:text-white focus:ring-2 focus:ring-[#006d41] focus:outline-none"
+                  placeholder="سوبرماركت رفيق"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  رقم الهاتف / خدمة العملاء *
+                </label>
+                <input
+                  type="text"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-[#006d41] focus:outline-none"
+                  placeholder="01012345678"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                العنوان بالتفصيل
+              </label>
+              <input
+                type="text"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#006d41] focus:outline-none"
+                placeholder="الشارع الرئيسي - بجوار المسجد الكبير"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  رسالة الترحيب أعلى الفاتورة (رأس الإيصال)
+                </label>
+                <input
+                  type="text"
+                  value={receiptHeader}
+                  onChange={(e) => setReceiptHeader(e.target.value)}
+                  className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#006d41] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  شروط الاستبدال أسفل الفاتورة (تذييل الإيصال)
+                </label>
+                <input
+                  type="text"
+                  value={receiptFooter}
+                  onChange={(e) => setReceiptFooter(e.target.value)}
+                  className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#006d41] focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Live Receipt Paper Preview */}
+          <div className="lg:col-span-5 bg-white dark:bg-slate-800/60 p-6 rounded-3xl border border-slate-200 dark:border-slate-700/80 shadow-xs space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-2">
+              <span className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <Receipt className="w-4 h-4 text-emerald-600" />
+                <span>معاينة حية لإيصال الكاشير الحراري (80 مم)</span>
+              </span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                تحديث فوري
+              </span>
+            </div>
+
+            {/* Paper Container */}
+            <div className="bg-[#fffef9] text-slate-900 p-5 rounded-2xl border border-slate-300 shadow-md font-mono text-[11px] leading-relaxed mx-auto max-w-xs space-y-2 select-none">
+              <div className="text-center space-y-0.5 border-b border-dashed border-slate-400 pb-2">
+                <p className="font-extrabold text-sm">{storeName || 'اسم المحل'}</p>
+                <p className="text-[10px] text-slate-600">{phone || '010XXXXXXXX'}</p>
+                {address && <p className="text-[9px] text-slate-500">{address}</p>}
+                <p className="text-[10px] font-bold text-emerald-900 pt-0.5">{receiptHeader}</p>
+              </div>
+
+              <div className="flex justify-between text-[10px] text-slate-500 border-b border-dashed border-slate-400 pb-1">
+                <span>فاتورة: #000101</span>
+                <span>{new Date().toLocaleDateString('ar-EG')}</span>
+              </div>
+
+              {/* Sample Table */}
+              <div className="space-y-1 py-1 border-b border-dashed border-slate-400">
+                <div className="flex justify-between font-bold text-[10px]">
+                  <span>صنف عينة 1</span>
+                  <span>42.00 ج.م</span>
+                </div>
+                <div className="flex justify-between font-bold text-[10px]">
+                  <span>صنف عينة 2</span>
+                  <span>15.00 ج.م</span>
+                </div>
+              </div>
+
+              <div className="flex justify-between font-black text-xs pt-1">
+                <span>الإجمالي:</span>
+                <span>57.00 ج.م</span>
+              </div>
+
+              <div className="text-center pt-2 border-t border-dashed border-slate-400 text-[10px] text-slate-600 leading-tight">
+                <p>{receiptFooter}</p>
+                <p className="text-[8px] text-slate-400 pt-1">برنامج رفيق لنقاط البيع - Rafiq POS</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (step === 3) {
+      return (
+        <div className="space-y-5 max-w-3xl mx-auto py-2">
+          {/* Printer */}
+          <div className="p-6 bg-white dark:bg-slate-800/60 rounded-3xl border border-slate-200 dark:border-slate-700/80 shadow-xs space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0">
+                <Printer className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">
+                  طابعة الفواتير الافتراضية (Thermal Receipt Printer)
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  حدد الطابعة المتصلة بجهاز الكاشير للطباعة السريعة فور الضغط على زر الدفع
+                </p>
+              </div>
+            </div>
+
+            <CustomSelect
+              value={selectedPrinter}
+              onChange={(val) => setSelectedPrinter(val)}
+              placeholder="-- بدون طابعة افتراضية (معاينة فقط) --"
+              options={[
+                { value: '', label: '-- بدون طابعة افتراضية (معاينة فقط) --' },
+                ...printers.map((p) => ({
+                  value: p.name,
+                  label: p.name,
+                  badge: p.isDefault ? 'الافتراضية في ويندوز' : undefined
+                }))
+              ]}
+            />
+          </div>
+
+          {/* Backup */}
+          <div className="p-6 bg-white dark:bg-slate-800/60 rounded-3xl border border-slate-200 dark:border-slate-700/80 shadow-xs space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-teal-100 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 flex items-center justify-center shrink-0">
+                <HardDrive className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">
+                  مسار النسخ الاحتياطي التلقائي للبيانات (Backup Folder)
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  يُفضل اختيار مسار على قرص غير قرص النظام (مثل القرص D أو فلاشة USB) لحماية قاعدة بياناتك من مشاكل الويندوز
+                </p>
+              </div>
+            </div>
+
+            <input
+              type="text"
+              value={backupFolder}
+              onChange={(e) => setBackupFolder(e.target.value)}
+              className="w-full px-4 py-2.5 text-xs font-mono rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#006d41] focus:outline-none"
+              placeholder="D:\RafiqBackups"
+            />
+          </div>
+        </div>
+      );
+    }
+
+    if (step === 4) {
+      return (
+        <div className="space-y-5 max-w-3xl mx-auto py-2">
+          {/* Review Summary */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 text-xs">
+            <div className="p-4 bg-white dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-1 shadow-xs">
+              <span className="text-slate-400 font-bold block text-[11px]">النشاط التجاري المختار:</span>
+              <span className="font-extrabold text-sm text-[#006d41] dark:text-emerald-400 block truncate">
+                {selectedTemplate?.name}
+              </span>
+            </div>
+
+            <div className="p-4 bg-white dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-1 shadow-xs">
+              <span className="text-slate-400 font-bold block text-[11px]">اسم المنشأة:</span>
+              <span className="font-extrabold text-sm text-slate-800 dark:text-slate-100 block truncate">
+                {storeName}
+              </span>
+            </div>
+
+            <div className="p-4 bg-white dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-1 shadow-xs">
+              <span className="text-slate-400 font-bold block text-[11px]">طابعة الفواتير:</span>
+              <span className="font-extrabold text-sm text-slate-800 dark:text-slate-100 block truncate">
+                {selectedPrinter || 'معاينة فقط'}
+              </span>
+            </div>
+
+            <div className="p-4 bg-white dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-1 shadow-xs">
+              <span className="text-slate-400 font-bold block text-[11px]">الأقسام والتصنيفات:</span>
+              <span className="font-extrabold text-sm text-slate-800 dark:text-slate-100">
+                {selectedTemplate?.categories?.length || 0} أقسام رئيسية
+              </span>
+            </div>
+
+            <div className="p-4 bg-white dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-1 shadow-xs">
+              <span className="text-slate-400 font-bold block text-[11px]">أزرار الكاشير السريعة:</span>
+              <span className="font-extrabold text-sm text-slate-800 dark:text-slate-100">
+                {selectedTemplate?.quickItems?.length || 0} أزرار سريعة
+              </span>
+            </div>
+
+            <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border border-emerald-300 dark:border-emerald-800 space-y-1 shadow-xs">
+              <span className="text-emerald-700 dark:text-emerald-300 font-bold block text-[11px]">الكتالوج الفعلي الجاهز:</span>
+              <span className="font-black text-sm text-emerald-900 dark:text-emerald-100">
+                {selectedTemplate?.productsCount || 30} صنف حقيقي بباركود
+              </span>
+            </div>
+          </div>
+
+          {/* Real Catalog Toggle */}
+          <label className="p-4 bg-emerald-50/80 dark:bg-emerald-950/20 border-2 border-emerald-300 dark:border-emerald-700 rounded-3xl flex items-center justify-between cursor-pointer hover:bg-emerald-100/60 transition-colors shadow-xs">
+            <div className="flex items-center gap-3.5">
+              <input
+                type="checkbox"
+                checked={seedInitialProducts}
+                onChange={(e) => setSeedInitialProducts(e.target.checked)}
+                className="w-5 h-5 text-[#006d41] rounded border-slate-300 focus:ring-[#006d41]"
+              />
+              <div>
+                <span className="font-black text-sm text-emerald-950 dark:text-emerald-100 block">
+                  تحميل كتالوج الأصناف الفعلية الجاهزة لنشاطك (مُوصى به بشدة)
+                </span>
+                <span className="text-xs text-emerald-800 dark:text-emerald-300 block mt-1 leading-relaxed">
+                  يوفّر عليك إدخال البيانات يدوياً؛ سيتم إنشاء {selectedTemplate?.productsCount || 30} صنف أساسي بأسمائها الواقعية وتكلفتها وسعر بيعها وباركوداتها الجاهزة للبيع فوراً مع إمكانية تعديلها أو حذفها في أي وقت.
+                </span>
+              </div>
+            </div>
+          </label>
+
+          {/* Reassurance */}
+          <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl flex items-center gap-3 text-xs text-slate-600 dark:text-slate-300">
+            <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
+            <span>يمكنك في أي وقت لاحق من لوحة الإعدادات تعديل الأسعار، إضافة أصناف جديدة، أو ربط ماسح الباركود والميزان.</span>
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  // FULL SCREEN WORKSPACE VIEW (FOR FIRST RUN ONBOARDING)
+  if (isFirstRun) {
+    return (
+      <div className="fixed inset-0 z-[9999] flex flex-col md:flex-row bg-[#f8fafc] text-slate-800 dark:bg-slate-950 dark:text-slate-100 select-none overflow-hidden font-sans" dir="rtl">
+        {/* RIGHT SIDEBAR: Branded Hero & Interactive Stepper */}
+        <aside className="w-full md:w-80 lg:w-96 bg-gradient-to-b from-[#00372d] via-[#00261f] to-[#001712] text-white flex flex-col justify-between p-6 shrink-0 relative overflow-hidden border-l border-emerald-800/40 shadow-2xl">
+          {/* Subtle Ambient Glow */}
+          <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-teal-500/10 rounded-full blur-2xl pointer-events-none" />
+
+          <div className="relative z-10 space-y-6">
+            {/* Logo & Brand Header */}
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500/30 to-emerald-400/10 border border-emerald-400/30 flex items-center justify-center shadow-lg">
+                <Sparkles className="w-6 h-6 text-emerald-300" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl font-black tracking-wide text-white">رفيق</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/30 text-emerald-200 border border-emerald-400/30 uppercase tracking-wider">
+                    Rafiq POS
+                  </span>
+                </div>
+                <p className="text-xs text-emerald-200/70 mt-0.5">نظام نقاط البيع وإدارة السوبرماركت</p>
+              </div>
+            </div>
+
+            {/* Welcome Text */}
+            <div className="bg-emerald-950/40 border border-emerald-500/20 rounded-2xl p-4">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold text-emerald-300 uppercase tracking-wider mb-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                التهيئة الأولى للنظام
+              </span>
+              <h2 className="text-base font-extrabold text-white leading-snug">تخصيص النظام وتجهيز المحل</h2>
+              <p className="text-xs text-emerald-100/70 mt-1 leading-relaxed">
+                4 خطوات سهلة وسريعة لضبط الفئات والميزات وحقن كتالوج أصناف فعلي كامل جاهز للبيع فوراً.
+              </p>
+            </div>
+
+            {/* Stepper Timeline */}
+            <div className="space-y-4 pt-2">
+              {[
+                { num: 1, title: 'نوع النشاط والكتالوج', desc: 'تحديد القالب وحقن الأصناف الفعلية', badge: '30+ صنف' },
+                { num: 2, title: 'بيانات المحل والفاتورة', desc: 'الاسم، الهاتف، وترويسة الإيصال' },
+                { num: 3, title: 'الأجهزة وحفظ البيانات', desc: 'طابعة الكاشير ومسار النسخ الاحتياطي' },
+                { num: 4, title: 'المراجعة وتأكيد البدء', desc: 'اعتماد التجهيزات والانتقال للكاشير' },
+              ].map((s) => {
+                const isActive = step === s.num;
+                const isPassed = step > s.num;
+                return (
+                  <div key={s.num} className="flex items-start gap-3 relative group">
+                    {/* Connecting Line */}
+                    {s.num < 4 && (
+                      <div className={`absolute right-4 top-8 w-0.5 h-7 transition-colors ${
+                        isPassed ? 'bg-emerald-500' : 'bg-emerald-900/60'
+                      }`} />
+                    )}
+
+                    {/* Step Circle */}
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black shrink-0 transition-all ${
+                      isPassed
+                        ? 'bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/30'
+                        : isActive
+                        ? 'bg-white text-[#00372d] ring-4 ring-emerald-400/30 font-black shadow-lg scale-105'
+                        : 'bg-emerald-950/70 text-emerald-400/60 border border-emerald-800/40'
+                    }`}>
+                      {isPassed ? <Check className="w-4 h-4 stroke-[3]" /> : s.num}
+                    </div>
+
+                    {/* Step Text */}
+                    <div className="pt-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-black transition-colors ${
+                          isActive ? 'text-white' : isPassed ? 'text-emerald-200' : 'text-emerald-100/50'
+                        }`}>
+                          {s.title}
+                        </span>
+                        {s.badge && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-400/20 text-emerald-300 border border-emerald-400/30">
+                            {s.badge}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-emerald-100/50 mt-0.5 leading-tight">
+                        {s.desc}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Bottom System Assurances */}
+          <div className="relative z-10 pt-4 border-t border-emerald-800/50 space-y-2 text-[11px] text-emerald-100/70">
+            <div className="flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span>يعمل أوفلاين 100% بدون أي إنترنت</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span>حماية مالية فائقة بمعاملات ذرية SQLite WAL</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span>جميع الإعدادات والأسعار قابلة للتعديل لاحقاً</span>
+            </div>
+          </div>
+        </aside>
+
+        {/* LEFT MAIN CANVAS: Content, Form, and Navigation */}
+        <main className="flex-1 flex flex-col h-full bg-[#f8fafc] dark:bg-slate-900 overflow-hidden">
+          {/* Step Header */}
+          <header className="px-8 py-5 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0 flex items-center justify-between shadow-xs">
+            <div>
+              <div className="flex items-center gap-2.5">
+                <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300">
+                  الخطوة {step} من 4
+                </span>
+                <h1 className="text-xl font-black text-slate-900 dark:text-white">
+                  {step === 1 && 'اختر نوع نشاط محلك التجاري'}
+                  {step === 2 && 'بيانات المتجر وهوية الفاتورة'}
+                  {step === 3 && 'طابعة الفواتير والنسخ الاحتياطي'}
+                  {step === 4 && 'مراجعة التجهيزات والبدء الفعلي'}
+                </h1>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                {step === 1 && 'سيقوم رفيق بضبط الميزات، وتوليد الفئات، وتجهيز كتالوج أصناف فعلية بأسعار وباركودات جاهزة للبيع فوراً'}
+                {step === 2 && 'المعلومات التي ستظهر في أعلى وأسفل إيصال الكاشير المطبوع للعملاء'}
+                {step === 3 && 'ضبط طابعة الإيصالات الحرارية ومسار النسخ الاحتياطي التلقائي'}
+                {step === 4 && 'تأكيد الخيارات واعتماد التجهيز لفتح شاشة الكاشير وبدء البيع فوراً'}
+              </p>
+            </div>
+
+            <div className="text-left text-xs font-bold text-slate-500 dark:text-slate-400 hidden sm:block">
+              {step === 1 && `${templates.length} قوالب متخصصة`}
+              {step === 2 && 'معاينة حية للإيصال'}
+              {step === 3 && `${printers.length} طابعة مكتشفة`}
+              {step === 4 && 'جاهز للاعتماد والتشغيل'}
+            </div>
+          </header>
+
+          {/* Content Body (Scrollable, fills space comfortably) */}
+          <div className="flex-1 overflow-y-auto px-8 py-6 space-y-4">
+            {error && (
+              <div className="p-3.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl text-xs text-rose-700 dark:text-rose-300 flex items-center gap-2">
+                <span className="font-bold">تنبيه:</span>
+                <span>{error}</span>
+              </div>
+            )}
+
+            {renderStepBody()}
+          </div>
+
+          {/* Fixed Bottom Action Bar */}
+          {!appliedStats && (
+            <footer className="h-20 px-8 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0 flex items-center justify-between shadow-sm">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-400">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span>النشاط المحدد:</span>
+                <span className="font-black text-slate-900 dark:text-white">
+                  {selectedTemplate?.name}
+                </span>
+                <span className="text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full font-extrabold border border-emerald-200 dark:border-emerald-800">
+                  {selectedTemplate?.productsCount || 30} صنف جاهز للبيع
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {step > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setStep((prev) => (prev - 1) as any)}
+                    disabled={loading}
+                    className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors"
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                    <span>السابق</span>
+                  </button>
+                )}
+
+                {step < 4 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (step === 2 && !storeName.trim()) {
+                        setError('اسم المحل مطلوب للمتابعة.');
+                        return;
+                      }
+                      setError(null);
+                      setStep((prev) => (prev + 1) as any);
+                    }}
+                    className="px-6 py-2.5 bg-[#00372d] hover:bg-[#004e40] text-white font-extrabold rounded-xl text-xs flex items-center gap-2 transition-all shadow-md active:scale-95"
+                  >
+                    <span>
+                      {step === 1 && 'المتابعة لبيانات الفاتورة'}
+                      {step === 2 && 'المتابعة لإعدادات الأجهزة'}
+                      {step === 3 && 'المتابعة للمراجعة والبدء'}
+                    </span>
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void handleApply()}
+                    disabled={loading}
+                    className="px-7 py-3 bg-[#006d41] hover:bg-[#005835] text-white font-black rounded-xl text-sm flex items-center gap-2 transition-all shadow-lg active:scale-95 disabled:opacity-50"
+                  >
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    <span>تجهيز النظام وبدء نقطة البيع فوراً</span>
+                  </button>
+                )}
+              </div>
+            </footer>
+          )}
+        </main>
+      </div>
+    );
+  }
+
+  // MODAL DIALOG VIEW (WHEN OPENED FROM SETTINGS)
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in text-slate-800 dark:text-slate-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in text-slate-800 dark:text-slate-100">
       <div 
-        className="w-full max-w-4xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[92vh]"
+        className="w-full max-w-4xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[90vh]"
         role="dialog"
         aria-modal="true"
       >
@@ -360,7 +969,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
             <div>
               <h2 className="font-extrabold text-lg leading-tight">معالج التجهيز السريع للنظام</h2>
               <p className="text-xs text-emerald-100/70">
-                تهيئة وتجهيز النظام حسب نشاط محلك في أقل من دقيقتين
+                تهيئة وتجهيز النظام حسب نشاط محلك
               </p>
             </div>
           </div>
@@ -377,21 +986,21 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
         <div className="px-6 py-3 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs font-bold">
           <div className={`flex items-center gap-2 ${step === 1 ? 'text-[#006d41] font-extrabold' : 'text-slate-400'}`}>
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step === 1 ? 'bg-[#006d41] text-white' : (step > 1 ? 'bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600')}`}>
-              {step > 1 ? '✓' : '1'}
+              {step > 1 ? <Check className="w-3 h-3 stroke-[3]" /> : '1'}
             </span>
             <span>نوع المحل</span>
           </div>
           <div className="h-[2px] w-6 bg-slate-200 dark:bg-slate-700" />
           <div className={`flex items-center gap-2 ${step === 2 ? 'text-[#006d41] font-extrabold' : 'text-slate-400'}`}>
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step === 2 ? 'bg-[#006d41] text-white' : (step > 2 ? 'bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600')}`}>
-              {step > 2 ? '✓' : '2'}
+              {step > 2 ? <Check className="w-3 h-3 stroke-[3]" /> : '2'}
             </span>
             <span>بيانات الفاتورة</span>
           </div>
           <div className="h-[2px] w-6 bg-slate-200 dark:bg-slate-700" />
           <div className={`flex items-center gap-2 ${step === 3 ? 'text-[#006d41] font-extrabold' : 'text-slate-400'}`}>
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step === 3 ? 'bg-[#006d41] text-white' : (step > 3 ? 'bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600')}`}>
-              {step > 3 ? '✓' : '3'}
+              {step > 3 ? <Check className="w-3 h-3 stroke-[3]" /> : '3'}
             </span>
             <span>الأجهزة والحفظ</span>
           </div>
@@ -413,278 +1022,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
             </div>
           )}
 
-          {appliedStats && (
-            <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-2xl text-center space-y-2">
-              <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 mx-auto flex items-center justify-center">
-                <CheckCircle2 className="w-7 h-7" />
-              </div>
-              <h3 className="font-bold text-base text-emerald-900 dark:text-emerald-200">
-                تم تهيئة النظام وتطبيق القالب بنجاح!
-              </h3>
-              <p className="text-xs text-emerald-700 dark:text-emerald-400">
-                تم إنشاء {appliedStats.categoriesCount} تصنيفات رئيسية و {appliedStats.quickItemsCount} أصناف سريعة. جاري تحويلك لشاشة البيع...
-              </p>
-            </div>
-          )}
-
-          {/* STEP 1: Select Store Template (Task 106-1 & 106-2) */}
-          {!appliedStats && step === 1 && (
-            <div className="space-y-3">
-              <div className="text-xs text-slate-500">
-                اختر نوع النشاط التجاري الذي يطابق محلك؛ سيقوم النظام بتفعيل الميزات والتصنيفات والأزرار السريعة المناسبة تلقائياً:
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {templates.map((tpl) => {
-                  const isSelected = tpl.id === selectedTemplateId;
-                  return (
-                    <div
-                      key={tpl.id}
-                      onClick={() => handleSelectTemplate(tpl.id)}
-                      className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between gap-3 ${
-                        isSelected
-                          ? 'border-[#006d41] bg-emerald-50/60 dark:bg-emerald-950/30 shadow-md'
-                          : 'border-slate-200 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800/50'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center shrink-0">
-                          {getTemplateIcon(tpl.icon)}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-extrabold text-sm text-slate-900 dark:text-white">
-                              {tpl.name}
-                            </span>
-                            {isSelected && (
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#006d41] text-white">
-                                محدد
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                            {tpl.description}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Summary Tags */}
-                      <div className="flex flex-wrap gap-1 pt-2 border-t border-slate-100 dark:border-slate-800/80 text-[10px] text-slate-600 dark:text-slate-400">
-                        <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 font-semibold">
-                          {tpl.categories.length} تصنيفات
-                        </span>
-                        <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 font-semibold">
-                          {tpl.quickItems.length} أزرار سريعة
-                        </span>
-                        {tpl.featureFlags?.feature_scale_weight && (
-                          <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-semibold">
-                            دعم الميزان
-                          </span>
-                        )}
-                        {tpl.featureFlags?.feature_expiry_dates && (
-                          <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-semibold">
-                            تاريخ الصلاحية
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* STEP 2: Store Profile & Receipt Settings */}
-          {!appliedStats && step === 2 && (
-            <div className="space-y-4">
-              <p className="text-xs text-slate-500">
-                هذه البيانات ستظهر في أعلى وأسفل فاتورة الكاشير المطبوعة للزبائن:
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    اسم المحل / المنشأة *
-                  </label>
-                  <input
-                    type="text"
-                    value={storeName}
-                    onChange={(e) => setStoreName(e.target.value)}
-                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    رقم الهاتف / خدمة العملاء *
-                  </label>
-                  <input
-                    type="text"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  العنوان بالتفصيل
-                </label>
-                <input
-                  type="text"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    رسالة الترحيب أعلى الفاتورة
-                  </label>
-                  <input
-                    type="text"
-                    value={receiptHeader}
-                    onChange={(e) => setReceiptHeader(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    شروط الاستبدال أسفل الفاتورة
-                  </label>
-                  <input
-                    type="text"
-                    value={receiptFooter}
-                    onChange={(e) => setReceiptFooter(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 3: Hardware & Backup Folder */}
-          {!appliedStats && step === 3 && (
-            <div className="space-y-4">
-              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
-                <div className="flex items-center gap-2 text-slate-800 dark:text-slate-100 font-bold text-sm">
-                  <Printer className="w-4 h-4 text-emerald-600" />
-                  <span>طابعة الفواتير الافتراضية (Thermal Receipt Printer)</span>
-                </div>
-                <p className="text-xs text-slate-500">
-                  اختر الطابعة المتصلة بجهاز الكاشير للطباعة الفورية للفواتير:
-                </p>
-
-                <CustomSelect
-                  value={selectedPrinter}
-                  onChange={(val) => setSelectedPrinter(val)}
-                  placeholder="-- بدون طابعة افتراضية (معاينة فقط) --"
-                  options={[
-                    { value: '', label: '-- بدون طابعة افتراضية (معاينة فقط) --' },
-                    ...printers.map((p) => ({
-                      value: p.name,
-                      label: p.name,
-                      badge: p.isDefault ? 'الافتراضية في ويندوز' : undefined
-                    }))
-                  ]}
-                />
-              </div>
-
-              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
-                <div className="flex items-center gap-2 text-slate-800 dark:text-slate-100 font-bold text-sm">
-                  <HardDrive className="w-4 h-4 text-emerald-600" />
-                  <span>مسار النسخ الاحتياطي التلقائي (Backup Location)</span>
-                </div>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  يُفضل اختيار مسار على قرص غير قرص النظام (مثلاً القرص D أو فلاشة USB متصلة) لضمان حماية بياناتك من أي عطل في ويندوز:
-                </p>
-
-                <input
-                  type="text"
-                  value={backupFolder}
-                  onChange={(e) => setBackupFolder(e.target.value)}
-                  className="w-full px-3 py-2 text-xs font-mono rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  placeholder="D:\RafiqBackups"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* STEP 4: Review and Confirm (Task 106-3) */}
-          {!appliedStats && step === 4 && (
-            <div className="space-y-4">
-              <div className="text-center py-2 space-y-1">
-                <h3 className="font-extrabold text-base text-slate-900 dark:text-white">
-                  مراجعة التجهيزات والبدء
-                </h3>
-                <p className="text-xs text-slate-500">
-                  تحقق من الملخص أدناه، واضغط «تجهيز النظام والبدء» لإنشاء التصنيفات والأزرار فوراً
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
-                  <span className="text-slate-400 font-bold block text-[10px]">نوع المحل المختار:</span>
-                  <span className="font-extrabold text-sm text-[#006d41] dark:text-emerald-400">
-                    {selectedTemplate?.name}
-                  </span>
-                </div>
-
-                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
-                  <span className="text-slate-400 font-bold block text-[10px]">اسم المنشأة:</span>
-                  <span className="font-extrabold text-sm text-slate-800 dark:text-slate-100">
-                    {storeName}
-                  </span>
-                </div>
-
-                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
-                  <span className="text-slate-400 font-bold block text-[10px]">التصنيفات الجاهزة:</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-100">
-                    {selectedTemplate?.categories?.length || 0} تصنيف (تلقائي)
-                  </span>
-                </div>
-
-                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
-                  <span className="text-slate-400 font-bold block text-[10px]">أزرار الكاشير السريعة:</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-100">
-                    {selectedTemplate?.quickItems?.length || 0} صنف سريع
-                  </span>
-                </div>
-              </div>
-
-              {/* Demo Data Option (Task 113-1 & 113-2) */}
-              <label className="p-3 bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-xl flex items-center justify-between cursor-pointer hover:bg-amber-100/60 transition-colors">
-                <div className="flex items-center gap-2.5">
-                  <input
-                    type="checkbox"
-                    checked={loadDemoData}
-                    onChange={(e) => setLoadDemoData(e.target.checked)}
-                    className="w-4 h-4 text-[#006d41] rounded border-slate-300 focus:ring-[#006d41]"
-                  />
-                  <div>
-                    <span className="font-bold text-xs text-amber-950 dark:text-amber-200 block">
-                      تحميل أصناف وبيانات تجريبية للتدريب الفوري (اختياري)
-                    </span>
-                    <span className="text-[10px] text-amber-800/80 dark:text-amber-400 block">
-                      تساعدك على تجربة شاشة البيع فوراً، ويمكن مسحها بضغطة زر واحدة لاحقاً من شاشة الإعدادات.
-                    </span>
-                  </div>
-                </div>
-              </label>
-
-              {/* Notice */}
-              <div className="p-3 bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 rounded-xl flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300">
-                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>يمكنك في أي وقت لاحق تعديل الأسعار، إضافة أصناف جديدة، أو تغيير أي إعداد من شاشة الإعدادات.</span>
-              </div>
-            </div>
-          )}
+          {renderStepBody()}
         </div>
 
         {/* Footer Navigation Buttons */}

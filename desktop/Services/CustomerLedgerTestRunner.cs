@@ -182,12 +182,12 @@ namespace RafiqPOS.Services
             if (condition)
             {
                 result.PassedAssertions++;
-                result.Details.Add("✔ " + assertionName);
+                result.Details.Add("[نجح] " + assertionName);
             }
             else
             {
                 result.Success = false;
-                result.Details.Add("✖ خرق في التأكيد: " + assertionName);
+                result.Details.Add("[فشل] خرق في التأكيد: " + assertionName);
                 throw new InvalidOperationException("خرق في اختبار الآجل: " + assertionName);
             }
         }

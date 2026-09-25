@@ -130,7 +130,7 @@ export const DatabaseRecoveryModal = ({
         <div className="p-5 flex flex-col gap-4 text-[12.5px] text-ink overflow-y-auto max-h-[80vh]">
           {/* Explanation Banner */}
           <div className="p-3.5 bg-red-50 border border-red-200 rounded-[6px] text-red-900 leading-relaxed font-sans">
-            <span className="font-bold block mb-1">📌 تفاصيل الحالة الفنية:</span>
+            <span className="font-bold block mb-1">تفاصيل الحالة الفنية:</span>
             {status.isCorrupt ? (
               <>
                 تم اكتشاف خلل في اتساق ملف قاعدة البيانات (مثل انقطاع مفاجئ للكهرباء أثناء الكتابة).

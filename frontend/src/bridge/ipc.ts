@@ -242,7 +242,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         meetsSlaUnder100ms: true,
         normalizationTestsPassed: true,
         scannerSimulationPassed: true,
-        summaryReport: 'تقرير أداء فحص سرعة البحث والباركود على 5000 صنف:\n• متوسط زمن البحث: 3.2 مللي ثانية (الحد الأقصى: 100 مللي ثانية) ✅\n• اختبار توحيد الحروف العربية: ✅ ناجح 100%\n• محاكاة قارئ الباركود: ✅ فوري',
+        summaryReport: 'تقرير أداء فحص سرعة البحث والباركود على 5000 صنف:\n• متوسط زمن البحث: 3.2 مللي ثانية (الحد الأقصى: 100 مللي ثانية)\n• اختبار توحيد الحروف العربية: ناجح 100%\n• محاكاة قارئ الباركود: فوري',
         testLog: [
           'تم تجهيز وفهرسة 5000 صنف خلال 380 مللي ثانية.',
           'نجاح مطابقة الألف: "ارز" وجد "أرز مصري فاخر 1 كجم"',
@@ -644,6 +644,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           name: 'سوبرماركت ومواد غذائية',
           description: 'مناسب لمحلات السوبرماركت ومحلات البقالة الكبيرة التي تستخدم الباركود والميزان والآجل',
           icon: 'shopping-cart',
+          productsCount: 30,
           featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: true, feature_multi_units: true },
           categories: ['معلبات وبقوليات', 'ألبان وأجبان', 'منظفات وعناية منزلية', 'بسكويت وحلويات', 'مشروبات وعصائر', 'مخبوزات', 'خضار وفاكهة'],
           quickItems: [
@@ -663,6 +664,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           name: 'محلات هواتف وموبايل وإلكترونيات',
           description: 'مخصص لمحلات الهواتف الذكية والإلكترونيات وصيانة الجوال والإكسسوارات (بدون ميزان وأوزان)',
           icon: 'smartphone',
+          productsCount: 30,
           featureFlags: { feature_scale_weight: false, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false },
           categories: ['كابلات وشواحن', 'سماعات وصوتيات', 'جرابات وحافظات', 'لاصقات حماية وشاشات', 'باور بانك وبطاريات', 'كروت ميموري وفلاشات', 'صيانة وخدمات سريعة'],
           quickItems: [
@@ -682,6 +684,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           name: 'ألبان ومخبوزات ومعلبات',
           description: 'مناسب لمحلات اللبانة والأجبان والمخابز التي تعتمد على البيع بالوزن والأصناف الطازجة',
           icon: 'milk',
+          productsCount: 30,
           featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: true, feature_multi_units: false },
           categories: ['ألبان سائبة ومعبأة', 'أجبان بيضاء ومطبوخة', 'مخبوزات طازجة', 'بيض ومستلزمات', 'معلبات وعسل'],
           quickItems: [
@@ -700,6 +703,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           name: 'خضار وفاكهة ومجزر',
           description: 'مناسب لمحلات الخضار والفاكهة والجزارة والمجمدات التي تعتمد أساسياً على الميزان الإلكتروني',
           icon: 'apple',
+          productsCount: 30,
           featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false },
           categories: ['خضروات طازجة', 'فواكه موسمية', 'ورقيات وأعشاب', 'لحوم ودواجن', 'مجمدات'],
           quickItems: [
@@ -718,6 +722,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           name: 'مكتبات وأدوات مدرسية وهدايا',
           description: 'مناسب للمكتبات والقرطاسية، الهدايا، الألعاب ومستلزمات الطباعة (بدون ميزان)',
           icon: 'book',
+          productsCount: 30,
           featureFlags: { feature_scale_weight: false, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false },
           categories: ['أدوات كتابة وأقلام', 'كشاكيل ودفاتر', 'أدوات هندسية ومدرسية', 'ألعاب وهدايا', 'طباعة وتصوير مستندات'],
           quickItems: [
@@ -736,6 +741,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           name: 'عطارة ومحامص وبن وتوابل',
           description: 'مناسب لمحلات العطارة والبن والمحامص والمكسرات بالأوزان والجرامات والميزان',
           icon: 'flame',
+          productsCount: 30,
           featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: true, feature_multi_units: false },
           categories: ['بن ومشروبات ساخنة', 'مكسرات ومحامص', 'توابل وبهارات', 'أعشاب طبيعية', 'ياميش وتمور'],
           quickItems: [
@@ -753,6 +759,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           name: 'ملابس وأحذية وأزياء',
           description: 'مناسب لمحلات الملابس والأحذية والأزياء والحقائب (بدون ميزان وأوزان)',
           icon: 'shirt',
+          productsCount: 30,
           featureFlags: { feature_scale_weight: false, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false },
           categories: ['رجالي', 'حريمي', 'أطفال', 'أحذية ومصنوعات جلدية', 'إكسسوارات وطرح'],
           quickItems: [
@@ -770,6 +777,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           name: 'بقالة ومحل تجاري عام',
           description: 'إعداد عام متوازن يناسب كافة المحلات والأنشطة التجارية المتنوعة',
           icon: 'store',
+          productsCount: 30,
           featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false },
           categories: ['عام', 'أغذية ومشروبات', 'منظفات', 'حلويات وتسالي', 'دخان وسجائر'],
           quickItems: [
@@ -786,14 +794,20 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     case 'templates:isFirstRunNeeded':
       return { isNeeded: mockFirstRunNeeded };
 
-    case 'templates:apply':
+    case 'templates:apply': {
       mockFirstRunNeeded = false;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('rafiq_first_run_completed', 'true');
+      }
+      const count = payload?.seedInitialProducts !== false ? 30 : 0;
       return {
         success: true,
-        message: 'تم تطبيق القالب بنجاح.',
+        message: 'تم تطبيق القالب وتخصيص المتجر بنجاح.',
         categoriesCount: 6,
         quickItemsCount: 8,
+        productsCount: count,
       };
+    }
 
     case 'demo:getStatus':
       return {
@@ -852,7 +866,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           },
           {
             key: 'printer',
-            title: 'طابعة الإيصالات الحرارية (Feature #53)',
+            title: 'طابعة الفواتير والإيصالات الحرارية',
             passed: true,
             statusText: 'جاهزة (Xprinter XP-80C)',
             description: 'تم اكتشاف الطابعة وجاهزة لطباعة إيصالات الكاشير وفتح درج النقدية.',
@@ -861,7 +875,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           },
           {
             key: 'scanner',
-            title: 'قارئ الباركود (Barcode Scanner)',
+            title: 'قارئ الباركود والماسح الضوئي',
             passed: true,
             statusText: 'مفعل وجاهز للمسح',
             description: 'مستمع الباركود السريع نشط وينقل الأصناف مباشرة إلى سلة المبيعات بدون لمس الماوس.',
@@ -870,7 +884,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           },
           {
             key: 'backup',
-            title: 'النسخ الاحتياطي وأمان البيانات (Feature #9)',
+            title: 'النسخ الاحتياطي وحماية البيانات',
             passed: false,
             statusText: 'لم يتم أخذ نسخة بعد',
             description: 'ينصح بأخذ أول نسخة احتياطية على فلاشة USB خارجية لضمان أمان المحل.',
@@ -1185,14 +1199,14 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         totalAssertions: 8,
         passedAssertions: 8,
         details: [
-          '✔ قاعدة البيانات التجريبية لحسابات الآجل تم إنشاؤها بنجاح',
-          '✔ تم إنشاء العميل وحفظ الرصيد الافتتاحي (500 ج.م)',
-          '✔ تسجيل قيد رصيد افتتاحي في دفتر الأستاذ',
-          '✔ تم حفظ الفاتورة الآجلة بإجمالي 120 ج.م',
-          '✔ تحديث رصيد دين العميل إلى 620 ج.م',
-          '✔ تخفيض دين العميل بدقة إلى 400 ج.م بعد سداد 220 ج.م',
-          '✔ استعادة رصيد العميل الأصلي 620 ج.م بعد إلغاء الدفعة بقيد معاكس',
-          '✔ تصفير حساب العميل بعد السداد الكامل',
+          'قاعدة البيانات التجريبية لحسابات الآجل تم إنشاؤها بنجاح',
+          'تم إنشاء العميل وحفظ الرصيد الافتتاحي (500 ج.م)',
+          'تسجيل قيد رصيد افتتاحي في دفتر الأستاذ',
+          'تم حفظ الفاتورة الآجلة بإجمالي 120 ج.م',
+          'تحديث رصيد دين العميل إلى 620 ج.م',
+          'تخفيض دين العميل بدقة إلى 400 ج.م بعد سداد 220 ج.م',
+          'استعادة رصيد العميل الأصلي 620 ج.م بعد إلغاء الدفعة بقيد معاكس',
+          'تصفير حساب العميل بعد السداد الكامل',
         ],
       };
 
@@ -1313,7 +1327,7 @@ let mockProtectedActions = {
   db_recovery: true,
   discounts: false,
 };
-let mockFirstRunNeeded = false;
+let mockFirstRunNeeded = typeof window !== 'undefined' ? localStorage.getItem('rafiq_first_run_completed') !== 'true' : false;
 let mockDemoDataLoaded = false;
 let mockDemoProductsCount = 0;
 let mockDemoSalesCount = 0;

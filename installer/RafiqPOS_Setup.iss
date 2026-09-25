@@ -24,6 +24,8 @@ Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 SetupIconFile=app.ico
+WizardImageFile=wizard_sidebar.bmp
+WizardSmallImageFile=wizard_small.bmp
 UninstallDisplayIcon={app}\{#MyAppExeName}
 
 ; التوافق مع الأنظمة: ويندوز 7 الحزمة 1 كحد أدنى
@@ -42,6 +44,14 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Messages]
 arabic.BeveledLabel=رفيق POS — Rafiq POS
 english.BeveledLabel=Rafiq POS
+
+; تخصيص نصوص معالج التثبيت لتعكس الهوية الاحترافية لنظام رفيق
+arabic.WelcomeLabel1=أهلاً بك في معالج تثبيت رفيق POS
+arabic.WelcomeLabel2=سيقوم هذا المعالج بتثبيت برنامج رفيق لنقاط البيع وإدارة المتاجر على جهاز الكمبيوتر الخاص بك.%n%nالميزات التأسيسية التي يتم تهيئتها تلقائياً:%n• تشغيل أوفلاين 100%% بدون الحاجة لأي اتصال بالإنترنت.%n• محرك بيانات فائق الاستقرار ومعاملات مالية ذرية آمنة لحماية بيانات المحل.%n• توافق مباشر مع قارئ الباركود، موازين الأوزان، وطابعات الإيصالات الحرارية.%n• توافق تام بنسخة واحدة من Windows 7 SP1 حتى Windows 11.%n%nانقر على «التالي» للمتابعة، أو «إلغاء» للخروج من معالج التثبيت.
+
+arabic.FinishedHeadingLabel=اكتمل تثبيت رفيق POS بنجاح!
+arabic.FinishedLabelNoIcons=تم تثبيت برنامج رفيق لنقاط البيع وإدارة المتاجر بنجاح على جهازك.%n%nيمكنك الآن تشغيل البرنامج وبدء إعداد متجرك التجاري.
+arabic.FinishedLabel=تم اكتمال تثبيت رفيق POS بنجاح.%n%nانقر على «إنهاء» لتشغيل رفيق والبدء مباشرة.
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
@@ -154,6 +164,28 @@ end;
 
 procedure InitializeWizard();
 begin
+  // ضبط الخطوط العامة لمعالج التثبيت لتكون عصرية وأنيقة
+  WizardForm.Font.Name := 'Segoe UI';
+  WizardForm.Font.Size := 9;
+
+  // ترقية خط ولون عنوان شاشة الترحيب لتعكس هوية رفيق
+  WizardForm.WelcomeLabel1.Font.Name := 'Segoe UI';
+  WizardForm.WelcomeLabel1.Font.Size := 13;
+  WizardForm.WelcomeLabel1.Font.Style := [fsBold];
+  WizardForm.WelcomeLabel1.Font.Color := $00372D; // Forest Green ($00BBGGRR)
+
+  // ترقية خط ولون عنوان شاشة النهاية
+  WizardForm.FinishedHeadingLabel.Font.Name := 'Segoe UI';
+  WizardForm.FinishedHeadingLabel.Font.Size := 13;
+  WizardForm.FinishedHeadingLabel.Font.Style := [fsBold];
+  WizardForm.FinishedHeadingLabel.Font.Color := $00372D;
+
+  // ترقية عناوين الصفحات الداخلية
+  WizardForm.PageNameLabel.Font.Name := 'Segoe UI';
+  WizardForm.PageNameLabel.Font.Size := 10;
+  WizardForm.PageNameLabel.Font.Style := [fsBold];
+  WizardForm.PageNameLabel.Font.Color := $00372D;
+
   WizardForm.OnShow := @WizardOnShow;
   ForceWizardToForeground();
 end;
@@ -251,7 +283,7 @@ begin
   // 1. فحص الحزمة الأولى على ويندوز 7 (Windows 7 SP1)
   if IsWin7MissingSP1() then
   begin
-    Msg := '⚠️ نظام التشغيل غير مدعوم مباشرة:' + #13#10 + #13#10 +
+    Msg := 'نظام التشغيل غير مدعوم مباشرة:' + #13#10 + #13#10 +
            'يتطلب برنامج رفيق لنقاط البيع نظام Windows 7 Service Pack 1 (SP1) على الأقل.' + #13#10 +
            'جهازك يعمل حالياً بنظام Windows 7 بدون الحزمة الأولى (Service Pack 1).' + #13#10#13#10 +
            'خطوات الحل بالعربي:' + #13#10 +
@@ -265,7 +297,7 @@ begin
   // 2. فحص دوت نت فريموورك المتوافق (.NET 4.6.2 / 4.8)
   if not IsDotNetCompatible() then
   begin
-    Msg := '⚠️ متطلب تشغيل ناقص (.NET Framework):' + #13#10 + #13#10 +
+    Msg := 'متطلب تشغيل ناقص (.NET Framework):' + #13#10 + #13#10 +
            'يتطلب تشغيل رفيق POS وجود حزمة Microsoft .NET Framework (الإصدار 4.6.2 أو 4.8).' + #13#10#13#10 +
            'خطوات الحل بالعربي:' + #13#10 +
            '1. قم بتثبيت حزمة .NET Framework 4.8 المرفقة بدون إنترنت (تجدها في مجلد تحديثات النظام).' + #13#10 +

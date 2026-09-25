@@ -1852,24 +1852,39 @@ export const PosView = () => {
         </section>
       </div>
 
-      {/* 2. BOTTOM KEYBOARD SHORTCUTS STRIP (Task 32-2: F1-F12 Cashier Hotkeys Cheatsheet) */}
-      <footer className="h-[36px] w-full bg-surface-2 hairline-t flex items-center justify-between px-3 select-none shrink-0 z-10 text-[11px] text-ink-muted overflow-x-auto">
-        <div className="flex items-center gap-2">
+      {/* 2. BOTTOM KEYBOARD & TOUCH ACTION STRIP (Task 32-2: Tactile Cashier Action Bar) */}
+      <footer className="h-11 w-full bg-slate-100/90 border-t border-slate-200/90 flex items-center justify-between px-3 select-none shrink-0 z-10 text-xs overflow-x-auto gap-2">
+        <div className="flex items-center gap-1.5 overflow-x-auto py-1">
+          {/* F1: Help */}
           <button 
             type="button"
             onClick={() => setIsHelpModalOpen(true)}
-            className="flex items-center gap-1 hover:text-brand transition-colors cursor-pointer"
-            title="دليل الاختصارات الكامل"
+            className="h-8 px-2.5 rounded-lg bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 border border-slate-300 hover:border-slate-400 border-b-2 border-b-slate-400/80 shadow-2xs hover:shadow-xs active:translate-y-0.5 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
+            title="دليل اختصارات لوحة المفاتيح الكامل (F1)"
           >
-            <span className="font-mono font-bold text-brand px-1.5 py-0.5 bg-surface border border-line rounded text-[10px]">F1</span>
-            <span className="font-semibold text-ink">مساعدة</span>
+            <kbd className="px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-300 font-mono text-[10px] font-black text-[#006d41]">
+              F1
+            </kbd>
+            <span>مساعدة</span>
           </button>
-          <span className="text-line">|</span>
-          <div className="flex items-center gap-1">
-            <span className="font-mono font-bold text-ink px-1.5 py-0.5 bg-surface border border-line rounded text-[10px]">F2</span>
+
+          {/* F2: Search / Barcode Focus */}
+          <button 
+            type="button"
+            onClick={() => {
+              barcodeInputRef.current?.focus();
+              barcodeInputRef.current?.select();
+            }}
+            className="h-8 px-2.5 rounded-lg bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 border border-slate-300 hover:border-slate-400 border-b-2 border-b-slate-400/80 shadow-2xs hover:shadow-xs active:translate-y-0.5 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
+            title="التركيز على حقل البحث والباركود (F2)"
+          >
+            <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-300 font-mono text-[10px] font-black text-slate-700">
+              F2
+            </kbd>
             <span>بحث</span>
-          </div>
-          <span className="text-line">|</span>
+          </button>
+
+          {/* F3: Quantity / Weight */}
           <button 
             type="button"
             onClick={() => {
@@ -1890,63 +1905,160 @@ export const PosView = () => {
                 showStatus('السلة فارغة. يرجى إضافة صنف أولاً لتعديل كميته', 'warning');
               }
             }}
-            className="flex items-center gap-1 hover:text-brand transition-colors cursor-pointer"
+            className="h-8 px-2.5 rounded-lg bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 border border-slate-300 hover:border-slate-400 border-b-2 border-b-slate-400/80 shadow-2xs hover:shadow-xs active:translate-y-0.5 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
+            title="تعديل كمية أو وزن الصنف الأخير في السلة (F3)"
           >
-            <span className="font-mono font-bold text-ink px-1.5 py-0.5 bg-surface border border-line rounded text-[10px]">F3</span>
+            <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-300 font-mono text-[10px] font-black text-slate-700">
+              F3
+            </kbd>
             <span>كمية (+/-)</span>
           </button>
-          <span className="text-line">|</span>
+
+          {/* F4: Discount */}
           <button 
             type="button"
             onClick={() => {
               setDiscountInputEgp(discountPiasters > 0 ? (discountPiasters / 100).toFixed(2) : '');
               setIsDiscountModalOpen(true);
             }}
-            className="flex items-center gap-1 hover:text-brand transition-colors cursor-pointer"
+            className="h-8 px-2.5 rounded-lg bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 border border-slate-300 hover:border-slate-400 border-b-2 border-b-slate-400/80 shadow-2xs hover:shadow-xs active:translate-y-0.5 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
+            title="إضافة خصم على إجمالي الفاتورة (F4)"
           >
-            <span className="font-mono font-bold text-ink px-1.5 py-0.5 bg-surface border border-line rounded text-[10px]">F4</span>
+            <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-300 font-mono text-[10px] font-black text-slate-700">
+              F4
+            </kbd>
             <span>خصم</span>
           </button>
-          <span className="text-line">|</span>
-          <div className="flex items-center gap-1">
-            <span className="font-mono font-bold text-ink px-1.5 py-0.5 bg-surface border border-line rounded text-[10px]">F6</span>
+
+          {/* F6: Hold / Suspend */}
+          <button 
+            type="button"
+            onClick={() => {
+              if (cart.length > 0) {
+                const draft = {
+                  items: cart,
+                  discountPiasters,
+                  customerId: selectedCustomerId,
+                  savedAt: Date.now()
+                };
+                localStorage.setItem('rafiq_pos_cart_draft', JSON.stringify(draft));
+                setDraftPrompt(draft);
+                setCart([]);
+                setDiscountPiasters(0);
+                showStatus('تم تعليق الفاتورة بنجاح. اضغط F6 لاسترجاعها في أي وقت', 'warning');
+              } else if (draftPrompt && draftPrompt.items.length > 0) {
+                setCart(draftPrompt.items);
+                setDiscountPiasters(draftPrompt.discountPiasters || 0);
+                if (draftPrompt.customerId) setSelectedCustomerId(draftPrompt.customerId);
+                localStorage.removeItem('rafiq_pos_cart_draft');
+                setDraftPrompt(null);
+                showStatus('تم استرجاع الفاتورة المعلقة بنجاح إلى السلة', 'success');
+              } else {
+                showStatus('لا توجد فاتورة في السلة لتعليقها، ولا توجد فاتورة معلقة لاسترجاعها', 'warning');
+              }
+            }}
+            className="h-8 px-2.5 rounded-lg bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 border border-slate-300 hover:border-slate-400 border-b-2 border-b-slate-400/80 shadow-2xs hover:shadow-xs active:translate-y-0.5 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
+            title="تعليق السلة الحالية أو استرجاع السلة المعلقة (F6)"
+          >
+            <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-300 font-mono text-[10px] font-black text-slate-700">
+              F6
+            </kbd>
             <span>تعليق/استرجاع</span>
-          </div>
-          <span className="text-line">|</span>
-          <div className="flex items-center gap-1">
-            <span className="font-mono font-bold text-ink px-1.5 py-0.5 bg-surface border border-line rounded text-[10px]">F7</span>
+          </button>
+
+          {/* F7: New Cart */}
+          <button 
+            type="button"
+            onClick={requestClearCart}
+            className="h-8 px-2.5 rounded-lg bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 border border-slate-300 hover:border-slate-400 border-b-2 border-b-slate-400/80 shadow-2xs hover:shadow-xs active:translate-y-0.5 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
+            title="مسح السلة وبدء فاتورة جديدة (F7)"
+          >
+            <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-300 font-mono text-[10px] font-black text-slate-700">
+              F7
+            </kbd>
             <span>سلة جديدة</span>
-          </div>
-          <span className="text-line">|</span>
-          <div className="flex items-center gap-1">
-            <span className="font-mono font-bold text-ink px-1.5 py-0.5 bg-surface border border-line rounded text-[10px]">F8</span>
+          </button>
+
+          {/* F8: Barcode Scanner */}
+          <button 
+            type="button"
+            onClick={() => setIsScannerModalOpen(true)}
+            className="h-8 px-2.5 rounded-lg bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 border border-slate-300 hover:border-slate-400 border-b-2 border-b-slate-400/80 shadow-2xs hover:shadow-xs active:translate-y-0.5 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
+            title="إعدادات وضبط قارئ الباركود (F8)"
+          >
+            <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-300 font-mono text-[10px] font-black text-slate-700">
+              F8
+            </kbd>
             <span>القارئ</span>
-          </div>
-          <span className="text-line">|</span>
-          <div className="flex items-center gap-1">
-            <span className="font-mono font-bold text-ink px-1.5 py-0.5 bg-surface border border-line rounded text-[10px]">F9</span>
+          </button>
+
+          {/* F9: Last Receipt */}
+          <button 
+            type="button"
+            onClick={() => {
+              if (lastCompletedSale) {
+                setIsReceiptOpen(true);
+              } else {
+                showStatus('لا توجد فاتورة سابقة لإعادة طباعتها', 'warning');
+              }
+            }}
+            className="h-8 px-2.5 rounded-lg bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 border border-slate-300 hover:border-slate-400 border-b-2 border-b-slate-400/80 shadow-2xs hover:shadow-xs active:translate-y-0.5 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
+            title="معاينة وإعادة طباعة آخر إيصال تم حفظه (F9)"
+          >
+            <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-300 font-mono text-[10px] font-black text-slate-700">
+              F9
+            </kbd>
             <span>إعادة الإيصال</span>
-          </div>
-          <span className="text-line">|</span>
-          <div className="flex items-center gap-1">
-            <span className="font-mono font-bold text-ink px-1.5 py-0.5 bg-surface border border-line rounded text-[10px]">F10</span>
-            <span>آجل/عميل</span>
-          </div>
-          <span className="text-line">|</span>
-          <div className="flex items-center gap-1">
-            <span className="font-mono font-bold text-white bg-paid px-1.5 py-0.5 rounded text-[10px]">F12</span>
-            <span className="font-bold text-paid">سداد نقدي</span>
-          </div>
-          <span className="text-line">|</span>
-          <div className="flex items-center gap-1">
-            <span className="font-mono font-bold text-ink px-1.5 py-0.5 bg-surface border border-line rounded text-[10px]">Esc</span>
-            <span>خروج</span>
-          </div>
+          </button>
+
+          {/* F10: Customer / Credit */}
+          <button 
+            type="button"
+            onClick={() => {
+              setPaymentMethod((prev) => {
+                const next = prev === 'cash' ? 'credit' : 'cash';
+                showStatus(next === 'credit' ? 'تم التبديل إلى البيع الآجل (F10)' : 'تم التبديل إلى الدفع النقدي (F10)', 'success');
+                return next;
+              });
+            }}
+            className={`h-8 px-2.5 rounded-lg border border-b-2 shadow-2xs hover:shadow-xs active:translate-y-0.5 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs ${
+              paymentMethod === 'credit'
+                ? 'bg-rose-50 text-rose-800 border-rose-300 border-b-rose-400'
+                : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300 hover:border-slate-400 border-b-slate-400/80'
+            }`}
+            title="التبديل بين الدفع النقدي والبيع الآجل للعميل (F10)"
+          >
+            <kbd className={`px-1.5 py-0.5 rounded font-mono text-[10px] font-black ${
+              paymentMethod === 'credit' ? 'bg-rose-100 border border-rose-300 text-rose-800' : 'bg-slate-100 border border-slate-300 text-slate-700'
+            }`}>
+              F10
+            </kbd>
+            <span>{paymentMethod === 'credit' ? 'بيع آجل (نشط)' : 'آجل/عميل'}</span>
+          </button>
+
+          {/* F12: Instant Cash Checkout */}
+          <button 
+            type="button"
+            onClick={() => {
+              if (cart.length > 0 && !loading) {
+                void handleFastCashCheckout();
+              } else if (cart.length === 0) {
+                showStatus('السلة فارغة! أضف أصنافاً أولاً للبيع', 'warning');
+              }
+            }}
+            className="h-8 px-3 rounded-lg bg-emerald-600 hover:bg-[#004d3e] text-white border border-emerald-600 border-b-2 border-b-emerald-800 shadow-2xs hover:shadow-xs active:translate-y-0.5 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-black text-xs"
+            title="سداد نقدي فوري وحفظ الفاتورة مباشرة (F12)"
+          >
+            <kbd className="px-1.5 py-0.5 rounded bg-emerald-700 text-white border border-emerald-800 font-mono text-[10px] font-black">
+              F12
+            </kbd>
+            <span>سداد نقدي</span>
+          </button>
         </div>
 
-        <div className="text-[10px] font-mono text-ink-muted shrink-0 pr-2">
-          <span>وضع: </span>
-          <span className="text-brand font-bold">100% كيبورد</span>
+        <div className="text-[11px] font-mono text-slate-500 shrink-0 pr-2 flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span>كيبورد + لمس</span>
         </div>
       </footer>
 

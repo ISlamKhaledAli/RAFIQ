@@ -97,7 +97,7 @@ namespace RafiqPOS.Services
             result.Checks.Add(new ReadinessCheckItem
             {
                 Key = "printer",
-                Title = "طابعة الإيصالات الحرارية (Feature #53)",
+                Title = "طابعة الفواتير والإيصالات الحرارية",
                 Passed = printerPassed,
                 StatusText = printerStatusText,
                 Description = printerPassed
@@ -115,7 +115,7 @@ namespace RafiqPOS.Services
             result.Checks.Add(new ReadinessCheckItem
             {
                 Key = "scanner",
-                Title = "قارئ الباركود (Barcode Scanner)",
+                Title = "قارئ الباركود والماسح الضوئي",
                 Passed = scannerPassed,
                 StatusText = scannerPassed ? "مفعل وجاهز للمسح" : "معطل في الإعدادات",
                 Description = "مستمع الباركود السريع نشط وينقل الأصناف مباشرة إلى سلة المبيعات بدون لمس الماوس.",
@@ -134,12 +134,20 @@ namespace RafiqPOS.Services
                     if (bStatus != null && !string.IsNullOrEmpty(bStatus.LastBackupAt) && !bStatus.IsOverdue)
                     {
                         backupPassed = true;
-                        backupStatusText = string.Format("سليمة ({0})", bStatus.LastBackupAt);
+                        DateTime bDt;
+                        if (DateTime.TryParse(bStatus.LastBackupAt, out bDt))
+                        {
+                            backupStatusText = string.Format("محفوظة ({0:yyyy/MM/dd hh:mm tt})", bDt.ToLocalTime());
+                        }
+                        else
+                        {
+                            backupStatusText = "سليمة ومحفوظة";
+                        }
                     }
                     else if (bStatus != null && !string.IsNullOrEmpty(bStatus.LastBackupAt))
                     {
                         backupPassed = true;
-                        backupStatusText = "يوجد نسخة ولكنها قديمة";
+                        backupStatusText = "توجد نسخة قديمة - ينصح بالتحديث";
                     }
                 }
             }
@@ -151,7 +159,7 @@ namespace RafiqPOS.Services
             result.Checks.Add(new ReadinessCheckItem
             {
                 Key = "backup",
-                Title = "النسخ الاحتياطي وأمان البيانات (Feature #9)",
+                Title = "النسخ الاحتياطي وحماية البيانات",
                 Passed = backupPassed,
                 StatusText = backupStatusText,
                 Description = backupPassed
@@ -205,7 +213,7 @@ namespace RafiqPOS.Services
 
             if (result.IsReadyToSell && result.ReadinessPercentage == 100)
             {
-                result.OverallStatusMessage = "🎉 رفيق جاهز للبيع بنسبة 100%! كافة الأجهزة والإعدادات مكتملة.";
+                result.OverallStatusMessage = "رفيق جاهز للبيع بنسبة 100%! كافة الأجهزة والإعدادات مكتملة.";
             }
             else if (result.IsReadyToSell)
             {

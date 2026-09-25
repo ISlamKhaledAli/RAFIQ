@@ -111,7 +111,12 @@ export default function App() {
   const [clockWarning, setClockWarning] = useState<string | null>(null);
   const [backupWarning, setBackupWarning] = useState<string | null>(null);
   const [corruptDbStatus, setCorruptDbStatus] = useState<DatabaseIntegrityStatus | null>(null);
-  const [isFirstRunWizardOpen, setIsFirstRunWizardOpen] = useState(false);
+  const [isFirstRunWizardOpen, setIsFirstRunWizardOpen] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('rafiq_first_run_completed') !== 'true';
+    }
+    return false;
+  });
   const [hasDemoData, setHasDemoData] = useState(false);
   const [isTourOpen, setIsTourOpen] = useState(false);
   const [isReadinessOpen, setIsReadinessOpen] = useState(false);
@@ -209,8 +214,15 @@ export default function App() {
     const checkFirstRun = async () => {
       try {
         const res: any = await invoke('templates:isFirstRunNeeded');
-        if (res && res.isNeeded && isMounted) {
-          setIsFirstRunWizardOpen(true);
+        if (isMounted) {
+          if (res && res.isNeeded) {
+            setIsFirstRunWizardOpen(true);
+          } else {
+            setIsFirstRunWizardOpen(false);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('rafiq_first_run_completed', 'true');
+            }
+          }
         }
       } catch {
         // Ignore in dev
@@ -335,6 +347,24 @@ export default function App() {
     { id: 'settings' as TabType, label: 'إعدادات المتجر والصيانة', icon: Settings, shortcut: 'Alt+7' },
   ];
 
+  if (isFirstRunWizardOpen) {
+    return (
+      <div className="fixed inset-0 z-[9999] w-screen h-screen overflow-hidden select-none bg-[#f8fafc] dark:bg-slate-950" dir="rtl">
+        <FirstRunWizardModal
+          isOpen={true}
+          isFirstRun={true}
+          onClose={() => setIsFirstRunWizardOpen(false)}
+          onCompleted={() => {
+            setIsFirstRunWizardOpen(false);
+            setActiveTab('pos');
+            window.location.reload();
+          }}
+        />
+        <RafiqDialogContainer />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen w-screen bg-canvas text-ink select-none overflow-hidden">
       {/* 1. TOP BAR (60px high, hairline-b, Spans across top) */}
@@ -352,50 +382,56 @@ export default function App() {
           </div>
         </div>
 
-        {/* Left Side: Offline status, Cashier Badge, Date, Time */}
-        <div className="flex items-center gap-3 text-xs">
-          {/* Offline Indicator */}
-          <div className="flex items-center gap-1.5 bg-paid-soft border border-paid-border px-2.5 py-1 rounded text-paid font-medium">
-            <span className="w-2 h-2 rounded-full bg-paid animate-pulse"></span>
-            <span className="text-[11px] font-semibold">يعمل بدون إنترنت</span>
-            <WifiOff className="w-3.5 h-3.5 text-paid opacity-75 mr-0.5" />
+        {/* Left Side: Offline status, Cashier Badge, Action Buttons, Date, Time */}
+        <div className="flex items-center gap-2.5 text-xs">
+          {/* Offline Status Pill (Informational - Distinct from interactive buttons) */}
+          <div className="flex items-center gap-1.5 bg-emerald-50/90 border border-emerald-200/80 px-2.5 py-1 rounded-full text-emerald-800 font-semibold text-[11px] select-none shadow-2xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+            <span>أوفلاين • محلي</span>
+            <WifiOff className="w-3.5 h-3.5 text-emerald-700 opacity-75 mr-0.5" />
           </div>
 
-          {/* Cashier Badge */}
-          <div className="flex items-center gap-1.5 bg-surface-2 border border-line px-2.5 py-1 rounded text-ink text-[11px]">
-            <User className="w-3.5 h-3.5 text-ink-muted" />
-            <span className="font-medium">{cashierName || 'كاشير (1)'}</span>
+          {/* Cashier Identity Badge (Informational - Distinct from interactive buttons) */}
+          <div className="flex items-center gap-1.5 bg-slate-100/90 border border-slate-200/80 px-2.5 py-1 rounded-full text-slate-700 text-[11px] font-medium select-none shadow-2xs">
+            <User className="w-3.5 h-3.5 text-slate-500" />
+            <span>{cashierName || 'كاشير (1)'}</span>
           </div>
 
-          {/* Readiness Checklist Button (Feature #137) */}
+          {/* Vertical subtle divider */}
+          <div className="h-5 w-[1px] bg-slate-200 mx-0.5 hidden sm:block" />
+
+          {/* Readiness Checklist Button (Feature #137) - Tactile Interactive Button */}
           <button
             type="button"
             onClick={() => setIsReadinessOpen(true)}
-            className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-[#006d41] border border-emerald-300 px-2.5 py-1 rounded text-[11px] font-bold transition-colors shadow-xs"
-            title="فحص جاهزية النظام قبل أول بيع"
+            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white hover:bg-emerald-50/80 active:bg-emerald-100 text-[#006d41] border border-emerald-300/90 hover:border-emerald-500 border-b-2 border-b-emerald-500/70 font-bold text-xs shadow-2xs hover:shadow-xs active:translate-y-0.5 active:scale-[0.98] transition-all cursor-pointer"
+            title="فحص جاهزية النظام والعتاد قبل أول بيع"
           >
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
             <span>جاهزية التشغيل</span>
           </button>
 
-          {/* Fullscreen Kiosk Mode Toggle */}
+          {/* Fullscreen Kiosk Mode Toggle - Tactile Interactive Button */}
           <button
             type="button"
             onClick={handleToggleFullscreen}
-            className="flex items-center gap-1.5 bg-surface-2 hover:bg-brand-soft hover:text-brand border border-line px-2.5 py-1 rounded text-ink text-[11px] font-medium transition-colors shadow-xs"
+            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-300 hover:border-slate-400 border-b-2 border-b-slate-400/80 font-bold text-xs shadow-2xs hover:shadow-xs active:translate-y-0.5 active:scale-[0.98] transition-all cursor-pointer"
             title={isFullscreen ? 'الخروج من ملء الشاشة (F11)' : 'ملء الشاشة بالكامل وإخفاء شريط ويندوز (F11)'}
           >
             {isFullscreen ? (
               <>
-                <Minimize2 className="w-3.5 h-3.5 text-ink-muted" />
+                <Minimize2 className="w-3.5 h-3.5 text-slate-600 shrink-0" />
                 <span className="hidden sm:inline">نافذة عادية</span>
               </>
             ) : (
               <>
-                <Maximize2 className="w-3.5 h-3.5 text-brand" />
+                <Maximize2 className="w-3.5 h-3.5 text-[#006d41] shrink-0" />
                 <span className="hidden sm:inline">ملء الشاشة</span>
               </>
             )}
+            <kbd className="hidden md:inline-flex items-center justify-center px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 font-mono text-[10px] font-bold">
+              F11
+            </kbd>
           </button>
 
           {/* Date & Time (Isolated Component) */}
@@ -755,10 +791,12 @@ export default function App() {
       {/* First Run Store Setup Wizard (Feature #106 / Task 106-4) */}
       <FirstRunWizardModal
         isOpen={isFirstRunWizardOpen}
+        isFirstRun={true}
         onClose={() => setIsFirstRunWizardOpen(false)}
         onCompleted={() => {
           setIsFirstRunWizardOpen(false);
           setActiveTab('pos');
+          window.location.reload();
         }}
       />
 

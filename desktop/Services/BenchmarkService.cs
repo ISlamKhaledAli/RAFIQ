@@ -162,11 +162,11 @@ namespace RafiqPOS.Services
                         result.InsertTimeMs,
                         (productCount / (result.InsertTimeMs / 1000.0)),
                         result.AverageSearchLatencyMs,
-                        result.AverageSearchLatencyMs < 15.0 ? "✅ ممتاز" : "⚠️ بطيء",
+                        result.AverageSearchLatencyMs < 15.0 ? "ممتاز" : "بطيء",
                         result.AverageSaleCommitMs,
-                        result.AverageSaleCommitMs < 30.0 ? "✅ ممتاز" : "⚠️ بطيء",
+                        result.AverageSaleCommitMs < 30.0 ? "ممتاز" : "بطيء",
                         result.MemoryUsageMb,
-                        memMb < 250.0 ? "✅ اقتصادي" : "⚠️ مرتفع"
+                        memMb < 250.0 ? "اقتصادي" : "مرتفع"
                     );
 
                     Logger.Info("اكتمل اختبار الأداء بنجاح: " + result.SummaryMessage);
