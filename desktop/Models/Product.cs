@@ -50,6 +50,9 @@ namespace RafiqPOS.Models
         [JsonProperty("isActive")]
         public bool IsActive { get; set; }
 
+        [JsonProperty("needsReview")]
+        public bool NeedsReview { get; set; }
+
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
 

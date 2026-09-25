@@ -205,6 +205,18 @@ namespace RafiqPOS.Repositories
             return results;
         }
 
+        public int GetTotalCount()
+        {
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM products WHERE is_active = 1;", conn))
+                {
+                    return Convert.ToInt32(cmd.ExecuteScalar());
+                }
+            }
+        }
+
         public void Upsert(Product product)
         {
             using (var conn = new SQLiteConnection(_connectionString))
@@ -218,10 +230,10 @@ namespace RafiqPOS.Repositories
                         string sql = @"
                             INSERT INTO products (
                                 id, barcode, internal_code, name, normalized_name, category_id, price_piasters, cost_piasters, 
-                                stock_quantity_milli, min_stock_quantity_milli, unit, tax_rate_percent, tax_category_code, is_active, created_at, updated_at
+                                stock_quantity_milli, min_stock_quantity_milli, unit, tax_rate_percent, tax_category_code, is_active, needs_review, created_at, updated_at
                             ) VALUES (
                                 @id, @barcode, @internalCode, @name, @normName, @categoryId, @price, @cost, 
-                                @stock, @minStock, @unit, @tax, @taxCategoryCode, @isActive, @createdAt, @updatedAt
+                                @stock, @minStock, @unit, @tax, @taxCategoryCode, @isActive, @needsReview, @createdAt, @updatedAt
                             )
                             ON CONFLICT(id) DO UPDATE SET
                                 barcode = excluded.barcode,
@@ -237,6 +249,7 @@ namespace RafiqPOS.Repositories
                                 tax_rate_percent = excluded.tax_rate_percent,
                                 tax_category_code = excluded.tax_category_code,
                                 is_active = excluded.is_active,
+                                needs_review = excluded.needs_review,
                                 updated_at = excluded.updated_at;
                         ";
                         using (var cmd = new SQLiteCommand(sql, conn, trans))
@@ -255,6 +268,7 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@tax", product.TaxRatePercent);
                             cmd.Parameters.AddWithValue("@taxCategoryCode", (object)product.TaxCategoryCode ?? "");
                             cmd.Parameters.AddWithValue("@isActive", product.IsActive ? 1 : 0);
+                            cmd.Parameters.AddWithValue("@needsReview", product.NeedsReview ? 1 : 0);
                             cmd.Parameters.AddWithValue("@createdAt", product.CreatedAt ?? DateTime.UtcNow.ToString("o"));
                             cmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
                             cmd.ExecuteNonQuery();
@@ -646,6 +660,16 @@ namespace RafiqPOS.Repositories
             }
             catch { }
 
+            bool needsReview = false;
+            try
+            {
+                if (reader["needs_review"] != DBNull.Value)
+                {
+                    needsReview = Convert.ToInt32(reader["needs_review"]) == 1;
+                }
+            }
+            catch { }
+
             return new Product
             {
                 Id = reader["id"].ToString(),
@@ -662,6 +686,7 @@ namespace RafiqPOS.Repositories
                 TaxRatePercent = Convert.ToInt32(reader["tax_rate_percent"]),
                 TaxCategoryCode = taxCategory,
                 IsActive = Convert.ToInt32(reader["is_active"]) == 1,
+                NeedsReview = needsReview,
                 CreatedAt = reader["created_at"].ToString(),
                 UpdatedAt = reader["updated_at"].ToString()
             };

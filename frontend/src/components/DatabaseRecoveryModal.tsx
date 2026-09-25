@@ -55,9 +55,17 @@ export const DatabaseRecoveryModal = ({
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    // Safety: Verify PIN before destructive overwrite (Task 10-4)
-    if (pin.trim() !== '1234') {
-      setErrorMessage('الرقم السري لصاحب المحل غير صحيح (الرقم الافتراضي: 1234).');
+    // Safety: Verify PIN before destructive overwrite (Task 10-4 & Feature #52)
+    try {
+      const verifyRes: any = await invoke('security:verifyPin', { pin: pin.trim(), action: 'db_recovery' });
+      if (!verifyRes || !verifyRes.success) {
+        setErrorMessage(verifyRes?.message || 'الرقم السري لصاحب المحل غير صحيح.');
+        setRestoring(false);
+        return;
+      }
+    } catch (authErr: unknown) {
+      const msg = authErr instanceof Error ? authErr.message : String(authErr);
+      setErrorMessage(`فشل التحقق من الصلاحية: ${msg}`);
       setRestoring(false);
       return;
     }
@@ -195,13 +203,13 @@ export const DatabaseRecoveryModal = ({
               <div className="p-2.5 bg-surface border border-line rounded flex flex-col gap-1.5">
                 <label className="text-[11.5px] font-bold text-ink flex items-center gap-1.5">
                   <Lock className="w-3.5 h-3.5 text-brand" />
-                  <span>تأكيد الإذن: أدخل الرقم السري للمدير للمتابعة (الافتراضي: 1234):</span>
+                  <span>تأكيد الإذن: أدخل الرقم السري للمشرف للمتابعة:</span>
                 </label>
                 <input
                   type="password"
                   value={pin}
                   onChange={(e) => setPin(e.target.value)}
-                  placeholder="أدخل الرقم السري (1234)"
+                  placeholder="أدخل الرقم السري"
                   className="w-full bg-surface-2 border border-line rounded h-[36px] px-3 text-[13px] font-mono text-center tracking-widest text-ink focus:outline-none focus:border-brand"
                 />
               </div>

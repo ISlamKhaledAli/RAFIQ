@@ -24,7 +24,6 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   Calendar,
-  Wrench,
   Download
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
@@ -39,7 +38,11 @@ import { ExcelImportModal } from '../components/ExcelImportModal';
 import { StockMovementsModal } from '../components/StockMovementsModal';
 import { StockAdjustmentModal } from '../components/StockAdjustmentModal';
 
-export const ProductsView = () => {
+export interface ProductsViewProps {
+  subView?: 'catalog' | 'movements';
+}
+
+export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -105,7 +108,8 @@ export const ProductsView = () => {
   };
 
   // Stock Movements & Inventory state (Stories 38 & 39 / Features #34 & #35)
-  const [activeSubView, setActiveSubView] = useState<'catalog' | 'movements'>('catalog');
+  const [internalSubView] = useState<'catalog' | 'movements'>('catalog');
+  const activeSubView = subView ?? internalSubView;
   const [selectedProdForMovements, setSelectedProdForMovements] = useState<Product | null>(null);
   const [selectedProdForAdjustment, setSelectedProdForAdjustment] = useState<Product | null>(null);
   const [allMovements, setAllMovements] = useState<StockMovement[]>([]);
@@ -115,8 +119,21 @@ export const ProductsView = () => {
   const [discrepancies, setDiscrepancies] = useState<StockDiscrepancy[]>([]);
   const [recalculating, setRecalculating] = useState(false);
   const [recalcSuccessMsg, setRecalcSuccessMsg] = useState<string | null>(null);
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
-  const [runningTests, setRunningTests] = useState(false);
+
+  // Auto-dismiss feedback banners after 3.5 seconds
+  useEffect(() => {
+    if (recalcSuccessMsg) {
+      const timer = setTimeout(() => setRecalcSuccessMsg(null), 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [recalcSuccessMsg]);
+
+  useEffect(() => {
+    if (importSuccessAlert) {
+      const timer = setTimeout(() => setImportSuccessAlert(null), 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [importSuccessAlert]);
 
   const loadMovements = async () => {
     setMovementsLoading(true);
@@ -142,6 +159,30 @@ export const ProductsView = () => {
     }
   };
 
+  useEffect(() => {
+    let active = true;
+    if (activeSubView === 'movements') {
+      void (async () => {
+        try {
+          const res = await invoke<StockMovement[]>('inventory:getMovements', {
+            movementType: movementTypeFilter === 'ALL' ? undefined : movementTypeFilter,
+            limit: 250,
+          });
+          if (active) {
+            setAllMovements(Array.isArray(res) ? res : []);
+          }
+          const discRes = await invoke<StockDiscrepancy[]>('inventory:getDiscrepancies');
+          if (active) {
+            setDiscrepancies(Array.isArray(discRes) ? discRes : []);
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      })();
+    }
+    return () => { active = false; };
+  }, [activeSubView, movementTypeFilter]);
+
   const handleRecalculateStock = async () => {
     setRecalculating(true);
     setRecalcSuccessMsg(null);
@@ -155,26 +196,6 @@ export const ProductsView = () => {
       alert('فشلت إعادة حساب المخزون: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setRecalculating(false);
-    }
-  };
-
-  const handleRunInventoryTests = async () => {
-    setRunningTests(true);
-    setTestResult(null);
-    try {
-      const res: any = await invoke('inventory:runTests');
-      setTestResult({
-        success: res?.success ?? true,
-        message: res?.message || 'نجحت جميع اختبارات المخزون وحركات الصنف.',
-      });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setTestResult({
-        success: false,
-        message: `فشل الاختبار الآلي: ${msg}`,
-      });
-    } finally {
-      setRunningTests(false);
     }
   };
 
@@ -433,52 +454,29 @@ export const ProductsView = () => {
   return (
     <div className="flex flex-col h-full bg-canvas p-4 gap-3 overflow-hidden select-none">
       {/* 1. Header Toolbar (Title, Count Badge, Search, Add Button) */}
-      <div className="h-[56px] bg-surface hairline-all rounded-[6px] px-4 flex items-center justify-between shrink-0">
+      <div className="min-h-[56px] py-2 bg-surface hairline-all rounded-[6px] px-3 sm:px-4 flex flex-wrap items-center justify-between gap-2 shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded bg-brand-soft text-brand flex items-center justify-center font-bold">
-            <Package className="w-4 h-4" />
+            {activeSubView === 'catalog' ? (
+              <Package className="w-4 h-4" />
+            ) : (
+              <Boxes className="w-4 h-4" />
+            )}
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-[15px] font-bold text-ink leading-tight m-0">إدارة المنتجات والمخزون</h2>
+              <h2 className="text-[15px] font-bold text-ink leading-tight m-0">
+                {activeSubView === 'catalog' ? 'كتالوج الأصناف والأسعار' : 'دفتر حركات وجرد المخزون'}
+              </h2>
               <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-surface-2 border border-line text-ink-muted tabular-nums">
-                {products.length} صنف مسجل
+                {activeSubView === 'catalog' ? `${products.length} صنف مسجل` : `${allMovements.length} حركة مسجلة`}
               </span>
-            </div>
-          </div>
-
-          {/* SubView Segmented Switch: Catalog vs Movements Ledger */}
-          <div className="flex items-center bg-surface-2 p-0.5 rounded border border-line mr-3">
-            <button
-              type="button"
-              onClick={() => setActiveSubView('catalog')}
-              className={`px-3 py-1 rounded text-xs font-bold transition-colors ${
-                activeSubView === 'catalog'
-                  ? 'bg-surface text-brand shadow-xs'
-                  : 'text-ink-muted hover:text-ink'
-              }`}
-            >
-              كتالوج الأصناف
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveSubView('movements');
-                void loadMovements();
-                void checkDiscrepancies();
-              }}
-              className={`px-3 py-1 rounded text-xs font-bold transition-colors flex items-center gap-1.5 ${
-                activeSubView === 'movements'
-                  ? 'bg-surface text-brand shadow-xs'
-                  : 'text-ink-muted hover:text-ink'
-              }`}
-            >
-              <Boxes className="w-3.5 h-3.5" />
-              <span>حركات وجرد المخزون</span>
-              {discrepancies.length > 0 && (
-                <span className="w-2 h-2 rounded-full bg-warn animate-pulse" title="يوجد تفاوت بحاجة لمطابقة" />
+              {activeSubView === 'movements' && discrepancies.length > 0 && (
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-700 animate-pulse">
+                  {discrepancies.length} صنف بحاجة لمطابقة
+                </span>
               )}
-            </button>
+            </div>
           </div>
         </div>
 
@@ -926,33 +924,22 @@ export const ProductsView = () => {
               )}
             </div>
 
-            {/* 3. Reconcile & Automated Tests Card (Tasks 34-3 & 35-4) */}
+            {/* 3. Reconcile Card (Task 34-3) */}
             <div className="bg-surface p-3.5 rounded-[6px] border border-line flex items-center justify-between gap-2">
               <button
                 type="button"
                 onClick={() => void handleRecalculateStock()}
                 disabled={recalculating}
-                className="flex-1 h-10 px-3 bg-surface-2 hover:bg-surface border border-line text-ink rounded text-[12px] font-bold flex items-center justify-center gap-1.5 transition-colors"
-                title="أداة إعادة حساب المخزون من الحركات لإصلاح أي تفاوت (Task 34-3)"
+                className="w-full h-10 px-4 bg-surface-2 hover:bg-surface border border-line text-ink rounded text-[12px] font-bold flex items-center justify-center gap-2 transition-colors shadow-2xs"
+                title="أداة تدقيق وإعادة حساب المخزون من الحركات لمعالجة أي تفاوت"
               >
                 <RotateCcw className={`w-4 h-4 text-brand ${recalculating ? 'animate-spin' : ''}`} />
-                <span>{recalculating ? 'جاري الحساب...' : 'إعادة حساب المخزون'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => void handleRunInventoryTests()}
-                disabled={runningTests}
-                className="flex-1 h-10 px-3 bg-brand-soft hover:bg-brand-soft/80 text-brand border border-brand/20 rounded text-[12px] font-bold flex items-center justify-center gap-1.5 transition-colors"
-                title="تشغيل الاختبارات الآلية لحركات المخزون والذرية (Task 35-4)"
-              >
-                <Wrench className={`w-4 h-4 ${runningTests ? 'animate-spin' : ''}`} />
-                <span>{runningTests ? 'جاري الفحص...' : 'فحص الاختبارات الآلية'}</span>
+                <span>{recalculating ? 'جاري مطابقة وحساب الأرصدة...' : 'إعادة مطابقة وحساب رصيد المخزون'}</span>
               </button>
             </div>
           </div>
 
-          {/* Recalculate or Test Result Feedback Banner */}
+          {/* Recalculate Feedback Banner (Auto-dismisses in 3.5s) */}
           {recalcSuccessMsg && (
             <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 px-4 py-2.5 rounded-[6px] flex items-center justify-between text-xs font-bold animate-fade-in shrink-0">
               <div className="flex items-center gap-2">
@@ -963,30 +950,6 @@ export const ProductsView = () => {
                 type="button"
                 onClick={() => setRecalcSuccessMsg(null)}
                 className="text-emerald-700 hover:text-emerald-950 p-1"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-
-          {testResult && (
-            <div className={`border px-4 py-2.5 rounded-[6px] flex items-center justify-between text-xs font-bold animate-fade-in shrink-0 ${
-              testResult.success
-                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-800'
-                : 'bg-danger-soft border-danger/30 text-danger'
-            }`}>
-              <div className="flex items-center gap-2">
-                {testResult.success ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 text-danger" />
-                )}
-                <span>{testResult.message}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setTestResult(null)}
-                className="p-1"
               >
                 <X className="w-3.5 h-3.5" />
               </button>

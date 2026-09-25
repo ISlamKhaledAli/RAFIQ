@@ -195,6 +195,15 @@ begin
   Result := (Version.Major < 10);
 end;
 
+// التحقق من أن ويندوز 7 يحتوي على الحزمة الخدمية الأولى (SP1) كحد أدنى
+function IsWin7MissingSP1(): Boolean;
+var
+  Version: TWindowsVersion;
+begin
+  GetWindowsVersionEx(Version);
+  Result := (Version.Major = 6) and (Version.Minor = 1) and (Version.ServicePackMajor < 1);
+end;
+
 // التحقق من وجود دوت نت فريموورك متوافق (.NET 4.6.2 أو أعلى)
 function IsDotNetCompatible(): Boolean;
 var
@@ -239,14 +248,39 @@ var
 begin
   Result := True;
 
-  // فحص دوت نت فريموورك المتوافق
+  // 1. فحص الحزمة الأولى على ويندوز 7 (Windows 7 SP1)
+  if IsWin7MissingSP1() then
+  begin
+    Msg := '⚠️ نظام التشغيل غير مدعوم مباشرة:' + #13#10 + #13#10 +
+           'يتطلب برنامج رفيق لنقاط البيع نظام Windows 7 Service Pack 1 (SP1) على الأقل.' + #13#10 +
+           'جهازك يعمل حالياً بنظام Windows 7 بدون الحزمة الأولى (Service Pack 1).' + #13#10#13#10 +
+           'خطوات الحل بالعربي:' + #13#10 +
+           '1. قم بتثبيت حزمة التحديث Windows 7 Service Pack 1 (SP1).' + #13#10 +
+           '2. أعد تشغيل جهاز الكمبيوتر ثم شغّل برنامج التثبيت مجدداً.';
+    MsgBox(Msg, mbCriticalError, MB_OK);
+    Result := False;
+    Exit;
+  end;
+
+  // 2. فحص دوت نت فريموورك المتوافق (.NET 4.6.2 / 4.8)
   if not IsDotNetCompatible() then
   begin
-    Msg := 'يتطلب تشغيل رفيق POS وجود حزمة Microsoft .NET Framework (الإصدار 4.6.2 أو أحدث).' + #13#10 + #13#10 +
-           'يرجى تثبيت الحزمة على جهازك ثم إعادة تشغيل برنامج التثبيت.';
+    Msg := '⚠️ متطلب تشغيل ناقص (.NET Framework):' + #13#10 + #13#10 +
+           'يتطلب تشغيل رفيق POS وجود حزمة Microsoft .NET Framework (الإصدار 4.6.2 أو 4.8).' + #13#10#13#10 +
+           'خطوات الحل بالعربي:' + #13#10 +
+           '1. قم بتثبيت حزمة .NET Framework 4.8 المرفقة بدون إنترنت (تجدها في مجلد تحديثات النظام).' + #13#10 +
+           '2. إذا كنت تستخدم Windows 7، تأكد من تثبيت تحديثي SHA-2 (KB4474419) قبلها.' + #13#10 +
+           '3. بعد انتهاء التثبيت، شغّل مثبت رفيق مرة أخرى.';
     MsgBox(Msg, mbError, MB_OK);
     Result := False;
     Exit;
+  end;
+
+  // 3. توجيه وإرشاد استباقي لمستخدمي ويندوز 7 بخصوص تحديثات الأمان
+  if IsLegacyWindows() then
+  begin
+    // رسالة تنبيهية إرشادية بدون حجب التثبيت
+    Log('Windows 7/8 environment detected. Verifying prerequisites and Fixed Runtime 109 deployment.');
   end;
 end;
 

@@ -51,6 +51,7 @@ namespace RafiqPOS.Services
             get { return IntegrityStatus != null && IntegrityStatus.IsCorrupt; }
         }
 
+        public static CounterRepository CounterRepo { get; private set; }
         public static ProductRepository ProductRepo { get; private set; }
         public static SaleRepository SaleRepo { get; private set; }
         public static SettingsRepository SettingsRepo { get; private set; }
@@ -73,6 +74,12 @@ namespace RafiqPOS.Services
         public static BenchmarkService Benchmark { get; private set; }
         public static BackupService Backup { get; private set; }
         public static ExcelService Excel { get; private set; }
+        public static PrinterService Printer { get; private set; }
+        public static SecurityService Security { get; private set; }
+        public static StoreTemplateService Templates { get; private set; }
+        public static DemoDataService DemoData { get; private set; }
+        public static ReadinessService Readiness { get; private set; }
+        public static SystemHealthService SystemHealth { get; private set; }
 
         public static void Initialize(string customBaseFolder = null)
         {
@@ -114,8 +121,9 @@ namespace RafiqPOS.Services
             MigrationRunner.ApplyMigrations(_connectionString, _dbPath);
 
             // Initialize Repositories and Services (Feature #5 & #7)
+            CounterRepo = new CounterRepository(_connectionString);
             ProductRepo = new ProductRepository(_connectionString);
-            SaleRepo = new SaleRepository(_connectionString);
+            SaleRepo = new SaleRepository(_connectionString, CounterRepo);
             SettingsRepo = new SettingsRepository(_connectionString);
             CustomerRepo = new CustomerRepository(_connectionString);
             AuditRepo = new AuditLogRepository(_connectionString);
@@ -137,6 +145,12 @@ namespace RafiqPOS.Services
             Benchmark = new BenchmarkService(_connectionString);
             Backup = new BackupService(_connectionString, _dbPath, SettingsRepo, AuditRepo);
             Excel = new ExcelService();
+            Printer = new PrinterService(Settings);
+            Security = new SecurityService(SettingsRepo, AuditRepo);
+            Templates = new StoreTemplateService(_connectionString, SettingsRepo, Categories, QuickItems, AuditRepo);
+            DemoData = new DemoDataService(_connectionString, SettingsRepo, AuditRepo);
+            Readiness = new ReadinessService(SettingsRepo, ProductRepo, Backup, Printer);
+            SystemHealth = new SystemHealthService(_dbPath, SettingsRepo, ProductRepo, Backup, Printer);
         }
 
         public static DatabaseIntegrityStatus CheckDatabaseIntegrity()

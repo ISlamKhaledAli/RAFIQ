@@ -22,7 +22,7 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
       const res = await invoke<SearchBenchmarkResult>('search:runBenchmark', {
         productCount: 5000,
         queryIterations: 100
-      });
+      }, 40000);
       setBenchmarkResult(res);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -31,6 +31,16 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
       setRunning(false);
     }
   };
+
+  const avgLatency = Number(benchmarkResult?.averageSearchLatencyMs ?? (benchmarkResult as any)?.AverageSearchLatencyMs ?? 0);
+  const meetsSla = Boolean(benchmarkResult?.meetsSlaUnder100ms ?? (benchmarkResult as any)?.MeetsSlaUnder100ms);
+  const normPassed = Boolean(benchmarkResult?.normalizationTestsPassed ?? (benchmarkResult as any)?.NormalizationTestsPassed);
+  const scanPassed = Boolean(benchmarkResult?.scannerSimulationPassed ?? (benchmarkResult as any)?.ScannerSimulationPassed);
+  const isSuccess = Boolean(benchmarkResult?.success ?? (benchmarkResult as any)?.Success);
+  const totalCount = Number(benchmarkResult?.totalProductsTested ?? (benchmarkResult as any)?.TotalProductsTested ?? 5000);
+  const testLogs: string[] = Array.isArray(benchmarkResult?.testLog) 
+    ? benchmarkResult.testLog 
+    : (Array.isArray((benchmarkResult as any)?.TestLog) ? (benchmarkResult as any).TestLog : []);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -85,10 +95,10 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
                     <span>متوسط زمن البحث</span>
                   </div>
                   <div className="text-[20px] font-mono font-bold text-brand">
-                    {benchmarkResult.averageSearchLatencyMs.toFixed(2)} ms
+                    {avgLatency.toFixed(2)} ms
                   </div>
                   <div className="text-[10px] text-paid font-semibold mt-0.5">
-                    {benchmarkResult.meetsSlaUnder100ms ? '✅ أقل من 100ms (فائق السرعة)' : '⚠️ بطيء'}
+                    {meetsSla ? '✅ أقل من 100ms (فائق السرعة)' : '⚠️ بطيء'}
                   </div>
                 </div>
 
@@ -98,7 +108,7 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
                     <span>توحيد الحروف العربية</span>
                   </div>
                   <div className="text-[18px] font-bold text-ink">
-                    {benchmarkResult.normalizationTestsPassed ? 'ناجح 100%' : 'فشل'}
+                    {normPassed ? 'ناجح 100%' : 'فشل'}
                   </div>
                   <div className="text-[10px] text-ink-muted mt-0.5">
                     الهمزات والتاء والتشكيل
@@ -111,7 +121,7 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
                     <span>محاكاة قارئ الباركود</span>
                   </div>
                   <div className="text-[18px] font-bold text-ink">
-                    {benchmarkResult.scannerSimulationPassed ? 'استجابة فورية' : 'غير مكتمل'}
+                    {scanPassed ? 'استجابة فورية' : 'غير مكتمل'}
                   </div>
                   <div className="text-[10px] text-paid font-semibold mt-0.5">
                     إدخال سريع &lt; 50ms
@@ -121,18 +131,18 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
 
               {/* Status Banner */}
               <div className={`p-3 rounded-lg border flex items-center gap-2.5 text-[13px] font-bold ${
-                benchmarkResult.success 
+                isSuccess 
                   ? 'bg-paid-soft border-paid-border text-paid'
                   : 'bg-danger-soft border-danger-border text-danger'
               }`}>
-                {benchmarkResult.success ? (
+                {isSuccess ? (
                   <CheckCircle2 className="w-5 h-5 shrink-0" />
                 ) : (
                   <XCircle className="w-5 h-5 shrink-0" />
                 )}
                 <span>
-                  {benchmarkResult.success 
-                    ? `اجتاز النظام جميع معايير الأداء والسرعة بنجاح فائق على ${benchmarkResult.totalProductsTested} صنف!`
+                  {isSuccess 
+                    ? `اجتاز النظام جميع معايير الأداء والسرعة بنجاح فائق على ${totalCount} صنف!`
                     : 'لم يجتز النظام أحد معايير الأداء المحددة.'}
                 </span>
               </div>
@@ -141,7 +151,7 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
               <div>
                 <h4 className="text-[12px] font-bold text-ink-muted mb-2">سجل الخطوات والتحقق الآلي:</h4>
                 <div className="bg-canvas border hairline-all rounded-lg p-3 space-y-1.5 max-h-[160px] overflow-y-auto text-[11px] font-mono text-ink">
-                  {benchmarkResult.testLog.map((log, idx) => (
+                  {testLogs.map((log, idx) => (
                     <div key={idx} className="flex items-start gap-1.5">
                       <span className="text-ink-muted">›</span>
                       <span>{log}</span>

@@ -63,10 +63,12 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
         } else {
           setActiveCategory('عام');
         }
+      } else {
+        setItems([]);
       }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setErrorMessage(`فشل تحميل الأصناف السريعة: ${msg}`);
+    } catch {
+      // Fallback cleanly without showing alarming technical error banners to the user
+      setItems([]);
     } finally {
       setLoading(false);
     }
@@ -86,11 +88,12 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
           } else {
             setActiveCategory('عام');
           }
+        } else if (active) {
+          setItems([]);
         }
-      } catch (err: unknown) {
+      } catch {
         if (active) {
-          const msg = err instanceof Error ? err.message : String(err);
-          setErrorMessage(`فشل تحميل الأصناف السريعة: ${msg}`);
+          setItems([]);
         }
       }
     })();
@@ -208,8 +211,8 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
       await fetchItems();
       if (onItemsChanged) onItemsChanged();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setErrorMessage(`تعذر الحفظ: ${msg}`);
+      console.error(err);
+      setErrorMessage('تعذر حفظ الصنف السريع، يرجى مراجعة البيانات والمحاولة مرة أخرى');
     } finally {
       setLoading(false);
     }
@@ -226,8 +229,8 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
       await fetchItems();
       if (onItemsChanged) onItemsChanged();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setErrorMessage(`فشل الحذف: ${msg}`);
+      console.error(err);
+      setErrorMessage('تعذر حذف الصنف، يرجى المحاولة مرة أخرى');
     } finally {
       setLoading(false);
     }

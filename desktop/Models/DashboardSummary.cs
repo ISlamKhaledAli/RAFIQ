@@ -60,10 +60,26 @@ namespace RafiqPOS.Models
         [JsonProperty("lowStockProducts")]
         public List<LowStockItem> LowStockProducts { get; set; }
 
+        [JsonProperty("totalCustomerDebtsPiasters")]
+        public long TotalCustomerDebtsPiasters { get; set; }
+
+        [JsonProperty("totalCustomerDebtsFormatted")]
+        public string TotalCustomerDebtsFormatted
+        {
+            get { return Common.Money.FormatPiasters(this.TotalCustomerDebtsPiasters); }
+        }
+
+        [JsonProperty("debtorsCount")]
+        public int DebtorsCount { get; set; }
+
+        [JsonProperty("topDebtors")]
+        public List<TopDebtorItem> TopDebtors { get; set; }
+
         public DashboardSummary()
         {
             this.TopSellingProducts = new List<TopSellingItem>();
             this.LowStockProducts = new List<LowStockItem>();
+            this.TopDebtors = new List<TopDebtorItem>();
         }
     }
 
@@ -101,5 +117,26 @@ namespace RafiqPOS.Models
 
         [JsonProperty("unit")]
         public string Unit { get; set; }
+    }
+
+    public class TopDebtorItem
+    {
+        [JsonProperty("customerId")]
+        public string CustomerId { get; set; }
+
+        [JsonProperty("customerName")]
+        public string CustomerName { get; set; }
+
+        [JsonProperty("customerPhone")]
+        public string CustomerPhone { get; set; }
+
+        [JsonProperty("balancePiasters")]
+        public long BalancePiasters { get; set; }
+
+        [JsonProperty("balanceFormatted")]
+        public string BalanceFormatted
+        {
+            get { return Common.Money.FormatPiasters(this.BalancePiasters); }
+        }
     }
 }

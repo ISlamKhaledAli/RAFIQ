@@ -119,6 +119,51 @@ namespace RafiqPOS.Services
                         }
                     }
                 }
+
+                // 5. Customer Debts & Debtors count (Story 70 / Feature #44)
+                string debtsSql = @"
+                    SELECT 
+                        COALESCE(SUM(balance_piasters), 0) AS total_debts,
+                        COUNT(CASE WHEN balance_piasters > 0 THEN 1 END) AS debtor_count
+                    FROM customers 
+                    WHERE balance_piasters > 0;
+                ";
+                using (var cmd = new SQLiteCommand(debtsSql, conn))
+                {
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            summary.TotalCustomerDebtsPiasters = Convert.ToInt64(reader["total_debts"]);
+                            summary.DebtorsCount = Convert.ToInt32(reader["debtor_count"]);
+                        }
+                    }
+                }
+
+                // 6. Top Debtors (Story 70 / Task 44-2)
+                string topDebtorsSql = @"
+                    SELECT id, name, phone, balance_piasters
+                    FROM customers
+                    WHERE balance_piasters > 0
+                    ORDER BY balance_piasters DESC
+                    LIMIT 5;
+                ";
+                using (var cmd = new SQLiteCommand(topDebtorsSql, conn))
+                {
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            summary.TopDebtors.Add(new TopDebtorItem
+                            {
+                                CustomerId = reader["id"].ToString(),
+                                CustomerName = reader["name"].ToString(),
+                                CustomerPhone = reader["phone"] != DBNull.Value ? reader["phone"].ToString() : "",
+                                BalancePiasters = Convert.ToInt64(reader["balance_piasters"])
+                            });
+                        }
+                    }
+                }
             }
 
             return summary;
