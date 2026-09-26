@@ -35,6 +35,7 @@ import { FirstRunWizardModal } from '../components/FirstRunWizardModal';
 import { DemoDataModal } from '../components/DemoDataModal';
 import { GuidedTourModal } from '../components/GuidedTourModal';
 import { CustomSelect } from '../components/CustomSelect';
+import { SearchBenchmarkModal } from '../components/SearchBenchmarkModal';
 
 export type SettingsSubTab = 'profile' | 'backup' | 'printer' | 'system' | 'scanner' | 'security' | 'demo';
 
@@ -56,6 +57,7 @@ export const SettingsView = ({
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
   const [isTourModalOpen, setIsTourModalOpen] = useState(false);
+  const [isBenchmarkModalOpen, setIsBenchmarkModalOpen] = useState(false);
   const [pinStatus, setPinStatus] = useState<any>(null);
   const [demoStatus, setDemoStatus] = useState<any>(null);
   const [storeName, setStoreName] = useState('متجر رفيق');
@@ -290,22 +292,8 @@ export const SettingsView = ({
     }
   };
 
-  const runBenchmarkTest = async () => {
-    setDiagnosticsLoading(true);
-    setDiagnosticResult('جاري تشغيل اختبار الحمل وتوليد 3,000 صنف تجريبي وقياس سرعة SQLite WAL...');
-    try {
-      const res: any = await invoke('benchmark:run', { productCount: 3000 });
-      if (res && res.success) {
-        setDiagnosticResult(res.summaryMessage);
-      } else {
-        setDiagnosticResult(res?.summaryMessage || 'فشل تشغيل اختبار الأداء');
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setDiagnosticResult(`خطأ في اختبار الحمل: ${msg}`);
-    } finally {
-      setDiagnosticsLoading(false);
-    }
+  const runBenchmarkTest = () => {
+    setIsBenchmarkModalOpen(true);
   };
 
   const SUB_TAB_CONFIG: Record<SettingsSubTab, { title: string; subtitle: string; icon: React.ComponentType<{ className?: string }> }> = {
@@ -1315,6 +1303,12 @@ export const SettingsView = ({
         onClose={() => setIsTourModalOpen(false)}
         onLoadDemoData={() => setIsDemoModalOpen(true)}
         hasDemoData={demoStatus?.hasDemoData}
+      />
+
+      {/* Hardware & Database Load Benchmark Modal (Story 49) */}
+      <SearchBenchmarkModal
+        isOpen={isBenchmarkModalOpen}
+        onClose={() => setIsBenchmarkModalOpen(false)}
       />
     </div>
   );

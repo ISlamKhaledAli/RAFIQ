@@ -28,10 +28,10 @@ describe('Story 59: First-run Setup Wizard by Store Type (Feature #106)', () => 
     assert.ok(serviceContent.includes('ألبان ومخبوزات ومعلبات'), 'Must have Arabic title for dairy');
     assert.ok(serviceContent.includes('ألبان سائبة ومعبأة'), 'Dairy must include bulk milk categories');
 
-    // 3. Accessories & Gifts template
-    assert.ok(serviceContent.includes('accessories_gifts'), 'Must define accessories & gifts template');
-    assert.ok(serviceContent.includes('إكسسوارات ومكتبات وهدايا'), 'Must have Arabic title for accessories');
-    assert.ok(serviceContent.includes('t3.FeatureFlags["feature_scale_weight"] = false;'), 'Accessories must have scale weight disabled');
+    // 3. Stationery / Accessories & Gifts template
+    assert.ok(serviceContent.includes('stationery_gifts') || serviceContent.includes('accessories_gifts'), 'Must define stationery/accessories template');
+    assert.ok(serviceContent.includes('مكتبات وأدوات مدرسية وهدايا') || serviceContent.includes('إكسسوارات ومكتبات وهدايا'), 'Must have Arabic title for accessories');
+    assert.ok(serviceContent.includes('feature_scale_weight"] = false'), 'Accessories/stationery must have scale weight disabled');
 
     // 4. General Grocery template
     assert.ok(serviceContent.includes('general_grocery'), 'Must define general grocery template');

@@ -7,7 +7,7 @@
  * full Arabic-to-Latin layout translation, and rapid inter-keystroke timing analysis.
  */
 
-import { invoke } from '../bridge/ipc';
+import { invoke } from '../bridge/ipc.ts';
 
 export interface BarcodeScannerSettings {
   speedThresholdMs: number;         // Maximum ms between keystrokes to qualify as scanner (default: 65)
