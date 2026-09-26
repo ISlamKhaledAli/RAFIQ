@@ -19,7 +19,8 @@ import {
   KeyRound,
   Users,
   ChevronLeft,
-  Flame
+  Flame,
+  Lock
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { DashboardSummary } from '../types/models';
@@ -45,6 +46,10 @@ interface SystemHealthMetrics {
   appVersion: string;
   databaseStatus: string;
   productsCount: number;
+  isAuditLogTampered?: boolean;
+  auditLogStatus?: string;
+  encryptionStatus?: string;
+  deviceFingerprint?: string;
 }
 
 interface SystemHealthData {
@@ -280,7 +285,7 @@ export function DashboardView({
         </div>
 
         {/* Clean Hardware & System Pulse Badges */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 mt-3.5 pt-3.5 border-t border-slate-200/70 text-xs">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-2.5 mt-3.5 pt-3.5 border-t border-slate-200/70 text-xs">
           {/* Storage Free Space */}
           <div className="flex items-center gap-2 bg-white/80 px-3 py-2 rounded-xl border border-slate-200/70 shadow-2xs">
             <HardDrive className="w-4 h-4 text-slate-500 shrink-0" />
@@ -327,6 +332,17 @@ export function DashboardView({
             <div className="truncate">
               <span className="text-[11px] text-slate-500 block leading-tight">كتالوج الأصناف</span>
               <span className="font-mono font-bold text-slate-900 text-xs">{health?.metrics?.productsCount || 0} صنف مسجل</span>
+            </div>
+          </div>
+
+          {/* Cryptographic Protection & Anti-Tamper (Feature #167, #168, #169) */}
+          <div className="flex items-center gap-2 bg-white/80 px-3 py-2 rounded-xl border border-slate-200/70 shadow-2xs">
+            <Lock className={`w-4 h-4 shrink-0 ${health?.metrics?.isAuditLogTampered ? 'text-red-600' : 'text-emerald-700'}`} />
+            <div className="truncate">
+              <span className="text-[11px] text-slate-500 block leading-tight">حماية البيانات</span>
+              <span className={`font-bold text-xs truncate block ${health?.metrics?.isAuditLogTampered ? 'text-red-600' : 'text-slate-900'}`} title={health?.metrics?.auditLogStatus || 'مشفر وموثق رقمياً'}>
+                {health?.metrics?.isAuditLogTampered ? 'تنبيه تلاعب!' : 'مشفر وموثق'}
+              </span>
             </div>
           </div>
         </div>

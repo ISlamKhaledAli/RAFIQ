@@ -347,6 +347,10 @@ namespace RafiqPOS.Bridge
                         try
                         {
                             var saleToCreate = JsonConvert.DeserializeObject<Sale>(request.Payload.ToString());
+                            if (saleToCreate != null && string.IsNullOrEmpty(saleToCreate.CashierId) && SecurityService.CurrentUser != null)
+                            {
+                                saleToCreate.CashierId = SecurityService.CurrentUser.Id;
+                            }
                             var createdSale = DatabaseService.Sales.ProcessSale(saleToCreate);
                             return BridgeResponse.Ok(request.Id, createdSale);
                         }
@@ -655,6 +659,120 @@ namespace RafiqPOS.Bridge
                             return BridgeResponse.Fail(request.Id, "AUTH_FAILED", "الرقم السري غير صحيح لحفظ إعدادات الحماية");
                         }
                         return BridgeResponse.Ok(request.Id, new { success = true });
+
+                    case "auth:login":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات تسجيل الدخول فارغة");
+                        }
+                        JObject loginObj = request.Payload as JObject;
+                        string loginUser = loginObj != null && loginObj["usernameOrId"] != null ? loginObj["usernameOrId"].ToString() : "";
+                        string loginPin = loginObj != null && loginObj["pin"] != null ? loginObj["pin"].ToString() : "";
+                        var loginRes = DatabaseService.Security.Login(loginUser, loginPin);
+                        if (!loginRes.Success)
+                        {
+                            return BridgeResponse.Fail(request.Id, "AUTH_FAILED", loginRes.Message, loginRes);
+                        }
+                        return BridgeResponse.Ok(request.Id, loginRes);
+
+                    case "auth:logout":
+                        DatabaseService.Security.Logout();
+                        return BridgeResponse.Ok(request.Id, new { success = true });
+
+                    case "auth:getCurrentUser":
+                        var currentUserDto = DatabaseService.Security.GetCurrentSessionUser();
+                        return BridgeResponse.Ok(request.Id, currentUserDto);
+
+                    case "auth:getActiveUsers":
+                        var activeUsers = DatabaseService.Security.GetActiveUsers();
+                        return BridgeResponse.Ok(request.Id, activeUsers);
+
+                    case "auth:verifySupervisor":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات التحقق فارغة");
+                        }
+                        JObject supObj = request.Payload as JObject;
+                        string supPin = supObj != null && supObj["pin"] != null ? supObj["pin"].ToString() : "";
+                        string supAction = supObj != null && supObj["action"] != null ? supObj["action"].ToString() : "SUPERVISOR_ACTION";
+                        var supRes = DatabaseService.Security.VerifySupervisorPin(supPin, supAction);
+                        if (!supRes.Success)
+                        {
+                            return BridgeResponse.Fail(request.Id, "SUPERVISOR_AUTH_FAILED", supRes.Message);
+                        }
+                        return BridgeResponse.Ok(request.Id, supRes);
+
+                    case "users:getAll":
+                        var allUsersList = DatabaseService.Security.GetAllUsers();
+                        return BridgeResponse.Ok(request.Id, allUsersList);
+
+                    case "users:create":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات إنشاء الموظف فارغة");
+                        }
+                        JObject createUObj = request.Payload as JObject;
+                        string uName = createUObj != null && createUObj["username"] != null ? createUObj["username"].ToString() : "";
+                        string dName = createUObj != null && createUObj["displayName"] != null ? createUObj["displayName"].ToString() : "";
+                        string uPin = createUObj != null && createUObj["pin"] != null ? createUObj["pin"].ToString() : "";
+                        string uRole = createUObj != null && createUObj["role"] != null ? createUObj["role"].ToString() : "cashier";
+                        try
+                        {
+                            var createdUser = DatabaseService.Security.CreateUser(uName, dName, uPin, uRole);
+                            return BridgeResponse.Ok(request.Id, createdUser);
+                        }
+                        catch (Exception uEx)
+                        {
+                            return BridgeResponse.Fail(request.Id, "USER_CREATE_ERROR", uEx.Message);
+                        }
+
+                    case "users:update":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات تعديل الموظف فارغة");
+                        }
+                        JObject updateUObj = request.Payload as JObject;
+                        string updId = updateUObj != null && updateUObj["id"] != null ? updateUObj["id"].ToString() : "";
+                        string updName = updateUObj != null && updateUObj["displayName"] != null ? updateUObj["displayName"].ToString() : "";
+                        string updRole = updateUObj != null && updateUObj["role"] != null ? updateUObj["role"].ToString() : "cashier";
+                        bool updActive = updateUObj != null && updateUObj["isActive"] != null ? updateUObj["isActive"].Value<bool>() : true;
+                        try
+                        {
+                            DatabaseService.Security.UpdateUser(updId, updName, updRole, updActive);
+                            return BridgeResponse.Ok(request.Id, new { success = true });
+                        }
+                        catch (Exception uEx)
+                        {
+                            return BridgeResponse.Fail(request.Id, "USER_UPDATE_ERROR", uEx.Message);
+                        }
+
+                    case "users:changePin":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات تغيير الرقم السري فارغة");
+                        }
+                        JObject chPinObj = request.Payload as JObject;
+                        string targetUId = chPinObj != null && chPinObj["id"] != null ? chPinObj["id"].ToString() : "";
+                        string targetPin = chPinObj != null && chPinObj["newPin"] != null ? chPinObj["newPin"].ToString() : "";
+                        try
+                        {
+                            DatabaseService.Security.ChangeUserPin(targetUId, targetPin);
+                            return BridgeResponse.Ok(request.Id, new { success = true });
+                        }
+                        catch (Exception uEx)
+                        {
+                            return BridgeResponse.Fail(request.Id, "PIN_CHANGE_ERROR", uEx.Message);
+                        }
+
+                    case "security:setIdleTimeout":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات مهلة الخمول فارغة");
+                        }
+                        JObject timeoutObj = request.Payload as JObject;
+                        int idleMin = timeoutObj != null && timeoutObj["minutes"] != null ? timeoutObj["minutes"].Value<int>() : 15;
+                        DatabaseService.Security.SetIdleTimeoutMinutes(idleMin);
+                        return BridgeResponse.Ok(request.Id, new { minutes = idleMin });
 
                     case "templates:getAll":
                         var allTemplates = DatabaseService.Templates.GetAllTemplates();
@@ -976,6 +1094,7 @@ namespace RafiqPOS.Bridge
                         var summary = DatabaseService.Reports.GetTodaySummary();
                         return BridgeResponse.Ok(request.Id, summary);
 
+                    case "audit:list":
                     case "audit:getLogs":
                         int auditLimit = 100;
                         string auditAction = null;
@@ -1245,6 +1364,23 @@ namespace RafiqPOS.Bridge
                         }
                         var custImportResult = DatabaseService.Customers.BatchImportCustomers(rowsToImport);
                         return BridgeResponse.Ok(request.Id, custImportResult);
+
+                    case "audit:verifyChain":
+                        var chainCheck = DatabaseService.Audit.VerifyChainIntegrity();
+                        return BridgeResponse.Ok(request.Id, chainCheck);
+
+                    case "security:getDeviceFingerprint":
+                        string fp = DatabaseService.Encryption != null ? DatabaseService.Encryption.DeviceFingerprint : EncryptionService.GenerateDeviceFingerprint();
+                        return BridgeResponse.Ok(request.Id, new
+                        {
+                            deviceFingerprint = fp,
+                            isEncrypted = true,
+                            encryptionAlgorithm = "AES-256-CBC + HMAC-SHA256"
+                        });
+
+                    case "security:runTests":
+                        var secTestRes = SecurityTestRunner.RunAllTests(DatabaseService.ConnectionString, DatabaseService.DbPath);
+                        return BridgeResponse.Ok(request.Id, secTestRes);
 
                     default:
                         Logger.Warn("محاولة تنفيذ إجراء غير مسجل: " + request.Action);

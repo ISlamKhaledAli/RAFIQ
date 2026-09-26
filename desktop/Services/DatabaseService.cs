@@ -62,6 +62,7 @@ namespace RafiqPOS.Services
         public static StockMovementRepository StockMovementRepo { get; private set; }
         public static QuickItemRepository QuickItemRepo { get; private set; }
         public static ProductUnitRepository ProductUnitRepo { get; private set; }
+        public static UserRepository UserRepo { get; private set; }
         public static ProductService Products { get; private set; }
         public static ProductUnitService ProductUnits { get; private set; }
         public static SaleService Sales { get; private set; }
@@ -81,6 +82,7 @@ namespace RafiqPOS.Services
         public static StoreTemplateService Templates { get; private set; }
         public static DemoDataService DemoData { get; private set; }
         public static ReadinessService Readiness { get; private set; }
+        public static EncryptionService Encryption { get; private set; }
         public static SystemHealthService SystemHealth { get; private set; }
 
         public static void Initialize(string customBaseFolder = null)
@@ -108,6 +110,10 @@ namespace RafiqPOS.Services
                 Directory.CreateDirectory(dataFolder);
             }
 
+            // Feature #167: Restrict data folder permissions & initialize encryption service
+            EncryptionService.ProtectDatabaseFolderAcl(dataFolder);
+            Encryption = new EncryptionService();
+
             _dbPath = Path.Combine(dataFolder, "rafiq_pos.db");
             _connectionString = string.Format("Data Source={0};Version=3;BusyTimeout=5000;", _dbPath);
 
@@ -134,6 +140,7 @@ namespace RafiqPOS.Services
             StockMovementRepo = new StockMovementRepository(_connectionString);
             QuickItemRepo = new QuickItemRepository(_connectionString);
             ProductUnitRepo = new ProductUnitRepository(_connectionString);
+            UserRepo = new UserRepository(_connectionString);
 
             Products = new ProductService(ProductRepo, AuditRepo, PriceHistoryRepo, StockMovementRepo);
             ProductUnits = new ProductUnitService(_connectionString);
@@ -147,10 +154,10 @@ namespace RafiqPOS.Services
             Audit = new AuditLogService(AuditRepo);
             Support = new SupportService(_connectionString, _dbPath);
             Benchmark = new BenchmarkService(_connectionString);
-            Backup = new BackupService(_connectionString, _dbPath, SettingsRepo, AuditRepo);
+            Backup = new BackupService(_connectionString, _dbPath, SettingsRepo, AuditRepo, Encryption);
             Excel = new ExcelService();
             Printer = new PrinterService(Settings);
-            Security = new SecurityService(SettingsRepo, AuditRepo);
+            Security = new SecurityService(SettingsRepo, AuditRepo, UserRepo);
             Templates = new StoreTemplateService(_connectionString, SettingsRepo, Categories, QuickItems, AuditRepo);
             DemoData = new DemoDataService(_connectionString, SettingsRepo, AuditRepo);
             Readiness = new ReadinessService(SettingsRepo, ProductRepo, Backup, Printer);
@@ -267,6 +274,7 @@ namespace RafiqPOS.Services
 
         public static TransactionResult RestoreFromBackup(string backupFilePath)
         {
+            string tempStaging = null;
             try
             {
                 string targetBackup = backupFilePath;
@@ -285,8 +293,21 @@ namespace RafiqPOS.Services
                     return new TransactionResult(false, "لم يتم العثور على ملف النسخة الاحتياطية المحددة.");
                 }
 
+                // Feature #168: If backup is encrypted, decrypt to temp staging for verification and restore
+                string fileToRestore = targetBackup;
+                if (EncryptionService.IsFileEncrypted(targetBackup))
+                {
+                    tempStaging = Path.Combine(Path.GetTempPath(), "rafiq_staging_" + Guid.NewGuid().ToString("N") + ".db");
+                    if (Encryption == null)
+                    {
+                        Encryption = new EncryptionService();
+                    }
+                    Encryption.DecryptFile(targetBackup, tempStaging);
+                    fileToRestore = tempStaging;
+                }
+
                 // Verify backup integrity before restoring
-                using (var conn = new System.Data.SQLite.SQLiteConnection(string.Format("Data Source={0};Version=3;Read Only=True;", targetBackup)))
+                using (var conn = new System.Data.SQLite.SQLiteConnection(string.Format("Data Source={0};Version=3;Read Only=True;", fileToRestore)))
                 {
                     conn.Open();
                     using (var cmd = new System.Data.SQLite.SQLiteCommand("PRAGMA quick_check;", conn))
@@ -351,7 +372,7 @@ namespace RafiqPOS.Services
                 catch { }
 
                 // Overwrite with the healthy backup file
-                File.Copy(targetBackup, _dbPath, true);
+                File.Copy(fileToRestore, _dbPath, true);
 
                 // Clear pools again
                 System.Data.SQLite.SQLiteConnection.ClearAllPools();
@@ -371,6 +392,13 @@ namespace RafiqPOS.Services
             {
                 Logger.Error("خطأ أثناء استرجاع قاعدة البيانات من النسخة الاحتياطية", ex);
                 return new TransactionResult(false, "خطأ أثناء الاسترجاع: " + ex.Message);
+            }
+            finally
+            {
+                if (!string.IsNullOrEmpty(tempStaging) && File.Exists(tempStaging))
+                {
+                    try { File.Delete(tempStaging); } catch { }
+                }
             }
         }
 

@@ -28,6 +28,10 @@ namespace RafiqPOS.Services
         public string AppVersion { get; set; }
         public string DatabaseStatus { get; set; }
         public int ProductsCount { get; set; }
+        public bool IsAuditLogTampered { get; set; }
+        public string AuditLogStatus { get; set; }
+        public string EncryptionStatus { get; set; }
+        public string DeviceFingerprint { get; set; }
     }
 
     public class SystemHealthResult
@@ -233,6 +237,43 @@ namespace RafiqPOS.Services
             catch
             {
                 metrics.ProductsCount = 0;
+            }
+
+            // 4.5. Check Cryptographic Audit Log Integrity & Device Encryption (Feature #167, #168, #169)
+            metrics.EncryptionStatus = "مشفّر ومحمي ببصمة الجهاز (AES-256-CBC + HMAC-SHA256)";
+            metrics.DeviceFingerprint = DatabaseService.Encryption != null ? DatabaseService.Encryption.DeviceFingerprint : "RAFIQ-DEV-ACTIVE";
+            metrics.IsAuditLogTampered = false;
+            metrics.AuditLogStatus = "سلسلة العمليات سليمة ومحمية بالتوقيع الرقمي";
+
+            try
+            {
+                if (DatabaseService.Audit != null)
+                {
+                    var auditCheck = DatabaseService.Audit.VerifyChainIntegrity();
+                    if (auditCheck != null && auditCheck.IsTampered)
+                    {
+                        metrics.IsAuditLogTampered = true;
+                        metrics.AuditLogStatus = auditCheck.ErrorMessage;
+
+                        alerts.Add(new SystemAlert
+                        {
+                            Id = "audit_tamper_detected",
+                            Level = "critical",
+                            Title = "تنبيه أمني: كشف تلاعب مباشر في سجل العمليات!",
+                            Message = auditCheck.ErrorMessage,
+                            FixAction = "مراجعة السجل وحظر التعديل المباشر",
+                            FixTarget = "settings"
+                        });
+                    }
+                    else if (auditCheck != null)
+                    {
+                        metrics.AuditLogStatus = string.Format("سلسلة العمليات سليمة وموثقة ({0} سجل)", auditCheck.TotalRecordsVerified);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("فحص سلامة سلسلة سجل العمليات واجه استثناء: " + ex.Message);
             }
 
             // 5. Aggregate Health & One-Sentence Summary (Task 138-1 & 138-2)

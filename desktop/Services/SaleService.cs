@@ -171,19 +171,50 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // Item total = (unit_price * quantity_milli / 1000) - discount
+                // Item gross = unit_price * quantity_milli / 1000
                 Money unitPrice = Money.FromPiasters(item.UnitPricePiasters);
                 Money lineGross = unitPrice.MultiplyByMilliUnits(item.QuantityMilli);
-                Money lineDiscount = Money.FromPiasters(item.DiscountPiasters);
-                Money lineTotal = lineGross.Subtract(lineDiscount);
+                subtotal = subtotal.Add(lineGross);
+            }
 
-                item.TotalPiasters = lineTotal.Piasters;
-                subtotal = subtotal.Add(lineTotal);
+            // Task 24-2: Proportional Invoice Discount Distribution
+            long existingItemDiscountsSum = 0;
+            long[] grossPiasters = new long[sale.Items.Count];
+            for (int i = 0; i < sale.Items.Count; i++)
+            {
+                var it = sale.Items[i];
+                Money uPrice = Money.FromPiasters(it.UnitPricePiasters);
+                grossPiasters[i] = uPrice.MultiplyByMilliUnits(it.QuantityMilli).Piasters;
+                existingItemDiscountsSum += it.DiscountPiasters;
+            }
+
+            if (sale.DiscountPiasters > 0 && existingItemDiscountsSum == 0)
+            {
+                // Proportionally distribute invoice discount to line items using Largest Remainder
+                long[] distributed = Money.DistributeInvoiceDiscount(grossPiasters, sale.DiscountPiasters);
+                for (int i = 0; i < sale.Items.Count; i++)
+                {
+                    sale.Items[i].DiscountPiasters = distributed[i];
+                }
+            }
+            else if (existingItemDiscountsSum > 0 && sale.DiscountPiasters == 0)
+            {
+                sale.DiscountPiasters = existingItemDiscountsSum;
+            }
+
+            // Finalize item line totals
+            for (int i = 0; i < sale.Items.Count; i++)
+            {
+                var it = sale.Items[i];
+                Money lineDiscount = Money.FromPiasters(it.DiscountPiasters);
+                Money lineTotal = Money.FromPiasters(grossPiasters[i]).Subtract(lineDiscount);
+                it.TotalPiasters = Math.Max(0, lineTotal.Piasters);
             }
 
             sale.SubtotalPiasters = subtotal.Piasters;
+            totalDiscount = Money.FromPiasters(sale.DiscountPiasters);
             Money grandTotal = subtotal.Subtract(totalDiscount).Add(totalTax);
-            sale.TotalPiasters = grandTotal.Piasters;
+            sale.TotalPiasters = Math.Max(0, grandTotal.Piasters);
 
             if (sale.PaidPiasters <= 0)
             {
@@ -234,6 +265,9 @@ namespace RafiqPOS.Services
             sale.Notes = "فاتورة بيع تجريبية - فحص جاهزية التشغيل (لا تدخل المخزون ولا الحسابات)";
 
             Money subtotal = Money.Zero;
+            long[] grossPiasters = new long[sale.Items.Count];
+            long existingItemDiscountsSum = 0;
+
             for (int i = 0; i < sale.Items.Count; i++)
             {
                 var item = sale.Items[i];
@@ -243,16 +277,35 @@ namespace RafiqPOS.Services
                 Money unitPrice = Money.FromPiasters(item.UnitPricePiasters > 0 ? item.UnitPricePiasters : 1000);
                 long qty = item.QuantityMilli > 0 ? item.QuantityMilli : 1000;
                 Money lineGross = unitPrice.MultiplyByMilliUnits(qty);
-                Money lineDiscount = Money.FromPiasters(item.DiscountPiasters);
-                Money lineTotal = lineGross.Subtract(lineDiscount);
+                grossPiasters[i] = lineGross.Piasters;
+                existingItemDiscountsSum += item.DiscountPiasters;
+                subtotal = subtotal.Add(lineGross);
+            }
 
-                item.TotalPiasters = lineTotal.Piasters;
-                subtotal = subtotal.Add(lineTotal);
+            if (sale.DiscountPiasters > 0 && existingItemDiscountsSum == 0)
+            {
+                long[] distributed = Money.DistributeInvoiceDiscount(grossPiasters, sale.DiscountPiasters);
+                for (int i = 0; i < sale.Items.Count; i++)
+                {
+                    sale.Items[i].DiscountPiasters = distributed[i];
+                }
+            }
+            else if (existingItemDiscountsSum > 0 && sale.DiscountPiasters == 0)
+            {
+                sale.DiscountPiasters = existingItemDiscountsSum;
+            }
+
+            for (int i = 0; i < sale.Items.Count; i++)
+            {
+                var item = sale.Items[i];
+                Money lineDiscount = Money.FromPiasters(item.DiscountPiasters);
+                Money lineTotal = Money.FromPiasters(grossPiasters[i]).Subtract(lineDiscount);
+                item.TotalPiasters = Math.Max(0, lineTotal.Piasters);
             }
 
             sale.SubtotalPiasters = subtotal.Piasters;
             Money totalDiscount = Money.FromPiasters(sale.DiscountPiasters);
-            sale.TotalPiasters = subtotal.Subtract(totalDiscount).Piasters;
+            sale.TotalPiasters = Math.Max(0, subtotal.Subtract(totalDiscount).Piasters);
             sale.PaidPiasters = sale.TotalPiasters;
 
             // Notice: NOT calling _saleRepo.CreateSaleAtomic, so official invoice_number counter

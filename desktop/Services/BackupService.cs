@@ -66,13 +66,15 @@ namespace RafiqPOS.Services
         private readonly string _dbPath;
         private readonly SettingsRepository _settingsRepo;
         private readonly AuditLogRepository _auditRepo;
+        private readonly EncryptionService _encryptionService;
 
-        public BackupService(string connectionString, string dbPath, SettingsRepository settingsRepo, AuditLogRepository auditRepo)
+        public BackupService(string connectionString, string dbPath, SettingsRepository settingsRepo, AuditLogRepository auditRepo, EncryptionService encryptionService = null)
         {
             this._connectionString = connectionString;
             this._dbPath = dbPath;
             this._settingsRepo = settingsRepo;
             this._auditRepo = auditRepo;
+            this._encryptionService = encryptionService ?? new EncryptionService();
         }
 
         public string GetDefaultBackupFolder()
@@ -162,6 +164,12 @@ namespace RafiqPOS.Services
 
                     sourceConn.BackupDatabase(destConn, "main", "main", -1, null, 0);
                 }
+
+                // Feature #168: Encrypt the backup snapshot using device-bound AES-256-CBC + HMAC-SHA256
+                string rawSnapshotPath = backupFilePath + ".raw";
+                File.Move(backupFilePath, rawSnapshotPath);
+                _encryptionService.EncryptFile(rawSnapshotPath, backupFilePath);
+                try { File.Delete(rawSnapshotPath); } catch { }
 
                 // Verify the backup file immediately (Feature #125 / Task 125-1)
                 var fileInfo = new FileInfo(backupFilePath);
@@ -271,11 +279,21 @@ namespace RafiqPOS.Services
 
         public bool VerifyBackupIntegrity(string backupFilePath)
         {
+            string fileToCheck = backupFilePath;
+            string tempDecrypted = null;
             try
             {
                 if (!File.Exists(backupFilePath)) return false;
 
-                string connStr = string.Format("Data Source={0};Version=3;Read Only=True;", backupFilePath);
+                // Feature #168: If backup is encrypted, decrypt to temp staging for SQLite verification
+                if (EncryptionService.IsFileEncrypted(backupFilePath))
+                {
+                    tempDecrypted = Path.Combine(Path.GetTempPath(), "rafiq_bk_verify_" + Guid.NewGuid().ToString("N") + ".tmp");
+                    _encryptionService.DecryptFile(backupFilePath, tempDecrypted);
+                    fileToCheck = tempDecrypted;
+                }
+
+                string connStr = string.Format("Data Source={0};Version=3;Read Only=True;", fileToCheck);
                 using (var bkConn = new SQLiteConnection(connStr))
                 {
                     bkConn.Open();
@@ -335,6 +353,13 @@ namespace RafiqPOS.Services
             {
                 Logger.Error("فحص سلامة النسخة الاحتياطية فشل: " + backupFilePath, ex);
                 return false;
+            }
+            finally
+            {
+                if (!string.IsNullOrEmpty(tempDecrypted) && File.Exists(tempDecrypted))
+                {
+                    try { File.Delete(tempDecrypted); } catch { }
+                }
             }
         }
 

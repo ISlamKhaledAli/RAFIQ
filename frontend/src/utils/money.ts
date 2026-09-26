@@ -14,7 +14,7 @@ export function normalizeArabicNumerals(str: string): string {
   return str
     .replace(/[٠-٩]/g, (d) => (d.charCodeAt(0) - 1632).toString())
     .replace(/[۰-۹]/g, (d) => (d.charCodeAt(0) - 1776).toString())
-    .replace(/[،]/g, '.');
+    .replace(/[،٫]/g, '.');
 }
 
 /**
@@ -80,3 +80,80 @@ export function calculateTaxPiasters(
     return Math.round((totalPiasters * taxRatePercent) / 100);
   }
 }
+
+/**
+ * Task 24-1 & 24-2: حساب قيمة الخصم بالقروش بناءً على النوع (مبلغ أو نسبة)
+ * @param grossPiasters المبلغ الإجمالي قبل الخصم بالقروش
+ * @param type نوع الخصم ('amount' بالمبلغ أو 'percent' كنسبة مئوية)
+ * @param value القيمة المدخلة (مبلغ بالجنيه أو نسبة مئوية)
+ * @returns قيمة الخصم الفعلية بالقروش (لا تتجاوز المبلغ الأصلي)
+ */
+export function calculateDiscountAmount(
+  grossPiasters: number,
+  type: 'amount' | 'percent',
+  value: number
+): number {
+  if (grossPiasters <= 0 || value <= 0 || isNaN(value)) return 0;
+
+  if (type === 'percent') {
+    // Round to nearest integer piaster
+    const discount = Math.round((grossPiasters * value) / 100);
+    return Math.min(grossPiasters, Math.max(0, discount));
+  } else {
+    // value is in EGP pounds
+    const piasters = Math.round(value * 100);
+    return Math.min(grossPiasters, Math.max(0, piasters));
+  }
+}
+
+/**
+ * Task 24-2: توزيع خصم الفاتورة الإجمالي على بنود السلة بالتناسب مع قيمة كل بند
+ * باستخدام خوارزمية أكبر باقٍ (Largest Remainder Method - Hamilton-Hare)
+ * لمعالجة باقي القروش ومنع أي فروق أو كسور نهائياً.
+ *
+ * @param items مصفوفة البنود مع إجمالي كل بند قبل الخصم (بالقروش)
+ * @param totalDiscountPiasters إجمالي الخصم المطلوب توزيعه (بالقروش)
+ * @returns مصفوفة بقيم الخصم الموزعة على كل بند (مجموعها يطابق totalDiscountPiasters تماماً)
+ */
+export function distributeInvoiceDiscount(
+  items: { grossPiasters: number }[],
+  totalDiscountPiasters: number
+): number[] {
+  if (items.length === 0 || totalDiscountPiasters <= 0) {
+    return items.map(() => 0);
+  }
+
+  const subtotalGross = items.reduce((sum, it) => sum + Math.max(0, it.grossPiasters), 0);
+  if (subtotalGross <= 0) {
+    return items.map(() => 0);
+  }
+
+  const actualDiscount = Math.min(totalDiscountPiasters, subtotalGross);
+
+  // 1. Calculate integer share and remainder for each item
+  const shares: number[] = [];
+  const remainders: { index: number; remainder: number }[] = [];
+  let sumDistributed = 0;
+
+  for (let i = 0; i < items.length; i++) {
+    const gross = Math.max(0, items[i].grossPiasters);
+    const rawProduct = gross * actualDiscount;
+    const share = Math.floor(rawProduct / subtotalGross);
+    const rem = rawProduct % subtotalGross;
+
+    shares.push(share);
+    remainders.push({ index: i, remainder: rem });
+    sumDistributed += share;
+  }
+
+  // 2. Distribute leftover piasters to items with the largest remainders
+  const leftover = actualDiscount - sumDistributed;
+  remainders.sort((a, b) => b.remainder - a.remainder);
+
+  for (let i = 0; i < leftover && i < remainders.length; i++) {
+    shares[remainders[i].index] += 1;
+  }
+
+  return shares;
+}
+

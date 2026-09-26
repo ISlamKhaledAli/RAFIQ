@@ -6,7 +6,7 @@ namespace RafiqPOS.Database
 {
     public static class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 14;
+        public const int LATEST_SUPPORTED_VERSION = 16;
 
         public static void ApplyMigrations(string connectionString, string dbPath)
         {
@@ -154,7 +154,28 @@ namespace RafiqPOS.Database
                     ApplyMigration14(conn);
                 }
 
-                // 18. Self-Healing Schema Guard: Automatically repair missing columns or indexes
+                // 18. Apply Migration 15: User Accounts and Role-Based Security (Feature #166)
+                if (currentVersion < 15)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration15(conn);
+                }
+
+                // 19. Apply Migration 16: Tamper-Evident Audit Log Chaining and Hash Sealing (Feature #169)
+                if (currentVersion < 16)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration16(conn);
+                }
+
+                // 20. Apply Migration 17: Discount Rules and Cashier Thresholds (Feature #24)
+                if (currentVersion < 17)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration17(conn);
+                }
+
+                // 21. Self-Healing Schema Guard: Automatically repair missing columns or indexes
                 EnsureSchemaHealth(conn);
             }
         }
@@ -757,6 +778,109 @@ namespace RafiqPOS.Database
                             using (var alter = new SQLiteCommand("ALTER TABLE sale_items ADD COLUMN conversion_factor INTEGER DEFAULT 1;", conn, trans))
                             {
                                 alter.ExecuteNonQuery();
+                            }
+                        }
+                    }
+
+                    // 10. Health check for users table (Feature #166)
+                    using (var checkUsersCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='users';", conn, trans))
+                    {
+                        var tbl = checkUsersCmd.ExecuteScalar();
+                        if (tbl != null)
+                        {
+                            var uCols = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            using (var infoCmd = new SQLiteCommand("PRAGMA table_info(users);", conn, trans))
+                            using (var reader = infoCmd.ExecuteReader())
+                            {
+                                while (reader.Read())
+                                {
+                                    uCols.Add(reader["name"].ToString());
+                                }
+                            }
+
+                            if (!uCols.Contains("pin_salt"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE users ADD COLUMN pin_salt TEXT DEFAULT '';", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+                            if (!uCols.Contains("failed_attempts"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE users ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+                            if (!uCols.Contains("lockout_until"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE users ADD COLUMN lockout_until TEXT;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+                            if (!uCols.Contains("permissions_json"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE users ADD COLUMN permissions_json TEXT;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+                            if (!uCols.Contains("updated_at"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE users ADD COLUMN updated_at TEXT;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+                            if (!uCols.Contains("last_login_at"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE users ADD COLUMN last_login_at TEXT;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+
+                            using (var idxCmd = new SQLiteCommand(@"
+                                CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+                                CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+                                CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active);
+                            ", conn, trans))
+                            {
+                                idxCmd.ExecuteNonQuery();
+                            }
+                        }
+                    }
+
+                    // 12. Health check for audit_logs table (Feature #169)
+                    using (var checkAudCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='audit_logs';", conn, trans))
+                    {
+                        var tbl = checkAudCmd.ExecuteScalar();
+                        if (tbl != null)
+                        {
+                            var aCols = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            using (var infoCmd = new SQLiteCommand("PRAGMA table_info(audit_logs);", conn, trans))
+                            using (var reader = infoCmd.ExecuteReader())
+                            {
+                                while (reader.Read())
+                                {
+                                    aCols.Add(reader["name"].ToString());
+                                }
+                            }
+
+                            if (!aCols.Contains("prev_hash"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE audit_logs ADD COLUMN prev_hash TEXT DEFAULT '';", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+                            if (!aCols.Contains("record_hash"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE audit_logs ADD COLUMN record_hash TEXT DEFAULT '';", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
                             }
                         }
                     }
@@ -1850,6 +1974,365 @@ namespace RafiqPOS.Database
                     trans.Rollback();
                     throw;
                 }
+            }
+        }
+
+        private static void ApplyMigration15(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // 1. Ensure users table exists with base columns
+                    string createUsersSql = @"
+                        CREATE TABLE IF NOT EXISTS users (
+                            id TEXT PRIMARY KEY,
+                            username TEXT UNIQUE NOT NULL,
+                            display_name TEXT NOT NULL,
+                            pin_code_hash TEXT NOT NULL,
+                            pin_salt TEXT NOT NULL DEFAULT '',
+                            role TEXT NOT NULL DEFAULT 'cashier',
+                            is_active INTEGER NOT NULL DEFAULT 1,
+                            failed_attempts INTEGER NOT NULL DEFAULT 0,
+                            lockout_until TEXT,
+                            permissions_json TEXT,
+                            created_at TEXT NOT NULL,
+                            updated_at TEXT,
+                            last_login_at TEXT
+                        );
+                    ";
+                    using (var cmd = new SQLiteCommand(createUsersSql, conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 2. Add columns if users table was already created in earlier migration
+                    var existingCols = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    using (var infoCmd = new SQLiteCommand("PRAGMA table_info(users);", conn, trans))
+                    using (var reader = infoCmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            existingCols.Add(reader["name"].ToString());
+                        }
+                    }
+
+                    if (!existingCols.Contains("pin_salt"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE users ADD COLUMN pin_salt TEXT DEFAULT '';", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (!existingCols.Contains("failed_attempts"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE users ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (!existingCols.Contains("lockout_until"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE users ADD COLUMN lockout_until TEXT;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (!existingCols.Contains("permissions_json"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE users ADD COLUMN permissions_json TEXT;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (!existingCols.Contains("updated_at"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE users ADD COLUMN updated_at TEXT;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (!existingCols.Contains("last_login_at"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE users ADD COLUMN last_login_at TEXT;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    // 3. Create indexes for users
+                    using (var idxCmd = new SQLiteCommand(@"
+                        CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+                        CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+                        CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active);
+                    ", conn, trans))
+                    {
+                        idxCmd.ExecuteNonQuery();
+                    }
+
+                    // 4. Migrate existing PIN from app_settings or seed default admin & cashier
+                    string existingPinHash = "";
+                    string existingPinSalt = "";
+                    using (var getPinCmd = new SQLiteCommand("SELECT key, value FROM app_settings WHERE key IN ('security_pin_hash', 'security_pin_salt');", conn, trans))
+                    using (var reader = getPinCmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            string k = reader["key"].ToString();
+                            string v = reader["value"].ToString();
+                            if (k == "security_pin_hash") existingPinHash = v;
+                            if (k == "security_pin_salt") existingPinSalt = v;
+                        }
+                    }
+
+                    // Check if default admin exists
+                    using (var chkAdminCmd = new SQLiteCommand("SELECT COUNT(*) FROM users WHERE id = 'usr_admin_default' OR username = 'admin';", conn, trans))
+                    {
+                        long adminCount = Convert.ToInt64(chkAdminCmd.ExecuteScalar());
+                        if (adminCount == 0)
+                        {
+                            string adminHash = existingPinHash;
+                            string adminSalt = existingPinSalt;
+                            if (string.IsNullOrEmpty(adminHash) || string.IsNullOrEmpty(adminSalt))
+                            {
+                                byte[] saltBytes = new byte[16];
+                                using (var rng = new System.Security.Cryptography.RNGCryptoServiceProvider())
+                                {
+                                    rng.GetBytes(saltBytes);
+                                }
+                                adminSalt = Convert.ToBase64String(saltBytes);
+                                using (var pbkdf2 = new System.Security.Cryptography.Rfc2898DeriveBytes("1234", saltBytes, 10000))
+                                {
+                                    adminHash = Convert.ToBase64String(pbkdf2.GetBytes(32));
+                                }
+                            }
+
+                            using (var insAdmin = new SQLiteCommand(@"
+                                INSERT INTO users (id, username, display_name, pin_code_hash, pin_salt, role, is_active, failed_attempts, created_at, updated_at)
+                                VALUES ('usr_admin_default', 'admin', 'مدير النظام', @hash, @salt, 'admin', 1, 0, datetime('now'), datetime('now'));
+                            ", conn, trans))
+                            {
+                                insAdmin.Parameters.AddWithValue("@hash", adminHash);
+                                insAdmin.Parameters.AddWithValue("@salt", adminSalt);
+                                insAdmin.ExecuteNonQuery();
+                            }
+                        }
+                    }
+
+                    // Check if default cashier exists
+                    using (var chkCashierCmd = new SQLiteCommand("SELECT COUNT(*) FROM users WHERE id = 'usr_cashier_1' OR username = 'cashier1';", conn, trans))
+                    {
+                        long cashierCount = Convert.ToInt64(chkCashierCmd.ExecuteScalar());
+                        if (cashierCount == 0)
+                        {
+                            byte[] saltBytes = new byte[16];
+                            using (var rng = new System.Security.Cryptography.RNGCryptoServiceProvider())
+                            {
+                                rng.GetBytes(saltBytes);
+                            }
+                            string cashierSalt = Convert.ToBase64String(saltBytes);
+                            string cashierHash;
+                            using (var pbkdf2 = new System.Security.Cryptography.Rfc2898DeriveBytes("0000", saltBytes, 10000))
+                            {
+                                cashierHash = Convert.ToBase64String(pbkdf2.GetBytes(32));
+                            }
+
+                            using (var insCashier = new SQLiteCommand(@"
+                                INSERT INTO users (id, username, display_name, pin_code_hash, pin_salt, role, is_active, failed_attempts, created_at, updated_at)
+                                VALUES ('usr_cashier_1', 'cashier1', 'كاشير (1)', @hash, @salt, 'cashier', 1, 0, datetime('now'), datetime('now'));
+                            ", conn, trans))
+                            {
+                                insCashier.Parameters.AddWithValue("@hash", cashierHash);
+                                insCashier.Parameters.AddWithValue("@salt", cashierSalt);
+                                insCashier.ExecuteNonQuery();
+                            }
+                        }
+                    }
+
+                    // 5. Update schema_migrations
+                    using (var logCmd = new SQLiteCommand(@"
+                        INSERT INTO schema_migrations (version, name, applied_at)
+                        VALUES (15, 'User Accounts and Role-Based Security (Feature #166)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        logCmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        private static void ApplyMigration16(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // 1. Add columns to audit_logs if missing
+                    var existingCols = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    using (var infoCmd = new SQLiteCommand("PRAGMA table_info(audit_logs);", conn, trans))
+                    using (var reader = infoCmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            existingCols.Add(reader["name"].ToString());
+                        }
+                    }
+
+                    if (!existingCols.Contains("prev_hash"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE audit_logs ADD COLUMN prev_hash TEXT DEFAULT '';", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    if (!existingCols.Contains("record_hash"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE audit_logs ADD COLUMN record_hash TEXT DEFAULT '';", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    // 2. Backfill existing records to establish a valid cryptographic chain
+                    var rows = new System.Collections.Generic.List<string[]>();
+                    using (var readCmd = new SQLiteCommand("SELECT id, user_id, action, entity_type, entity_id, details_json, created_at, prev_hash, record_hash FROM audit_logs ORDER BY rowid ASC;", conn, trans))
+                    using (var rdr = readCmd.ExecuteReader())
+                    {
+                        while (rdr.Read())
+                        {
+                            rows.Add(new string[] {
+                                rdr["id"].ToString(),
+                                rdr["user_id"] != DBNull.Value ? rdr["user_id"].ToString() : "",
+                                rdr["action"].ToString(),
+                                rdr["entity_type"].ToString(),
+                                rdr["entity_id"] != DBNull.Value ? rdr["entity_id"].ToString() : "",
+                                rdr["details_json"] != DBNull.Value ? rdr["details_json"].ToString() : "",
+                                rdr["created_at"].ToString(),
+                                rdr["prev_hash"] != DBNull.Value ? rdr["prev_hash"].ToString() : "",
+                                rdr["record_hash"] != DBNull.Value ? rdr["record_hash"].ToString() : ""
+                            });
+                        }
+                    }
+
+                    string lastHash = "GENESIS_RAFIQ_AUDIT_V1";
+                    for (int i = 0; i < rows.Count; i++)
+                    {
+                        string id = rows[i][0];
+                        string userId = rows[i][1];
+                        string action = rows[i][2];
+                        string entityType = rows[i][3];
+                        string entityId = rows[i][4];
+                        string detailsJson = rows[i][5];
+                        string createdAt = rows[i][6];
+                        string prevHash = rows[i][7];
+                        string recHash = rows[i][8];
+
+                        if (string.IsNullOrEmpty(recHash))
+                        {
+                            prevHash = lastHash;
+                            recHash = ComputeAuditHash(prevHash, id, userId, action, entityType, entityId, detailsJson, createdAt);
+
+                            using (var updateCmd = new SQLiteCommand("UPDATE audit_logs SET prev_hash = @prev, record_hash = @rec WHERE id = @id;", conn, trans))
+                            {
+                                updateCmd.Parameters.AddWithValue("@prev", prevHash);
+                                updateCmd.Parameters.AddWithValue("@rec", recHash);
+                                updateCmd.Parameters.AddWithValue("@id", id);
+                                updateCmd.ExecuteNonQuery();
+                            }
+                        }
+                        lastHash = recHash;
+                    }
+
+                    // 3. Create index for hash chain
+                    using (var idxCmd = new SQLiteCommand("CREATE INDEX IF NOT EXISTS idx_audit_logs_record_hash ON audit_logs(record_hash);", conn, trans))
+                    {
+                        idxCmd.ExecuteNonQuery();
+                    }
+
+                    // 4. Update schema_migrations
+                    using (var logCmd = new SQLiteCommand(@"
+                        INSERT INTO schema_migrations (version, name, applied_at)
+                        VALUES (16, 'Tamper-Evident Audit Log Chaining and Hash Sealing (Feature #169)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        logCmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        private static void ApplyMigration17(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // 1. Seed discount threshold settings in app_settings (Feature #24 / Task 24-1)
+                    using (var cmd = new SQLiteCommand(@"
+                        INSERT OR IGNORE INTO app_settings (key, value, updated_at)
+                        VALUES 
+                        ('max_discount_percent_cashier', '10', datetime('now')),
+                        ('max_discount_amount_cashier_piasters', '5000', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 2. Update schema_migrations
+                    using (var logCmd = new SQLiteCommand(@"
+                        INSERT INTO schema_migrations (version, name, applied_at)
+                        VALUES (17, 'Discount Rules and Cashier Thresholds (Feature #24)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        logCmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        public static string ComputeAuditHash(string prevHash, string id, string userId, string action, string entityType, string entityId, string detailsJson, string createdAt)
+        {
+            string raw = string.Format("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}",
+                prevHash ?? "",
+                id ?? "",
+                userId ?? "",
+                action ?? "",
+                entityType ?? "",
+                entityId ?? "",
+                detailsJson ?? "",
+                createdAt ?? "");
+
+            using (var sha = System.Security.Cryptography.SHA256.Create())
+            {
+                byte[] bytes = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(raw));
+                var sb = new System.Text.StringBuilder();
+                for (int i = 0; i < bytes.Length; i++)
+                {
+                    sb.Append(bytes[i].ToString("x2"));
+                }
+                return sb.ToString();
             }
         }
     }

@@ -17,6 +17,7 @@ namespace RafiqPOS.Repositories
         /// <summary>
         /// تسجيل عملية حساسة داخل نفس المعاملة الذرية (Task 7-3 & Senior Rule 2)
         /// يُلغى السجل تلقائياً إذا فشلت المعاملة
+        /// مع ربط تسلسلي مشفر ببصمة السجل السابق لمنع التلاعب المباشر (Task 169-1 & 169-2)
         /// </summary>
         public void Log(SQLiteConnection conn, SQLiteTransaction trans, AuditLog entry)
         {
@@ -29,9 +30,36 @@ namespace RafiqPOS.Repositories
                 entry.CreatedAt = DateTime.UtcNow.ToString("o");
             }
 
+            // Cryptographic chain: fetch previous record hash
+            string prevHash = "GENESIS_RAFIQ_AUDIT_V1";
+            using (var lastHashCmd = new SQLiteCommand("SELECT record_hash FROM audit_logs ORDER BY rowid DESC LIMIT 1;", conn, trans))
+            {
+                object lastObj = lastHashCmd.ExecuteScalar();
+                if (lastObj != null && lastObj != DBNull.Value)
+                {
+                    string existingHash = lastObj.ToString();
+                    if (!string.IsNullOrEmpty(existingHash))
+                    {
+                        prevHash = existingHash;
+                    }
+                }
+            }
+
+            entry.PrevHash = prevHash;
+            entry.RecordHash = Database.MigrationRunner.ComputeAuditHash(
+                entry.PrevHash,
+                entry.Id,
+                entry.UserId,
+                entry.Action,
+                entry.EntityType,
+                entry.EntityId,
+                entry.DetailsJson,
+                entry.CreatedAt
+            );
+
             string sql = @"
-                INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, details_json, created_at)
-                VALUES (@id, @userId, @action, @entityType, @entityId, @detailsJson, @createdAt);
+                INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, details_json, created_at, prev_hash, record_hash)
+                VALUES (@id, @userId, @action, @entityType, @entityId, @detailsJson, @createdAt, @prevHash, @recordHash);
             ";
 
             using (var cmd = new SQLiteCommand(sql, conn, trans))
@@ -43,6 +71,8 @@ namespace RafiqPOS.Repositories
                 cmd.Parameters.AddWithValue("@entityId", entry.EntityId);
                 cmd.Parameters.AddWithValue("@detailsJson", (object)entry.DetailsJson ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@createdAt", entry.CreatedAt);
+                cmd.Parameters.AddWithValue("@prevHash", entry.PrevHash);
+                cmd.Parameters.AddWithValue("@recordHash", entry.RecordHash);
                 cmd.ExecuteNonQuery();
             }
         }
@@ -68,6 +98,72 @@ namespace RafiqPOS.Repositories
             }
         }
 
+        public AuditChainVerificationResult VerifyChainIntegrity()
+        {
+            var result = new AuditChainVerificationResult
+            {
+                IsValid = true,
+                IsTampered = false,
+                TotalRecordsVerified = 0,
+                ErrorMessage = null
+            };
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = "SELECT id, user_id, action, entity_type, entity_id, details_json, created_at, prev_hash, record_hash FROM audit_logs ORDER BY rowid ASC;";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    string expectedPrevHash = "GENESIS_RAFIQ_AUDIT_V1";
+                    int count = 0;
+
+                    while (reader.Read())
+                    {
+                        count++;
+                        string id = reader["id"].ToString();
+                        string userId = reader["user_id"] != DBNull.Value ? reader["user_id"].ToString() : "";
+                        string action = reader["action"].ToString();
+                        string entityType = reader["entity_type"].ToString();
+                        string entityId = reader["entity_id"] != DBNull.Value ? reader["entity_id"].ToString() : "";
+                        string detailsJson = reader["details_json"] != DBNull.Value ? reader["details_json"].ToString() : "";
+                        string createdAt = reader["created_at"].ToString();
+                        string storedPrevHash = reader["prev_hash"] != DBNull.Value ? reader["prev_hash"].ToString() : "";
+                        string storedRecordHash = reader["record_hash"] != DBNull.Value ? reader["record_hash"].ToString() : "";
+
+                        // Check chain link
+                        if (!string.Equals(storedPrevHash, expectedPrevHash, StringComparison.OrdinalIgnoreCase))
+                        {
+                            result.IsValid = false;
+                            result.IsTampered = true;
+                            result.TamperedRecordId = id;
+                            result.TamperedRecordIndex = count;
+                            result.ErrorMessage = string.Format("انقطاع في سلسلة سجل العمليات عند السجل رقم {0} (معرّف: {1}). تم تعديل أو حذف سجلات سابقة!", count, id);
+                            return result;
+                        }
+
+                        // Recompute hash
+                        string recomputed = Database.MigrationRunner.ComputeAuditHash(storedPrevHash, id, userId, action, entityType, entityId, detailsJson, createdAt);
+                        if (!string.Equals(recomputed, storedRecordHash, StringComparison.OrdinalIgnoreCase))
+                        {
+                            result.IsValid = false;
+                            result.IsTampered = true;
+                            result.TamperedRecordId = id;
+                            result.TamperedRecordIndex = count;
+                            result.ErrorMessage = string.Format("تم اكتشاف تلاعب أو تعديل مباشر في بيانات السجل رقم {0} (معرّف: {1})!", count, id);
+                            return result;
+                        }
+
+                        expectedPrevHash = storedRecordHash;
+                    }
+
+                    result.TotalRecordsVerified = count;
+                }
+            }
+
+            return result;
+        }
+
         public List<AuditLog> GetLogs(int limit = 100, string action = null)
         {
             var list = new List<AuditLog>();
@@ -76,11 +172,12 @@ namespace RafiqPOS.Repositories
                 conn.Open();
                 string sql = @"
                     SELECT a.id, a.user_id, a.action, a.entity_type, a.entity_id, a.details_json, a.created_at,
+                           a.prev_hash, a.record_hash,
                            COALESCE(u.display_name, 'مدير النظام') AS user_display_name
                     FROM audit_logs a
                     LEFT JOIN users u ON a.user_id = u.id
                     WHERE (@action IS NULL OR a.action = @action)
-                    ORDER BY a.created_at DESC
+                    ORDER BY a.rowid DESC
                     LIMIT @limit;
                 ";
 
@@ -104,7 +201,9 @@ namespace RafiqPOS.Repositories
                                 EntityType = reader["entity_type"].ToString(),
                                 EntityId = reader["entity_id"].ToString(),
                                 DetailsJson = reader["details_json"] != DBNull.Value ? reader["details_json"].ToString() : null,
-                                CreatedAt = reader["created_at"].ToString()
+                                CreatedAt = reader["created_at"].ToString(),
+                                PrevHash = reader["prev_hash"] != DBNull.Value ? reader["prev_hash"].ToString() : "",
+                                RecordHash = reader["record_hash"] != DBNull.Value ? reader["record_hash"].ToString() : ""
                             });
                         }
                     }

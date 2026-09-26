@@ -1,0 +1,21 @@
+name = "rafiq-license-server"
+main = "src/index.ts"
+compatibility_date = "2024-05-01"
+
+# Environment Variables
+[vars]
+ENVIRONMENT = "production"
+# Default shared secret between Rafiq POS desktop client and license server
+APP_API_KEY = "rafiq_pos_client_secret_k9x2m4p8"
+# Secret for administrator management access
+ADMIN_SECRET = "rafiq_admin_super_secret_2026"
+# Secret for cryptographically signing activation tokens (HMAC-SHA256)
+TOKEN_SIGNING_SECRET = "rafiq_token_hmac_signing_key_secure_v1"
+
+# D1 Database Binding
+[[d1_databases]]
+binding = "DB"
+database_name = "rafiq-licenses"
+database_id = "rafiq-licenses-d1-prod-id"
+migrations_table = "d1_migrations"
+migrations_dir = "migrations"

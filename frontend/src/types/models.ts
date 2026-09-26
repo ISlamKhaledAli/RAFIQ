@@ -245,6 +245,17 @@ export interface AuditLogEntry {
   entityId: string;
   detailsJson?: string | null;
   createdAt: string;
+  prevHash?: string;
+  recordHash?: string;
+}
+
+export interface AuditChainVerificationResult {
+  isValid: boolean;
+  isTampered: boolean;
+  totalRecordsVerified: number;
+  tamperedRecordId?: string | null;
+  tamperedRecordIndex?: number;
+  errorMessage?: string | null;
 }
 
 export interface StockMovement {

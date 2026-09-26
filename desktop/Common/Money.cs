@@ -112,6 +112,65 @@ namespace RafiqPOS.Common
             }
         }
 
+        /// <summary>
+        /// Task 24-2: توزيع خصم الفاتورة الإجمالي على بنود السلة بالتناسب مع قيمة كل بند
+        /// باستخدام خوارزمية أكبر باقٍ (Largest Remainder Method - Hamilton-Hare)
+        /// لمعالجة باقي القروش ومنع أي فروق أو كسور نهائياً.
+        /// </summary>
+        public static long[] DistributeInvoiceDiscount(long[] itemGrossPiasters, long totalDiscountPiasters)
+        {
+            if (itemGrossPiasters == null || itemGrossPiasters.Length == 0 || totalDiscountPiasters <= 0)
+            {
+                return new long[itemGrossPiasters != null ? itemGrossPiasters.Length : 0];
+            }
+
+            long subtotalGross = 0;
+            for (int i = 0; i < itemGrossPiasters.Length; i++)
+            {
+                if (itemGrossPiasters[i] > 0)
+                {
+                    subtotalGross += itemGrossPiasters[i];
+                }
+            }
+
+            if (subtotalGross <= 0)
+            {
+                return new long[itemGrossPiasters.Length];
+            }
+
+            long actualDiscount = Math.Min(totalDiscountPiasters, subtotalGross);
+            long[] shares = new long[itemGrossPiasters.Length];
+            long[] remainders = new long[itemGrossPiasters.Length];
+            int[] indices = new int[itemGrossPiasters.Length];
+            long sumDistributed = 0;
+
+            for (int i = 0; i < itemGrossPiasters.Length; i++)
+            {
+                indices[i] = i;
+                long gross = Math.Max(0, itemGrossPiasters[i]);
+                long rawProduct = gross * actualDiscount;
+                long share = rawProduct / subtotalGross;
+                long rem = rawProduct % subtotalGross;
+
+                shares[i] = share;
+                remainders[i] = rem;
+                sumDistributed += share;
+            }
+
+            // Distribute leftover piasters to items with largest remainder
+            long leftover = actualDiscount - sumDistributed;
+            Array.Sort(indices, delegate(int a, int b) {
+                return remainders[b].CompareTo(remainders[a]);
+            });
+
+            for (int i = 0; i < leftover && i < indices.Length; i++)
+            {
+                shares[indices[i]] += 1;
+            }
+
+            return shares;
+        }
+
         public static Money operator +(Money a, Money b)
         {
             return a.Add(b);

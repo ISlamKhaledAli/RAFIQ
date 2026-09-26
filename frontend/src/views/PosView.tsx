@@ -18,11 +18,21 @@ import {
   Scale,
   Loader2,
   Settings,
-  X
+  X,
+  Tag,
+  Percent,
+  Banknote
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { Product, SaleItem, Sale, Customer, QuickItem, SalePayment, ProductUnit } from '../types/models';
-import { formatArabicCurrency, calculateLineTotal, calculateTaxPiasters, normalizeArabicNumerals } from '../utils/money';
+import { 
+  formatArabicCurrency, 
+  calculateLineTotal, 
+  calculateTaxPiasters, 
+  normalizeArabicNumerals,
+  calculateDiscountAmount,
+  distributeInvoiceDiscount
+} from '../utils/money';
 import { MoneyInput } from '../components/MoneyInput';
 import { ReceiptModal } from '../components/ReceiptModal';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -34,6 +44,8 @@ import { BarcodeScannerSettingsModal } from '../components/BarcodeScannerSetting
 import { QuickAddProductModal } from '../components/QuickAddProductModal';
 import { KeyboardShortcutsModal } from '../components/KeyboardShortcutsModal';
 import { CustomSelect } from '../components/CustomSelect';
+import { ItemDiscountModal } from '../components/ItemDiscountModal';
+import { SupervisorPromptModal } from '../components/SupervisorPromptModal';
 import { 
   physicalCodeToChar, 
   convertArabicLayoutToBarcode, 
@@ -114,9 +126,29 @@ export const PosView = () => {
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
-  // Branded Discount Modal State (Replacing raw window.prompt)
+  // Branded Invoice Discount Modal State (Feature #24 / Tasks 24-1 to 24-4)
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
   const [discountInputEgp, setDiscountInputEgp] = useState('');
+  const [invoiceDiscountType, setInvoiceDiscountType] = useState<'amount' | 'percent'>('amount');
+  const [maxDiscountPercentCashier, setMaxDiscountPercentCashier] = useState(10);
+  const [maxDiscountAmountCashierPiasters, setMaxDiscountAmountCashierPiasters] = useState(5000); // 50 EGP
+  const [currentUserRole, setCurrentUserRole] = useState<string>('cashier');
+
+  // Item-level Discount Modal State (Feature #24 / Task 24-2)
+  const [selectedDiscountItemIndex, setSelectedDiscountItemIndex] = useState<number | null>(null);
+  const [isItemDiscountModalOpen, setIsItemDiscountModalOpen] = useState(false);
+
+  // Supervisor PIN Prompt for Over-Limit Discounts (Feature #24 / Task 24-4)
+  const [supervisorPrompt, setSupervisorPrompt] = useState<{
+    isOpen: boolean;
+    title: string;
+    description?: string;
+    onApproved: (supervisorName?: string) => void;
+  }>({
+    isOpen: false,
+    title: '',
+    onApproved: () => {},
+  });
 
   // Branded Quantity Modal State (Replacing raw window.prompt)
   const [quantityModalItem, setQuantityModalItem] = useState<{ index: number; name: string; currentQty: number } | null>(null);
@@ -293,9 +325,101 @@ export const PosView = () => {
     });
   }, []);
 
+  // Task 24-2: Apply discount on specific item
+  const handleApplyItemDiscount = useCallback((index: number, itemDiscountPiasters: number, supervisorApproved = false) => {
+    setCart((prev) => {
+      const updated = [...prev];
+      const it = updated[index];
+      if (!it) return prev;
+      it.discountPiasters = itemDiscountPiasters;
+      it.totalPiasters = calculateLineTotal(it.unitPricePiasters, it.quantityMilli, it.discountPiasters);
+      it.taxPiasters = calculateTaxPiasters(it.totalPiasters, it.taxRatePercent || 0, true);
+
+      // Re-sum total discounts on invoice
+      const sumItemDiscounts = updated.reduce((sum, item) => sum + (item.discountPiasters || 0), 0);
+      setDiscountPiasters(sumItemDiscounts);
+
+      return updated;
+    });
+
+    if (supervisorApproved) {
+      void invoke('auditLogs:create', {
+        action: 'DISCOUNT_SUPERVISOR_OVERRIDE',
+        entityType: 'sale_item',
+        entityId: cart[index]?.productId || '',
+        detailsJson: JSON.stringify({
+          item: cart[index]?.productName,
+          discountPiasters: itemDiscountPiasters,
+          approvedBySupervisor: true,
+        }),
+      }).catch(() => {});
+    }
+
+    showStatus(
+      itemDiscountPiasters > 0
+        ? `تم تطبيق خصم ${(itemDiscountPiasters / 100).toFixed(2)} ج.م على الصنف`
+        : 'تم إلغاء خصم الصنف',
+      'success'
+    );
+  }, [cart, showStatus]);
+
+  // Task 24-2: Apply invoice discount proportionally to all items
+  const handleApplyInvoiceDiscount = useCallback((totalPiastersToDiscount: number, supervisorApproved = false) => {
+    setCart((prev) => {
+      if (prev.length === 0) return prev;
+
+      // Extract gross for each item
+      const itemGrossList = prev.map((it) => ({
+        grossPiasters: Math.round((it.unitPricePiasters * it.quantityMilli) / 1000),
+      }));
+
+      // Distribute proportionally without losing a single piaster (Task 24-2)
+      const distributed = distributeInvoiceDiscount(itemGrossList, totalPiastersToDiscount);
+
+      return prev.map((it, idx) => {
+        const itemDiscount = distributed[idx] || 0;
+        const totalP = calculateLineTotal(it.unitPricePiasters, it.quantityMilli, itemDiscount);
+        const taxP = calculateTaxPiasters(totalP, it.taxRatePercent || 0, true);
+        return {
+          ...it,
+          discountPiasters: itemDiscount,
+          totalPiasters: totalP,
+          taxPiasters: taxP,
+        };
+      });
+    });
+
+    setDiscountPiasters(totalPiastersToDiscount);
+
+    if (supervisorApproved) {
+      void invoke('auditLogs:create', {
+        action: 'INVOICE_DISCOUNT_SUPERVISOR_OVERRIDE',
+        entityType: 'sale',
+        entityId: '',
+        detailsJson: JSON.stringify({
+          discountPiasters: totalPiastersToDiscount,
+          approvedBySupervisor: true,
+        }),
+      }).catch(() => {});
+    }
+
+    showStatus(
+      totalPiastersToDiscount > 0
+        ? `تم تطبيق خصم بقيمة ${(totalPiastersToDiscount / 100).toFixed(2)} ج.م وتوزيعه بالتناسب على الأصناف`
+        : 'تم إلغاء خصم الفاتورة',
+      'success'
+    );
+  }, [showStatus]);
+
   // Integer Piaster Math (Rule 1 & Feature #6)
-  const subtotalPiasters = cart.reduce((sum, item) => sum + item.totalPiasters, 0);
-  const netTotalPiasters = Math.max(0, subtotalPiasters - discountPiasters);
+  const grossSubtotalPiasters = cart.reduce(
+    (sum, item) => sum + Math.round((item.unitPricePiasters * item.quantityMilli) / 1000),
+    0
+  );
+  const totalItemDiscountsPiasters = cart.reduce((sum, item) => sum + (item.discountPiasters || 0), 0);
+  const effectiveDiscountPiasters = Math.max(discountPiasters, totalItemDiscountsPiasters);
+  const subtotalPiasters = grossSubtotalPiasters;
+  const netTotalPiasters = Math.max(0, grossSubtotalPiasters - effectiveDiscountPiasters);
   const totalItemCount = cart.reduce((count, item) => count + (item.quantityMilli / 1000), 0);
   const totalTaxPiasters = cart.reduce((sum, item) => sum + item.taxPiasters, 0);
 
@@ -359,12 +483,24 @@ export const PosView = () => {
       if (active) setScannerSettings(s);
       try {
         const appSettings = await invoke<Record<string, string>>('settings:getAll');
-        if (appSettings && appSettings.printer_auto_print !== undefined) {
-          localStorage.setItem('rafiq_pos_printer_auto_print', appSettings.printer_auto_print);
+        if (appSettings) {
+          if (appSettings.printer_auto_print !== undefined) {
+            localStorage.setItem('rafiq_pos_printer_auto_print', appSettings.printer_auto_print);
+          }
+          if (appSettings.max_discount_percent_cashier) {
+            setMaxDiscountPercentCashier(parseFloat(appSettings.max_discount_percent_cashier) || 10);
+          }
+          if (appSettings.max_discount_amount_cashier_piasters) {
+            setMaxDiscountAmountCashierPiasters(parseInt(appSettings.max_discount_amount_cashier_piasters, 10) || 5000);
+          }
         }
         const cnt = await invoke<{ nextInvoiceNumber: number }>('counters:getNextExpectedInvoiceNumber');
         if (active && cnt && cnt.nextInvoiceNumber) {
           setNextExpectedInvoiceNumber(cnt.nextInvoiceNumber);
+        }
+        const currentUserData = await invoke<{ role?: string }>('auth:getCurrentUser');
+        if (active && currentUserData && currentUserData.role) {
+          setCurrentUserRole(currentUserData.role);
         }
       } catch {
         // non-blocking
@@ -1344,10 +1480,11 @@ export const PosView = () => {
           <div className="flex-1 flex flex-col overflow-hidden mt-1">
             {/* Table Column Headers (36px tall, surface-2, hairline-b) */}
             <div className="h-[32px] sm:h-[36px] bg-surface-2 hairline-b flex items-center px-2 sm:px-4 text-[11px] sm:text-[12px] font-bold text-ink-muted select-none shrink-0">
-              <div className="w-[7%] text-center">#</div>
-              <div className="w-[41%] text-right">الصنف / الباركود</div>
-              <div className="w-[15%] text-left tabular-nums">السعر</div>
-              <div className="w-[20%] text-center">الكمية</div>
+              <div className="w-[6%] text-center">#</div>
+              <div className="w-[37%] text-right">الصنف / الباركود</div>
+              <div className="w-[14%] text-left tabular-nums">السعر</div>
+              <div className="w-[18%] text-center">الكمية</div>
+              <div className="w-[8%] text-center">خصم</div>
               <div className="w-[13%] text-left tabular-nums">الإجمالي</div>
               <div className="w-[4%] text-center">حذف</div>
             </div>
@@ -1378,12 +1515,12 @@ export const PosView = () => {
                     className="h-[48px] sm:h-[52px] hairline-b flex items-center px-2 sm:px-4 text-xs sm:text-[13px] hover:bg-surface-2 transition-colors"
                   >
                     {/* Index */}
-                    <div className="w-[7%] text-center font-mono text-ink-muted text-[11px] sm:text-xs">
+                    <div className="w-[6%] text-center font-mono text-ink-muted text-[11px] sm:text-xs">
                       {index + 1}
                     </div>
 
                     {/* Description */}
-                    <div className="w-[41%] pr-1 flex flex-col justify-center overflow-hidden">
+                    <div className="w-[37%] pr-1 flex flex-col justify-center overflow-hidden">
                       <div className="flex items-center gap-1 truncate">
                         <span className="font-semibold text-ink truncate text-xs sm:text-[13px]">{item.productName}</span>
                         {item.unit === 'kg' && (
@@ -1412,6 +1549,12 @@ export const PosView = () => {
                         <span className="text-[9px] sm:text-[10px] font-mono text-ink-muted truncate">
                           {item.barcode || 'بدون باركود'}
                         </span>
+                        {item.discountPiasters > 0 && (
+                          <span className="text-[9px] text-amber-800 dark:text-amber-200 bg-amber-500/15 border border-amber-500/30 font-bold px-1 rounded flex items-center gap-0.5">
+                            <Tag className="w-2.5 h-2.5" />
+                            خصم: {formatArabicCurrency(item.discountPiasters)}
+                          </span>
+                        )}
                         {item.unitName && item.conversionFactor && item.conversionFactor > 1 && (
                           <span className="text-[9px] text-brand font-bold bg-brand-soft px-1 rounded">
                             {item.unitName} = {item.conversionFactor} قطعة
@@ -1421,7 +1564,7 @@ export const PosView = () => {
                     </div>
 
                     {/* Unit Price (Editable on click — Task 161-6) */}
-                    <div className="w-[15%] text-left tabular-nums font-mono text-ink text-xs sm:text-[13px]">
+                    <div className="w-[14%] text-left tabular-nums font-mono text-ink text-xs sm:text-[13px]">
                       {editingPriceIndex === index ? (
                         <div className="flex items-center gap-1">
                           <input
@@ -1459,7 +1602,7 @@ export const PosView = () => {
                     </div>
 
                     {/* Quantity Stepper or Weight Button */}
-                    <div className="w-[20%] flex items-center justify-center">
+                    <div className="w-[18%] flex items-center justify-center">
                       {item.unit === 'kg' ? (
                         <button
                           type="button"
@@ -1506,9 +1649,34 @@ export const PosView = () => {
                       )}
                     </div>
 
+                    {/* Item Discount Button (Feature #24) */}
+                    <div className="w-[8%] text-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedDiscountItemIndex(index);
+                          setIsItemDiscountModalOpen(true);
+                        }}
+                        className={`px-1.5 py-1 rounded transition-colors text-[10px] font-bold inline-flex items-center gap-0.5 ${
+                          item.discountPiasters > 0
+                            ? 'text-amber-700 bg-amber-500/20 border border-amber-500/40 hover:bg-amber-500/30'
+                            : 'text-ink-muted hover:text-brand hover:bg-surface-2'
+                        }`}
+                        title="تطبيق خصم خاص على هذا الصنف"
+                      >
+                        <Tag className="w-3 h-3" />
+                        <span>{item.discountPiasters > 0 ? '%' : 'خصم'}</span>
+                      </button>
+                    </div>
+
                     {/* Line Total */}
-                    <div className="w-[13%] text-left tabular-nums font-mono font-bold text-brand text-xs sm:text-[13px]">
-                      {formatArabicCurrency(item.totalPiasters)}
+                    <div className="w-[13%] text-left tabular-nums font-mono font-bold text-brand text-xs sm:text-[13px] flex flex-col items-end justify-center">
+                      <span>{formatArabicCurrency(item.totalPiasters)}</span>
+                      {item.discountPiasters > 0 && (
+                        <span className="text-[10px] text-ink-muted line-through font-normal">
+                          {formatArabicCurrency(Math.round((item.unitPricePiasters * item.quantityMilli) / 1000))}
+                        </span>
+                      )}
                     </div>
 
                     {/* Delete Trigger */}
@@ -2209,16 +2377,17 @@ export const PosView = () => {
       />
 
       {/* 13. BRANDED DISCOUNT MODAL (Replacing window.prompt for F4) */}
+      {/* 13. BRANDED DISCOUNT MODAL (Feature #24 / Tasks 24-1 to 24-4) */}
       {isDiscountModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-md p-5 animate-in fade-in zoom-in-95 duration-150 text-right select-none">
-            <div className="flex items-center justify-between mb-4 pb-2 hairline-b">
+            <div className="flex items-center justify-between mb-4 pb-2 border-b border-line">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-700 flex items-center justify-center font-bold text-sm">
                   %
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-ink m-0">تطبيق خصم مالي على الفاتورة</h3>
+                  <h3 className="text-base font-bold text-ink m-0">تطبيق خصم على الفاتورة</h3>
                   <p className="text-[11px] text-ink-muted m-0">
                     إجمالي السلة قبل الخصم: <span className="font-mono font-bold text-brand">{formatArabicCurrency(subtotalPiasters)}</span>
                   </p>
@@ -2241,17 +2410,65 @@ export const PosView = () => {
                 e.preventDefault();
                 const num = parseFloat(normalizeArabicNumerals(discountInputEgp.trim()));
                 if (!isNaN(num) && num >= 0) {
-                  const maxAllowedPiasters = subtotalPiasters;
-                  const discountPiastersVal = Math.min(Math.round(num * 100), maxAllowedPiasters);
-                  setDiscountPiasters(discountPiastersVal);
-                  showStatus(discountPiastersVal > 0 ? `تم تطبيق خصم بقيمة ${(discountPiastersVal / 100).toFixed(2)} ج.م` : 'تم إلغاء الخصم', 'success');
+                  const calculatedPiasters = calculateDiscountAmount(subtotalPiasters, invoiceDiscountType, num);
+                  const discountPct = subtotalPiasters > 0 ? (calculatedPiasters / subtotalPiasters) * 100 : 0;
+
+                  const requiresSupervisor =
+                    currentUserRole === 'cashier' &&
+                    (discountPct > maxDiscountPercentCashier || calculatedPiasters > maxDiscountAmountCashierPiasters);
+
+                  if (calculatedPiasters > 0 && requiresSupervisor) {
+                    setSupervisorPrompt({
+                      isOpen: true,
+                      title: `خصم على الفاتورة يتجاوز حد الكاشير: ${(calculatedPiasters / 100).toFixed(2)} ج.م (${discountPct.toFixed(1)}%)`,
+                      onApproved: () => {
+                        handleApplyInvoiceDiscount(calculatedPiasters, true);
+                      },
+                    });
+                  } else {
+                    handleApplyInvoiceDiscount(calculatedPiasters, false);
+                  }
                 }
                 setIsDiscountModalOpen(false);
                 barcodeInputRef.current?.focus();
               }}
             >
+              {/* Type Toggle (Amount vs Percent) */}
+              <div className="flex bg-surface-2 p-1 rounded-lg border border-line mb-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInvoiceDiscountType('amount');
+                    setDiscountInputEgp('');
+                  }}
+                  className={`flex-1 py-1.5 px-3 rounded-md text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                    invoiceDiscountType === 'amount'
+                      ? 'bg-brand text-white shadow-xs'
+                      : 'text-ink-muted hover:text-ink'
+                  }`}
+                >
+                  <Banknote className="w-3.5 h-3.5" />
+                  مبلغ نقدي (ج.م)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInvoiceDiscountType('percent');
+                    setDiscountInputEgp('');
+                  }}
+                  className={`flex-1 py-1.5 px-3 rounded-md text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                    invoiceDiscountType === 'percent'
+                      ? 'bg-brand text-white shadow-xs'
+                      : 'text-ink-muted hover:text-ink'
+                  }`}
+                >
+                  <Percent className="w-3.5 h-3.5" />
+                  نسبة مئوية (%)
+                </button>
+              </div>
+
               <label className="block text-xs font-bold text-ink-muted mb-1.5">
-                أدخل قيمة الخصم المالي بالجنيه (ج.م):
+                {invoiceDiscountType === 'amount' ? 'أدخل قيمة الخصم المالي بالجنيه (ج.م):' : 'أدخل نسبة الخصم المئوية (%):'}
               </label>
               <div className="relative mb-3">
                 <input
@@ -2263,7 +2480,7 @@ export const PosView = () => {
                   className="w-full text-center text-3xl font-mono font-bold text-brand bg-surface-2 border-2 border-brand/50 focus:border-brand rounded-lg p-3 text-ink focus:outline-none shadow-inner"
                 />
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-muted font-sans">
-                  جنيه مصري
+                  {invoiceDiscountType === 'amount' ? 'جنيه مصري' : '%'}
                 </span>
               </div>
 
@@ -2271,50 +2488,66 @@ export const PosView = () => {
               <div className="mb-4">
                 <span className="block text-[11px] font-bold text-ink-muted mb-1.5">اختصارات سريعة للخصم:</span>
                 <div className="grid grid-cols-4 gap-1.5">
-                  {[5, 10, 20, 50].map((val) => (
-                    <button
-                      key={val}
-                      type="button"
-                      onClick={() => setDiscountInputEgp(String(val))}
-                      className="h-8 rounded bg-surface border border-slate-300 hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-slate-700 text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
-                    >
-                      {val} ج.م
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const fivePct = Math.round(subtotalPiasters * 0.05) / 100;
-                      setDiscountInputEgp(fivePct.toFixed(2));
-                    }}
-                    className="h-8 rounded bg-surface border border-slate-300 hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-slate-700 text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
-                  >
-                    5%
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const tenPct = Math.round(subtotalPiasters * 0.10) / 100;
-                      setDiscountInputEgp(tenPct.toFixed(2));
-                    }}
-                    className="h-8 rounded bg-surface border border-slate-300 hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-slate-700 text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
-                  >
-                    10%
-                  </button>
+                  {invoiceDiscountType === 'amount' ? (
+                    <>
+                      {[5, 10, 20, 50].map((val) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setDiscountInputEgp(String(val))}
+                          className="h-8 rounded bg-surface border border-slate-300 hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-slate-700 text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
+                        >
+                          {val} ج.م
+                        </button>
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      {[5, 10, 15, 20].map((pct) => (
+                        <button
+                          key={pct}
+                          type="button"
+                          onClick={() => setDiscountInputEgp(String(pct))}
+                          className="h-8 rounded bg-surface border border-slate-300 hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-slate-700 text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
+                        >
+                          {pct}%
+                        </button>
+                      ))}
+                    </>
+                  )}
                   <button
                     type="button"
                     onClick={() => setDiscountInputEgp('0')}
-                    className="col-span-2 h-8 rounded bg-surface border border-slate-300 hover:border-danger hover:text-danger hover:bg-danger-soft/40 text-slate-700 text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
+                    className="col-span-4 h-8 rounded bg-surface border border-slate-300 hover:border-red-500 hover:text-red-600 hover:bg-red-50 text-slate-700 text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
                   >
-                    إلغاء الخصم (0 ج.م)
+                    إلغاء الخصم (0)
                   </button>
                 </div>
               </div>
 
+              {/* Supervisor Warning */}
+              {(() => {
+                const parsed = parseFloat(normalizeArabicNumerals(discountInputEgp.trim())) || 0;
+                const piastersVal = calculateDiscountAmount(subtotalPiasters, invoiceDiscountType, parsed);
+                const discountPct = subtotalPiasters > 0 ? (piastersVal / subtotalPiasters) * 100 : 0;
+                const reqSup = currentUserRole === 'cashier' &&
+                  (discountPct > maxDiscountPercentCashier || piastersVal > maxDiscountAmountCashierPiasters);
+
+                if (reqSup && piastersVal > 0) {
+                  return (
+                    <div className="mb-3 p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-800 dark:text-amber-200 text-xs flex items-center justify-between">
+                      <span>⚠️ الخصم يتجاوز صلاحية الكاشير (أقصى حد {maxDiscountPercentCashier}% أو {formatArabicCurrency(maxDiscountAmountCashierPiasters)})</span>
+                      <span className="font-bold">مطلوب موافقة المشرف</span>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
               {/* Real-time Preview */}
               {(() => {
                 const parsed = parseFloat(normalizeArabicNumerals(discountInputEgp.trim())) || 0;
-                const piastersVal = Math.round(parsed * 100);
+                const piastersVal = calculateDiscountAmount(subtotalPiasters, invoiceDiscountType, parsed);
                 const previewNet = Math.max(0, subtotalPiasters - piastersVal);
                 return (
                   <div className="p-2.5 rounded-lg bg-surface-2 border border-line flex items-center justify-between mb-4 text-xs font-bold">
@@ -2450,6 +2683,52 @@ export const PosView = () => {
           </div>
         </div>
       )}
+
+      {/* Item-level Discount Modal (Feature #24 / Task 24-2) */}
+      {isItemDiscountModalOpen && selectedDiscountItemIndex !== null && (
+        <ItemDiscountModal
+          key={`discount_item_${selectedDiscountItemIndex}`}
+          isOpen={isItemDiscountModalOpen}
+          item={cart[selectedDiscountItemIndex] || null}
+          itemIndex={selectedDiscountItemIndex}
+          userRole={currentUserRole}
+          maxPercentWithoutPin={maxDiscountPercentCashier}
+          maxAmountWithoutPinPiasters={maxDiscountAmountCashierPiasters}
+          onClose={() => {
+            setIsItemDiscountModalOpen(false);
+            setSelectedDiscountItemIndex(null);
+            barcodeInputRef.current?.focus();
+          }}
+          onApply={handleApplyItemDiscount}
+          onRequestSupervisor={(actionTitle, onApproved) => {
+            setSupervisorPrompt({
+              isOpen: true,
+              title: 'موافقة المشرف على خصم صنف',
+              description: actionTitle,
+              onApproved: () => {
+                setSupervisorPrompt((p) => ({ ...p, isOpen: false }));
+                onApproved();
+              },
+            });
+          }}
+        />
+      )}
+
+      {/* Supervisor PIN Prompt Modal (Feature #24 / Task 24-4) */}
+      <SupervisorPromptModal
+        isOpen={supervisorPrompt.isOpen}
+        actionTitle={supervisorPrompt.title}
+        actionDescription={supervisorPrompt.description}
+        onApproved={(supervisorName) => {
+          const cb = supervisorPrompt.onApproved;
+          setSupervisorPrompt({ isOpen: false, title: '', onApproved: () => {} });
+          showStatus(`تم اعتماد العملية بواسطة المشرف: ${supervisorName || 'المشرف'}`, 'success');
+          cb(supervisorName);
+        }}
+        onCancel={() => {
+          setSupervisorPrompt({ isOpen: false, title: '', onApproved: () => {} });
+        }}
+      />
     </div>
   );
 };

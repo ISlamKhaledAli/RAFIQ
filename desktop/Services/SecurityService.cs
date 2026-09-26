@@ -15,7 +15,9 @@ namespace RafiqPOS.Services
         public bool IsLocked { get; set; }
         public int RemainingLockoutSeconds { get; set; }
         public int FailedAttempts { get; set; }
+        public int IdleTimeoutMinutes { get; set; }
         public Dictionary<string, bool> ProtectedActions { get; set; }
+        public UserDto CurrentUser { get; set; }
     }
 
     public class PinVerificationResult
@@ -25,6 +27,7 @@ namespace RafiqPOS.Services
         public int RemainingLockoutSeconds { get; set; }
         public int FailedAttempts { get; set; }
         public string Message { get; set; }
+        public string SupervisorName { get; set; }
     }
 
     public class SetPinResult
@@ -44,6 +47,7 @@ namespace RafiqPOS.Services
         private const string KEY_FAILED_ATTEMPTS = "security_failed_attempts";
         private const string KEY_LOCKOUT_UNTIL = "security_lockout_until";
         private const string KEY_PROTECTED_ACTIONS = "security_protected_actions";
+        private const string KEY_IDLE_TIMEOUT_MINUTES = "security_idle_timeout_minutes";
 
         private const int PBKDF2_ITERATIONS = 10000;
         private const int HASH_BYTE_SIZE = 32;
@@ -51,11 +55,21 @@ namespace RafiqPOS.Services
 
         private readonly SettingsRepository _settingsRepo;
         private readonly AuditLogRepository _auditRepo;
+        private readonly UserRepository _userRepo;
 
-        public SecurityService(SettingsRepository settingsRepo, AuditLogRepository auditRepo)
+        // Current active session
+        private static UserDto _currentUserSession;
+
+        public SecurityService(SettingsRepository settingsRepo, AuditLogRepository auditRepo, UserRepository userRepo = null)
         {
             this._settingsRepo = settingsRepo;
             this._auditRepo = auditRepo;
+            this._userRepo = userRepo;
+        }
+
+        public static UserDto CurrentUser
+        {
+            get { return _currentUserSession; }
         }
 
         public PinStatusResult GetStatus()
@@ -71,6 +85,7 @@ namespace RafiqPOS.Services
             int remainingSeconds = GetRemainingLockoutSeconds();
             bool isLocked = remainingSeconds > 0;
 
+            int idleTimeout = GetIdleTimeoutMinutes();
             Dictionary<string, bool> protectedActions = GetProtectedActions();
 
             var status = new PinStatusResult();
@@ -79,8 +94,353 @@ namespace RafiqPOS.Services
             status.IsLocked = isLocked;
             status.RemainingLockoutSeconds = remainingSeconds;
             status.FailedAttempts = failedAttempts;
+            status.IdleTimeoutMinutes = idleTimeout;
             status.ProtectedActions = protectedActions;
+            status.CurrentUser = GetCurrentSessionUser();
             return status;
+        }
+
+        public int GetIdleTimeoutMinutes()
+        {
+            string val = _settingsRepo.Get(KEY_IDLE_TIMEOUT_MINUTES, "15");
+            int minutes;
+            if (int.TryParse(val, out minutes))
+            {
+                return Math.Max(0, minutes);
+            }
+            return 15;
+        }
+
+        public void SetIdleTimeoutMinutes(int minutes)
+        {
+            _settingsRepo.Set(KEY_IDLE_TIMEOUT_MINUTES, Math.Max(0, minutes).ToString());
+            LogAudit("IDLE_TIMEOUT_UPDATED", "SECURITY", "SYSTEM", string.Format("تم تحديث مهلة الخمول إلى {0} دقيقة", minutes));
+        }
+
+        public UserDto GetCurrentSessionUser()
+        {
+            if (_currentUserSession != null)
+            {
+                return _currentUserSession;
+            }
+
+            // If no user is logged in, check if default admin exists
+            if (_userRepo != null)
+            {
+                var admin = _userRepo.GetById("usr_admin_default");
+                if (admin != null)
+                {
+                    _currentUserSession = MapToDto(admin);
+                    return _currentUserSession;
+                }
+            }
+
+            return new UserDto
+            {
+                Id = "usr_admin_default",
+                Username = "admin",
+                DisplayName = "مدير النظام",
+                Role = "admin",
+                IsActive = true,
+                Permissions = GetPermissionsForRole("admin")
+            };
+        }
+
+        public LoginResult Login(string usernameOrId, string pin)
+        {
+            var res = new LoginResult();
+
+            if (string.IsNullOrEmpty(usernameOrId) || string.IsNullOrEmpty(pin))
+            {
+                res.Success = false;
+                res.Message = "اسم الموظف والرقم السري مطلوبان.";
+                return res;
+            }
+
+            if (_userRepo == null)
+            {
+                res.Success = false;
+                res.Message = "خدمة الموظفين غير مهيأة.";
+                return res;
+            }
+
+            User user = _userRepo.GetById(usernameOrId);
+            if (user == null)
+            {
+                user = _userRepo.GetByUsername(usernameOrId);
+            }
+
+            if (user == null)
+            {
+                res.Success = false;
+                res.Message = "بيانات الموظف غير صحيحة.";
+                return res;
+            }
+
+            if (!user.IsActive)
+            {
+                res.Success = false;
+                res.Message = "هذا الحساب معطّل. يرجى مراجعة مدير النظام.";
+                return res;
+            }
+
+            // Check Lockout
+            int remainingSec = GetUserRemainingLockoutSeconds(user);
+            if (remainingSec > 0)
+            {
+                res.Success = false;
+                res.IsLocked = true;
+                res.RemainingLockoutSeconds = remainingSec;
+                res.Message = string.Format("الحساب مقفل مؤقتاً لحماية الأمان. يرجى الانتظار {0} ثانية.", remainingSec);
+                return res;
+            }
+
+            // Check PIN hash
+            bool matches = false;
+            if (!string.IsNullOrEmpty(user.PinCodeHash))
+            {
+                if (!string.IsNullOrEmpty(user.PinSalt))
+                {
+                    byte[] salt = Convert.FromBase64String(user.PinSalt);
+                    byte[] expectedHash = Convert.FromBase64String(user.PinCodeHash);
+                    byte[] actualHash = HashWithSalt(pin, salt);
+                    matches = SlowEquals(expectedHash, actualHash);
+                }
+                else
+                {
+                    // Legacy plain or simple fallback if empty salt
+                    matches = user.PinCodeHash == pin;
+                }
+            }
+
+            if (matches)
+            {
+                // Reset failed attempts & update last login
+                _userRepo.RecordLoginAttempt(user.Id, true);
+                user.FailedAttempts = 0;
+                user.LockoutUntil = null;
+                user.LastLoginAt = DateTime.UtcNow.ToString("o");
+
+                var dto = MapToDto(user);
+                _currentUserSession = dto;
+
+                LogAudit("USER_LOGIN", "SECURITY", user.Username, string.Format("تسجيل دخول الموظف: {0} ({1})", user.DisplayName, user.Role == "admin" ? "مدير" : "كاشير"));
+
+                res.Success = true;
+                res.User = dto;
+                res.IsLocked = false;
+                res.RemainingLockoutSeconds = 0;
+                res.Message = "تم تسجيل الدخول بنجاح.";
+                return res;
+            }
+            else
+            {
+                int failed = user.FailedAttempts + 1;
+                int lockoutSec = 0;
+                if (failed >= 10)
+                {
+                    lockoutSec = 300; // 5 minutes
+                }
+                else if (failed >= 5)
+                {
+                    lockoutSec = 30; // 30 seconds
+                }
+
+                _userRepo.RecordLoginAttempt(user.Id, false, lockoutSec);
+                LogAudit("LOGIN_FAILED", "SECURITY", user.Username, string.Format("محاولة دخول خاطئة للموظف: {0} (المحاولة {1})", user.DisplayName, failed));
+
+                res.Success = false;
+                res.IsLocked = lockoutSec > 0;
+                res.RemainingLockoutSeconds = lockoutSec;
+                res.Message = lockoutSec > 0
+                    ? string.Format("تم إدخال الرقم السري بشكل خاطئ عدة مرات. تم قفل الحساب لمدة {0} ثانية.", lockoutSec)
+                    : string.Format("الرقم السري غير صحيح. المحاولات المتبقية قبل القفل: {0}", Math.Max(0, 5 - failed));
+                return res;
+            }
+        }
+
+        public void Logout()
+        {
+            if (_currentUserSession != null)
+            {
+                LogAudit("USER_LOGOUT", "SECURITY", _currentUserSession.Username, string.Format("تسجيل خروج الموظف: {0}", _currentUserSession.DisplayName));
+                _currentUserSession = null;
+            }
+        }
+
+        public List<UserDto> GetActiveUsers()
+        {
+            var list = new List<UserDto>();
+            if (_userRepo != null)
+            {
+                var users = _userRepo.GetAll(true);
+                for (int i = 0; i < users.Count; i++)
+                {
+                    list.Add(MapToDto(users[i]));
+                }
+            }
+            return list;
+        }
+
+        public List<UserDto> GetAllUsers()
+        {
+            var list = new List<UserDto>();
+            if (_userRepo != null)
+            {
+                var users = _userRepo.GetAll(false);
+                for (int i = 0; i < users.Count; i++)
+                {
+                    list.Add(MapToDto(users[i]));
+                }
+            }
+            return list;
+        }
+
+        public UserDto CreateUser(string username, string displayName, string pin, string role)
+        {
+            if (_userRepo == null) throw new InvalidOperationException("UserRepository is null");
+
+            if (string.IsNullOrEmpty(username)) throw new ArgumentException("اسم المستخدم مطلوب");
+            if (string.IsNullOrEmpty(displayName)) throw new ArgumentException("اسم الموظف مطلوب");
+            if (string.IsNullOrEmpty(pin) || pin.Length < 4 || pin.Length > 8)
+                throw new ArgumentException("يجب أن يتكون الرقم السري من 4 إلى 8 أرقام");
+
+            for (int i = 0; i < pin.Length; i++)
+            {
+                if (!char.IsDigit(pin[i])) throw new ArgumentException("يجب أن يحتوي الرقم السري على أرقام فقط");
+            }
+
+            string cleanUsername = username.Trim().ToLowerInvariant();
+            if (_userRepo.GetByUsername(cleanUsername) != null)
+            {
+                throw new InvalidOperationException("اسم المستخدم موجود بالفعل");
+            }
+
+            byte[] salt = GenerateSalt();
+            byte[] hash = HashWithSalt(pin, salt);
+
+            var user = new User
+            {
+                Id = "usr_" + Guid.NewGuid().ToString("N"),
+                Username = cleanUsername,
+                DisplayName = displayName.Trim(),
+                PinCodeHash = Convert.ToBase64String(hash),
+                PinSalt = Convert.ToBase64String(salt),
+                Role = role == "admin" ? "admin" : "cashier",
+                IsActive = true,
+                FailedAttempts = 0,
+                CreatedAt = DateTime.UtcNow.ToString("o")
+            };
+
+            _userRepo.Insert(user);
+            LogAudit("USER_CREATED", "SECURITY", user.Username, string.Format("تم إنشاء حساب جديد: {0} ({1})", user.DisplayName, user.Role));
+
+            return MapToDto(user);
+        }
+
+        public void UpdateUser(string userId, string displayName, string role, bool isActive)
+        {
+            if (_userRepo == null) throw new InvalidOperationException("UserRepository is null");
+
+            var user = _userRepo.GetById(userId);
+            if (user == null) throw new ArgumentException("الموظف غير موجود");
+
+            // Prevent removing last active admin
+            if (user.Role == "admin" && (role != "admin" || !isActive))
+            {
+                int activeAdmins = _userRepo.GetActiveAdminCount();
+                if (activeAdmins <= 1)
+                {
+                    throw new InvalidOperationException("لا يمكن تعطيل أو تغيير دور آخر مدير نظام نشط.");
+                }
+            }
+
+            user.DisplayName = displayName.Trim();
+            user.Role = role == "admin" ? "admin" : "cashier";
+            user.IsActive = isActive;
+
+            _userRepo.Update(user);
+            LogAudit("USER_UPDATED", "SECURITY", user.Username, string.Format("تم تحديث بيانات الموظف: {0} ({1}) - الحالة: {2}", user.DisplayName, user.Role, isActive ? "نشط" : "معطّل"));
+        }
+
+        public void ChangeUserPin(string userId, string newPin)
+        {
+            if (_userRepo == null) throw new InvalidOperationException("UserRepository is null");
+
+            if (string.IsNullOrEmpty(newPin) || newPin.Length < 4 || newPin.Length > 8)
+                throw new ArgumentException("يجب أن يتكون الرقم السري من 4 إلى 8 أرقام");
+
+            for (int i = 0; i < newPin.Length; i++)
+            {
+                if (!char.IsDigit(newPin[i])) throw new ArgumentException("يجب أن يحتوي الرقم السري على أرقام فقط");
+            }
+
+            var user = _userRepo.GetById(userId);
+            if (user == null) throw new ArgumentException("الموظف غير موجود");
+
+            byte[] salt = GenerateSalt();
+            byte[] hash = HashWithSalt(newPin, salt);
+
+            _userRepo.UpdatePin(userId, Convert.ToBase64String(hash), Convert.ToBase64String(salt));
+            LogAudit("USER_PIN_CHANGED", "SECURITY", user.Username, string.Format("تم تغيير الرقم السري للموظف: {0}", user.DisplayName));
+        }
+
+        public PinVerificationResult VerifySupervisorPin(string pin, string action)
+        {
+            var result = new PinVerificationResult();
+
+            if (string.IsNullOrEmpty(pin))
+            {
+                result.Success = false;
+                result.Message = "الرقم السري لمدير النظام مطلوب.";
+                return result;
+            }
+
+            if (_userRepo == null)
+            {
+                return VerifyPin(pin, action);
+            }
+
+            // Find all active admins
+            var allUsers = _userRepo.GetAll(true);
+            var admins = new List<User>();
+            for (int i = 0; i < allUsers.Count; i++)
+            {
+                if (allUsers[i].Role == "admin")
+                {
+                    admins.Add(allUsers[i]);
+                }
+            }
+
+            if (admins.Count == 0)
+            {
+                // Fallback to legacy single PIN verification
+                return VerifyPin(pin, action);
+            }
+
+            for (int i = 0; i < admins.Count; i++)
+            {
+                var admin = admins[i];
+                if (string.IsNullOrEmpty(admin.PinCodeHash) || string.IsNullOrEmpty(admin.PinSalt))
+                    continue;
+
+                byte[] salt = Convert.FromBase64String(admin.PinSalt);
+                byte[] expectedHash = Convert.FromBase64String(admin.PinCodeHash);
+                byte[] actualHash = HashWithSalt(pin, salt);
+
+                if (SlowEquals(expectedHash, actualHash))
+                {
+                    LogAudit("SUPERVISOR_OVERRIDE", "SECURITY", admin.Username, string.Format("موافقة مدير على العملية: {0} بواسطة {1}", action, admin.DisplayName));
+                    result.Success = true;
+                    result.SupervisorName = admin.DisplayName;
+                    result.Message = "تمت موافقة مدير النظام بنجاح.";
+                    return result;
+                }
+            }
+
+            result.Success = false;
+            result.Message = "الرقم السري للمدير غير صحيح.";
+            return result;
         }
 
         public Dictionary<string, bool> GetProtectedActions()
@@ -93,6 +453,7 @@ namespace RafiqPOS.Services
             defaultActions["stock_adjust"] = true;   // تسوية المخزون اليدوية
             defaultActions["db_recovery"] = true;    // استعادة قاعدة البيانات
             defaultActions["discounts"] = false;     // خصومات الكاشير
+            defaultActions["users"] = true;          // إدارة الموظفين
 
             if (!string.IsNullOrEmpty(json))
             {
@@ -109,7 +470,7 @@ namespace RafiqPOS.Services
                 }
                 catch
                 {
-                    // In case of invalid JSON, fallback to defaults
+                    // Fallback to defaults
                 }
             }
 
@@ -135,7 +496,6 @@ namespace RafiqPOS.Services
 
             if (string.IsNullOrEmpty(pinHash) || string.IsNullOrEmpty(pinSaltStr))
             {
-                // PIN is not set yet
                 result.Success = true;
                 result.IsLocked = false;
                 result.RemainingLockoutSeconds = 0;
@@ -152,7 +512,6 @@ namespace RafiqPOS.Services
 
             if (matches)
             {
-                // Reset failed attempts on success
                 _settingsRepo.Set(KEY_FAILED_ATTEMPTS, "0");
                 _settingsRepo.Set(KEY_LOCKOUT_UNTIL, "");
 
@@ -167,7 +526,6 @@ namespace RafiqPOS.Services
             }
             else
             {
-                // Increment failed attempts and apply throttling
                 int failed = 0;
                 int.TryParse(_settingsRepo.Get(KEY_FAILED_ATTEMPTS, "0"), out failed);
                 failed++;
@@ -176,11 +534,11 @@ namespace RafiqPOS.Services
                 int lockoutSec = 0;
                 if (failed >= 10)
                 {
-                    lockoutSec = 300; // 5 minutes lockout after 10 attempts
+                    lockoutSec = 300;
                 }
                 else if (failed >= 5)
                 {
-                    lockoutSec = 30; // 30 seconds lockout after 5 attempts
+                    lockoutSec = 30;
                 }
 
                 if (lockoutSec > 0)
@@ -231,7 +589,6 @@ namespace RafiqPOS.Services
 
             if (isExisting)
             {
-                // Must authenticate via current PIN or valid recovery code
                 bool authorized = false;
                 if (!string.IsNullOrEmpty(currentPin))
                 {
@@ -270,11 +627,9 @@ namespace RafiqPOS.Services
                 }
             }
 
-            // Generate Salt and Hash for new PIN
             byte[] pinSalt = GenerateSalt();
             byte[] pinHash = HashWithSalt(newPin, pinSalt);
 
-            // Generate one-time recovery code
             string newRecoveryCode = GenerateRecoveryCode();
             byte[] recSalt = GenerateSalt();
             byte[] recHash = HashWithSalt(newRecoveryCode, recSalt);
@@ -289,6 +644,16 @@ namespace RafiqPOS.Services
             batch[KEY_LOCKOUT_UNTIL] = "";
 
             _settingsRepo.SaveBatch(batch);
+
+            // Sync with default admin user if present
+            if (_userRepo != null)
+            {
+                var admin = _userRepo.GetById("usr_admin_default");
+                if (admin != null)
+                {
+                    _userRepo.UpdatePin(admin.Id, Convert.ToBase64String(pinHash), Convert.ToBase64String(pinSalt));
+                }
+            }
 
             LogAudit(isExisting ? "PIN_CHANGED" : "PIN_CREATED", "SECURITY", "OWNER", "تم تحديث الرقم السري وإنشاء رمز استرجاع جديد للطوارئ");
 
@@ -321,7 +686,7 @@ namespace RafiqPOS.Services
             {
                 int failed = 0;
                 int.TryParse(_settingsRepo.Get(KEY_FAILED_ATTEMPTS, "0"), out failed);
-                failed += 2; // Recovery code guessing is penalized heavily
+                failed += 2;
                 _settingsRepo.Set(KEY_FAILED_ATTEMPTS, failed.ToString());
 
                 if (failed >= 5)
@@ -337,7 +702,6 @@ namespace RafiqPOS.Services
                 return res;
             }
 
-            // Valid recovery code: now apply new PIN
             return SetPin(newPin, null, recoveryCode);
         }
 
@@ -411,6 +775,22 @@ namespace RafiqPOS.Services
             return 0;
         }
 
+        private int GetUserRemainingLockoutSeconds(User user)
+        {
+            if (user == null || string.IsNullOrEmpty(user.LockoutUntil)) return 0;
+
+            DateTime lockoutUntil;
+            if (DateTime.TryParse(user.LockoutUntil, out lockoutUntil))
+            {
+                DateTime utcNow = DateTime.UtcNow;
+                if (lockoutUntil > utcNow)
+                {
+                    return (int)Math.Ceiling((lockoutUntil - utcNow).TotalSeconds);
+                }
+            }
+            return 0;
+        }
+
         private static byte[] HashWithSalt(string input, byte[] salt)
         {
             using (var deriveBytes = new Rfc2898DeriveBytes(input ?? "", salt, PBKDF2_ITERATIONS))
@@ -431,7 +811,6 @@ namespace RafiqPOS.Services
 
         private static string GenerateRecoveryCode()
         {
-            // Human-readable code avoiding 0/O, 1/I confusion
             const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
             var result = new StringBuilder();
             result.Append("RFK-");
@@ -462,15 +841,67 @@ namespace RafiqPOS.Services
             return diff == 0;
         }
 
+        private static UserDto MapToDto(User u)
+        {
+            int remainingSec = 0;
+            if (!string.IsNullOrEmpty(u.LockoutUntil))
+            {
+                DateTime lockDt;
+                if (DateTime.TryParse(u.LockoutUntil, out lockDt))
+                {
+                    if (lockDt > DateTime.UtcNow)
+                    {
+                        remainingSec = (int)Math.Ceiling((lockDt - DateTime.UtcNow).TotalSeconds);
+                    }
+                }
+            }
+
+            return new UserDto
+            {
+                Id = u.Id,
+                Username = u.Username,
+                DisplayName = u.DisplayName,
+                Role = u.Role,
+                IsActive = u.IsActive,
+                IsLocked = remainingSec > 0,
+                RemainingLockoutSeconds = remainingSec,
+                Permissions = GetPermissionsForRole(u.Role),
+                CreatedAt = u.CreatedAt,
+                LastLoginAt = u.LastLoginAt
+            };
+        }
+
+        public static Dictionary<string, bool> GetPermissionsForRole(string role)
+        {
+            var p = new Dictionary<string, bool>();
+            bool isAdmin = (role == "admin");
+
+            p["pos"] = true;                       // شاشة البيع متاحة للجميع
+            p["customers"] = true;                 // العملاء والدفتر
+            p["products"] = isAdmin;               // إدارة وحذف المنتجات
+            p["inventory"] = isAdmin;              // شاشة الجرد
+            p["reports"] = isAdmin;                // شاشة التقارير والأرباح
+            p["settings"] = isAdmin;               // شاشة الإعدادات
+            p["users"] = isAdmin;                  // إدارة الموظفين
+            p["discounts"] = isAdmin;              // منح الخصومات المفتوحة
+            p["price_edit"] = isAdmin;             // تعديل الأسعار يدويًا
+            p["stock_adjust"] = isAdmin;           // تسوية المخزون
+            p["db_recovery"] = isAdmin;            // استعادة وتصفير القاعدة
+            p["refunds"] = isAdmin;                // فواتير المرتجع
+            p["cancel_sale"] = isAdmin;            // إلغاء الفاتورة بالكامل
+            return p;
+        }
+
         private void LogAudit(string action, string entityType, string entityId, string details)
         {
             try
             {
                 if (_auditRepo != null)
                 {
+                    string actorId = _currentUserSession != null ? _currentUserSession.Id : "system";
                     _auditRepo.Log(new AuditLog
                     {
-                        UserId = "system",
+                        UserId = actorId,
                         Action = action,
                         EntityType = entityType,
                         EntityId = entityId,
