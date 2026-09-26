@@ -18,6 +18,15 @@ namespace RafiqPOS.Services
         }
     }
 
+    public class FactoryResetResult
+    {
+        public bool Success { get; set; }
+        public string Message { get; set; }
+        public int DeletedSalesCount { get; set; }
+        public int DeletedProductsCount { get; set; }
+        public int DeletedCustomersCount { get; set; }
+    }
+
     public class DatabaseIntegrityStatus
     {
         public bool IsValid { get; set; }
@@ -62,6 +71,7 @@ namespace RafiqPOS.Services
         public static StockMovementRepository StockMovementRepo { get; private set; }
         public static QuickItemRepository QuickItemRepo { get; private set; }
         public static ProductUnitRepository ProductUnitRepo { get; private set; }
+        public static UserRepository UserRepo { get; private set; }
         public static ProductService Products { get; private set; }
         public static ProductUnitService ProductUnits { get; private set; }
         public static SaleService Sales { get; private set; }
@@ -81,7 +91,9 @@ namespace RafiqPOS.Services
         public static StoreTemplateService Templates { get; private set; }
         public static DemoDataService DemoData { get; private set; }
         public static ReadinessService Readiness { get; private set; }
+        public static EncryptionService Encryption { get; private set; }
         public static SystemHealthService SystemHealth { get; private set; }
+        public static LicenseService License { get; private set; }
 
         public static void Initialize(string customBaseFolder = null)
         {
@@ -108,6 +120,10 @@ namespace RafiqPOS.Services
                 Directory.CreateDirectory(dataFolder);
             }
 
+            // Feature #167: Restrict data folder permissions & initialize encryption service
+            EncryptionService.ProtectDatabaseFolderAcl(dataFolder);
+            Encryption = new EncryptionService();
+
             _dbPath = Path.Combine(dataFolder, "rafiq_pos.db");
             _connectionString = string.Format("Data Source={0};Version=3;BusyTimeout=5000;", _dbPath);
 
@@ -124,16 +140,17 @@ namespace RafiqPOS.Services
 
             // Initialize Repositories and Services (Feature #5 & #7)
             CounterRepo = new CounterRepository(_connectionString);
-            ProductRepo = new ProductRepository(_connectionString);
-            SaleRepo = new SaleRepository(_connectionString, CounterRepo);
-            SettingsRepo = new SettingsRepository(_connectionString);
-            CustomerRepo = new CustomerRepository(_connectionString);
             AuditRepo = new AuditLogRepository(_connectionString);
+            ProductRepo = new ProductRepository(_connectionString, AuditRepo);
+            SaleRepo = new SaleRepository(_connectionString, CounterRepo, AuditRepo);
+            SettingsRepo = new SettingsRepository(_connectionString);
+            CustomerRepo = new CustomerRepository(_connectionString, AuditRepo);
             CategoryRepo = new CategoryRepository(_connectionString);
             PriceHistoryRepo = new ProductPriceHistoryRepository(_connectionString);
             StockMovementRepo = new StockMovementRepository(_connectionString);
             QuickItemRepo = new QuickItemRepository(_connectionString);
             ProductUnitRepo = new ProductUnitRepository(_connectionString);
+            UserRepo = new UserRepository(_connectionString);
 
             Products = new ProductService(ProductRepo, AuditRepo, PriceHistoryRepo, StockMovementRepo);
             ProductUnits = new ProductUnitService(_connectionString);
@@ -147,14 +164,15 @@ namespace RafiqPOS.Services
             Audit = new AuditLogService(AuditRepo);
             Support = new SupportService(_connectionString, _dbPath);
             Benchmark = new BenchmarkService(_connectionString);
-            Backup = new BackupService(_connectionString, _dbPath, SettingsRepo, AuditRepo);
+            Backup = new BackupService(_connectionString, _dbPath, SettingsRepo, AuditRepo, Encryption);
             Excel = new ExcelService();
             Printer = new PrinterService(Settings);
-            Security = new SecurityService(SettingsRepo, AuditRepo);
+            Security = new SecurityService(SettingsRepo, AuditRepo, UserRepo);
             Templates = new StoreTemplateService(_connectionString, SettingsRepo, Categories, QuickItems, AuditRepo);
             DemoData = new DemoDataService(_connectionString, SettingsRepo, AuditRepo);
             Readiness = new ReadinessService(SettingsRepo, ProductRepo, Backup, Printer);
             SystemHealth = new SystemHealthService(_dbPath, SettingsRepo, ProductRepo, Backup, Printer);
+            License = new LicenseService(SettingsRepo, Audit);
         }
 
         public static DatabaseIntegrityStatus CheckDatabaseIntegrity()
@@ -267,6 +285,7 @@ namespace RafiqPOS.Services
 
         public static TransactionResult RestoreFromBackup(string backupFilePath)
         {
+            string tempStaging = null;
             try
             {
                 string targetBackup = backupFilePath;
@@ -285,8 +304,21 @@ namespace RafiqPOS.Services
                     return new TransactionResult(false, "لم يتم العثور على ملف النسخة الاحتياطية المحددة.");
                 }
 
+                // Feature #168: If backup is encrypted, decrypt to temp staging for verification and restore
+                string fileToRestore = targetBackup;
+                if (EncryptionService.IsFileEncrypted(targetBackup))
+                {
+                    tempStaging = Path.Combine(Path.GetTempPath(), "rafiq_staging_" + Guid.NewGuid().ToString("N") + ".db");
+                    if (Encryption == null)
+                    {
+                        Encryption = new EncryptionService();
+                    }
+                    Encryption.DecryptFile(targetBackup, tempStaging);
+                    fileToRestore = tempStaging;
+                }
+
                 // Verify backup integrity before restoring
-                using (var conn = new System.Data.SQLite.SQLiteConnection(string.Format("Data Source={0};Version=3;Read Only=True;", targetBackup)))
+                using (var conn = new System.Data.SQLite.SQLiteConnection(string.Format("Data Source={0};Version=3;Read Only=True;", fileToRestore)))
                 {
                     conn.Open();
                     using (var cmd = new System.Data.SQLite.SQLiteCommand("PRAGMA quick_check;", conn))
@@ -351,7 +383,7 @@ namespace RafiqPOS.Services
                 catch { }
 
                 // Overwrite with the healthy backup file
-                File.Copy(targetBackup, _dbPath, true);
+                File.Copy(fileToRestore, _dbPath, true);
 
                 // Clear pools again
                 System.Data.SQLite.SQLiteConnection.ClearAllPools();
@@ -371,6 +403,13 @@ namespace RafiqPOS.Services
             {
                 Logger.Error("خطأ أثناء استرجاع قاعدة البيانات من النسخة الاحتياطية", ex);
                 return new TransactionResult(false, "خطأ أثناء الاسترجاع: " + ex.Message);
+            }
+            finally
+            {
+                if (!string.IsNullOrEmpty(tempStaging) && File.Exists(tempStaging))
+                {
+                    try { File.Delete(tempStaging); } catch { }
+                }
             }
         }
 
@@ -429,6 +468,118 @@ namespace RafiqPOS.Services
             {
                 return new TransactionResult(false, "فشلت المعاملة وتم التراجع التلقائي (Rollback): " + ex.Message);
             }
+        }
+
+        public static FactoryResetResult FactoryReset()
+        {
+            var result = new FactoryResetResult();
+            if (string.IsNullOrEmpty(_connectionString))
+            {
+                result.Success = false;
+                result.Message = "قاعدة البيانات غير مهيأة.";
+                return result;
+            }
+
+            using (var conn = new System.Data.SQLite.SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var trans = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        // 1. Delete sales transactions
+                        using (var cmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM sale_items; DELETE FROM sales;", conn, trans))
+                        {
+                            result.DeletedSalesCount = cmd.ExecuteNonQuery();
+                        }
+
+                        // 2. Delete customers and customer ledgers
+                        using (var cmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM customer_ledger; DELETE FROM customers;", conn, trans))
+                        {
+                            result.DeletedCustomersCount = cmd.ExecuteNonQuery();
+                        }
+
+                        // 3. Delete products, barcodes, units, and inventory movements
+                        using (var cmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM stock_movements; DELETE FROM product_price_history; DELETE FROM product_barcodes; DELETE FROM product_units; DELETE FROM products; DELETE FROM quick_items;", conn, trans))
+                        {
+                            result.DeletedProductsCount = cmd.ExecuteNonQuery();
+                        }
+
+                        // 4. Reset sequence counters
+                        using (var cmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM counters;", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+
+                        // 5. Reset audit logs with genesis reset entry
+                        using (var cmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM audit_logs;", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+
+                        string genesisHash = "GENESIS_RAFIQ_AUDIT_V1";
+                        string resetLogId = "aud_" + Guid.NewGuid().ToString("N");
+                        string nowIso = DateTime.UtcNow.ToString("o");
+                        string detailsJson = "{\"action\":\"factory_reset\",\"message\":\"تم تصفير ومسح كافة بيانات النظام والبدء من جديد\"}";
+                        string recordHash = MigrationRunner.ComputeAuditHash(
+                            genesisHash, resetLogId, "usr_admin_default", "factory_reset", "system", "all", detailsJson, nowIso
+                        );
+
+                        using (var cmd = new System.Data.SQLite.SQLiteCommand(@"
+                            INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, details_json, created_at, prev_hash, record_hash)
+                            VALUES (@id, 'usr_admin_default', 'factory_reset', 'system', 'all', @details, @now, @prev, @rec);
+                        ", conn, trans))
+                        {
+                            cmd.Parameters.AddWithValue("@id", resetLogId);
+                            cmd.Parameters.AddWithValue("@details", detailsJson);
+                            cmd.Parameters.AddWithValue("@now", nowIso);
+                            cmd.Parameters.AddWithValue("@prev", genesisHash);
+                            cmd.Parameters.AddWithValue("@rec", recordHash);
+                            cmd.ExecuteNonQuery();
+                        }
+
+                        // 6. Ensure default general categories exist
+                        using (var cmd = new System.Data.SQLite.SQLiteCommand(@"
+                            INSERT OR IGNORE INTO categories (id, name, display_order, is_active, created_at, updated_at) VALUES
+                            ('cat_general', 'عام / متنوع', 0, 1, datetime('now'), datetime('now')),
+                            ('cat_dairy', 'ألبان وأجبان', 1, 1, datetime('now'), datetime('now')),
+                            ('cat_beverages', 'مشروبات وعصائر', 2, 1, datetime('now'), datetime('now')),
+                            ('cat_groceries', 'بقوليات ومعلبات', 3, 1, datetime('now'), datetime('now')),
+                            ('cat_snacks', 'حلويات ومقرمشات', 4, 1, datetime('now'), datetime('now')),
+                            ('cat_cleaning', 'منظفات وعناية شخصية', 5, 1, datetime('now'), datetime('now'));
+
+                            INSERT OR IGNORE INTO customers (id, name, phone, balance_piasters, credit_limit_piasters, created_at)
+                            VALUES ('cust_general_cash', 'عميل نقدي عام', '', 0, 0, datetime('now'));
+                        ", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+
+                        trans.Commit();
+                        result.Success = true;
+                        result.Message = "تم مسح وتصفير كافة البيانات بنجاح، والنظام جاهز الآن كبداية نظيفة كلياً.";
+                    }
+                    catch (Exception ex)
+                    {
+                        trans.Rollback();
+                        result.Success = false;
+                        result.Message = "فشل مسح البيانات: " + ex.Message;
+                        return result;
+                    }
+                }
+
+                // 7. Vacuum database to reclaim disk space
+                try
+                {
+                    using (var vacCmd = new System.Data.SQLite.SQLiteCommand("VACUUM;", conn))
+                    {
+                        vacCmd.ExecuteNonQuery();
+                    }
+                }
+                catch { }
+            }
+
+            return result;
         }
     }
 }

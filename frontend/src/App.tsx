@@ -5,7 +5,6 @@ import {
   Package, 
   FileText, 
   Settings, 
-  User,
   Clock,
   WifiOff,
   LayoutDashboard,
@@ -47,6 +46,10 @@ import { GuidedTourModal } from './components/GuidedTourModal';
 import { ReadinessCheckModal } from './components/ReadinessCheckModal';
 import { RafiqDialogContainer } from './components/RafiqDialog';
 import { rafiqConfirm } from './utils/dialogService';
+import type { UserDto } from './bridge/ipc';
+import { LoginModal } from './components/LoginModal';
+import { UserManagerModal } from './components/UserManagerModal';
+import { SupervisorPromptModal } from './components/SupervisorPromptModal';
 
 export interface SystemInfo {
   appName: string;
@@ -71,7 +74,7 @@ const HeaderClock: FC = memo(() => {
         minute: '2-digit',
         second: '2-digit',
       }));
-      setDate(now.toLocaleDateString('ar-EG', {
+      setDate(now.toLocaleDateString('ar-EG-u-nu-latn', {
         day: 'numeric',
         month: 'long',
         year: 'numeric'
@@ -92,8 +95,14 @@ const HeaderClock: FC = memo(() => {
   );
 });
 
+const ADMIN_ONLY_TABS: TabType[] = ['dashboard', 'products', 'sales', 'audit', 'settings'];
+const CASHIER_ALLOWED_TABS: TabType[] = ['pos', 'customers'];
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('pos');
+  const [currentUser, setCurrentUser] = useState<UserDto | null>(null);
+  const isCashier = currentUser?.role === 'cashier';
+  const effectiveActiveTab: TabType = isCashier && !CASHIER_ALLOWED_TABS.includes(activeTab) ? 'pos' : activeTab;
   const [productsSubView, setProductsSubView] = useState<'catalog' | 'movements'>('catalog');
   const [isProductsMenuExpanded, setIsProductsMenuExpanded] = useState(false);
   const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('profile');
@@ -123,6 +132,41 @@ export default function App() {
   const [isFullscreen, setIsFullscreen] = useState(true);
   const [storeName, setStoreName] = useState('رفيق POS');
   const [cashierName, setCashierName] = useState('كاشير (1)');
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isUserManagerOpen, setIsUserManagerOpen] = useState(false);
+  const [idleTimeoutMinutes, setIdleTimeoutMinutes] = useState(15);
+  const [supervisorPrompt, setSupervisorPrompt] = useState<{
+    isOpen: boolean;
+    title: string;
+    description?: string;
+    onApproved: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    onApproved: () => {},
+  });
+
+  // Track user idle timeout to lock session automatically (Task 166-6)
+  useEffect(() => {
+    if (idleTimeoutMinutes <= 0) return;
+
+    let timeoutId: any;
+    const resetIdleTimer = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        setIsLoginModalOpen(true);
+      }, idleTimeoutMinutes * 60 * 1000);
+    };
+
+    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach((evt) => window.addEventListener(evt, resetIdleTimer, { passive: true }));
+    resetIdleTimer();
+
+    return () => {
+      clearTimeout(timeoutId);
+      events.forEach((evt) => window.removeEventListener(evt, resetIdleTimer));
+    };
+  }, [idleTimeoutMinutes]);
 
   const handleToggleFullscreen = async () => {
     try {
@@ -245,7 +289,16 @@ export default function App() {
         const s: any = await invoke('settings:getAll');
         if (s && isMounted) {
           if (s.store_name) setStoreName(s.store_name);
-          if (s.cashier_name) setCashierName(s.cashier_name);
+          if (s.cashier_name) setCashierName((prev) => prev || s.cashier_name);
+        }
+        const u: UserDto = await invoke('auth:getCurrentUser');
+        if (u && isMounted) {
+          setCurrentUser(u);
+          setCashierName(u.displayName);
+        }
+        const sec: any = await invoke('security:getStatus');
+        if (sec && isMounted && typeof sec.idleTimeoutMinutes === 'number') {
+          setIdleTimeoutMinutes(sec.idleTimeoutMinutes);
         }
       } catch {
         // Ignore in dev
@@ -259,6 +312,7 @@ export default function App() {
     };
   }, [activeTab]);
 
+
   // Global keyboard shortcuts for switching tabs and system actions
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -267,26 +321,28 @@ export default function App() {
         if (e.key === '1') {
           e.preventDefault();
           setActiveTab('pos');
-        } else if (e.key === '2') {
-          e.preventDefault();
-          setActiveTab('dashboard');
         } else if (e.key === '3') {
           e.preventDefault();
           setActiveTab('customers');
-        } else if (e.key === '4') {
-          e.preventDefault();
-          setActiveTab('products');
-          setIsProductsMenuExpanded(true);
-        } else if (e.key === '5') {
-          e.preventDefault();
-          setActiveTab('sales');
-        } else if (e.key === '6') {
-          e.preventDefault();
-          setActiveTab('audit');
-        } else if (e.key === '7') {
-          e.preventDefault();
-          setActiveTab('settings');
-          setIsSettingsMenuExpanded(true);
+        } else if (currentUser?.role !== 'cashier') {
+          if (e.key === '2') {
+            e.preventDefault();
+            setActiveTab('dashboard');
+          } else if (e.key === '4') {
+            e.preventDefault();
+            setActiveTab('products');
+            setIsProductsMenuExpanded(true);
+          } else if (e.key === '5') {
+            e.preventDefault();
+            setActiveTab('sales');
+          } else if (e.key === '6') {
+            e.preventDefault();
+            setActiveTab('audit');
+          } else if (e.key === '7') {
+            e.preventDefault();
+            setActiveTab('settings');
+            setIsSettingsMenuExpanded(true);
+          }
         }
         return;
       }
@@ -308,7 +364,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [activeTab]);
+  }, [activeTab, currentUser?.role]);
 
   const handleExitApp = async () => {
     const confirmed = await rafiqConfirm({
@@ -327,6 +383,15 @@ export default function App() {
     }
   };
 
+  const handleNavClick = (tabId: TabType, subAction?: () => void) => {
+    if (currentUser?.role === 'cashier' && ADMIN_ONLY_TABS.includes(tabId)) {
+      setActiveTab('pos');
+      return;
+    }
+    setActiveTab(tabId);
+    if (subAction) subAction();
+  };
+
   const settingsTreeItems = [
     { id: 'profile' as SettingsSubTab, label: 'بيانات المتجر والفاتورة', icon: Store },
     { id: 'backup' as SettingsSubTab, label: 'النسخ الاحتياطي وحماية البيانات', icon: HardDrive },
@@ -337,7 +402,7 @@ export default function App() {
     { id: 'demo' as SettingsSubTab, label: 'البيانات التجريبية والتدريب', icon: FlaskConical },
   ];
 
-  const navItems = [
+  const allNavItems = [
     { id: 'pos' as TabType, label: 'نقطة البيع (POS)', icon: ShoppingCart, shortcut: 'F1 / Alt+1' },
     { id: 'dashboard' as TabType, label: 'لوحة اليوم والمتابعة', icon: LayoutDashboard, shortcut: 'Alt+2' },
     { id: 'customers' as TabType, label: 'العملاء والآجل', icon: Users, shortcut: 'Alt+3' },
@@ -346,6 +411,10 @@ export default function App() {
     { id: 'audit' as TabType, label: 'سجل العمليات الحساسة', icon: ShieldAlert, shortcut: 'Alt+6' },
     { id: 'settings' as TabType, label: 'إعدادات المتجر والصيانة', icon: Settings, shortcut: 'Alt+7' },
   ];
+
+  const navItems = currentUser?.role === 'cashier'
+    ? allNavItems.filter((item) => CASHIER_ALLOWED_TABS.includes(item.id))
+    : allNavItems;
 
   if (isFirstRunWizardOpen) {
     return (
@@ -391,25 +460,55 @@ export default function App() {
             <WifiOff className="w-3.5 h-3.5 text-emerald-700 opacity-75 mr-0.5" />
           </div>
 
-          {/* Cashier Identity Badge (Informational - Distinct from interactive buttons) */}
-          <div className="flex items-center gap-1.5 bg-slate-100/90 border border-slate-200/80 px-2.5 py-1 rounded-full text-slate-700 text-[11px] font-medium select-none shadow-2xs">
-            <User className="w-3.5 h-3.5 text-slate-500" />
-            <span>{cashierName || 'كاشير (1)'}</span>
-          </div>
+          {/* Cashier / Employee Identity Badge (Clickable to switch user or lock screen) */}
+          <button
+            type="button"
+            onClick={() => setIsLoginModalOpen(true)}
+            className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 border border-slate-300/80 px-2.5 py-1 rounded-full text-slate-700 text-[11px] font-medium shadow-2xs transition-all cursor-pointer group"
+            title="انقر لتبديل الموظف أو قفل الشاشة"
+          >
+            <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${
+              currentUser?.role === 'admin' ? 'bg-amber-500 text-white' : 'bg-emerald-600 text-white'
+            }`}>
+              {currentUser?.displayName ? currentUser.displayName.slice(0, 1) : 'ك'}
+            </div>
+            <span className="font-bold text-slate-900">{currentUser?.displayName || cashierName || 'كاشير (1)'}</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold ${
+              currentUser?.role === 'admin' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+            }`}>
+              {currentUser?.role === 'admin' ? 'مدير' : 'كاشير'}
+            </span>
+            <KeyRound className="w-3 h-3 text-slate-400 group-hover:text-slate-600" />
+          </button>
+
+          {/* Manage Users Button for Admin (Task 166-4) */}
+          {currentUser?.role === 'admin' && (
+            <button
+              type="button"
+              onClick={() => setIsUserManagerOpen(true)}
+              className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-white hover:bg-amber-50 active:bg-amber-100 text-amber-800 border border-amber-300/90 hover:border-amber-400 border-b-2 border-b-amber-500/70 font-bold text-xs shadow-2xs hover:shadow-xs active:translate-y-0.5 active:scale-[0.98] transition-all cursor-pointer"
+              title="إدارة حسابات الموظفين والصلاحيات"
+            >
+              <Users className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              <span className="hidden lg:inline">الموظفون</span>
+            </button>
+          )}
 
           {/* Vertical subtle divider */}
           <div className="h-5 w-[1px] bg-slate-200 mx-0.5 hidden sm:block" />
 
-          {/* Readiness Checklist Button (Feature #137) - Tactile Interactive Button */}
-          <button
-            type="button"
-            onClick={() => setIsReadinessOpen(true)}
-            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white hover:bg-emerald-50/80 active:bg-emerald-100 text-[#006d41] border border-emerald-300/90 hover:border-emerald-500 border-b-2 border-b-emerald-500/70 font-bold text-xs shadow-2xs hover:shadow-xs active:translate-y-0.5 active:scale-[0.98] transition-all cursor-pointer"
-            title="فحص جاهزية النظام والعتاد قبل أول بيع"
-          >
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-            <span>جاهزية التشغيل</span>
-          </button>
+          {/* Readiness Checklist Button (Feature #137) - Admin Only */}
+          {currentUser?.role === 'admin' && (
+            <button
+              type="button"
+              onClick={() => setIsReadinessOpen(true)}
+              className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white hover:bg-emerald-50/80 active:bg-emerald-100 text-[#006d41] border border-emerald-300/90 hover:border-emerald-500 border-b-2 border-b-emerald-500/70 font-bold text-xs shadow-2xs hover:shadow-xs active:translate-y-0.5 active:scale-[0.98] transition-all cursor-pointer"
+              title="فحص جاهزية النظام والعتاد قبل أول بيع"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span>جاهزية التشغيل</span>
+            </button>
+          )}
 
           {/* Fullscreen Kiosk Mode Toggle - Tactile Interactive Button */}
           <button
@@ -456,8 +555,8 @@ export default function App() {
         </div>
       )}
 
-      {/* Backup Overdue Warning Banner (Feature #9 / Task 9-6) */}
-      {backupWarning && (
+      {/* Backup Overdue Warning Banner (Feature #9 / Task 9-6) - Admin Only */}
+      {currentUser?.role === 'admin' && backupWarning && (
         <div className="bg-brand text-white px-4 py-2 flex items-center justify-between text-[12px] font-semibold shrink-0 animate-in slide-in-from-top-1 select-none border-b border-white/10">
           <div className="flex items-center gap-2">
             <Database className="w-4 h-4 shrink-0 text-paid" />
@@ -501,17 +600,19 @@ export default function App() {
             >
               جولة النظام (5 خطوات)
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('settings');
-                setSettingsSubTab('demo');
-                setIsSettingsMenuExpanded(true);
-              }}
-              className="bg-amber-950 hover:bg-black text-white text-xs px-2.5 py-0.5 rounded transition-colors"
-            >
-              إدارة ومسح البيانات
-            </button>
+            {currentUser?.role === 'admin' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('settings');
+                  setSettingsSubTab('demo');
+                  setIsSettingsMenuExpanded(true);
+                }}
+                className="bg-amber-950 hover:bg-black text-white text-xs px-2.5 py-0.5 rounded transition-colors"
+              >
+                إدارة ومسح البيانات
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -561,7 +662,7 @@ export default function App() {
 
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = activeTab === item.id;
+              const isActive = effectiveActiveTab === item.id;
               const isProductsItem = item.id === 'products';
               const isSettingsItem = item.id === 'settings';
 
@@ -571,9 +672,10 @@ export default function App() {
                     key={item.id}
                     type="button"
                     onClick={() => {
-                      setActiveTab(item.id);
-                      if (isProductsItem) setProductsSubView('catalog');
-                      if (isSettingsItem) setSettingsSubTab('profile');
+                      handleNavClick(item.id, () => {
+                        if (isProductsItem) setProductsSubView('catalog');
+                        if (isSettingsItem) setSettingsSubTab('profile');
+                      });
                     }}
                     title={`${item.label} (${item.shortcut})`}
                     className={`relative w-full h-[44px] rounded flex items-center justify-center transition-colors group ${
@@ -597,21 +699,19 @@ export default function App() {
                     type="button"
                     onClick={() => {
                       if (isProductsItem) {
-                        if (activeTab !== 'products') {
-                          setActiveTab('products');
-                          setIsProductsMenuExpanded(true);
+                        if (effectiveActiveTab !== 'products') {
+                          handleNavClick('products', () => setIsProductsMenuExpanded(true));
                         } else {
                           setIsProductsMenuExpanded(!isProductsMenuExpanded);
                         }
                       } else if (isSettingsItem) {
-                        if (activeTab !== 'settings') {
-                          setActiveTab('settings');
-                          setIsSettingsMenuExpanded(true);
+                        if (effectiveActiveTab !== 'settings') {
+                          handleNavClick('settings', () => setIsSettingsMenuExpanded(true));
                         } else {
                           setIsSettingsMenuExpanded(!isSettingsMenuExpanded);
                         }
                       } else {
-                        setActiveTab(item.id);
+                        handleNavClick(item.id);
                       }
                     }}
                     className={`w-full relative flex items-center justify-between px-3 h-[44px] rounded text-[13px] transition-colors ${
@@ -657,7 +757,7 @@ export default function App() {
                           setProductsSubView('catalog');
                         }}
                         className={`w-full flex items-center justify-between px-2.5 h-[32px] rounded text-[12px] transition-colors ${
-                          activeTab === 'products' && productsSubView === 'catalog'
+                          effectiveActiveTab === 'products' && productsSubView === 'catalog'
                             ? 'bg-brand text-white font-bold shadow-xs'
                             : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
                         }`}
@@ -675,7 +775,7 @@ export default function App() {
                           setProductsSubView('movements');
                         }}
                         className={`w-full flex items-center justify-between px-2.5 h-[32px] rounded text-[12px] transition-colors ${
-                          activeTab === 'products' && productsSubView === 'movements'
+                          effectiveActiveTab === 'products' && productsSubView === 'movements'
                             ? 'bg-brand text-white font-bold shadow-xs'
                             : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
                         }`}
@@ -751,26 +851,34 @@ export default function App() {
 
         {/* Dynamic Views Viewport */}
         <main className="flex-1 h-full overflow-hidden bg-canvas">
-          {activeTab === 'pos' && <PosView />}
-          {activeTab === 'dashboard' && (
+          {effectiveActiveTab === 'pos' && <PosView />}
+          {!isCashier && effectiveActiveTab === 'dashboard' && (
             <DashboardView 
               onNavigateToPos={() => setActiveTab('pos')} 
-              onNavigateToProducts={() => {
+              onNavigateToProducts={(sub?: 'catalog' | 'movements') => {
                 setActiveTab('products');
-                setProductsSubView('catalog');
+                setProductsSubView(sub || 'catalog');
                 setIsProductsMenuExpanded(true);
               }} 
               onNavigateToCustomers={() => setActiveTab('customers')}
               onNavigateToSales={() => setActiveTab('sales')}
+              onNavigateToAudit={() => setActiveTab('audit')}
+              onNavigateToSettings={(target) => {
+                setActiveTab('settings');
+                if (target?.includes('backup')) setSettingsSubTab('backup');
+              }}
             />
           )}
-          {activeTab === 'customers' && <CustomersView />}
-          {activeTab === 'products' && (
-            <ProductsView subView={productsSubView} />
+          {effectiveActiveTab === 'customers' && <CustomersView />}
+          {!isCashier && effectiveActiveTab === 'products' && (
+            <ProductsView 
+              subView={productsSubView} 
+              onSubViewChange={(tab) => setProductsSubView(tab)} 
+            />
           )}
-          {activeTab === 'sales' && <SalesHistoryView />}
-          {activeTab === 'audit' && <AuditLogView />}
-          {activeTab === 'settings' && (
+          {!isCashier && effectiveActiveTab === 'sales' && <SalesHistoryView />}
+          {!isCashier && effectiveActiveTab === 'audit' && <AuditLogView />}
+          {!isCashier && effectiveActiveTab === 'settings' && (
             <SettingsView 
               sysInfo={sysInfo} 
               activeSubTab={settingsSubTab} 
@@ -813,6 +921,51 @@ export default function App() {
         onClose={() => setIsReadinessOpen(false)}
         onNavigateToTab={(tab) => {
           setActiveTab(tab as TabType);
+        }}
+      />
+
+      {/* Employee Login / Lock Screen Modal (Task 166-3 & Task 166-6) */}
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        canCancel={Boolean(currentUser)}
+        onClose={() => setIsLoginModalOpen(false)}
+        onSuccess={(user) => {
+          setCurrentUser(user);
+          setCashierName(user.displayName);
+          setIsLoginModalOpen(false);
+          // Cashiers are guided to POS
+          if (user.role === 'cashier' && activeTab !== 'pos' && activeTab !== 'customers') {
+            setActiveTab('pos');
+          }
+        }}
+      />
+
+      {/* Employee & Role Management Modal (Task 166-4) */}
+      <UserManagerModal
+        isOpen={isUserManagerOpen}
+        onClose={() => setIsUserManagerOpen(false)}
+        onUsersChanged={async () => {
+          try {
+            const u: UserDto = await invoke('auth:getCurrentUser');
+            if (u) {
+              setCurrentUser(u);
+              setCashierName(u.displayName);
+            }
+          } catch {
+            // ignore
+          }
+        }}
+      />
+
+      {/* Supervisor Approval Prompt Modal (Task 166-9) */}
+      <SupervisorPromptModal
+        isOpen={supervisorPrompt.isOpen}
+        actionTitle={supervisorPrompt.title}
+        actionDescription={supervisorPrompt.description}
+        onCancel={() => setSupervisorPrompt((p) => ({ ...p, isOpen: false }))}
+        onApproved={() => {
+          supervisorPrompt.onApproved();
+          setSupervisorPrompt((p) => ({ ...p, isOpen: false }));
         }}
       />
 

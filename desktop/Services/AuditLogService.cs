@@ -30,5 +30,15 @@ namespace RafiqPOS.Services
                 DetailsJson = detailsJson
             });
         }
+
+        public AuditChainVerificationResult VerifyChainIntegrity()
+        {
+            return _repo.VerifyChainIntegrity();
+        }
+
+        public int ResealChain()
+        {
+            return _repo.ResealChain();
+        }
     }
 }

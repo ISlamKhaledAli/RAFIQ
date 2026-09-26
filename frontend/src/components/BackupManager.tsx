@@ -162,6 +162,42 @@ export const BackupManager = () => {
     }
   };
 
+  const handleToggleAutoOnClose = async (val: boolean) => {
+    setAutoOnClose(val);
+    try {
+      await invoke('backup:configure', {
+        targetFolder: targetFolder.trim(),
+        autoOnClose: val,
+        autoDaily,
+        retentionDays: Number(retentionDays) || 7,
+        retentionWeeks: Number(retentionWeeks) || 4,
+        warnAfterDays: Number(warnAfterDays) || 2
+      });
+      setSettingsSaved(true);
+      setTimeout(() => setSettingsSaved(false), 2000);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleToggleAutoDaily = async (val: boolean) => {
+    setAutoDaily(val);
+    try {
+      await invoke('backup:configure', {
+        targetFolder: targetFolder.trim(),
+        autoOnClose,
+        autoDaily: val,
+        retentionDays: Number(retentionDays) || 7,
+        retentionWeeks: Number(retentionWeeks) || 4,
+        warnAfterDays: Number(warnAfterDays) || 2
+      });
+      setSettingsSaved(true);
+      setTimeout(() => setSettingsSaved(false), 2000);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handleSavePolicy = async () => {
     try {
       await invoke('backup:configure', {
@@ -196,7 +232,7 @@ export const BackupManager = () => {
     if (!isoStr) return 'لا يوجد';
     try {
       const d = new Date(isoStr);
-      return d.toLocaleString('ar-EG', {
+      return d.toLocaleString('ar-EG-u-nu-latn', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -445,8 +481,8 @@ export const BackupManager = () => {
               <input
                 type="checkbox"
                 checked={autoOnClose}
-                onChange={(e) => setAutoOnClose(e.target.checked)}
-                className="w-4 h-4 accent-brand rounded"
+                onChange={(e) => void handleToggleAutoOnClose(e.target.checked)}
+                className="w-4 h-4 accent-brand rounded cursor-pointer"
               />
               <span>أخذ نسخة احتياطية تلقائياً عند إغلاق البرنامج (موصى به)</span>
             </label>
@@ -455,8 +491,8 @@ export const BackupManager = () => {
               <input
                 type="checkbox"
                 checked={autoDaily}
-                onChange={(e) => setAutoDaily(e.target.checked)}
-                className="w-4 h-4 accent-brand rounded"
+                onChange={(e) => void handleToggleAutoDaily(e.target.checked)}
+                className="w-4 h-4 accent-brand rounded cursor-pointer"
               />
               <span>تفعيل الجدولة اليومية الآلية للنسخ الاحتياطي</span>
             </label>

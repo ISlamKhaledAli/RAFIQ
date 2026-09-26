@@ -81,7 +81,7 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
   const formatDate = (dateStr: string) => {
     try {
       const d = new Date(dateStr);
-      return d.toLocaleDateString('ar-EG', {
+      return d.toLocaleDateString('ar-EG-u-nu-latn', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',

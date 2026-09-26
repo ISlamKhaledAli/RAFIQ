@@ -99,7 +99,10 @@ export const BarcodeScannerSettingsModal = ({
       if (onSettingsSaved) {
         onSettingsSaved(settings);
       }
-      setTimeout(() => setSavedSuccess(false), 3000);
+      setTimeout(() => {
+        setSavedSuccess(false);
+        onClose();
+      }, 500);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       void rafiqAlert({
@@ -292,7 +295,7 @@ export const BarcodeScannerSettingsModal = ({
                   diagnosticLogs.map((log) => (
                     <div key={log.id} className="h-[36px] flex items-center px-3 hover:bg-surface-2 transition-colors">
                       <div className="w-[12%] text-center font-mono text-[10px] text-ink-muted">
-                        {new Date(log.timestamp).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        {new Date(log.timestamp).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                       </div>
                       <div className="w-[38%] text-right font-mono font-bold text-ink truncate pr-1">
                         {log.decodedBarcode}

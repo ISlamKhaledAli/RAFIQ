@@ -53,14 +53,14 @@ function formatCleanDate(str: string | undefined): string {
     if (match && match[1]) {
       const parsed = new Date(match[1]);
       if (!isNaN(parsed.getTime())) {
-        const time = parsed.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+        const time = parsed.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' });
         return str.replace(match[0], `(اليوم ${time})`);
       }
     }
   }
   const d = new Date(str);
   if (!isNaN(d.getTime())) {
-    return d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' });
   }
   return str;
 }
@@ -144,7 +144,7 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
     e.preventDefault();
     const code = scannedCode.trim();
     if (!code) return;
-    const nowTime = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const nowTime = new Date().toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     setLastScannedItem({ code, time: nowTime });
     setScannedCode('');
   };

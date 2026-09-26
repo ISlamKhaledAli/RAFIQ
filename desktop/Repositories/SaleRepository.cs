@@ -9,11 +9,13 @@ namespace RafiqPOS.Repositories
     {
         private readonly string _connectionString;
         private readonly CounterRepository _counters;
+        private readonly AuditLogRepository _auditRepo;
 
-        public SaleRepository(string connectionString, CounterRepository counters = null)
+        public SaleRepository(string connectionString, CounterRepository counters = null, AuditLogRepository auditRepo = null)
         {
             _connectionString = connectionString;
             _counters = counters ?? new CounterRepository(connectionString);
+            _auditRepo = auditRepo ?? new AuditLogRepository(connectionString);
         }
 
         public Sale CreateSaleAtomic(Sale sale)
@@ -232,24 +234,21 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
-                        // 6. Record sensitive sale operation in audit log inside the same atomic transaction (Feature #7)
-                        string insertAuditSql = @"
-                            INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, details_json, created_at)
-                            VALUES (@aid, @uid, 'sale_create', 'sale', @sid, @details, @now);
-                        ";
-                        using (var aCmd = new SQLiteCommand(insertAuditSql, conn, trans))
+                        // 6. Record sensitive sale operation in audit log inside the same atomic transaction (Feature #7 & #169)
+                        string detailsJson = string.Format(
+                            "{{\"invoiceNumber\":{0},\"totalPiasters\":{1},\"itemCount\":{2},\"paymentMethod\":\"{3}\"}}",
+                            sale.InvoiceNumber, sale.TotalPiasters, sale.Items != null ? sale.Items.Count : 0, sale.PaymentMethod
+                        );
+                        _auditRepo.Log(conn, trans, new AuditLog
                         {
-                            aCmd.Parameters.AddWithValue("@aid", "aud_" + Guid.NewGuid().ToString("N"));
-                            aCmd.Parameters.AddWithValue("@uid", (object)sale.CashierId ?? "usr_admin_default");
-                            aCmd.Parameters.AddWithValue("@sid", sale.Id);
-                            string detailsJson = string.Format(
-                                "{{\"invoiceNumber\":{0},\"totalPiasters\":{1},\"itemCount\":{2},\"paymentMethod\":\"{3}\"}}",
-                                sale.InvoiceNumber, sale.TotalPiasters, sale.Items != null ? sale.Items.Count : 0, sale.PaymentMethod
-                            );
-                            aCmd.Parameters.AddWithValue("@details", detailsJson);
-                            aCmd.Parameters.AddWithValue("@now", sale.CreatedAt ?? DateTime.UtcNow.ToString("o"));
-                            aCmd.ExecuteNonQuery();
-                        }
+                            Id = "aud_" + Guid.NewGuid().ToString("N"),
+                            UserId = sale.CashierId != null ? sale.CashierId : "usr_admin_default",
+                            Action = "sale_create",
+                            EntityType = "sale",
+                            EntityId = sale.Id,
+                            DetailsJson = detailsJson,
+                            CreatedAt = sale.CreatedAt ?? DateTime.UtcNow.ToString("o")
+                        });
 
                         // Commit entire atomic transaction
                         trans.Commit();
@@ -739,23 +738,20 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
-                        string insertAuditSql = @"
-                            INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, details_json, created_at)
-                            VALUES (@aid, @uid, 'sale_cancel', 'sale', @sid, @details, @now);
-                        ";
-                        using (var aCmd = new SQLiteCommand(insertAuditSql, conn, trans))
+                        string detailsJson = string.Format(
+                            "{{\"invoiceNumber\":{0},\"reason\":\"{1}\",\"totalPiasters\":{2}}}",
+                            sale.InvoiceNumber, (reason ?? "").Replace("\"", "\\\""), sale.TotalPiasters
+                        );
+                        _auditRepo.Log(conn, trans, new AuditLog
                         {
-                            aCmd.Parameters.AddWithValue("@aid", "aud_" + Guid.NewGuid().ToString("N"));
-                            aCmd.Parameters.AddWithValue("@uid", string.IsNullOrEmpty(userId) ? "usr_admin_default" : userId);
-                            aCmd.Parameters.AddWithValue("@sid", sale.Id);
-                            string detailsJson = string.Format(
-                                "{{\"invoiceNumber\":{0},\"reason\":\"{1}\",\"totalPiasters\":{2}}}",
-                                sale.InvoiceNumber, (reason ?? "").Replace("\"", "\\\""), sale.TotalPiasters
-                            );
-                            aCmd.Parameters.AddWithValue("@details", detailsJson);
-                            aCmd.Parameters.AddWithValue("@now", nowIso);
-                            aCmd.ExecuteNonQuery();
-                        }
+                            Id = "aud_" + Guid.NewGuid().ToString("N"),
+                            UserId = string.IsNullOrEmpty(userId) ? "usr_admin_default" : userId,
+                            Action = "sale_cancel",
+                            EntityType = "sale",
+                            EntityId = sale.Id,
+                            DetailsJson = detailsJson,
+                            CreatedAt = nowIso
+                        });
 
                         trans.Commit();
                         return sale;

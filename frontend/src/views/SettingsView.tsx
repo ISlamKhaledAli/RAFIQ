@@ -22,7 +22,8 @@ import {
   ShieldAlert,
   Sparkles,
   FlaskConical,
-  Compass
+  Compass,
+  Users
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useFeatures } from '../context/useFeatures';
@@ -35,6 +36,9 @@ import { FirstRunWizardModal } from '../components/FirstRunWizardModal';
 import { DemoDataModal } from '../components/DemoDataModal';
 import { GuidedTourModal } from '../components/GuidedTourModal';
 import { CustomSelect } from '../components/CustomSelect';
+import { SearchBenchmarkModal } from '../components/SearchBenchmarkModal';
+import { UserManagerModal } from '../components/UserManagerModal';
+import { LicenseModal } from '../components/LicenseModal';
 
 export type SettingsSubTab = 'profile' | 'backup' | 'printer' | 'system' | 'scanner' | 'security' | 'demo';
 
@@ -53,9 +57,12 @@ export const SettingsView = ({
   const subTab = activeSubTab;
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [isUserManagerModalOpen, setIsUserManagerModalOpen] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
   const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
   const [isTourModalOpen, setIsTourModalOpen] = useState(false);
+  const [isBenchmarkModalOpen, setIsBenchmarkModalOpen] = useState(false);
   const [pinStatus, setPinStatus] = useState<any>(null);
   const [demoStatus, setDemoStatus] = useState<any>(null);
   const [storeName, setStoreName] = useState('متجر رفيق');
@@ -290,22 +297,8 @@ export const SettingsView = ({
     }
   };
 
-  const runBenchmarkTest = async () => {
-    setDiagnosticsLoading(true);
-    setDiagnosticResult('جاري تشغيل اختبار الحمل وتوليد 3,000 صنف تجريبي وقياس سرعة SQLite WAL...');
-    try {
-      const res: any = await invoke('benchmark:run', { productCount: 3000 });
-      if (res && res.success) {
-        setDiagnosticResult(res.summaryMessage);
-      } else {
-        setDiagnosticResult(res?.summaryMessage || 'فشل تشغيل اختبار الأداء');
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setDiagnosticResult(`خطأ في اختبار الحمل: ${msg}`);
-    } finally {
-      setDiagnosticsLoading(false);
-    }
+  const runBenchmarkTest = () => {
+    setIsBenchmarkModalOpen(true);
   };
 
   const SUB_TAB_CONFIG: Record<SettingsSubTab, { title: string; subtitle: string; icon: React.ComponentType<{ className?: string }> }> = {
@@ -372,6 +365,16 @@ export const SettingsView = ({
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsLicenseModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-800 hover:bg-emerald-100 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+            title="إدارة وتفعيل ترخيص رفيق POS السحابي (Cloudflare)"
+          >
+            <KeyRound className="w-3.5 h-3.5 text-emerald-700" />
+            <span>ترخيص البرنامج</span>
+          </button>
+
           {saved && (
             <div className="flex items-center gap-1.5 text-xs text-paid font-bold bg-paid-soft border border-paid-border px-3 py-1.5 rounded-[4px] animate-in fade-in">
               <CheckCircle className="w-4 h-4 text-paid" />
@@ -1178,6 +1181,30 @@ export const SettingsView = ({
             </div>
           </div>
 
+          {/* Multiple Cashiers & Employee Accounts Card */}
+          <div className="p-4 bg-emerald-50/70 border border-emerald-300 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-2xs">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-800 shrink-0">
+                <Users className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-emerald-950 m-0">إدارة الكاشيرات وصلاحيات الموظفين (Multiple Cashiers)</h4>
+                <p className="text-[11.5px] text-emerald-850 m-0 mt-0.5">
+                  إضافة عدة كاشيرات (كاشير 1، كاشير 2، كاشير مسائي...) برقم سري مستقل لكل كاشير، وتحديد صلاحيات البيع والإشراف.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsUserManagerModalOpen(true)}
+              className="px-4 py-2 bg-[#006d41] hover:bg-[#005734] text-white rounded-lg text-xs font-bold shrink-0 transition-colors shadow-xs flex items-center gap-2 cursor-pointer"
+            >
+              <Users className="w-4 h-4" />
+              <span>فتح شاشة إدارة الكاشيرات والموظفين</span>
+            </button>
+          </div>
+
           {/* Emergency Recovery & Offline Supermarket Notes */}
           <div className="p-4 bg-amber-50 border-2 border-amber-300 rounded-xl flex flex-col gap-2.5 shadow-xs">
             <div className="flex items-center gap-2.5 font-black text-amber-950 text-[13px]">
@@ -1315,6 +1342,24 @@ export const SettingsView = ({
         onClose={() => setIsTourModalOpen(false)}
         onLoadDemoData={() => setIsDemoModalOpen(true)}
         hasDemoData={demoStatus?.hasDemoData}
+      />
+
+      {/* Hardware & Database Load Benchmark Modal (Story 49) */}
+      <SearchBenchmarkModal
+        isOpen={isBenchmarkModalOpen}
+        onClose={() => setIsBenchmarkModalOpen(false)}
+      />
+
+      {/* Cashier & Employee Accounts Manager Modal */}
+      <UserManagerModal
+        isOpen={isUserManagerModalOpen}
+        onClose={() => setIsUserManagerModalOpen(false)}
+      />
+
+      {/* Cloudflare License Manager Modal */}
+      <LicenseModal
+        isOpen={isLicenseModalOpen}
+        onClose={() => setIsLicenseModalOpen(false)}
       />
     </div>
   );

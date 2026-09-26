@@ -8,10 +8,12 @@ namespace RafiqPOS.Repositories
     public class CustomerRepository
     {
         private readonly string _connectionString;
+        private readonly AuditLogRepository _auditRepo;
 
-        public CustomerRepository(string connectionString)
+        public CustomerRepository(string connectionString, AuditLogRepository auditRepo = null)
         {
             _connectionString = connectionString;
+            _auditRepo = auditRepo ?? new AuditLogRepository(connectionString);
         }
 
         public List<Customer> GetAll(int limit)
@@ -250,19 +252,17 @@ namespace RafiqPOS.Repositories
                             cmd.ExecuteNonQuery();
                         }
 
-                        // Insert audit log
-                        string auditSql = @"
-                            INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, details_json, created_at)
-                            VALUES (@aid, 'usr_admin_default', 'customer_payment', 'customer', @cid, @details, @cat);
-                        ";
-                        using (var cmd = new SQLiteCommand(auditSql, conn, trans))
+                        // Insert audit log with full cryptographic chaining (Feature #169)
+                        _auditRepo.Log(conn, trans, new AuditLog
                         {
-                            cmd.Parameters.AddWithValue("@aid", "aud_" + Guid.NewGuid().ToString("N").Substring(0, 12));
-                            cmd.Parameters.AddWithValue("@cid", customerId);
-                            cmd.Parameters.AddWithValue("@details", string.Format("{{\"paidPiasters\":{0},\"balanceAfter\":{1}}}", amountPiasters, newBalance));
-                            cmd.Parameters.AddWithValue("@cat", now);
-                            cmd.ExecuteNonQuery();
-                        }
+                            Id = "aud_" + Guid.NewGuid().ToString("N"),
+                            UserId = "usr_admin_default",
+                            Action = "customer_payment",
+                            EntityType = "customer",
+                            EntityId = customerId,
+                            DetailsJson = string.Format("{{\"paidPiasters\":{0},\"balanceAfter\":{1}}}", amountPiasters, newBalance),
+                            CreatedAt = now
+                        });
 
                         trans.Commit();
                         return GetById(customerId);
@@ -372,20 +372,17 @@ namespace RafiqPOS.Repositories
                             cmd.ExecuteNonQuery();
                         }
 
-                        // 7. Insert audit log
-                        string auditSql = @"
-                            INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, details_json, created_at)
-                            VALUES (@aid, @uid, 'cancel_payment', 'customer_ledger', @lid, @details, @cat);
-                        ";
-                        using (var cmd = new SQLiteCommand(auditSql, conn, trans))
+                        // 7. Insert audit log with full cryptographic chaining (Feature #169)
+                        _auditRepo.Log(conn, trans, new AuditLog
                         {
-                            cmd.Parameters.AddWithValue("@aid", "aud_" + Guid.NewGuid().ToString("N").Substring(0, 12));
-                            cmd.Parameters.AddWithValue("@uid", user);
-                            cmd.Parameters.AddWithValue("@lid", ledgerEntryId);
-                            cmd.Parameters.AddWithValue("@details", string.Format("{{\"cancelledAmountPiasters\":{0},\"restoredBalance\":{1},\"reason\":\"{2}\"}}", paymentAmount, newBalance, rsn.Replace("\"", "\\\"")));
-                            cmd.Parameters.AddWithValue("@cat", now);
-                            cmd.ExecuteNonQuery();
-                        }
+                            Id = "aud_" + Guid.NewGuid().ToString("N"),
+                            UserId = user,
+                            Action = "cancel_payment",
+                            EntityType = "customer_ledger",
+                            EntityId = ledgerEntryId,
+                            DetailsJson = string.Format("{{\"cancelledAmountPiasters\":{0},\"restoredBalance\":{1},\"reason\":\"{2}\"}}", paymentAmount, newBalance, rsn.Replace("\"", "\\\"")),
+                            CreatedAt = now
+                        });
 
                         trans.Commit();
                         return GetById(customerId);

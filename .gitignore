@@ -19,7 +19,11 @@ frontend/node_modules/
 frontend/dist/
 desktop/dist/
 frontend/.cache/
+license-server/node_modules/
+license-server/.wrangler/
+license-server/dist/
 *.log
+*.tsbuildinfo
 
 # Databases & Runtime Data
 data/
@@ -42,3 +46,11 @@ installer/prerequisites/*.msi
 
 # UI Design Reference Assets
 stitch_rafeeq_pos_system_ui_design/
+
+# Windows 7 Offline Updates (>300MB)
+تحديثات_ويندوز7_الجاهزة/
+
+# IDE & Local Agent Tools
+.vscode/
+.agents/
+skills-lock.json

@@ -202,26 +202,160 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
   onCompleted,
   isFirstRun = false,
 }) => {
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const WIZARD_STORAGE_KEY = 'rafiq_wizard_state';
+
+  // Read saved state if available
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(() => {
+    try {
+      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.step && [1, 2, 3, 4].includes(parsed.step)) return parsed.step;
+      }
+    } catch {
+      // ignore
+    }
+    return 1;
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Templates
   const [templates, setTemplates] = useState<StoreTemplateDto[]>(INITIAL_STORE_TEMPLATES);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('supermarket');
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.selectedTemplateId) return parsed.selectedTemplateId;
+      }
+    } catch {
+      // ignore
+    }
+    return 'supermarket';
+  });
 
   // Step 2: Store Profile
-  const [storeName, setStoreName] = useState('متجر رفيق');
-  const [phone, setPhone] = useState('01012345678');
-  const [address, setAddress] = useState('الشارع الرئيسي - وسط البلد');
-  const [receiptHeader, setReceiptHeader] = useState('أهلاً بكم في متجرنا');
-  const [receiptFooter, setReceiptFooter] = useState('شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل خلال 14 يوماً');
+  const [storeName, setStoreName] = useState(() => {
+    try {
+      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.storeName) return parsed.storeName;
+      }
+    } catch {
+      // ignore
+    }
+    return 'متجر رفيق';
+  });
+  const [phone, setPhone] = useState(() => {
+    try {
+      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.phone) return parsed.phone;
+      }
+    } catch {
+      // ignore
+    }
+    return '01012345678';
+  });
+  const [address, setAddress] = useState(() => {
+    try {
+      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.address) return parsed.address;
+      }
+    } catch {
+      // ignore
+    }
+    return 'الشارع الرئيسي - وسط البلد';
+  });
+  const [receiptHeader, setReceiptHeader] = useState(() => {
+    try {
+      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.receiptHeader) return parsed.receiptHeader;
+      }
+    } catch {
+      // ignore
+    }
+    return 'أهلاً بكم في متجرنا';
+  });
+  const [receiptFooter, setReceiptFooter] = useState(() => {
+    try {
+      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.receiptFooter) return parsed.receiptFooter;
+      }
+    } catch {
+      // ignore
+    }
+    return 'شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل خلال 14 يوماً';
+  });
 
   // Step 3: Hardware & Backup
   const [printers, setPrinters] = useState<{ name: string; isDefault: boolean }[]>([]);
-  const [selectedPrinter, setSelectedPrinter] = useState<string>('');
-  const [backupFolder, setBackupFolder] = useState<string>('D:\\RafiqBackups');
-  const [seedInitialProducts, setSeedInitialProducts] = useState<boolean>(true);
+  const [selectedPrinter, setSelectedPrinter] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.selectedPrinter) return parsed.selectedPrinter;
+      }
+    } catch {
+      // ignore
+    }
+    return '';
+  });
+  const [backupFolder, setBackupFolder] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.backupFolder) return parsed.backupFolder;
+      }
+    } catch {
+      // ignore
+    }
+    return 'D:\\RafiqBackups';
+  });
+  const [seedInitialProducts, setSeedInitialProducts] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.seedInitialProducts !== undefined) return parsed.seedInitialProducts;
+      }
+    } catch {
+      // ignore
+    }
+    return true;
+  });
+
+  // Sync to localStorage
+  useEffect(() => {
+    try {
+      const data = {
+        step,
+        selectedTemplateId,
+        storeName,
+        phone,
+        address,
+        receiptHeader,
+        receiptFooter,
+        selectedPrinter,
+        backupFolder,
+        seedInitialProducts
+      };
+      localStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify(data));
+    } catch {
+      // ignore
+    }
+  }, [step, selectedTemplateId, storeName, phone, address, receiptHeader, receiptFooter, selectedPrinter, backupFolder, seedInitialProducts]);
 
   // Result state
   const [appliedStats, setAppliedStats] = useState<{ categoriesCount: number; quickItemsCount: number; productsCount: number } | null>(null);
@@ -560,7 +694,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
 
               <div className="flex justify-between text-[10px] text-slate-500 border-b border-dashed border-slate-400 pb-1">
                 <span>فاتورة: #000101</span>
-                <span>{new Date().toLocaleDateString('ar-EG')}</span>
+                <span>{new Date().toLocaleDateString('ar-EG-u-nu-latn')}</span>
               </div>
 
               {/* Sample Table */}

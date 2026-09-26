@@ -19,6 +19,27 @@ export interface BridgeResponse<T = any> {
   };
 }
 
+export interface UserDto {
+  id: string;
+  username: string;
+  displayName: string;
+  role: 'admin' | 'cashier';
+  isActive: boolean;
+  isLocked?: boolean;
+  remainingLockoutSeconds?: number;
+  permissions?: Record<string, boolean>;
+  createdAt?: string;
+  lastLoginAt?: string;
+}
+
+export interface LoginResult {
+  success: boolean;
+  user?: UserDto;
+  isLocked?: boolean;
+  remainingLockoutSeconds?: number;
+  message?: string;
+}
+
 declare global {
   interface Window {
     chrome?: {
@@ -637,6 +658,153 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       return { success: true };
     }
 
+    case 'auth:login': {
+      const u = mockUsers.find(x => x.id === payload?.usernameOrId || x.username.toLowerCase() === (payload?.usernameOrId || '').toLowerCase());
+      if (!u) {
+        throw new Error('بيانات الموظف غير صحيحة.');
+      }
+      if (!u.isActive) {
+        throw new Error('هذا الحساب معطّل. يرجى مراجعة مدير النظام.');
+      }
+      const isLocked = Date.now() < mockLockoutUntil;
+      if (isLocked) {
+        const remainingSec = Math.max(0, Math.ceil((mockLockoutUntil - Date.now()) / 1000));
+        return {
+          success: false,
+          isLocked: true,
+          remainingLockoutSeconds: remainingSec,
+          message: `الحساب مقفل مؤقتاً لحماية الأمان. يرجى الانتظار ${remainingSec} ثانية.`,
+        };
+      }
+      const expectedPin = u.role === 'admin' ? (mockPinHash || '1234') : '0000';
+      if (String(payload?.pin || '') !== expectedPin) {
+        mockFailedAttempts++;
+        if (mockFailedAttempts >= 5) {
+          mockLockoutUntil = Date.now() + 30000;
+        }
+        return {
+          success: false,
+          isLocked: mockFailedAttempts >= 5,
+          remainingLockoutSeconds: mockFailedAttempts >= 5 ? 30 : 0,
+          message: 'الرقم السري غير صحيح.',
+        };
+      }
+      mockFailedAttempts = 0;
+      mockCurrentUserId = u.id;
+      u.lastLoginAt = new Date().toISOString();
+      return {
+        success: true,
+        user: { ...u, permissions: getMockPermissionsForRole(u.role) },
+        message: 'تم تسجيل الدخول بنجاح.',
+      };
+    }
+
+    case 'auth:logout': {
+      mockCurrentUserId = '';
+      return { success: true };
+    }
+
+    case 'auth:getCurrentUser': {
+      const u = mockUsers.find(x => x.id === mockCurrentUserId) || mockUsers[0];
+      return { ...u, permissions: getMockPermissionsForRole(u?.role || 'admin') };
+    }
+
+    case 'auth:getActiveUsers': {
+      return mockUsers.filter(x => x.isActive).map(u => ({ ...u, permissions: getMockPermissionsForRole(u.role) }));
+    }
+
+    case 'auth:verifySupervisor': {
+      const adminPin = mockPinHash || '1234';
+      if (String(payload?.pin || '') === adminPin) {
+        return {
+          success: true,
+          supervisorName: 'مدير النظام',
+          message: 'تمت موافقة مدير النظام بنجاح.',
+        };
+      }
+      throw new Error('الرقم السري لمدير النظام غير صحيح.');
+    }
+
+    case 'users:getAll': {
+      const currentU = mockUsers.find(x => x.id === mockCurrentUserId);
+      const isSupervisor = payload?.supervisorPin === (mockPinHash || '1234');
+      if (currentU?.role !== 'admin' && !isSupervisor && mockCurrentUserId) {
+        throw new Error('غير مصرح: عرض بيانات الموظفين يتطلب صلاحيات مدير النظام.');
+      }
+      return mockUsers.map(u => ({ ...u, permissions: getMockPermissionsForRole(u.role) }));
+    }
+
+    case 'users:create': {
+      const currentU = mockUsers.find(x => x.id === mockCurrentUserId);
+      const isSupervisor = payload?.supervisorPin === (mockPinHash || '1234');
+      if (currentU?.role !== 'admin' && !isSupervisor && mockCurrentUserId) {
+        throw new Error('غير مصرح: إضافة موظفين تتطلب صلاحيات مدير النظام.');
+      }
+      const { username, displayName, role } = payload || {};
+      if (!username || !displayName) throw new Error('اسم المستخدم واسم الموظف مطلوبان');
+      const cleanU = username.trim().toLowerCase();
+      if (mockUsers.some(x => x.username.toLowerCase() === cleanU)) {
+        throw new Error('اسم المستخدم موجود بالفعل');
+      }
+      const newUser: UserDto = {
+        id: `usr_${Date.now()}`,
+        username: cleanU,
+        displayName: displayName.trim(),
+        role: role === 'admin' ? 'admin' : 'cashier',
+        isActive: true,
+        createdAt: new Date().toISOString(),
+      };
+      mockUsers.push(newUser);
+      return newUser;
+    }
+
+    case 'users:update': {
+      const currentU = mockUsers.find(x => x.id === mockCurrentUserId);
+      const isSupervisor = payload?.supervisorPin === (mockPinHash || '1234');
+      if (currentU?.role !== 'admin' && !isSupervisor && mockCurrentUserId) {
+        throw new Error('غير مصرح: تعديل بيانات الموظفين يتطلب صلاحيات مدير النظام.');
+      }
+      const { id, displayName, role, isActive } = payload || {};
+      const target = mockUsers.find(x => x.id === id);
+      if (!target) throw new Error('الموظف غير موجود');
+      if (target.role === 'admin' && (role !== 'admin' || !isActive)) {
+        const activeAdmins = mockUsers.filter(x => x.role === 'admin' && x.isActive).length;
+        if (activeAdmins <= 1) {
+          throw new Error('لا يمكن تعطيل أو تغيير دور آخر مدير نظام نشط.');
+        }
+      }
+      target.displayName = displayName;
+      target.role = role;
+      target.isActive = isActive;
+      return { success: true };
+    }
+
+    case 'users:changePin': {
+      const currentU = mockUsers.find(x => x.id === mockCurrentUserId);
+      const { id, currentPin, supervisorPin } = payload || {};
+      const target = mockUsers.find(x => x.id === id);
+      if (!target) throw new Error('الموظف غير موجود');
+      const isSupervisor = supervisorPin === (mockPinHash || '1234');
+      const isCurrentAdmin = currentU?.role === 'admin';
+
+      if (target.role === 'admin') {
+        const adminPin = mockPinHash || '1234';
+        if (currentPin !== adminPin && !isSupervisor) {
+          throw new Error('الرقم السري الحالي لمدير النظام غير صحيح. لا يمكن تغيير الرقم السري دون تأكيد الهوية.');
+        }
+      } else {
+        if (!isCurrentAdmin && !isSupervisor && mockCurrentUserId && mockCurrentUserId !== target.id) {
+          throw new Error('غير مصرح: تغيير الرقم السري للكاشير يتطلب صلاحيات مدير النظام.');
+        }
+      }
+      return { success: true };
+    }
+
+    case 'security:setIdleTimeout': {
+      mockIdleTimeoutMinutes = payload?.minutes || 15;
+      return { minutes: mockIdleTimeoutMinutes };
+    }
+
     case 'templates:getAll':
       return [
         {
@@ -1000,6 +1168,16 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         todayCreditFormatted: '300.00 ج.م',
         todayProfitsPiasters: 28500,
         todayProfitsFormatted: '285.00 ج.م',
+        todaySalesGrossProfitPiasters: 28500,
+        todayInventoryLossPiasters: 0,
+        todayInventoryLossFormatted: '0.00 ج.م',
+        todayInventorySurplusPiasters: 0,
+        todayInventorySurplusFormatted: '0.00 ج.م',
+        todayNetProfitsPiasters: 28500,
+        todayNetProfitsFormatted: '285.00 ج.م',
+        todayAdjustmentsCount: 0,
+        todayDebtPaymentsPiasters: 0,
+        recentAdjustments: [],
         todayInvoicesCount: 24,
         cashDrawerPiasters: 95000,
         cashDrawerFormatted: '950.00 ج.م',
@@ -1308,12 +1486,170 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       };
     }
 
+    case 'audit:getLogs':
+    case 'audit:list':
+      return [
+        {
+          id: 'aud_mock_1',
+          userId: 'usr_admin_default',
+          userDisplayName: 'مدير النظام',
+          action: 'price_update',
+          actionArabic: 'تعديل سعر البيع',
+          entityType: 'products',
+          entityId: 'p_1',
+          detailsJson: JSON.stringify({ productName: 'لبن جهينة كامل الدسم 1 لتر', oldPrice: 3800, newPrice: 4200 }),
+          createdAt: new Date(Date.now() - 3600000).toISOString(),
+          prevHash: 'GENESIS_RAFIQ_AUDIT_V1',
+          recordHash: 'a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456',
+        },
+        {
+          id: 'aud_mock_2',
+          userId: 'usr_admin_default',
+          userDisplayName: 'مدير النظام',
+          action: 'sale_create',
+          actionArabic: 'إصدار فاتورة بيع',
+          entityType: 'sales',
+          entityId: 'sale_1042',
+          detailsJson: JSON.stringify({ invoiceNumber: 1042, totalPiasters: 8000, cashierName: 'كاشير (1)' }),
+          createdAt: new Date().toISOString(),
+          prevHash: 'a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456',
+          recordHash: 'f9e8d7c6b5a4321098765432109876543210fedcba0987654321fedcba098765',
+        },
+      ];
+
+    case 'audit:verifyChain':
+      return {
+        isValid: true,
+        isTampered: false,
+        totalRecordsVerified: 2,
+        errorMessage: null,
+      };
+
+    case 'audit:resealChain':
+      return {
+        resealedCount: 2,
+        verification: {
+          isValid: true,
+          isTampered: false,
+          totalRecordsVerified: 2,
+          errorMessage: null,
+        },
+      };
+
+    case 'security:getDeviceFingerprint':
+      return {
+        deviceFingerprint: 'RAFIQ-DEV-MOCK-FINGERPRINT-8899AABB',
+        isEncrypted: true,
+        encryptionAlgorithm: 'AES-256-CBC + HMAC-SHA256',
+      };
+
+    case 'license:getInfo':
+      return {
+        isActive: true,
+        licenseKey: 'RFQ-PERM-8899-A1B2',
+        shopName: 'سوبرماركت رفيق',
+        licenseType: 'lifetime',
+        status: 'active',
+        statusLabel: 'ترخيص دائم نشط (مدى الحياة)',
+        deviceFingerprint: 'RAFIQ-DEV-MOCK-FINGERPRINT-8899AABB',
+        activatedAt: '2026-09-26 22:37',
+        expiresAt: '',
+        isOfflineMode: true,
+      };
+
+    case 'license:activate': {
+      const key = payload?.licenseKey || payload?.key || '';
+      return {
+        success: true,
+        code: 'ACTIVATION_SUCCESS',
+        message: 'تم تفعيل الترخيص السحابي بنجاح!',
+        license: {
+          isActive: true,
+          licenseKey: key || 'RFQ-PERM-8899-A1B2',
+          shopName: 'سوبرماركت رفيق',
+          licenseType: 'lifetime',
+          status: 'active',
+          statusLabel: 'ترخيص دائم نشط (مدى الحياة)',
+          deviceFingerprint: 'RAFIQ-DEV-MOCK-FINGERPRINT-8899AABB',
+          activatedAt: new Date().toISOString(),
+          expiresAt: '',
+          isOfflineMode: true,
+        },
+      };
+    }
+
+    case 'license:verify':
+      return {
+        success: true,
+        code: 'VERIFIED',
+        message: 'الترخيص سارٍ ومعتمد لهذا الجهاز',
+        license: {
+          isActive: true,
+          licenseKey: 'RFQ-PERM-8899-A1B2',
+          shopName: 'سوبرماركت رفيق',
+          licenseType: 'lifetime',
+          status: 'active',
+          statusLabel: 'ترخيص دائم نشط (مدى الحياة)',
+          deviceFingerprint: 'RAFIQ-DEV-MOCK-FINGERPRINT-8899AABB',
+          activatedAt: '2026-09-26 22:37',
+          expiresAt: '',
+          isOfflineMode: true,
+        },
+      };
+
+    case 'system:factoryReset':
+      mockCustomers = [];
+      return {
+        success: true,
+        message: 'تم مسح وتصفير كافة البيانات بنجاح، والنظام جاهز الآن كبداية نظيفة كلياً.',
+        deletedSalesCount: 1,
+        deletedProductsCount: 1,
+        deletedCustomersCount: 1,
+      };
+
+    case 'features:getAll': {
+      try {
+        const stored = localStorage.getItem('rafiq_feature_flags');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && typeof parsed === 'object') {
+            return { ...mockFeatureFlags, ...parsed };
+          }
+        }
+      } catch {}
+      return { ...mockFeatureFlags };
+    }
+
+    case 'features:set': {
+      if (payload?.key) {
+        mockFeatureFlags[payload.key] = Boolean(payload.enabled);
+        try {
+          localStorage.setItem('rafiq_feature_flags', JSON.stringify(mockFeatureFlags));
+        } catch {}
+      }
+      return { key: payload?.key, enabled: payload?.enabled };
+    }
+
+    case 'products:getSmartCatalog':
+      return {
+        products: [],
+        customQuickItems: [],
+      };
+
     default:
       return { success: true, echoed: payload };
   }
 }
 
 // In-memory mock security variables for browser environment
+let mockFeatureFlags: Record<string, boolean> = {
+  feature_scale_weight: true,
+  feature_credit_debts: true,
+  feature_fast_buttons: true,
+  feature_taxes: false,
+  feature_expiry_dates: false,
+  feature_multi_units: false,
+};
 let mockPinHash: string | null = null;
 let mockRecoveryCode: string | null = null;
 let mockFailedAttempts = 0;
@@ -1326,7 +1662,47 @@ let mockProtectedActions = {
   stock_adjust: true,
   db_recovery: true,
   discounts: false,
+  users: true,
 };
+let mockIdleTimeoutMinutes = 15;
+let mockUsers: UserDto[] = [
+  {
+    id: 'usr_admin_default',
+    username: 'admin',
+    displayName: 'مدير النظام',
+    role: 'admin',
+    isActive: true,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'usr_cashier_1',
+    username: 'cashier1',
+    displayName: 'كاشير (1)',
+    role: 'cashier',
+    isActive: true,
+    createdAt: new Date().toISOString(),
+  },
+];
+let mockCurrentUserId = 'usr_admin_default';
+
+function getMockPermissionsForRole(role: string): Record<string, boolean> {
+  const isAdmin = role === 'admin';
+  return {
+    pos: true,
+    customers: true,
+    products: isAdmin,
+    inventory: isAdmin,
+    reports: isAdmin,
+    settings: isAdmin,
+    users: isAdmin,
+    discounts: isAdmin,
+    price_edit: isAdmin,
+    stock_adjust: isAdmin,
+    db_recovery: isAdmin,
+    refunds: isAdmin,
+    cancel_sale: isAdmin,
+  };
+}
 let mockFirstRunNeeded = typeof window !== 'undefined' ? localStorage.getItem('rafiq_first_run_completed') !== 'true' : false;
 let mockDemoDataLoaded = false;
 let mockDemoProductsCount = 0;
@@ -1334,50 +1710,14 @@ let mockDemoSalesCount = 0;
 let mockDemoCustomersCount = 0;
 let mockCustomers: any[] = [
   {
-    id: 'cust_1',
-    name: 'أحمد محمود العطار',
-    phone: '01012345678',
-    balancePiasters: 15000,
-    creditLimitPiasters: 100000,
-    createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
-  },
-  {
-    id: 'cust_2',
-    name: 'محمد إبراهيم حسنين',
-    phone: '01198765432',
+    id: 'cust_general_cash',
+    name: 'عميل نقدي عام',
+    phone: '',
     balancePiasters: 0,
-    creditLimitPiasters: 50000,
-    createdAt: new Date(Date.now() - 15 * 86400000).toISOString(),
-  },
-  {
-    id: 'cust_3',
-    name: 'الحاج مصطفى السعيد',
-    phone: '01234567890',
-    balancePiasters: 45000,
-    creditLimitPiasters: 80000,
-    createdAt: new Date(Date.now() - 60 * 86400000).toISOString(),
+    creditLimitPiasters: 0,
+    createdAt: new Date().toISOString(),
   },
 ];
 
-let mockLedgerEntries: any[] = [
-  {
-    id: 'ledg_init_1',
-    customerId: 'cust_1',
-    type: 'opening_balance',
-    saleId: null,
-    amountPiasters: 15000,
-    balanceAfterPiasters: 15000,
-    notes: 'رصيد افتتاحي مسجل بالدفتر',
-    createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
-  },
-  {
-    id: 'ledg_init_3',
-    customerId: 'cust_3',
-    type: 'opening_balance',
-    saleId: null,
-    amountPiasters: 45000,
-    balanceAfterPiasters: 45000,
-    notes: 'رصيد افتتاحي مسجل بالدفتر',
-    createdAt: new Date(Date.now() - 60 * 86400000).toISOString(),
-  },
-];
+let mockLedgerEntries: any[] = [];
+

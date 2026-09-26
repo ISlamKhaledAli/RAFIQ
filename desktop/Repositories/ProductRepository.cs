@@ -8,10 +8,12 @@ namespace RafiqPOS.Repositories
     public class ProductRepository
     {
         private readonly string _connectionString;
+        private readonly AuditLogRepository _auditRepo;
 
-        public ProductRepository(string connectionString)
+        public ProductRepository(string connectionString, AuditLogRepository auditRepo = null)
         {
             _connectionString = connectionString;
+            _auditRepo = auditRepo ?? new AuditLogRepository(connectionString);
         }
 
         public Product GetById(string id)
@@ -240,6 +242,58 @@ namespace RafiqPOS.Repositories
             {
                 conn.Open();
                 string sql = "SELECT * FROM products WHERE is_active = 1 ORDER BY created_at DESC LIMIT @limit;";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@limit", limit);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            results.Add(MapReaderToProduct(reader));
+                        }
+                    }
+                }
+
+                foreach (var prod in results)
+                {
+                    prod.Barcodes = GetBarcodesForProductInternal(conn, prod.Id);
+                    prod.Units = GetUnitsForProductInternal(conn, prod.Id);
+                }
+            }
+            return results;
+        }
+
+        public List<Product> GetSmartCatalog(int limit = 1000)
+        {
+            var results = new List<Product>();
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = @"
+                    SELECT 
+                        p.*,
+                        COALESCE(c.name, 'عام') AS category_name,
+                        COALESCE(s_stat.sale_count, 0) AS sale_count,
+                        CASE WHEN q.id IS NOT NULL THEN 1 ELSE 0 END AS is_custom_quick_item,
+                        COALESCE(q.is_open_price, 0) AS is_open_price,
+                        COALESCE(q.display_order, 9999) AS quick_display_order
+                    FROM products p
+                    LEFT JOIN categories c ON p.category_id = c.id
+                    LEFT JOIN (
+                        SELECT product_id, COUNT(*) AS sale_count
+                        FROM sale_items
+                        GROUP BY product_id
+                        ORDER BY sale_count DESC
+                        LIMIT 300
+                    ) s_stat ON p.id = s_stat.product_id
+                    LEFT JOIN quick_items q ON p.id = q.product_id
+                    WHERE p.is_active = 1
+                    ORDER BY 
+                        is_custom_quick_item DESC,
+                        sale_count DESC,
+                        p.name ASC
+                    LIMIT @limit;
+                ";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@limit", limit);
@@ -769,16 +823,18 @@ namespace RafiqPOS.Repositories
                             result.ImportedCount++;
                         }
 
-                        // Record audit log entry inside transaction
-                        using (var auditCmd = new SQLiteCommand("INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, details_json, created_at) VALUES (@aid, @uid, 'product_import_batch', 'products', 'batch', @details, @now);", conn, trans))
+                        // Record audit log entry inside transaction with full cryptographic chaining (Feature #169)
+                        string details = string.Format("{{\"imported\":{0},\"updated\":{1},\"skipped\":{2},\"total\":{3}}}", result.ImportedCount, result.UpdatedCount, result.SkippedCount, result.TotalRows);
+                        _auditRepo.Log(conn, trans, new AuditLog
                         {
-                            auditCmd.Parameters.AddWithValue("@aid", "aud_" + Guid.NewGuid().ToString("N"));
-                            auditCmd.Parameters.AddWithValue("@uid", string.IsNullOrWhiteSpace(userId) ? "usr_admin_default" : userId);
-                            string details = string.Format("{{\"imported\":{0},\"updated\":{1},\"skipped\":{2},\"total\":{3}}}", result.ImportedCount, result.UpdatedCount, result.SkippedCount, result.TotalRows);
-                            auditCmd.Parameters.AddWithValue("@details", details);
-                            auditCmd.Parameters.AddWithValue("@now", now);
-                            auditCmd.ExecuteNonQuery();
-                        }
+                            Id = "aud_" + Guid.NewGuid().ToString("N"),
+                            UserId = string.IsNullOrWhiteSpace(userId) ? "usr_admin_default" : userId,
+                            Action = "product_import_batch",
+                            EntityType = "products",
+                            EntityId = "batch",
+                            DetailsJson = details,
+                            CreatedAt = now
+                        });
 
                         trans.Commit();
                         return result;
@@ -820,6 +876,24 @@ namespace RafiqPOS.Repositories
                 }
             }
             catch { }
+            string catName = "عام";
+            try { if (reader["category_name"] != DBNull.Value) catName = reader["category_name"].ToString(); } catch { }
+            int salesCount = 0;
+            try
+            {
+                if (reader["sale_count"] != DBNull.Value)
+                {
+                    long rawCount = Convert.ToInt64(reader["sale_count"]);
+                    salesCount = (int)Math.Min(rawCount, (long)int.MaxValue);
+                }
+            }
+            catch { }
+            bool isCustom = false;
+            try { if (reader["is_custom_quick_item"] != DBNull.Value) isCustom = Convert.ToInt32(reader["is_custom_quick_item"]) == 1; } catch { }
+            bool isOpenPrice = false;
+            try { if (reader["is_open_price"] != DBNull.Value) isOpenPrice = Convert.ToInt32(reader["is_open_price"]) == 1; } catch { }
+            int quickDisplayOrder = 9999;
+            try { if (reader["quick_display_order"] != DBNull.Value) quickDisplayOrder = Convert.ToInt32(reader["quick_display_order"]); } catch { }
 
             return new Product
             {
@@ -829,6 +903,11 @@ namespace RafiqPOS.Repositories
                 Name = reader["name"].ToString(),
                 NormalizedName = normalizedName,
                 CategoryId = reader["category_id"] != DBNull.Value ? reader["category_id"].ToString() : null,
+                CategoryName = catName,
+                SalesCount = salesCount,
+                IsCustomQuickItem = isCustom,
+                IsOpenPrice = isOpenPrice,
+                QuickDisplayOrder = quickDisplayOrder,
                 PricePiasters = Convert.ToInt64(reader["price_piasters"]),
                 CostPiasters = Convert.ToInt64(reader["cost_piasters"]),
                 StockQuantityMilli = Convert.ToInt64(reader["stock_quantity_milli"]),

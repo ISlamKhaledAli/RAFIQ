@@ -104,12 +104,12 @@ export function ReceiptModal({
   if (!isOpen || !sale) return null;
 
   const formattedDate = sale.createdAt 
-    ? new Date(sale.createdAt).toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit' })
-    : new Date().toLocaleDateString('ar-EG');
+    ? new Date(sale.createdAt).toLocaleDateString('ar-EG-u-nu-latn', { year: 'numeric', month: '2-digit', day: '2-digit' })
+    : new Date().toLocaleDateString('ar-EG-u-nu-latn');
 
   const formattedTime = sale.createdAt
-    ? new Date(sale.createdAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
-    : new Date().toLocaleTimeString('ar-EG');
+    ? new Date(sale.createdAt).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })
+    : new Date().toLocaleTimeString('ar-EG-u-nu-latn');
 
   const changePiasters = Math.max(0, sale.paidPiasters - sale.totalPiasters);
   const remainingPiasters = Math.max(0, sale.totalPiasters - sale.paidPiasters);

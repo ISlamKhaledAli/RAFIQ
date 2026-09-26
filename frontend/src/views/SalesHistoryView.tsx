@@ -512,7 +512,7 @@ export const SalesHistoryView = () => {
 
                   {/* Date / Time */}
                   <span className="col-span-2 font-mono text-ink text-[12px] tabular-nums">
-                    {sale.createdAt ? new Date(sale.createdAt).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }) : '—'}
+                    {sale.createdAt ? new Date(sale.createdAt).toLocaleString('ar-EG-u-nu-latn', { dateStyle: 'short', timeStyle: 'short' }) : '—'}
                   </span>
 
                   {/* Customer */}
@@ -636,7 +636,7 @@ export const SalesHistoryView = () => {
                 <div>
                   <span className="text-ink-muted text-[11px]">تاريخ ووقت البيع: </span>
                   <span className="text-ink font-bold tabular-nums">
-                    {selectedSale.createdAt ? new Date(selectedSale.createdAt).toLocaleString('ar-EG') : '—'}
+                    {selectedSale.createdAt ? new Date(selectedSale.createdAt).toLocaleString('ar-EG-u-nu-latn') : '—'}
                   </span>
                 </div>
                 <div>

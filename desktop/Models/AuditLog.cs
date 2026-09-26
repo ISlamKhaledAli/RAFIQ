@@ -31,5 +31,32 @@ namespace RafiqPOS.Models
 
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
+
+        [JsonProperty("prevHash")]
+        public string PrevHash { get; set; }
+
+        [JsonProperty("recordHash")]
+        public string RecordHash { get; set; }
+    }
+
+    public class AuditChainVerificationResult
+    {
+        [JsonProperty("isValid")]
+        public bool IsValid { get; set; }
+
+        [JsonProperty("isTampered")]
+        public bool IsTampered { get; set; }
+
+        [JsonProperty("totalRecordsVerified")]
+        public int TotalRecordsVerified { get; set; }
+
+        [JsonProperty("tamperedRecordId")]
+        public string TamperedRecordId { get; set; }
+
+        [JsonProperty("tamperedRecordIndex")]
+        public int TamperedRecordIndex { get; set; }
+
+        [JsonProperty("errorMessage")]
+        public string ErrorMessage { get; set; }
     }
 }

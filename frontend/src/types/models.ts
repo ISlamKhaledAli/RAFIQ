@@ -21,6 +21,11 @@ export interface Product {
   priceFormatted?: string;
   stockFormatted?: string;
   minStockFormatted?: string;
+  categoryName?: string;
+  salesCount?: number;
+  isCustomQuickItem?: boolean;
+  isOpenPrice?: boolean;
+  quickDisplayOrder?: number;
 }
 
 export interface ProductUnit {
@@ -215,6 +220,19 @@ export interface TopDebtorItem {
   balanceFormatted?: string;
 }
 
+export interface StockAdjustmentSummaryItem {
+  productId: string;
+  productName: string;
+  unit: string;
+  quantityDeltaMilli: number;
+  quantityDeltaFormatted: string;
+  unitCostPiasters: number;
+  financialImpactPiasters: number;
+  financialImpactFormatted: string;
+  reason: string;
+  createdAt: string;
+}
+
 export interface DashboardSummary {
   todaySalesPiasters: number;
   todaySalesFormatted?: string;
@@ -224,6 +242,16 @@ export interface DashboardSummary {
   todayCreditFormatted?: string;
   todayProfitsPiasters: number;
   todayProfitsFormatted?: string;
+  todaySalesGrossProfitPiasters?: number;
+  todayInventoryLossPiasters?: number;
+  todayInventoryLossFormatted?: string;
+  todayInventorySurplusPiasters?: number;
+  todayInventorySurplusFormatted?: string;
+  todayNetProfitsPiasters?: number;
+  todayNetProfitsFormatted?: string;
+  todayAdjustmentsCount?: number;
+  todayDebtPaymentsPiasters?: number;
+  recentAdjustments?: StockAdjustmentSummaryItem[];
   todayInvoicesCount: number;
   cashDrawerPiasters: number;
   cashDrawerFormatted?: string;
@@ -245,6 +273,17 @@ export interface AuditLogEntry {
   entityId: string;
   detailsJson?: string | null;
   createdAt: string;
+  prevHash?: string;
+  recordHash?: string;
+}
+
+export interface AuditChainVerificationResult {
+  isValid: boolean;
+  isTampered: boolean;
+  totalRecordsVerified: number;
+  tamperedRecordId?: string | null;
+  tamperedRecordIndex?: number;
+  errorMessage?: string | null;
 }
 
 export interface StockMovement {

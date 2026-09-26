@@ -194,8 +194,13 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
         actions: updated,
         currentPin: '',
       });
+      setSuccessMsg('تم حفظ وتحديث إعدادات الحماية بنجاح.');
+      setTimeout(() => setSuccessMsg(null), 2500);
+      if (onStatusChanged) onStatusChanged();
     } catch (err: unknown) {
-      console.warn('Auto-save protected action failed:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(`فشل حفظ الإعداد: ${msg}`);
+      setProtectedActions(protectedActions);
     }
   };
 

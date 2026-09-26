@@ -65,6 +65,11 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
     ? `${deltaUnits.toFixed(3).replace(/\.?0+$/, '')} كجم`
     : `${Math.round(deltaUnits)} قطعة`;
 
+  // Financial impact calculation (At Cost, or Price if cost is 0)
+  const unitCost = (product.costPiasters && product.costPiasters > 0) ? product.costPiasters : (product.pricePiasters || 0);
+  const estimatedImpactPiasters = Math.round((deltaMilli * unitCost) / 1000);
+  const estimatedImpactDisplay = `${(Math.abs(estimatedImpactPiasters) / 100).toFixed(2)} ج.م`;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isValidNumber) {
@@ -194,33 +199,44 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
             )}
           </div>
 
-          {/* Live Delta Preview */}
+          {/* Live Delta & Financial Impact Preview */}
           {isValidNumber && (
-            <div className={`p-3 rounded border text-[12px] flex items-center justify-between ${
+            <div className={`p-3 rounded border text-[12px] flex flex-col gap-1.5 ${
               deltaMilli === 0 
                 ? 'bg-surface-2 border-line text-ink-muted'
                 : deltaMilli > 0
                 ? 'bg-paid-soft border-paid/20 text-paid'
                 : 'bg-danger-soft border-danger/20 text-danger'
             }`}>
-              <div className="flex items-center gap-1.5 font-bold">
-                {deltaMilli > 0 ? (
-                  <>
-                    <ArrowUpRight className="w-4 h-4" />
-                    <span>زيادة جردية:</span>
-                  </>
-                ) : deltaMilli < 0 ? (
-                  <>
-                    <ArrowDownLeft className="w-4 h-4" />
-                    <span>عجز جردي:</span>
-                  </>
-                ) : (
-                  <span>لا يوجد أي تغيير:</span>
-                )}
+              <div className="flex items-center justify-between font-bold">
+                <div className="flex items-center gap-1.5">
+                  {deltaMilli > 0 ? (
+                    <>
+                      <ArrowUpRight className="w-4 h-4 shrink-0" />
+                      <span>زيادة جردية:</span>
+                    </>
+                  ) : deltaMilli < 0 ? (
+                    <>
+                      <ArrowDownLeft className="w-4 h-4 shrink-0" />
+                      <span>عجز وتالف جردي:</span>
+                    </>
+                  ) : (
+                    <span>لا يوجد أي تغيير في الرصيد:</span>
+                  )}
+                </div>
+                <span className="font-mono font-bold text-[13px]" dir="ltr">
+                  {deltaMilli > 0 ? `+${deltaDisplay}` : deltaMilli < 0 ? `-${deltaDisplay}` : '0'}
+                </span>
               </div>
-              <span className="font-mono font-bold text-[13px]" dir="ltr">
-                {deltaMilli > 0 ? `+${deltaDisplay}` : deltaMilli < 0 ? `-${deltaDisplay}` : '0'}
-              </span>
+
+              {deltaMilli !== 0 && (
+                <div className="flex items-center justify-between pt-1.5 border-t border-current/15 text-[11px] font-medium opacity-90">
+                  <span>الأثر المالي المتوقع (بالتكلفة):</span>
+                  <span className="font-mono font-bold text-[12px]">
+                    {deltaMilli > 0 ? `+${estimatedImpactDisplay} (إضافة لقيمة المخزون)` : `-${estimatedImpactDisplay} (خسارة عجز وتالف)`}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 

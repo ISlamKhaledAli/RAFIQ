@@ -62,6 +62,21 @@ namespace RafiqPOS.Models
         [JsonProperty("units")]
         public System.Collections.Generic.List<ProductUnit> Units { get; set; }
 
+        [JsonProperty("categoryName")]
+        public string CategoryName { get; set; }
+
+        [JsonProperty("salesCount")]
+        public int SalesCount { get; set; }
+
+        [JsonProperty("isCustomQuickItem")]
+        public bool IsCustomQuickItem { get; set; }
+
+        [JsonProperty("isOpenPrice")]
+        public bool IsOpenPrice { get; set; }
+
+        [JsonProperty("quickDisplayOrder")]
+        public int QuickDisplayOrder { get; set; }
+
         // Presentation helpers (Never used in internal DB math)
         [JsonProperty("priceFormatted")]
         public string PriceFormatted
