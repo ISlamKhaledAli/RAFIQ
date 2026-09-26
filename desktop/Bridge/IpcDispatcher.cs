@@ -101,6 +101,20 @@ namespace RafiqPOS.Bridge
                         var allProducts = DatabaseService.Products.GetAll(limit);
                         return BridgeResponse.Ok(request.Id, allProducts);
 
+                    case "products:getSmartCatalog":
+                        int smartLimit = 1000;
+                        JObject smartObj = request.Payload as JObject;
+                        if (smartObj != null && smartObj["limit"] != null)
+                        {
+                            smartLimit = smartObj["limit"].Value<int>();
+                        }
+                        var smartCatalog = DatabaseService.Products.GetSmartCatalog(smartLimit);
+                        var customQuickList = DatabaseService.QuickItems.GetAll();
+                        return BridgeResponse.Ok(request.Id, new {
+                            products = smartCatalog,
+                            customQuickItems = customQuickList
+                        });
+
                     case "products:search":
                         string query = "";
                         int searchLimit = 50;
@@ -703,6 +717,15 @@ namespace RafiqPOS.Bridge
                         return BridgeResponse.Ok(request.Id, supRes);
 
                     case "users:getAll":
+                        if (!DatabaseService.Security.IsCurrentSessionAdmin())
+                        {
+                            JObject supObjAll = request.Payload as JObject;
+                            string supPinAll = supObjAll != null && supObjAll["supervisorPin"] != null ? supObjAll["supervisorPin"].ToString() : "";
+                            if (string.IsNullOrEmpty(supPinAll) || !DatabaseService.Security.VerifySupervisorPin(supPinAll, "VIEW_USERS").Success)
+                            {
+                                return BridgeResponse.Fail(request.Id, "UNAUTHORIZED", "غير مصرح: عرض بيانات الموظفين يتطلب صلاحيات مدير النظام.");
+                            }
+                        }
                         var allUsersList = DatabaseService.Security.GetAllUsers();
                         return BridgeResponse.Ok(request.Id, allUsersList);
 
@@ -712,6 +735,12 @@ namespace RafiqPOS.Bridge
                             return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات إنشاء الموظف فارغة");
                         }
                         JObject createUObj = request.Payload as JObject;
+                        string createSupPin = createUObj != null && createUObj["supervisorPin"] != null ? createUObj["supervisorPin"].ToString() : "";
+                        if (!DatabaseService.Security.IsCurrentSessionAdmin() && (string.IsNullOrEmpty(createSupPin) || !DatabaseService.Security.VerifySupervisorPin(createSupPin, "USER_CREATE").Success))
+                        {
+                            return BridgeResponse.Fail(request.Id, "UNAUTHORIZED", "غير مصرح: إضافة موظفين تتطلب صلاحيات مدير النظام.");
+                        }
+
                         string uName = createUObj != null && createUObj["username"] != null ? createUObj["username"].ToString() : "";
                         string dName = createUObj != null && createUObj["displayName"] != null ? createUObj["displayName"].ToString() : "";
                         string uPin = createUObj != null && createUObj["pin"] != null ? createUObj["pin"].ToString() : "";
@@ -732,6 +761,12 @@ namespace RafiqPOS.Bridge
                             return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات تعديل الموظف فارغة");
                         }
                         JObject updateUObj = request.Payload as JObject;
+                        string updateSupPin = updateUObj != null && updateUObj["supervisorPin"] != null ? updateUObj["supervisorPin"].ToString() : "";
+                        if (!DatabaseService.Security.IsCurrentSessionAdmin() && (string.IsNullOrEmpty(updateSupPin) || !DatabaseService.Security.VerifySupervisorPin(updateSupPin, "USER_UPDATE").Success))
+                        {
+                            return BridgeResponse.Fail(request.Id, "UNAUTHORIZED", "غير مصرح: تعديل بيانات الموظفين يتطلب صلاحيات مدير النظام.");
+                        }
+
                         string updId = updateUObj != null && updateUObj["id"] != null ? updateUObj["id"].ToString() : "";
                         string updName = updateUObj != null && updateUObj["displayName"] != null ? updateUObj["displayName"].ToString() : "";
                         string updRole = updateUObj != null && updateUObj["role"] != null ? updateUObj["role"].ToString() : "cashier";
@@ -754,9 +789,11 @@ namespace RafiqPOS.Bridge
                         JObject chPinObj = request.Payload as JObject;
                         string targetUId = chPinObj != null && chPinObj["id"] != null ? chPinObj["id"].ToString() : "";
                         string targetPin = chPinObj != null && chPinObj["newPin"] != null ? chPinObj["newPin"].ToString() : "";
+                        string curPin = chPinObj != null && chPinObj["currentPin"] != null ? chPinObj["currentPin"].ToString() : "";
+                        string chSupPin = chPinObj != null && chPinObj["supervisorPin"] != null ? chPinObj["supervisorPin"].ToString() : "";
                         try
                         {
-                            DatabaseService.Security.ChangeUserPin(targetUId, targetPin);
+                            DatabaseService.Security.ChangeUserPinSecure(targetUId, targetPin, curPin, chSupPin);
                             return BridgeResponse.Ok(request.Id, new { success = true });
                         }
                         catch (Exception uEx)
@@ -844,6 +881,10 @@ namespace RafiqPOS.Bridge
                     case "health:getStatus":
                         var systemHealth = DatabaseService.SystemHealth.GetSystemHealth();
                         return BridgeResponse.Ok(request.Id, systemHealth);
+
+                    case "system:factoryReset":
+                        var resetResult = DatabaseService.FactoryReset();
+                        return BridgeResponse.Ok(request.Id, resetResult);
 
                     case "customers:getAll":
                         int custLimit = 100;
@@ -1369,6 +1410,11 @@ namespace RafiqPOS.Bridge
                         var chainCheck = DatabaseService.Audit.VerifyChainIntegrity();
                         return BridgeResponse.Ok(request.Id, chainCheck);
 
+                    case "audit:resealChain":
+                        int resealedCount = DatabaseService.Audit.ResealChain();
+                        var newCheck = DatabaseService.Audit.VerifyChainIntegrity();
+                        return BridgeResponse.Ok(request.Id, new { resealedCount = resealedCount, verification = newCheck });
+
                     case "security:getDeviceFingerprint":
                         string fp = DatabaseService.Encryption != null ? DatabaseService.Encryption.DeviceFingerprint : EncryptionService.GenerateDeviceFingerprint();
                         return BridgeResponse.Ok(request.Id, new
@@ -1381,6 +1427,46 @@ namespace RafiqPOS.Bridge
                     case "security:runTests":
                         var secTestRes = SecurityTestRunner.RunAllTests(DatabaseService.ConnectionString, DatabaseService.DbPath);
                         return BridgeResponse.Ok(request.Id, secTestRes);
+
+                    case "license:getInfo":
+                        var licInfo = DatabaseService.License != null ? DatabaseService.License.GetLicenseInfo() : null;
+                        return BridgeResponse.Ok(request.Id, licInfo);
+
+                    case "license:activate":
+                        string licKey = "";
+                        if (request.Payload != null)
+                        {
+                            JObject licObj = request.Payload as JObject;
+                            if (licObj == null)
+                            {
+                                try
+                                {
+                                    licObj = JObject.Parse(request.Payload.ToString());
+                                }
+                                catch { }
+                            }
+                            if (licObj != null)
+                            {
+                                if (licObj["licenseKey"] != null)
+                                {
+                                    licKey = licObj["licenseKey"].ToString();
+                                }
+                                else if (licObj["key"] != null)
+                                {
+                                    licKey = licObj["key"].ToString();
+                                }
+                            }
+                        }
+                        var actResult = DatabaseService.License != null 
+                            ? DatabaseService.License.ActivateLicense(licKey)
+                            : new LicenseOperationResult { Success = false, Message = "خدمة التراخيص غير مهيأة" };
+                        return BridgeResponse.Ok(request.Id, actResult);
+
+                    case "license:verify":
+                        var verResult = DatabaseService.License != null 
+                            ? DatabaseService.License.VerifyLicenseOnline()
+                            : new LicenseOperationResult { Success = false, Message = "خدمة التراخيص غير مهيأة" };
+                        return BridgeResponse.Ok(request.Id, verResult);
 
                     default:
                         Logger.Warn("محاولة تنفيذ إجراء غير مسجل: " + request.Action);

@@ -35,5 +35,10 @@ namespace RafiqPOS.Services
         {
             return _repo.VerifyChainIntegrity();
         }
+
+        public int ResealChain()
+        {
+            return _repo.ResealChain();
+        }
     }
 }

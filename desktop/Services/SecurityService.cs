@@ -363,6 +363,81 @@ namespace RafiqPOS.Services
             LogAudit("USER_UPDATED", "SECURITY", user.Username, string.Format("تم تحديث بيانات الموظف: {0} ({1}) - الحالة: {2}", user.DisplayName, user.Role, isActive ? "نشط" : "معطّل"));
         }
 
+        public bool IsCurrentSessionAdmin()
+        {
+            return _currentUserSession != null && _currentUserSession.Role == "admin";
+        }
+
+        public bool VerifyUserPin(string userId, string pin)
+        {
+            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(pin) || _userRepo == null)
+                return false;
+
+            User user = _userRepo.GetById(userId);
+            if (user == null) return false;
+
+            if (string.IsNullOrEmpty(user.PinCodeHash) || string.IsNullOrEmpty(user.PinSalt))
+                return false;
+
+            byte[] salt = Convert.FromBase64String(user.PinSalt);
+            byte[] expectedHash = Convert.FromBase64String(user.PinCodeHash);
+            byte[] actualHash = HashWithSalt(pin, salt);
+            return SlowEquals(expectedHash, actualHash);
+        }
+
+        public void ChangeUserPinSecure(string targetUserId, string newPin, string currentPin, string supervisorPin)
+        {
+            if (_userRepo == null) throw new InvalidOperationException("UserRepository is null");
+
+            User targetUser = _userRepo.GetById(targetUserId);
+            if (targetUser == null) throw new ArgumentException("الموظف غير موجود");
+
+            if (targetUser.Role == "admin")
+            {
+                // Changing Admin PIN strictly requires the current PIN of this admin OR supervisor approval
+                bool verified = false;
+                if (!string.IsNullOrEmpty(currentPin) && VerifyUserPin(targetUserId, currentPin))
+                {
+                    verified = true;
+                }
+                else if (!string.IsNullOrEmpty(supervisorPin))
+                {
+                    PinVerificationResult supCheck = VerifySupervisorPin(supervisorPin, "CHANGE_ADMIN_PIN");
+                    if (supCheck.Success) verified = true;
+                }
+
+                if (!verified)
+                {
+                    throw new UnauthorizedAccessException("الرقم السري الحالي لمدير النظام غير صحيح. لا يمكن تغيير الرقم السري دون تأكيد الهوية.");
+                }
+            }
+            else
+            {
+                // Target is cashier: must be admin session, or supervisor pin, or the cashier themselves with currentPin
+                bool authorized = false;
+                if (IsCurrentSessionAdmin())
+                {
+                    authorized = true;
+                }
+                else if (!string.IsNullOrEmpty(supervisorPin))
+                {
+                    PinVerificationResult supCheck = VerifySupervisorPin(supervisorPin, "CHANGE_CASHIER_PIN");
+                    if (supCheck.Success) authorized = true;
+                }
+                else if (_currentUserSession != null && _currentUserSession.Id == targetUserId && !string.IsNullOrEmpty(currentPin) && VerifyUserPin(targetUserId, currentPin))
+                {
+                    authorized = true;
+                }
+
+                if (!authorized)
+                {
+                    throw new UnauthorizedAccessException("غير مصرح: تغيير الرقم السري للكاشير يتطلب صلاحيات مدير النظام أو إدخال الرقم السري الحالي.");
+                }
+            }
+
+            ChangeUserPin(targetUserId, newPin);
+        }
+
         public void ChangeUserPin(string userId, string newPin)
         {
             if (_userRepo == null) throw new InvalidOperationException("UserRepository is null");
@@ -728,7 +803,7 @@ namespace RafiqPOS.Services
         public bool SaveProtectedActions(Dictionary<string, bool> actions, string currentPin)
         {
             string pinHash = _settingsRepo.Get(KEY_PIN_HASH, "");
-            if (!string.IsNullOrEmpty(pinHash))
+            if (!string.IsNullOrEmpty(pinHash) && !string.IsNullOrEmpty(currentPin))
             {
                 var verify = VerifyPin(currentPin, "SAVE_PROTECTED_ACTIONS");
                 if (!verify.Success) return false;

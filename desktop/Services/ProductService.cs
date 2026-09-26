@@ -400,5 +400,10 @@ namespace RafiqPOS.Services
 
             return _repo.ImportBatchAtomic(request.Items, request.DuplicateStrategy, userId);
         }
+
+        public List<Product> GetSmartCatalog(int limit = 1000)
+        {
+            return _repo.GetSmartCatalog(limit);
+        }
     }
 }

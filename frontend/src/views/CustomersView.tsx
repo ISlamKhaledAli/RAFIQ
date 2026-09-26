@@ -697,7 +697,7 @@ export function CustomersView() {
 
                       {/* Date */}
                       <td className="px-3 text-ink-muted text-[11px]">
-                        {cust.createdAt ? new Date(cust.createdAt).toLocaleDateString('ar-EG') : '---'}
+                        {cust.createdAt ? new Date(cust.createdAt).toLocaleDateString('ar-EG-u-nu-latn') : '---'}
                       </td>
 
                       {/* Actions */}
@@ -1148,9 +1148,9 @@ export function CustomersView() {
                             <td className="px-3 text-ink-muted text-[11px] font-mono">
                               <div className="flex items-center gap-1">
                                 <Clock className="w-3 h-3 text-ink-muted" />
-                                <span>{new Date(entry.createdAt).toLocaleDateString('ar-EG')}</span>
+                                <span>{new Date(entry.createdAt).toLocaleDateString('ar-EG-u-nu-latn')}</span>
                                 <span className="text-[10px] text-ink-muted/70">
-                                  {new Date(entry.createdAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                                  {new Date(entry.createdAt).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })}
                                 </span>
                               </div>
                             </td>
@@ -1280,7 +1280,7 @@ export function CustomersView() {
                 <div className="flex justify-between text-ink">
                   <span className="text-ink-muted font-medium">تاريخ الدفعة:</span>
                   <span className="font-mono text-[11px]">
-                    {new Date(cancellingEntry.createdAt).toLocaleString('ar-EG')}
+                    {new Date(cancellingEntry.createdAt).toLocaleString('ar-EG-u-nu-latn')}
                   </span>
                 </div>
               </div>
@@ -1400,7 +1400,7 @@ export function CustomersView() {
                   <h2 className="text-base font-extrabold tracking-wide mb-0.5">رفيق لنقاط البيع وإدارة المتاجر</h2>
                   <p className="text-[11px] text-neutral-600 font-semibold">كشف حساب عميل تفصيلي</p>
                   <p className="text-[10px] text-neutral-500 font-mono mt-0.5">
-                    تاريخ الاستخراج: {new Date().toLocaleString('ar-EG')}
+                    تاريخ الاستخراج: {new Date().toLocaleString('ar-EG-u-nu-latn')}
                   </p>
                 </div>
 
@@ -1460,7 +1460,7 @@ export function CustomersView() {
                       return (
                         <tr key={entry.id} className="py-1">
                           <td className="py-1 text-[10px] font-mono text-neutral-600">
-                            {new Date(entry.createdAt).toLocaleDateString('ar-EG')}
+                            {new Date(entry.createdAt).toLocaleDateString('ar-EG-u-nu-latn')}
                           </td>
                           <td className="py-1 font-medium">
                             {alreadyCancelled ? 'سداد (ملغى بقيد معاكس)' :

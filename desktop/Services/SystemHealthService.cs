@@ -80,7 +80,8 @@ namespace RafiqPOS.Services
             var metrics = new SystemHealthMetrics();
 
             metrics.AppVersion = "رفيق POS v1.0.0 (أوفلاين)";
-            metrics.LicenseStatus = "ترخيص دائم نشط (مدى الحياة)";
+            var lic = DatabaseService.License != null ? DatabaseService.License.GetLicenseInfo() : null;
+            metrics.LicenseStatus = lic != null ? lic.StatusLabel : "ترخيص دائم نشط (مدى الحياة)";
 
             // 1. Check Database File & Drive Free Space (Task 138-1)
             long freeBytes = 0;
@@ -262,7 +263,7 @@ namespace RafiqPOS.Services
                             Title = "تنبيه أمني: كشف تلاعب مباشر في سجل العمليات!",
                             Message = auditCheck.ErrorMessage,
                             FixAction = "مراجعة السجل وحظر التعديل المباشر",
-                            FixTarget = "settings"
+                            FixTarget = "audit"
                         });
                     }
                     else if (auditCheck != null)

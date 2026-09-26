@@ -726,10 +726,20 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     }
 
     case 'users:getAll': {
+      const currentU = mockUsers.find(x => x.id === mockCurrentUserId);
+      const isSupervisor = payload?.supervisorPin === (mockPinHash || '1234');
+      if (currentU?.role !== 'admin' && !isSupervisor && mockCurrentUserId) {
+        throw new Error('غير مصرح: عرض بيانات الموظفين يتطلب صلاحيات مدير النظام.');
+      }
       return mockUsers.map(u => ({ ...u, permissions: getMockPermissionsForRole(u.role) }));
     }
 
     case 'users:create': {
+      const currentU = mockUsers.find(x => x.id === mockCurrentUserId);
+      const isSupervisor = payload?.supervisorPin === (mockPinHash || '1234');
+      if (currentU?.role !== 'admin' && !isSupervisor && mockCurrentUserId) {
+        throw new Error('غير مصرح: إضافة موظفين تتطلب صلاحيات مدير النظام.');
+      }
       const { username, displayName, role } = payload || {};
       if (!username || !displayName) throw new Error('اسم المستخدم واسم الموظف مطلوبان');
       const cleanU = username.trim().toLowerCase();
@@ -749,6 +759,11 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     }
 
     case 'users:update': {
+      const currentU = mockUsers.find(x => x.id === mockCurrentUserId);
+      const isSupervisor = payload?.supervisorPin === (mockPinHash || '1234');
+      if (currentU?.role !== 'admin' && !isSupervisor && mockCurrentUserId) {
+        throw new Error('غير مصرح: تعديل بيانات الموظفين يتطلب صلاحيات مدير النظام.');
+      }
       const { id, displayName, role, isActive } = payload || {};
       const target = mockUsers.find(x => x.id === id);
       if (!target) throw new Error('الموظف غير موجود');
@@ -765,6 +780,23 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     }
 
     case 'users:changePin': {
+      const currentU = mockUsers.find(x => x.id === mockCurrentUserId);
+      const { id, currentPin, supervisorPin } = payload || {};
+      const target = mockUsers.find(x => x.id === id);
+      if (!target) throw new Error('الموظف غير موجود');
+      const isSupervisor = supervisorPin === (mockPinHash || '1234');
+      const isCurrentAdmin = currentU?.role === 'admin';
+
+      if (target.role === 'admin') {
+        const adminPin = mockPinHash || '1234';
+        if (currentPin !== adminPin && !isSupervisor) {
+          throw new Error('الرقم السري الحالي لمدير النظام غير صحيح. لا يمكن تغيير الرقم السري دون تأكيد الهوية.');
+        }
+      } else {
+        if (!isCurrentAdmin && !isSupervisor && mockCurrentUserId && mockCurrentUserId !== target.id) {
+          throw new Error('غير مصرح: تغيير الرقم السري للكاشير يتطلب صلاحيات مدير النظام.');
+        }
+      }
       return { success: true };
     }
 
@@ -1136,6 +1168,16 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         todayCreditFormatted: '300.00 ج.م',
         todayProfitsPiasters: 28500,
         todayProfitsFormatted: '285.00 ج.م',
+        todaySalesGrossProfitPiasters: 28500,
+        todayInventoryLossPiasters: 0,
+        todayInventoryLossFormatted: '0.00 ج.م',
+        todayInventorySurplusPiasters: 0,
+        todayInventorySurplusFormatted: '0.00 ج.م',
+        todayNetProfitsPiasters: 28500,
+        todayNetProfitsFormatted: '285.00 ج.م',
+        todayAdjustmentsCount: 0,
+        todayDebtPaymentsPiasters: 0,
+        recentAdjustments: [],
         todayInvoicesCount: 24,
         cashDrawerPiasters: 95000,
         cashDrawerFormatted: '950.00 ج.م',
@@ -1483,11 +1525,115 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         errorMessage: null,
       };
 
+    case 'audit:resealChain':
+      return {
+        resealedCount: 2,
+        verification: {
+          isValid: true,
+          isTampered: false,
+          totalRecordsVerified: 2,
+          errorMessage: null,
+        },
+      };
+
     case 'security:getDeviceFingerprint':
       return {
         deviceFingerprint: 'RAFIQ-DEV-MOCK-FINGERPRINT-8899AABB',
         isEncrypted: true,
         encryptionAlgorithm: 'AES-256-CBC + HMAC-SHA256',
+      };
+
+    case 'license:getInfo':
+      return {
+        isActive: true,
+        licenseKey: 'RFQ-PERM-8899-A1B2',
+        shopName: 'سوبرماركت رفيق',
+        licenseType: 'lifetime',
+        status: 'active',
+        statusLabel: 'ترخيص دائم نشط (مدى الحياة)',
+        deviceFingerprint: 'RAFIQ-DEV-MOCK-FINGERPRINT-8899AABB',
+        activatedAt: '2026-09-26 22:37',
+        expiresAt: '',
+        isOfflineMode: true,
+      };
+
+    case 'license:activate': {
+      const key = payload?.licenseKey || payload?.key || '';
+      return {
+        success: true,
+        code: 'ACTIVATION_SUCCESS',
+        message: 'تم تفعيل الترخيص السحابي بنجاح!',
+        license: {
+          isActive: true,
+          licenseKey: key || 'RFQ-PERM-8899-A1B2',
+          shopName: 'سوبرماركت رفيق',
+          licenseType: 'lifetime',
+          status: 'active',
+          statusLabel: 'ترخيص دائم نشط (مدى الحياة)',
+          deviceFingerprint: 'RAFIQ-DEV-MOCK-FINGERPRINT-8899AABB',
+          activatedAt: new Date().toISOString(),
+          expiresAt: '',
+          isOfflineMode: true,
+        },
+      };
+    }
+
+    case 'license:verify':
+      return {
+        success: true,
+        code: 'VERIFIED',
+        message: 'الترخيص سارٍ ومعتمد لهذا الجهاز',
+        license: {
+          isActive: true,
+          licenseKey: 'RFQ-PERM-8899-A1B2',
+          shopName: 'سوبرماركت رفيق',
+          licenseType: 'lifetime',
+          status: 'active',
+          statusLabel: 'ترخيص دائم نشط (مدى الحياة)',
+          deviceFingerprint: 'RAFIQ-DEV-MOCK-FINGERPRINT-8899AABB',
+          activatedAt: '2026-09-26 22:37',
+          expiresAt: '',
+          isOfflineMode: true,
+        },
+      };
+
+    case 'system:factoryReset':
+      mockCustomers = [];
+      return {
+        success: true,
+        message: 'تم مسح وتصفير كافة البيانات بنجاح، والنظام جاهز الآن كبداية نظيفة كلياً.',
+        deletedSalesCount: 1,
+        deletedProductsCount: 1,
+        deletedCustomersCount: 1,
+      };
+
+    case 'features:getAll': {
+      try {
+        const stored = localStorage.getItem('rafiq_feature_flags');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && typeof parsed === 'object') {
+            return { ...mockFeatureFlags, ...parsed };
+          }
+        }
+      } catch {}
+      return { ...mockFeatureFlags };
+    }
+
+    case 'features:set': {
+      if (payload?.key) {
+        mockFeatureFlags[payload.key] = Boolean(payload.enabled);
+        try {
+          localStorage.setItem('rafiq_feature_flags', JSON.stringify(mockFeatureFlags));
+        } catch {}
+      }
+      return { key: payload?.key, enabled: payload?.enabled };
+    }
+
+    case 'products:getSmartCatalog':
+      return {
+        products: [],
+        customQuickItems: [],
       };
 
     default:
@@ -1496,6 +1642,14 @@ async function mockHandler(action: string, payload: any): Promise<any> {
 }
 
 // In-memory mock security variables for browser environment
+let mockFeatureFlags: Record<string, boolean> = {
+  feature_scale_weight: true,
+  feature_credit_debts: true,
+  feature_fast_buttons: true,
+  feature_taxes: false,
+  feature_expiry_dates: false,
+  feature_multi_units: false,
+};
 let mockPinHash: string | null = null;
 let mockRecoveryCode: string | null = null;
 let mockFailedAttempts = 0;
@@ -1556,50 +1710,14 @@ let mockDemoSalesCount = 0;
 let mockDemoCustomersCount = 0;
 let mockCustomers: any[] = [
   {
-    id: 'cust_1',
-    name: 'أحمد محمود العطار',
-    phone: '01012345678',
-    balancePiasters: 15000,
-    creditLimitPiasters: 100000,
-    createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
-  },
-  {
-    id: 'cust_2',
-    name: 'محمد إبراهيم حسنين',
-    phone: '01198765432',
+    id: 'cust_general_cash',
+    name: 'عميل نقدي عام',
+    phone: '',
     balancePiasters: 0,
-    creditLimitPiasters: 50000,
-    createdAt: new Date(Date.now() - 15 * 86400000).toISOString(),
-  },
-  {
-    id: 'cust_3',
-    name: 'الحاج مصطفى السعيد',
-    phone: '01234567890',
-    balancePiasters: 45000,
-    creditLimitPiasters: 80000,
-    createdAt: new Date(Date.now() - 60 * 86400000).toISOString(),
+    creditLimitPiasters: 0,
+    createdAt: new Date().toISOString(),
   },
 ];
 
-let mockLedgerEntries: any[] = [
-  {
-    id: 'ledg_init_1',
-    customerId: 'cust_1',
-    type: 'opening_balance',
-    saleId: null,
-    amountPiasters: 15000,
-    balanceAfterPiasters: 15000,
-    notes: 'رصيد افتتاحي مسجل بالدفتر',
-    createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
-  },
-  {
-    id: 'ledg_init_3',
-    customerId: 'cust_3',
-    type: 'opening_balance',
-    saleId: null,
-    amountPiasters: 45000,
-    balanceAfterPiasters: 45000,
-    notes: 'رصيد افتتاحي مسجل بالدفتر',
-    createdAt: new Date(Date.now() - 60 * 86400000).toISOString(),
-  },
-];
+let mockLedgerEntries: any[] = [];
+

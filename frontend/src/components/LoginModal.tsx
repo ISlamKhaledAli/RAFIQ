@@ -1,12 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { invoke } from '../bridge/ipc';
 import type { UserDto, LoginResult } from '../bridge/ipc';
+import { UserManagerModal } from './UserManagerModal';
+import { SupervisorPromptModal } from './SupervisorPromptModal';
 
 interface LoginModalProps {
   isOpen: boolean;
   onSuccess: (user: UserDto) => void;
   canCancel?: boolean;
   onClose?: () => void;
+  onOpenUserManager?: () => void;
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({
@@ -14,6 +17,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   onSuccess,
   canCancel = false,
   onClose,
+  onOpenUserManager,
 }) => {
   const [activeUsers, setActiveUsers] = useState<UserDto[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserDto | null>(null);
@@ -21,6 +25,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [lockoutSec, setLockoutSec] = useState(0);
+  const [isInternalUserManagerOpen, setIsInternalUserManagerOpen] = useState(false);
+  const [isSupervisorPromptOpen, setIsSupervisorPromptOpen] = useState(false);
+  const [verifiedSupervisorPin, setVerifiedSupervisorPin] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isLocked = lockoutSec > 0;
@@ -34,13 +41,28 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     return () => clearInterval(timer);
   }, [lockoutSec]);
 
+  // Fetch active users when needed
+  const fetchUsers = useCallback(async () => {
+    try {
+      const users: UserDto[] = await invoke('auth:getActiveUsers');
+      setActiveUsers(users || []);
+      if (users && users.length > 0) {
+        setSelectedUser((current) => {
+          if (current && users.some((u) => u.id === current.id)) return current;
+          return users.find((u) => u.role === 'cashier') || users[0];
+        });
+      }
+    } catch (err: any) {
+      setError(err?.message || 'تعذر تحميل قائمة الموظفين');
+    }
+  }, []);
+
   // Fetch active users on mount/open
   useEffect(() => {
     if (!isOpen) return;
     let isMounted = true;
-    const fetchUsers = async () => {
-      try {
-        const users: UserDto[] = await invoke('auth:getActiveUsers');
+    void invoke<UserDto[]>('auth:getActiveUsers')
+      .then((users) => {
         if (!isMounted) return;
         setActiveUsers(users || []);
         if (users && users.length > 0) {
@@ -50,11 +72,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             setLockoutSec(defaultPick.remainingLockoutSeconds);
           }
         }
-      } catch (err: any) {
+      })
+      .catch((err: any) => {
         if (isMounted) setError(err?.message || 'تعذر تحميل قائمة الموظفين');
-      }
-    };
-    void fetchUsers();
+      });
     return () => {
       isMounted = false;
     };
@@ -234,6 +255,27 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 })
               )}
             </div>
+
+            {/* Admin-Only Staff Management (Requires Admin PIN) */}
+            <div className="mt-3 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  if (onOpenUserManager) {
+                    onOpenUserManager();
+                  } else {
+                    setIsSupervisorPromptOpen(true);
+                  }
+                }}
+                className="w-full py-2 px-3 rounded-lg border border-slate-700/80 bg-slate-800/40 hover:bg-slate-800/80 text-slate-400 hover:text-amber-300 text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                title="تتطلب إدخال الرقم السري لمدير النظام"
+              >
+                <svg className="w-3.5 h-3.5 text-amber-400/80 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                <span>إدارة الموظفين (تتطلب رقم المدير)</span>
+              </button>
+            </div>
           </div>
 
           {/* PIN Input & Tactile Keypad (7 cols) */}
@@ -368,6 +410,33 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           <span>يدعم لوحة الأرقام المادية (Numpad) وزر Enter</span>
         </div>
       </div>
+
+      {/* Supervisor PIN Check Before Opening User Manager */}
+      <SupervisorPromptModal
+        isOpen={isSupervisorPromptOpen}
+        actionTitle="إدارة حسابات الموظفين والكاشيرات"
+        actionDescription="هذه الشاشة محمية بكلمة مرور المدير. يرجى إدخال الرقم السري لمدير النظام لتفادي أي تعديل غير مصرح به على الحسابات."
+        onApproved={(_supervisorName, approvedPin) => {
+          setIsSupervisorPromptOpen(false);
+          setVerifiedSupervisorPin(approvedPin || '');
+          setIsInternalUserManagerOpen(true);
+        }}
+        onCancel={() => setIsSupervisorPromptOpen(false)}
+      />
+
+      {/* Internal User & Cashier Manager Modal */}
+      <UserManagerModal
+        isOpen={isInternalUserManagerOpen}
+        supervisorPin={verifiedSupervisorPin}
+        onClose={() => {
+          setIsInternalUserManagerOpen(false);
+          setVerifiedSupervisorPin('');
+          void fetchUsers();
+        }}
+        onUsersChanged={() => {
+          void fetchUsers();
+        }}
+      />
     </div>
   );
 };

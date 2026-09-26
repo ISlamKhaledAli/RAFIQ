@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { FormEvent } from 'react';
 import { 
   Barcode, 
@@ -21,7 +21,9 @@ import {
   X,
   Tag,
   Percent,
-  Banknote
+  Banknote,
+  Flame,
+  Star
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { Product, SaleItem, Sale, Customer, QuickItem, SalePayment, ProductUnit } from '../types/models';
@@ -39,6 +41,7 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { UndoToast } from '../components/UndoToast';
 import { WeightInputModal } from '../components/WeightInputModal';
 import { QuickItemsManagerModal } from '../components/QuickItemsManagerModal';
+import { QuickFastItemModal } from '../components/QuickFastItemModal';
 import { PaymentModal } from '../components/PaymentModal';
 import { BarcodeScannerSettingsModal } from '../components/BarcodeScannerSettingsModal';
 import { QuickAddProductModal } from '../components/QuickAddProductModal';
@@ -75,10 +78,30 @@ export const PosView = () => {
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [quickItems, setQuickItems] = useState<QuickItem[]>([]);
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
+  const [catalogSearchQuery, setCatalogSearchQuery] = useState('');
+  const [activeCatalogTab, setActiveCatalogTab] = useState<string>('__ALL__');
+  const [localPopularity, setLocalPopularity] = useState<Record<string, number>>(() => {
+    try {
+      const stored = localStorage.getItem('rafiq_pos_item_popularity');
+      return stored ? JSON.parse(stored) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('rafiq_pos_item_popularity', JSON.stringify(localPopularity));
+    } catch {
+      // ignore
+    }
+  }, [localPopularity]);
+
   const [isQuickItemsManagerOpen, setIsQuickItemsManagerOpen] = useState(false);
+  const [isQuickFastItemModalOpen, setIsQuickFastItemModalOpen] = useState(false);
   const [openPriceItem, setOpenPriceItem] = useState<QuickItem | null>(null);
   const [openPriceInputEgp, setOpenPriceInputEgp] = useState<string>('');
-  const [activeCategory, setActiveCategory] = useState<string>('');
   const [lastInvoiceNumber, setLastInvoiceNumber] = useState<number | null>(null);
   const [nextExpectedInvoiceNumber, setNextExpectedInvoiceNumber] = useState<number | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -436,43 +459,57 @@ export const PosView = () => {
     void loadCustomers();
   }, []);
 
-  // Load Quick Items (Feature #20 / Task 20-5)
-  const loadQuickItems = useCallback(async () => {
+  // Load Quick Items & Inventory Products (Smart Catalog)
+  const loadSmartCatalog = useCallback(async () => {
     try {
-      const data = await invoke<QuickItem[]>('quickItems:getAll');
-      if (Array.isArray(data)) {
-        setQuickItems(data);
-        const cats = Array.from(new Set(data.map((i) => i.categoryName || 'عام')));
-        if (cats.length > 0) {
-          setActiveCategory((prev) => (!prev ? '__ALL__' : prev));
-        } else {
-          setActiveCategory('__ALL__');
+      const res = await invoke<{ products?: Product[]; customQuickItems?: QuickItem[] }>('products:getSmartCatalog', { limit: 1000 }).catch(() => null);
+      if (res && Array.isArray(res.products)) {
+        setCatalogProducts(res.products);
+        if (Array.isArray(res.customQuickItems)) {
+          setQuickItems(res.customQuickItems);
         }
+      } else {
+        const [pData, qData] = await Promise.all([
+          invoke<Product[]>('products:getAll', { limit: 1000 }).catch(() => []),
+          invoke<QuickItem[]>('quickItems:getAll').catch(() => [])
+        ]);
+        if (Array.isArray(pData)) setCatalogProducts(pData);
+        if (Array.isArray(qData)) setQuickItems(qData);
       }
     } catch {
       // Offline fallback
     }
   }, []);
 
+  const loadQuickItems = loadSmartCatalog;
+
   useEffect(() => {
     let active = true;
     void (async () => {
       try {
-        const data = await invoke<QuickItem[]>('quickItems:getAll');
-        if (active && Array.isArray(data)) {
-          setQuickItems(data);
-          const cats = Array.from(new Set(data.map((i) => i.categoryName || 'عام')));
-          if (cats.length > 0) {
-            setActiveCategory((prev) => (!prev ? '__ALL__' : prev));
-          } else {
-            setActiveCategory('__ALL__');
+        const res = await invoke<{ products: Product[]; customQuickItems: QuickItem[] }>('products:getSmartCatalog', { limit: 1000 }).catch(() => null);
+        if (!active) return;
+        if (res && Array.isArray(res.products)) {
+          setCatalogProducts(res.products);
+          if (Array.isArray(res.customQuickItems)) {
+            setQuickItems(res.customQuickItems);
           }
+        } else {
+          const [pData, qData] = await Promise.all([
+            invoke<Product[]>('products:getAll', { limit: 1000 }).catch(() => []),
+            invoke<QuickItem[]>('quickItems:getAll').catch(() => [])
+          ]);
+          if (!active) return;
+          if (Array.isArray(pData)) setCatalogProducts(pData);
+          if (Array.isArray(qData)) setQuickItems(qData);
         }
       } catch {
         // Offline fallback
       }
     })();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, []);
 
   // Feature #131: Load scanner settings on mount
@@ -849,43 +886,210 @@ export const PosView = () => {
     });
   }, [cart]);
 
-  // Add from fast-item grid (Feature #20 / Task 20-5)
-  const handleFastItemClick = (fastItem: QuickItem) => {
-    if (fastItem.isOpenPrice) {
-      setOpenPriceItem(fastItem);
+  // Unified Smart Item Representation
+  interface SmartCatalogItem {
+    id: string;
+    productId?: string | null;
+    name: string;
+    pricePiasters: number;
+    isOpenPrice: boolean;
+    unit: string;
+    categoryId?: string | null;
+    categoryName: string;
+    stockQuantityMilli?: number;
+    barcode?: string | null;
+    barcodes?: string[];
+    units?: ProductUnit[];
+    isCustomQuickItem: boolean;
+    salesCount: number;
+    quickDisplayOrder: number;
+    productRef?: Product;
+  }
+
+  const smartItems = useMemo<SmartCatalogItem[]>(() => {
+    const list: SmartCatalogItem[] = [];
+    const seenProductIds = new Set<string>();
+
+    for (const p of catalogProducts) {
+      const matchedQuick = quickItems.find((q) => q.productId === p.id);
+      const isCustom = Boolean(matchedQuick) || Boolean(p.isCustomQuickItem);
+      const popScore = (p.salesCount || 0) + (localPopularity[p.id] || 0);
+
+      list.push({
+        id: p.id,
+        productId: p.id,
+        name: p.name,
+        pricePiasters: p.pricePiasters,
+        isOpenPrice: matchedQuick?.isOpenPrice || Boolean(p.isOpenPrice),
+        unit: p.unit || 'piece',
+        categoryId: p.categoryId,
+        categoryName: p.categoryName || 'عام',
+        stockQuantityMilli: p.stockQuantityMilli,
+        barcode: p.barcode,
+        barcodes: p.barcodes,
+        units: p.units,
+        isCustomQuickItem: isCustom,
+        salesCount: popScore,
+        quickDisplayOrder: matchedQuick?.displayOrder ?? p.quickDisplayOrder ?? 9999,
+        productRef: p,
+      });
+      seenProductIds.add(p.id);
+    }
+
+    for (const q of quickItems) {
+      if (q.productId && seenProductIds.has(q.productId)) continue;
+      const popScore = localPopularity[q.id] || 0;
+      list.push({
+        id: q.id,
+        productId: q.productId,
+        name: q.name,
+        pricePiasters: q.pricePiasters,
+        isOpenPrice: Boolean(q.isOpenPrice),
+        unit: q.unit || 'piece',
+        categoryId: null,
+        categoryName: q.categoryName || 'عام',
+        isCustomQuickItem: true,
+        salesCount: popScore,
+        quickDisplayOrder: q.displayOrder ?? 0,
+      });
+    }
+
+    return list;
+  }, [catalogProducts, quickItems, localPopularity]);
+
+  const categoryTabs = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const it of smartItems) {
+      const c = it.categoryName?.trim() || 'عام';
+      map.set(c, (map.get(c) || 0) + 1);
+    }
+    const list = Array.from(map.entries()).map(([name, count]) => ({ name, count }));
+    // Hide 'عام' if it's the only category in store to avoid duplicate tab with 'الكل'
+    if (list.length === 1 && list[0].name === 'عام') {
+      return [];
+    }
+    return list;
+  }, [smartItems]);
+
+  const customItemsCount = useMemo(() => {
+    return smartItems.filter((i) => i.isCustomQuickItem).length;
+  }, [smartItems]);
+
+  const popularItemsCount = useMemo(() => {
+    const count = smartItems.filter((i) => (i.salesCount || 0) > 0).length;
+    return Math.min(count, 100);
+  }, [smartItems]);
+
+  const displayedCatalogItems = useMemo(() => {
+    let result = smartItems;
+
+    const query = catalogSearchQuery.trim().toLowerCase();
+    if (query) {
+      result = result.filter((it) => {
+        const matchName = it.name.toLowerCase().includes(query);
+        const matchBarcode = it.barcode ? it.barcode.toLowerCase().includes(query) : false;
+        return matchName || matchBarcode;
+      });
+    }
+
+    if (activeCatalogTab === '__POPULAR__') {
+      return result
+        .filter((it) => (it.salesCount || 0) > 0)
+        .sort((a, b) => {
+          const countB = b.salesCount || 0;
+          const countA = a.salesCount || 0;
+          if (countB !== countA) return countB - countA;
+          if (a.isCustomQuickItem !== b.isCustomQuickItem) return a.isCustomQuickItem ? -1 : 1;
+          return a.name.localeCompare(b.name, 'ar');
+        })
+        .slice(0, 100);
+    }
+
+    if (activeCatalogTab === '__CUSTOM__') {
+      return result
+        .filter((it) => it.isCustomQuickItem)
+        .sort((a, b) => a.quickDisplayOrder - b.quickDisplayOrder);
+    }
+
+    if (activeCatalogTab === '__ALL__') {
+      return [...result].sort((a, b) => {
+        if (a.isCustomQuickItem !== b.isCustomQuickItem) return a.isCustomQuickItem ? -1 : 1;
+        if (b.salesCount !== a.salesCount) return b.salesCount - a.salesCount;
+        return a.name.localeCompare(b.name, 'ar');
+      });
+    }
+
+    return result
+      .filter((it) => (it.categoryName || 'عام') === activeCatalogTab)
+      .sort((a, b) => {
+        if (b.salesCount !== a.salesCount) return b.salesCount - a.salesCount;
+        return a.name.localeCompare(b.name, 'ar');
+      });
+  }, [smartItems, catalogSearchQuery, activeCatalogTab]);
+
+  // Add from smart catalog / fast-item grid
+  const handleSmartItemClick = useCallback((item: SmartCatalogItem) => {
+    // Smart Real-time Learning: Increment local popularity on tap
+    setLocalPopularity((prev) => ({
+      ...prev,
+      [item.id]: (prev[item.id] || 0) + 1,
+    }));
+
+    if (item.isOpenPrice) {
+      setOpenPriceItem({
+        id: item.id,
+        productId: item.productId || item.id,
+        name: item.name,
+        pricePiasters: item.pricePiasters,
+        isOpenPrice: true,
+        unit: item.unit,
+        categoryName: item.categoryName,
+        color: null,
+        displayOrder: 0,
+        createdAt: '',
+        updatedAt: '',
+      });
       setOpenPriceInputEgp('');
       return;
     }
 
-    if (fastItem.unit === 'kg') {
+    if (item.productRef) {
+      addProductToCart(item.productRef);
+      showStatus(`تمت إضافة: ${item.name}`, 'success');
+      barcodeInputRef.current?.focus();
+      return;
+    }
+
+    if (item.unit === 'kg') {
       setInitialWeightMilli(1000);
       setWeightModalProduct({
-        id: fastItem.productId || `quick_${fastItem.id}`,
-        name: fastItem.name,
-        pricePiasters: fastItem.pricePiasters,
-        barcode: null,
+        id: item.productId || item.id,
+        name: item.name,
+        pricePiasters: item.pricePiasters,
+        barcode: item.barcode || null,
         unit: 'kg',
       });
       return;
     }
 
     const dummyProduct: Product = {
-      id: fastItem.productId || `quick_${fastItem.id}`,
-      name: fastItem.name,
-      barcode: null,
-      pricePiasters: fastItem.pricePiasters,
-      costPiasters: Math.round(fastItem.pricePiasters * 0.75),
-      stockQuantityMilli: 100000,
-      unit: fastItem.unit || 'piece',
+      id: item.productId || item.id,
+      name: item.name,
+      barcode: item.barcode || null,
+      pricePiasters: item.pricePiasters,
+      costPiasters: Math.round(item.pricePiasters * 0.75),
+      stockQuantityMilli: item.stockQuantityMilli !== undefined ? item.stockQuantityMilli : 100000,
+      unit: item.unit || 'piece',
       taxRatePercent: 0,
       isActive: true,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      units: item.units,
     };
     addProductToCart(dummyProduct);
-    showStatus(`تمت إضافة: ${fastItem.name}`, 'success');
+    showStatus(`تمت إضافة: ${item.name}`, 'success');
     barcodeInputRef.current?.focus();
-  };
+  }, [addProductToCart, showStatus]);
 
   const handleConfirmOpenPrice = (e?: FormEvent) => {
     if (e) e.preventDefault();
@@ -1168,6 +1372,7 @@ export const PosView = () => {
         setIsScannerModalOpen(false);
         setIsQuickAddModalOpen(false);
         setIsQuickItemsManagerOpen(false);
+        setIsQuickFastItemModalOpen(false);
         setWeightModalProduct(null);
         setIsSearchDropdownOpen(false);
         barcodeInputRef.current?.focus();
@@ -1236,7 +1441,7 @@ export const PosView = () => {
   useEffect(() => {
     const isAnyModalOpen = isPaymentModalOpen || isReceiptOpen || isClearConfirmOpen || 
       isScannerModalOpen || isQuickAddModalOpen || isQuickItemsManagerOpen || 
-      isHelpModalOpen || !!weightModalProduct;
+      isQuickFastItemModalOpen || isHelpModalOpen || !!weightModalProduct;
 
     if (!isAnyModalOpen) {
       const timer = setTimeout(() => {
@@ -1251,6 +1456,7 @@ export const PosView = () => {
     isScannerModalOpen, 
     isQuickAddModalOpen, 
     isQuickItemsManagerOpen, 
+    isQuickFastItemModalOpen, 
     isHelpModalOpen, 
     weightModalProduct
   ]);
@@ -1426,7 +1632,7 @@ export const PosView = () => {
                     توجد فاتورة سابقة مفتوحة لم تكتمل (حُفظت تلقائياً قبل إغلاق النظام أو انقطاع الكهرباء):
                   </div>
                   <div className="text-[11px] text-ink-muted mt-0.5">
-                    عدد الأصناف: {draftPrompt.items.length} — الإجمالي: {formatArabicCurrency(draftPrompt.items.reduce((sum, i) => sum + i.totalPiasters, 0) - (draftPrompt.discountPiasters || 0))} — تم الحفظ: {new Date(draftPrompt.savedAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                    عدد الأصناف: {draftPrompt.items.length} — الإجمالي: {formatArabicCurrency(draftPrompt.items.reduce((sum, i) => sum + i.totalPiasters, 0) - (draftPrompt.discountPiasters || 0))} — تم الحفظ: {new Date(draftPrompt.savedAt).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>
               </div>
@@ -1696,122 +1902,240 @@ export const PosView = () => {
           </div>
         </section>
 
-        {/* ================= REGION C: FAST ITEMS GRID (Middle Section - Toggled by Feature #105) ================= */}
+                {/* ================= REGION C: SMART PRODUCTS & FAST ITEMS GRID ================= */}
         {showFastItems && (
-          <section className="w-[30%] min-w-[260px] max-w-[380px] h-full bg-surface-2 hairline-l flex flex-col p-2.5 sm:p-3 select-none overflow-hidden shrink-0">
+          <section className="w-[34%] min-w-[290px] max-w-[440px] h-full bg-slate-50 dark:bg-slate-950 hairline-l flex flex-col p-2.5 sm:p-3 select-none overflow-hidden shrink-0">
             {/* Section Header */}
             <div className="flex items-center justify-between mb-2 pb-1.5 hairline-b shrink-0">
               <div className="flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4 text-brand" />
-                <span className="text-[13px] font-bold text-ink">الأصناف السريعة</span>
+                <span className="text-[13px] font-bold text-ink">أصناف المحل والسريعة</span>
                 <span className="text-[10px] font-mono bg-brand-soft text-brand font-bold px-1.5 py-0.5 rounded">
-                  {quickItems.length}
+                  {smartItems.length}
                 </span>
               </div>
-              <button
-                onClick={() => setIsQuickItemsManagerOpen(true)}
-                className="flex items-center gap-1 text-[11px] text-ink-muted hover:text-brand px-1.5 py-0.5 rounded hover:bg-surface transition-colors"
-                title="إدارة وتعديل الأصناف السريعة"
-              >
-                <Settings className="w-3.5 h-3.5" />
-                <span>تخصيص</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setIsQuickFastItemModalOpen(true)}
+                  className="flex items-center gap-1 text-[11px] font-bold text-white bg-[#006d41] hover:bg-[#005231] active:bg-[#00372d] px-2.5 py-0.5 rounded-md transition-all shadow-2xs cursor-pointer active:translate-y-0.5"
+                  title="إضافة صنف سريع جديد يظهر في أزرار المحل بدون مخزن"
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>+ صنف سريع</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsQuickItemsManagerOpen(true)}
+                  className="flex items-center gap-1 text-[11px] font-semibold text-slate-700 dark:text-slate-300 bg-surface hover:bg-surface-2 border border-line px-2 py-0.5 rounded-md transition-all shadow-2xs cursor-pointer active:translate-y-0.5"
+                  title="إدارة وتخصيص وترتيب الأصناف السريعة والمفضلة"
+                >
+                  <Settings className="w-3.5 h-3.5 text-ink-muted" />
+                  <span className="hidden sm:inline">إدارة</span>
+                </button>
+              </div>
             </div>
 
-            {/* Dynamic Category Tabs */}
-            {(() => {
-              const categories = Array.from(new Set(quickItems.map((i) => i.categoryName || 'عام')));
-              if (categories.length === 0) categories.push('عام');
-              return (
-                <div className="flex flex-wrap gap-1.5 bg-surface-2 p-1.5 rounded-lg border border-line mb-2 shrink-0 max-h-28 overflow-y-auto">
+            {/* Quick Catalog Search Bar */}
+            <div className="relative mb-2 shrink-0">
+              <Search className="w-3.5 h-3.5 text-ink-muted absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={catalogSearchQuery}
+                onChange={(e) => setCatalogSearchQuery(e.target.value)}
+                placeholder="بحث فوري في الأصناف..."
+                className="w-full h-7 pr-8 pl-6 text-[11px] bg-surface rounded-md border border-line focus:border-brand focus:ring-1 focus:ring-brand/30 outline-hidden transition-all placeholder:text-ink-muted/70 text-ink font-medium"
+              />
+              {catalogSearchQuery && (
+                <button
+                  onClick={() => setCatalogSearchQuery('')}
+                  className="absolute left-1.5 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink p-0.5 rounded cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Smart Navigation & Category Tabs */}
+            <div className="flex flex-wrap gap-1 bg-surface-2 p-1 rounded-lg border border-line mb-2 shrink-0 max-h-24 overflow-y-auto">
+              <button
+                key="__POPULAR__"
+                onClick={() => setActiveCatalogTab('__POPULAR__')}
+                className={`h-6 text-[10px] sm:text-[11px] font-bold rounded-md transition-all px-2 py-0.5 text-center cursor-pointer border shadow-2xs flex items-center gap-1 ${
+                  activeCatalogTab === '__POPULAR__'
+                    ? 'bg-amber-600 text-white border-amber-600 shadow-xs ring-1 ring-amber-600/30'
+                    : 'bg-surface text-slate-700 border-slate-300 hover:border-amber-500 hover:bg-amber-50 hover:text-amber-800'
+                }`}
+                title="المنتجات الأكثر مبيعاً واستخداماً تلقائياً"
+              >
+                <Flame className="w-3 h-3 text-current" />
+                <span>الأكثر طلباً ({popularItemsCount})</span>
+              </button>
+
+              <button
+                key="__CUSTOM__"
+                onClick={() => setActiveCatalogTab('__CUSTOM__')}
+                className={`h-6 text-[10px] sm:text-[11px] font-bold rounded-md transition-all px-2 py-0.5 text-center cursor-pointer border shadow-2xs flex items-center gap-1 ${
+                  activeCatalogTab === '__CUSTOM__'
+                    ? 'bg-brand text-white border-brand shadow-xs ring-1 ring-brand/30'
+                    : 'bg-surface text-slate-700 border-slate-300 hover:border-brand/70 hover:bg-brand-soft/50 hover:text-brand'
+                }`}
+                title="الأصناف المخصصة والمفضلة يدوياً"
+              >
+                <Star className="w-3 h-3 text-current" />
+                <span>المفضلة ({customItemsCount})</span>
+              </button>
+
+              <button
+                key="__ALL__"
+                onClick={() => setActiveCatalogTab('__ALL__')}
+                className={`h-6 text-[10px] sm:text-[11px] font-bold rounded-md transition-all px-2 py-0.5 text-center cursor-pointer border shadow-2xs flex items-center gap-1 ${
+                  activeCatalogTab === '__ALL__'
+                    ? 'bg-brand text-white border-brand shadow-xs ring-1 ring-brand/30'
+                    : 'bg-surface text-slate-700 border-slate-300 hover:border-brand/70 hover:bg-brand-soft/50 hover:text-brand'
+                }`}
+              >
+                الكل ({smartItems.length})
+              </button>
+
+              {categoryTabs.map((cat) => (
+                <button
+                  key={cat.name}
+                  onClick={() => setActiveCatalogTab(cat.name)}
+                  className={`h-6 text-[10px] sm:text-[11px] font-bold rounded-md transition-all px-2 py-0.5 text-center cursor-pointer border shadow-2xs flex items-center gap-1 ${
+                    activeCatalogTab === cat.name
+                      ? 'bg-brand text-white border-brand shadow-xs ring-1 ring-brand/30'
+                      : 'bg-surface text-slate-700 border-slate-300 hover:border-brand/70 hover:bg-brand-soft/50 hover:text-brand'
+                  }`}
+                >
+                  <span>{cat.name}</span>
+                  <span className="text-[9px] opacity-75 font-mono">({cat.count})</span>
+                </button>
+              ))}
+            </div>
+
+            {/* 2-Column Grid of Smart Catalog Items */}
+            <div className="flex-1 grid grid-cols-2 gap-2 overflow-y-auto pr-0.5 content-start">
+              {displayedCatalogItems.map((item) => {
+                const isOutOfStock = (item.stockQuantityMilli !== undefined) && item.stockQuantityMilli <= 0;
+                const isTopSeller = item.salesCount > 0;
+
+                return (
                   <button
-                    key="__ALL__"
-                    onClick={() => setActiveCategory('__ALL__')}
-                    className={`h-7 text-[10px] sm:text-[11px] font-bold rounded-md transition-all px-2.5 py-0.5 text-center cursor-pointer border shadow-2xs flex items-center gap-1 ${
-                      activeCategory === '__ALL__' 
-                        ? 'bg-brand text-white border-brand shadow-xs ring-1 ring-brand/30' 
-                        : 'bg-surface text-slate-700 border-slate-300 hover:border-brand/70 hover:bg-brand-soft/50 hover:text-brand hover:-translate-y-0.5'
+                    key={item.id}
+                    onClick={() => handleSmartItemClick(item)}
+                    className={`min-h-[82px] sm:min-h-[86px] rounded-xl p-2.5 flex flex-col justify-between text-right transition-all duration-150 shadow-2xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] group cursor-pointer border ${
+                      isOutOfStock
+                        ? 'bg-rose-50/40 dark:bg-rose-950/20 border-rose-200/80 dark:border-rose-900/50 hover:border-rose-400'
+                        : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 hover:border-[#006d41] dark:hover:border-emerald-500'
                     }`}
                   >
-                    الكل ({quickItems.length})
-                  </button>
-                  {categories.map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() => setActiveCategory(cat)}
-                      className={`h-7 text-[10px] sm:text-[11px] font-bold rounded-md transition-all px-2.5 py-0.5 text-center cursor-pointer border shadow-2xs flex items-center gap-1 ${
-                        activeCategory === cat 
-                          ? 'bg-brand text-white border-brand shadow-xs ring-1 ring-brand/30' 
-                          : 'bg-surface text-slate-700 border-slate-300 hover:border-brand/70 hover:bg-brand-soft/50 hover:text-brand hover:-translate-y-0.5'
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-              );
-            })()}
-
-            {/* 2-Column Grid of Quick Items */}
-            <div className="flex-1 grid grid-cols-2 gap-1.5 sm:gap-2 overflow-y-auto pr-0.5 content-start">
-              {quickItems
-                .filter((i) => activeCategory === '__ALL__' || (i.categoryName || 'عام') === activeCategory)
-                .sort((a, b) => a.displayOrder - b.displayOrder)
-                .map((fastItem) => (
-                  <button
-                    key={fastItem.id}
-                    onClick={() => handleFastItemClick(fastItem)}
-                    className="min-h-[58px] bg-surface hover:bg-brand-soft/60 border border-line hover:border-brand rounded-md p-2 flex flex-col justify-between text-right transition-all shadow-2xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] group cursor-pointer"
-                  >
-                    <div className="flex items-start justify-between w-full gap-1">
-                      <span className="text-[11px] sm:text-[12px] font-bold text-ink line-clamp-2 leading-tight group-hover:text-brand">
-                        {fastItem.name}
+                    <div className="flex items-start justify-between w-full gap-1.5">
+                      <span className="text-[12px] sm:text-[12.5px] font-bold text-slate-800 dark:text-slate-100 line-clamp-2 leading-snug group-hover:text-[#006d41] dark:group-hover:text-emerald-400 transition-colors">
+                        {item.name}
                       </span>
-                      {fastItem.isOpenPrice && (
-                        <span className="text-[8px] bg-amber-500/15 text-amber-700 dark:text-amber-300 px-1 py-0.5 rounded font-bold shrink-0">
-                          حر
+                      <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                        {item.isOpenPrice && (
+                          <span className="text-[9px] bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-300/60 px-1.5 py-0.5 rounded-md font-bold">
+                            حر
+                          </span>
+                        )}
+                        {item.isCustomQuickItem && (
+                          <span className="text-[9px] bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-300/60 px-1.5 py-0.5 rounded-md font-bold" title="صنف مخصص">
+                            ★
+                          </span>
+                        )}
+                        {isTopSeller && activeCatalogTab === '__POPULAR__' && (
+                          <span className="text-[9px] bg-orange-100 text-orange-800 dark:bg-orange-950/60 dark:text-orange-300 border border-orange-300/60 px-1.5 py-0.5 rounded-md font-bold flex items-center gap-0.5" title={`تم بيعه ${item.salesCount} مرة`}>
+                            🔥 {item.salesCount}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between w-full mt-2 pt-1.5 border-t border-slate-100 dark:border-slate-800/80 gap-1.5">
+                      <div className="flex items-center gap-1 min-w-0">
+                        {isOutOfStock ? (
+                          <span className="text-[10px] font-bold bg-rose-100/90 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300/80 px-1.5 py-0.5 rounded-md flex items-center gap-1 shrink-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                            <span>نفد</span>
+                          </span>
+                        ) : item.unit === 'kg' ? (
+                          <span className="text-[10px] font-bold bg-sky-50 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300 border border-sky-200/80 px-1.5 py-0.5 rounded-md shrink-0">
+                            ميزان
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate max-w-[85px] bg-slate-100/80 dark:bg-slate-800/60 px-1.5 py-0.5 rounded border border-slate-200/60 dark:border-slate-700/50">
+                            {item.categoryName || 'عام'}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="px-2 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/90 dark:border-emerald-800/60 flex items-center shrink-0">
+                        <span className="text-[12px] sm:text-[13px] font-mono font-black text-emerald-800 dark:text-emerald-300 tabular-nums">
+                          {item.isOpenPrice ? 'سعر حر' : formatArabicCurrency(item.pricePiasters)}
                         </span>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between w-full mt-1 pt-1 border-t border-line/60">
-                      <span className="text-[9px] text-ink-muted">سعر:</span>
-                      <span className="text-[11px] sm:text-[12px] font-mono text-emerald-700 dark:text-emerald-400 font-bold tabular-nums">
-                        {fastItem.isOpenPrice ? 'تحديد حر' : formatArabicCurrency(fastItem.pricePiasters)}
-                      </span>
+                      </div>
                     </div>
                   </button>
-                ))}
+                );
+              })}
 
-              {quickItems.filter((i) => activeCategory === '__ALL__' || (i.categoryName || 'عام') === activeCategory).length === 0 && (
+              {displayedCatalogItems.length === 0 && (
                 <div className="col-span-2 flex flex-col items-center justify-center p-6 text-center text-ink-muted my-auto">
                   <Sparkles className="w-8 h-8 mb-2 opacity-30 text-brand" />
-                  <p className="text-[12px] font-medium">لا توجد أصناف في هذا القسم</p>
-                  <button
-                    onClick={() => setIsQuickItemsManagerOpen(true)}
-                    className="mt-2 text-[11px] text-brand hover:underline font-bold"
-                  >
-                    + إضافة أصناف الآن
-                  </button>
+                  {activeCatalogTab === '__POPULAR__' ? (
+                    <p className="text-[12px] font-medium leading-relaxed">
+                      لم تسجل أي عمليات بيع بعد لحساب الأكثر طلباً.<br />
+                      ستظهر الأصناف الأكثر مبيعاً هنا تلقائياً بمجرد إتمام الفواتير.
+                    </p>
+                  ) : activeCatalogTab === '__CUSTOM__' ? (
+                    <p className="text-[12px] font-medium leading-relaxed">
+                      لم تقم بتخصيص أزرار سريعة بعد.<br />
+                      اضغط على «تخصيص» بالأسفل لإنشاء أزرارك السريعة.
+                    </p>
+                  ) : (
+                    <p className="text-[12px] font-medium">لا توجد أصناف تطابق هذا البحث أو القسم</p>
+                  )}
+                  {activeCatalogTab === '__CUSTOM__' && (
+                    <button
+                      type="button"
+                      onClick={() => setIsQuickFastItemModalOpen(true)}
+                      className="mt-3 px-3 py-1.5 bg-[#006d41] hover:bg-[#005231] text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ إضافة أول صنف سريع الآن</span>
+                    </button>
+                  )}
                 </div>
               )}
             </div>
 
-            {/* Bottom Quick Items Manage Shortcut */}
-            <button
-              onClick={() => setIsQuickItemsManagerOpen(true)}
-              className="mt-1.5 bg-surface hover:bg-surface-2 p-1.5 rounded border border-line flex items-center justify-between text-[10px] sm:text-[11px] text-ink-muted hover:text-brand transition-colors shrink-0"
-            >
-              <div className="flex items-center gap-1.5">
-                <Settings className="w-3.5 h-3.5" />
-                <span className="font-semibold">تخصيص القائمة السريعة</span>
-              </div>
-              <span className="font-mono text-[9px] sm:text-[10px]">{quickItems.length} صنف</span>
-            </button>
+            {/* Bottom Quick Items Manage Strip */}
+            <div className="mt-1.5 bg-surface hover:bg-surface-2 p-1.5 rounded border border-line flex items-center justify-between text-[10px] sm:text-[11px] text-ink-muted transition-colors shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsQuickFastItemModalOpen(true)}
+                className="flex items-center gap-1 font-bold text-[#006d41] hover:underline cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>إضافة صنف سريع بدون مخزون</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsQuickItemsManagerOpen(true)}
+                className="flex items-center gap-1 text-ink-muted hover:text-ink cursor-pointer"
+                title="تخصيص وترتيب الأصناف السريعة"
+              >
+                <Settings className="w-3.5 h-3.5 text-brand" />
+                <span className="font-mono text-[9px] sm:text-[10px]">{customItemsCount} صنف مخصص</span>
+              </button>
+            </div>
           </section>
         )}
 
         {/* ================= REGION B: FINANCIAL TOTALS & PAYMENT PANEL (Left / Final Section - Compact) ================= */}
-        <section className="w-[24%] min-w-[210px] max-w-[290px] h-full bg-surface flex flex-col justify-between p-2.5 sm:p-3 select-none overflow-y-auto shrink-0">
+        <section className="w-[23%] min-w-[210px] max-w-[280px] h-full bg-surface flex flex-col justify-between p-2.5 sm:p-3 select-none overflow-y-auto shrink-0">
           {/* Top Section: Line Breakdown */}
           <div className="flex flex-col gap-2">
             <div className="pb-1.5 hairline-b flex items-center justify-between">
@@ -2286,6 +2610,22 @@ export const PosView = () => {
           barcodeInputRef.current?.focus();
         }}
         onItemsChanged={loadQuickItems}
+      />
+
+      {/* 8. QUICK FAST ITEM MODAL (Direct creation without inventory overhead) */}
+      <QuickFastItemModal
+        isOpen={isQuickFastItemModalOpen}
+        onClose={() => {
+          setIsQuickFastItemModalOpen(false);
+          barcodeInputRef.current?.focus();
+        }}
+        onItemAdded={(savedItem) => {
+          void loadQuickItems();
+          setActiveCatalogTab('__CUSTOM__');
+          showStatus(`تمت إضافة الصنف السريع "${savedItem.name}" بنجاح!`, 'success');
+        }}
+        onOpenFullManager={() => setIsQuickItemsManagerOpen(true)}
+        existingCategories={categoryTabs.map(c => c.name).filter(n => n && n !== 'الكل' && n !== 'الأكثر طلباً')}
       />
 
       {/* 9. OPEN PRICE NUMPAD PROMPT MODAL (Feature #20 / Task 20-5) */}

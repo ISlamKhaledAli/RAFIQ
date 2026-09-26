@@ -55,6 +55,7 @@ arabic.FinishedLabel=تم اكتمال تثبيت رفيق POS بنجاح.%n%nا
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
+Name: "cleaninstall"; Description: "مسح أي بيانات سابقة والبدء من جديد تماماً (تثبيت نظيف 100%)"; GroupDescription: "تهيئة البيانات:"; Flags: checkedonce
 
 [Dirs]
 ; إعطاء صلاحيات الكتابة الكاملة لجميع المستخدمين في مجلد البيانات
@@ -317,7 +318,23 @@ begin
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
+var
+  DataDir: String;
 begin
+  if CurStep = ssInstall then
+  begin
+    if WizardIsTaskSelected('cleaninstall') then
+    begin
+      DataDir := ExpandConstant('{commonappdata}\RafiqPOS\data');
+      if DirExists(DataDir) then
+      begin
+        DeleteFile(DataDir + '\rafiq_pos.db');
+        DeleteFile(DataDir + '\rafiq_pos.db-wal');
+        DeleteFile(DataDir + '\rafiq_pos.db-shm');
+      end;
+    end;
+  end;
+
   if CurStep = ssDone then
   begin
     AllowSetForegroundWindow(ASFW_ANY);

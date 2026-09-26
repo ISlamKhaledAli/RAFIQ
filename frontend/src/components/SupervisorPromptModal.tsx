@@ -5,7 +5,7 @@ interface SupervisorPromptModalProps {
   isOpen: boolean;
   actionTitle: string;
   actionDescription?: string;
-  onApproved: (supervisorName?: string) => void;
+  onApproved: (supervisorName?: string, verifiedPin?: string) => void;
   onCancel: () => void;
 }
 
@@ -54,8 +54,9 @@ export const SupervisorPromptModal: React.FC<SupervisorPromptModalProps> = ({
       });
 
       if (res && res.success) {
+        const approvedPin = pin;
         setPin('');
-        onApproved(res.supervisorName || 'مدير النظام');
+        onApproved(res.supervisorName || 'مدير النظام', approvedPin);
       } else {
         setError(res?.message || 'الرقم السري للمدير غير صحيح');
         setPin('');

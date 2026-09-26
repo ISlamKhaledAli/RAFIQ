@@ -43,9 +43,10 @@ import { ProductUnitsEditor } from '../components/ProductUnitsEditor';
 
 export interface ProductsViewProps {
   subView?: 'catalog' | 'movements';
+  onSubViewChange?: (view: 'catalog' | 'movements') => void;
 }
 
-export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
+export const ProductsView: React.FC<ProductsViewProps> = ({ subView, onSubViewChange }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -120,8 +121,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
   };
 
   // Stock Movements & Inventory state (Stories 38 & 39 / Features #34 & #35)
-  const [internalSubView] = useState<'catalog' | 'movements'>('catalog');
+  const [internalSubView, setInternalSubView] = useState<'catalog' | 'movements'>('catalog');
   const activeSubView = subView ?? internalSubView;
+
+  const handleSubViewChange = (tab: 'catalog' | 'movements') => {
+    setInternalSubView(tab);
+    if (onSubViewChange) {
+      onSubViewChange(tab);
+    }
+  };
+
   const [selectedProdForMovements, setSelectedProdForMovements] = useState<Product | null>(null);
   const [selectedProdForAdjustment, setSelectedProdForAdjustment] = useState<Product | null>(null);
   const [allMovements, setAllMovements] = useState<StockMovement[]>([]);
@@ -496,7 +505,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
       setSimilarWarning(null);
       setBelowCostWarning(null);
       setShowModal(false);
-      openAddModal();
+      setEditingId(null);
       void loadProducts(searchQuery);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -521,28 +530,41 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
       {/* 1. Header Toolbar (Title, Count Badge, Search, Add Button) */}
       <div className="min-h-[56px] py-2 bg-surface hairline-all rounded-[6px] px-3 sm:px-4 flex flex-wrap items-center justify-between gap-2 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-brand-soft text-brand flex items-center justify-center font-bold">
-            {activeSubView === 'catalog' ? (
+          <div className="flex items-center bg-surface-2 p-1 rounded-lg border border-line gap-1">
+            <button
+              type="button"
+              onClick={() => handleSubViewChange('catalog')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                activeSubView === 'catalog'
+                  ? 'bg-brand text-on-brand shadow-xs'
+                  : 'text-ink-muted hover:text-ink hover:bg-surface'
+              }`}
+            >
               <Package className="w-4 h-4" />
-            ) : (
+              <span>كتالوج الأصناف والأسعار</span>
+              <span className="font-mono text-[10.5px] opacity-80 tabular-nums">({products.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSubViewChange('movements')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                activeSubView === 'movements'
+                  ? 'bg-brand text-on-brand shadow-xs'
+                  : 'text-ink-muted hover:text-ink hover:bg-surface'
+              }`}
+            >
               <Boxes className="w-4 h-4" />
-            )}
+              <span>دفتر حركات وجرد المخزون</span>
+              <span className="font-mono text-[10.5px] opacity-80 tabular-nums">({allMovements.length})</span>
+            </button>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-[15px] font-bold text-ink leading-tight m-0">
-                {activeSubView === 'catalog' ? 'كتالوج الأصناف والأسعار' : 'دفتر حركات وجرد المخزون'}
-              </h2>
-              <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-surface-2 border border-line text-ink-muted tabular-nums">
-                {activeSubView === 'catalog' ? `${products.length} صنف مسجل` : `${allMovements.length} حركة مسجلة`}
-              </span>
-              {activeSubView === 'movements' && discrepancies.length > 0 && (
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-700 animate-pulse">
-                  {discrepancies.length} صنف بحاجة لمطابقة
-                </span>
-              )}
-            </div>
-          </div>
+
+          {activeSubView === 'movements' && discrepancies.length > 0 && (
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-700 animate-pulse">
+              {discrepancies.length} صنف بحاجة لمطابقة
+            </span>
+          )}
         </div>
 
         {/* Right Search Input & Add Button */}
@@ -1157,7 +1179,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
                     const dateFormatted = (() => {
                       try {
                         const d = new Date(m.createdAt);
-                        return d.toLocaleDateString('ar-EG', {
+                        return d.toLocaleDateString('ar-EG-u-nu-latn', {
                           month: 'short',
                           day: 'numeric',
                           hour: '2-digit',

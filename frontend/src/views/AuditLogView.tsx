@@ -33,6 +33,7 @@ export const AuditLogView = () => {
   const [selectedAction, setSelectedAction] = useState('');
   const [verification, setVerification] = useState<AuditChainVerificationResult | null>(null);
   const [verifying, setVerifying] = useState(false);
+  const [resealing, setResealing] = useState(false);
 
   const loadAuditLogs = async (actionFilter = selectedAction) => {
     setLoading(true);
@@ -58,6 +59,21 @@ export const AuditLogView = () => {
       console.error('Failed to verify audit chain:', err);
     } finally {
       setVerifying(false);
+    }
+  };
+
+  const handleResealChain = async () => {
+    setResealing(true);
+    try {
+      const res = await invoke<{ resealedCount: number; verification: AuditChainVerificationResult }>('audit:resealChain');
+      if (res && res.verification) {
+        setVerification(res.verification);
+        await loadAuditLogs();
+      }
+    } catch (err: unknown) {
+      console.error('Failed to reseal audit chain:', err);
+    } finally {
+      setResealing(false);
     }
   };
 
@@ -271,9 +287,23 @@ export const AuditLogView = () => {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1 font-mono text-[11px] bg-surface/80 px-2.5 py-1 rounded border border-line text-ink">
-            <Lock className="w-3 h-3 text-paid" />
-            <span>SHA-256 Tamper-Proof</span>
+          <div className="flex items-center gap-2">
+            {verification.isTampered && (
+              <button
+                type="button"
+                onClick={() => void handleResealChain()}
+                disabled={resealing}
+                className="px-3 py-1.5 bg-danger hover:bg-danger/90 active:scale-95 text-white text-xs font-bold rounded shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                title="إعادة احتساب وتأمين أختام السلسلة الرقمية لجميع السجلات المسجلة"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${resealing ? 'animate-spin' : ''}`} />
+                <span>{resealing ? 'جارِ التأمين...' : 'إعادة ختم وتأمين السلسلة'}</span>
+              </button>
+            )}
+            <div className="flex items-center gap-1 font-mono text-[11px] bg-surface/80 px-2.5 py-1 rounded border border-line text-ink">
+              <Lock className="w-3 h-3 text-paid" />
+              <span>SHA-256 Tamper-Proof</span>
+            </div>
           </div>
         </div>
       )}
@@ -303,7 +333,7 @@ export const AuditLogView = () => {
           ) : (
             logs.map((log, index) => {
               const formattedDate = log.createdAt
-                ? new Date(log.createdAt).toLocaleString('ar-EG', {
+                ? new Date(log.createdAt).toLocaleString('ar-EG-u-nu-latn', {
                     month: 'short',
                     day: 'numeric',
                     hour: '2-digit',

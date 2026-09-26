@@ -6,7 +6,7 @@ namespace RafiqPOS.Database
 {
     public static class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 16;
+        public const int LATEST_SUPPORTED_VERSION = 19;
 
         public static void ApplyMigrations(string connectionString, string dbPath)
         {
@@ -175,7 +175,21 @@ namespace RafiqPOS.Database
                     ApplyMigration17(conn);
                 }
 
-                // 21. Self-Healing Schema Guard: Automatically repair missing columns or indexes
+                // 21. Apply Migration 18: Reseal and Repair Audit Log Hash Chain (Feature #169 Fix)
+                if (currentVersion < 18)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration18(conn);
+                }
+
+                // 22. Apply Migration 19: Clean Slate for Transactions and Debts (Fresh Install)
+                if (currentVersion < 19)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration19(conn);
+                }
+
+                // 23. Self-Healing Schema Guard: Automatically repair missing columns or indexes
                 EnsureSchemaHealth(conn);
             }
         }
@@ -885,6 +899,18 @@ namespace RafiqPOS.Database
                         }
                     }
 
+                    // 13. Ensure demo customer debts or records are completely cleaned
+                    using (var cleanDemoCmd = new SQLiteCommand(@"
+                        DELETE FROM customer_ledger WHERE customer_id IN ('cust_demo_1', 'cust_demo_2') OR id = 'led_seed_demo_1';
+                        DELETE FROM customers WHERE id IN ('cust_demo_1', 'cust_demo_2');
+                        UPDATE customers SET balance_piasters = 0 WHERE id = 'cust_general_cash';
+                        INSERT OR IGNORE INTO customers (id, name, phone, balance_piasters, credit_limit_piasters, created_at)
+                        VALUES ('cust_general_cash', 'عميل نقدي عام', '', 0, 0, datetime('now'));
+                    ", conn, trans))
+                    {
+                        cleanDemoCmd.ExecuteNonQuery();
+                    }
+
                     trans.Commit();
                 }
                 catch
@@ -1101,15 +1127,9 @@ namespace RafiqPOS.Database
                         CREATE INDEX IF NOT EXISTS idx_customer_ledger_customer ON customer_ledger(customer_id);
                         CREATE INDEX IF NOT EXISTS idx_customer_ledger_created ON customer_ledger(created_at);
 
-                        -- بذر عملاء تجريبيين أوليين للآجل والبيع
+                        -- بذر عميل نقدي عام فقط بدون أي عملاء تجريبيين أو ديون
                         INSERT OR IGNORE INTO customers (id, name, phone, balance_piasters, credit_limit_piasters, created_at)
-                        VALUES ('cust_general_cash', 'عميل نقدي عام', '', 0, 0, datetime('now')),
-                               ('cust_demo_1', 'أحمد محمود (عميل آجل)', '01012345678', 35000, 200000, datetime('now')),
-                               ('cust_demo_2', 'سارة إبراهيم', '01198765432', 0, 100000, datetime('now'));
-
-                        -- رصيد افتتاحي للعميل التجريبي
-                        INSERT OR IGNORE INTO customer_ledger (id, customer_id, type, sale_id, amount_piasters, balance_after_piasters, notes, created_at)
-                        VALUES ('led_seed_demo_1', 'cust_demo_1', 'opening_balance', NULL, 35000, 35000, 'رصيد آجل سابق', datetime('now'));
+                        VALUES ('cust_general_cash', 'عميل نقدي عام', '', 0, 0, datetime('now'));
 
                         -- تسجيل إصدار الهيكل رقم 2
                         INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
@@ -2297,6 +2317,122 @@ namespace RafiqPOS.Database
                     using (var logCmd = new SQLiteCommand(@"
                         INSERT INTO schema_migrations (version, name, applied_at)
                         VALUES (17, 'Discount Rules and Cashier Thresholds (Feature #24)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        logCmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        private static void ApplyMigration18(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // 1. Reseal and chain all audit records
+                    var rows = new System.Collections.Generic.List<string[]>();
+                    using (var readCmd = new SQLiteCommand("SELECT id, user_id, action, entity_type, entity_id, details_json, created_at FROM audit_logs ORDER BY rowid ASC;", conn, trans))
+                    using (var rdr = readCmd.ExecuteReader())
+                    {
+                        while (rdr.Read())
+                        {
+                            rows.Add(new string[] {
+                                rdr["id"].ToString(),
+                                rdr["user_id"] != DBNull.Value ? rdr["user_id"].ToString() : "",
+                                rdr["action"].ToString(),
+                                rdr["entity_type"].ToString(),
+                                rdr["entity_id"] != DBNull.Value ? rdr["entity_id"].ToString() : "",
+                                rdr["details_json"] != DBNull.Value ? rdr["details_json"].ToString() : "",
+                                rdr["created_at"].ToString()
+                            });
+                        }
+                    }
+
+                    string lastHash = "GENESIS_RAFIQ_AUDIT_V1";
+                    for (int i = 0; i < rows.Count; i++)
+                    {
+                        string id = rows[i][0];
+                        string userId = rows[i][1];
+                        string action = rows[i][2];
+                        string entityType = rows[i][3];
+                        string entityId = rows[i][4];
+                        string detailsJson = rows[i][5];
+                        string createdAt = rows[i][6];
+                        string prevHash = lastHash;
+                        string recHash = ComputeAuditHash(prevHash, id, userId, action, entityType, entityId, detailsJson, createdAt);
+
+                        using (var updateCmd = new SQLiteCommand("UPDATE audit_logs SET prev_hash = @prev, record_hash = @rec WHERE id = @id;", conn, trans))
+                        {
+                            updateCmd.Parameters.AddWithValue("@prev", prevHash);
+                            updateCmd.Parameters.AddWithValue("@rec", recHash);
+                            updateCmd.Parameters.AddWithValue("@id", id);
+                            updateCmd.ExecuteNonQuery();
+                        }
+                        lastHash = recHash;
+                    }
+
+                    // 2. Update schema_migrations
+                    using (var logCmd = new SQLiteCommand(@"
+                        INSERT INTO schema_migrations (version, name, applied_at)
+                        VALUES (18, 'Reseal and Repair Audit Log Hash Chain (Feature #169 Fix)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        logCmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        private static void ApplyMigration19(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // 1. Purge all customer debts and test sales for a clean initial installation
+                    using (var cmd = new SQLiteCommand(@"
+                        -- حذف أي ديون أو كشوف حسابات تجريبية سابقة للعملاء
+                        DELETE FROM customer_ledger;
+                        DELETE FROM customers WHERE id IN ('cust_demo_1', 'cust_demo_2');
+                        UPDATE customers SET balance_piasters = 0;
+
+                        -- حذف أي مبيعات أو فواتير تجريبية سابقة
+                        DELETE FROM sale_items;
+                        DELETE FROM sales;
+                        DELETE FROM payments;
+                        DELETE FROM stock_movements WHERE movement_type IN ('SALE', 'REFUND');
+
+                        -- تصفير رقم الفاتورة ليبدأ الكاشير من الفاتورة رقم 1
+                        UPDATE counters SET current_value = 0 WHERE name = 'invoice_number';
+
+                        -- التأكد من وجود العميل النقدي العام برصيد 0
+                        INSERT OR IGNORE INTO customers (id, name, phone, balance_piasters, credit_limit_piasters, created_at)
+                        VALUES ('cust_general_cash', 'عميل نقدي عام', '', 0, 0, datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 2. Update schema_migrations
+                    using (var logCmd = new SQLiteCommand(@"
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (19, 'Purge demo sales debts and start fresh clean slate', datetime('now'));
                     ", conn, trans))
                     {
                         logCmd.ExecuteNonQuery();

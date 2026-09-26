@@ -74,7 +74,7 @@ const HeaderClock: FC = memo(() => {
         minute: '2-digit',
         second: '2-digit',
       }));
-      setDate(now.toLocaleDateString('ar-EG', {
+      setDate(now.toLocaleDateString('ar-EG-u-nu-latn', {
         day: 'numeric',
         month: 'long',
         year: 'numeric'
@@ -95,8 +95,14 @@ const HeaderClock: FC = memo(() => {
   );
 });
 
+const ADMIN_ONLY_TABS: TabType[] = ['dashboard', 'products', 'sales', 'audit', 'settings'];
+const CASHIER_ALLOWED_TABS: TabType[] = ['pos', 'customers'];
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('pos');
+  const [currentUser, setCurrentUser] = useState<UserDto | null>(null);
+  const isCashier = currentUser?.role === 'cashier';
+  const effectiveActiveTab: TabType = isCashier && !CASHIER_ALLOWED_TABS.includes(activeTab) ? 'pos' : activeTab;
   const [productsSubView, setProductsSubView] = useState<'catalog' | 'movements'>('catalog');
   const [isProductsMenuExpanded, setIsProductsMenuExpanded] = useState(false);
   const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('profile');
@@ -126,7 +132,6 @@ export default function App() {
   const [isFullscreen, setIsFullscreen] = useState(true);
   const [storeName, setStoreName] = useState('رفيق POS');
   const [cashierName, setCashierName] = useState('كاشير (1)');
-  const [currentUser, setCurrentUser] = useState<UserDto | null>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isUserManagerOpen, setIsUserManagerOpen] = useState(false);
   const [idleTimeoutMinutes, setIdleTimeoutMinutes] = useState(15);
@@ -307,6 +312,7 @@ export default function App() {
     };
   }, [activeTab]);
 
+
   // Global keyboard shortcuts for switching tabs and system actions
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -315,26 +321,28 @@ export default function App() {
         if (e.key === '1') {
           e.preventDefault();
           setActiveTab('pos');
-        } else if (e.key === '2') {
-          e.preventDefault();
-          setActiveTab('dashboard');
         } else if (e.key === '3') {
           e.preventDefault();
           setActiveTab('customers');
-        } else if (e.key === '4') {
-          e.preventDefault();
-          setActiveTab('products');
-          setIsProductsMenuExpanded(true);
-        } else if (e.key === '5') {
-          e.preventDefault();
-          setActiveTab('sales');
-        } else if (e.key === '6') {
-          e.preventDefault();
-          setActiveTab('audit');
-        } else if (e.key === '7') {
-          e.preventDefault();
-          setActiveTab('settings');
-          setIsSettingsMenuExpanded(true);
+        } else if (currentUser?.role !== 'cashier') {
+          if (e.key === '2') {
+            e.preventDefault();
+            setActiveTab('dashboard');
+          } else if (e.key === '4') {
+            e.preventDefault();
+            setActiveTab('products');
+            setIsProductsMenuExpanded(true);
+          } else if (e.key === '5') {
+            e.preventDefault();
+            setActiveTab('sales');
+          } else if (e.key === '6') {
+            e.preventDefault();
+            setActiveTab('audit');
+          } else if (e.key === '7') {
+            e.preventDefault();
+            setActiveTab('settings');
+            setIsSettingsMenuExpanded(true);
+          }
         }
         return;
       }
@@ -356,7 +364,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [activeTab]);
+  }, [activeTab, currentUser?.role]);
 
   const handleExitApp = async () => {
     const confirmed = await rafiqConfirm({
@@ -376,23 +384,8 @@ export default function App() {
   };
 
   const handleNavClick = (tabId: TabType, subAction?: () => void) => {
-    const adminTabs: TabType[] = ['settings', 'sales', 'audit'];
-    if (currentUser?.role === 'cashier' && adminTabs.includes(tabId)) {
-      const tabNames: Record<string, string> = {
-        settings: 'شاشة الإعدادات',
-        sales: 'سجل المبيعات والتقارير',
-        audit: 'سجل العمليات والرقابة',
-      };
-      setSupervisorPrompt({
-        isOpen: true,
-        title: `فتح ${tabNames[tabId] || 'القسم المطلوب'}`,
-        description: 'هذا القسم مخصص لمدير النظام. يرجى إدخال الرقم السري لمدير النظام للمتابعة.',
-        onApproved: () => {
-          setActiveTab(tabId);
-          if (subAction) subAction();
-          setSupervisorPrompt((p) => ({ ...p, isOpen: false }));
-        },
-      });
+    if (currentUser?.role === 'cashier' && ADMIN_ONLY_TABS.includes(tabId)) {
+      setActiveTab('pos');
       return;
     }
     setActiveTab(tabId);
@@ -409,7 +402,7 @@ export default function App() {
     { id: 'demo' as SettingsSubTab, label: 'البيانات التجريبية والتدريب', icon: FlaskConical },
   ];
 
-  const navItems = [
+  const allNavItems = [
     { id: 'pos' as TabType, label: 'نقطة البيع (POS)', icon: ShoppingCart, shortcut: 'F1 / Alt+1' },
     { id: 'dashboard' as TabType, label: 'لوحة اليوم والمتابعة', icon: LayoutDashboard, shortcut: 'Alt+2' },
     { id: 'customers' as TabType, label: 'العملاء والآجل', icon: Users, shortcut: 'Alt+3' },
@@ -418,6 +411,10 @@ export default function App() {
     { id: 'audit' as TabType, label: 'سجل العمليات الحساسة', icon: ShieldAlert, shortcut: 'Alt+6' },
     { id: 'settings' as TabType, label: 'إعدادات المتجر والصيانة', icon: Settings, shortcut: 'Alt+7' },
   ];
+
+  const navItems = currentUser?.role === 'cashier'
+    ? allNavItems.filter((item) => CASHIER_ALLOWED_TABS.includes(item.id))
+    : allNavItems;
 
   if (isFirstRunWizardOpen) {
     return (
@@ -500,16 +497,18 @@ export default function App() {
           {/* Vertical subtle divider */}
           <div className="h-5 w-[1px] bg-slate-200 mx-0.5 hidden sm:block" />
 
-          {/* Readiness Checklist Button (Feature #137) - Tactile Interactive Button */}
-          <button
-            type="button"
-            onClick={() => setIsReadinessOpen(true)}
-            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white hover:bg-emerald-50/80 active:bg-emerald-100 text-[#006d41] border border-emerald-300/90 hover:border-emerald-500 border-b-2 border-b-emerald-500/70 font-bold text-xs shadow-2xs hover:shadow-xs active:translate-y-0.5 active:scale-[0.98] transition-all cursor-pointer"
-            title="فحص جاهزية النظام والعتاد قبل أول بيع"
-          >
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-            <span>جاهزية التشغيل</span>
-          </button>
+          {/* Readiness Checklist Button (Feature #137) - Admin Only */}
+          {currentUser?.role === 'admin' && (
+            <button
+              type="button"
+              onClick={() => setIsReadinessOpen(true)}
+              className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white hover:bg-emerald-50/80 active:bg-emerald-100 text-[#006d41] border border-emerald-300/90 hover:border-emerald-500 border-b-2 border-b-emerald-500/70 font-bold text-xs shadow-2xs hover:shadow-xs active:translate-y-0.5 active:scale-[0.98] transition-all cursor-pointer"
+              title="فحص جاهزية النظام والعتاد قبل أول بيع"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span>جاهزية التشغيل</span>
+            </button>
+          )}
 
           {/* Fullscreen Kiosk Mode Toggle - Tactile Interactive Button */}
           <button
@@ -556,8 +555,8 @@ export default function App() {
         </div>
       )}
 
-      {/* Backup Overdue Warning Banner (Feature #9 / Task 9-6) */}
-      {backupWarning && (
+      {/* Backup Overdue Warning Banner (Feature #9 / Task 9-6) - Admin Only */}
+      {currentUser?.role === 'admin' && backupWarning && (
         <div className="bg-brand text-white px-4 py-2 flex items-center justify-between text-[12px] font-semibold shrink-0 animate-in slide-in-from-top-1 select-none border-b border-white/10">
           <div className="flex items-center gap-2">
             <Database className="w-4 h-4 shrink-0 text-paid" />
@@ -601,17 +600,19 @@ export default function App() {
             >
               جولة النظام (5 خطوات)
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('settings');
-                setSettingsSubTab('demo');
-                setIsSettingsMenuExpanded(true);
-              }}
-              className="bg-amber-950 hover:bg-black text-white text-xs px-2.5 py-0.5 rounded transition-colors"
-            >
-              إدارة ومسح البيانات
-            </button>
+            {currentUser?.role === 'admin' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('settings');
+                  setSettingsSubTab('demo');
+                  setIsSettingsMenuExpanded(true);
+                }}
+                className="bg-amber-950 hover:bg-black text-white text-xs px-2.5 py-0.5 rounded transition-colors"
+              >
+                إدارة ومسح البيانات
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -661,7 +662,7 @@ export default function App() {
 
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = activeTab === item.id;
+              const isActive = effectiveActiveTab === item.id;
               const isProductsItem = item.id === 'products';
               const isSettingsItem = item.id === 'settings';
 
@@ -698,13 +699,13 @@ export default function App() {
                     type="button"
                     onClick={() => {
                       if (isProductsItem) {
-                        if (activeTab !== 'products') {
+                        if (effectiveActiveTab !== 'products') {
                           handleNavClick('products', () => setIsProductsMenuExpanded(true));
                         } else {
                           setIsProductsMenuExpanded(!isProductsMenuExpanded);
                         }
                       } else if (isSettingsItem) {
-                        if (activeTab !== 'settings') {
+                        if (effectiveActiveTab !== 'settings') {
                           handleNavClick('settings', () => setIsSettingsMenuExpanded(true));
                         } else {
                           setIsSettingsMenuExpanded(!isSettingsMenuExpanded);
@@ -756,7 +757,7 @@ export default function App() {
                           setProductsSubView('catalog');
                         }}
                         className={`w-full flex items-center justify-between px-2.5 h-[32px] rounded text-[12px] transition-colors ${
-                          activeTab === 'products' && productsSubView === 'catalog'
+                          effectiveActiveTab === 'products' && productsSubView === 'catalog'
                             ? 'bg-brand text-white font-bold shadow-xs'
                             : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
                         }`}
@@ -774,7 +775,7 @@ export default function App() {
                           setProductsSubView('movements');
                         }}
                         className={`w-full flex items-center justify-between px-2.5 h-[32px] rounded text-[12px] transition-colors ${
-                          activeTab === 'products' && productsSubView === 'movements'
+                          effectiveActiveTab === 'products' && productsSubView === 'movements'
                             ? 'bg-brand text-white font-bold shadow-xs'
                             : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
                         }`}
@@ -850,26 +851,34 @@ export default function App() {
 
         {/* Dynamic Views Viewport */}
         <main className="flex-1 h-full overflow-hidden bg-canvas">
-          {activeTab === 'pos' && <PosView />}
-          {activeTab === 'dashboard' && (
+          {effectiveActiveTab === 'pos' && <PosView />}
+          {!isCashier && effectiveActiveTab === 'dashboard' && (
             <DashboardView 
               onNavigateToPos={() => setActiveTab('pos')} 
-              onNavigateToProducts={() => {
+              onNavigateToProducts={(sub?: 'catalog' | 'movements') => {
                 setActiveTab('products');
-                setProductsSubView('catalog');
+                setProductsSubView(sub || 'catalog');
                 setIsProductsMenuExpanded(true);
               }} 
               onNavigateToCustomers={() => setActiveTab('customers')}
               onNavigateToSales={() => setActiveTab('sales')}
+              onNavigateToAudit={() => setActiveTab('audit')}
+              onNavigateToSettings={(target) => {
+                setActiveTab('settings');
+                if (target?.includes('backup')) setSettingsSubTab('backup');
+              }}
             />
           )}
-          {activeTab === 'customers' && <CustomersView />}
-          {activeTab === 'products' && (
-            <ProductsView subView={productsSubView} />
+          {effectiveActiveTab === 'customers' && <CustomersView />}
+          {!isCashier && effectiveActiveTab === 'products' && (
+            <ProductsView 
+              subView={productsSubView} 
+              onSubViewChange={(tab) => setProductsSubView(tab)} 
+            />
           )}
-          {activeTab === 'sales' && <SalesHistoryView />}
-          {activeTab === 'audit' && <AuditLogView />}
-          {activeTab === 'settings' && (
+          {!isCashier && effectiveActiveTab === 'sales' && <SalesHistoryView />}
+          {!isCashier && effectiveActiveTab === 'audit' && <AuditLogView />}
+          {!isCashier && effectiveActiveTab === 'settings' && (
             <SettingsView 
               sysInfo={sysInfo} 
               activeSubTab={settingsSubTab} 

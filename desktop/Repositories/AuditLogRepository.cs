@@ -164,6 +164,68 @@ namespace RafiqPOS.Repositories
             return result;
         }
 
+        public int ResealChain()
+        {
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var trans = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        var rows = new List<string[]>();
+                        using (var readCmd = new SQLiteCommand("SELECT id, user_id, action, entity_type, entity_id, details_json, created_at FROM audit_logs ORDER BY rowid ASC;", conn, trans))
+                        using (var rdr = readCmd.ExecuteReader())
+                        {
+                            while (rdr.Read())
+                            {
+                                rows.Add(new string[] {
+                                    rdr["id"].ToString(),
+                                    rdr["user_id"] != DBNull.Value ? rdr["user_id"].ToString() : "",
+                                    rdr["action"].ToString(),
+                                    rdr["entity_type"].ToString(),
+                                    rdr["entity_id"] != DBNull.Value ? rdr["entity_id"].ToString() : "",
+                                    rdr["details_json"] != DBNull.Value ? rdr["details_json"].ToString() : "",
+                                    rdr["created_at"].ToString()
+                                });
+                            }
+                        }
+
+                        string lastHash = "GENESIS_RAFIQ_AUDIT_V1";
+                        for (int i = 0; i < rows.Count; i++)
+                        {
+                            string id = rows[i][0];
+                            string userId = rows[i][1];
+                            string action = rows[i][2];
+                            string entityType = rows[i][3];
+                            string entityId = rows[i][4];
+                            string detailsJson = rows[i][5];
+                            string createdAt = rows[i][6];
+                            string prevHash = lastHash;
+                            string recHash = Database.MigrationRunner.ComputeAuditHash(prevHash, id, userId, action, entityType, entityId, detailsJson, createdAt);
+
+                            using (var updateCmd = new SQLiteCommand("UPDATE audit_logs SET prev_hash = @prev, record_hash = @rec WHERE id = @id;", conn, trans))
+                            {
+                                updateCmd.Parameters.AddWithValue("@prev", prevHash);
+                                updateCmd.Parameters.AddWithValue("@rec", recHash);
+                                updateCmd.Parameters.AddWithValue("@id", id);
+                                updateCmd.ExecuteNonQuery();
+                            }
+                            lastHash = recHash;
+                        }
+
+                        trans.Commit();
+                        return rows.Count;
+                    }
+                    catch
+                    {
+                        trans.Rollback();
+                        throw;
+                    }
+                }
+            }
+        }
+
         public List<AuditLog> GetLogs(int limit = 100, string action = null)
         {
             var list = new List<AuditLog>();

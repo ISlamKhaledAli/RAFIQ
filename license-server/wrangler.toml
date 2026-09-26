@@ -16,6 +16,6 @@ TOKEN_SIGNING_SECRET = "rafiq_token_hmac_signing_key_secure_v1"
 [[d1_databases]]
 binding = "DB"
 database_name = "rafiq-licenses"
-database_id = "rafiq-licenses-d1-prod-id"
+database_id = "14bc3b73-bbe4-46cd-aa7f-8c9d1f2c2a2f"
 migrations_table = "d1_migrations"
 migrations_dir = "migrations"

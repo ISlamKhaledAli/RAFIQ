@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { 
   TrendingUp, 
+  TrendingDown,
   ShoppingCart, 
   DollarSign, 
   Package, 
@@ -15,16 +16,18 @@ import {
   HardDrive,
   Printer,
   Database,
-  FileText,
   KeyRound,
   Users,
   ChevronLeft,
   Flame,
-  Lock
+  Lock,
+  Scale,
+  Boxes
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { DashboardSummary } from '../types/models';
 import { ReadinessCheckModal } from '../components/ReadinessCheckModal';
+import { LicenseModal } from '../components/LicenseModal';
 
 interface SystemAlert {
   id: string;
@@ -64,10 +67,11 @@ interface SystemHealthData {
 
 interface DashboardViewProps {
   onNavigateToPos: () => void;
-  onNavigateToProducts: () => void;
+  onNavigateToProducts: (subView?: 'catalog' | 'movements') => void;
   onNavigateToSales?: () => void;
   onNavigateToSettings?: (target?: string) => void;
   onNavigateToCustomers?: () => void;
+  onNavigateToAudit?: () => void;
 }
 
 // Clean helper to parse and format raw ISO backup dates into friendly Arabic
@@ -78,11 +82,11 @@ function formatFriendlyBackupDate(raw: string | undefined): string {
     if (isNaN(d.getTime())) return raw;
     const now = new Date();
     const isToday = d.toDateString() === now.toDateString();
-    const timeStr = d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+    const timeStr = d.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' });
     if (isToday) {
       return `اليوم ${timeStr}`;
     }
-    const dateStr = d.toLocaleDateString('ar-EG', { day: 'numeric', month: 'short' });
+    const dateStr = d.toLocaleDateString('ar-EG-u-nu-latn', { day: 'numeric', month: 'short' });
     return `${dateStr}، ${timeStr}`;
   } catch {
     return raw;
@@ -100,13 +104,15 @@ export function DashboardView({
   onNavigateToProducts,
   onNavigateToSales,
   onNavigateToSettings,
-  onNavigateToCustomers
+  onNavigateToCustomers,
+  onNavigateToAudit
 }: DashboardViewProps) {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [health, setHealth] = useState<SystemHealthData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<string>('');
   const [isReadinessModalOpen, setIsReadinessModalOpen] = useState(false);
+  const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -118,7 +124,7 @@ export function DashboardView({
       if (sumData) setSummary(sumData);
       if (healthData) setHealth(healthData);
       const now = new Date();
-      setLastRefreshed(now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      setLastRefreshed(now.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch {
       // Offline fallback
     } finally {
@@ -138,7 +144,7 @@ export function DashboardView({
           if (sumData) setSummary(sumData);
           if (healthData) setHealth(healthData);
           const now = new Date();
-          setLastRefreshed(now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+          setLastRefreshed(now.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
         }
       } catch {
         // Offline fallback
@@ -149,7 +155,9 @@ export function DashboardView({
 
   const handleFixAction = (target?: string | null) => {
     if (!target) return;
-    if (target.startsWith('settings') && onNavigateToSettings) {
+    if (target === 'audit' && onNavigateToAudit) {
+      onNavigateToAudit();
+    } else if (target.startsWith('settings') && onNavigateToSettings) {
       onNavigateToSettings(target);
     } else if (target === 'products') {
       onNavigateToProducts();
@@ -206,28 +214,29 @@ export function DashboardView({
       </div>
 
       {/* 2. EXECUTIVE SYSTEM HEALTH & HARDWARE STATUS STRIP */}
-      <div
-        className={`rounded-2xl border p-4.5 transition-all shadow-xs ${
-          isHealthy
-            ? 'bg-gradient-to-r from-emerald-50/95 via-white to-teal-50/60 border-emerald-200/90'
-            : isCritical
-            ? 'bg-gradient-to-r from-rose-50 via-white to-red-50/60 border-red-300'
-            : 'bg-gradient-to-r from-amber-50 via-white to-orange-50/60 border-amber-300'
-        }`}
-      >
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden transition-all">
+        {/* Top Status Header */}
+        <div
+          className={`px-5 py-4 border-b flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
+            isHealthy
+              ? 'bg-gradient-to-r from-emerald-50/60 via-slate-50/30 to-white border-emerald-100'
+              : isCritical
+              ? 'bg-gradient-to-r from-rose-50/80 via-white to-white border-rose-200'
+              : 'bg-gradient-to-r from-amber-50/80 via-white to-white border-amber-200'
+          }`}
+        >
           <div className="flex items-center gap-3.5">
             <div
-              className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm transition-transform ${
+              className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
                 isHealthy
-                  ? 'bg-gradient-to-br from-emerald-600 to-[#004d3e] text-white shadow-emerald-700/20'
+                  ? 'bg-[#004d3e] text-white shadow-emerald-900/10'
                   : isCritical
-                  ? 'bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-red-700/20'
-                  : 'bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-amber-600/20'
+                  ? 'bg-rose-600 text-white shadow-rose-900/20'
+                  : 'bg-amber-500 text-white shadow-amber-900/20'
               }`}
             >
               {isHealthy ? (
-                <ShieldCheck className="w-6 h-6" />
+                <ShieldCheck className="w-6 h-6 text-emerald-300" />
               ) : isCritical ? (
                 <ShieldAlert className="w-6 h-6 animate-pulse" />
               ) : (
@@ -235,25 +244,25 @@ export function DashboardView({
               )}
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">
-                  مؤشر سلامة النظام
+                  مؤشر سلامة وتشغيل النظام
                 </span>
                 <span
-                  className={`text-[10.5px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
+                  className={`text-[11px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shadow-2xs ${
                     isHealthy
-                      ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                       : isCritical
-                      ? 'bg-red-100 text-red-900 border border-red-300'
+                      ? 'bg-rose-100 text-rose-800 border border-rose-300'
                       : 'bg-amber-100 text-amber-900 border border-amber-300'
                   }`}
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full ${isHealthy ? 'bg-emerald-600 animate-ping' : 'bg-red-600'}`} />
-                  {isHealthy ? 'سليم 100%' : isCritical ? 'خطر حرج' : 'يحتاج انتباهك'}
+                  <span className={`w-1.5 h-1.5 rounded-full ${isHealthy ? 'bg-emerald-600 animate-pulse' : 'bg-rose-600'}`} />
+                  {isHealthy ? 'سليم وجاهز 100%' : isCritical ? 'تنبيه حرج' : 'يحتاج انتباهك'}
                 </span>
               </div>
-              <h3 className="text-sm font-black text-slate-900 leading-snug">
+              <h3 className="text-sm font-bold text-slate-900 leading-snug">
                 {health?.oneSentenceSummary || 'النظام جاهز تماماً لتسجيل المبيعات • قاعدة البيانات مؤمنة ومستقرة بنسبة 100%'}
               </h3>
             </div>
@@ -266,7 +275,7 @@ export function DashboardView({
                 onClick={() => handleFixAction(health.primaryIssueFixTarget)}
                 className={`px-4 py-2 rounded-xl text-xs font-black text-white shadow transition-all ${
                   isCritical
-                    ? 'bg-red-600 hover:bg-red-700'
+                    ? 'bg-rose-600 hover:bg-rose-700'
                     : 'bg-amber-600 hover:bg-amber-700'
                 }`}
               >
@@ -284,188 +293,93 @@ export function DashboardView({
           </div>
         </div>
 
-        {/* Clean Hardware & System Pulse Badges */}
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-2.5 mt-3.5 pt-3.5 border-t border-slate-200/70 text-xs">
-          {/* Storage Free Space */}
-          <div className="flex items-center gap-2 bg-white/80 px-3 py-2 rounded-xl border border-slate-200/70 shadow-2xs">
-            <HardDrive className="w-4 h-4 text-slate-500 shrink-0" />
-            <div className="truncate">
-              <span className="text-[11px] text-slate-500 block leading-tight">مساحة القرص</span>
-              <span className="font-mono font-bold text-slate-900 text-xs">{health?.metrics?.diskFreeFormatted || '---'}</span>
+        {/* 6 Clean Hardware & Security Pulse Cards */}
+        <div className="p-4 bg-slate-50/50">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
+            {/* Storage Free Space */}
+            <div className="flex items-center gap-2.5 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs hover:border-emerald-300 transition-all">
+              <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                <HardDrive className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-[10.5px] font-semibold text-slate-400 block leading-tight">مساحة القرص</span>
+                <span className="font-mono font-bold text-slate-900 text-xs truncate block">{health?.metrics?.diskFreeFormatted || '---'}</span>
+              </div>
             </div>
-          </div>
 
-          {/* Backup Status (Clean Date) */}
-          <div className="flex items-center gap-2 bg-white/80 px-3 py-2 rounded-xl border border-slate-200/70 shadow-2xs">
-            <Database className="w-4 h-4 text-emerald-600 shrink-0" />
-            <div className="truncate">
-              <span className="text-[11px] text-slate-500 block leading-tight">النسخ الاحتياطي</span>
-              <span className="font-bold text-slate-900 text-xs truncate block" title={health?.metrics?.lastBackupFormatted}>
-                {formatFriendlyBackupDate(health?.metrics?.lastBackupFormatted)}
-              </span>
+            {/* Backup Status */}
+            <div className="flex items-center gap-2.5 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs hover:border-emerald-300 transition-all">
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+                <Database className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-[10.5px] font-semibold text-slate-400 block leading-tight">النسخ الاحتياطي</span>
+                <span className="font-bold text-slate-900 text-xs truncate block" title={health?.metrics?.lastBackupFormatted}>
+                  {formatFriendlyBackupDate(health?.metrics?.lastBackupFormatted)}
+                </span>
+              </div>
             </div>
-          </div>
 
-          {/* Printer Detection */}
-          <div className="flex items-center gap-2 bg-white/80 px-3 py-2 rounded-xl border border-slate-200/70 shadow-2xs">
-            <Printer className="w-4 h-4 text-teal-600 shrink-0" />
-            <div className="truncate">
-              <span className="text-[11px] text-slate-500 block leading-tight">طابعة الفواتير</span>
-              <span className="font-bold text-slate-900 text-xs truncate block" title={health?.metrics?.printerName}>
-                {formatCleanPrinterName(health?.metrics?.printerName)}
-              </span>
+            {/* Printer Detection */}
+            <div className="flex items-center gap-2.5 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs hover:border-emerald-300 transition-all">
+              <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center shrink-0">
+                <Printer className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-[10.5px] font-semibold text-slate-400 block leading-tight">طابعة الفواتير</span>
+                <span className="font-bold text-slate-900 text-xs truncate block" title={health?.metrics?.printerName}>
+                  {formatCleanPrinterName(health?.metrics?.printerName)}
+                </span>
+              </div>
             </div>
-          </div>
 
-          {/* Offline Lifetime License */}
-          <div className="flex items-center gap-2 bg-white/80 px-3 py-2 rounded-xl border border-slate-200/70 shadow-2xs">
-            <KeyRound className="w-4 h-4 text-emerald-700 shrink-0" />
-            <div className="truncate">
-              <span className="text-[11px] text-slate-500 block leading-tight">حالة الترخيص</span>
-              <span className="font-bold text-slate-900 text-xs">ترخيص محلي دائم</span>
+            {/* Offline Lifetime License */}
+            <div 
+              onClick={() => setIsLicenseModalOpen(true)}
+              className="flex items-center gap-2.5 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs hover:border-emerald-500 hover:shadow-sm cursor-pointer transition-all group"
+              title="انقر لإدارة وتفعيل الترخيص السحابي"
+            >
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-800 flex items-center justify-center shrink-0 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                <KeyRound className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-[10.5px] font-semibold text-slate-400 block leading-tight">حالة الترخيص (انقر للتفعيل)</span>
+                <span className="font-bold text-slate-900 text-xs truncate block">
+                  {health?.metrics?.licenseStatus || 'ترخيص دائم نشط'}
+                </span>
+              </div>
             </div>
-          </div>
 
-          {/* Catalog Products Count */}
-          <div className="flex items-center gap-2 bg-white/80 px-3 py-2 rounded-xl border border-slate-200/70 shadow-2xs">
-            <Package className="w-4 h-4 text-[#006d41] shrink-0" />
-            <div className="truncate">
-              <span className="text-[11px] text-slate-500 block leading-tight">كتالوج الأصناف</span>
-              <span className="font-mono font-bold text-slate-900 text-xs">{health?.metrics?.productsCount || 0} صنف مسجل</span>
+            {/* Catalog Products Count */}
+            <div className="flex items-center gap-2.5 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs hover:border-emerald-300 transition-all">
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 text-[#006d41] flex items-center justify-center shrink-0">
+                <Package className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-[10.5px] font-semibold text-slate-400 block leading-tight">كتالوج الأصناف</span>
+                <span className="font-mono font-bold text-slate-900 text-xs">{health?.metrics?.productsCount || 0} صنف مسجل</span>
+              </div>
             </div>
-          </div>
 
-          {/* Cryptographic Protection & Anti-Tamper (Feature #167, #168, #169) */}
-          <div className="flex items-center gap-2 bg-white/80 px-3 py-2 rounded-xl border border-slate-200/70 shadow-2xs">
-            <Lock className={`w-4 h-4 shrink-0 ${health?.metrics?.isAuditLogTampered ? 'text-red-600' : 'text-emerald-700'}`} />
-            <div className="truncate">
-              <span className="text-[11px] text-slate-500 block leading-tight">حماية البيانات</span>
-              <span className={`font-bold text-xs truncate block ${health?.metrics?.isAuditLogTampered ? 'text-red-600' : 'text-slate-900'}`} title={health?.metrics?.auditLogStatus || 'مشفر وموثق رقمياً'}>
-                {health?.metrics?.isAuditLogTampered ? 'تنبيه تلاعب!' : 'مشفر وموثق'}
-              </span>
+            {/* Cryptographic Protection & Anti-Tamper */}
+            <div className="flex items-center gap-2.5 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs hover:border-emerald-300 transition-all">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${health?.metrics?.isAuditLogTampered ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-700'}`}>
+                <Lock className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-[10.5px] font-semibold text-slate-400 block leading-tight">حماية البيانات</span>
+                <span className={`font-bold text-xs truncate block ${health?.metrics?.isAuditLogTampered ? 'text-rose-600' : 'text-slate-900'}`} title={health?.metrics?.auditLogStatus || 'مشفر وموثق رقمياً'}>
+                  {health?.metrics?.isAuditLogTampered ? 'تنبيه تلاعب!' : 'مشفر وموثق'}
+                </span>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 3. HERO ENTERPRISE POS ACTION WORKSTATION */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-        {/* HERO ACTION 1: POS Sale (F1) - The Prime Daily Driver */}
-        <button
-          type="button"
-          onClick={onNavigateToPos}
-          className="group relative p-4 rounded-2xl bg-gradient-to-br from-emerald-50/70 via-white to-white border border-emerald-300/80 hover:border-emerald-500 shadow-2xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] transition-all duration-150 flex items-center justify-between text-right overflow-hidden"
-        >
-          {/* Subtle brand ambient glow */}
-          <div className="absolute top-0 right-0 w-28 h-28 bg-emerald-400/10 rounded-full blur-xl pointer-events-none group-hover:bg-emerald-400/20 transition-all" />
 
-          <div className="flex items-center gap-3.5 z-10 min-w-0">
-            {/* Tactile Icon Squircle */}
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#006d41] to-[#004d3e] text-white flex items-center justify-center shrink-0 shadow-sm shadow-emerald-800/20 group-hover:scale-105 transition-transform">
-              <ShoppingCart className="w-6 h-6 text-white" />
-            </div>
-
-            <div className="min-w-0 space-y-0.5">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10.5px] font-black text-emerald-800 bg-emerald-100/70 border border-emerald-200/80 px-2 py-0.5 rounded-md uppercase tracking-wider">
-                  المحطة الرئيسية
-                </span>
-              </div>
-              <h3 className="text-base font-black text-slate-900 group-hover:text-[#006d41] transition-colors truncate">
-                تسجيل بيع جديد
-              </h3>
-              <p className="text-[11.5px] text-slate-500 font-normal truncate leading-tight">
-                باركود، سلة سريعة، حساب آجل، وطباعة فورية
-              </p>
-            </div>
-          </div>
-
-          {/* Keycap & Action Trigger */}
-          <div className="flex items-center gap-2 shrink-0 z-10 mr-2">
-            <kbd className="min-w-[38px] h-8 px-2.5 rounded-lg bg-gradient-to-b from-emerald-600 to-[#005232] text-white font-mono text-xs font-black shadow-xs border border-emerald-600 border-b-2 border-b-emerald-800 flex items-center justify-center tracking-wider group-hover:shadow-sm transition-all">
-              F1
-            </kbd>
-            <ChevronLeft className="w-4 h-4 text-emerald-700/60 group-hover:text-emerald-700 group-hover:-translate-x-1 transition-all" />
-          </div>
-        </button>
-
-        {/* HERO ACTION 2: Products Catalog (F6) - Crisp Inventory Card */}
-        <button
-          type="button"
-          onClick={onNavigateToProducts}
-          className="group relative p-4 rounded-2xl bg-gradient-to-br from-slate-50/60 via-white to-white border border-slate-200/90 hover:border-slate-300 shadow-2xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] transition-all duration-150 flex items-center justify-between text-right overflow-hidden"
-        >
-          <div className="absolute top-0 right-0 w-28 h-28 bg-slate-300/10 rounded-full blur-xl pointer-events-none group-hover:bg-slate-300/20 transition-all" />
-
-          <div className="flex items-center gap-3.5 z-10 min-w-0">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 text-white flex items-center justify-center shrink-0 shadow-sm shadow-slate-900/15 group-hover:scale-105 transition-transform">
-              <Package className="w-6 h-6 text-white" />
-            </div>
-
-            <div className="min-w-0 space-y-0.5">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10.5px] font-black text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md uppercase tracking-wider">
-                  المخزن والكتالوج
-                </span>
-              </div>
-              <h3 className="text-base font-black text-slate-900 group-hover:text-slate-700 transition-colors truncate">
-                كتالوج الأصناف والأسعار
-              </h3>
-              <p className="text-[11.5px] text-slate-500 font-normal truncate leading-tight">
-                إضافة صنف، تعديل السعر، واستيراد إكسيل
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0 z-10 mr-2">
-            <kbd className="min-w-[38px] h-8 px-2.5 rounded-lg bg-gradient-to-b from-white to-slate-100 text-slate-700 font-mono text-xs font-black shadow-xs border border-slate-300 border-b-2 border-b-slate-400 flex items-center justify-center tracking-wider group-hover:border-slate-400 group-hover:text-slate-900 transition-all">
-              F6
-            </kbd>
-            <ChevronLeft className="w-4 h-4 text-slate-400 group-hover:text-slate-600 group-hover:-translate-x-1 transition-all" />
-          </div>
-        </button>
-
-        {/* HERO ACTION 3: Sales History & Reports (F7) - Crisp Shift & History Card */}
-        <button
-          type="button"
-          onClick={() => {
-            if (onNavigateToSales) onNavigateToSales();
-          }}
-          className="group relative p-4 rounded-2xl bg-gradient-to-br from-teal-50/50 via-white to-white border border-slate-200/90 hover:border-teal-300 shadow-2xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] transition-all duration-150 flex items-center justify-between text-right overflow-hidden"
-        >
-          <div className="absolute top-0 right-0 w-28 h-28 bg-teal-300/10 rounded-full blur-xl pointer-events-none group-hover:bg-teal-300/20 transition-all" />
-
-          <div className="flex items-center gap-3.5 z-10 min-w-0">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-teal-600 to-teal-800 text-white flex items-center justify-center shrink-0 shadow-sm shadow-teal-900/15 group-hover:scale-105 transition-transform">
-              <FileText className="w-6 h-6 text-white" />
-            </div>
-
-            <div className="min-w-0 space-y-0.5">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10.5px] font-black text-teal-800 bg-teal-100/70 border border-teal-200/80 px-2 py-0.5 rounded-md uppercase tracking-wider">
-                  الفواتير والتقارير
-                </span>
-              </div>
-              <h3 className="text-base font-black text-slate-900 group-hover:text-teal-800 transition-colors truncate">
-                سجل الفواتير والوردية
-              </h3>
-              <p className="text-[11.5px] text-slate-500 font-normal truncate leading-tight">
-                البحث في الفواتير، إعادة الطباعة، وحساب الوردية
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0 z-10 mr-2">
-            <kbd className="min-w-[38px] h-8 px-2.5 rounded-lg bg-gradient-to-b from-white to-slate-100 text-slate-700 font-mono text-xs font-black shadow-xs border border-slate-300 border-b-2 border-b-slate-400 flex items-center justify-center tracking-wider group-hover:border-teal-400 group-hover:text-teal-800 transition-all">
-              F7
-            </kbd>
-            <ChevronLeft className="w-4 h-4 text-slate-400 group-hover:text-teal-600 group-hover:-translate-x-1 transition-all" />
-          </div>
-        </button>
-      </div>
-
-      {/* 4. FINANCIAL & OPERATIONAL KPI METRICS (No clipping, elegant card craftsmanship) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+      {/* 4. FINANCIAL & OPERATIONAL KPI METRICS (6 clean cards with no clipping) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
         {/* KPI 1: Today Sales */}
         <div className="bg-gradient-to-b from-emerald-50/50 via-white to-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs hover:shadow-md hover:border-emerald-300 transition-all flex flex-col justify-between min-h-[135px]">
           <div>
@@ -483,36 +397,92 @@ export function DashboardView({
             </div>
           </div>
           <div className="pt-2.5 mt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-            <span>نقدي: <strong className="text-slate-800 font-mono">{summary ? (summary.todayCashPiasters / 100).toFixed(2) : '0'}</strong></span>
-            <span>آجل: <strong className="text-slate-800 font-mono">{summary ? (summary.todayCreditPiasters / 100).toFixed(2) : '0'}</strong></span>
+            <span>نقدي: <strong className="text-slate-800 font-mono">{summary ? (summary.todayCashPiasters / 100).toFixed(0) : '0'}</strong></span>
+            <span>آجل: <strong className="text-slate-800 font-mono">{summary ? (summary.todayCreditPiasters / 100).toFixed(0) : '0'}</strong></span>
           </div>
         </div>
 
-        {/* KPI 2: Today Profit */}
-        <div className="bg-gradient-to-b from-teal-50/50 via-white to-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs hover:shadow-md hover:border-teal-300 transition-all flex flex-col justify-between min-h-[135px]">
+        {/* KPI 2: Today Net Profit / Loss */}
+        {(() => {
+          const netProfit = summary?.todayNetProfitsPiasters ?? summary?.todayProfitsPiasters ?? 0;
+          const isLoss = netProfit < 0;
+          const absNetProfit = Math.abs(netProfit);
+
+          return (
+            <div className={`bg-gradient-to-b ${
+              isLoss 
+                ? 'from-rose-50/70 via-white to-white border-rose-300/80 hover:border-rose-400' 
+                : 'from-teal-50/50 via-white to-white border-slate-200/90 hover:border-teal-300'
+            } rounded-2xl border p-4 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between min-h-[135px]`}>
+              <div>
+                <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
+                  <span className={`font-bold ${isLoss ? 'text-rose-800' : 'text-slate-700'}`}>
+                    {isLoss ? 'صافي خسائر اليوم' : 'صافي أرباح اليوم'}
+                  </span>
+                  <div className={`w-7 h-7 rounded-xl flex items-center justify-center ${
+                    isLoss ? 'bg-rose-100 text-rose-700' : 'bg-teal-100/70 text-teal-700'
+                  }`}>
+                    {isLoss ? <TrendingDown className="w-4 h-4" /> : <TrendingUp className="w-4 h-4" />}
+                  </div>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className={`text-2xl font-black font-mono tracking-tight ${
+                    isLoss ? 'text-rose-600' : 'text-teal-700'
+                  }`}>
+                    {isLoss ? '-' : ''}{(absNetProfit / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                  <span className={`text-[11px] font-bold ${isLoss ? 'text-rose-400' : 'text-teal-600'}`}>ج.م</span>
+                </div>
+              </div>
+              <div className="pt-2.5 mt-2 border-t border-slate-100 flex items-center justify-between text-[10.5px] text-slate-500">
+                <span className="truncate">
+                  {summary && (summary.todayInventoryLossPiasters || 0) > 0
+                    ? `مبيعات: ${((summary.todayProfitsPiasters || 0) / 100).toFixed(0)} | عجز: -${((summary.todayInventoryLossPiasters || 0) / 100).toFixed(0)}`
+                    : 'صافي بعد التكاليف'}
+                </span>
+                <span className={`font-bold font-mono text-[10px] px-1.5 py-0.5 rounded ${
+                  isLoss ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-teal-50 text-teal-700 border border-teal-200/60'
+                }`}>
+                  {isLoss ? 'عجز وتالف' : 'فعلي'}
+                </span>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* KPI 3: Inventory Loss / Shrinkage */}
+        <div 
+          onClick={() => onNavigateToProducts('movements')}
+          className="bg-gradient-to-b from-amber-50/40 via-white to-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs hover:shadow-md hover:border-amber-300 transition-all flex flex-col justify-between min-h-[135px] cursor-pointer group"
+        >
           <div>
             <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-              <span className="font-bold text-slate-700">أرباح اليوم التقديرية</span>
-              <div className="w-7 h-7 rounded-xl bg-teal-100/70 text-teal-700 flex items-center justify-center">
-                <TrendingUp className="w-4 h-4" />
+              <span className="font-bold text-slate-700">عجز وتالف الجرد اليوم</span>
+              <div className="w-7 h-7 rounded-xl bg-amber-100/70 text-amber-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <Scale className="w-4 h-4" />
               </div>
             </div>
             <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-black font-mono text-teal-700 tracking-tight">
-                {summary ? (summary.todayProfitsPiasters / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+              <span className={`text-2xl font-black font-mono tracking-tight ${
+                (summary?.todayInventoryLossPiasters || 0) > 0 ? 'text-amber-700' : 'text-slate-800'
+              }`}>
+                {summary && summary.todayInventoryLossPiasters != null 
+                  ? (summary.todayInventoryLossPiasters / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  : '0.00'}
               </span>
-              <span className="text-[11px] font-bold text-teal-600">ج.م</span>
+              <span className="text-[11px] font-bold text-slate-400">ج.م</span>
             </div>
           </div>
           <div className="pt-2.5 mt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-            <span>هامش الربح</span>
-            <span className="text-teal-700 font-bold font-mono text-[10.5px] bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200/60">
-              تقديري للوردية
+            <span>التسويات: <strong className="text-slate-800 font-mono">{summary?.todayAdjustmentsCount || 0}</strong></span>
+            <span className="text-brand font-bold text-[10.5px] flex items-center gap-0.5 group-hover:underline">
+              عرض الحركات
+              <ChevronLeft className="w-3 h-3" />
             </span>
           </div>
         </div>
 
-        {/* KPI 3: Invoices Count */}
+        {/* KPI 4: Invoices Count */}
         <div className="bg-gradient-to-b from-indigo-50/40 via-white to-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs hover:shadow-md hover:border-indigo-300 transition-all flex flex-col justify-between min-h-[135px]">
           <div>
             <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
@@ -529,38 +499,40 @@ export function DashboardView({
             </div>
           </div>
           <div className="pt-2.5 mt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-            <span>متوسط الفاتورة</span>
+            <span>متوسط الفاتورة:</span>
             <span className="text-slate-800 font-bold font-mono">
-              {summary && summary.todayInvoicesCount > 0 ? ((summary.todaySalesPiasters / summary.todayInvoicesCount) / 100).toFixed(1) : '0'} ج.م
+              {summary && summary.todayInvoicesCount > 0 ? ((summary.todaySalesPiasters / summary.todayInvoicesCount) / 100).toFixed(0) : '0'} ج.م
             </span>
           </div>
         </div>
 
-        {/* KPI 4: Drawer Balance */}
-        <div className="bg-gradient-to-b from-amber-50/50 via-white to-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs hover:shadow-md hover:border-amber-300 transition-all flex flex-col justify-between min-h-[135px]">
+        {/* KPI 5: Drawer Balance */}
+        <div className="bg-gradient-to-b from-emerald-50/40 via-white to-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs hover:shadow-md hover:border-emerald-300 transition-all flex flex-col justify-between min-h-[135px]">
           <div>
             <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
               <span className="font-bold text-slate-700">المبالغ النقدية في الدرج</span>
-              <div className="w-7 h-7 rounded-xl bg-amber-100/70 text-amber-700 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-xl bg-emerald-100/70 text-emerald-700 flex items-center justify-center">
                 <Wallet className="w-4 h-4" />
               </div>
             </div>
             <div className="flex items-baseline gap-1">
               <span className="text-2xl font-black font-mono text-slate-900 tracking-tight">
-                {summary ? (summary.todayCashPiasters / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                {summary ? (summary.cashDrawerPiasters / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
               </span>
               <span className="text-[11px] font-bold text-slate-400">ج.م</span>
             </div>
           </div>
           <div className="pt-2.5 mt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-            <span>النقدية الصافية</span>
-            <span className="text-amber-800 font-bold text-[10.5px] bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60">
-              خزينة المحل
-            </span>
+            <span>مبيعات: <strong className="text-slate-800 font-mono">{summary ? (summary.todayCashPiasters / 100).toFixed(0) : '0'}</strong></span>
+            {summary && (summary.todayDebtPaymentsPiasters || 0) > 0 && (
+              <span className="text-emerald-700 font-bold font-mono text-[10px]">
+                +{((summary.todayDebtPaymentsPiasters || 0) / 100).toFixed(0)} سداد
+              </span>
+            )}
           </div>
         </div>
 
-        {/* KPI 5: Customer Debts */}
+        {/* KPI 6: Customer Debts */}
         <div 
           onClick={onNavigateToCustomers}
           className={`bg-gradient-to-b from-rose-50/50 via-white to-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs hover:shadow-md hover:border-rose-300 transition-all flex flex-col justify-between min-h-[135px] ${onNavigateToCustomers ? 'cursor-pointer' : ''}`}
@@ -593,62 +565,148 @@ export function DashboardView({
         </div>
       </div>
 
-      {/* 5. SPLIT SECTION: TOP SELLING PRODUCTS & ALERTS */}
+      {/* 5. SPLIT SECTION: TOP SELLING & INVENTORY ADJUSTMENTS + ALERTS */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1">
         
-        {/* RIGHT COLUMN (2/3 width): Top Selling Items */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/90 flex flex-col overflow-hidden shadow-xs">
-          <div className="h-11 bg-slate-50 border-b border-slate-100 px-5 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-black text-slate-800">
-              <Flame className="w-4 h-4 text-emerald-600" />
-              <span>الأصناف الأكثر طلباً ومبيعاً اليوم</span>
+        {/* RIGHT COLUMN (2/3 width): Top Selling Items + Today's Inventory Adjustments */}
+        <div className="lg:col-span-2 flex flex-col gap-4">
+          
+          {/* 5A. Top Selling Products */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 flex flex-col overflow-hidden shadow-xs">
+            <div className="h-11 bg-slate-50 border-b border-slate-100 px-5 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-black text-slate-800">
+                <Flame className="w-4 h-4 text-emerald-600" />
+                <span>الأصناف الأكثر طلباً ومبيعاً اليوم</span>
+              </div>
+              <span className="text-[11px] text-slate-400 font-medium font-mono">مرتبة تنازلياً حسب الكمية</span>
             </div>
-            <span className="text-[11px] text-slate-400 font-medium font-mono">مرتبة تنازلياً حسب الكمية</span>
+
+            <div className="p-0 overflow-y-auto max-h-[260px]">
+              {summary && summary.topSellingProducts && summary.topSellingProducts.length > 0 ? (
+                <table className="w-full text-right text-xs">
+                  <thead className="bg-slate-50/80 text-slate-500 border-b border-slate-100 text-[11px]">
+                    <tr>
+                      <th className="py-2.5 px-4 font-bold w-12 text-center">الترتيب</th>
+                      <th className="py-2.5 px-4 font-bold">اسم الصنف</th>
+                      <th className="py-2.5 px-4 font-bold text-center">الكمية المباعة</th>
+                      <th className="py-2.5 px-4 font-bold text-left pl-6">إجمالي الإيراد</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {summary.topSellingProducts.map((p, idx) => (
+                      <tr key={p.productId} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-2.5 px-4 text-center">
+                          {idx === 0 ? (
+                            <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-900 font-black text-[11px] inline-flex items-center justify-center">1</span>
+                          ) : idx === 1 ? (
+                            <span className="w-6 h-6 rounded-full bg-slate-200 text-slate-800 font-black text-[11px] inline-flex items-center justify-center">2</span>
+                          ) : idx === 2 ? (
+                            <span className="w-6 h-6 rounded-full bg-orange-100 text-orange-900 font-black text-[11px] inline-flex items-center justify-center">3</span>
+                          ) : (
+                            <span className="font-mono text-slate-400">{idx + 1}</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-4 font-bold text-slate-900">{p.productName}</td>
+                        <td className="py-2.5 px-4 font-mono font-bold text-center text-slate-700">
+                          {p.totalQuantity}
+                        </td>
+                        <td className="py-2.5 px-4 font-mono font-black text-[#006d41] text-left pl-6 text-sm">
+                          {(p.totalSalesPiasters / 100).toFixed(2)} <span className="text-[10px] text-slate-400 font-normal">ج.م</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="py-12 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-2">
+                  <ShoppingCart className="w-8 h-8 text-slate-300 stroke-1" />
+                  <span>لا توجد مبيعات مسجلة حتى الآن اليوم</span>
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="p-0 overflow-y-auto flex-1">
-            {summary && summary.topSellingProducts && summary.topSellingProducts.length > 0 ? (
-              <table className="w-full text-right text-xs">
-                <thead className="bg-slate-50/80 text-slate-500 border-b border-slate-100 text-[11px]">
-                  <tr>
-                    <th className="py-2.5 px-4 font-bold w-12 text-center">الترتيب</th>
-                    <th className="py-2.5 px-4 font-bold">اسم الصنف</th>
-                    <th className="py-2.5 px-4 font-bold text-center">الكمية المباعة</th>
-                    <th className="py-2.5 px-4 font-bold text-left pl-6">إجمالي الإيراد</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {summary.topSellingProducts.map((p, idx) => (
-                    <tr key={p.productId} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-2.5 px-4 text-center">
-                        {idx === 0 ? (
-                          <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-900 font-black text-[11px] inline-flex items-center justify-center">1</span>
-                        ) : idx === 1 ? (
-                          <span className="w-6 h-6 rounded-full bg-slate-200 text-slate-800 font-black text-[11px] inline-flex items-center justify-center">2</span>
-                        ) : idx === 2 ? (
-                          <span className="w-6 h-6 rounded-full bg-orange-100 text-orange-900 font-black text-[11px] inline-flex items-center justify-center">3</span>
-                        ) : (
-                          <span className="font-mono text-slate-400">{idx + 1}</span>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-4 font-bold text-slate-900">{p.productName}</td>
-                      <td className="py-2.5 px-4 font-mono font-bold text-center text-slate-700">
-                        {p.totalQuantity}
-                      </td>
-                      <td className="py-2.5 px-4 font-mono font-black text-[#006d41] text-left pl-6 text-sm">
-                        {(p.totalSalesPiasters / 100).toFixed(2)} <span className="text-[10px] text-slate-400 font-normal">ج.م</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <div className="py-16 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-2">
-                <ShoppingCart className="w-8 h-8 text-slate-300 stroke-1" />
-                <span>لا توجد مبيعات مسجلة حتى الآن اليوم</span>
+          {/* 5B. Today's Inventory Adjustments & Shrinkage Section */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 flex flex-col overflow-hidden shadow-xs">
+            <div className="h-11 bg-slate-50 border-b border-slate-100 px-5 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-black text-slate-800">
+                <Scale className="w-4 h-4 text-amber-600" />
+                <span>تسويات وعجز وتوالف المخزون اليوم</span>
+                <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-amber-100 text-amber-800 border border-amber-200 font-mono">
+                  {summary?.recentAdjustments?.length || 0} حركة مسجلة
+                </span>
               </div>
-            )}
+              <button
+                type="button"
+                onClick={() => onNavigateToProducts('movements')}
+                className="px-3 py-1 rounded-lg bg-surface hover:bg-slate-100 text-brand text-[11px] font-bold flex items-center gap-1 border border-slate-200 shadow-2xs transition-colors"
+              >
+                <Boxes className="w-3.5 h-3.5 text-brand" />
+                <span>دفتر حركات المخزون بالكامل</span>
+                <ChevronLeft className="w-3 h-3" />
+              </button>
+            </div>
+
+            <div className="p-0 overflow-y-auto max-h-[260px]">
+              {summary && summary.recentAdjustments && summary.recentAdjustments.length > 0 ? (
+                <table className="w-full text-right text-xs">
+                  <thead className="bg-slate-50/80 text-slate-500 border-b border-slate-100 text-[11px]">
+                    <tr>
+                      <th className="py-2.5 px-4 font-bold">اسم الصنف</th>
+                      <th className="py-2.5 px-4 font-bold text-center">فرق الرصيد</th>
+                      <th className="py-2.5 px-4 font-bold text-center">تكلفة الوحدة</th>
+                      <th className="py-2.5 px-4 font-bold text-left pl-6">الأثر المالي</th>
+                      <th className="py-2.5 px-4 font-bold">السبب الموثق</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {summary.recentAdjustments.map((adj, idx) => {
+                      const isNegative = adj.quantityDeltaMilli < 0;
+                      const isPositive = adj.quantityDeltaMilli > 0;
+
+                      return (
+                        <tr key={`${adj.productId}_${idx}`} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-2.5 px-4 font-bold text-slate-900">{adj.productName}</td>
+                          <td className="py-2.5 px-4 text-center font-mono font-bold">
+                            <span className={`px-2 py-0.5 rounded text-[11px] border ${
+                              isNegative 
+                                ? 'bg-rose-50 text-rose-700 border-rose-200' 
+                                : isPositive 
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                                : 'bg-slate-100 text-slate-600 border-slate-200'
+                            }`}>
+                              {adj.quantityDeltaFormatted}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-4 text-center font-mono text-slate-600">
+                            {(adj.unitCostPiasters / 100).toFixed(2)} ج.م
+                          </td>
+                          <td className="py-2.5 px-4 text-left pl-6 font-mono font-black text-sm">
+                            <span className={isNegative ? 'text-rose-600' : isPositive ? 'text-emerald-700' : 'text-slate-600'}>
+                              {isNegative ? '-' : isPositive ? '+' : ''}{(Math.abs(adj.financialImpactPiasters) / 100).toFixed(2)}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-normal mr-1">ج.م</span>
+                          </td>
+                          <td className="py-2.5 px-4 text-slate-700 text-[11.5px]">
+                            <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-800 text-[11px]">
+                              {adj.reason || 'تسوية جردية'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="py-10 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-1.5">
+                  <CheckCircle2 className="w-7 h-7 text-emerald-600" />
+                  <span className="font-bold text-slate-700">لم يتم تسجيل أي عجز أو تالف بالمخزن اليوم</span>
+                  <span className="text-[11px] text-slate-400">كافة الأرصدة مطابقة بدون فروق جردية</span>
+                </div>
+              )}
+            </div>
           </div>
+
         </div>
 
         {/* LEFT COLUMN (1/3 width): System Alerts & Stock Thresholds */}
@@ -700,7 +758,7 @@ export function DashboardView({
                 <span>تنبيهات النواقص بالمخزن</span>
               </div>
               <button 
-                onClick={onNavigateToProducts}
+                onClick={() => onNavigateToProducts()}
                 className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 hover:text-slate-900 text-[11px] font-bold transition-all shadow-2xs border border-slate-200 cursor-pointer active:translate-y-0.5"
               >
                 عرض الكل
@@ -788,6 +846,13 @@ export function DashboardView({
           else if (tab === 'sales' && onNavigateToSales) onNavigateToSales();
           else if (tab.startsWith('settings') && onNavigateToSettings) onNavigateToSettings(tab);
         }}
+      />
+
+      {/* Cloudflare License Management Modal */}
+      <LicenseModal
+        isOpen={isLicenseModalOpen}
+        onClose={() => setIsLicenseModalOpen(false)}
+        onLicenseUpdated={loadData}
       />
     </div>
   );

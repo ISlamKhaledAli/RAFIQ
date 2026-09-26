@@ -156,16 +156,60 @@ export const PaymentModal = ({
   const handleConfirm = async () => {
     if (activeTab === 'cash') {
       if (isShortPayment) {
+        if (!currentCustomerId) {
+          await rafiqAlert({
+            title: 'لا يمكن إتمام دفع جزئي لعميل مجهول',
+            message: `المبلغ المدفوع (${formatArabicCurrency(receivedPiasters)}) أقل من قيمة الفاتورة (${formatArabicCurrency(netTotalPiasters)}) بفارق ${formatArabicCurrency(shortAmountPiasters)}.\n\nلتسجيل باقي الحساب كدين آجل، يرجى اختيار عميل من القائمة أعلاه أو الضغط على «إضافة عميل سريع» أولاً.`,
+            variant: 'warning',
+          });
+          return;
+        }
+
+        if (selectedCustomer) {
+          const isExceeded = selectedCustomer.creditLimitPiasters > 0 && 
+            (selectedCustomer.balancePiasters + shortAmountPiasters > selectedCustomer.creditLimitPiasters);
+          if (isExceeded) {
+            const confirmExceeded = await rafiqConfirm({
+              title: 'تحذير تجاوز الحد الائتماني للعميل',
+              message: `دين العميل الحالي: ${formatArabicCurrency(selectedCustomer.balancePiasters)}\nالمبلغ المتبقي كآجل: ${formatArabicCurrency(shortAmountPiasters)}\nإجمالي الدين بعد الفاتورة: ${formatArabicCurrency(selectedCustomer.balancePiasters + shortAmountPiasters)}\nالحد الائتماني المسموح: ${formatArabicCurrency(selectedCustomer.creditLimitPiasters)}\n\nهل تريد تأكيد العملية وتجاوز الحد الائتماني؟`,
+              confirmText: 'متابعة وتجاوز الحد',
+              cancelText: 'إلغاء وتعديل المبلغ',
+              variant: 'danger',
+            });
+            if (!confirmExceeded) return;
+          }
+        }
+
         const proceed = await rafiqConfirm({
-          title: 'تنبيه نقص المبلغ المدفوع',
-          message: `المبلغ المدفوع (${formatArabicCurrency(receivedPiasters)}) أقل من قيمة الفاتورة (${formatArabicCurrency(netTotalPiasters)}).\n\nهل تريد المتابعة وإتمام العملية؟`,
-          confirmText: 'نعم، إتمام الدفع',
+          title: 'تأكيد الدفع الجزئي وتسجيل الباقي كآجل',
+          message: `تفاصيل العملية:\n• المدفوع كاش الآن: ${formatArabicCurrency(receivedPiasters)} (يُضاف لدرج الخزينة)\n• الباقي كدين آجل: ${formatArabicCurrency(shortAmountPiasters)} (يُقيد في دفتر العميل: ${selectedCustomer?.name || ''})\n\nهل تريد المتابعة وإتمام الفاتورة؟`,
+          confirmText: 'نعم، إتمام الفاتورة',
           cancelText: 'تراجع وتعديل المبلغ',
-          variant: 'warning',
+          variant: 'info',
         });
         if (!proceed) {
           return;
         }
+
+        const payments: SalePayment[] = [
+          {
+            amountPiasters: receivedPiasters,
+            method: 'cash',
+          },
+          {
+            amountPiasters: shortAmountPiasters,
+            method: 'credit',
+          }
+        ];
+
+        onConfirmPayment({
+          paymentMethod: 'multi',
+          paidPiasters: receivedPiasters,
+          payments,
+          changeDuePiasters: 0,
+          customerId: currentCustomerId,
+        });
+        return;
       }
 
       const payments: SalePayment[] = [
@@ -457,37 +501,77 @@ export const PaymentModal = ({
                 </div>
               </div>
 
-              {/* Huge Change Due Display (Feature #27 / Task 27-3) */}
+              {/* Huge Change Due or Short Payment Debt Display (Feature #27 / Task 27-3) */}
               <div className={`p-4 rounded-xl border flex items-center justify-between transition-all ${
                 isShortPayment
-                  ? 'bg-amber-500/10 border-amber-400/40 text-amber-900 dark:text-amber-100'
+                  ? selectedCustomer
+                    ? 'bg-amber-500/10 border-amber-400/50 text-amber-900 dark:text-amber-100'
+                    : 'bg-rose-500/10 border-rose-400/50 text-rose-900 dark:text-rose-100'
                   : 'bg-paid-soft/80 border-paid-border text-paid'
               }`}>
-                <div className="flex flex-col">
-                  <span className="text-xs font-bold uppercase tracking-wider">
-                    {isShortPayment ? 'المبلغ المتبقي / عجز في الدفع:' : 'المبلغ المتبقي للعميل (الباقي):'}
-                  </span>
-                  <span className="text-3xl font-mono font-black mt-1 tabular-nums">
-                    {isShortPayment 
-                      ? `-${formatArabicCurrency(shortAmountPiasters)}`
-                      : formatArabicCurrency(changeDuePiasters)
-                    }
-                  </span>
-                </div>
-
-                <div className="text-left text-xs font-medium max-w-[200px]">
-                  {isShortPayment ? (
-                    <span className="flex items-center gap-1.5 text-amber-800 dark:text-amber-300">
-                      <AlertCircle className="w-4 h-4 shrink-0" />
-                      <span>المبلغ المستلم غير كافٍ لتغطية الفاتورة بالكامل.</span>
-                    </span>
+                {isShortPayment ? (
+                  selectedCustomer ? (
+                    <>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                          عجز الدفع (يُسجل كدين آجل):
+                        </span>
+                        <span className="text-2xl font-mono font-black mt-1 tabular-nums text-amber-900 dark:text-amber-100">
+                          {formatArabicCurrency(shortAmountPiasters)}
+                        </span>
+                        <span className="text-[11px] font-semibold text-amber-800 dark:text-amber-300 mt-0.5">
+                          على العميل: {selectedCustomer.name} (الدين السابق: {formatArabicCurrency(selectedCustomer.balancePiasters)})
+                        </span>
+                      </div>
+                      <div className="text-left text-xs font-medium max-w-[220px]">
+                        <span className="flex items-center gap-1.5 text-amber-800 dark:text-amber-300">
+                          <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                          <span>سيُضاف {formatArabicCurrency(receivedPiasters)} للخزينة، والمتبقي كدين على العميل.</span>
+                        </span>
+                      </div>
+                    </>
                   ) : (
-                    <span className="flex items-center gap-1.5 text-paid font-bold">
-                      <CheckCircle className="w-5 h-5 shrink-0" />
-                      <span>صافي الحساب سليم وجاهز لتأكيد العملية والطباعة.</span>
-                    </span>
-                  )}
-                </div>
+                    <>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold uppercase tracking-wider text-rose-800 dark:text-rose-300">
+                          عجز في الدفع:
+                        </span>
+                        <span className="text-2xl font-mono font-black mt-1 tabular-nums text-rose-900 dark:text-rose-200">
+                          -{formatArabicCurrency(shortAmountPiasters)}
+                        </span>
+                        <span className="text-[11px] font-bold text-rose-700 dark:text-rose-300 mt-1">
+                          ⚠️ لا يمكن إتمام دفع جزئي دون تحديد العميل لتسجيل الباقي كآجل.
+                        </span>
+                      </div>
+                      <div className="text-left text-xs font-medium shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setShowQuickAdd(true)}
+                          className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow-2xs transition-all cursor-pointer"
+                        >
+                          + إضافة عميل سريع
+                        </button>
+                      </div>
+                    </>
+                  )
+                ) : (
+                  <>
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold uppercase tracking-wider">
+                        المبلغ المتبقي للعميل (الباقي):
+                      </span>
+                      <span className="text-3xl font-mono font-black mt-1 tabular-nums">
+                        {formatArabicCurrency(changeDuePiasters)}
+                      </span>
+                    </div>
+                    <div className="text-left text-xs font-medium max-w-[200px]">
+                      <span className="flex items-center gap-1.5 text-paid font-bold">
+                        <CheckCircle className="w-5 h-5 shrink-0" />
+                        <span>صافي الحساب سليم وجاهز لتأكيد العملية والطباعة.</span>
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}

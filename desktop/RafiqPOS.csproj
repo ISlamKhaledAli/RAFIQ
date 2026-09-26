@@ -131,6 +131,7 @@
     <Compile Include="Services\EncryptionService.cs" />
     <Compile Include="Services\SecurityTestRunner.cs" />
     <Compile Include="Services\SystemHealthService.cs" />
+    <Compile Include="Services\LicenseService.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

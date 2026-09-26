@@ -45,7 +45,7 @@ export function piastersToPounds(piasters: number): number {
  */
 export function formatArabicCurrency(piasters: number, includeSymbol = true): string {
   const pounds = piastersToPounds(piasters);
-  const formatted = pounds.toLocaleString('ar-EG', {
+  const formatted = pounds.toLocaleString('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
