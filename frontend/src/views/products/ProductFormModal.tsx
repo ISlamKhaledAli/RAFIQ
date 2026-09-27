@@ -185,6 +185,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               </div>
             )}
 
+
             {/* Name */}
             <div>
               <label className="block text-ink font-semibold mb-1">اسم الصنف *</label>
@@ -281,7 +282,10 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               <div className="grid grid-cols-2 gap-2 p-1 bg-surface-2 rounded border border-line">
                 <button
                   type="button"
-                  onClick={() => setUnit('piece')}
+                  onClick={() => {
+                    setUnit('piece');
+                    setProductUnits(productUnits.map(u => u.isBaseUnit ? { ...u, unitName: 'قطعة', isDivisible: false } : u));
+                  }}
                   className={`py-1.5 px-3 rounded text-[12px] font-bold flex items-center justify-center gap-1.5 transition-all ${
                     unit === 'piece'
                       ? 'bg-brand text-white shadow-xs'
@@ -293,7 +297,10 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setUnit('kg')}
+                  onClick={() => {
+                    setUnit('kg');
+                    setProductUnits(productUnits.map(u => u.isBaseUnit ? { ...u, unitName: 'كيلو', isDivisible: true } : u));
+                  }}
                   className={`py-1.5 px-3 rounded text-[12px] font-bold flex items-center justify-center gap-1.5 transition-all ${
                     unit === 'kg'
                       ? 'bg-brand text-white shadow-xs'
@@ -304,6 +311,26 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   <span>بالوزن / ميزان (كيلوجرام)</span>
                 </button>
               </div>
+            </div>
+
+            {/* Multi-Units Management (Feature #161 / Tasks 161-1 to 161-4 & 161-13 to 161-15) */}
+            <div className="shrink-0 w-full">
+              <ProductUnitsEditor
+                units={productUnits}
+                onChange={(newUnits) => {
+                  setProductUnits(newUnits);
+                  const base = newUnits.find(u => u.isBaseUnit);
+                  if (base) {
+                    if (base.sellPricePiasters !== pricePiasters) setPricePiasters(base.sellPricePiasters);
+                    if (base.costPricePiasters !== costPiasters) setCostPiasters(base.costPricePiasters);
+                  }
+                }}
+                basePricePiasters={pricePiasters}
+                baseCostPiasters={costPiasters}
+                baseUnitName={unit === 'kg' ? 'كيلو' : 'قطعة'}
+                isWeightItem={unit === 'kg'}
+                primaryBarcode={barcode}
+              />
             </div>
 
             {/* Category Selection Dropdown (Task 16-3) */}
@@ -442,22 +469,6 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               </div>
             )}
 
-            {/* Multi-Units Management (Feature #161 / Tasks 161-1 to 161-4 & 161-13 to 161-15) */}
-            <ProductUnitsEditor
-              units={productUnits}
-              onChange={(newUnits) => {
-                setProductUnits(newUnits);
-                const base = newUnits.find(u => u.isBaseUnit);
-                if (base) {
-                  if (base.sellPricePiasters !== pricePiasters) setPricePiasters(base.sellPricePiasters);
-                  if (base.costPricePiasters !== costPiasters) setCostPiasters(base.costPricePiasters);
-                }
-              }}
-              basePricePiasters={pricePiasters}
-              baseCostPiasters={costPiasters}
-              baseUnitName={unit === 'kg' ? 'كيلو' : 'قطعة'}
-              primaryBarcode={barcode}
-            />
 
             {/* Initial Stock, Min Stock Threshold, & Tax Rate (Feature #18 & #19) */}
             <div className="grid grid-cols-3 gap-2.5">

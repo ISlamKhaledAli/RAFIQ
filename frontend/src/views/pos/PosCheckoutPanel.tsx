@@ -68,44 +68,44 @@ export const PosCheckoutPanel: React.FC<PosCheckoutPanelProps> = ({
   onOpenReturnModal,
 }) => {
   return (
-    <section className="w-[23%] min-w-[210px] max-w-[280px] h-full bg-surface flex flex-col justify-between p-2.5 sm:p-3 select-none overflow-y-auto shrink-0">
+    <section className="w-[24%] min-w-[220px] max-w-[290px] h-full bg-white border-r border-[#dce1dc] flex flex-col justify-between p-3 select-none overflow-y-auto shrink-0">
       {/* Top Section: Line Breakdown */}
-      <div className="flex flex-col gap-2">
-        <div className="pb-1.5 hairline-b flex items-center justify-between">
+      <div className="flex flex-col gap-2.5">
+        <div className="pb-2 border-b border-[#dce1dc] flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <span className="text-[12px] sm:text-[13px] font-bold text-ink">ملخص الفاتورة</span>
-            <span className="text-[10px] sm:text-[11px] font-mono font-bold text-brand bg-brand-soft border border-brand/20 px-1.5 py-0.5 rounded">
+            <span className="text-xs sm:text-sm font-bold text-[#14181a]">ملخص الفاتورة</span>
+            <span className="text-[11px] font-mono font-bold text-[#0b4f42] bg-[#0b4f42]/10 border border-[#0b4f42]/20 px-2 py-0.5 rounded">
               #{nextExpectedInvoiceNumber || (lastInvoiceNumber ? lastInvoiceNumber + 1 : '1')}
             </span>
           </div>
-          <span className="text-[10px] sm:text-[11px] font-mono text-ink-muted bg-surface-2 border border-line px-1.5 py-0.5 rounded">
+          <span className="text-[11px] font-mono text-[#5b6664] bg-[#f7f8f6] border border-[#dce1dc] px-2 py-0.5 rounded">
             {cart.length} أصناف ({totalItemCount} ق)
           </span>
         </div>
 
         {/* Breakdown Rows */}
-        <div className="flex justify-between items-center text-[12px] py-0.5">
-          <span className="text-ink-muted">الإجمالي:</span>
-          <span className="font-semibold text-ink font-mono tabular-nums">
+        <div className="flex justify-between items-center text-xs py-0.5">
+          <span className="text-[#5b6664]">المجموع الفرعي:</span>
+          <span className="font-bold text-[#14181a] font-mono tabular-nums">
             {formatArabicCurrency(subtotalPiasters)}
           </span>
         </div>
 
-        <div className="flex justify-between items-center text-[12px] py-0.5 gap-2">
-          <span className="text-danger font-semibold text-xs shrink-0">الخصم:</span>
+        <div className="flex justify-between items-center text-xs py-0.5 gap-2">
+          <span className="text-[#b23a2e] font-bold text-xs shrink-0">الخصم:</span>
           <div className="w-32">
             <MoneyInput
               valuePiasters={discountPiasters}
               onChangePiasters={setDiscountPiasters}
-              className="h-[28px] sm:h-[30px] text-xs text-danger font-bold border-danger/40 focus:border-danger bg-danger-soft/20 text-right pr-2 pl-9"
+              className="h-8 text-xs text-[#b23a2e] font-bold border-[#b23a2e]/40 focus:border-[#b23a2e] bg-[#fdf3f2] text-right pr-2 pl-8 rounded-lg"
             />
           </div>
         </div>
 
         {showTaxes && (
-          <div className="flex justify-between items-center text-[10px] py-0.5 text-ink-muted border-t border-line">
+          <div className="flex justify-between items-center text-[11px] py-1 text-[#5b6664] border-t border-[#dce1dc]">
             <span>الضريبة:</span>
-            <span className="font-mono text-ink-muted">
+            <span className="font-mono text-[#5b6664] font-semibold">
               {totalTaxPiasters > 0
                 ? `${formatArabicCurrency(totalTaxPiasters)} (مشمولة)`
                 : '0.00 ج.م'}
@@ -177,40 +177,40 @@ export const PosCheckoutPanel: React.FC<PosCheckoutPanelProps> = ({
       )}
 
       {/* Bottom Section: Hero Grand Total + Action Triggers */}
-      <div className="flex flex-col gap-2 shrink-0">
-        {/* Grand Total Solid Dark Bar (#14181A, Egyptian Pound) */}
-        <div className="w-full bg-[#14181A] rounded-[6px] border border-[#2D3331] p-2 sm:p-2.5 flex flex-col justify-between shadow-sm shrink-0">
+      <div className="flex flex-col gap-2 shrink-0 pt-2">
+        {/* Grand Total Solid Dark Bar (#00372D / #14181A) */}
+        <div className="w-full bg-[#00372d] rounded-lg border border-[#0b4f42] p-2.5 flex flex-col justify-between shadow-md shrink-0">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] sm:text-[11px] font-semibold text-[#8FA69C]">المطلوب سداده</span>
+            <span className="text-xs font-semibold text-[#83bfaf]">المطلوب سداده</span>
             {totalTaxPiasters > 0 && (
-              <span className="text-[9px] font-medium text-emerald-400">
+              <span className="text-[10px] font-medium text-[#99f2bb]">
                 (شامل الضريبة)
               </span>
             )}
-            <span className="text-[10px] sm:text-[11px] font-medium text-[#DCE1DC]">جنيه</span>
+            <span className="text-xs font-bold text-[#b1efdd]">جنيه مصري</span>
           </div>
-          <div className="flex items-baseline justify-end pt-0.5">
-            <span className="text-white text-[22px] sm:text-[26px] leading-tight font-bold font-mono tabular-nums tracking-tight">
+          <div className="flex items-baseline justify-end pt-1">
+            <span className="text-white text-2xl sm:text-[28px] leading-tight font-bold font-mono tabular-nums tracking-tight">
               {formatArabicCurrency(netTotalPiasters)}
             </span>
           </div>
         </div>
 
         {/* Main Action Buttons Grid */}
-        <div className="grid grid-cols-2 gap-1.5 shrink-0">
+        <div className="grid grid-cols-2 gap-2 shrink-0">
           {paymentMethod === 'credit' ? (
             /* آجل [F9 / F12] */
             <button 
               type="button"
               onClick={() => handleOpenCheckout('credit')}
               disabled={loading || cart.length === 0}
-              className="col-span-2 h-[42px] sm:h-[46px] bg-danger hover:bg-red-700 active:bg-red-800 disabled:bg-surface-2 disabled:text-ink-muted disabled:border disabled:border-line text-white rounded-[6px] px-2 flex items-center justify-between transition-colors shadow-sm"
+              className="col-span-2 h-11 bg-[#b23a2e] hover:bg-[#962f25] active:bg-[#7a251d] disabled:bg-[#f1f4f6] disabled:text-[#5b6664] text-white rounded-lg px-3 flex items-center justify-between transition-colors shadow-sm cursor-pointer"
             >
-              <div className="flex items-center gap-1 min-w-0">
-                <CreditCard className="w-3.5 h-3.5 shrink-0" />
-                <span className="text-[11px] sm:text-[12px] font-bold truncate">تسجيل بيع آجل</span>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <CreditCard className="w-4 h-4 shrink-0" />
+                <span className="text-xs sm:text-sm font-bold truncate">تسجيل بيع آجل</span>
               </div>
-              <span className="text-[9px] font-mono bg-white/20 px-1.5 py-0.5 rounded text-white font-bold shrink-0">
+              <span className="text-[10px] font-mono bg-white/20 px-2 py-0.5 rounded text-white font-bold shrink-0">
                 F12
               </span>
             </button>
@@ -221,13 +221,13 @@ export const PosCheckoutPanel: React.FC<PosCheckoutPanelProps> = ({
                 type="button"
                 onClick={() => handleOpenCheckout('cash')}
                 disabled={loading || cart.length === 0}
-                className="h-[42px] sm:h-[46px] bg-brand hover:bg-brand-hover active:bg-brand-dark disabled:bg-surface-2 disabled:text-ink-muted disabled:border disabled:border-line text-white rounded-[6px] px-1.5 sm:px-2 flex items-center justify-between transition-colors shadow-sm"
+                className="h-11 bg-[#0b4f42] hover:bg-[#0f6a57] active:bg-[#00372d] disabled:bg-[#f1f4f6] disabled:text-[#5b6664] text-white rounded-lg px-2 flex items-center justify-between transition-colors shadow-sm cursor-pointer"
               >
                 <div className="flex items-center gap-1 min-w-0">
                   <CreditCard className="w-3.5 h-3.5 shrink-0" />
-                  <span className="text-[11px] sm:text-[12px] font-bold truncate">نقدى</span>
+                  <span className="text-xs sm:text-sm font-bold truncate">نقدى</span>
                 </div>
-                <span className="text-[8px] sm:text-[9px] font-mono bg-white/20 px-1 py-0.5 rounded text-white font-bold shrink-0">
+                <span className="text-[10px] font-mono bg-white/20 px-1.5 py-0.5 rounded text-white font-bold shrink-0">
                   F9
                 </span>
               </button>
@@ -237,13 +237,13 @@ export const PosCheckoutPanel: React.FC<PosCheckoutPanelProps> = ({
                 type="button"
                 onClick={() => handleOpenCheckout('cash')}
                 disabled={loading || cart.length === 0}
-                className="h-[42px] sm:h-[46px] bg-paid hover:bg-[#15633E] active:bg-[#0E492C] disabled:bg-surface-2 disabled:text-ink-muted disabled:border disabled:border-line text-white rounded-[6px] px-1.5 sm:px-2 flex items-center justify-between transition-colors shadow-sm"
+                className="h-11 bg-[#006d41] hover:bg-[#005734] active:bg-[#003d24] disabled:bg-[#f1f4f6] disabled:text-[#5b6664] text-white rounded-lg px-2 flex items-center justify-between transition-colors shadow-sm cursor-pointer"
               >
                 <div className="flex items-center gap-1 min-w-0">
                   <Printer className="w-3.5 h-3.5 shrink-0" />
-                  <span className="text-[11px] sm:text-[12px] font-bold truncate">طباعة</span>
+                  <span className="text-xs sm:text-sm font-bold truncate">طباعة</span>
                 </div>
-                <span className="text-[8px] sm:text-[9px] font-mono bg-white/20 px-1 py-0.5 rounded text-white font-bold shrink-0">
+                <span className="text-[10px] font-mono bg-white/20 px-1.5 py-0.5 rounded text-white font-bold shrink-0">
                   F12
                 </span>
               </button>

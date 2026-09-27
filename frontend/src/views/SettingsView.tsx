@@ -412,22 +412,22 @@ export const SettingsView = ({
   const TabIcon = currentTabConfig.icon;
 
   return (
-    <div className="flex flex-col h-full bg-canvas p-4 gap-3 overflow-y-auto select-none">
+    <div className="flex flex-col h-full bg-[#f3f5f2] p-4 gap-3.5 overflow-y-auto select-none">
       {/* 1. Top Header */}
-      <div className="h-[58px] bg-surface hairline-all rounded-[6px] px-4 flex items-center justify-between shrink-0 shadow-2xs">
+      <div className="h-14 bg-white border border-[#dce1dc] shadow-[0_1px_3px_rgba(0,0,0,0.05)] rounded-lg px-4 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded bg-brand-soft text-brand flex items-center justify-center font-bold shrink-0">
-            <TabIcon className="w-5 h-5 text-brand" />
+          <div className="w-9 h-9 rounded-lg bg-[#0b4f42]/10 text-[#0b4f42] flex items-center justify-center font-bold shrink-0">
+            <TabIcon className="w-5 h-5 text-[#0b4f42]" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-ink-muted">إعدادات المحل والصيانة</span>
-              <span className="text-ink-muted/40 font-bold">/</span>
-              <h2 className="text-[14px] font-bold text-ink leading-tight m-0">
+              <span className="text-[11px] font-bold text-[#5b6664]">إعدادات المحل والصيانة</span>
+              <span className="text-[#5b6664]/40 font-bold">/</span>
+              <h2 className="text-sm font-bold text-[#14181a] leading-tight m-0">
                 {currentTabConfig.title}
               </h2>
             </div>
-            <p className="text-[11px] text-ink-muted m-0 mt-0.5">
+            <p className="text-[11px] text-[#5b6664] m-0 mt-0.5">
               {currentTabConfig.subtitle}
             </p>
           </div>
@@ -437,16 +437,16 @@ export const SettingsView = ({
           <button
             type="button"
             onClick={() => setIsLicenseModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-800 hover:bg-emerald-100 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#eaf5ee] border border-[#c4e3d0] text-[#006d41] hover:bg-[#d5ecd9] text-xs font-bold transition-all cursor-pointer shadow-2xs"
             title="إدارة وتفعيل ترخيص رفيق POS"
           >
-            <KeyRound className="w-3.5 h-3.5 text-emerald-700" />
+            <KeyRound className="w-3.5 h-3.5 text-[#006d41]" />
             <span>ترخيص البرنامج</span>
           </button>
 
           {saved && (
-            <div className="flex items-center gap-1.5 text-xs text-paid font-bold bg-paid-soft border border-paid-border px-3 py-1.5 rounded-[4px] animate-in fade-in">
-              <CheckCircle className="w-4 h-4 text-paid" />
+            <div className="flex items-center gap-1.5 text-xs text-[#1b7a4d] font-bold bg-[#eaf5ee] border border-[#c4e3d0] px-3 py-1.5 rounded-lg animate-in fade-in">
+              <CheckCircle className="w-4 h-4 text-[#1b7a4d]" />
               <span>تم حفظ الإعدادات بنجاح</span>
             </div>
           )}

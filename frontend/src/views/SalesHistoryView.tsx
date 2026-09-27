@@ -324,53 +324,53 @@ export const SalesHistoryView = () => {
         </div>
 
         {/* Date Filter Pills */}
-        <div className="flex items-center gap-1.5 bg-surface-2 p-1 rounded-lg border border-line text-xs">
+        <div className="flex items-center gap-1.5 bg-surface-2 p-1 rounded-md border border-line text-xs">
           <button
             onClick={() => setDateFilter('all')}
-            className={`px-3 py-1 rounded-md text-[11.5px] font-bold transition-all shadow-2xs border ${
+            className={`px-3 py-1 rounded text-[11.5px] font-bold transition-all border ${
               dateFilter === 'all' 
                 ? 'bg-brand text-white border-brand shadow-xs' 
-                : 'bg-surface text-slate-700 border-slate-300 hover:border-brand/70 hover:text-brand hover:bg-brand-soft/40'
+                : 'bg-surface text-ink-muted border-line hover:border-brand/50 hover:text-brand hover:bg-brand-soft/30'
             }`}
           >
             الكل
           </button>
           <button
             onClick={() => setDateFilter('today')}
-            className={`px-3 py-1 rounded-md text-[11.5px] font-bold transition-all shadow-2xs border ${
+            className={`px-3 py-1 rounded text-[11.5px] font-bold transition-all border ${
               dateFilter === 'today' 
                 ? 'bg-brand text-white border-brand shadow-xs' 
-                : 'bg-surface text-slate-700 border-slate-300 hover:border-brand/70 hover:text-brand hover:bg-brand-soft/40'
+                : 'bg-surface text-ink-muted border-line hover:border-brand/50 hover:text-brand hover:bg-brand-soft/30'
             }`}
           >
             اليوم
           </button>
           <button
             onClick={() => setDateFilter('yesterday')}
-            className={`px-3 py-1 rounded-md text-[11.5px] font-bold transition-all shadow-2xs border ${
+            className={`px-3 py-1 rounded text-[11.5px] font-bold transition-all border ${
               dateFilter === 'yesterday' 
                 ? 'bg-brand text-white border-brand shadow-xs' 
-                : 'bg-surface text-slate-700 border-slate-300 hover:border-brand/70 hover:text-brand hover:bg-brand-soft/40'
+                : 'bg-surface text-ink-muted border-line hover:border-brand/50 hover:text-brand hover:bg-brand-soft/30'
             }`}
           >
             الأمس
           </button>
           <button
             onClick={() => setDateFilter('week')}
-            className={`px-3 py-1 rounded-md text-[11.5px] font-bold transition-all shadow-2xs border ${
+            className={`px-3 py-1 rounded text-[11.5px] font-bold transition-all border ${
               dateFilter === 'week' 
                 ? 'bg-brand text-white border-brand shadow-xs' 
-                : 'bg-surface text-slate-700 border-slate-300 hover:border-brand/70 hover:text-brand hover:bg-brand-soft/40'
+                : 'bg-surface text-ink-muted border-line hover:border-brand/50 hover:text-brand hover:bg-brand-soft/30'
             }`}
           >
             آخر 7 أيام
           </button>
           <button
             onClick={() => setDateFilter('custom')}
-            className={`px-2.5 py-1 rounded-md text-[11.5px] font-bold flex items-center gap-1 transition-all shadow-2xs border ${
+            className={`px-2.5 py-1 rounded text-[11.5px] font-bold flex items-center gap-1 transition-all border ${
               dateFilter === 'custom' 
                 ? 'bg-brand text-white border-brand shadow-xs' 
-                : 'bg-surface text-slate-700 border-slate-300 hover:border-brand/70 hover:text-brand hover:bg-brand-soft/40'
+                : 'bg-surface text-ink-muted border-line hover:border-brand/50 hover:text-brand hover:bg-brand-soft/30'
             }`}
             title="تحديد تاريخ معين"
           >
@@ -385,48 +385,48 @@ export const SalesHistoryView = () => {
             type="date"
             value={customDate}
             onChange={(e) => setCustomDate(e.target.value)}
-            className="h-8 px-2.5 text-xs bg-surface rounded-md border border-brand text-ink focus:outline-none focus:ring-1 focus:ring-brand font-mono shadow-2xs"
+            className="h-8 px-2.5 text-xs bg-surface rounded border border-brand text-ink focus:outline-none focus:ring-1 focus:ring-brand font-mono shadow-2xs"
           />
         )}
 
         {/* Status Filter Pills (Task 133-2) */}
-        <div className="flex items-center gap-1.5 bg-surface-2 p-1 rounded-lg border border-line text-xs">
+        <div className="flex items-center gap-1.5 bg-surface-2 p-1 rounded-md border border-line text-xs">
           <button
             onClick={() => setStatusFilter('all')}
-            className={`px-3 py-1 rounded-md text-[11.5px] font-bold transition-all shadow-2xs border ${
+            className={`px-3 py-1 rounded text-[11.5px] font-bold transition-all border ${
               statusFilter === 'all' 
                 ? 'bg-brand text-white border-brand shadow-xs' 
-                : 'bg-surface text-slate-700 border-slate-300 hover:border-brand/70 hover:text-brand hover:bg-brand-soft/40'
+                : 'bg-surface text-ink-muted border-line hover:border-brand/50 hover:text-brand hover:bg-brand-soft/30'
             }`}
           >
             كافة الحالات
           </button>
           <button
             onClick={() => setStatusFilter('completed')}
-            className={`px-3 py-1 rounded-md text-[11.5px] font-bold transition-all shadow-2xs border ${
+            className={`px-3 py-1 rounded text-[11.5px] font-bold transition-all border ${
               statusFilter === 'completed' 
                 ? 'bg-paid text-white border-paid shadow-xs' 
-                : 'bg-surface text-slate-700 border-slate-300 hover:border-paid/70 hover:text-paid hover:bg-paid-soft/40'
+                : 'bg-surface text-ink-muted border-line hover:border-paid/50 hover:text-paid hover:bg-paid-soft/30'
             }`}
           >
             سليمة
           </button>
           <button
             onClick={() => setStatusFilter('cancelled')}
-            className={`px-3 py-1 rounded-md text-[11.5px] font-bold transition-all shadow-2xs border ${
+            className={`px-3 py-1 rounded text-[11.5px] font-bold transition-all border ${
               statusFilter === 'cancelled' 
                 ? 'bg-danger text-white border-danger shadow-xs' 
-                : 'bg-surface text-slate-700 border-slate-300 hover:border-danger/70 hover:text-danger hover:bg-danger-soft/40'
+                : 'bg-surface text-ink-muted border-line hover:border-danger/50 hover:text-danger hover:bg-danger-soft/30'
             }`}
           >
             ملغاة
           </button>
           <button
             onClick={() => setStatusFilter('refunded')}
-            className={`px-3 py-1 rounded-md text-[11.5px] font-bold transition-all shadow-2xs border ${
+            className={`px-3 py-1 rounded text-[11.5px] font-bold transition-all border ${
               statusFilter === 'refunded' 
-                ? 'bg-amber-600 text-white border-amber-600 shadow-xs' 
-                : 'bg-surface text-slate-700 border-slate-300 hover:border-amber-600/70 hover:text-amber-700 hover:bg-amber-50'
+                ? 'bg-warn text-white border-warn shadow-xs' 
+                : 'bg-surface text-ink-muted border-line hover:border-warn/50 hover:text-warn hover:bg-warn-soft/30'
             }`}
           >
             مرتجع
@@ -513,7 +513,7 @@ export const SalesHistoryView = () => {
                         <span>ملغاة</span>
                       </span>
                     ) : isRefunded ? (
-                      <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-warning-soft text-warning border border-warning/20">
+                      <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-warn-soft text-warn border border-warn-border">
                         مرتجع
                       </span>
                     ) : (
@@ -580,7 +580,7 @@ export const SalesHistoryView = () => {
                   </span>
                 )}
                 {selectedSale.status === 'refunded' && (
-                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-warning text-white">
+                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-warn text-white">
                     بها مرتجع
                   </span>
                 )}

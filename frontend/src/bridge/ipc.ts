@@ -1633,6 +1633,10 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         deletedCustomersCount: 1,
       };
 
+    case 'auditLogs:create':
+    case 'audit:create':
+      return { success: true };
+
     case 'settings:getAll':
       return getMockAppSettings();
 

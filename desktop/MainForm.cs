@@ -60,6 +60,14 @@ namespace RafiqPOS
                     e.Handled = true;
                     ToggleFullscreen();
                 }
+                else if (e.KeyCode == Keys.F5)
+                {
+                    e.Handled = true;
+                    if (_webView != null && _webView.CoreWebView2 != null)
+                    {
+                        _webView.CoreWebView2.Reload();
+                    }
+                }
             };
 
             string icoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app.ico");
@@ -527,8 +535,21 @@ namespace RafiqPOS
                 // Attach IPC message receiver
                 _webView.CoreWebView2.WebMessageReceived += CoreWebView2_WebMessageReceived;
 
-                // Navigate to app
-                _webView.CoreWebView2.Navigate("https://app.rafiq.local/index.html");
+                _webView.CoreWebView2.Settings.AreDevToolsEnabled = true;
+
+                // Clear HTTP cache on startup to ensure instant updates of frontend assets
+                try
+                {
+                    await _webView.CoreWebView2.Profile.ClearBrowsingDataAsync(CoreWebView2BrowsingDataKinds.DiskCache);
+                }
+                catch
+                {
+                    // Ignore if not supported in runtime version
+                }
+
+                // Navigate to app with cache-buster parameter
+                string cacheBuster = DateTime.UtcNow.Ticks.ToString();
+                _webView.CoreWebView2.Navigate("https://app.rafiq.local/index.html?v=" + cacheBuster);
 
                 _lblStatus.Visible = false;
                 _errorPanel.Visible = false;

@@ -65,6 +65,38 @@ namespace RafiqPOS.Services
             this._settingsRepo = settingsRepo;
             this._auditRepo = auditRepo;
             this._userRepo = userRepo;
+            NormalizeAdminRoles();
+        }
+
+        private void NormalizeAdminRoles()
+        {
+            if (_userRepo == null) return;
+            try
+            {
+                var all = _userRepo.GetAll(false);
+                for (int i = 0; i < all.Count; i++)
+                {
+                    var u = all[i];
+                    if (u.Role == "owner")
+                    {
+                        u.Role = "admin";
+                        _userRepo.Update(u);
+                    }
+                    if (u.Role == "admin" && string.IsNullOrEmpty(u.PinSalt) && !string.IsNullOrEmpty(u.PinCodeHash))
+                    {
+                        try
+                        {
+                            ChangeUserPin(u.Id, u.PinCodeHash);
+                        }
+                        catch
+                        {
+                        }
+                    }
+                }
+            }
+            catch
+            {
+            }
         }
 
         public static UserDto CurrentUser
@@ -471,17 +503,34 @@ namespace RafiqPOS.Services
                 return result;
             }
 
+            int remainingSeconds = GetRemainingLockoutSeconds();
+            if (remainingSeconds > 0)
+            {
+                result.Success = false;
+                result.IsLocked = true;
+                result.RemainingLockoutSeconds = remainingSeconds;
+                result.Message = string.Format("النظام مقفل مؤقتاً لحماية البيانات. يرجى الانتظار {0} ثانية.", remainingSeconds);
+                return result;
+            }
+
             if (_userRepo == null)
             {
+                string legacyHash = _settingsRepo.Get(KEY_PIN_HASH, "");
+                if (string.IsNullOrEmpty(legacyHash))
+                {
+                    result.Success = false;
+                    result.Message = "لا يوجد حساب مدير نظام مسجل برقم سري.";
+                    return result;
+                }
                 return VerifyPin(pin, action);
             }
 
-            // Find all active admins
+            // Find all active admins (supporting both 'admin' and 'owner' roles)
             var allUsers = _userRepo.GetAll(true);
             var admins = new List<User>();
             for (int i = 0; i < allUsers.Count; i++)
             {
-                if (allUsers[i].Role == "admin")
+                if (allUsers[i].Role == "admin" || allUsers[i].Role == "owner")
                 {
                     admins.Add(allUsers[i]);
                 }
@@ -489,21 +538,37 @@ namespace RafiqPOS.Services
 
             if (admins.Count == 0)
             {
-                // Fallback to legacy single PIN verification
+                string legacyHash = _settingsRepo.Get(KEY_PIN_HASH, "");
+                if (string.IsNullOrEmpty(legacyHash))
+                {
+                    result.Success = false;
+                    result.Message = "لا يوجد حساب مدير نظام مسجل برقم سري.";
+                    return result;
+                }
                 return VerifyPin(pin, action);
             }
 
             for (int i = 0; i < admins.Count; i++)
             {
                 var admin = admins[i];
-                if (string.IsNullOrEmpty(admin.PinCodeHash) || string.IsNullOrEmpty(admin.PinSalt))
+                if (string.IsNullOrEmpty(admin.PinCodeHash))
                     continue;
 
-                byte[] salt = Convert.FromBase64String(admin.PinSalt);
-                byte[] expectedHash = Convert.FromBase64String(admin.PinCodeHash);
-                byte[] actualHash = HashWithSalt(pin, salt);
+                bool matches = false;
+                if (!string.IsNullOrEmpty(admin.PinSalt))
+                {
+                    byte[] salt = Convert.FromBase64String(admin.PinSalt);
+                    byte[] expectedHash = Convert.FromBase64String(admin.PinCodeHash);
+                    byte[] actualHash = HashWithSalt(pin, salt);
+                    matches = SlowEquals(expectedHash, actualHash);
+                }
+                else
+                {
+                    // Plain text match for legacy seeded admin (e.g. "1234")
+                    matches = (admin.PinCodeHash == pin);
+                }
 
-                if (SlowEquals(expectedHash, actualHash))
+                if (matches)
                 {
                     LogAudit("SUPERVISOR_OVERRIDE", "SECURITY", admin.Username, string.Format("موافقة مدير على العملية: {0} بواسطة {1}", action, admin.DisplayName));
                     result.Success = true;
@@ -514,7 +579,7 @@ namespace RafiqPOS.Services
             }
 
             result.Success = false;
-            result.Message = "الرقم السري للمدير غير صحيح.";
+            result.Message = "الرقم السري لمدير النظام غير صحيح.";
             return result;
         }
 

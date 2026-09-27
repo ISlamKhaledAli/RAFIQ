@@ -42,10 +42,10 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
   onSelectProduct,
 }) => {
   return (
-    <div ref={searchContainerRef} className="p-2 sm:p-3 bg-surface hairline-b shrink-0 relative">
+    <div ref={searchContainerRef} className="p-2 sm:p-3 bg-white border-b border-[#dce1dc] shrink-0 relative">
       <form onSubmit={handleBarcodeSubmit} className="flex items-center gap-1.5 sm:gap-2">
-        <div className="relative flex-1 h-[40px] sm:h-[44px] flex items-center bg-surface rounded border-2 border-brand px-2 sm:px-3 focus-within:ring-1 focus-within:ring-brand">
-          <Barcode className="w-5 h-5 text-brand ml-1.5 sm:ml-2 shrink-0" />
+        <div className="relative flex-1 h-11 flex items-center bg-[#fdfdfd] rounded-lg border-2 border-[#0b4f42] px-3 focus-within:ring-2 focus-within:ring-[#0b4f42]/20 transition-all">
+          <Barcode className="w-5 h-5 text-[#0b4f42] ml-2 shrink-0" />
           <input
             ref={barcodeInputRef}
             type="text"
@@ -63,13 +63,13 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
             onFocus={() => {
               if (liveSearchResults.length > 0) setIsSearchDropdownOpen(true);
             }}
-            className="w-full h-full bg-transparent border-none text-xs sm:text-[14px] text-ink placeholder:text-ink-muted focus:outline-none font-mono"
+            className="w-full h-full bg-transparent border-none text-xs sm:text-sm text-[#14181a] placeholder:text-[#5b6664] focus:outline-none font-mono"
           />
           {isSearching && (
-            <Loader2 className="w-4 h-4 text-brand animate-spin ml-2 shrink-0" />
+            <Loader2 className="w-4 h-4 text-[#0b4f42] animate-spin ml-2 shrink-0" />
           )}
-          <div className="mr-1.5 sm:mr-2 flex items-center shrink-0">
-            <span className="px-1.5 py-0.5 text-[10px] sm:text-[11px] font-mono font-bold bg-surface-2 text-ink-muted rounded border border-line">
+          <div className="mr-2 flex items-center shrink-0">
+            <span className="px-2 py-0.5 text-xs font-mono font-bold bg-[#f1f4f6] text-[#5b6664] rounded border border-[#dce1dc]">
               F2
             </span>
           </div>
@@ -78,7 +78,7 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
         <button
           type="submit"
           disabled={loading}
-          className="h-[40px] sm:h-[44px] px-3 sm:px-4 bg-brand hover:bg-brand-hover text-white rounded text-xs sm:text-[13px] font-bold flex items-center gap-1.5 transition-colors shrink-0 shadow-sm"
+          className="h-11 px-4 bg-[#0b4f42] hover:bg-[#0f6a57] text-white rounded-lg text-xs sm:text-sm font-bold flex items-center gap-2 transition-colors shrink-0 shadow-sm cursor-pointer"
         >
           <Search className="w-4 h-4" />
           <span>إضافة</span>
@@ -87,10 +87,10 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
         <button
           type="button"
           onClick={onOpenScannerModal}
-          className="h-[40px] sm:h-[44px] px-2.5 sm:px-3 bg-surface-2 hover:bg-surface border border-line text-ink rounded text-xs font-bold flex items-center gap-1.5 transition-colors shrink-0 shadow-2xs"
-          title="فحص واختبار قارئ الباركود (F10)"
+          className="h-11 px-3 bg-[#f7f8f6] hover:bg-[#ebeef1] border border-[#dce1dc] text-[#14181a] rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shrink-0 shadow-2xs cursor-pointer"
+          title="فحص واختبار قارئ الباركود (F8)"
         >
-          <Barcode className="w-4 h-4 text-brand" />
+          <Barcode className="w-4 h-4 text-[#0b4f42]" />
           <span className="hidden sm:inline">فحص القارئ</span>
         </button>
       </form>
@@ -98,19 +98,19 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
       {/* Live Search Floating Dropdown (Task 22-4) */}
       {isSearchDropdownOpen && liveSearchResults.length > 0 && (
         <div 
-          className="absolute left-3 right-3 top-[64px] z-50 bg-surface rounded-xl border hairline-all shadow-2xl overflow-hidden max-h-[360px] flex flex-col animate-in fade-in zoom-in-95 duration-100"
+          className="absolute left-3 right-3 top-[64px] z-50 bg-white rounded-xl border border-[#dce1dc] shadow-2xl overflow-hidden max-h-[360px] flex flex-col animate-in fade-in zoom-in-95 duration-100"
         >
-          <div className="px-3 py-1.5 bg-surface-2 hairline-b flex items-center justify-between text-[11px] font-semibold text-ink-muted select-none">
+          <div className="px-3 py-2 bg-[#f7f8f6] border-b border-[#dce1dc] flex items-center justify-between text-xs font-semibold text-[#5b6664] select-none">
             <div className="flex items-center gap-2">
-              <span>نتائج البحث الفورية ({liveSearchResults.length})</span>
-              <span className="text-[10px] bg-canvas px-1.5 py-0.5 rounded border hairline-all">
+              <span className="font-bold text-[#14181a]">نتائج البحث الفورية ({liveSearchResults.length})</span>
+              <span className="text-[10px] bg-white px-2 py-0.5 rounded border border-[#dce1dc]">
                 استخدم الأسهم ↑ ↓ ثم اضغط Enter للإضافة
               </span>
             </div>
             <button
               type="button"
               onClick={() => setIsSearchDropdownOpen(false)}
-              className="hover:text-ink text-[11px]"
+              className="hover:text-[#14181a] text-xs font-bold cursor-pointer"
             >
               إغلاق (Esc)
             </button>

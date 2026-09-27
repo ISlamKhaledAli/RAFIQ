@@ -265,8 +265,8 @@ export const AuditLogView = () => {
       {verification && (
         <div className={`p-3 rounded-[6px] border flex items-center justify-between text-xs transition-all ${
           verification.isTampered 
-            ? 'bg-danger-soft border-danger/40 text-danger' 
-            : 'bg-paid-soft/50 border-paid/30 text-paid'
+            ? 'bg-danger-soft border-danger-border text-danger' 
+            : 'bg-paid-soft border-paid-border text-paid'
         }`}>
           <div className="flex items-center gap-2.5">
             {verification.isTampered ? (

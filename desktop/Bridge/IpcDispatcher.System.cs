@@ -557,6 +557,24 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, logs);
                     return true;
 
+                case "auditLogs:create":
+                case "audit:create":
+                    if (request.Payload != null)
+                    {
+                        JObject cObj = request.Payload as JObject;
+                        if (cObj != null)
+                        {
+                            string cAction = cObj["action"] != null ? cObj["action"].ToString() : "GENERAL_AUDIT";
+                            string cType = cObj["entityType"] != null ? cObj["entityType"].ToString() : "system";
+                            string cId = cObj["entityId"] != null ? cObj["entityId"].ToString() : "";
+                            string cDetails = cObj["detailsJson"] != null ? cObj["detailsJson"].ToString() : "";
+                            string cUser = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Username : "usr_admin_default";
+                            DatabaseService.Audit.Log(cAction, cType, cId, cDetails, cUser);
+                        }
+                    }
+                    response = BridgeResponse.Ok(request.Id, true);
+                    return true;
+
                 case "support:getSystemInfo":
                     var supportInfo = DatabaseService.Support.GetSystemDiagnosticInfo();
                     response = BridgeResponse.Ok(request.Id, supportInfo);

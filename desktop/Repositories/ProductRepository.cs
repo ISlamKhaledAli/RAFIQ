@@ -477,6 +477,29 @@ namespace RafiqPOS.Repositories
                                         uCmd.ExecuteNonQuery();
                                     }
                                 }
+
+                                var keptIds = new List<string>();
+                                foreach (var u in product.Units)
+                                {
+                                    if (!string.IsNullOrWhiteSpace(u.Id)) keptIds.Add(u.Id);
+                                }
+                                if (keptIds.Count > 0)
+                                {
+                                    using (var delCmd = new SQLiteCommand(conn))
+                                    {
+                                        delCmd.Transaction = trans;
+                                        var paramNames = new List<string>();
+                                        for (int i = 0; i < keptIds.Count; i++)
+                                        {
+                                            string pName = "@keptId" + i;
+                                            paramNames.Add(pName);
+                                            delCmd.Parameters.AddWithValue(pName, keptIds[i]);
+                                        }
+                                        delCmd.Parameters.AddWithValue("@productId", product.Id);
+                                        delCmd.CommandText = "DELETE FROM product_units WHERE product_id = @productId AND id NOT IN (" + string.Join(",", paramNames.ToArray()) + ");";
+                                        delCmd.ExecuteNonQuery();
+                                    }
+                                }
                             }
                             else
                             {

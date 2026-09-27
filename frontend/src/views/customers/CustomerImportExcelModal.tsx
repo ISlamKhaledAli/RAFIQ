@@ -47,7 +47,7 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
         {/* Modal Header */}
         <div className="h-14 px-5 bg-surface-2 hairline-b flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded bg-emerald-100 flex items-center justify-center text-emerald-800">
+            <div className="w-8 h-8 rounded bg-paid-soft flex items-center justify-center text-paid">
               <FileSpreadsheet className="w-5 h-5" />
             </div>
             <div>
@@ -68,7 +68,7 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {/* Error Alert */}
           {importError && (
-            <div className="p-3 bg-danger-soft border border-danger/30 rounded text-xs text-danger flex items-center gap-2">
+            <div className="p-3 bg-danger-soft border border-danger-border rounded text-xs text-danger flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{importError}</span>
             </div>
@@ -76,15 +76,15 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
 
           {/* Success Alert */}
           {importResult && (
-            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-900 space-y-2">
+            <div className="p-4 bg-paid-soft border border-paid-border rounded-lg text-paid space-y-2">
               <div className="flex items-center gap-2 font-bold text-xs">
-                <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                <CheckCircle2 className="w-4 h-4 text-paid shrink-0" />
                 <span>{importResult.message}</span>
               </div>
-              <div className="grid grid-cols-3 gap-2 pt-2 text-[11px] border-t border-emerald-200/60">
-                <div>العملاء المضافون: <strong className="font-mono">{importResult.importedCount}</strong></div>
-                <div>السطور المتخطاة: <strong className="font-mono">{importResult.skippedCount}</strong></div>
-                <div>إجمالي الديون الافتتاحية: <strong className="font-mono text-emerald-800">{importResult.totalOpeningDebtsFormatted}</strong></div>
+              <div className="grid grid-cols-3 gap-2 pt-2 text-[11px] border-t border-paid-border">
+                <div>العملاء المضافون: <strong className="font-mono text-ink">{importResult.importedCount}</strong></div>
+                <div>السطور المتخطاة: <strong className="font-mono text-ink">{importResult.skippedCount}</strong></div>
+                <div>إجمالي الديون الافتتاحية: <strong className="font-mono text-paid">{importResult.totalOpeningDebtsFormatted}</strong></div>
               </div>
             </div>
           )}
@@ -117,14 +117,14 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
             <div className="p-3.5 bg-canvas border border-line rounded-lg flex flex-col justify-between">
               <div>
                 <h4 className="font-bold text-xs text-ink flex items-center gap-1.5 mb-1">
-                  <Upload className="w-3.5 h-3.5 text-emerald-700" />
+                  <Upload className="w-3.5 h-3.5 text-brand" />
                   <span>2. رفع وتدقيق ملف الإكسل</span>
                 </h4>
                 <p className="text-[11px] text-ink-muted leading-relaxed">
                   اختر ملف الإكسل بعد ملء بيانات العملاء. سيقوم النظام بفحص الأسماء وتفادي تكرار الهواتف وحساب مجموع الديون.
                 </p>
               </div>
-              <label className="mt-3 cursor-pointer w-full h-8 px-3 rounded bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-colors">
+              <label className="mt-3 cursor-pointer w-full h-8 px-3 rounded bg-brand hover:bg-brand-hover text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-colors">
                 <Upload className="w-3.5 h-3.5" />
                 <span>{isParsingFile ? 'جاري فحص وتدقيق الملف...' : importFileName ? `تغيير الملف: ${importFileName}` : 'اختيار ملف الإكسل (.xlsx)'}</span>
                 <input
@@ -147,11 +147,11 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
                   <span className="text-[10px] text-ink-muted block">إجمالي السطور بالملف</span>
                   <span className="text-base font-bold font-mono text-ink">{importPreview.totalRowsCount}</span>
                 </div>
-                <div className="p-2.5 bg-emerald-50/50 border border-emerald-200 rounded">
-                  <span className="text-[10px] text-emerald-800 block">سطور صالحة للاستيراد</span>
-                  <span className="text-base font-bold font-mono text-emerald-700">{importPreview.validRowsCount}</span>
+                <div className="p-2.5 bg-paid-soft border border-paid-border rounded">
+                  <span className="text-[10px] text-paid block">سطور صالحة للاستيراد</span>
+                  <span className="text-base font-bold font-mono text-paid">{importPreview.validRowsCount}</span>
                 </div>
-                <div className="p-2.5 bg-danger-soft/50 border border-danger/20 rounded">
+                <div className="p-2.5 bg-danger-soft border border-danger-border rounded">
                   <span className="text-[10px] text-danger block">سطور غير صالحة / أخطاء</span>
                   <span className="text-base font-bold font-mono text-danger">{importPreview.invalidRowsCount}</span>
                 </div>
@@ -163,8 +163,8 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
 
               {/* Warning on duplicates */}
               {importPreview.duplicatePhonesCount > 0 && (
-                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+                <div className="p-2.5 bg-warn-soft border border-warn-border rounded text-xs text-warn flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-warn" />
                   <span>يوجد {importPreview.duplicatePhonesCount} رقم هاتف مكرر بالملف أو مسجل مسبقاً بالنظام. سيتم استبعاد الأسطر غير الصالحة تلقائياً.</span>
                 </div>
               )}
@@ -200,13 +200,13 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
                         </td>
                         <td className="px-3 py-1.5 text-center">
                           {row.isValid ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-paid-soft text-paid border border-paid-border">
                               <CheckCircle2 className="w-3 h-3" />
                               <span>جاهز</span>
                             </span>
                           ) : (
                             <span
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-danger-soft text-danger"
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-danger-soft text-danger border border-danger-border"
                               title={row.errors.join(' | ')}
                             >
                               <AlertCircle className="w-3 h-3" />
@@ -239,7 +239,7 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
                 type="button"
                 onClick={onExecuteImport}
                 disabled={isImporting}
-                className="px-5 py-2 rounded bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors"
+                className="px-5 py-2 rounded bg-brand hover:bg-brand-hover text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>{isImporting ? 'جاري الاستيراد والحفظ...' : `تأكيد واستيراد (${importPreview.validRowsCount}) عميل إلى النظام`}</span>

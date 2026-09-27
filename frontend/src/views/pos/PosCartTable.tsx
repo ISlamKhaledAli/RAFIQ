@@ -106,9 +106,9 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
       )}
 
       {/* Cart Table Area */}
-      <div className="flex-1 flex flex-col overflow-hidden mt-1">
-        {/* Table Column Headers (36px tall, surface-2, hairline-b) */}
-        <div className="h-[32px] sm:h-[36px] bg-surface-2 hairline-b flex items-center px-2 sm:px-4 text-[11px] sm:text-[12px] font-bold text-ink-muted select-none shrink-0">
+      <div className="flex-1 flex flex-col overflow-hidden mt-1 bg-white">
+        {/* Table Column Headers (38px tall, surface-container-low, clean border) */}
+        <div className="h-9 sm:h-10 bg-[#f7f8f6] border-b border-[#dce1dc] flex items-center px-3 sm:px-4 text-xs font-bold text-[#5b6664] select-none shrink-0">
           <div className="w-[6%] text-center">#</div>
           <div className="w-[37%] text-right">الصنف / الباركود</div>
           <div className="w-[14%] text-left tabular-nums">السعر</div>
@@ -119,20 +119,20 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
         </div>
 
         {/* Cart Items List */}
-        <div className="flex-1 overflow-y-auto divide-y divide-line">
+        <div className="flex-1 overflow-y-auto divide-y divide-[#dce1dc]/70">
           {cart.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-ink-muted gap-3 p-6">
-              <div className="w-14 h-14 rounded-full bg-surface-2 border border-line flex items-center justify-center">
-                <ShoppingBag className="w-7 h-7 text-ink-muted stroke-[1.4]" />
+            <div className="h-full flex flex-col items-center justify-center text-[#5b6664] gap-3 p-6">
+              <div className="w-16 h-16 rounded-full bg-[#f7f8f6] border border-[#dce1dc] flex items-center justify-center">
+                <ShoppingBag className="w-8 h-8 text-[#5b6664]/60 stroke-[1.5]" />
               </div>
               <div className="text-center">
-                <p className="text-[14px] font-bold text-ink m-0">سلة البيع فارغة</p>
-                <p className="text-[12px] text-ink-muted m-0 mt-1">
+                <p className="text-sm sm:text-base font-bold text-[#14181a] m-0">سلة البيع فارغة</p>
+                <p className="text-xs text-[#5b6664] m-0 mt-1">
                   امسح الباركود، أو اختر من قائمة الأصناف السريعة على اليسار لبدء الفاتورة
                 </p>
               </div>
               {lastInvoiceNumber && (
-                <span className="text-[11px] font-mono text-paid bg-paid-soft border border-paid-border px-2.5 py-1 rounded">
+                <span className="text-xs font-mono text-[#1b7a4d] bg-[#eaf5ee] border border-[#c4e3d0] px-3 py-1 rounded-lg">
                   آخر فاتورة تم حفظها: #{lastInvoiceNumber}
                 </span>
               )}
@@ -141,20 +141,20 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
             cart.map((item, index) => (
               <div 
                 key={item.productId || index} 
-                className="h-[48px] sm:h-[52px] hairline-b flex items-center px-2 sm:px-4 text-xs sm:text-[13px] hover:bg-surface-2 transition-colors"
+                className="h-12 sm:h-14 border-b border-[#dce1dc]/50 flex items-center px-3 sm:px-4 text-xs sm:text-sm hover:bg-[#f7f8f6] transition-colors"
               >
                 {/* Index */}
-                <div className="w-[6%] text-center font-mono text-ink-muted text-[11px] sm:text-xs">
+                <div className="w-[6%] text-center font-mono text-[#5b6664] text-xs font-bold">
                   {index + 1}
                 </div>
 
                 {/* Description */}
                 <div className="w-[37%] pr-1 flex flex-col justify-center overflow-hidden">
-                  <div className="flex items-center gap-1 truncate">
-                    <span className="font-semibold text-ink truncate text-xs sm:text-[13px]">{item.productName}</span>
+                  <div className="flex items-center gap-1.5 truncate">
+                    <span className="font-bold text-[#14181a] truncate text-xs sm:text-sm">{item.productName}</span>
                     {item.unit === 'kg' && (
-                      <span className="shrink-0 px-1 py-0.2 bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-200 text-[9px] sm:text-[10px] font-bold rounded flex items-center gap-0.5" title="يباع بالوزن (ميزان)">
-                        <Scale className="w-2.5 h-2.5" />
+                      <span className="shrink-0 px-1.5 py-0.2 bg-amber-500/15 border border-amber-500/30 text-amber-800 text-[10px] font-bold rounded flex items-center gap-0.5" title="يباع بالوزن (ميزان)">
+                        <Scale className="w-3 h-3" />
                         <span>وزن</span>
                       </span>
                     )}
@@ -163,7 +163,7 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                       <select
                         value={item.unitId || ''}
                         onChange={(e) => changeCartItemUnit(index, e.target.value)}
-                        className="h-[22px] px-1 py-0 bg-brand-soft border border-brand/30 text-brand text-[10px] font-bold rounded cursor-pointer focus:outline-none shrink-0"
+                        className="h-6 px-1.5 py-0 bg-[#e1eae5] border border-[#0b4f42]/30 text-[#0b4f42] text-[10px] font-bold rounded cursor-pointer focus:outline-none shrink-0"
                         title="تغيير وحدة البيع (قطعة، دستة، كرتونة)"
                       >
                         {item.productUnits.map((u) => (
@@ -175,17 +175,17 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[9px] sm:text-[10px] font-mono text-ink-muted truncate">
+                    <span className="text-[10px] font-mono text-[#5b6664] truncate">
                       {item.barcode || 'بدون باركود'}
                     </span>
                     {item.discountPiasters > 0 && (
-                      <span className="text-[9px] text-amber-800 dark:text-amber-200 bg-amber-500/15 border border-amber-500/30 font-bold px-1 rounded flex items-center gap-0.5">
+                      <span className="text-[10px] text-amber-800 bg-amber-500/15 border border-amber-500/30 font-bold px-1.5 rounded flex items-center gap-0.5">
                         <Tag className="w-2.5 h-2.5" />
                         خصم: {formatArabicCurrency(item.discountPiasters)}
                       </span>
                     )}
                     {item.unitName && item.conversionFactor && item.conversionFactor > 1 && (
-                      <span className="text-[9px] text-brand font-bold bg-brand-soft px-1 rounded">
+                      <span className="text-[10px] text-[#0b4f42] font-bold bg-[#e1eae5] px-1.5 rounded">
                         {item.unitName} = {item.conversionFactor} قطعة
                       </span>
                     )}
@@ -193,7 +193,7 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                 </div>
 
                 {/* Unit Price (Editable on click — Task 161-6) */}
-                <div className="w-[14%] text-left tabular-nums font-mono text-ink text-xs sm:text-[13px]">
+                <div className="w-[14%] text-left tabular-nums font-mono text-[#14181a] text-xs sm:text-sm">
                   {editingPriceIndex === index ? (
                     <div className="flex items-center gap-1">
                       <input
@@ -215,17 +215,17 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                             setEditingPriceIndex(null);
                           }
                         }}
-                        className="w-16 h-6 px-1 text-center font-mono text-xs bg-surface border-2 border-brand rounded text-brand font-bold focus:outline-none"
+                        className="w-16 h-7 px-1 text-center font-mono text-xs bg-white border-2 border-[#0b4f42] rounded text-[#0b4f42] font-bold focus:outline-none"
                       />
                     </div>
                   ) : (
                     <div 
                       onClick={() => setEditingPriceIndex(index)}
-                      className="cursor-pointer hover:bg-surface-2 rounded px-1 inline-flex items-center gap-0.5 group"
+                      className="cursor-pointer hover:bg-[#f7f8f6] rounded px-1.5 py-0.5 inline-flex items-center gap-0.5 group"
                       title="اضغط لتعديل السعر يدويًا لهذه الفاتورة"
                     >
-                      <span className="group-hover:text-brand font-bold">{formatArabicCurrency(item.unitPricePiasters)}</span>
-                      <span className="text-[9px] text-ink-muted group-hover:text-brand">/{item.unit || 'قطعة'}</span>
+                      <span className="group-hover:text-[#0b4f42] font-bold">{formatArabicCurrency(item.unitPricePiasters)}</span>
+                      <span className="text-[10px] text-[#5b6664] group-hover:text-[#0b4f42]">/{item.unit || 'قطعة'}</span>
                     </div>
                   )}
                 </div>
@@ -236,23 +236,23 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                     <button
                       type="button"
                       onClick={() => openWeightEditorForCartItem(index)}
-                      className="h-[28px] sm:h-[32px] px-1.5 sm:px-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded flex items-center gap-1 text-amber-800 dark:text-amber-200 transition-colors shadow-2xs group"
+                      className="h-8 px-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-lg flex items-center gap-1.5 text-amber-800 transition-colors shadow-2xs group cursor-pointer"
                       title="اضغط لتعديل الوزن بالجرام أو الكيلو"
                     >
-                      <Scale className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600 group-hover:scale-110 transition-transform shrink-0" />
-                      <span className="font-mono font-bold text-[11px] sm:text-[12px] tabular-nums">
+                      <Scale className="w-3.5 h-3.5 text-amber-600 group-hover:scale-110 transition-transform shrink-0" />
+                      <span className="font-mono font-bold text-xs tabular-nums">
                         {(item.quantityMilli / 1000).toFixed(3)} كجم
                       </span>
                     </button>
                   ) : (
-                    <div className="flex items-center h-[28px] sm:h-[32px] bg-surface border border-line rounded px-0.5 sm:px-1 gap-0.5 sm:gap-1">
+                    <div className="flex items-center h-8 bg-white border border-[#dce1dc] rounded-lg px-1 gap-1 shadow-2xs">
                       <button 
                         type="button"
                         onClick={() => updateQuantity(index, -1)}
-                        className="w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center text-ink-muted hover:text-brand font-bold text-xs sm:text-sm rounded hover:bg-surface-2"
+                        className="w-6 h-6 flex items-center justify-center text-[#5b6664] hover:text-[#0b4f42] font-bold text-xs rounded hover:bg-[#f7f8f6] cursor-pointer"
                         title="إنقاص الكمية"
                       >
-                        <Minus className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                        <Minus className="w-3 h-3" />
                       </button>
                       <input
                         type="text"
@@ -263,16 +263,16 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                             setDirectQuantity(index, val);
                           }
                         }}
-                        className="w-8 sm:w-9 h-5 sm:h-6 text-center font-mono font-bold text-ink text-xs sm:text-[13px] tabular-nums bg-transparent border-0 focus:outline-hidden focus:bg-surface-2 rounded"
+                        className="w-9 h-6 text-center font-mono font-bold text-[#14181a] text-xs sm:text-sm tabular-nums bg-transparent border-0 focus:outline-none focus:bg-[#f7f8f6] rounded"
                         title="اضغط لتعديل الكمية بالكتابة مباشرة"
                       />
                       <button 
                         type="button"
                         onClick={() => updateQuantity(index, 1)}
-                        className="w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center text-ink-muted hover:text-brand font-bold text-xs sm:text-sm rounded hover:bg-surface-2"
+                        className="w-6 h-6 flex items-center justify-center text-[#5b6664] hover:text-[#0b4f42] font-bold text-xs rounded hover:bg-[#f7f8f6] cursor-pointer"
                         title="زيادة الكمية"
                       >
-                        <Plus className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                        <Plus className="w-3 h-3" />
                       </button>
                     </div>
                   )}
@@ -283,10 +283,10 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                   <button
                     type="button"
                     onClick={() => onOpenItemDiscount(index)}
-                    className={`px-1.5 py-1 rounded transition-colors text-[10px] font-bold inline-flex items-center gap-0.5 ${
+                    className={`px-2 py-1 rounded-md transition-colors text-xs font-bold inline-flex items-center gap-0.5 cursor-pointer ${
                       item.discountPiasters > 0
-                        ? 'text-amber-700 bg-amber-500/20 border border-amber-500/40 hover:bg-amber-500/30'
-                        : 'text-ink-muted hover:text-brand hover:bg-surface-2'
+                        ? 'text-amber-800 bg-amber-500/20 border border-amber-500/40 hover:bg-amber-500/30'
+                        : 'text-[#5b6664] hover:text-[#0b4f42] hover:bg-[#f7f8f6]'
                     }`}
                     title="تطبيق خصم خاص على هذا الصنف"
                   >
@@ -296,10 +296,10 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                 </div>
 
                 {/* Line Total */}
-                <div className="w-[13%] text-left tabular-nums font-mono font-bold text-brand text-xs sm:text-[13px] flex flex-col items-end justify-center">
+                <div className="w-[13%] text-left tabular-nums font-mono font-bold text-[#0b4f42] text-xs sm:text-sm flex flex-col items-end justify-center">
                   <span>{formatArabicCurrency(item.totalPiasters)}</span>
                   {item.discountPiasters > 0 && (
-                    <span className="text-[10px] text-ink-muted line-through font-normal">
+                    <span className="text-[10px] text-[#5b6664] line-through font-normal">
                       {formatArabicCurrency(Math.round((item.unitPricePiasters * item.quantityMilli) / 1000))}
                     </span>
                   )}
@@ -309,10 +309,10 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                 <div className="w-[4%] text-center">
                   <button 
                     onClick={() => removeItem(index)}
-                    className="text-ink-muted hover:text-danger p-1 rounded transition-colors"
+                    className="text-[#5b6664] hover:text-[#b23a2e] p-1.5 rounded-md hover:bg-[#fdf3f2] transition-colors cursor-pointer"
                     title="حذف الصنف"
                   >
-                    <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>
