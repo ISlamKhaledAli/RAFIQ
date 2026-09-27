@@ -173,7 +173,7 @@ export function DashboardView({
     <div className="flex flex-col h-full w-full bg-[#f4f7f6] select-none overflow-y-auto p-5 gap-5 font-sans" dir="rtl">
       
       {/* 1. TOP HEADER & COMMAND CENTER CONTROLS */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-black text-slate-900 tracking-tight">لوحة متابعة اليوم والوردية</h2>
@@ -214,7 +214,7 @@ export function DashboardView({
       </div>
 
       {/* 2. EXECUTIVE SYSTEM HEALTH & HARDWARE STATUS STRIP */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden transition-all">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden transition-all shrink-0">
         {/* Top Status Header */}
         <div
           className={`px-5 py-4 border-b flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
@@ -379,7 +379,7 @@ export function DashboardView({
 
 
       {/* 4. FINANCIAL & OPERATIONAL KPI METRICS (6 clean cards with no clipping) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5 shrink-0">
         {/* KPI 1: Today Sales */}
         <div className="bg-gradient-to-b from-emerald-50/50 via-white to-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs hover:shadow-md hover:border-emerald-300 transition-all flex flex-col justify-between min-h-[135px]">
           <div>
@@ -580,14 +580,14 @@ export function DashboardView({
       </div>
 
       {/* 5. SPLIT SECTION: TOP SELLING & INVENTORY ADJUSTMENTS + ALERTS */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 shrink-0 pb-6">
         
         {/* RIGHT COLUMN (2/3 width): Top Selling Items + Today's Inventory Adjustments */}
         <div className="lg:col-span-2 flex flex-col gap-4">
           
           {/* 5A. Top Selling Products */}
           <div className="bg-white rounded-2xl border border-slate-200/90 flex flex-col overflow-hidden shadow-xs">
-            <div className="h-11 bg-slate-50 border-b border-slate-100 px-5 flex items-center justify-between">
+            <div className="h-11 bg-slate-50 border-b border-slate-100 px-5 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2 text-xs font-black text-slate-800">
                 <Flame className="w-4 h-4 text-emerald-600" />
                 <span>الأصناف الأكثر طلباً ومبيعاً اليوم</span>
@@ -642,7 +642,7 @@ export function DashboardView({
 
           {/* 5B. Today's Inventory Adjustments & Shrinkage Section */}
           <div className="bg-white rounded-2xl border border-slate-200/90 flex flex-col overflow-hidden shadow-xs">
-            <div className="h-11 bg-slate-50 border-b border-slate-100 px-5 flex items-center justify-between">
+            <div className="h-11 bg-slate-50 border-b border-slate-100 px-5 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2 text-xs font-black text-slate-800">
                 <Scale className="w-4 h-4 text-amber-600" />
                 <span>تسويات وعجز وتوالف المخزون اليوم</span>
@@ -729,7 +729,7 @@ export function DashboardView({
           {/* Prioritized System Alerts */}
           {health && health.alerts && health.alerts.length > 0 && (
             <div className="bg-white rounded-2xl border border-slate-200/90 flex flex-col overflow-hidden shadow-xs">
-              <div className="h-10 bg-slate-50 border-b border-slate-100 px-4 flex items-center justify-between text-xs font-bold text-slate-800">
+              <div className="h-10 bg-slate-50 border-b border-slate-100 px-4 flex items-center justify-between text-xs font-bold text-slate-800 shrink-0">
                 <span>تنبيهات النظام ({health.alerts.length})</span>
                 <span className="text-[10px] text-slate-400 font-normal">مرتبة حسب الأهمية</span>
               </div>
@@ -766,7 +766,7 @@ export function DashboardView({
 
           {/* Low Stock Alerts */}
           <div className="bg-white rounded-2xl border border-slate-200/90 flex flex-col overflow-hidden shadow-xs">
-            <div className="h-10 bg-slate-50 border-b border-slate-100 px-4 flex items-center justify-between">
+            <div className="h-10 bg-slate-50 border-b border-slate-100 px-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-1.5 text-rose-600 font-bold text-xs">
                 <AlertTriangle className="w-4 h-4" />
                 <span>تنبيهات النواقص بالمخزن</span>
@@ -807,7 +807,7 @@ export function DashboardView({
 
           {/* Top Debtors List */}
           <div className="bg-white rounded-2xl border border-slate-200/90 flex flex-col overflow-hidden shadow-xs">
-            <div className="h-10 bg-slate-50 border-b border-slate-100 px-4 flex items-center justify-between">
+            <div className="h-10 bg-slate-50 border-b border-slate-100 px-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-1.5 text-slate-800 font-bold text-xs">
                 <Users className="w-4 h-4 text-emerald-700" />
                 <span>أعلى العملاء مديونية (الآجل)</span>

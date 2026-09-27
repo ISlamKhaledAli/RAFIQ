@@ -33,7 +33,7 @@ export interface ProductsViewProps {
   onSubViewChange?: (view: 'catalog' | 'movements') => void;
 }
 
-export const ProductsView: React.FC<ProductsViewProps> = ({ subView, onSubViewChange }) => {
+export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -108,15 +108,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView, onSubViewCh
   };
 
   // Stock Movements & Inventory state (Stories 38 & 39 / Features #34 & #35)
-  const [internalSubView, setInternalSubView] = useState<'catalog' | 'movements'>('catalog');
-  const activeSubView = subView ?? internalSubView;
-
-  const handleSubViewChange = (tab: 'catalog' | 'movements') => {
-    setInternalSubView(tab);
-    if (onSubViewChange) {
-      onSubViewChange(tab);
-    }
-  };
+  const activeSubView = subView ?? 'catalog';
 
   const [selectedProdForMovements, setSelectedProdForMovements] = useState<Product | null>(null);
   const [selectedProdForAdjustment, setSelectedProdForAdjustment] = useState<Product | null>(null);
@@ -517,40 +509,41 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView, onSubViewCh
       {/* 1. Header Toolbar (Title, Count Badge, Search, Add Button) */}
       <div className="min-h-[56px] py-2 bg-surface hairline-all rounded-[6px] px-3 sm:px-4 flex flex-wrap items-center justify-between gap-2 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="flex items-center bg-surface-2 p-1 rounded-lg border border-line gap-1">
-            <button
-              type="button"
-              onClick={() => handleSubViewChange('catalog')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-                activeSubView === 'catalog'
-                  ? 'bg-brand text-on-brand shadow-xs'
-                  : 'text-ink-muted hover:text-ink hover:bg-surface'
-              }`}
-            >
-              <Package className="w-4 h-4" />
-              <span>كتالوج الأصناف والأسعار</span>
-              <span className="font-mono text-[10.5px] opacity-80 tabular-nums">({products.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleSubViewChange('movements')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-                activeSubView === 'movements'
-                  ? 'bg-brand text-on-brand shadow-xs'
-                  : 'text-ink-muted hover:text-ink hover:bg-surface'
-              }`}
-            >
-              <Boxes className="w-4 h-4" />
-              <span>دفتر حركات وجرد المخزون</span>
-              <span className="font-mono text-[10.5px] opacity-80 tabular-nums">({allMovements.length})</span>
-            </button>
-          </div>
-
-          {activeSubView === 'movements' && discrepancies.length > 0 && (
-            <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-700 animate-pulse">
-              {discrepancies.length} صنف بحاجة لمطابقة
-            </span>
+          {activeSubView === 'catalog' ? (
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 text-[#006d41] flex items-center justify-center border border-emerald-200/60 shadow-2xs">
+                <Package className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-black text-slate-900 leading-tight">كتالوج الأصناف والأسعار</h2>
+                  <span className="font-mono text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold border border-slate-200 tabular-nums">
+                    {products.length} صنف
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400">إدارة المنتجات، الأسعار، الباركود، ومستويات حد الطلب</p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 text-[#006d41] flex items-center justify-center border border-emerald-200/60 shadow-2xs">
+                <Boxes className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-black text-slate-900 leading-tight">دفتر حركات وجرد المخزون</h2>
+                  <span className="font-mono text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold border border-slate-200 tabular-nums">
+                    {allMovements.length} حركة
+                  </span>
+                  {discrepancies.length > 0 && (
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-700 animate-pulse">
+                      {discrepancies.length} صنف بحاجة لمطابقة
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-400">سجل الوارد والمنصرف، المبيعات، المرتجعات، والتسويات الجردية</p>
+              </div>
+            </div>
           )}
         </div>
 
