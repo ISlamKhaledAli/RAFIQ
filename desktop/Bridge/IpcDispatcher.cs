@@ -354,6 +354,11 @@ namespace RafiqPOS.Bridge
                         return BridgeResponse.Ok(request.Id, profitInfo);
 
                     case "sales:create":
+                        // Feature #173: Block sale creation when license is expired or tampered (Task 173-2)
+                        if (DatabaseService.License != null && DatabaseService.License.IsLicenseExpired())
+                        {
+                            return BridgeResponse.Fail(request.Id, "LICENSE_EXPIRED", "انتهت فترة اشتراك البرنامج أو تم إيقافه. يرجى تجديد الترخيص لاستكمال عمليات البيع.");
+                        }
                         if (request.Payload == null)
                         {
                             return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات الفاتورة فارغة");
@@ -366,6 +371,11 @@ namespace RafiqPOS.Bridge
                                 saleToCreate.CashierId = SecurityService.CurrentUser.Id;
                             }
                             var createdSale = DatabaseService.Sales.ProcessSale(saleToCreate);
+                            // Task 171-2: Record valid UTC on successful sale
+                            if (DatabaseService.License != null)
+                            {
+                                DatabaseService.License.RecordKnownUtc();
+                            }
                             return BridgeResponse.Ok(request.Id, createdSale);
                         }
                         catch (Exception ex)
@@ -1467,6 +1477,16 @@ namespace RafiqPOS.Bridge
                             ? DatabaseService.License.VerifyLicenseOnline()
                             : new LicenseOperationResult { Success = false, Message = "خدمة التراخيص غير مهيأة" };
                         return BridgeResponse.Ok(request.Id, verResult);
+
+                    case "license:checkExpiry":
+                        var chkExpiry = DatabaseService.License != null 
+                            ? DatabaseService.License.CheckExpiry() 
+                            : null;
+                        return BridgeResponse.Ok(request.Id, chkExpiry);
+
+                    case "license:runTests":
+                        var licTestRes = LicenseTestRunner.RunAllTests();
+                        return BridgeResponse.Ok(request.Id, licTestRes);
 
                     default:
                         Logger.Warn("محاولة تنفيذ إجراء غير مسجل: " + request.Action);

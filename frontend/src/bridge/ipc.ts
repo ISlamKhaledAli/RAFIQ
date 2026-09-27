@@ -1597,6 +1597,32 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         },
       };
 
+    case 'license:checkExpiry':
+      return {
+        isActive: true,
+        isExpired: false,
+        status: 'active',
+        statusLabel: 'ترخيص دائم نشط (مدى الحياة)',
+        daysRemaining: 9999,
+        expiresAt: '',
+        clockTampered: false,
+        clockTamperMessage: '',
+        licenseType: 'lifetime',
+        shopName: 'سوبرماركت رفيق',
+        deviceFingerprint: 'RAFIQ-DEV-MOCK-FINGERPRINT-8899AABB',
+      };
+
+    case 'license:runTests':
+      return {
+        success: true,
+        message: 'نجحت جميع اختبارات التحقق من انتهاء الترخيص وحماية الساعة ومنع البيع بنسبة 100%!',
+        expiryDetectionPassed: true,
+        clockTamperPassed: true,
+        saleBlockingPassed: true,
+        readWhitelistPassed: true,
+        checkExpiryContractPassed: true,
+      };
+
     case 'system:factoryReset':
       mockCustomers = [];
       return {

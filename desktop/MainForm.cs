@@ -408,6 +408,10 @@ namespace RafiqPOS
             try
             {
                 DatabaseService.Initialize();
+                if (DatabaseService.License != null)
+                {
+                    DatabaseService.License.StartBackgroundPeriodicCheck();
+                }
             }
             catch (Exception dbEx)
             {
@@ -633,6 +637,11 @@ namespace RafiqPOS
         {
             try
             {
+                if (DatabaseService.License != null)
+                {
+                    DatabaseService.License.StopBackgroundPeriodicCheck();
+                }
+
                 if (DatabaseService.SettingsRepo != null)
                 {
                     string autoClose = DatabaseService.SettingsRepo.Get("backup_auto_on_close", "1");

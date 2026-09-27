@@ -88,6 +88,26 @@ export async function handleVerify(request: Request, env: Env): Promise<Response
     );
   }
 
+  const isExpired = license.status === 'expired' || (Boolean(license.expires_at) && new Date(license.expires_at!) < new Date());
+  if (isExpired) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        valid: false,
+        code: 'LICENSE_EXPIRED',
+        message: 'انتهت فترة صلاحية هذا الترخيص',
+        details: {
+          license_key: license.license_key,
+          shop_name: license.shop_name,
+          status: 'expired',
+          license_type: license.license_type,
+          expires_at: license.expires_at,
+        },
+      }),
+      { status: 403, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+    );
+  }
+
   return new Response(
     JSON.stringify({
       success: true,

@@ -132,6 +132,7 @@
     <Compile Include="Services\SecurityTestRunner.cs" />
     <Compile Include="Services\SystemHealthService.cs" />
     <Compile Include="Services\LicenseService.cs" />
+    <Compile Include="Services\LicenseTestRunner.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

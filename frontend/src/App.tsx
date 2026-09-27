@@ -1,4 +1,4 @@
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import type { FC } from 'react';
 import { 
   ShoppingCart, 
@@ -45,11 +45,14 @@ import { FirstRunWizardModal } from './components/FirstRunWizardModal';
 import { GuidedTourModal } from './components/GuidedTourModal';
 import { ReadinessCheckModal } from './components/ReadinessCheckModal';
 import { RafiqDialogContainer } from './components/RafiqDialog';
-import { rafiqConfirm } from './utils/dialogService';
+import { rafiqConfirm, rafiqAlert } from './utils/dialogService';
 import type { UserDto } from './bridge/ipc';
 import { LoginModal } from './components/LoginModal';
 import { UserManagerModal } from './components/UserManagerModal';
 import { SupervisorPromptModal } from './components/SupervisorPromptModal';
+import { LicenseExpiredLockScreen } from './components/LicenseExpiredLockScreen';
+import type { LicenseExpiryDetails } from './components/LicenseExpiredLockScreen';
+import { LicenseModal } from './components/LicenseModal';
 
 export interface SystemInfo {
   appName: string;
@@ -145,6 +148,66 @@ export default function App() {
     title: '',
     onApproved: () => {},
   });
+
+  // Feature #171 & #172: Real-time License Expiry & Lock Screen Enforcement
+  const [licenseExpiry, setLicenseExpiry] = useState<LicenseExpiryDetails | null>(null);
+  const [isLockScreenOpen, setIsLockScreenOpen] = useState(false);
+  const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
+  const [isLicenseReadOnlyMode, setIsLicenseReadOnlyMode] = useState(false);
+
+  const refreshLicenseStatus = useCallback(async () => {
+    try {
+      const res = await invoke<LicenseExpiryDetails>('license:checkExpiry');
+      if (res) {
+        setLicenseExpiry(res);
+        const shouldLock = !res.isActive || res.isExpired || res.clockTampered || res.status === 'expired' || res.status === 'disabled';
+        if (shouldLock) {
+          if (!isLicenseReadOnlyMode) {
+            setIsLockScreenOpen(true);
+          }
+        } else {
+          setIsLockScreenOpen(false);
+          setIsLicenseReadOnlyMode(false);
+        }
+      }
+    } catch {
+      // ignore in dev
+    }
+  }, [isLicenseReadOnlyMode]);
+
+  // Periodic License Check every 30s & on initial load (Feature #171 / Task 171-3 & Task 172-2, 172-4)
+  useEffect(() => {
+    let isMounted = true;
+    const runCheck = async () => {
+      try {
+        const res = await invoke<LicenseExpiryDetails>('license:checkExpiry');
+        if (res && isMounted) {
+          setLicenseExpiry(res);
+          const shouldLock = !res.isActive || res.isExpired || res.clockTampered || res.status === 'expired' || res.status === 'disabled';
+          if (shouldLock) {
+            if (!isLicenseReadOnlyMode) {
+              setIsLockScreenOpen(true);
+            }
+          } else {
+            setIsLockScreenOpen(false);
+            setIsLicenseReadOnlyMode(false);
+          }
+        }
+      } catch {
+        // ignore in dev
+      }
+    };
+
+    void runCheck();
+    const timer = setInterval(() => {
+      void runCheck();
+    }, 30000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(timer);
+    };
+  }, [isLicenseReadOnlyMode]);
 
   // Track user idle timeout to lock session automatically (Task 166-6)
   useEffect(() => {
@@ -384,6 +447,15 @@ export default function App() {
   };
 
   const handleNavClick = (tabId: TabType, subAction?: () => void) => {
+    // Feature #172 / Task 172-5: Block POS sales screen in read-only mode
+    if (isLicenseReadOnlyMode && tabId === 'pos') {
+      void rafiqAlert({
+        title: 'شاشة البيع معطلة',
+        message: 'انتهت فترة اشتراك البرنامج أو تم رصد تراجع في ساعة النظام. البرنامج يعمل حالياً في وضع القراءة والنسخ الاحتياطي فقط. يرجى تجديد الترخيص لاستئناف عمليات البيع.',
+        variant: 'warning',
+      });
+      return;
+    }
     if (currentUser?.role === 'cashier' && ADMIN_ONLY_TABS.includes(tabId)) {
       setActiveTab('pos');
       return;
@@ -552,6 +624,46 @@ export default function App() {
           >
             تجاهل التنبيه مؤقتاً
           </button>
+        </div>
+      )}
+
+      {/* Feature #172 / Task 172-2: 7-Day Expiry Warning Banner */}
+      {licenseExpiry && licenseExpiry.status === 'warning' && !isLockScreenOpen && !isLicenseReadOnlyMode && (
+        <div className="bg-amber-500 text-amber-950 px-4 py-2 flex items-center justify-between text-[12px] font-bold shrink-0 select-none border-b border-amber-600/30">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 shrink-0 text-amber-900" />
+            <span>
+              تنبيه هام: سينتهي اشتراك البرنامج خلال {licenseExpiry.daysRemaining} {licenseExpiry.daysRemaining === 1 ? 'يوم' : 'أيام'} ({licenseExpiry.expiresAt || 'قريباً'}). يرجى التجديد لتفادي توقف نقاط البيع تلقائياً.
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsLicenseModalOpen(true)}
+              className="bg-amber-950 hover:bg-black text-amber-100 text-xs px-3 py-1 rounded font-bold transition-colors shadow-xs"
+            >
+              تجديد الترخيص الآن
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Feature #172 / Task 172-5: Read-Only Mode Banner */}
+      {isLicenseReadOnlyMode && (
+        <div className="bg-amber-700 text-white px-4 py-2 flex items-center justify-between text-[12px] font-bold shrink-0 animate-in slide-in-from-top-1 select-none border-b border-white/20">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-200" />
+            <span>وضع القراءة والنسخ الاحتياطي نشط: انتهت فترة الاشتراك. عمليات البيع معطلة، ويتاح فقط عرض التقارير والمبيعات السابقة وأخذ نسخة احتياطية.</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsLockScreenOpen(true)}
+              className="bg-white text-amber-900 hover:bg-amber-100 text-xs px-3 py-1 rounded font-bold transition-colors shadow-xs"
+            >
+              تفعيل الترخيص / التحقق
+            </button>
+          </div>
         </div>
       )}
 
@@ -966,6 +1078,33 @@ export default function App() {
         onApproved={() => {
           supervisorPrompt.onApproved();
           setSupervisorPrompt((p) => ({ ...p, isOpen: false }));
+        }}
+      />
+
+      {/* Feature #172: Fullscreen License Expired Lock Screen (Task 172-1, 172-3, 172-5) */}
+      <LicenseExpiredLockScreen
+        isOpen={isLockScreenOpen}
+        expiryInfo={licenseExpiry}
+        onUnlocked={() => {
+          setIsLockScreenOpen(false);
+          setIsLicenseReadOnlyMode(false);
+          void refreshLicenseStatus();
+        }}
+        onEnterReadOnlyMode={() => {
+          setIsLockScreenOpen(false);
+          setIsLicenseReadOnlyMode(true);
+          if (activeTab === 'pos') {
+            setActiveTab('dashboard');
+          }
+        }}
+      />
+
+      {/* License Activation & Verification Modal */}
+      <LicenseModal
+        isOpen={isLicenseModalOpen}
+        onClose={() => setIsLicenseModalOpen(false)}
+        onLicenseUpdated={() => {
+          void refreshLicenseStatus();
         }}
       />
 
