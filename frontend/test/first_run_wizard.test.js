@@ -100,8 +100,10 @@ describe('Story 59: First-run Setup Wizard by Store Type (Feature #106)', () => 
     assert.ok(appContent.includes('isFirstRunWizardOpen'), 'App.tsx must manage wizard open state');
 
     const settingsContent = fs.readFileSync(settingsViewPath, 'utf8');
+    const storeProfilePath = path.resolve('src', 'views', 'settings', 'StoreProfileTab.tsx');
+    const storeProfileContent = fs.existsSync(storeProfilePath) ? fs.readFileSync(storeProfilePath, 'utf8') : '';
     assert.ok(settingsContent.includes('FirstRunWizardModal'), 'SettingsView must import FirstRunWizardModal');
-    assert.ok(settingsContent.includes('معالج نوع المحل (Setup Wizard)'), 'SettingsView must offer button to rerun setup wizard');
+    assert.ok(settingsContent.includes('معالج نوع المحل (Setup Wizard)') || storeProfileContent.includes('معالج نوع المحل (Setup Wizard)'), 'SettingsView must offer button to rerun setup wizard');
   });
 
   it('Task 106-5: Template data validation for each store preset', () => {

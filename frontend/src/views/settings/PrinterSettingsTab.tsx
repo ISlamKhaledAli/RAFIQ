@@ -17,8 +17,10 @@ interface PrinterSettingsTabProps {
   setPaperWidth: (val: '80mm' | '57mm' | 'a4') => void;
   autoPrintOnSale: boolean;
   setAutoPrintOnSale: (val: boolean) => void;
+  onToggleAutoPrint?: (val: boolean) => void;
   openDrawerOnSale: boolean;
   setOpenDrawerOnSale: (val: boolean) => void;
+  onToggleOpenDrawer?: (val: boolean) => void;
   printersLoading: boolean;
   testPrinting: boolean;
   printerSaveSuccess: boolean;
@@ -37,8 +39,10 @@ export const PrinterSettingsTab = ({
   setPaperWidth,
   autoPrintOnSale,
   setAutoPrintOnSale,
+  onToggleAutoPrint,
   openDrawerOnSale,
   setOpenDrawerOnSale,
+  onToggleOpenDrawer,
   printersLoading,
   testPrinting,
   printerSaveSuccess,
@@ -155,7 +159,11 @@ export const PrinterSettingsTab = ({
           <label className="block text-ink font-semibold text-xs mb-0.5">خيارات التشغيل والأتمتة للكاشير</label>
           
           <div 
-            onClick={() => setAutoPrintOnSale(!autoPrintOnSale)}
+            onClick={() => {
+              const next = !autoPrintOnSale;
+              setAutoPrintOnSale(next);
+              if (onToggleAutoPrint) onToggleAutoPrint(next);
+            }}
             className={`p-3.5 rounded border cursor-pointer flex items-center justify-between gap-3 transition-all ${
               autoPrintOnSale ? 'bg-brand-soft/30 border-brand/40' : 'bg-surface-2 border-line'
             }`}
@@ -172,7 +180,11 @@ export const PrinterSettingsTab = ({
           </div>
 
           <div 
-            onClick={() => setOpenDrawerOnSale(!openDrawerOnSale)}
+            onClick={() => {
+              const next = !openDrawerOnSale;
+              setOpenDrawerOnSale(next);
+              if (onToggleOpenDrawer) onToggleOpenDrawer(next);
+            }}
             className={`p-3.5 rounded border cursor-pointer flex items-center justify-between gap-3 transition-all ${
               openDrawerOnSale ? 'bg-brand-soft/30 border-brand/40' : 'bg-surface-2 border-line'
             }`}

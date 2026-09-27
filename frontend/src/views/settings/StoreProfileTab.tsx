@@ -18,6 +18,7 @@ interface StoreProfileTabProps {
   setReceiptFooter: (val: string) => void;
   allowNegativeStock: boolean;
   setAllowNegativeStock: (val: boolean) => void;
+  onToggleNegativeStock?: (val: boolean) => void;
   defaultCustomerCreditLimitEgp: number;
   setDefaultCustomerCreditLimitEgp: (val: number) => void;
   saveLoading: boolean;
@@ -42,6 +43,7 @@ export const StoreProfileTab = ({
   setReceiptFooter,
   allowNegativeStock,
   setAllowNegativeStock,
+  onToggleNegativeStock,
   defaultCustomerCreditLimitEgp,
   setDefaultCustomerCreditLimitEgp,
   saveLoading,
@@ -158,7 +160,11 @@ export const StoreProfileTab = ({
             </div>
             <button
               type="button"
-              onClick={() => setAllowNegativeStock(!allowNegativeStock)}
+              onClick={() => {
+                const next = !allowNegativeStock;
+                setAllowNegativeStock(next);
+                if (onToggleNegativeStock) onToggleNegativeStock(next);
+              }}
               className="shrink-0 text-brand"
               title={allowNegativeStock ? 'مفعّل (السماح بالسالب مع تحذير)' : 'معطّل (منع البيع عند عدم كفاية الرصيد)'}
             >

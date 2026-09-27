@@ -2,11 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { 
   KeyRound, 
   ShieldCheck, 
-  CloudCheck, 
   Copy, 
   Check, 
   X, 
-  ExternalLink,
   Sparkles,
   AlertCircle
 } from 'lucide-react';
@@ -165,7 +163,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
             <div>
               <h2 className="text-xl font-bold font-cairo">ترخيص نظام رفيق POS السحابي</h2>
               <p className="text-xs text-emerald-100/90 font-cairo">
-                حماية أوفلاين مشفرة + ربط ببصمة عتاد الجهاز عبر Cloudflare
+                حماية أوفلاين مشفرة + ربط ببصمة عتاد الجهاز
               </p>
             </div>
           </div>
@@ -262,23 +260,6 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
             <p className="text-[11px] text-slate-500">
               أدخل رمز التفعيل المعتمد المكون من حروف وأرقام مسلّمة من إدارة رفيق.
             </p>
-          </div>
-
-          {/* Connected Cloud Server Info */}
-          <div className="flex items-center justify-between text-xs text-slate-500 bg-slate-100/70 p-3 rounded-xl border border-slate-200">
-            <div className="flex items-center gap-2">
-              <CloudCheck className="w-4 h-4 text-emerald-700" />
-              <span>خادم التراخيص السحابي: <strong>Cloudflare Global Workers</strong></span>
-            </div>
-            <a 
-              href="https://rafiq-license-server.khaledislam9003.workers.dev/admin" 
-              target="_blank" 
-              rel="noreferrer"
-              className="text-emerald-700 hover:text-emerald-800 font-bold flex items-center gap-1"
-            >
-              <span>لوحة الإدارة</span>
-              <ExternalLink className="w-3 h-3" />
-            </a>
           </div>
         </div>
 

@@ -62,9 +62,9 @@ export const SystemDiagnosticsTab = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {[
             {
-              key: 'feature_scale_weight',
-              title: 'دعم الميزان الإلكتروني وباركود الأوزان',
-              description: 'قراءة باركود الأوزان تلقائياً (النوع 20-29) وحساب الوزن الصافي والسعر بالقروش.',
+              key: 'feature_fast_buttons',
+              title: 'شبكة الأصناف السريعة (Fast Picks)',
+              description: 'عرض قائمة بالأصناف الشائعة بدون باركود (خبز، خضار، منتجات يومية) على شاشة البيع السريع.',
             },
             {
               key: 'feature_credit_debts',
@@ -72,24 +72,9 @@ export const SystemDiagnosticsTab = ({
               description: 'تسجيل المبيعات على الحساب، ومتابعة كشف الحساب والحد الائتماني لكل عميل.',
             },
             {
-              key: 'feature_fast_buttons',
-              title: 'شبكة الأصناف السريعة (Fast Picks)',
-              description: 'عرض قائمة بالأصناف الشائعة بدون باركود (خبز، خضار، منتجات يومية) على شاشة البيع.',
-            },
-            {
               key: 'feature_taxes',
               title: 'منظومة الضرائب والجاهزية للإيصال الإلكتروني',
               description: 'حساب ضريبة القيمة المضافة وإظهار حقول كود التصنيف الضريبي GS1/EGS للأصناف.',
-            },
-            {
-              key: 'feature_expiry_dates',
-              title: 'تتبع تواريخ الصلاحية وتنبيهات الرواكد',
-              description: 'تسجيل تاريخ انتهاء الصلاحية لكل دفعة وتنبيه الكاشير قبل انتهاء صلاحية السلعة.',
-            },
-            {
-              key: 'feature_multi_units',
-              title: 'الوحدات المتعددة للأصناف (كرتونة / دستة / قطعة)',
-              description: 'دعم بيع الصنف بأكثر من وحدة قياس مع تحويل تلقائي للرصيد وسعر خاص لكل وحدة.',
             },
           ].map((feat) => {
             const isEnabled = flags[feat.key] ?? false;

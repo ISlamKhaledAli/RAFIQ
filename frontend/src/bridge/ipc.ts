@@ -525,7 +525,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         isLocked,
         remainingLockoutSeconds: remainingSec,
         failedAttempts: mockFailedAttempts,
-        protectedActions: { ...mockProtectedActions },
+        protectedActions: getMockProtectedActions(),
       };
     }
 
@@ -649,11 +649,11 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     }
 
     case 'security:saveProtectedActions': {
-      if (mockPinHash && payload?.currentPin !== mockPinHash) {
+      if (mockPinHash && payload?.currentPin && payload?.currentPin !== mockPinHash) {
         throw new Error('الرقم السري غير صحيح لحفظ إعدادات الحماية.');
       }
       if (payload?.actions) {
-        mockProtectedActions = { ...mockProtectedActions, ...payload.actions };
+        saveMockProtectedActions(payload.actions);
       }
       return { success: true };
     }
@@ -1633,27 +1633,62 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         deletedCustomersCount: 1,
       };
 
-    case 'features:getAll': {
-      try {
-        const stored = localStorage.getItem('rafiq_feature_flags');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (parsed && typeof parsed === 'object') {
-            return { ...mockFeatureFlags, ...parsed };
-          }
-        }
-      } catch {}
-      return { ...mockFeatureFlags };
-    }
+    case 'settings:getAll':
+      return getMockAppSettings();
+
+    case 'settings:save':
+      return saveMockAppSettings(payload);
+
+    case 'features:getAll':
+      return getMockFeatureFlags();
 
     case 'features:set': {
       if (payload?.key) {
-        mockFeatureFlags[payload.key] = Boolean(payload.enabled);
-        try {
-          localStorage.setItem('rafiq_feature_flags', JSON.stringify(mockFeatureFlags));
-        } catch {}
+        saveMockFeatureFlag(payload.key, Boolean(payload.enabled));
       }
       return { key: payload?.key, enabled: payload?.enabled };
+    }
+
+    case 'backup:getStatus': {
+      let cfg: any = {};
+      try {
+        const raw = localStorage.getItem('rafiq_backup_config');
+        if (raw) cfg = JSON.parse(raw);
+      } catch {}
+      return {
+        configuredFolder: cfg.targetFolder || 'C:\\RafiqPOS\\backups',
+        autoOnClose: cfg.autoOnClose ?? true,
+        autoDaily: cfg.autoDaily ?? true,
+        retentionDays: cfg.retentionDays || 7,
+        retentionWeeks: cfg.retentionWeeks || 4,
+        warnAfterDays: cfg.warnAfterDays || 2,
+        lastBackupAt: cfg.lastBackupAt || new Date().toISOString(),
+        backupFilesCount: 3,
+        totalBackupsSizeBytes: 4200000,
+        isOverdue: false,
+        daysSinceLastBackup: 0,
+        databaseFileSizeBytes: 1500000,
+      };
+    }
+
+    case 'backup:configure': {
+      let existing: any = {};
+      try {
+        const raw = localStorage.getItem('rafiq_backup_config');
+        if (raw) existing = JSON.parse(raw);
+      } catch {}
+      const updated = { ...existing, ...(payload || {}) };
+      try {
+        localStorage.setItem('rafiq_backup_config', JSON.stringify(updated));
+      } catch {}
+      return { success: true };
+    }
+
+    case 'backup:getDrives': {
+      return [
+        { name: 'C:\\', freeSpaceFormatted: '120 GB', totalSpaceFormatted: '512 GB', driveType: 'Fixed', isReady: true },
+        { name: 'D:\\', freeSpaceFormatted: '450 GB', totalSpaceFormatted: '1000 GB', driveType: 'Fixed', isReady: true }
+      ];
     }
 
     case 'products:getSmartCatalog':
@@ -1667,29 +1702,115 @@ async function mockHandler(action: string, payload: any): Promise<any> {
   }
 }
 
-// In-memory mock security variables for browser environment
-let mockFeatureFlags: Record<string, boolean> = {
-  feature_scale_weight: true,
-  feature_credit_debts: true,
-  feature_fast_buttons: true,
-  feature_taxes: false,
-  feature_expiry_dates: false,
-  feature_multi_units: false,
+const DEFAULT_APP_SETTINGS: Record<string, string> = {
+  store_name: 'متجر رفيق',
+  cashier_name: 'كاشير (1)',
+  store_phone: '',
+  store_address: 'الفرع الرئيسي',
+  tax_number: '',
+  receipt_header: 'أهلاً بكم في متجرنا',
+  receipt_footer: 'شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل خلال 14 يوماً بموجب الفاتورة.',
+  allow_negative_stock: '1',
+  default_customer_credit_limit_egp: '1000',
+  default_printer_name: '',
+  receipt_paper_width: '80mm',
+  printer_auto_print: '1',
+  printer_open_drawer: '0',
+  scanner_speed_ms: '65',
+  scanner_prefix: '',
+  scanner_suffix: 'Enter',
+  scanner_min_length: '3',
 };
+
+function getMockAppSettings(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem('rafiq_app_settings');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        return { ...DEFAULT_APP_SETTINGS, ...parsed };
+      }
+    }
+  } catch {}
+  return { ...DEFAULT_APP_SETTINGS };
+}
+
+function saveMockAppSettings(newSettings: Record<string, string>): Record<string, string> {
+  const current = getMockAppSettings();
+  const merged = { ...current, ...(newSettings || {}) };
+  try {
+    localStorage.setItem('rafiq_app_settings', JSON.stringify(merged));
+  } catch {}
+  return merged;
+}
+
+function getMockFeatureFlags(): Record<string, boolean> {
+  const defaultFeatureFlags: Record<string, boolean> = {
+    feature_credit_debts: true,
+    feature_fast_buttons: true,
+    feature_taxes: false,
+    feature_scale_weight: true,
+    feature_expiry_dates: false,
+    feature_multi_units: false,
+  };
+  try {
+    const stored = localStorage.getItem('rafiq_feature_flags');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed && typeof parsed === 'object') {
+        return { ...defaultFeatureFlags, ...parsed };
+      }
+    }
+  } catch {}
+  return { ...defaultFeatureFlags };
+}
+
+function saveMockFeatureFlag(key: string, enabled: boolean): Record<string, boolean> {
+  const flags = getMockFeatureFlags();
+  flags[key] = enabled;
+  try {
+    localStorage.setItem('rafiq_feature_flags', JSON.stringify(flags));
+  } catch {}
+  return flags;
+}
+
+function getMockProtectedActions(): Record<string, boolean> {
+  const defaultProtected: Record<string, boolean> = {
+    settings: true,
+    reports: true,
+    product_edit: true,
+    stock_adjust: true,
+    db_recovery: true,
+    discounts: false,
+    users: true,
+  };
+  try {
+    const raw = localStorage.getItem('rafiq_protected_actions');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        return { ...defaultProtected, ...parsed };
+      }
+    }
+  } catch {}
+  return defaultProtected;
+}
+
+function saveMockProtectedActions(actions: Record<string, boolean>): Record<string, boolean> {
+  const current = getMockProtectedActions();
+  const merged = { ...current, ...(actions || {}) };
+  try {
+    localStorage.setItem('rafiq_protected_actions', JSON.stringify(merged));
+  } catch {}
+  return merged;
+}
+
+// In-memory mock security variables for browser environment
 let mockPinHash: string | null = null;
 let mockRecoveryCode: string | null = null;
 let mockFailedAttempts = 0;
 let mockLockoutUntil = 0;
 let mockPinEnabled = true;
-let mockProtectedActions = {
-  settings: true,
-  reports: true,
-  product_edit: true,
-  stock_adjust: true,
-  db_recovery: true,
-  discounts: false,
-  users: true,
-};
 let mockIdleTimeoutMinutes = 15;
 let mockUsers: UserDto[] = [
   {

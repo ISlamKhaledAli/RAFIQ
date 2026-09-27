@@ -249,6 +249,40 @@ export const SettingsView = ({
     }
   };
 
+  const handleToggleNegativeStock = async (newVal: boolean) => {
+    setAllowNegativeStock(newVal);
+    try {
+      await invoke('settings:save', {
+        allow_negative_stock: newVal ? '1' : '0'
+      });
+    } catch (err) {
+      console.error('Failed to auto-save negative stock setting:', err);
+    }
+  };
+
+  const handleToggleAutoPrint = async (newVal: boolean) => {
+    setAutoPrintOnSale(newVal);
+    try {
+      localStorage.setItem('rafiq_pos_printer_auto_print', newVal ? '1' : '0');
+      await invoke('settings:save', {
+        printer_auto_print: newVal ? '1' : '0'
+      });
+    } catch (err) {
+      console.error('Failed to auto-save auto-print setting:', err);
+    }
+  };
+
+  const handleToggleOpenDrawer = async (newVal: boolean) => {
+    setOpenDrawerOnSale(newVal);
+    try {
+      await invoke('settings:save', {
+        printer_open_drawer: newVal ? '1' : '0'
+      });
+    } catch (err) {
+      console.error('Failed to auto-save open drawer setting:', err);
+    }
+  };
+
   const handleTestPrint = async () => {
     setTestPrinting(true);
     setTestPrintMessage(null);
@@ -404,7 +438,7 @@ export const SettingsView = ({
             type="button"
             onClick={() => setIsLicenseModalOpen(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-800 hover:bg-emerald-100 text-xs font-bold transition-all cursor-pointer shadow-2xs"
-            title="إدارة وتفعيل ترخيص رفيق POS السحابي (Cloudflare)"
+            title="إدارة وتفعيل ترخيص رفيق POS"
           >
             <KeyRound className="w-3.5 h-3.5 text-emerald-700" />
             <span>ترخيص البرنامج</span>
@@ -431,8 +465,10 @@ export const SettingsView = ({
           setPaperWidth={setPaperWidth}
           autoPrintOnSale={autoPrintOnSale}
           setAutoPrintOnSale={setAutoPrintOnSale}
+          onToggleAutoPrint={handleToggleAutoPrint}
           openDrawerOnSale={openDrawerOnSale}
           setOpenDrawerOnSale={setOpenDrawerOnSale}
+          onToggleOpenDrawer={handleToggleOpenDrawer}
           printersLoading={printersLoading}
           testPrinting={testPrinting}
           printerSaveSuccess={printerSaveSuccess}
@@ -466,6 +502,7 @@ export const SettingsView = ({
           setReceiptFooter={setReceiptFooter}
           allowNegativeStock={allowNegativeStock}
           setAllowNegativeStock={setAllowNegativeStock}
+          onToggleNegativeStock={handleToggleNegativeStock}
           defaultCustomerCreditLimitEgp={defaultCustomerCreditLimitEgp}
           setDefaultCustomerCreditLimitEgp={setDefaultCustomerCreditLimitEgp}
           saveLoading={saveLoading}
