@@ -72,6 +72,11 @@
     </Compile>
     <Compile Include="Bridge\BridgeModels.cs" />
     <Compile Include="Bridge\IpcDispatcher.cs" />
+    <Compile Include="Bridge\IpcDispatcher.Products.cs" />
+    <Compile Include="Bridge\IpcDispatcher.Sales.cs" />
+    <Compile Include="Bridge\IpcDispatcher.Customers.cs" />
+    <Compile Include="Bridge\IpcDispatcher.Inventory.cs" />
+    <Compile Include="Bridge\IpcDispatcher.System.cs" />
     <Compile Include="Common\Money.cs" />
     <Compile Include="Common\OsDetector.cs" />
     <Compile Include="Common\Logger.cs" />
