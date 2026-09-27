@@ -49,6 +49,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
       icon: <Printer className="w-4 h-4 text-brand" />,
       shortcuts: [
         { key: 'F12', label: 'سداد نقدي فوري', desc: 'إنهاء الفاتورة نقدياً وطباعة الإيصال دون لمس الماوس' },
+        { key: 'F11', label: 'مرتجع مبيعات', desc: 'فتح نافذة تسجيل مرتجع للعميل برقم الفاتورة أو بدونها' },
         { key: 'Space', label: 'نافذة الدفع المتعدد', desc: 'فتح شاشة الدفع لتسجيل مدفوعات نقدية أو بطاقات' },
         { key: 'F9', label: 'إعادة طباعة آخر إيصال', desc: 'فتح ومعاينة آخر فاتورة مكتملة وطباعة نسخة منها' },
         { key: 'F8', label: 'إعدادات القارئ', desc: 'ضبط ومحاذاة قارئ الباركود ومفتاح الإدخال' }

@@ -111,6 +111,30 @@ namespace RafiqPOS.Models
         [JsonProperty("todayDebtPaymentsPiasters")]
         public long TodayDebtPaymentsPiasters { get; set; }
 
+        [JsonProperty("todayCancelledSalesPiasters")]
+        public long TodayCancelledSalesPiasters { get; set; }
+
+        [JsonProperty("todayCancelledSalesFormatted")]
+        public string TodayCancelledSalesFormatted
+        {
+            get { return Common.Money.FormatPiasters(this.TodayCancelledSalesPiasters); }
+        }
+
+        [JsonProperty("todayCancelledCount")]
+        public int TodayCancelledCount { get; set; }
+
+        [JsonProperty("todayReturnsPiasters")]
+        public long TodayReturnsPiasters { get; set; }
+
+        [JsonProperty("todayReturnsFormatted")]
+        public string TodayReturnsFormatted
+        {
+            get { return Common.Money.FormatPiasters(this.TodayReturnsPiasters); }
+        }
+
+        [JsonProperty("todayReturnsCount")]
+        public int TodayReturnsCount { get; set; }
+
         [JsonProperty("recentAdjustments")]
         public List<StockAdjustmentSummaryItem> RecentAdjustments { get; set; }
 

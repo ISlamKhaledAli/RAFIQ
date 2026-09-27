@@ -21,38 +21,51 @@ namespace RafiqPOS.Repositories
         /// </summary>
         public long GetNextInvoiceNumber(SQLiteConnection conn, SQLiteTransaction trans)
         {
+            return GetNextCounterNumber(conn, trans, "invoice_number", "sales", "invoice_number");
+        }
+
+        public long GetNextCounterNumber(SQLiteConnection conn, SQLiteTransaction trans, string counterName, string fallbackMaxTable = null, string fallbackMaxCol = null)
+        {
             if (conn == null) throw new ArgumentNullException("conn");
+            if (string.IsNullOrEmpty(counterName)) throw new ArgumentNullException("counterName");
 
             string now = DateTime.UtcNow.ToString("o");
 
-            // 1. التأكد من وجود سجل العداد، وإذا لم يوجد يتم زرعه بأقصى رقم موجود في جدول المبيعات
-            string ensureSql = @"
+            string maxSelect = "0";
+            if (!string.IsNullOrEmpty(fallbackMaxTable) && !string.IsNullOrEmpty(fallbackMaxCol))
+            {
+                maxSelect = string.Format("COALESCE((SELECT MAX({0}) FROM {1}), 0)", fallbackMaxCol, fallbackMaxTable);
+            }
+
+            string ensureSql = string.Format(@"
                 INSERT OR IGNORE INTO counters (name, current_value, updated_at)
-                VALUES ('invoice_number', COALESCE((SELECT MAX(invoice_number) FROM sales), 0), @now);
-            ";
+                VALUES (@name, {0}, @now);
+            ", maxSelect);
+
             using (var cmdEnsure = new SQLiteCommand(ensureSql, conn, trans))
             {
+                cmdEnsure.Parameters.AddWithValue("@name", counterName);
                 cmdEnsure.Parameters.AddWithValue("@now", now);
                 cmdEnsure.ExecuteNonQuery();
             }
 
-            // 2. زيادة العداد ذرياً بمقدار 1
             string updateSql = @"
                 UPDATE counters
                 SET current_value = current_value + 1,
                     updated_at = @now
-                WHERE name = 'invoice_number';
+                WHERE name = @name;
             ";
             using (var cmdUpdate = new SQLiteCommand(updateSql, conn, trans))
             {
+                cmdUpdate.Parameters.AddWithValue("@name", counterName);
                 cmdUpdate.Parameters.AddWithValue("@now", now);
                 cmdUpdate.ExecuteNonQuery();
             }
 
-            // 3. قراءة القيمة الحالية الناتجة
-            string selectSql = "SELECT current_value FROM counters WHERE name = 'invoice_number';";
+            string selectSql = "SELECT current_value FROM counters WHERE name = @name;";
             using (var cmdSelect = new SQLiteCommand(selectSql, conn, trans))
             {
+                cmdSelect.Parameters.AddWithValue("@name", counterName);
                 object result = cmdSelect.ExecuteScalar();
                 if (result != null && result != DBNull.Value)
                 {

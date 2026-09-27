@@ -189,7 +189,14 @@ namespace RafiqPOS.Database
                     ApplyMigration19(conn);
                 }
 
-                // 23. Self-Healing Schema Guard: Automatically repair missing columns or indexes
+                // 23. Apply Migration 20: Held Sales and Returns System (Milestone 7 / Features #25, #26, #33)
+                if (currentVersion < 20)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration20(conn);
+                }
+
+                // 24. Self-Healing Schema Guard: Automatically repair missing columns or indexes
                 EnsureSchemaHealth(conn);
             }
         }
@@ -2433,6 +2440,110 @@ namespace RafiqPOS.Database
                     using (var logCmd = new SQLiteCommand(@"
                         INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
                         VALUES (19, 'Purge demo sales debts and start fresh clean slate', datetime('now'));
+                    ", conn, trans))
+                    {
+                        logCmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        private static void ApplyMigration20(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // 1. Table: held_sales (Feature #25 / Task 25-1)
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS held_sales (
+                            id TEXT PRIMARY KEY,
+                            hold_label TEXT NOT NULL,
+                            customer_id TEXT,
+                            customer_name TEXT,
+                            items_count INTEGER NOT NULL DEFAULT 0,
+                            subtotal_piasters INTEGER NOT NULL DEFAULT 0,
+                            discount_piasters INTEGER NOT NULL DEFAULT 0,
+                            total_piasters INTEGER NOT NULL DEFAULT 0,
+                            cart_json TEXT NOT NULL,
+                            notes TEXT,
+                            cashier_id TEXT,
+                            created_at TEXT NOT NULL
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_held_sales_created_at ON held_sales(created_at);
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 2. Table: returns (Feature #26 / Task 26-2)
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS returns (
+                            id TEXT PRIMARY KEY,
+                            return_number INTEGER NOT NULL,
+                            sale_id TEXT,
+                            invoice_number INTEGER,
+                            customer_id TEXT,
+                            customer_name TEXT,
+                            cashier_id TEXT,
+                            total_piasters INTEGER NOT NULL DEFAULT 0,
+                            refund_method TEXT NOT NULL DEFAULT 'cash',
+                            reason TEXT,
+                            is_without_invoice INTEGER NOT NULL DEFAULT 0,
+                            created_at TEXT NOT NULL
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_returns_return_number ON returns(return_number);
+                        CREATE INDEX IF NOT EXISTS idx_returns_sale_id ON returns(sale_id);
+                        CREATE INDEX IF NOT EXISTS idx_returns_created_at ON returns(created_at);
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 3. Table: return_items (Feature #26 / Task 26-2)
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS return_items (
+                            id TEXT PRIMARY KEY,
+                            return_id TEXT NOT NULL,
+                            sale_item_id TEXT,
+                            product_id TEXT NOT NULL,
+                            product_name TEXT NOT NULL,
+                            barcode TEXT,
+                            quantity_milli INTEGER NOT NULL,
+                            unit_price_piasters INTEGER NOT NULL,
+                            total_piasters INTEGER NOT NULL,
+                            is_damaged INTEGER NOT NULL DEFAULT 0,
+                            unit TEXT DEFAULT 'piece',
+                            created_at TEXT NOT NULL,
+                            FOREIGN KEY (return_id) REFERENCES returns(id) ON DELETE CASCADE
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_return_items_return_id ON return_items(return_id);
+                        CREATE INDEX IF NOT EXISTS idx_return_items_product_id ON return_items(product_id);
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 4. Ensure counter for return numbers (Feature #26)
+                    using (var cmd = new SQLiteCommand(@"
+                        INSERT OR IGNORE INTO counters (name, current_value, updated_at)
+                        VALUES ('return_number', 0, datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 5. Update schema_migrations
+                    using (var logCmd = new SQLiteCommand(@"
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (20, 'Held sales and returns system (Features 25, 26, 33)', datetime('now'));
                     ", conn, trans))
                     {
                         logCmd.ExecuteNonQuery();

@@ -216,7 +216,7 @@ namespace RafiqPOS.Services
             Money grandTotal = subtotal.Subtract(totalDiscount).Add(totalTax);
             sale.TotalPiasters = Math.Max(0, grandTotal.Piasters);
 
-            if (sale.PaidPiasters <= 0)
+            if (sale.PaidPiasters <= 0 && !string.Equals(sale.PaymentMethod, "credit", StringComparison.OrdinalIgnoreCase))
             {
                 // Default full payment for cash
                 sale.PaidPiasters = sale.TotalPiasters;
@@ -343,13 +343,37 @@ namespace RafiqPOS.Services
             return _saleRepo.SearchSales(query, dateFrom, dateTo, customerId, status, minTotal, maxTotal, limit);
         }
 
-        public Sale CancelSale(string saleId, string reason, string userId = null)
+        public Sale CancelSale(string saleId, string reason, string userId = null, string supervisorPin = null)
         {
             if (string.IsNullOrWhiteSpace(saleId))
             {
                 throw new ArgumentNullException("saleId", "معرّف الفاتورة مطلوب للإلغاء");
             }
-            return _saleRepo.CancelSaleAtomic(saleId, reason, userId);
+            if (string.IsNullOrWhiteSpace(reason))
+            {
+                throw new ArgumentException("سبب الإلغاء إجباري لتسجيل العملية في سجل النظام", "reason");
+            }
+
+            // Task 33-3: Verify supervisor PIN if security PIN is enabled
+            if (DatabaseService.Security != null)
+            {
+                var pinStatus = DatabaseService.Security.GetStatus();
+                if (pinStatus != null && pinStatus.IsEnabled)
+                {
+                    if (string.IsNullOrEmpty(supervisorPin))
+                    {
+                        throw new UnauthorizedAccessException("إلغاء الفاتورة يتطلب إدخال الرقم السري للمشرف.");
+                    }
+                    var pinCheck = DatabaseService.Security.VerifySupervisorPin(supervisorPin, "SALE_CANCEL");
+                    if (pinCheck == null || !pinCheck.Success)
+                    {
+                        string msg = (pinCheck != null && !string.IsNullOrEmpty(pinCheck.Message)) ? pinCheck.Message : "الرقم السري للمشرف غير صحيح";
+                        throw new UnauthorizedAccessException(msg);
+                    }
+                }
+            }
+
+            return _saleRepo.CancelSaleAtomic(saleId, reason.Trim(), userId);
         }
     }
 }

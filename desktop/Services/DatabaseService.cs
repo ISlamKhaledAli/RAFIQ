@@ -94,6 +94,10 @@ namespace RafiqPOS.Services
         public static EncryptionService Encryption { get; private set; }
         public static SystemHealthService SystemHealth { get; private set; }
         public static LicenseService License { get; private set; }
+        public static HeldSaleRepository HeldSaleRepo { get; private set; }
+        public static ReturnRepository ReturnRepo { get; private set; }
+        public static HeldSaleService HeldSales { get; private set; }
+        public static ReturnService Returns { get; private set; }
 
         public static void Initialize(string customBaseFolder = null)
         {
@@ -173,6 +177,21 @@ namespace RafiqPOS.Services
             Readiness = new ReadinessService(SettingsRepo, ProductRepo, Backup, Printer);
             SystemHealth = new SystemHealthService(_dbPath, SettingsRepo, ProductRepo, Backup, Printer);
             License = new LicenseService(SettingsRepo, Audit);
+
+            HeldSaleRepo = new HeldSaleRepository(_connectionString);
+            ReturnRepo = new ReturnRepository(_connectionString, CounterRepo, AuditRepo);
+            HeldSales = new HeldSaleService(HeldSaleRepo);
+            Returns = new ReturnService(ReturnRepo, SaleRepo);
+
+            // Cleanup old held sales (> 7 days) on startup (Task 25-4)
+            try
+            {
+                HeldSales.CleanupOldHeldSales(7);
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("تعذر تنظيف الفواتير المعلقة القديمة: " + ex.Message);
+            }
         }
 
         public static DatabaseIntegrityStatus CheckDatabaseIntegrity()

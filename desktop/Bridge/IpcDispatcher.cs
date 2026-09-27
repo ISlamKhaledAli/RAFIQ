@@ -410,6 +410,7 @@ namespace RafiqPOS.Bridge
                         string cancelSaleId = "";
                         string cancelReason = "إلغاء بناء على طلب الكاشير";
                         string cancelUserId = "usr_admin_default";
+                        string cancelSupPin = null;
                         JObject cPayload = request.Payload as JObject;
                         if (cPayload != null)
                         {
@@ -417,6 +418,7 @@ namespace RafiqPOS.Bridge
                             else if (cPayload["id"] != null) cancelSaleId = cPayload["id"].ToString();
                             if (cPayload["reason"] != null) cancelReason = cPayload["reason"].ToString();
                             if (cPayload["userId"] != null) cancelUserId = cPayload["userId"].ToString();
+                            if (cPayload["supervisorPin"] != null) cancelSupPin = cPayload["supervisorPin"].ToString();
                         }
                         else if (request.Payload != null)
                         {
@@ -428,8 +430,19 @@ namespace RafiqPOS.Bridge
                             return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "معرّف الفاتورة مطلوب لإلغائها");
                         }
 
-                        var cancelledSale = DatabaseService.Sales.CancelSale(cancelSaleId, cancelReason, cancelUserId);
-                        return BridgeResponse.Ok(request.Id, cancelledSale);
+                        try
+                        {
+                            var cancelledSale = DatabaseService.Sales.CancelSale(cancelSaleId, cancelReason, cancelUserId, cancelSupPin);
+                            return BridgeResponse.Ok(request.Id, cancelledSale);
+                        }
+                        catch (UnauthorizedAccessException uEx)
+                        {
+                            return BridgeResponse.Fail(request.Id, "PIN_REQUIRED", uEx.Message);
+                        }
+                        catch (Exception ex)
+                        {
+                            return BridgeResponse.Fail(request.Id, "CANCEL_FAILED", ex.Message);
+                        }
 
                     case "sales:getByInvoiceNumber":
                         int invNum = 0;
@@ -480,6 +493,179 @@ namespace RafiqPOS.Bridge
                             sQuery, sDateFrom, sDateTo, sCustomerId, sStatus, sMinTotal, sMaxTotal, sLimit
                         );
                         return BridgeResponse.Ok(request.Id, searchedSales);
+
+                    // Feature #25: Held Sales (Tasks 25-1, 25-2, 25-3, 25-4)
+                    case "sales:hold":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات الفاتورة المعلقة فارغة");
+                        }
+                        var heldToSave = JsonConvert.DeserializeObject<HeldSale>(request.Payload.ToString());
+                        var savedHeld = DatabaseService.HeldSales.HoldSale(heldToSave);
+                        return BridgeResponse.Ok(request.Id, savedHeld);
+
+                    case "sales:getHeld":
+                        var heldList = DatabaseService.HeldSales.GetHeldSales();
+                        return BridgeResponse.Ok(request.Id, heldList);
+
+                    case "sales:recallHeld":
+                        string recallId = "";
+                        JObject recallHeldPayloadObj = request.Payload as JObject;
+                        if (recallHeldPayloadObj != null && recallHeldPayloadObj["id"] != null) recallId = recallHeldPayloadObj["id"].ToString();
+                        else if (request.Payload != null) recallId = request.Payload.ToString().Trim('"', ' ');
+
+                        if (string.IsNullOrEmpty(recallId))
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "معرّف الفاتورة المعلقة مطلوب لاسترجاعها");
+                        }
+                        var recalled = DatabaseService.HeldSales.RecallHeldSale(recallId);
+                        if (recalled == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "NOT_FOUND", "لم يتم العثور على الفاتورة المعلقة");
+                        }
+                        return BridgeResponse.Ok(request.Id, recalled);
+
+                    case "sales:deleteHeld":
+                        string delHeldId = "";
+                        JObject dObj = request.Payload as JObject;
+                        if (dObj != null && dObj["id"] != null) delHeldId = dObj["id"].ToString();
+                        else if (request.Payload != null) delHeldId = request.Payload.ToString().Trim('"', ' ');
+
+                        bool delHeldOk = DatabaseService.HeldSales.DeleteHeldSale(delHeldId);
+                        return BridgeResponse.Ok(request.Id, new { success = delHeldOk });
+
+                    case "sales:cleanupHeld":
+                        int cleanDays = 7;
+                        JObject cDaysObj = request.Payload as JObject;
+                        if (cDaysObj != null && cDaysObj["days"] != null) cleanDays = cDaysObj["days"].Value<int>();
+                        int cleanedCount = DatabaseService.HeldSales.CleanupOldHeldSales(cleanDays);
+                        return BridgeResponse.Ok(request.Id, new { cleanedCount = cleanedCount });
+
+                    // Feature #26: Returns & Refunds (Tasks 26-1, 26-2, 26-3, 26-5, 26-6)
+                    case "returns:create":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات المرتجع فارغة");
+                        }
+                        try
+                        {
+                            JObject retReqObj = request.Payload as JObject;
+                            string retSupPin = null;
+                            Return retObjToProcess;
+
+                            if (retReqObj != null && retReqObj["return"] != null)
+                            {
+                                retObjToProcess = retReqObj["return"].ToObject<Return>();
+                                if (retReqObj["supervisorPin"] != null)
+                                {
+                                    retSupPin = retReqObj["supervisorPin"].ToString();
+                                }
+                            }
+                            else
+                            {
+                                retObjToProcess = JsonConvert.DeserializeObject<Return>(request.Payload.ToString());
+                                if (retReqObj != null && retReqObj["supervisorPin"] != null)
+                                {
+                                    retSupPin = retReqObj["supervisorPin"].ToString();
+                                }
+                            }
+
+                            if (retObjToProcess == null)
+                            {
+                                return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "تعذر قراءة بيانات المرتجع");
+                            }
+
+                            var processedReturn = DatabaseService.Returns.ProcessReturn(retObjToProcess, retSupPin);
+                            return BridgeResponse.Ok(request.Id, processedReturn);
+                        }
+                        catch (UnauthorizedAccessException uEx)
+                        {
+                            return BridgeResponse.Fail(request.Id, "PIN_REQUIRED", uEx.Message);
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Error("خطأ أثناء معالجة المرتجع", ex);
+                            return BridgeResponse.Fail(request.Id, "RETURN_FAILED", ex.Message);
+                        }
+
+                    case "returns:getRecent":
+                        int retLimit = 50;
+                        JObject retLimitObj = request.Payload as JObject;
+                        if (retLimitObj != null && retLimitObj["limit"] != null) retLimit = retLimitObj["limit"].Value<int>();
+                        var recentReturns = DatabaseService.Returns.GetRecentReturns(retLimit);
+                        return BridgeResponse.Ok(request.Id, recentReturns);
+
+                    case "returns:getById":
+                        string retIdToFind = "";
+                        JObject retIdObj = request.Payload as JObject;
+                        if (retIdObj != null && retIdObj["id"] != null) retIdToFind = retIdObj["id"].ToString();
+                        else if (request.Payload != null) retIdToFind = request.Payload.ToString().Trim('"', ' ');
+                        var singleReturn = DatabaseService.Returns.GetReturnById(retIdToFind);
+                        if (singleReturn == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "NOT_FOUND", "لم يتم العثور على المرتجع المطلوب");
+                        }
+                        return BridgeResponse.Ok(request.Id, singleReturn);
+
+                    case "returns:getForSale":
+                        string forSaleId = "";
+                        JObject fSaleObj = request.Payload as JObject;
+                        if (fSaleObj != null && fSaleObj["saleId"] != null) forSaleId = fSaleObj["saleId"].ToString();
+                        else if (request.Payload != null) forSaleId = request.Payload.ToString().Trim('"', ' ');
+                        var saleReturns = DatabaseService.Returns.GetReturnsForSale(forSaleId);
+                        return BridgeResponse.Ok(request.Id, saleReturns);
+
+                    case "returns:printReceipt":
+                        if (request.Payload == null)
+                        {
+                            return BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات المرتجع مطلوبة للطباعة");
+                        }
+                        try
+                        {
+                            JObject printRetObj = request.Payload as JObject;
+                            Return retToPrint = null;
+                            string pPrinterName = null;
+                            int? pPaperWidth = null;
+                            bool? pOpenDrawer = null;
+
+                            if (printRetObj != null)
+                            {
+                                if (printRetObj["return"] != null)
+                                {
+                                    retToPrint = printRetObj["return"].ToObject<Return>();
+                                }
+                                else if (printRetObj["returnId"] != null)
+                                {
+                                    retToPrint = DatabaseService.Returns.GetReturnById(printRetObj["returnId"].ToString());
+                                }
+                                else if (printRetObj["id"] != null)
+                                {
+                                    retToPrint = DatabaseService.Returns.GetReturnById(printRetObj["id"].ToString());
+                                }
+
+                                if (printRetObj["printerName"] != null) pPrinterName = printRetObj["printerName"].ToString();
+                                if (printRetObj["paperWidth"] != null) pPaperWidth = printRetObj["paperWidth"].Value<int>();
+                                if (printRetObj["openDrawer"] != null) pOpenDrawer = printRetObj["openDrawer"].Value<bool>();
+                            }
+
+                            if (retToPrint == null)
+                            {
+                                retToPrint = JsonConvert.DeserializeObject<Return>(request.Payload.ToString());
+                            }
+
+                            if (retToPrint == null)
+                            {
+                                return BridgeResponse.Fail(request.Id, "NOT_FOUND", "تعذر العثور على بيانات المرتجع للطباعة");
+                            }
+
+                            var printRes = DatabaseService.Printer.PrintReturnReceipt(retToPrint, pPrinterName, pPaperWidth, pOpenDrawer);
+                            return BridgeResponse.Ok(request.Id, printRes);
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Error("خطأ أثناء طباعة إيصال المرتجع", ex);
+                            return BridgeResponse.Fail(request.Id, "PRINT_FAILED", ex.Message);
+                        }
 
                     case "counters:getNextExpectedInvoiceNumber":
                         long nextExpected = DatabaseService.CounterRepo != null 
@@ -1487,6 +1673,10 @@ namespace RafiqPOS.Bridge
                     case "license:runTests":
                         var licTestRes = LicenseTestRunner.RunAllTests();
                         return BridgeResponse.Ok(request.Id, licTestRes);
+
+                    case "tests:runSalesCompletionTests":
+                        var salesComplTestRes = SalesCompletionTestRunner.RunAllTests();
+                        return BridgeResponse.Ok(request.Id, salesComplTestRes);
 
                     default:
                         Logger.Warn("محاولة تنفيذ إجراء غير مسجل: " + request.Action);

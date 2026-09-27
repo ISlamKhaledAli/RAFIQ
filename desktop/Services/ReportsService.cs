@@ -48,6 +48,53 @@ namespace RafiqPOS.Services
                     }
                 }
 
+                // 1b. Cancelled Sales today (Feature #33 / Task 33-4: Separate reporting for cancelled invoices)
+                string cancelledSql = @"
+                    SELECT 
+                        COALESCE(SUM(total_piasters), 0) AS total_cancelled,
+                        COUNT(*) AS cancelled_count
+                    FROM sales 
+                    WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now')) 
+                      AND status = 'cancelled';
+                ";
+                using (var cmd = new SQLiteCommand(cancelledSql, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        summary.TodayCancelledSalesPiasters = Convert.ToInt64(reader["total_cancelled"]);
+                        summary.TodayCancelledCount = Convert.ToInt32(reader["cancelled_count"]);
+                    }
+                }
+
+                // 1c. Returns today (Feature #26 / Task 26-3: Subtract cash refunds from drawer and report returns)
+                using (var checkRetCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='returns';", conn))
+                {
+                    if (checkRetCmd.ExecuteScalar() != null)
+                    {
+                        string returnsSql = @"
+                            SELECT 
+                                COALESCE(SUM(total_piasters), 0) AS total_returns,
+                                COALESCE(SUM(CASE WHEN refund_method = 'cash' THEN total_piasters ELSE 0 END), 0) AS cash_returns,
+                                COUNT(*) AS return_count
+                            FROM returns 
+                            WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'));
+                        ";
+                        using (var retCmd = new SQLiteCommand(returnsSql, conn))
+                        using (var reader = retCmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                summary.TodayReturnsPiasters = Convert.ToInt64(reader["total_returns"]);
+                                summary.TodayReturnsCount = Convert.ToInt32(reader["return_count"]);
+                                long cashReturns = Convert.ToInt64(reader["cash_returns"]);
+                                summary.CashDrawerPiasters -= cashReturns;
+                                if (summary.CashDrawerPiasters < 0) summary.CashDrawerPiasters = 0;
+                            }
+                        }
+                    }
+                }
+
                 // 2. Customer Debt Collections (Cash received from old debts today)
                 string debtPaymentSql = @"
                     SELECT COALESCE(SUM(amount_piasters), 0) AS total_debt_payments

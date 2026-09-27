@@ -463,6 +463,234 @@ namespace RafiqPOS.Services
             }
         }
 
+        public PrintResult PrintReturnReceipt(
+            Return returnObj,
+            string printerName = null,
+            int? paperWidth = null,
+            bool? openDrawer = null)
+        {
+            if (returnObj == null)
+            {
+                return new PrintResult { Success = false, Message = "بيانات المرتجع غير صحيحة" };
+            }
+
+            string targetPrinter = ResolvePrinterName(printerName);
+            int printWidth = (paperWidth.HasValue && paperWidth.Value > 0)
+                ? paperWidth.Value
+                : (GetConfiguredPaperWidth() == "58mm" ? 180 : 260);
+
+            bool shouldOpenDrawer = openDrawer.HasValue ? openDrawer.Value : GetConfiguredOpenDrawer();
+
+            try
+            {
+                string storeName = _settings != null ? _settings.Get("store_name", "رفيق سوبرماركت") : "رفيق سوبرماركت";
+                string phone = _settings != null ? _settings.Get("store_phone", "") : "";
+                string address = _settings != null ? _settings.Get("store_address", "") : "";
+
+                using (var doc = new PrintDocument())
+                {
+                    if (!string.IsNullOrWhiteSpace(targetPrinter))
+                    {
+                        doc.PrinterSettings.PrinterName = targetPrinter;
+                    }
+
+                    if (!doc.PrinterSettings.IsValid)
+                    {
+                        return new PrintResult
+                        {
+                            Success = false,
+                            Message = string.Format("الطابعة المحددة '{0}' غير صالحة أو غير مثبتة في النظام.", targetPrinter),
+                            PrinterUsed = targetPrinter
+                        };
+                    }
+
+                    doc.DocumentName = string.Format("إيصال مرتجع بضاعة #{0}", returnObj.ReturnNumber);
+                    doc.PrintController = new StandardPrintController();
+
+                    doc.PrintPage += delegate(object sender, PrintPageEventArgs e)
+                    {
+                        RenderReturnReceiptPage(e.Graphics, returnObj, storeName, phone, address, printWidth);
+                        e.HasMorePages = false;
+                    };
+
+                    doc.Print();
+                }
+
+                return new PrintResult
+                {
+                    Success = true,
+                    Message = string.Format("تم إرسال إيصال المرتجع #{0} إلى الطابعة بنجاح.", returnObj.ReturnNumber),
+                    PrinterUsed = targetPrinter
+                };
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(string.Format("فشل طباعة إيصال المرتجع #{0}: {1}", returnObj.ReturnNumber, ex.Message), ex);
+                return new PrintResult
+                {
+                    Success = false,
+                    Message = "خطأ أثناء طباعة إيصال المرتجع: " + ex.Message,
+                    PrinterUsed = targetPrinter
+                };
+            }
+        }
+
+        private void RenderReturnReceiptPage(
+            Graphics g,
+            Return returnObj,
+            string storeName,
+            string phone,
+            string address,
+            int contentWidth)
+        {
+            g.Clear(Color.White);
+
+            string fontName = "Arial";
+            using (var testFont = new Font("Cairo", 9f))
+            {
+                if (testFont.Name == "Cairo") fontName = "Cairo";
+                else
+                {
+                    using (var segFont = new Font("Segoe UI", 9f))
+                    {
+                        if (segFont.Name == "Segoe UI") fontName = "Segoe UI";
+                    }
+                }
+            }
+
+            using (var fontTitle = new Font(fontName, 12f, FontStyle.Bold))
+            using (var fontBold = new Font(fontName, 9f, FontStyle.Bold))
+            using (var fontRegular = new Font(fontName, 8.5f, FontStyle.Regular))
+            using (var fontSmall = new Font(fontName, 7.5f, FontStyle.Regular))
+            using (var fontLarge = new Font(fontName, 13f, FontStyle.Bold))
+            using (var penDashed = new Pen(Color.Black, 1f) { DashStyle = System.Drawing.Drawing2D.DashStyle.Dash })
+            using (var penSolid = new Pen(Color.Black, 1.5f))
+            using (var centerFormat = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+            using (var rightFormat = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center })
+            using (var leftFormat = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center })
+            {
+                float y = 5;
+
+                // 1. Header
+                g.DrawString(storeName, fontTitle, Brushes.Black, new RectangleF(0, y, contentWidth, 22), centerFormat);
+                y += 24;
+
+                if (!string.IsNullOrWhiteSpace(address))
+                {
+                    g.DrawString(address, fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, 14), centerFormat);
+                    y += 16;
+                }
+                if (!string.IsNullOrWhiteSpace(phone))
+                {
+                    g.DrawString("هاتف: " + phone, fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, 14), centerFormat);
+                    y += 16;
+                }
+
+                y += 4;
+                g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
+                y += 8;
+
+                // Badge: إيصال مرتجع بضاعة
+                g.FillRectangle(Brushes.Black, new RectangleF(15, y, contentWidth - 30, 24));
+                g.DrawString("إيصال مرتجع بضاعة", fontBold, Brushes.White, new RectangleF(15, y, contentWidth - 30, 24), centerFormat);
+                y += 30;
+
+                // 2. Return Meta Details
+                string retNumStr = "رقم المرتجع: #" + returnObj.ReturnNumber;
+                g.DrawString(retNumStr, fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), rightFormat);
+                y += 18;
+
+                if (returnObj.InvoiceNumber.HasValue && returnObj.InvoiceNumber.Value > 0)
+                {
+                    string origInvStr = "الفاتورة الأصلية: #" + returnObj.InvoiceNumber.Value;
+                    g.DrawString(origInvStr, fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), rightFormat);
+                    y += 18;
+                }
+                else
+                {
+                    g.DrawString("مرتجع حر (بدون فاتورة أصلية)", fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), rightFormat);
+                    y += 18;
+                }
+
+                DateTime retDate = DateTime.Now;
+                DateTime.TryParse(returnObj.CreatedAt, out retDate);
+                g.DrawString(retDate.ToString("yyyy/MM/dd HH:mm"), fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 14), rightFormat);
+                y += 16;
+
+                if (!string.IsNullOrWhiteSpace(returnObj.CustomerName))
+                {
+                    g.DrawString("العميل: " + returnObj.CustomerName, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 14), rightFormat);
+                    y += 16;
+                }
+
+                if (!string.IsNullOrWhiteSpace(returnObj.Reason))
+                {
+                    g.DrawString("السبب: " + returnObj.Reason, fontSmall, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 14), rightFormat);
+                    y += 16;
+                }
+
+                y += 4;
+                g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
+                y += 6;
+
+                // 3. Table Header
+                float colProdW = contentWidth * 0.48f;
+                float colQtyW = contentWidth * 0.22f;
+                float colTotalW = contentWidth * 0.30f;
+
+                g.DrawString("الصنف", fontBold, Brushes.Black, new RectangleF(contentWidth - colProdW - 5, y, colProdW, 16), rightFormat);
+                g.DrawString("الكمية", fontBold, Brushes.Black, new RectangleF(contentWidth - colProdW - colQtyW - 5, y, colQtyW, 16), centerFormat);
+                g.DrawString("الإجمالي", fontBold, Brushes.Black, new RectangleF(5, y, colTotalW, 16), leftFormat);
+                y += 18;
+                g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
+                y += 6;
+
+                // 4. Return Items List
+                if (returnObj.Items != null)
+                {
+                    foreach (var item in returnObj.Items)
+                    {
+                        string pName = item.ProductName ?? "";
+                        if (item.IsDamaged)
+                        {
+                            pName += " [تالف]";
+                        }
+
+                        g.DrawString(pName, fontRegular, Brushes.Black, new RectangleF(contentWidth - colProdW - 5, y, colProdW, 16), rightFormat);
+
+                        double qty = item.QuantityMilli / 1000.0;
+                        string qtyStr = qty.ToString("0.###");
+                        g.DrawString(qtyStr, fontRegular, Brushes.Black, new RectangleF(contentWidth - colProdW - colQtyW - 5, y, colQtyW, 16), centerFormat);
+
+                        string itemTotalStr = Money.FormatPiasters(item.TotalPiasters);
+                        g.DrawString(itemTotalStr, fontBold, Brushes.Black, new RectangleF(5, y, colTotalW, 16), leftFormat);
+                        y += 18;
+                    }
+                }
+
+                y += 4;
+                g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
+                y += 6;
+
+                // 5. Total Refund
+                g.DrawString("إجمالي المبلغ المسترد:", fontBold, Brushes.Black, new RectangleF(contentWidth * 0.4f, y, contentWidth * 0.55f, 20), rightFormat);
+                string totalStr = Money.FormatPiasters(returnObj.TotalPiasters) + " ج.م";
+                g.DrawString(totalStr, fontLarge, Brushes.Black, new RectangleF(5, y, contentWidth * 0.45f, 20), leftFormat);
+                y += 24;
+
+                string methodStr = string.Equals(returnObj.RefundMethod, "credit", StringComparison.OrdinalIgnoreCase)
+                    ? "طريقة الرد: خصم من حساب العميل"
+                    : "طريقة الرد: نقداً من الخزينة";
+                g.DrawString(methodStr, fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth - 10, 16), rightFormat);
+                y += 22;
+
+                g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
+                y += 8;
+
+                g.DrawString("تم توثيق المرتجع بنجاح في سجل العمليات الرقابي", fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, 16), centerFormat);
+            }
+        }
+
         private string ResolvePrinterName(string explicitPrinter)
         {
             if (!string.IsNullOrWhiteSpace(explicitPrinter))

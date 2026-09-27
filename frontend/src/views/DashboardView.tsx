@@ -499,10 +499,19 @@ export function DashboardView({
             </div>
           </div>
           <div className="pt-2.5 mt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-            <span>متوسط الفاتورة:</span>
-            <span className="text-slate-800 font-bold font-mono">
-              {summary && summary.todayInvoicesCount > 0 ? ((summary.todaySalesPiasters / summary.todayInvoicesCount) / 100).toFixed(0) : '0'} ج.م
-            </span>
+            <span>متوسط: <strong className="text-slate-800 font-bold font-mono">{summary && summary.todayInvoicesCount > 0 ? ((summary.todaySalesPiasters / summary.todayInvoicesCount) / 100).toFixed(0) : '0'}</strong> ج.م</span>
+            <div className="flex items-center gap-1.5 font-bold text-[10px]">
+              {summary && (summary.todayCancelledCount || 0) > 0 && (
+                <span className="text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200" title="فواتير ملغاة اليوم">
+                  {summary.todayCancelledCount} ملغاة
+                </span>
+              )}
+              {summary && (summary.todayReturnsCount || 0) > 0 && (
+                <span className="text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200" title="عمليات مرتجع اليوم">
+                  {summary.todayReturnsCount} مرتجع
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -523,7 +532,12 @@ export function DashboardView({
             </div>
           </div>
           <div className="pt-2.5 mt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-            <span>مبيعات: <strong className="text-slate-800 font-mono">{summary ? (summary.todayCashPiasters / 100).toFixed(0) : '0'}</strong></span>
+            <span>نقدية: <strong className="text-slate-800 font-mono">{summary ? (summary.todayCashPiasters / 100).toFixed(0) : '0'}</strong></span>
+            {summary && (summary.todayReturnsPiasters || 0) > 0 && (
+              <span className="text-amber-700 font-bold font-mono text-[10px]" title="مخصوم مبالغ مرتجعات نقدية">
+                -{((summary.todayReturnsPiasters || 0) / 100).toFixed(0)} مرتجع
+              </span>
+            )}
             {summary && (summary.todayDebtPaymentsPiasters || 0) > 0 && (
               <span className="text-emerald-700 font-bold font-mono text-[10px]">
                 +{((summary.todayDebtPaymentsPiasters || 0) / 100).toFixed(0)} سداد

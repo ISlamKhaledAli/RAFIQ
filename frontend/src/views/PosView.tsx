@@ -26,7 +26,7 @@ import {
   Star
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
-import type { Product, SaleItem, Sale, Customer, QuickItem, SalePayment, ProductUnit } from '../types/models';
+import type { Product, SaleItem, Sale, Customer, QuickItem, SalePayment, ProductUnit, HeldSale } from '../types/models';
 import { 
   formatArabicCurrency, 
   calculateLineTotal, 
@@ -49,6 +49,8 @@ import { KeyboardShortcutsModal } from '../components/KeyboardShortcutsModal';
 import { CustomSelect } from '../components/CustomSelect';
 import { ItemDiscountModal } from '../components/ItemDiscountModal';
 import { SupervisorPromptModal } from '../components/SupervisorPromptModal';
+import { HeldSalesModal } from '../components/HeldSalesModal';
+import { ReturnModal } from '../components/ReturnModal';
 import { 
   physicalCodeToChar, 
   convertArabicLayoutToBarcode, 
@@ -114,6 +116,9 @@ export const PosView = () => {
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
   const [isQuickAddModalOpen, setIsQuickAddModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
+  const [heldSalesCount, setHeldSalesCount] = useState<number>(0);
+  const [isHeldSalesModalOpen, setIsHeldSalesModalOpen] = useState(false);
+  const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
   const [unregisteredBarcode, setUnregisteredBarcode] = useState('');
   const [scannerSettings, setScannerSettings] = useState<BarcodeScannerSettings>(DEFAULT_SCANNER_SETTINGS);
   const [draftPrompt, setDraftPrompt] = useState<{
@@ -446,6 +451,72 @@ export const PosView = () => {
   const totalItemCount = cart.reduce((count, item) => count + (item.quantityMilli / 1000), 0);
   const totalTaxPiasters = cart.reduce((sum, item) => sum + item.taxPiasters, 0);
 
+  const loadHeldSalesCount = useCallback(async () => {
+    try {
+      const list = await invoke<HeldSale[]>('sales:getHeld');
+      setHeldSalesCount(Array.isArray(list) ? list.length : 0);
+    } catch {
+      // non-blocking
+    }
+  }, []);
+
+  const handleHoldCurrentSale = useCallback(async () => {
+    if (cart.length === 0) {
+      showStatus('لا توجد أصناف في السلة لتعليقها', 'warning');
+      return;
+    }
+    try {
+      setLoading(true);
+      const cust = customers.find(c => c.id === selectedCustomerId);
+      await invoke('sales:hold', {
+        items: cart,
+        discountPiasters,
+        customerId: selectedCustomerId || undefined,
+        customerName: cust?.name,
+        totalPiasters: netTotalPiasters,
+      });
+      setCart([]);
+      setDiscountPiasters(0);
+      try {
+        localStorage.removeItem('rafiq_pos_cart_draft');
+      } catch {
+        // ignore
+      }
+      await loadHeldSalesCount();
+      showStatus('تم تعليق الفاتورة بنجاح في قاعدة البيانات (F6)', 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'تعذر تعليق الفاتورة';
+      showStatus(msg, 'error');
+    } finally {
+      setLoading(false);
+      barcodeInputRef.current?.focus();
+    }
+  }, [cart, discountPiasters, selectedCustomerId, customers, netTotalPiasters, loadHeldSalesCount, showStatus]);
+
+  const handleRecallHeldSale = useCallback((heldSale: HeldSale) => {
+    let itemsToRestore: CartItem[] = [];
+    if (Array.isArray(heldSale.items) && heldSale.items.length > 0) {
+      itemsToRestore = heldSale.items as CartItem[];
+    } else if (heldSale.cartJson) {
+      try {
+        const parsed = JSON.parse(heldSale.cartJson);
+        if (Array.isArray(parsed)) itemsToRestore = parsed as CartItem[];
+      } catch {
+        // ignore
+      }
+    }
+    if (itemsToRestore.length > 0) {
+      setCart(itemsToRestore);
+      setDiscountPiasters(heldSale.discountPiasters || 0);
+      if (heldSale.customerId) {
+        setSelectedCustomerId(heldSale.customerId);
+      }
+      showStatus(`تم استرجاع الفاتورة المعلقة بنجاح (${itemsToRestore.length} صنف)`, 'success');
+      void loadHeldSalesCount();
+      barcodeInputRef.current?.focus();
+    }
+  }, [loadHeldSalesCount, showStatus]);
+
   // Load customers for selection
   useEffect(() => {
     const loadCustomers = async () => {
@@ -539,12 +610,13 @@ export const PosView = () => {
         if (active && currentUserData && currentUserData.role) {
           setCurrentUserRole(currentUserData.role);
         }
+        void loadHeldSalesCount();
       } catch {
         // non-blocking
       }
     })();
     return () => { active = false; };
-  }, []);
+  }, [loadHeldSalesCount]);
 
   // Feature #132: Auto-save draft on cart change
   useEffect(() => {
@@ -1252,31 +1324,21 @@ export const PosView = () => {
         return;
       }
 
-      // F6: Hold / Suspend or Resume Sale
+      // F6: Hold Current Cart or Open Held Sales Modal
       if (e.key === 'F6') {
         e.preventDefault();
         if (cart.length > 0) {
-          const draft = {
-            items: cart,
-            discountPiasters,
-            customerId: selectedCustomerId,
-            savedAt: Date.now()
-          };
-          localStorage.setItem('rafiq_pos_cart_draft', JSON.stringify(draft));
-          setDraftPrompt(draft);
-          setCart([]);
-          setDiscountPiasters(0);
-          showStatus('تم تعليق الفاتورة بنجاح. اضغط F6 لاسترجاعها في أي وقت', 'warning');
-        } else if (draftPrompt && draftPrompt.items.length > 0) {
-          setCart(draftPrompt.items);
-          setDiscountPiasters(draftPrompt.discountPiasters || 0);
-          if (draftPrompt.customerId) setSelectedCustomerId(draftPrompt.customerId);
-          localStorage.removeItem('rafiq_pos_cart_draft');
-          setDraftPrompt(null);
-          showStatus('تم استرجاع الفاتورة المعلقة بنجاح إلى السلة', 'success');
+          void handleHoldCurrentSale();
         } else {
-          showStatus('لا توجد فاتورة في السلة لتعليقها، ولا توجد فاتورة معلقة لاسترجاعها', 'warning');
+          setIsHeldSalesModalOpen(true);
         }
+        return;
+      }
+
+      // F11: Sales Returns Modal
+      if (e.key === 'F11') {
+        e.preventDefault();
+        setIsReturnModalOpen(true);
         return;
       }
 
@@ -1373,6 +1435,8 @@ export const PosView = () => {
         setIsQuickAddModalOpen(false);
         setIsQuickItemsManagerOpen(false);
         setIsQuickFastItemModalOpen(false);
+        setIsHeldSalesModalOpen(false);
+        setIsReturnModalOpen(false);
         setWeightModalProduct(null);
         setIsSearchDropdownOpen(false);
         barcodeInputRef.current?.focus();
@@ -1434,6 +1498,7 @@ export const PosView = () => {
     setDirectQuantity, 
     removeItem, 
     openWeightEditorForCartItem,
+    handleHoldCurrentSale,
     showStatus
   ]);
 
@@ -1441,7 +1506,7 @@ export const PosView = () => {
   useEffect(() => {
     const isAnyModalOpen = isPaymentModalOpen || isReceiptOpen || isClearConfirmOpen || 
       isScannerModalOpen || isQuickAddModalOpen || isQuickItemsManagerOpen || 
-      isQuickFastItemModalOpen || isHelpModalOpen || !!weightModalProduct;
+      isQuickFastItemModalOpen || isHelpModalOpen || isHeldSalesModalOpen || isReturnModalOpen || !!weightModalProduct;
 
     if (!isAnyModalOpen) {
       const timer = setTimeout(() => {
@@ -1458,6 +1523,8 @@ export const PosView = () => {
     isQuickItemsManagerOpen, 
     isQuickFastItemModalOpen, 
     isHelpModalOpen, 
+    isHeldSalesModalOpen,
+    isReturnModalOpen,
     weightModalProduct
   ]);
 
@@ -2340,6 +2407,40 @@ export const PosView = () => {
                 </button>
               )}
             </div>
+
+            {/* Quick Action Strip (Held Sales / Recall / Return) */}
+            <div className="grid grid-cols-3 gap-1 h-[30px] sm:h-[32px]">
+              <button
+                type="button"
+                onClick={() => void handleHoldCurrentSale()}
+                disabled={cart.length === 0}
+                className="h-full bg-surface hover:bg-surface-2 text-ink disabled:text-ink-muted border border-line text-[10px] sm:text-[11px] font-bold rounded transition-colors truncate px-1 flex items-center justify-center gap-1 cursor-pointer"
+                title="تعليق السلة الحالية (F6)"
+              >
+                <span>تعليق (F6)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsHeldSalesModalOpen(true)}
+                className="h-full bg-surface hover:bg-surface-2 text-ink border border-line text-[10px] sm:text-[11px] font-bold rounded transition-colors truncate px-1 flex items-center justify-center gap-1 cursor-pointer"
+                title="عرض واسترجاع الفواتير المعلقة"
+              >
+                <span>معلقة</span>
+                {heldSalesCount > 0 && (
+                  <span className="w-4 h-4 rounded-full bg-amber-500 text-white font-mono text-[9px] flex items-center justify-center font-bold">
+                    {heldSalesCount}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsReturnModalOpen(true)}
+                className="h-full bg-surface hover:bg-amber-50 text-amber-800 border border-amber-300 text-[10px] sm:text-[11px] font-bold rounded transition-colors truncate px-1 flex items-center justify-center gap-1 cursor-pointer"
+                title="تسجيل مرتجع مبيعات (F11)"
+              >
+                <span>مرتجع (F11)</span>
+              </button>
+            </div>
           </div>
         </section>
       </div>
@@ -2427,26 +2528,9 @@ export const PosView = () => {
             type="button"
             onClick={() => {
               if (cart.length > 0) {
-                const draft = {
-                  items: cart,
-                  discountPiasters,
-                  customerId: selectedCustomerId,
-                  savedAt: Date.now()
-                };
-                localStorage.setItem('rafiq_pos_cart_draft', JSON.stringify(draft));
-                setDraftPrompt(draft);
-                setCart([]);
-                setDiscountPiasters(0);
-                showStatus('تم تعليق الفاتورة بنجاح. اضغط F6 لاسترجاعها في أي وقت', 'warning');
-              } else if (draftPrompt && draftPrompt.items.length > 0) {
-                setCart(draftPrompt.items);
-                setDiscountPiasters(draftPrompt.discountPiasters || 0);
-                if (draftPrompt.customerId) setSelectedCustomerId(draftPrompt.customerId);
-                localStorage.removeItem('rafiq_pos_cart_draft');
-                setDraftPrompt(null);
-                showStatus('تم استرجاع الفاتورة المعلقة بنجاح إلى السلة', 'success');
+                void handleHoldCurrentSale();
               } else {
-                showStatus('لا توجد فاتورة في السلة لتعليقها، ولا توجد فاتورة معلقة لاسترجاعها', 'warning');
+                setIsHeldSalesModalOpen(true);
               }
             }}
             className="h-8 px-2.5 rounded-lg bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 border border-slate-300 hover:border-slate-400 border-b-2 border-b-slate-400/80 shadow-2xs hover:shadow-xs active:translate-y-0.5 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
@@ -2455,7 +2539,25 @@ export const PosView = () => {
             <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-300 font-mono text-[10px] font-black text-slate-700">
               F6
             </kbd>
-            <span>تعليق/استرجاع</span>
+            <span>تعليق/معلقة</span>
+            {heldSalesCount > 0 && (
+              <span className="w-4 h-4 rounded-full bg-amber-500 text-white font-mono text-[9px] flex items-center justify-center font-bold">
+                {heldSalesCount}
+              </span>
+            )}
+          </button>
+
+          {/* F11: Return */}
+          <button 
+            type="button"
+            onClick={() => setIsReturnModalOpen(true)}
+            className="h-8 px-2.5 rounded-lg bg-white hover:bg-slate-50 active:bg-slate-100 text-amber-800 border border-amber-300 hover:border-amber-400 border-b-2 border-b-amber-400/80 shadow-2xs hover:shadow-xs active:translate-y-0.5 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
+            title="تسجيل مرتجع مبيعات للعميل (F11)"
+          >
+            <kbd className="px-1.5 py-0.5 rounded bg-amber-100 border border-amber-300 font-mono text-[10px] font-black text-amber-900">
+              F11
+            </kbd>
+            <span>مرتجع</span>
           </button>
 
           {/* F7: New Cart */}
@@ -3067,6 +3169,31 @@ export const PosView = () => {
         }}
         onCancel={() => {
           setSupervisorPrompt({ isOpen: false, title: '', onApproved: () => {} });
+        }}
+      />
+
+      {/* 14. HELD SALES MODAL (Feature #25 / Tasks 25-1 to 25-5) */}
+      <HeldSalesModal
+        isOpen={isHeldSalesModalOpen}
+        onClose={() => {
+          setIsHeldSalesModalOpen(false);
+          barcodeInputRef.current?.focus();
+        }}
+        onRecall={handleRecallHeldSale}
+        onHeldSalesChanged={() => {
+          void loadHeldSalesCount();
+        }}
+      />
+
+      {/* 15. SALES RETURN MODAL (Feature #26 / Tasks 26-1 to 26-7) */}
+      <ReturnModal
+        isOpen={isReturnModalOpen}
+        onClose={() => {
+          setIsReturnModalOpen(false);
+          barcodeInputRef.current?.focus();
+        }}
+        onReturnCompleted={(ret) => {
+          showStatus(`تم تسجيل المرتجع رقم #${ret.returnNumber} بقيمة ${formatArabicCurrency(ret.totalPiasters)}`, 'success');
         }}
       />
     </div>

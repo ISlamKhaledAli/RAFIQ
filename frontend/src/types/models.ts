@@ -97,6 +97,7 @@ export interface SaleItem {
   totalPiasters: number;
   taxPiasters: number;
   taxRatePercent?: number;
+  returnedQuantityMilli?: number;
   unit?: string;
   unitId?: string;
   unitName?: string;
@@ -252,6 +253,12 @@ export interface DashboardSummary {
   todayAdjustmentsCount?: number;
   todayDebtPaymentsPiasters?: number;
   recentAdjustments?: StockAdjustmentSummaryItem[];
+  todayCancelledSalesPiasters?: number;
+  todayCancelledSalesFormatted?: string;
+  todayCancelledCount?: number;
+  todayReturnsPiasters?: number;
+  todayReturnsFormatted?: string;
+  todayReturnsCount?: number;
   todayInvoicesCount: number;
   cashDrawerPiasters: number;
   cashDrawerFormatted?: string;
@@ -261,6 +268,56 @@ export interface DashboardSummary {
   totalCustomerDebtsFormatted?: string;
   debtorsCount?: number;
   topDebtors?: TopDebtorItem[];
+}
+
+export interface HeldSale {
+  id?: string;
+  holdLabel?: string;
+  customerId?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  itemsCount: number;
+  subtotalPiasters: number;
+  discountPiasters: number;
+  totalPiasters: number;
+  cartJson?: string;
+  notes?: string | null;
+  cashierId?: string | null;
+  createdAt?: string;
+  items?: SaleItem[];
+}
+
+export interface ReturnItem {
+  id?: string;
+  returnId?: string;
+  saleItemId?: string | null;
+  productId: string;
+  productName: string;
+  barcode?: string | null;
+  quantityMilli: number;
+  unitPricePiasters: number;
+  totalPiasters: number;
+  isDamaged: boolean;
+  unit?: string;
+  notes?: string | null;
+  createdAt?: string;
+}
+
+export interface Return {
+  id?: string;
+  returnNumber?: number;
+  saleId?: string | null;
+  invoiceNumber?: number | null;
+  customerId?: string | null;
+  customerName?: string | null;
+  cashierId?: string | null;
+  totalPiasters: number;
+  refundMethod: 'cash' | 'credit' | string;
+  reason?: string | null;
+  supervisorName?: string | null;
+  isWithoutInvoice?: boolean;
+  createdAt?: string;
+  items?: ReturnItem[];
 }
 
 export interface AuditLogEntry {

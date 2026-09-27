@@ -92,6 +92,8 @@
     <Compile Include="Models\QuickItem.cs" />
     <Compile Include="Models\StoreTemplate.cs" />
     <Compile Include="Models\User.cs" />
+    <Compile Include="Models\HeldSale.cs" />
+    <Compile Include="Models\Return.cs" />
     <Compile Include="Repositories\ProductRepository.cs" />
     <Compile Include="Repositories\SaleRepository.cs" />
     <Compile Include="Repositories\CounterRepository.cs" />
@@ -104,13 +106,18 @@
     <Compile Include="Repositories\QuickItemRepository.cs" />
     <Compile Include="Repositories\ProductUnitRepository.cs" />
     <Compile Include="Repositories\UserRepository.cs" />
+    <Compile Include="Repositories\HeldSaleRepository.cs" />
+    <Compile Include="Repositories\ReturnRepository.cs" />
     <Compile Include="Services\DatabaseService.cs" />
     <Compile Include="Services\ProductService.cs" />
     <Compile Include="Services\ProductUnitService.cs" />
     <Compile Include="Services\SaleService.cs" />
+    <Compile Include="Services\HeldSaleService.cs" />
+    <Compile Include="Services\ReturnService.cs" />
     <Compile Include="Services\InventoryService.cs" />
     <Compile Include="Services\InventoryTestRunner.cs" />
     <Compile Include="Services\CustomerLedgerTestRunner.cs" />
+    <Compile Include="Services\SalesCompletionTestRunner.cs" />
     <Compile Include="Services\SettingsService.cs" />
     <Compile Include="Services\CustomerService.cs" />
     <Compile Include="Services\CategoryService.cs" />
