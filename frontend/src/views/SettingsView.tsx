@@ -414,7 +414,7 @@ export const SettingsView = ({
   return (
     <div className="flex flex-col h-full bg-[#f3f5f2] p-4 gap-3.5 overflow-y-auto select-none">
       {/* 1. Top Header */}
-      <div className="h-14 bg-white border border-[#dce1dc] shadow-[0_1px_3px_rgba(0,0,0,0.05)] rounded-lg px-4 flex items-center justify-between shrink-0">
+      <div className="h-14 bg-white border border-[#dce1dc] shadow-subtle rounded-lg px-4 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-[#0b4f42]/10 text-[#0b4f42] flex items-center justify-center font-bold shrink-0">
             <TabIcon className="w-5 h-5 text-[#0b4f42]" />

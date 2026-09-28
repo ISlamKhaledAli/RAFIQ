@@ -161,8 +161,8 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
               <KeyRound className="w-6 h-6 text-emerald-300" />
             </div>
             <div>
-              <h2 className="text-xl font-bold font-cairo">ترخيص نظام رفيق POS السحابي</h2>
-              <p className="text-xs text-emerald-100/90 font-cairo">
+              <h2 className="text-xl font-bold font-sans">ترخيص نظام رفيق POS السحابي</h2>
+              <p className="text-xs text-emerald-100/90 font-sans">
                 حماية أوفلاين مشفرة + ربط ببصمة عتاد الجهاز
               </p>
             </div>
@@ -254,7 +254,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                 value={inputKey}
                 onChange={(e) => setInputKey(e.target.value.toUpperCase())}
                 placeholder="RFQ-PERM-XXXX-XXXX"
-                className="w-full bg-slate-50 border-2 border-slate-200 focus:border-[#006d41] rounded-2xl px-4 py-3 text-sm font-mono tracking-wider font-bold text-slate-900 focus:outline-hidden transition-all text-center dir-ltr"
+                className="w-full bg-slate-50 border-2 border-slate-200 focus:border-[#006d41] rounded-2xl px-4 py-3 text-sm font-mono tracking-wider font-bold text-slate-900 focus:outline-none transition-all text-center dir-ltr"
               />
             </div>
             <p className="text-[11px] text-slate-500">

@@ -290,7 +290,7 @@ export function QuickAddProductModal({
             <button
               type="submit"
               disabled={loading}
-              className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-brand text-white hover:bg-brand-container text-xs font-bold shadow-sm transition-all disabled:opacity-60"
+              className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-brand text-white hover:bg-brand-hover text-xs font-bold shadow-sm transition-all disabled:opacity-60"
             >
               <Check className="w-4 h-4" />
               <span>{loading ? 'جاري الحفظ...' : 'حفظ وإضافة للسلة (Enter)'}</span>

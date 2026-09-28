@@ -155,7 +155,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
 
       {/* Floating Menu */}
       {isOpen && (
-        <div className="absolute right-0 left-0 top-[calc(100%+4px)] z-50 bg-surface border border-line rounded-lg shadow-xl py-1 max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-100 flex flex-col">
+        <div className="absolute right-0 left-0 top-full mt-1 z-50 bg-surface border border-line rounded-lg shadow-xl py-1 max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-100 flex flex-col">
           {isSearchEnabled && (
             <div className="p-1.5 border-b border-line/60 sticky top-0 bg-surface z-10">
               <input
@@ -164,7 +164,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="بحث في الخيارات..."
-                className="w-full h-7 px-2 text-xs bg-surface-2 border border-line rounded text-ink placeholder:text-ink-muted focus:border-brand focus:outline-hidden"
+                className="w-full h-7 px-2 text-xs bg-surface-2 border border-line rounded text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none"
               />
             </div>
           )}
@@ -213,7 +213,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
 
                   <div className="flex items-center gap-1.5 shrink-0">
                     {opt.badge && (
-                      <span className="text-[10px] px-1.5 py-0.2 rounded font-mono bg-surface-2 border border-line text-ink-muted">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded font-mono bg-surface-2 border border-line text-ink-muted">
                         {opt.badge}
                       </span>
                     )}

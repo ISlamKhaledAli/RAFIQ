@@ -142,7 +142,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-1.5 rounded bg-brand text-white hover:bg-brand-container font-bold"
+              className="px-5 py-1.5 rounded bg-brand text-white hover:bg-brand-hover font-bold"
             >
               حفظ البيانات
             </button>

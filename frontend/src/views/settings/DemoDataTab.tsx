@@ -18,7 +18,7 @@ export const DemoDataTab = ({
   return (
     <div className="flex flex-col gap-5 text-xs text-[#14181a]">
       {/* Header & Quick Actions */}
-      <div className="flex items-center justify-between p-5 rounded-lg bg-white border border-[#dce1dc] shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+      <div className="flex items-center justify-between p-5 rounded-lg bg-white border border-[#dce1dc] shadow-subtle">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded bg-[#0b4f42]/10 text-[#0b4f42] flex items-center justify-center font-bold">
             <FlaskConical className="w-5 h-5 text-[#0b4f42]" />
@@ -54,7 +54,7 @@ export const DemoDataTab = ({
 
       {/* Status Breakdown Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-        <div className="p-3.5 rounded-lg bg-white border border-[#dce1dc] shadow-[0_1px_3px_rgba(0,0,0,0.05)] flex flex-col gap-1.5">
+        <div className="p-3.5 rounded-lg bg-white border border-[#dce1dc] shadow-subtle flex flex-col gap-1.5">
           <span className="text-[11px] text-[#5b6664] font-bold">حالة البيانات التجريبية:</span>
           <div className="flex items-center gap-2">
             <div className={`w-2.5 h-2.5 rounded-full ${demoStatus?.hasDemoData ? 'bg-[#b3720e] animate-pulse' : 'bg-slate-400'}`} />
@@ -64,14 +64,14 @@ export const DemoDataTab = ({
           </div>
         </div>
 
-        <div className="p-3.5 rounded-lg bg-white border border-[#dce1dc] shadow-[0_1px_3px_rgba(0,0,0,0.05)] flex flex-col gap-1.5">
+        <div className="p-3.5 rounded-lg bg-white border border-[#dce1dc] shadow-subtle flex flex-col gap-1.5">
           <span className="text-[11px] text-[#5b6664] font-bold">الأصناف التجريبية المحملة:</span>
           <span className="text-xs font-bold text-[#14181a]">
             {demoStatus?.demoProductsCount || 0} منتج تجريبي
           </span>
         </div>
 
-        <div className="p-3.5 rounded-lg bg-white border border-[#dce1dc] shadow-[0_1px_3px_rgba(0,0,0,0.05)] flex flex-col gap-1.5">
+        <div className="p-3.5 rounded-lg bg-white border border-[#dce1dc] shadow-subtle flex flex-col gap-1.5">
           <span className="text-[11px] text-[#5b6664] font-bold">الفواتير والعملاء التجريبيين:</span>
           <span className="text-xs font-bold text-[#14181a]">
             {demoStatus?.demoSalesCount || 0} فواتير | {demoStatus?.demoCustomersCount || 0} عملاء

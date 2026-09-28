@@ -378,7 +378,7 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
             )}
 
             {/* 3. INTERACTIVE BARCODE SCANNER TEST DOCK */}
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-4.5 space-y-3 shadow-xs">
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 space-y-3 shadow-xs">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center">

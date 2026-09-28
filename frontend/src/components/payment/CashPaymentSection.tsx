@@ -49,7 +49,7 @@ export const CashPaymentSection = ({
             type="text"
             value={receivedInput}
             onChange={(e) => onReceivedChange(e.target.value)}
-            className="w-full h-[52px] px-4 text-2xl font-mono font-black text-brand bg-surface-2 border-2 border-brand/50 focus:border-brand rounded-lg text-right pl-16 focus:outline-hidden"
+            className="w-full h-[52px] px-4 text-2xl font-mono font-black text-brand bg-surface-2 border-2 border-brand/50 focus:border-brand rounded-lg text-right pl-16 focus:outline-none"
             placeholder="0.00"
           />
           <div className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-sm text-ink-muted">

@@ -1,4 +1,18 @@
 import React, { useState } from 'react';
+import {
+  X,
+  CheckCircle2,
+  Keyboard,
+  Sparkles,
+  ArrowRight,
+  ArrowLeft,
+  Check,
+  ShoppingCart,
+  Boxes,
+  Users,
+  FileText,
+  BarChart3,
+} from 'lucide-react';
 
 interface GuidedTourModalProps {
   isOpen: boolean;
@@ -141,7 +155,11 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-2xl shadow-inner">
-                <i className={`fas ${currentStep.icon}`} />
+                {currentStep.step === 1 && <ShoppingCart className="w-6 h-6 text-white" />}
+                {currentStep.step === 2 && <Boxes className="w-6 h-6 text-white" />}
+                {currentStep.step === 3 && <Users className="w-6 h-6 text-white" />}
+                {currentStep.step === 4 && <FileText className="w-6 h-6 text-white" />}
+                {currentStep.step >= 5 && <BarChart3 className="w-6 h-6 text-white" />}
               </div>
               <div>
                 <span className="inline-block text-xs font-bold uppercase tracking-wider bg-white/25 px-2.5 py-0.5 rounded-full mb-1">
@@ -152,10 +170,10 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
             </div>
             <button
               onClick={onClose}
-              className="text-white/80 hover:text-white hover:bg-white/10 rounded-lg p-2 transition-colors"
+              className="text-white/80 hover:text-white hover:bg-white/10 rounded-lg p-2 transition-colors cursor-pointer"
               title="إغلاق"
             >
-              <i className="fas fa-times text-lg" />
+              <X className="w-5 h-5" />
             </button>
           </div>
           <p className="text-sm text-white/90 mt-2 font-medium">{currentStep.subtitle}</p>
@@ -188,7 +206,7 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
           {/* Key Features List */}
           <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 space-y-2.5">
             <h4 className="text-xs font-black text-slate-500 uppercase tracking-wider flex items-center gap-2">
-              <i className="fas fa-check-circle text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               أهم المزايا في هذه الشاشة
             </h4>
             <ul className="space-y-2 text-sm text-slate-800">
@@ -206,8 +224,8 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
           {/* Shortcut Tip Callout */}
           {currentStep.shortcutTip && (
             <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-3.5 flex items-center gap-3 text-amber-900 text-sm">
-              <div className="w-9 h-9 rounded-lg bg-amber-200/70 text-amber-800 flex items-center justify-center shrink-0 text-base">
-                <i className="fas fa-keyboard" />
+              <div className="w-9 h-9 rounded-lg bg-amber-200/70 text-amber-800 flex items-center justify-center shrink-0">
+                <Keyboard className="w-4 h-4" />
               </div>
               <div className="flex-1">
                 <span className="font-bold block text-xs text-amber-800">تلميح الكيبورد السريع للكاشير:</span>
@@ -229,16 +247,16 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
                   onClose();
                   onLoadDemoData();
                 }}
-                className="text-xs text-emerald-700 hover:text-emerald-900 font-bold bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-lg border border-emerald-300 transition-colors flex items-center gap-1.5"
+                className="text-xs text-emerald-700 hover:text-emerald-900 font-bold bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-lg border border-emerald-300 transition-colors flex items-center gap-1.5 cursor-pointer"
               >
-                <i className="fas fa-magic" />
+                <Sparkles className="w-3.5 h-3.5" />
                 تحميل بيانات تجريبية للتدريب
               </button>
             )}
             <button
               type="button"
               onClick={onClose}
-              className="text-xs text-slate-500 hover:text-slate-700 font-semibold px-2 py-1"
+              className="text-xs text-slate-500 hover:text-slate-700 font-semibold px-2 py-1 cursor-pointer"
             >
               تخطي الجولة
             </button>
@@ -249,9 +267,9 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
               <button
                 type="button"
                 onClick={handlePrev}
-                className="px-4 py-2 text-sm font-bold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors flex items-center gap-1.5 shadow-sm"
+                className="px-4 py-2 text-sm font-bold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
               >
-                <i className="fas fa-arrow-right" />
+                <ArrowRight className="w-4 h-4" />
                 السابق
               </button>
             )}
@@ -259,10 +277,10 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
             <button
               type="button"
               onClick={handleNext}
-              className="px-5 py-2 text-sm font-bold text-white bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 rounded-xl transition-all shadow hover:shadow-md flex items-center gap-1.5"
+              className="px-5 py-2 text-sm font-bold text-white bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 rounded-xl transition-all shadow hover:shadow-md flex items-center gap-1.5 cursor-pointer"
             >
               <span>{isLast ? 'إنهاء الجولة وبدء العمل' : 'التالي'}</span>
-              <i className={`fas ${isLast ? 'fa-check' : 'fa-arrow-left'}`} />
+              {isLast ? <Check className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
             </button>
           </div>
         </div>

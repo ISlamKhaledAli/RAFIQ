@@ -278,7 +278,7 @@ export function ReceiptModal({
             <button
               onClick={handlePrint}
               disabled={isPrinting}
-              className="flex items-center gap-2 px-5 py-2 rounded bg-brand text-white hover:bg-brand-container text-xs font-bold shadow-sm disabled:opacity-60"
+              className="flex items-center gap-2 px-5 py-2 rounded bg-brand text-white hover:bg-brand-hover text-xs font-bold shadow-sm disabled:opacity-60"
             >
               {isPrinting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
               <span>{isPrinting ? 'جاري الطباعة...' : 'طباعة الإيصال (F9)'}</span>

@@ -1,5 +1,23 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { invoke } from '../bridge/ipc';
+import {
+  FlaskConical,
+  X,
+  CheckCircle2,
+  AlertCircle,
+  Shield,
+  MinusCircle,
+  Loader2,
+  Download,
+  Trash2,
+  AlertTriangle,
+  Check,
+  Compass,
+  ShoppingCart,
+  Croissant,
+  Smartphone,
+  Store,
+} from 'lucide-react';
 
 interface DemoDataStatus {
   hasDemoData: boolean;
@@ -117,7 +135,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
         <div className="bg-gradient-to-r from-emerald-800 to-teal-900 text-white px-6 py-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center text-2xl">
-              <i className="fas fa-flask" />
+              <FlaskConical className="w-6 h-6 text-white" />
             </div>
             <div>
               <h2 className="text-xl font-black">البيانات التجريبية والتدريب</h2>
@@ -128,9 +146,9 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="text-white/80 hover:text-white hover:bg-white/10 rounded-lg p-2 transition-colors"
+            className="text-white/80 hover:text-white hover:bg-white/10 rounded-lg p-2 transition-colors cursor-pointer"
           >
-            <i className="fas fa-times text-lg" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -144,17 +162,19 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                   : 'bg-red-50 text-red-900 border border-red-300'
               }`}
             >
-              <i
-                className={`fas ${message.type === 'success' ? 'fa-check-circle text-emerald-600' : 'fa-exclamation-circle text-red-600'}`}
-              />
+              {message.type === 'success' ? (
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              ) : (
+                <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+              )}
               <span>{message.text}</span>
             </div>
           )}
 
           {/* Safety Guarantee Callout */}
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-start gap-3">
-            <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 text-lg">
-              <i className="fas fa-shield-alt" />
+            <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+              <Shield className="w-5 h-5" />
             </div>
             <div className="text-xs space-y-1">
               <span className="font-bold text-slate-800 block text-sm">عزل آمن للبيانات التجريبية</span>
@@ -176,7 +196,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600">
-                  <i className="fas fa-minus-circle" />
+                  <MinusCircle className="w-3.5 h-3.5" />
                   غير محملة
                 </span>
               )}
@@ -212,41 +232,44 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
               </label>
               <div className="grid grid-cols-2 gap-2.5">
                 {[
-                  { id: 'supermarket', label: 'سوبرماركت وبقالة', icon: 'fa-shopping-cart' },
-                  { id: 'dairy_bakery', label: 'ألبان ومخبوزات', icon: 'fa-cheese' },
-                  { id: 'accessories_gifts', label: 'إكسسوارات وموبايل', icon: 'fa-mobile-alt' },
-                  { id: 'general_grocery', label: 'محل تجاري عام', icon: 'fa-store' },
-                ].map(opt => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => setSelectedStoreType(opt.id)}
-                    className={`p-3 rounded-xl border text-right transition-all flex items-center gap-3 ${
-                      selectedStoreType === opt.id
-                        ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold shadow-sm ring-1 ring-emerald-500'
-                        : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
-                    }`}
-                  >
-                    <i className={`fas ${opt.icon} text-lg ${selectedStoreType === opt.id ? 'text-emerald-700' : 'text-slate-400'}`} />
-                    <span className="text-xs font-bold">{opt.label}</span>
-                  </button>
-                ))}
+                  { id: 'supermarket', label: 'سوبرماركت وبقالة', icon: ShoppingCart },
+                  { id: 'dairy_bakery', label: 'ألبان ومخبوزات', icon: Croissant },
+                  { id: 'accessories_gifts', label: 'إكسسوارات وموبايل', icon: Smartphone },
+                  { id: 'general_grocery', label: 'محل تجاري عام', icon: Store },
+                ].map(opt => {
+                  const Icon = opt.icon;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setSelectedStoreType(opt.id)}
+                      className={`p-3 rounded-xl border text-right transition-all flex items-center gap-3 cursor-pointer ${
+                        selectedStoreType === opt.id
+                          ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold shadow-sm ring-1 ring-emerald-500'
+                          : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      <Icon className={`w-5 h-5 ${selectedStoreType === opt.id ? 'text-emerald-700' : 'text-slate-400'}`} />
+                      <span className="text-xs font-bold">{opt.label}</span>
+                    </button>
+                  );
+                })}
               </div>
 
               <button
                 type="button"
                 onClick={handleLoadDemo}
                 disabled={loading}
-                className="w-full py-3 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white rounded-xl font-bold shadow hover:shadow-md transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+                className="w-full py-3 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white rounded-xl font-bold shadow hover:shadow-md transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-50 cursor-pointer"
               >
                 {loading ? (
                   <>
-                    <i className="fas fa-spinner fa-spin" />
+                    <Loader2 className="w-4 h-4 animate-spin" />
                     جاري تحميل البيانات...
                   </>
                 ) : (
                   <>
-                    <i className="fas fa-download" />
+                    <Download className="w-4 h-4" />
                     تحميل البيانات التجريبية الآن
                   </>
                 )}
@@ -262,15 +285,15 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                   type="button"
                   onClick={() => setShowClearConfirm(true)}
                   disabled={loading}
-                  className="w-full py-3 bg-red-50 hover:bg-red-100 text-red-700 hover:text-red-800 border border-red-200 rounded-xl font-bold transition-colors flex items-center justify-center gap-2 text-sm"
+                  className="w-full py-3 bg-red-50 hover:bg-red-100 text-red-700 hover:text-red-800 border border-red-200 rounded-xl font-bold transition-colors flex items-center justify-center gap-2 text-sm cursor-pointer"
                 >
-                  <i className="fas fa-trash-alt" />
+                  <Trash2 className="w-4 h-4" />
                   مسح كافة البيانات التجريبية
                 </button>
               ) : (
                 <div className="bg-red-50/90 border border-red-200 rounded-xl p-4 space-y-3 animate-fadeIn">
                   <div className="flex items-start gap-3">
-                    <i className="fas fa-exclamation-triangle text-red-600 text-xl shrink-0 mt-0.5" />
+                    <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
                     <div>
                       <h4 className="text-sm font-bold text-red-900">تأكيد مسح البيانات التجريبية؟</h4>
                       <p className="text-xs text-red-800 mt-1 leading-relaxed">
@@ -285,7 +308,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                       type="button"
                       onClick={() => setShowClearConfirm(false)}
                       disabled={loading}
-                      className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+                      className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
                     >
                       إلغاء
                     </button>
@@ -293,16 +316,16 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                       type="button"
                       onClick={handleClearDemo}
                       disabled={loading}
-                      className="px-4 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-lg shadow transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                      className="px-4 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-lg shadow transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                     >
                       {loading ? (
                         <>
-                          <i className="fas fa-spinner fa-spin" />
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           جاري المسح...
                         </>
                       ) : (
                         <>
-                          <i className="fas fa-check" />
+                          <Check className="w-3.5 h-3.5" />
                           نعم، امسح البيانات التجريبية
                         </>
                       )}
@@ -326,9 +349,9 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                   onClose();
                   onStartTour();
                 }}
-                className="px-3.5 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl transition-colors flex items-center gap-1.5 shadow-sm"
+                className="px-3.5 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
               >
-                <i className="fas fa-compass" />
+                <Compass className="w-4 h-4" />
                 بدء الجولة الآن
               </button>
             </div>

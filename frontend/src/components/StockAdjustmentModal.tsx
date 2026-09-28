@@ -230,7 +230,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
               </div>
 
               {deltaMilli !== 0 && (
-                <div className="flex items-center justify-between pt-1.5 border-t border-current/15 text-[11px] font-medium opacity-90">
+                <div className="flex items-center justify-between pt-1.5 border-t border-line text-[11px] font-medium opacity-90">
                   <span>الأثر المالي المتوقع (بالتكلفة):</span>
                   <span className="font-mono font-bold text-[12px]">
                     {deltaMilli > 0 ? `+${estimatedImpactDisplay} (إضافة لقيمة المخزون)` : `-${estimatedImpactDisplay} (خسارة عجز وتالف)`}
@@ -253,7 +253,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
                   onClick={() => setReason(r)}
                   className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
                     reason === r
-                      ? 'bg-brand text-on-brand font-bold'
+                      ? 'bg-brand text-white font-bold'
                       : 'bg-surface-2 border border-line text-ink-muted hover:text-ink hover:border-brand/40'
                   }`}
                 >
@@ -282,7 +282,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
             <button
               type="submit"
               disabled={loading || !isValidNumber || deltaMilli === 0}
-              className="h-9 px-5 rounded bg-brand text-on-brand hover:bg-brand-hover disabled:opacity-50 text-[12px] font-bold flex items-center gap-1.5 transition-colors shadow-xs"
+              className="h-9 px-5 rounded bg-brand text-white hover:bg-brand-hover disabled:opacity-50 text-[12px] font-bold flex items-center gap-1.5 transition-colors shadow-xs"
             >
               {loading ? (
                 <>

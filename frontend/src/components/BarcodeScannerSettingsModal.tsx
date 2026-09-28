@@ -252,7 +252,7 @@ export const BarcodeScannerSettingsModal = ({
                 onChange={() => {}} // Controlled by onKeyDown
                 onKeyDown={handleTestKeyDown}
                 placeholder="اضغط هنا ثم امسح أي باركود بالماسح أو اكتب لتجربة القارئ..."
-                className="w-full h-[46px] px-4 pl-24 bg-surface border-2 border-brand/50 focus:border-brand rounded-md font-mono text-[15px] text-ink placeholder:text-ink-muted/60 focus:outline-hidden"
+                className="w-full h-[46px] px-4 pl-24 bg-surface border-2 border-brand/50 focus:border-brand rounded-md font-mono text-[15px] text-ink placeholder:text-ink-muted/60 focus:outline-none"
               />
               <div className="absolute left-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[11px] font-bold text-ink-muted bg-surface-2 px-2 py-1 rounded border border-line">
                 <Keyboard className="w-3.5 h-3.5 text-brand" />
@@ -396,7 +396,7 @@ export const BarcodeScannerSettingsModal = ({
                   value={settings.prefix}
                   onChange={(e) => setSettings((s) => ({ ...s, prefix: e.target.value }))}
                   placeholder="اتركه فارغاً إلا إذا كان القارئ يرسل رمزاً ثابتاً في البداية"
-                  className="h-[34px] px-3 bg-surface-2 border border-line rounded text-xs font-mono text-ink focus:outline-hidden focus:border-brand"
+                  className="h-[34px] px-3 bg-surface-2 border border-line rounded text-xs font-mono text-ink focus:outline-none focus:border-brand"
                 />
                 <p className="text-[10px] text-ink-muted m-0">
                   يتم إزالة هذا الرمز تلقائياً من بداية الباركود الممسوح إن وجد.
@@ -414,7 +414,7 @@ export const BarcodeScannerSettingsModal = ({
                   max={20}
                   value={settings.minBarcodeLength}
                   onChange={(e) => setSettings((s) => ({ ...s, minBarcodeLength: Math.max(1, parseInt(e.target.value, 10) || 3) }))}
-                  className="h-[34px] px-3 bg-surface-2 border border-line rounded text-xs font-mono text-ink focus:outline-hidden focus:border-brand"
+                  className="h-[34px] px-3 bg-surface-2 border border-line rounded text-xs font-mono text-ink focus:outline-none focus:border-brand"
                 />
                 <p className="text-[10px] text-ink-muted m-0">
                   يتجاهل الإدخالات القصيرة لتجنب التقاط ضغطات المفاتيح الفردية العرضية.

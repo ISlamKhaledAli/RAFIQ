@@ -358,7 +358,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               <button
                 type="button"
                 onClick={onOpenPrintStatement}
-                className="px-3.5 py-1.5 rounded bg-brand text-white text-xs font-bold hover:bg-brand-container flex items-center gap-1.5 shadow-xs"
+                className="px-3.5 py-1.5 rounded bg-brand text-white text-xs font-bold hover:bg-brand-hover flex items-center gap-1.5 shadow-xs"
               >
                 <Printer className="w-3.5 h-3.5" />
                 <span>طباعة كشف الحساب</span>

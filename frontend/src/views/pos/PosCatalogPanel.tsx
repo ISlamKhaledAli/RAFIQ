@@ -159,7 +159,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
               type="button"
               key={item.id}
               onClick={() => handleSmartItemClick(item)}
-              className={`min-h-[86px] rounded-xl p-3 flex flex-col justify-between text-right transition-all duration-150 shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] group cursor-pointer border ${
+              className={`min-h-[86px] rounded-xl p-3 flex flex-col justify-between text-right transition-all duration-150 shadow-subtle hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] group cursor-pointer border ${
                 isOutOfStock
                   ? 'bg-[#fdf3f2] border-[#f6cbc6] hover:border-[#b23a2e]'
                   : 'bg-white border-[#dce1dc] hover:border-[#006d41]'

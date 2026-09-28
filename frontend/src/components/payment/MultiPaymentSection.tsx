@@ -113,7 +113,7 @@ export const MultiPaymentSection = ({
                 const newMethod = e.target.value as 'cash' | 'card' | 'credit';
                 setSplitRows((rows) => rows.map((r) => r.id === row.id ? { ...r, method: newMethod } : r));
               }}
-              className="h-[34px] px-2 bg-surface border border-line rounded text-xs font-bold text-ink focus:border-brand focus:outline-hidden"
+              className="h-[34px] px-2 bg-surface border border-line rounded text-xs font-bold text-ink focus:border-brand focus:outline-none"
             >
               <option value="cash">نقدي (كاش)</option>
               <option value="card">فيزا / كارت</option>

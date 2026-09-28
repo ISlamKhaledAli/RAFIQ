@@ -129,7 +129,7 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-[14px] font-bold text-ink leading-tight">كارت حركة المخزون</h3>
-                <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-brand text-on-brand">
+                <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-brand text-white">
                   الرصيد الحالي: {currentStockDisplay}
                 </span>
               </div>
@@ -144,7 +144,7 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
                   onClose();
                   onOpenAdjustment();
                 }}
-                className="h-7 px-2.5 rounded bg-brand text-on-brand text-[11px] font-bold flex items-center gap-1 hover:bg-brand-hover transition-colors"
+                className="h-7 px-2.5 rounded bg-brand text-white text-[11px] font-bold flex items-center gap-1 hover:bg-brand-hover transition-colors"
               >
                 <PlusCircle className="w-3.5 h-3.5" />
                 <span>تسوية جردية</span>

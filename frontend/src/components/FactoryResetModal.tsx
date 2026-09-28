@@ -67,7 +67,7 @@ export const FactoryResetModal = ({
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none" dir="rtl">
       <div className="bg-white rounded-2xl shadow-2xl border border-red-200 max-w-lg w-full overflow-hidden animate-fadeIn">
         {/* Header */}
-        <div className="bg-red-50/90 border-b border-red-200/80 p-4.5 flex items-center justify-between">
+        <div className="bg-red-50/90 border-b border-red-200/80 p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-red-100 border border-red-300 flex items-center justify-center text-red-700 shrink-0">
               <ShieldAlert className="w-5 h-5 text-red-600" />
@@ -148,7 +148,7 @@ export const FactoryResetModal = ({
               onChange={(e) => setConfirmText(e.target.value)}
               placeholder="اكتب: مسح"
               disabled={loading}
-              className="w-full h-10 px-3 border-2 border-slate-200 focus:border-red-500 rounded-xl text-center font-bold text-sm text-red-900 bg-white placeholder:text-slate-400 focus:outline-hidden transition-all"
+              className="w-full h-10 px-3 border-2 border-slate-200 focus:border-red-500 rounded-xl text-center font-bold text-sm text-red-900 bg-white placeholder:text-slate-400 focus:outline-none transition-all"
             />
           </div>
         </div>

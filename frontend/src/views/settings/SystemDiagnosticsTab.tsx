@@ -50,7 +50,7 @@ export const SystemDiagnosticsTab = ({
   return (
     <div className="flex flex-col gap-5 text-xs text-[#14181a]">
       {/* Feature Toggles Section (Feature #105: ملف تعريف المحل ومفاتيح تشغيل الميزات) */}
-      <div className="bg-white rounded-lg border border-[#dce1dc] shadow-[0_1px_3px_rgba(0,0,0,0.05)] p-5 flex flex-col gap-4">
+      <div className="bg-white rounded-lg border border-[#dce1dc] shadow-subtle p-5 flex flex-col gap-4">
         <div className="flex items-center justify-between border-b border-[#dce1dc] pb-3.5">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded bg-[#0b4f42]/10 text-[#0b4f42] flex items-center justify-center font-bold">
@@ -127,7 +127,7 @@ export const SystemDiagnosticsTab = ({
       </div>
 
       {/* Maintenance & System Diagnostics Section */}
-      <div className="bg-white rounded-lg border border-[#dce1dc] shadow-[0_1px_3px_rgba(0,0,0,0.05)] p-5 flex flex-col gap-4">
+      <div className="bg-white rounded-lg border border-[#dce1dc] shadow-subtle p-5 flex flex-col gap-4">
         <div className="flex items-center justify-between border-b border-[#dce1dc] pb-3.5">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded bg-[#0b4f42]/10 text-[#0b4f42] flex items-center justify-center font-bold">

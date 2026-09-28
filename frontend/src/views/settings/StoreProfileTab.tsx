@@ -56,7 +56,7 @@ export const StoreProfileTab = ({
       <div className="col-span-12 lg:col-span-7 flex flex-col gap-4">
         <form 
           onSubmit={handleSave} 
-          className="bg-white rounded-lg border border-[#dce1dc] shadow-[0_1px_3px_rgba(0,0,0,0.05)] p-5 flex flex-col gap-4 text-xs"
+          className="bg-white rounded-lg border border-[#dce1dc] shadow-subtle p-5 flex flex-col gap-4 text-xs"
         >
           {/* Header Card */}
           <div className="flex items-center justify-between border-b border-[#dce1dc] pb-3.5">
@@ -75,7 +75,7 @@ export const StoreProfileTab = ({
               className="px-3 py-1.5 bg-[#e1eae5] hover:bg-[#d0dfd8] text-[#0b4f42] border border-[#0b4f42]/20 rounded text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <Sparkles className="w-3.5 h-3.5 text-[#0b4f42]" />
-              <span>معالج نوع المحل</span>
+              <span>معالج نوع المحل (Setup Wizard)</span>
             </button>
           </div>
 
@@ -237,7 +237,7 @@ export const StoreProfileTab = ({
         </div>
 
         {/* Realistic Receipt Canvas Paper */}
-        <div className="w-full max-w-[320px] bg-white text-[#181c1e] font-mono text-[11.5px] p-5 shadow-[0_2px_8px_rgba(0,0,0,0.08)] border border-[#dce1dc] rounded flex flex-col relative select-text">
+        <div className="w-full max-w-[320px] bg-white text-[#181c1e] font-mono text-[11.5px] p-5 shadow-card border border-[#dce1dc] rounded flex flex-col relative select-text">
           {/* Top Zigzag Cut */}
           <div className="w-full h-2 receipt-zigzag mb-2 opacity-30"></div>
 

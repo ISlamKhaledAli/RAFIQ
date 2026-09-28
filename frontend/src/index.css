@@ -197,3 +197,74 @@
   background-size: 12px 10px;
   background-repeat: repeat-x;
 }
+
+/* LTR Directional Override Helper */
+.dir-ltr {
+  direction: ltr !important;
+  text-align: left !important;
+}
+
+/* Text on Brand Color */
+.text-on-brand {
+  color: #FFFFFF !important;
+}
+
+/* Custom Retail Scrollbars Container Class */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #F7F8F6;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #DCE1DC;
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #BFC9C4;
+}
+
+/* Composable Entrance Animations (Tailwind v3.4 + Chromium 109 Compatible) */
+@keyframes enter {
+  from {
+    opacity: var(--tw-enter-opacity, 1);
+    transform: translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0) scale3d(var(--tw-enter-scale, 1), var(--tw-enter-scale, 1), var(--tw-enter-scale, 1));
+  }
+}
+
+.animate-in {
+  animation-name: enter;
+  animation-duration: 0.15s;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  animation-fill-mode: both;
+  --tw-enter-opacity: initial;
+  --tw-enter-scale: initial;
+  --tw-enter-translate-x: initial;
+  --tw-enter-translate-y: initial;
+}
+
+.fade-in {
+  --tw-enter-opacity: 0;
+}
+
+.zoom-in-95 {
+  --tw-enter-scale: 0.95;
+}
+
+.zoom-in {
+  --tw-enter-scale: 0.9;
+}
+
+.slide-in-from-top-1 {
+  --tw-enter-translate-y: -4px;
+}
+
+.slide-in-from-bottom-3 {
+  --tw-enter-translate-y: 12px;
+}
+
+.slide-in-from-left-2 {
+  --tw-enter-translate-x: -8px;
+}
+
