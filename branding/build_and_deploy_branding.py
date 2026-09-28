@@ -76,12 +76,27 @@ icon_master.save(logo_path, optimize=True)
 print("✔ تم حفظ اللوجو المفرغ: branding/logo.png")
 
 # -----------------------------------------------------------------
-# 3. Create Multi-Resolution Windows ICO (7 Resolutions)
+# 3. Create Multi-Resolution Windows ICO from Squircle Master
 # -----------------------------------------------------------------
+logo_white_path = os.path.join(BRANDING_DIR, 'logo_white.png')
+logo_white = Image.open(logo_white_path)
+
+# Build high-resolution 512x512 Master Squircle Icon
+master = Image.new('RGBA', (512, 512), (0, 0, 0, 0))
+from PIL import ImageDraw
+draw = ImageDraw.Draw(master)
+draw.rounded_rectangle([20, 20, 492, 492], radius=110, fill=(11, 79, 66, 255), outline=(18, 115, 96, 255), width=5)
+
+scaled_w = logo_white.copy()
+scaled_w.thumbnail((340, 340), Image.Resampling.LANCZOS)
+px = (512 - scaled_w.width) // 2
+py = (512 - scaled_w.height) // 2
+master.paste(scaled_w, (px, py), scaled_w)
+
 ico_sizes = [(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (24, 24), (16, 16)]
 frames = []
 for s in ico_sizes:
-    frame = icon_master.resize(s, Image.Resampling.LANCZOS)
+    frame = master.resize(s, Image.Resampling.LANCZOS)
     if s[0] <= 32:
         fr, fg_c, fb, fa = frame.split()
         frgb = Image.merge('RGB', (fr, fg_c, fb))

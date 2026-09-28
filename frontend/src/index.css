@@ -198,6 +198,14 @@
   background-repeat: repeat-x;
 }
 
+/* Zigzag receipt tear bottom */
+.zigzag-bottom {
+  background: linear-gradient(-45deg, transparent 6px, #ffffff 0), linear-gradient(45deg, transparent 6px, #ffffff 0);
+  background-repeat: repeat-x;
+  background-position: left bottom;
+  background-size: 12px 10px;
+}
+
 /* LTR Directional Override Helper */
 .dir-ltr {
   direction: ltr !important;

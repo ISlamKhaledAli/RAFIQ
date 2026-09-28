@@ -1,13 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Sparkles, 
   Store, 
   ShoppingCart, 
   Milk, 
-  Gift, 
   Printer, 
   HardDrive, 
-  CheckCircle2, 
   ArrowLeft, 
   ArrowRight, 
   Loader2, 
@@ -19,7 +16,7 @@ import {
   Flame,
   Shirt,
   Check,
-  Receipt
+  Info
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { CustomSelect } from './CustomSelect';
@@ -83,7 +80,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
     } catch {
       // ignore
     }
-    return 'متجر رفيق';
+    return 'سوبر ماركت النور';
   });
   const [phone, setPhone] = useState(() => {
     try {
@@ -131,7 +128,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
     } catch {
       // ignore
     }
-    return 'شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل خلال 14 يوماً';
+    return 'شكراً لزيارتكم — الاستبدال خلال 3 أيام بالإيصال';
   });
 
   // Step 3: Hardware & Backup
@@ -248,13 +245,14 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
       if (tpl.defaultSettings?.receipt_footer) {
         setReceiptFooter(tpl.defaultSettings.receipt_footer);
       }
-      if (storeName === 'سوبرماركت رفيق' || storeName === 'متجر رفيق للهواتف والإلكترونيات' || storeName.includes('رفيق')) {
+      if (storeName === 'متجر رفيق' || storeName === 'سوبر ماركت النور' || storeName.includes('رفيق')) {
         if (id === 'phones_electronics') setStoreName('متجر رفيق للهواتف والإلكترونيات');
         else if (id === 'dairy_bakery') setStoreName('ألبان ومخبوزات رفيق');
         else if (id === 'produce_butchery') setStoreName('أسواق رفيق للخضار والفاكهة');
         else if (id === 'stationery_gifts') setStoreName('مكتبة رفيق للقرطاسية والهدايا');
         else if (id === 'spices_roastery') setStoreName('عطارة ومحامص رفيق');
         else if (id === 'clothing_apparel') setStoreName('متاجر رفيق للأزياء');
+        else if (id === 'supermarket') setStoreName('سوبر ماركت النور');
         else setStoreName('متجر رفيق');
       }
     }
@@ -280,11 +278,11 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
         setAppliedStats({
           categoriesCount: res.categoriesCount || 0,
           quickItemsCount: res.quickItemsCount || 0,
-          productsCount: res.productsCount != null ? res.productsCount : (seedInitialProducts ? (selectedTemplate.productsCount || 30) : 0),
+          productsCount: res.productsCount != null ? res.productsCount : (seedInitialProducts ? (selectedTemplate?.productsCount || 35) : 0),
         });
         setTimeout(() => {
           onCompleted();
-        }, 1400);
+        }, 1800);
       } else {
         setError(res?.message || 'فشل تطبيق القالب');
       }
@@ -296,31 +294,36 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
     }
   };
 
-  const getTemplateIcon = (iconName: string) => {
+  const getTemplateIcon = (iconName: string, isSelected: boolean) => {
+    const iconClass = isSelected ? 'w-6 h-6 text-brand' : 'w-6 h-6 text-ink-muted';
     switch (iconName) {
       case 'shopping-cart':
-        return <ShoppingCart className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />;
+      case 'storefront':
+        return <ShoppingCart className={iconClass} />;
       case 'smartphone':
       case 'phone':
-        return <Smartphone className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />;
+        return <Smartphone className={iconClass} />;
       case 'milk':
-        return <Milk className="w-5 h-5 text-sky-600 dark:text-sky-400" />;
+      case 'bakery_dining':
+        return <Milk className={iconClass} />;
       case 'apple':
       case 'produce':
-        return <Apple className="w-5 h-5 text-emerald-700 dark:text-emerald-400" />;
+      case 'nutrition':
+        return <Apple className={iconClass} />;
       case 'book':
       case 'stationery':
-        return <BookOpen className="w-5 h-5 text-amber-600 dark:text-amber-400" />;
+      case 'menu_book':
+        return <BookOpen className={iconClass} />;
       case 'flame':
       case 'spices':
-        return <Flame className="w-5 h-5 text-orange-600 dark:text-orange-400" />;
+      case 'local_fire_department':
+        return <Flame className={iconClass} />;
       case 'shirt':
       case 'clothing':
-        return <Shirt className="w-5 h-5 text-violet-600 dark:text-violet-400" />;
-      case 'gift':
-        return <Gift className="w-5 h-5 text-pink-600 dark:text-pink-400" />;
+      case 'checkroom':
+        return <Shirt className={iconClass} />;
       default:
-        return <Store className="w-5 h-5 text-teal-600 dark:text-teal-400" />;
+        return <Store className={iconClass} />;
     }
   };
 
@@ -328,94 +331,68 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
 
   // STEP RENDERER HELPER
   const renderStepBody = () => {
-    if (appliedStats) {
-      return (
-        <div className="p-8 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-3xl text-center space-y-4 max-w-2xl mx-auto my-8 shadow-sm">
-          <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-300 mx-auto flex items-center justify-center shadow-sm">
-            <CheckCircle2 className="w-10 h-10" />
-          </div>
-          <h3 className="font-black text-2xl text-emerald-950 dark:text-emerald-200">
-            تم تهيئة وتجهيز النظام بنجاح!
-          </h3>
-          <p className="text-sm text-emerald-800 dark:text-emerald-300 font-semibold leading-relaxed">
-            تم إنشاء <span className="font-extrabold text-emerald-950 dark:text-white">{appliedStats.categoriesCount}</span> تصنيفات رئيسية، و <span className="font-extrabold text-emerald-950 dark:text-white">{appliedStats.productsCount}</span> صنف فعلي بباركود حقيقي جاهز للبيع فوراً، و <span className="font-extrabold text-emerald-950 dark:text-white">{appliedStats.quickItemsCount}</span> أزرار كاشير سريعة. جاري نقلك فوراً لشاشة نقطة البيع...
-          </p>
-          <div className="pt-2 flex justify-center">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold shadow-sm">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>جاري تحميل بيانات المتجر الجديد...</span>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
     if (step === 1) {
       return (
-        <div className="space-y-4">
-          <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl flex items-center justify-between text-xs text-emerald-950 dark:text-emerald-200">
-            <div className="flex items-center gap-2.5">
-              <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span className="font-bold leading-relaxed">
-                اختر القالب الأقرب لطبيعة محلك؛ سيقوم رفيق بضبط الميزات (مثل الميزان أو الصلاحية)، وإنشاء الفئات، وتجهيز كتالوج أصناف فعلية بأسعار وباركودات قابلة للمسح فوراً:
-              </span>
-            </div>
+        <div className="flex flex-col gap-4">
+          {/* Info banner */}
+          <div className="bg-brand-soft border border-brand/50 rounded-[6px] p-3.5 flex items-center gap-3 shrink-0">
+            <Info className="w-5 h-5 text-brand shrink-0" />
+            <span className="text-[14px] text-brand font-medium">
+              اختار القالب الأقرب لطبيعة محلك — تقدر تعدل كل حاجة بعد كده من الإعدادات
+            </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
+          {/* 2-column grid of template cards, 16px gap */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-2">
             {templates.map((tpl) => {
               const isSelected = tpl.id === selectedTemplateId;
               return (
                 <div
                   key={tpl.id}
                   onClick={() => handleSelectTemplate(tpl.id)}
-                  className={`p-5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between gap-4 ${
+                  className={`relative rounded-[6px] p-4 flex flex-col gap-2.5 cursor-pointer transition-colors ${
                     isSelected
-                      ? 'border-[#006d41] bg-emerald-50/70 dark:bg-emerald-950/40 ring-4 ring-emerald-500/10 shadow-md scale-[1.01]'
-                      : 'border-slate-200 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800/60 hover:shadow-sm'
+                      ? 'bg-brand-soft border-2 border-brand shadow-2xs'
+                      : 'bg-surface border border-line hover:border-brand shadow-2xs'
                   }`}
                 >
-                  <div className="flex items-start gap-3.5">
-                    <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-700/80 flex items-center justify-center shrink-0 shadow-xs">
-                      {getTemplateIcon(tpl.icon)}
+                  {/* Selected badge in top-left corner */}
+                  {isSelected && (
+                    <div className="absolute top-3.5 left-3.5 flex items-center gap-1 text-brand text-[12px] font-semibold bg-white/90 px-2 py-0.5 rounded-[4px] border border-brand/20 shadow-2xs">
+                      <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                      <span>تم الاختيار</span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-extrabold text-base text-slate-900 dark:text-white truncate">
-                          {tpl.name}
-                        </span>
-                        {isSelected && (
-                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-[#006d41] text-white shrink-0 flex items-center gap-1 shadow-xs">
-                            <Check className="w-3 h-3 stroke-[3]" />
-                            <span>تم الاختيار</span>
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                        {tpl.description}
-                      </p>
-                    </div>
+                  )}
+
+                  <div className="flex items-center gap-3">
+                    {getTemplateIcon(tpl.icon, isSelected)}
+                    <span className="text-[16px] font-bold text-ink">
+                      {tpl.name}
+                    </span>
                   </div>
 
+                  <p className="text-[12px] text-ink-muted leading-relaxed">
+                    {tpl.description}
+                  </p>
+
                   {/* Summary Tags */}
-                  <div className="flex flex-wrap items-center gap-1.5 pt-3 border-t border-slate-100 dark:border-slate-800/80 text-[11px]">
-                    <span className="px-2.5 py-1 rounded-lg bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 font-black flex items-center gap-1">
-                      <Sparkles className="w-3 h-3 text-emerald-600" />
-                      <span>{tpl.productsCount || 30} صنف جاهز للبيع</span>
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="text-[12px] text-ink-muted border border-line rounded-[6px] px-2 py-0.5 tabular-nums bg-white font-medium">
+                      {tpl.productsCount || 35} صنف جاهز للبيع
                     </span>
-                    <span className="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-700/80 text-slate-700 dark:text-slate-300 font-bold">
+                    <span className="text-[12px] text-ink-muted border border-line rounded-[6px] px-2 py-0.5 tabular-nums bg-white font-medium">
                       {tpl.categories.length} أقسام
                     </span>
-                    <span className="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-700/80 text-slate-700 dark:text-slate-300 font-bold">
+                    <span className="text-[12px] text-ink-muted border border-line rounded-[6px] px-2 py-0.5 tabular-nums bg-white font-medium">
                       {tpl.quickItems.length} أزرار سريعة
                     </span>
                     {tpl.featureFlags?.feature_scale_weight && (
-                      <span className="px-2 py-1 rounded-lg bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 font-bold">
+                      <span className="text-[12px] text-brand border border-brand/40 bg-white font-medium rounded-[6px] px-2 py-0.5">
                         دعم الميزان
                       </span>
                     )}
                     {tpl.featureFlags?.feature_expiry_dates && (
-                      <span className="px-2 py-1 rounded-lg bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 font-bold">
+                      <span className="text-[12px] text-brand border border-brand/40 bg-white font-medium rounded-[6px] px-2 py-0.5">
                         تاريخ الصلاحية
                       </span>
                     )}
@@ -430,132 +407,162 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
 
     if (step === 2) {
       return (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Inputs Column */}
-          <div className="lg:col-span-7 space-y-4 bg-white dark:bg-slate-800/60 p-6 rounded-3xl border border-slate-200 dark:border-slate-700/80 shadow-xs">
-            <h3 className="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-2 border-b border-slate-100 dark:border-slate-700/60 pb-3">
-              <Store className="w-4 h-4 text-emerald-600" />
-              <span>معلومات المنشأة وعناوين الإيصال</span>
-            </h3>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start pb-2">
+          {/* LEFT FORM CARD (7 columns in RTL) */}
+          <div className="lg:col-span-7 bg-surface border border-line rounded-[6px] p-6 flex flex-col gap-4 shadow-2xs">
+            <h2 className="text-[18px] font-semibold text-ink leading-tight">
+              معلومات المنشأة وعناوين الإيصال
+            </h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12px] font-medium text-ink-muted">
                   اسم المحل / المنشأة *
                 </label>
                 <input
                   type="text"
                   value={storeName}
                   onChange={(e) => setStoreName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-extrabold text-slate-900 dark:text-white focus:ring-2 focus:ring-[#006d41] focus:outline-none"
-                  placeholder="سوبرماركت رفيق"
+                  className="w-full h-[44px] px-3.5 bg-surface border border-line rounded-[6px] text-[14px] text-ink font-semibold outline-none focus:border-brand"
+                  placeholder="سوبر ماركت النور"
                   required
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12px] font-medium text-ink-muted">
                   رقم الهاتف / خدمة العملاء *
                 </label>
                 <input
                   type="text"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-[#006d41] focus:outline-none"
+                  className="w-full h-[44px] px-3.5 bg-surface border border-line rounded-[6px] text-[14px] text-ink font-mono outline-none focus:border-brand"
                   placeholder="01012345678"
                   required
                 />
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[12px] font-medium text-ink-muted">
                 العنوان بالتفصيل
               </label>
               <input
                 type="text"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#006d41] focus:outline-none"
-                placeholder="الشارع الرئيسي - بجوار المسجد الكبير"
+                className="w-full h-[44px] px-3.5 bg-surface border border-line rounded-[6px] text-[14px] text-ink outline-none focus:border-brand"
+                placeholder="الشارع الرئيسي - وسط البلد"
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  رسالة الترحيب أعلى الفاتورة (رأس الإيصال)
-                </label>
-                <input
-                  type="text"
-                  value={receiptHeader}
-                  onChange={(e) => setReceiptHeader(e.target.value)}
-                  className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#006d41] focus:outline-none"
-                />
-              </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[12px] font-medium text-ink-muted">
+                رسالة الترحيب أعلى الفاتورة (رأس الإيصال)
+              </label>
+              <input
+                type="text"
+                value={receiptHeader}
+                onChange={(e) => setReceiptHeader(e.target.value)}
+                className="w-full h-[44px] px-3.5 bg-surface border border-line rounded-[6px] text-[14px] text-ink outline-none focus:border-brand"
+                placeholder="أهلاً بكم في متجرنا"
+              />
+            </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  شروط الاستبدال أسفل الفاتورة (تذييل الإيصال)
-                </label>
-                <input
-                  type="text"
-                  value={receiptFooter}
-                  onChange={(e) => setReceiptFooter(e.target.value)}
-                  className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#006d41] focus:outline-none"
-                />
-              </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[12px] font-medium text-ink-muted">
+                شروط الاستبدال أسفل الفاتورة (تذييل الإيصال)
+              </label>
+              <input
+                type="text"
+                value={receiptFooter}
+                onChange={(e) => setReceiptFooter(e.target.value)}
+                className="w-full h-[44px] px-3.5 bg-surface border border-line rounded-[6px] text-[14px] text-ink outline-none focus:border-brand"
+                placeholder="شكراً لزيارتكم — الاستبدال خلال 3 أيام بالإيصال"
+              />
             </div>
           </div>
 
-          {/* Live Receipt Paper Preview */}
-          <div className="lg:col-span-5 bg-white dark:bg-slate-800/60 p-6 rounded-3xl border border-slate-200 dark:border-slate-700/80 shadow-xs space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-2">
-              <span className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                <Receipt className="w-4 h-4 text-emerald-600" />
-                <span>معاينة حية لإيصال الكاشير الحراري (80 مم)</span>
-              </span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+          {/* RIGHT CARD (5 columns in RTL): Live Receipt Preview (80 mm) */}
+          <div className="lg:col-span-5 bg-surface border border-line rounded-[6px] p-6 flex flex-col gap-4 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <h2 className="text-[18px] font-semibold text-ink leading-tight">
+                معاينة حية لإيصال الكاشير (80 مم)
+              </h2>
+              <span className="text-[11px] text-brand border border-brand/40 bg-brand-soft px-2 py-0.5 rounded-[6px] font-medium">
                 تحديث فوري
               </span>
             </div>
 
-            {/* Paper Container */}
-            <div className="bg-[#fffef9] text-slate-900 p-5 rounded-2xl border border-slate-300 shadow-md font-mono text-[11px] leading-relaxed mx-auto max-w-xs space-y-2 select-none">
-              <div className="text-center space-y-0.5 border-b border-dashed border-slate-400 pb-2">
-                <p className="font-extrabold text-sm">{storeName || 'اسم المحل'}</p>
-                <p className="text-[10px] text-slate-600">{phone || '010XXXXXXXX'}</p>
-                {address && <p className="text-[9px] text-slate-500">{address}</p>}
-                <p className="text-[10px] font-bold text-emerald-900 pt-0.5">{receiptHeader}</p>
-              </div>
+            {/* Preview background container */}
+            <div className="bg-canvas border border-line rounded-[6px] p-4 flex justify-center items-start overflow-hidden">
+              {/* Receipt Sheet (280px wide, pure white paper with 1px border and zigzag torn bottom edge) */}
+              <div className="w-[280px] bg-white border border-line rounded-t-[4px] p-4 text-[11px] font-mono leading-relaxed text-ink relative pb-6 select-none shadow-sm">
+                {/* Centered Header Block */}
+                <div className="text-center flex flex-col gap-0.5">
+                  <div className="font-bold text-[14px] text-ink font-sans">
+                    {storeName || 'سوبر ماركت النور'}
+                  </div>
+                  <div className="text-[11px] tabular-nums font-mono">
+                    هاتف: {phone || '01012345678'}
+                  </div>
+                  {address && <div className="text-[11px]">{address}</div>}
+                  <div className="text-[11px] font-sans text-ink-muted mt-0.5">
+                    {receiptHeader || 'أهلاً بكم في متجرنا'}
+                  </div>
+                </div>
 
-              <div className="flex justify-between text-[10px] text-slate-500 border-b border-dashed border-slate-400 pb-1">
-                <span>فاتورة: #000101</span>
-                <span>{new Date().toLocaleDateString('ar-EG-u-nu-latn')}</span>
-              </div>
+                {/* Dotted separator */}
+                <div className="border-b border-dashed border-ink/40 my-2.5" />
 
-              {/* Sample Table */}
-              <div className="space-y-1 py-1 border-b border-dashed border-slate-400">
-                <div className="flex justify-between font-bold text-[10px]">
-                  <span>صنف عينة 1</span>
+                {/* Invoice meta */}
+                <div className="flex justify-between items-center tabular-nums text-[10.5px]">
+                  <span className="font-semibold">فاتورة: #000101</span>
+                  <span>{new Date().toLocaleDateString('ar-EG-u-nu-latn')}</span>
+                </div>
+
+                {/* Dotted separator */}
+                <div className="border-b border-dashed border-ink/40 my-2.5" />
+
+                {/* Item lines */}
+                <div className="flex flex-col gap-1 text-[10.5px] tabular-nums">
+                  <div className="flex justify-between items-center font-sans">
+                    <span className="truncate max-w-[160px]">لبن جهينة كامل الدسم 1 لتر</span>
+                    <span className="font-mono">32.00 ج.م</span>
+                  </div>
+                  <div className="flex justify-between items-center font-sans">
+                    <span className="truncate max-w-[160px]">شيبسي 30 جم</span>
+                    <span className="font-mono">10.00 ج.م</span>
+                  </div>
+                </div>
+
+                {/* Dotted separator */}
+                <div className="border-b border-dashed border-ink/40 my-2.5" />
+
+                {/* Total line in bold */}
+                <div className="flex justify-between items-center font-bold text-[12px] tabular-nums">
+                  <span className="font-sans">الإجمالي:</span>
                   <span>42.00 ج.م</span>
                 </div>
-                <div className="flex justify-between font-bold text-[10px]">
-                  <span>صنف عينة 2</span>
-                  <span>15.00 ج.م</span>
+
+                {/* Dotted separator */}
+                <div className="border-b border-dashed border-ink/40 my-2.5" />
+
+                {/* Return policy centered */}
+                <div className="text-center font-sans text-[10px] text-ink-muted leading-tight px-1 mt-1">
+                  {receiptFooter || 'شكراً لزيارتكم — الاستبدال خلال 3 أيام بالإيصال'}
                 </div>
-              </div>
 
-              <div className="flex justify-between font-black text-xs pt-1">
-                <span>الإجمالي:</span>
-                <span>57.00 ج.م</span>
-              </div>
-
-              <div className="text-center pt-2 border-t border-dashed border-slate-400 text-[10px] text-slate-600 leading-tight">
-                <p>{receiptFooter}</p>
-                <p className="text-[8px] text-slate-400 pt-1">برنامج رفيق لنقاط البيع - Rafiq POS</p>
+                {/* Zigzag torn bottom edge */}
+                <div className="absolute -bottom-2.5 left-0 right-0 h-2.5 zigzag-bottom" />
               </div>
             </div>
+
+            {/* Note under preview */}
+            <p className="text-[12px] text-ink-muted text-center">
+              معاينة تقريبية على ورق حراري قياسي 80 مم مع محاذاة تلقائية للنصوص
+            </p>
           </div>
         </div>
       );
@@ -563,61 +570,72 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
 
     if (step === 3) {
       return (
-        <div className="space-y-5 max-w-3xl mx-auto py-2">
-          {/* Printer */}
-          <div className="p-6 bg-white dark:bg-slate-800/60 rounded-3xl border border-slate-200 dark:border-slate-700/80 shadow-xs space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0">
-                <Printer className="w-5 h-5" />
+        <div className="flex flex-col gap-4 max-w-[800px] mx-auto w-full py-2">
+          {/* Card 1: Thermal Receipt Printer */}
+          <div className="bg-surface border border-line rounded-[6px] p-6 flex flex-col shadow-2xs">
+            <div className="flex items-start gap-3.5 mb-5">
+              <div className="w-10 h-10 rounded-[6px] border border-line flex items-center justify-center text-ink-muted shrink-0 bg-canvas">
+                <Printer className="w-5 h-5 text-ink-muted" />
               </div>
               <div>
-                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">
+                <h3 className="text-ink text-[16px] font-semibold">
                   طابعة الفواتير الافتراضية (Thermal Receipt Printer)
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                <p className="text-ink-muted text-[13px] mt-1">
                   حدد الطابعة المتصلة بجهاز الكاشير للطباعة السريعة فور الضغط على زر الدفع
                 </p>
               </div>
             </div>
 
-            <CustomSelect
-              value={selectedPrinter}
-              onChange={(val) => setSelectedPrinter(val)}
-              placeholder="-- بدون طابعة افتراضية (معاينة فقط) --"
-              options={[
-                { value: '', label: '-- بدون طابعة افتراضية (معاينة فقط) --' },
-                ...printers.map((p) => ({
-                  value: p.name,
-                  label: p.name,
-                  badge: p.isDefault ? 'الافتراضية في ويندوز' : undefined
-                }))
-              ]}
-            />
+            <div>
+              <label className="block text-ink-muted text-[12px] font-medium mb-1.5">
+                طابعة الكاشير المعتمدة
+              </label>
+              <CustomSelect
+                value={selectedPrinter}
+                onChange={(val) => setSelectedPrinter(val)}
+                placeholder="-- بدون طابعة افتراضية (معاينة فقط) --"
+                size="lg"
+                options={[
+                  { value: '', label: '-- بدون طابعة افتراضية (معاينة فقط) --' },
+                  ...printers.map((p) => ({
+                    value: p.name,
+                    label: p.name,
+                    badge: p.isDefault ? 'الافتراضية في ويندوز' : undefined
+                  }))
+                ]}
+              />
+            </div>
           </div>
 
-          {/* Backup */}
-          <div className="p-6 bg-white dark:bg-slate-800/60 rounded-3xl border border-slate-200 dark:border-slate-700/80 shadow-xs space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-teal-100 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 flex items-center justify-center shrink-0">
-                <HardDrive className="w-5 h-5" />
+          {/* Card 2: Backup Folder */}
+          <div className="bg-surface border border-line rounded-[6px] p-6 flex flex-col shadow-2xs">
+            <div className="flex items-start gap-3.5 mb-5">
+              <div className="w-10 h-10 rounded-[6px] border border-line flex items-center justify-center text-ink-muted shrink-0 bg-canvas">
+                <HardDrive className="w-5 h-5 text-ink-muted" />
               </div>
               <div>
-                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">
+                <h3 className="text-ink text-[16px] font-semibold">
                   مسار النسخ الاحتياطي التلقائي للبيانات (Backup Folder)
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                <p className="text-ink-muted text-[13px] mt-1">
                   يُفضل اختيار مسار على قرص غير قرص النظام (مثل القرص D أو فلاشة USB) لحماية قاعدة بياناتك من مشاكل الويندوز
                 </p>
               </div>
             </div>
 
-            <input
-              type="text"
-              value={backupFolder}
-              onChange={(e) => setBackupFolder(e.target.value)}
-              className="w-full px-4 py-2.5 text-xs font-mono rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#006d41] focus:outline-none"
-              placeholder="D:\RafiqBackups"
-            />
+            <div>
+              <label className="block text-ink-muted text-[12px] font-medium mb-1.5">
+                مجلد النسخ الاحتياطي التلقائي
+              </label>
+              <input
+                type="text"
+                value={backupFolder}
+                onChange={(e) => setBackupFolder(e.target.value)}
+                className="w-full h-[44px] px-3.5 bg-surface border border-line rounded-[6px] text-[13px] font-mono text-ink outline-none focus:border-brand"
+                placeholder="D:\RafiqBackups"
+              />
+            </div>
           </div>
         </div>
       );
@@ -625,76 +643,87 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
 
     if (step === 4) {
       return (
-        <div className="space-y-5 max-w-3xl mx-auto py-2">
-          {/* Review Summary */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 text-xs">
-            <div className="p-4 bg-white dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-1 shadow-xs">
-              <span className="text-slate-400 font-bold block text-[11px]">النشاط التجاري المختار:</span>
-              <span className="font-extrabold text-sm text-[#006d41] dark:text-emerald-400 block truncate">
+        <div className="flex flex-col gap-5 max-w-[860px] mx-auto w-full py-2">
+          {/* 3-Column Summary Grid (6 cards) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Card 1 */}
+            <div className="bg-surface border border-line rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
+              <span className="text-ink-muted text-[12px] font-medium">النشاط التجاري المختار</span>
+              <span className="text-brand text-[16px] font-semibold mt-2">
                 {selectedTemplate?.name}
               </span>
             </div>
 
-            <div className="p-4 bg-white dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-1 shadow-xs">
-              <span className="text-slate-400 font-bold block text-[11px]">اسم المنشأة:</span>
-              <span className="font-extrabold text-sm text-slate-800 dark:text-slate-100 block truncate">
+            {/* Card 2 */}
+            <div className="bg-surface border border-line rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
+              <span className="text-ink-muted text-[12px] font-medium">اسم المنشأة</span>
+              <span className="text-ink text-[16px] font-semibold mt-2 truncate">
                 {storeName}
               </span>
             </div>
 
-            <div className="p-4 bg-white dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-1 shadow-xs">
-              <span className="text-slate-400 font-bold block text-[11px]">طابعة الفواتير:</span>
-              <span className="font-extrabold text-sm text-slate-800 dark:text-slate-100 block truncate">
+            {/* Card 3 */}
+            <div className="bg-surface border border-line rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
+              <span className="text-ink-muted text-[12px] font-medium">طابعة الفواتير</span>
+              <span className="text-ink text-[16px] font-semibold mt-2 font-mono truncate">
                 {selectedPrinter || 'معاينة فقط'}
               </span>
             </div>
 
-            <div className="p-4 bg-white dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-1 shadow-xs">
-              <span className="text-slate-400 font-bold block text-[11px]">الأقسام والتصنيفات:</span>
-              <span className="font-extrabold text-sm text-slate-800 dark:text-slate-100">
+            {/* Card 4 */}
+            <div className="bg-surface border border-line rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
+              <span className="text-ink-muted text-[12px] font-medium">الأقسام والتصنيفات</span>
+              <span className="text-ink text-[16px] font-semibold mt-2 tabular-nums font-bold">
                 {selectedTemplate?.categories?.length || 0} أقسام رئيسية
               </span>
             </div>
 
-            <div className="p-4 bg-white dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-1 shadow-xs">
-              <span className="text-slate-400 font-bold block text-[11px]">أزرار الكاشير السريعة:</span>
-              <span className="font-extrabold text-sm text-slate-800 dark:text-slate-100">
+            {/* Card 5 */}
+            <div className="bg-surface border border-line rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
+              <span className="text-ink-muted text-[12px] font-medium">أزرار الكاشير السريعة</span>
+              <span className="text-ink text-[16px] font-semibold mt-2 tabular-nums font-bold">
                 {selectedTemplate?.quickItems?.length || 0} أزرار سريعة
               </span>
             </div>
 
-            <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border border-emerald-300 dark:border-emerald-800 space-y-1 shadow-xs">
-              <span className="text-emerald-700 dark:text-emerald-300 font-bold block text-[11px]">الكتالوج الفعلي الجاهز:</span>
-              <span className="font-black text-sm text-emerald-900 dark:text-emerald-100">
-                {selectedTemplate?.productsCount || 30} صنف حقيقي بباركود
+            {/* Card 6 (Special Highlighted) */}
+            <div className="bg-brand-soft border border-brand rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-brand text-[12px] font-medium">الكتالوج الفعلي الجاهز</span>
+                <span className="text-[10px] font-semibold text-brand bg-white border border-brand/40 px-1.5 py-0.5 rounded-[3px]">
+                  جاهز فوراً
+                </span>
+              </div>
+              <span className="text-brand text-[16px] font-semibold mt-2 tabular-nums font-bold">
+                {selectedTemplate?.productsCount || 35} صنف حقيقي بباركود
               </span>
             </div>
           </div>
 
-          {/* Real Catalog Toggle */}
-          <label className="p-4 bg-emerald-50/80 dark:bg-emerald-950/20 border-2 border-emerald-300 dark:border-emerald-700 rounded-3xl flex items-center justify-between cursor-pointer hover:bg-emerald-100/60 transition-colors shadow-xs">
-            <div className="flex items-center gap-3.5">
-              <input
-                type="checkbox"
-                checked={seedInitialProducts}
-                onChange={(e) => setSeedInitialProducts(e.target.checked)}
-                className="w-5 h-5 text-[#006d41] rounded border-slate-300 focus:ring-[#006d41]"
-              />
-              <div>
-                <span className="font-black text-sm text-emerald-950 dark:text-emerald-100 block">
-                  تحميل كتالوج الأصناف الفعلية الجاهزة لنشاطك (مُوصى به بشدة)
-                </span>
-                <span className="text-xs text-emerald-800 dark:text-emerald-300 block mt-1 leading-relaxed">
-                  يوفّر عليك إدخال البيانات يدوياً؛ سيتم إنشاء {selectedTemplate?.productsCount || 30} صنف أساسي بأسمائها الواقعية وتكلفتها وسعر بيعها وباركوداتها الجاهزة للبيع فوراً مع إمكانية تعديلها أو حذفها في أي وقت.
-                </span>
-              </div>
+          {/* Full-width Checkbox Card */}
+          <div
+            onClick={() => setSeedInitialProducts(!seedInitialProducts)}
+            className="bg-brand-soft border border-brand rounded-[6px] p-5 flex items-start gap-4 cursor-pointer select-none shadow-2xs"
+          >
+            <div className={`w-5 h-5 rounded-[4px] flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
+              seedInitialProducts ? 'bg-brand text-white' : 'border border-brand bg-white text-transparent'
+            }`}>
+              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
             </div>
-          </label>
+            <div className="flex flex-col">
+              <h4 className="text-ink text-[16px] font-semibold">
+                تحميل كتالوج الأصناف الفعلية الجاهزة لنشاطك (موصى به بشدة)
+              </h4>
+              <p className="text-ink-muted text-[13px] mt-1 leading-relaxed">
+                بيوفر عليك إدخال البيانات يدوياً — هيتم إنشاء {selectedTemplate?.productsCount || 35} صنف أساسي بأسمائها الواقعية وأسعارها وتكلفتها وباركوداتها الجاهزة للبيع فوراً مع إمكانية تعديلها أو حذفها في أي وقت.
+              </p>
+            </div>
+          </div>
 
-          {/* Reassurance */}
-          <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl flex items-center gap-3 text-xs text-slate-600 dark:text-slate-300">
-            <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
-            <span>يمكنك في أي وقت لاحق من لوحة الإعدادات تعديل الأسعار، إضافة أصناف جديدة، أو ربط ماسح الباركود والميزان.</span>
+          {/* Reassurance Line */}
+          <div className="flex items-center gap-2.5 px-1 text-ink-muted text-[13px]">
+            <ShieldCheck className="w-5 h-5 text-paid shrink-0" />
+            <span>تقدر في أي وقت من الإعدادات تعدل الأسعار والأصناف والأقسام</span>
           </div>
         </div>
       );
@@ -703,92 +732,81 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
     return null;
   };
 
-  // FULL SCREEN WORKSPACE VIEW (FOR FIRST RUN ONBOARDING)
+  // --------------------------------------------------------------------------
+  // FULL SCREEN WORKSPACE VIEW (FOR FIRST RUN ONBOARDING - Matching 1_2_pos & 3_4_pos)
+  // --------------------------------------------------------------------------
   if (isFirstRun) {
     return (
-      <div className="fixed inset-0 z-[9999] flex flex-col md:flex-row bg-[#f8fafc] text-slate-800 dark:bg-slate-950 dark:text-slate-100 select-none overflow-hidden font-sans" dir="rtl">
-        {/* RIGHT SIDEBAR: Branded Hero & Interactive Stepper */}
-        <aside className="w-full md:w-80 lg:w-96 bg-gradient-to-b from-[#00372d] via-[#00261f] to-[#001712] text-white flex flex-col justify-between p-6 shrink-0 relative overflow-hidden border-l border-emerald-800/40 shadow-2xl">
-          {/* Subtle Ambient Glow */}
-          <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute bottom-0 left-0 w-64 h-64 bg-teal-500/10 rounded-full blur-2xl pointer-events-none" />
-
-          <div className="relative z-10 space-y-6">
-            {/* Logo & Brand Header */}
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500/30 to-emerald-400/10 border border-emerald-400/30 flex items-center justify-center shadow-lg">
-                <Sparkles className="w-6 h-6 text-emerald-300" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xl font-black tracking-wide text-white">رفيق</span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/30 text-emerald-200 border border-emerald-400/30 uppercase tracking-wider">
-                    Rafiq POS
-                  </span>
-                </div>
-                <p className="text-xs text-emerald-200/70 mt-0.5">نظام نقاط البيع وإدارة السوبرماركت</p>
-              </div>
+      <div className="fixed inset-0 z-[9999] flex flex-row bg-canvas text-ink select-none overflow-hidden font-sans" dir="rtl">
+        {/* RIGHT SIDE PANEL (360px wide, solid #0B4F42, matching designs) */}
+        <aside className="w-[360px] h-full bg-[#0B4F42] text-white flex flex-col justify-between p-8 shrink-0 relative z-20 select-none">
+          <div className="flex flex-col">
+            {/* RAFIQ Brand Header: Clean transparent emblem on #0B4F42 */}
+            <div className="mb-6 flex items-center">
+              <img 
+                src="/logo_full_white.png" 
+                onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo_white.png'; }} 
+                alt="RAFIQ Point of Sale Logo" 
+                className="w-[160px] h-auto object-contain block drop-shadow-sm" 
+              />
             </div>
 
-            {/* Welcome Text */}
-            <div className="bg-emerald-950/40 border border-emerald-500/20 rounded-2xl p-4">
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold text-emerald-300 uppercase tracking-wider mb-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                التهيئة الأولى للنظام
-              </span>
-              <h2 className="text-base font-extrabold text-white leading-snug">تخصيص النظام وتجهيز المحل</h2>
-              <p className="text-xs text-emerald-100/70 mt-1 leading-relaxed">
-                4 خطوات سهلة وسريعة لضبط الفئات والميزات وحقن كتالوج أصناف فعلي كامل جاهز للبيع فوراً.
-              </p>
+            {/* Welcome block */}
+            <div className="border border-white/20 rounded-[6px] p-4 mb-8 bg-white/[0.04]">
+              <h2 className="text-white text-[16px] font-semibold mb-1">تخصيص النظام وتجهيز المحل</h2>
+              <p className="text-white/75 text-[13px]">4 خطوات سهلة وتبقى جاهز تبيع</p>
             </div>
 
-            {/* Stepper Timeline */}
-            <div className="space-y-4 pt-2">
+            {/* Vertical Stepper (4 steps) */}
+            <div className="relative flex flex-col gap-6 pr-1">
+              {/* Continuous vertical line behind badges */}
+              <div className="absolute top-4 right-[13px] bottom-4 w-[1px] bg-white/25 -z-0 pointer-events-none" />
+
               {[
                 { num: 1, title: 'نوع النشاط والكتالوج', desc: 'تحديد القالب وحقن الأصناف الفعلية', badge: '30+ صنف' },
                 { num: 2, title: 'بيانات المحل والفاتورة', desc: 'الاسم، الهاتف، وترويسة الإيصال' },
                 { num: 3, title: 'الأجهزة وحفظ البيانات', desc: 'طابعة الكاشير ومسار النسخ الاحتياطي' },
                 { num: 4, title: 'المراجعة وتأكيد البدء', desc: 'اعتماد التجهيزات والانتقال للكاشير' },
               ].map((s) => {
-                const isActive = step === s.num;
-                const isPassed = step > s.num;
+                const isPassed = appliedStats ? true : step > s.num;
+                const isActive = !appliedStats && step === s.num;
+
                 return (
-                  <div key={s.num} className="flex items-start gap-3 relative group">
-                    {/* Connecting Line */}
-                    {s.num < 4 && (
-                      <div className={`absolute right-4 top-8 w-0.5 h-7 transition-colors ${
-                        isPassed ? 'bg-emerald-500' : 'bg-emerald-900/60'
-                      }`} />
+                  <div key={s.num} className="flex items-start gap-3.5 relative z-10">
+                    {/* Badge */}
+                    {isPassed ? (
+                      <div className="w-7 h-7 rounded-[4px] border border-white flex items-center justify-center shrink-0 bg-[#0B4F42] text-white">
+                        <Check className="w-4 h-4 stroke-[2.5]" />
+                      </div>
+                    ) : isActive ? (
+                      <div className="w-7 h-7 rounded-[4px] bg-white text-brand font-bold text-[13px] flex items-center justify-center shrink-0 tabular-nums shadow-sm">
+                        {s.num}
+                      </div>
+                    ) : (
+                      <div className="w-7 h-7 rounded-[4px] border border-white/40 text-white/60 font-semibold text-[13px] flex items-center justify-center shrink-0 tabular-nums bg-[#0B4F42]">
+                        {s.num}
+                      </div>
                     )}
 
-                    {/* Step Circle */}
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black shrink-0 transition-all ${
-                      isPassed
-                        ? 'bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/30'
-                        : isActive
-                        ? 'bg-white text-[#00372d] ring-4 ring-emerald-400/30 font-black shadow-lg scale-105'
-                        : 'bg-emerald-950/70 text-emerald-400/60 border border-emerald-800/40'
-                    }`}>
-                      {isPassed ? <Check className="w-4 h-4 stroke-[3]" /> : s.num}
-                    </div>
-
-                    {/* Step Text */}
-                    <div className="pt-0.5">
+                    {/* Step Title & Subtitle */}
+                    <div className="flex flex-col gap-0.5 pt-0.5">
                       <div className="flex items-center gap-2">
-                        <span className={`text-xs font-black transition-colors ${
-                          isActive ? 'text-white' : isPassed ? 'text-emerald-200' : 'text-emerald-100/50'
+                        <span className={`text-[14px] font-semibold ${
+                          isActive ? 'text-white' : isPassed ? 'text-white' : 'text-white/60'
                         }`}>
                           {s.title}
                         </span>
                         {s.badge && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-400/20 text-emerald-300 border border-emerald-400/30">
+                          <span className="text-[11px] text-white/90 border border-white/40 px-1.5 py-0.5 rounded-[4px] tabular-nums">
                             {s.badge}
                           </span>
                         )}
                       </div>
-                      <p className="text-[11px] text-emerald-100/50 mt-0.5 leading-tight">
+                      <span className={`text-[12px] leading-relaxed ${
+                        isActive ? 'text-white/70' : isPassed ? 'text-white/75' : 'text-white/50'
+                      }`}>
                         {s.desc}
-                      </p>
+                      </span>
                     </div>
                   </div>
                 );
@@ -796,88 +814,134 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
             </div>
           </div>
 
-          {/* Bottom System Assurances */}
-          <div className="relative z-10 pt-4 border-t border-emerald-800/50 space-y-2 text-[11px] text-emerald-100/70">
-            <div className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              <span>يعمل أوفلاين 100% بدون أي إنترنت</span>
+          {/* Bottom Assurance items */}
+          <div className="pt-6 border-t border-white/15 flex flex-col gap-2.5">
+            <div className="flex items-center gap-2.5 text-white">
+              <Check className="w-4 h-4 text-white shrink-0 stroke-[2.5]" />
+              <span className="text-[13px] text-white/90">يعمل أوفلاين 100% بدون أي إنترنت</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              <span>حماية مالية فائقة بمعاملات ذرية SQLite WAL</span>
+            <div className="flex items-center gap-2.5 text-white">
+              <Check className="w-4 h-4 text-white shrink-0 stroke-[2.5]" />
+              <span className="text-[13px] text-white/90">حماية مالية فائقة بمعاملات ذرية SQLite WAL</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              <span>جميع الإعدادات والأسعار قابلة للتعديل لاحقاً</span>
+            <div className="flex items-center gap-2.5 text-white">
+              <Check className="w-4 h-4 text-white shrink-0 stroke-[2.5]" />
+              <span className="text-[13px] text-white/90">جميع الإعدادات والأسعار قابلة للتعديل لاحقاً</span>
             </div>
           </div>
         </aside>
 
-        {/* LEFT MAIN CANVAS: Content, Form, and Navigation */}
-        <main className="flex-1 flex flex-col h-full bg-[#f8fafc] dark:bg-slate-900 overflow-hidden">
-          {/* Step Header */}
-          <header className="px-8 py-5 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0 flex items-center justify-between shadow-xs">
-            <div>
-              <div className="flex items-center gap-2.5">
-                <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300">
+        {/* LEFT WORKING AREA (Matching 1_2_pos & 3_4_pos) */}
+        {appliedStats ? (
+          /* SUCCESS WORKING AREA (Replacing whole working area when completed) */
+          <main className="flex-1 h-full bg-canvas flex flex-col items-center justify-center p-12 select-none">
+            <div className="w-[520px] flex flex-col items-center text-center">
+              {/* 64px Outline Check in --paid */}
+              <div className="w-16 h-16 rounded-[8px] border-2 border-paid/30 bg-white flex items-center justify-center text-paid mb-6 shadow-sm">
+                <Check className="w-10 h-10 text-paid stroke-[2.5]" />
+              </div>
+
+              {/* Title */}
+              <h1 className="text-ink text-[28px] font-semibold tracking-tight mb-3">
+                تم تهيئة وتجهيز النظام بنجاح!
+              </h1>
+
+              {/* Description */}
+              <p className="text-ink-muted text-[14px] leading-relaxed mb-8">
+                تم إنشاء {appliedStats.categoriesCount} تصنيفات رئيسية، و{appliedStats.productsCount} صنف فعلي بباركود حقيقي جاهز للبيع فوراً، و{appliedStats.quickItemsCount} أزرار كاشير سريعة. جاري نقلك لشاشة نقطة البيع…
+              </p>
+
+              {/* 44px Progress Strip */}
+              <div className="w-full h-[44px] bg-brand-soft border border-brand rounded-[6px] px-4 flex items-center justify-between relative overflow-hidden shadow-2xs">
+                <span className="text-ink text-[13px] font-medium z-10">جاري تحميل بيانات المتجر الجديد…</span>
+                <div className="flex items-center gap-2 z-10 font-mono text-[12px] text-brand font-semibold">
+                  <span className="tabular-nums">100%</span>
+                </div>
+                {/* Indeterminate Animated Progress Bar at Bottom of Strip */}
+                <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-brand/20 overflow-hidden">
+                  <div className="h-full bg-brand w-2/3 rounded-full animate-pulse" />
+                </div>
+              </div>
+            </div>
+          </main>
+        ) : (
+          <main className="flex-1 h-full flex flex-col bg-canvas overflow-hidden">
+            {/* STEP HEADER (72px, --surface, 1px bottom border) */}
+            <header className="h-[72px] px-8 bg-surface border-b border-line flex items-center justify-between shrink-0 shadow-2xs">
+              <div className="flex items-center gap-3">
+                <span className="text-[12px] text-brand border border-brand/40 bg-brand-soft px-2.5 py-0.5 rounded-[6px] font-medium">
                   الخطوة {step} من 4
                 </span>
-                <h1 className="text-xl font-black text-slate-900 dark:text-white">
-                  {step === 1 && 'اختر نوع نشاط محلك التجاري'}
-                  {step === 2 && 'بيانات المتجر وهوية الفاتورة'}
-                  {step === 3 && 'طابعة الفواتير والنسخ الاحتياطي'}
-                  {step === 4 && 'مراجعة التجهيزات والبدء الفعلي'}
-                </h1>
+                <div>
+                  <h1 className="text-[18px] font-semibold text-ink leading-tight">
+                    {step === 1 && 'اختر نوع نشاط محلك التجاري'}
+                    {step === 2 && 'بيانات المتجر وهوية الفاتورة'}
+                    {step === 3 && 'طابعة الفواتير والنسخ الاحتياطي'}
+                    {step === 4 && 'مراجعة التجهيزات والبدء الفعلي'}
+                  </h1>
+                  <p className="text-[13px] text-ink-muted mt-0.5">
+                    {step === 1 && 'سيقوم رفيق بضبط الميزات، وتوليد الفئات، وتجهيز كتالوج أصناف فعلية بأسعار وباركودات جاهزة للبيع فوراً'}
+                    {step === 2 && 'المعلومات اللي هتظهر في رأس وتذييل إيصال الكاشير للزبون'}
+                    {step === 3 && 'حدد طابعة الإيصالات الحرارية ومسار النسخ الاحتياطي التلقائي لحماية بياناتك'}
+                    {step === 4 && 'تأكيد الخيارات واعتماد التجهيز لفتح شاشة الكاشير وبدء البيع فوراً'}
+                  </p>
+                </div>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                {step === 1 && 'سيقوم رفيق بضبط الميزات، وتوليد الفئات، وتجهيز كتالوج أصناف فعلية بأسعار وباركودات جاهزة للبيع فوراً'}
-                {step === 2 && 'المعلومات التي ستظهر في أعلى وأسفل إيصال الكاشير المطبوع للعملاء'}
-                {step === 3 && 'ضبط طابعة الإيصالات الحرارية ومسار النسخ الاحتياطي التلقائي'}
-                {step === 4 && 'تأكيد الخيارات واعتماد التجهيز لفتح شاشة الكاشير وبدء البيع فوراً'}
-              </p>
+
+              <div className="hidden sm:block">
+                {step === 1 && (
+                  <span className="text-[12px] text-ink-muted border border-line rounded-[6px] px-2.5 py-1 bg-surface tabular-nums">
+                    {templates.length} قوالب متخصصة
+                  </span>
+                )}
+                {step === 2 && (
+                  <span className="text-[12px] text-brand border border-brand/40 bg-brand-soft px-2.5 py-1 rounded-[6px] font-medium">
+                    معاينة حية للإيصال (80 مم)
+                  </span>
+                )}
+                {step === 3 && (
+                  <span className="text-[12px] text-ink-muted border border-line rounded-[6px] px-2.5 py-1 bg-surface tabular-nums">
+                    {printers.length} طابعة مكتشفة
+                  </span>
+                )}
+                {step === 4 && (
+                  <span className="text-[12px] text-brand border border-brand/40 bg-brand-soft px-2.5 py-1 rounded-[6px] font-medium">
+                    جاهز للاعتماد والتشغيل
+                  </span>
+                )}
+              </div>
+            </header>
+
+            {/* STEP BODY (scrolls internally, 24px padding) */}
+            <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
+              {error && (
+                <div className="p-3.5 bg-danger-soft border border-danger/40 rounded-[6px] text-xs text-danger flex items-center gap-2">
+                  <span className="font-bold">تنبيه:</span>
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {renderStepBody()}
             </div>
 
-            <div className="text-left text-xs font-bold text-slate-500 dark:text-slate-400 hidden sm:block">
-              {step === 1 && `${templates.length} قوالب متخصصة`}
-              {step === 2 && 'معاينة حية للإيصال'}
-              {step === 3 && `${printers.length} طابعة مكتشفة`}
-              {step === 4 && 'جاهز للاعتماد والتشغيل'}
-            </div>
-          </header>
-
-          {/* Content Body (Scrollable, fills space comfortably) */}
-          <div className="flex-1 overflow-y-auto px-8 py-6 space-y-4">
-            {error && (
-              <div className="p-3.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl text-xs text-rose-700 dark:text-rose-300 flex items-center gap-2">
-                <span className="font-bold">تنبيه:</span>
-                <span>{error}</span>
-              </div>
-            )}
-
-            {renderStepBody()}
-          </div>
-
-          {/* Fixed Bottom Action Bar */}
-          {!appliedStats && (
-            <footer className="h-20 px-8 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0 flex items-center justify-between shadow-sm">
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-400">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                <span>النشاط المحدد:</span>
-                <span className="font-black text-slate-900 dark:text-white">
-                  {selectedTemplate?.name}
-                </span>
-                <span className="text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full font-extrabold border border-emerald-200 dark:border-emerald-800">
-                  {selectedTemplate?.productsCount || 30} صنف جاهز للبيع
+            {/* STEP FOOTER (80px, --surface, 1px top border) */}
+            <footer className="h-[80px] px-8 bg-surface border-t border-line flex items-center justify-between shrink-0 shadow-2xs">
+              <div className="text-ink-muted text-[14px]">
+                <span>النشاط المختار: </span>
+                <span className="font-semibold text-ink">{selectedTemplate?.name}</span>
+                <span className="mx-2">·</span>
+                <span className="tabular-nums font-semibold text-brand">
+                  {selectedTemplate?.productsCount || 35} صنف جاهز للبيع
                 </span>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4">
                 {step > 1 && (
                   <button
                     type="button"
                     onClick={() => setStep((prev) => (prev - 1) as any)}
                     disabled={loading}
-                    className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors"
+                    className="h-[44px] px-5 border border-line rounded-[6px] bg-surface text-ink text-[14px] font-medium flex items-center gap-2 hover:bg-canvas cursor-pointer transition-colors"
                   >
                     <ArrowRight className="w-4 h-4" />
                     <span>السابق</span>
@@ -895,7 +959,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
                       setError(null);
                       setStep((prev) => (prev + 1) as any);
                     }}
-                    className="px-6 py-2.5 bg-[#00372d] hover:bg-[#004e40] text-white font-extrabold rounded-xl text-xs flex items-center gap-2 transition-all shadow-md active:scale-95"
+                    className="h-[44px] px-6 bg-brand hover:bg-brand-hover text-white text-[14px] font-semibold rounded-[6px] flex items-center gap-2 cursor-pointer transition-colors shadow-sm"
                   >
                     <span>
                       {step === 1 && 'المتابعة لبيانات الفاتورة'}
@@ -909,85 +973,130 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
                     type="button"
                     onClick={() => void handleApply()}
                     disabled={loading}
-                    className="px-7 py-3 bg-[#006d41] hover:bg-[#005835] text-white font-black rounded-xl text-sm flex items-center gap-2 transition-all shadow-lg active:scale-95 disabled:opacity-50"
+                    className="h-[44px] px-7 bg-paid hover:bg-paid-hover text-white text-[14px] font-bold rounded-[6px] flex items-center gap-2 cursor-pointer transition-colors shadow-sm disabled:opacity-50"
                   >
-                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 stroke-[2.5]" />}
                     <span>تجهيز النظام وبدء نقطة البيع فوراً</span>
                   </button>
                 )}
               </div>
             </footer>
-          )}
-        </main>
+          </main>
+        )}
       </div>
     );
   }
 
-  // MODAL DIALOG VIEW (WHEN OPENED FROM SETTINGS)
+  // --------------------------------------------------------------------------
+  // MODAL DIALOG VIEW (WHEN OPENED FROM SETTINGS - Matching 1_4 design)
+  // --------------------------------------------------------------------------
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in text-slate-800 dark:text-slate-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs text-ink select-none font-sans" dir="rtl">
+      {/* MODAL CONTAINER (896px wide, max 85vh, 8px radius, 1px line border, modal-shadow) */}
       <div 
-        className="w-full max-w-4xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[90vh]"
+        className="w-[896px] max-h-[85vh] bg-surface rounded-[8px] border border-line shadow-2xl flex flex-col overflow-hidden"
         role="dialog"
         aria-modal="true"
       >
-        {/* Header */}
-        <div className="bg-[#00372d] text-white px-6 py-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-600/30 flex items-center justify-center border border-emerald-500/30">
-              <Sparkles className="w-6 h-6 text-emerald-300" />
-            </div>
-            <div>
-              <h2 className="font-extrabold text-lg leading-tight">معالج التجهيز السريع للنظام</h2>
-              <p className="text-xs text-emerald-100/70">
-                تهيئة وتجهيز النظام حسب نشاط محلك
-              </p>
-            </div>
+        {/* 1. MODAL HEADER (72px, --surface, 1px bottom border) */}
+        <div className="h-[72px] bg-surface border-b border-line px-6 flex items-center justify-between shrink-0">
+          <div>
+            <h2 className="text-[20px] font-semibold text-ink">معالج التجهيز السريع للنظام</h2>
+            <p className="text-[13px] text-ink-muted mt-0.5">تهيئة وتجهيز النظام حسب نشاط محلك</p>
           </div>
+          {/* 44px dismiss button */}
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-xl text-emerald-200 hover:text-white hover:bg-white/10 transition-colors"
+            className="w-11 h-11 border border-line rounded-[6px] bg-surface hover:bg-canvas text-ink flex items-center justify-center transition-colors cursor-pointer"
+            title="إغلاق المعالج"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5 text-ink" />
           </button>
         </div>
 
-        {/* Stepper Bar */}
-        <div className="px-6 py-3 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs font-bold">
-          <div className={`flex items-center gap-2 ${step === 1 ? 'text-[#006d41] font-extrabold' : 'text-slate-400'}`}>
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step === 1 ? 'bg-[#006d41] text-white' : (step > 1 ? 'bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600')}`}>
-              {step > 1 ? <Check className="w-3 h-3 stroke-[3]" /> : '1'}
+        {/* 2. HORIZONTAL STEPPER (64px, --surface-2, 1px bottom border) */}
+        <div className="h-[64px] bg-[#F9FAFA] border-b border-line px-8 flex items-center justify-between shrink-0">
+          {/* Step 1: نوع المحل */}
+          <div className="flex items-center gap-2.5">
+            {step > 1 ? (
+              <div className="w-6 h-6 rounded-[4px] border border-brand bg-white text-brand flex items-center justify-center font-bold text-xs">
+                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+              </div>
+            ) : (
+              <div className={`w-6 h-6 rounded-[4px] flex items-center justify-center font-bold text-xs tabular-nums ${
+                step === 1 ? 'bg-brand text-white' : 'border border-line bg-white text-ink-muted'
+              }`}>
+                1
+              </div>
+            )}
+            <span className={`text-sm ${step === 1 ? 'font-bold text-brand' : step > 1 ? 'font-medium text-brand' : 'font-medium text-ink-muted'}`}>
+              نوع المحل
             </span>
-            <span>نوع المحل</span>
           </div>
-          <div className="h-[2px] w-6 bg-slate-200 dark:bg-slate-700" />
-          <div className={`flex items-center gap-2 ${step === 2 ? 'text-[#006d41] font-extrabold' : 'text-slate-400'}`}>
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step === 2 ? 'bg-[#006d41] text-white' : (step > 2 ? 'bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600')}`}>
-              {step > 2 ? <Check className="w-3 h-3 stroke-[3]" /> : '2'}
+
+          {/* Connector 1-2 */}
+          <div className={`flex-1 h-px mx-4 ${step > 1 ? 'bg-brand/40' : 'bg-line'}`} />
+
+          {/* Step 2: بيانات الفاتورة */}
+          <div className="flex items-center gap-2.5">
+            {step > 2 ? (
+              <div className="w-6 h-6 rounded-[4px] border border-brand bg-white text-brand flex items-center justify-center font-bold text-xs">
+                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+              </div>
+            ) : (
+              <div className={`w-6 h-6 rounded-[4px] flex items-center justify-center font-bold text-xs tabular-nums ${
+                step === 2 ? 'bg-brand text-white' : 'border border-line bg-white text-ink-muted'
+              }`}>
+                2
+              </div>
+            )}
+            <span className={`text-sm ${step === 2 ? 'font-bold text-brand' : step > 2 ? 'font-medium text-brand' : 'font-medium text-ink-muted'}`}>
+              بيانات الفاتورة
             </span>
-            <span>بيانات الفاتورة</span>
           </div>
-          <div className="h-[2px] w-6 bg-slate-200 dark:bg-slate-700" />
-          <div className={`flex items-center gap-2 ${step === 3 ? 'text-[#006d41] font-extrabold' : 'text-slate-400'}`}>
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step === 3 ? 'bg-[#006d41] text-white' : (step > 3 ? 'bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600')}`}>
-              {step > 3 ? <Check className="w-3 h-3 stroke-[3]" /> : '3'}
+
+          {/* Connector 2-3 */}
+          <div className={`flex-1 h-px mx-4 ${step > 2 ? 'bg-brand/40' : 'bg-line'}`} />
+
+          {/* Step 3: الأجهزة */}
+          <div className="flex items-center gap-2.5">
+            {step > 3 ? (
+              <div className="w-6 h-6 rounded-[4px] border border-brand bg-white text-brand flex items-center justify-center font-bold text-xs">
+                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+              </div>
+            ) : (
+              <div className={`w-6 h-6 rounded-[4px] flex items-center justify-center font-bold text-xs tabular-nums ${
+                step === 3 ? 'bg-brand text-white' : 'border border-line bg-white text-ink-muted'
+              }`}>
+                3
+              </div>
+            )}
+            <span className={`text-sm ${step === 3 ? 'font-bold text-brand' : step > 3 ? 'font-medium text-brand' : 'font-medium text-ink-muted'}`}>
+              الأجهزة
             </span>
-            <span>الأجهزة والحفظ</span>
           </div>
-          <div className="h-[2px] w-6 bg-slate-200 dark:bg-slate-700" />
-          <div className={`flex items-center gap-2 ${step === 4 ? 'text-[#006d41] font-extrabold' : 'text-slate-400'}`}>
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step === 4 ? 'bg-[#006d41] text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600'}`}>
+
+          {/* Connector 3-4 */}
+          <div className={`flex-1 h-px mx-4 ${step > 3 ? 'bg-brand/40' : 'bg-line'}`} />
+
+          {/* Step 4: المراجعة */}
+          <div className="flex items-center gap-2.5">
+            <div className={`w-6 h-6 rounded-[4px] flex items-center justify-center font-bold text-xs tabular-nums ${
+              step === 4 ? 'bg-brand text-white' : 'border border-line bg-white text-ink-muted'
+            }`}>
               4
+            </div>
+            <span className={`text-sm ${step === 4 ? 'font-bold text-brand' : 'font-medium text-ink-muted'}`}>
+              المراجعة
             </span>
-            <span>التأكيد والبدء</span>
           </div>
         </div>
 
-        {/* Content Body */}
-        <div className="p-6 overflow-y-auto flex-1 text-sm space-y-4">
+        {/* 3. MODAL BODY (Scrolls internally, 24px padding) */}
+        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4 bg-canvas">
           {error && (
-            <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl text-xs text-rose-700 dark:text-rose-300 flex items-center gap-2">
+            <div className="p-3.5 bg-danger-soft border border-danger/40 rounded-[6px] text-xs text-danger flex items-center gap-2">
               <span className="font-bold">تنبيه:</span>
               <span>{error}</span>
             </div>
@@ -996,52 +1105,50 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
           {renderStepBody()}
         </div>
 
-        {/* Footer Navigation Buttons */}
-        {!appliedStats && (
-          <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-            {step > 1 ? (
-              <button
-                type="button"
-                onClick={() => setStep((prev) => (prev - 1) as any)}
-                disabled={loading}
-                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors"
-              >
-                <ArrowRight className="w-4 h-4" />
-                <span>السابق</span>
-              </button>
-            ) : (
-              <div />
-            )}
+        {/* 4. MODAL FOOTER (72px, --surface, 1px top border) */}
+        <div className="h-[72px] bg-surface border-t border-line px-6 flex items-center justify-between shrink-0">
+          {step > 1 ? (
+            <button
+              type="button"
+              onClick={() => setStep((prev) => (prev - 1) as any)}
+              disabled={loading}
+              className="h-[44px] px-5 border border-line rounded-[6px] bg-surface text-ink text-[14px] font-medium flex items-center gap-2 hover:bg-canvas cursor-pointer transition-colors"
+            >
+              <ArrowRight className="w-4 h-4" />
+              <span>السابق</span>
+            </button>
+          ) : (
+            <div />
+          )}
 
-            {step < 4 ? (
-              <button
-                type="button"
-                onClick={() => {
-                  if (step === 2 && !storeName.trim()) {
-                    setError('اسم المحل مطلوب للمتابعة.');
-                    return;
-                  }
-                  setError(null);
-                  setStep((prev) => (prev + 1) as any);
-                }}
-                className="px-5 py-2.5 bg-[#00372d] hover:bg-[#004e40] text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors shadow-sm"
-              >
-                <span>التالي</span>
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => void handleApply()}
-                disabled={loading}
-                className="px-6 py-2.5 bg-[#006d41] hover:bg-[#005835] text-white font-extrabold rounded-xl text-xs flex items-center gap-2 transition-all shadow-md active:scale-95 disabled:opacity-50"
-              >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                <span>تجهيز النظام والبدء الآن</span>
-              </button>
-            )}
-          </div>
-        )}
+          {step < 4 ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (step === 2 && !storeName.trim()) {
+                  setError('اسم المحل مطلوب للمتابعة.');
+                  return;
+                }
+                setError(null);
+                setStep((prev) => (prev + 1) as any);
+              }}
+              className="h-[44px] px-6 bg-brand hover:bg-brand-hover text-white text-[14px] font-semibold rounded-[6px] flex items-center gap-2 cursor-pointer transition-colors shadow-sm"
+            >
+              <span>التالي</span>
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void handleApply()}
+              disabled={loading}
+              className="h-[44px] px-7 bg-paid hover:bg-paid-hover text-white text-[14px] font-bold rounded-[6px] flex items-center gap-2 cursor-pointer transition-colors shadow-sm disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 stroke-[2.5]" />}
+              <span>تجهيز النظام والبدء الآن</span>
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
