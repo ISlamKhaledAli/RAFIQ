@@ -8,10 +8,10 @@ import {
   Cpu, 
   Layers, 
   Package, 
-  ShieldCheck, 
-  ToggleLeft, 
-  ToggleRight 
+  ShieldCheck,
+  X
 } from 'lucide-react';
+import { ToggleSwitch } from '../../components/ToggleSwitch';
 import type { SystemInfo } from '../../App';
 
 interface SystemDiagnosticsTabProps {
@@ -112,13 +112,10 @@ export const SystemDiagnosticsTab = ({
                 </div>
 
                 <div className="flex justify-end pt-1 border-t border-[#dce1dc]/50">
-                  <button type="button" className="text-[#0b4f42] cursor-pointer">
-                    {isEnabled ? (
-                      <ToggleRight className="w-7 h-7 text-[#0b4f42]" />
-                    ) : (
-                      <ToggleLeft className="w-7 h-7 text-[#5b6664]/60" />
-                    )}
-                  </button>
+                  <ToggleSwitch
+                    checked={isEnabled}
+                    onChange={(next) => void toggleFlag(feat.key, next)}
+                  />
                 </div>
               </div>
             );
@@ -149,9 +146,10 @@ export const SystemDiagnosticsTab = ({
             <span>{diagnosticResult}</span>
             <button 
               onClick={() => setDiagnosticResult(null)}
-              className="text-[#5b6664] hover:text-[#14181a] text-xs mr-2 cursor-pointer font-bold"
+              className="text-[#5b6664] hover:text-[#14181a] p-1 rounded hover:bg-black/5 cursor-pointer flex items-center justify-center shrink-0 mr-2"
+              title="إغلاق"
             >
-              ✕
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
@@ -237,9 +235,10 @@ export const SystemDiagnosticsTab = ({
               <span>{supportMessage}</span>
               <button
                 onClick={() => setSupportMessage(null)}
-                className="text-[#5b6664] hover:text-[#14181a] text-xs mr-2 font-bold cursor-pointer"
+                className="text-[#5b6664] hover:text-[#14181a] p-1 rounded hover:bg-black/5 cursor-pointer flex items-center justify-center shrink-0 mr-2"
+                title="إغلاق"
               >
-                ✕
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
           )}

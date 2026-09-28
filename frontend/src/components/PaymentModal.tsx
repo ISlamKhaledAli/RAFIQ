@@ -467,7 +467,24 @@ export const PaymentModal = ({
               shortAmountPiasters={shortAmountPiasters}
               receivedPiasters={receivedPiasters}
               changeDuePiasters={changeDuePiasters}
-              onOpenQuickAddCustomer={() => setShowQuickAdd(true)}
+              currentCustomerId={currentCustomerId}
+              setCurrentCustomerId={setCurrentCustomerId}
+              localCustomers={localCustomers}
+              showQuickAdd={showQuickAdd}
+              setShowQuickAdd={setShowQuickAdd}
+              quickName={quickName}
+              setQuickName={setQuickName}
+              quickPhone={quickPhone}
+              setQuickPhone={setQuickPhone}
+              quickSaving={quickSaving}
+              duplicateQuickCustomer={duplicateQuickCustomer}
+              onSelectDuplicateCustomer={(c) => {
+                setCurrentCustomerId(c.id);
+                setShowQuickAdd(false);
+                setQuickName('');
+                setQuickPhone('');
+              }}
+              onQuickAddCustomer={handleQuickAddCustomer}
             />
           )}
 

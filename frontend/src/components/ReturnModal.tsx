@@ -10,7 +10,8 @@ import {
   ShoppingBag, 
   CreditCard,
   Banknote,
-  FileText
+  FileText,
+  AlertTriangle
 } from 'lucide-react';
 import type { Sale, Return, Product } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
@@ -516,14 +517,24 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                               <button
                                 type="button"
                                 onClick={() => toggleItemDamaged(idx)}
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors ${
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors inline-flex items-center gap-1 ${
                                   item.isDamaged
-                                    ? 'bg-rose-100 text-rose-800 border-rose-300'
-                                    : 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                    ? 'bg-[#FDF3F2] text-[#B23A2E] border-[#F6CBC6]'
+                                    : 'bg-[#EAF5EE] text-[#006D41] border-[#C4E3D0]'
                                 }`}
                                 title={item.isDamaged ? 'صنف تالف: لن يدخل المخزون الصالح' : 'سليم: سيعود للمخزون الصالح'}
                               >
-                                {item.isDamaged ? '⚠️ تالف' : '✓ سليم'}
+                                {item.isDamaged ? (
+                                  <>
+                                    <AlertTriangle className="w-3 h-3 text-[#B23A2E] shrink-0" />
+                                    <span>تالف</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check className="w-3 h-3 text-[#006D41] shrink-0" />
+                                    <span>سليم</span>
+                                  </>
+                                )}
                               </button>
                             </td>
                             <td className="px-3 text-left font-mono font-bold text-amber-700">

@@ -89,24 +89,28 @@ export const SupervisorPromptModal: React.FC<SupervisorPromptModalProps> = ({
       tabIndex={0}
     >
       <div className="bg-surface border border-line rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="bg-brand px-6 py-4 flex items-center justify-between border-b border-brand-dark">
+        {/* Sleek Top Accent Line */}
+        <div className="h-1.5 w-full bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-600" />
+
+        {/* Modern Clean Header */}
+        <div className="bg-white px-6 py-4 flex items-center justify-between border-b border-slate-100">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-white font-bold">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 text-[#006D41] flex items-center justify-center shrink-0 shadow-2xs">
+              <svg className="w-5 h-5 text-[#006D41]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
               </svg>
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white tracking-wide">موافقة مدير النظام مطلوبة</h2>
-              <p className="text-xs text-white/80">{actionTitle}</p>
+              <h2 className="text-base font-black text-slate-900 tracking-tight">موافقة مدير النظام مطلوبة</h2>
+              <p className="text-xs text-slate-500 font-medium">{actionTitle}</p>
             </div>
           </div>
           <button
             onClick={onCancel}
-            className="text-white/70 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            title="إغلاق"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -120,24 +124,22 @@ export const SupervisorPromptModal: React.FC<SupervisorPromptModalProps> = ({
             </div>
           )}
 
-          {/* Dots Display */}
+          {/* Dynamic Dots Display (4 to 8 digits) */}
           <div className="bg-surface border border-line rounded-xl p-3 flex items-center justify-center h-12 shadow-2xs">
-            <div className="flex items-center gap-3">
-              {[0, 1, 2, 3].map((idx) => (
-                <div
-                  key={idx}
-                  className={`w-3.5 h-3.5 rounded-full transition-all duration-150 ${
-                    idx < pin.length
-                      ? 'bg-paid scale-125 shadow-xs shadow-paid/50'
-                      : 'bg-line'
-                  }`}
-                />
-              ))}
-              {pin.length > 4 && (
-                <span className="text-xs text-paid font-mono font-bold mr-1">
-                  +{pin.length - 4}
-                </span>
-              )}
+            <div className="flex items-center gap-2.5" dir="ltr">
+              {Array.from({ length: Math.max(4, pin.length) }).map((_, idx) => {
+                const filled = idx < pin.length;
+                return (
+                  <div
+                    key={idx}
+                    className={`w-3.5 h-3.5 rounded-full transition-all duration-150 ${
+                      filled
+                        ? 'bg-paid scale-110 shadow-xs shadow-paid/50'
+                        : 'border-2 border-line bg-transparent'
+                    }`}
+                  />
+                );
+              })}
             </div>
           </div>
 

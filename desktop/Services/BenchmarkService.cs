@@ -132,11 +132,31 @@ namespace RafiqPOS.Services
                                 cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
                                 cmd.ExecuteNonQuery();
                             }
-                            trans.Commit();
+                             trans.Commit();
                         }
                     }
                     saleSw.Stop();
                     result.AverageSaleCommitMs = (double)saleSw.ElapsedMilliseconds / salesTestCount;
+
+                    // Automatically clean up stress test records so catalog remains clean
+                    try
+                    {
+                        using (SQLiteTransaction delTrans = conn.BeginTransaction())
+                        {
+                            using (SQLiteCommand delCmd = new SQLiteCommand(@"
+                                DELETE FROM sales WHERE id LIKE 'stress_%';
+                                DELETE FROM products WHERE id LIKE 'stress_%' OR barcode LIKE 'STRESS%';
+                            ", conn, delTrans))
+                            {
+                                delCmd.ExecuteNonQuery();
+                            }
+                            delTrans.Commit();
+                        }
+                    }
+                    catch (Exception cleanEx)
+                    {
+                        Logger.Warn("تحذير أثناء مسح سجلات اختبار الأداء: " + cleanEx.Message);
+                    }
 
                     // 4. Memory footprint
                     Process currentProc = Process.GetCurrentProcess();

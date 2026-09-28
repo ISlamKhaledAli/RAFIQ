@@ -176,13 +176,14 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                     </span>
                   )}
                   {item.isCustomQuickItem && (
-                    <span className="text-[9px] bg-[#eaf5ee] text-[#006d41] border border-[#c4e3d0] px-1.5 py-0.5 rounded-md font-bold" title="صنف مخصص">
-                      ★
+                    <span className="text-[9px] bg-[#eaf5ee] text-[#006d41] border border-[#c4e3d0] px-1.5 py-0.5 rounded-md font-bold flex items-center justify-center" title="صنف مخصص">
+                      <Star className="w-3 h-3 text-[#006d41] fill-[#006d41]" />
                     </span>
                   )}
                   {isTopSeller && activeCatalogTab === '__POPULAR__' && (
-                    <span className="text-[9px] bg-orange-100 text-orange-800 border border-orange-300 px-1.5 py-0.5 rounded-md font-bold flex items-center gap-0.5" title={`تم بيعه ${item.salesCount} مرة`}>
-                      🔥 {item.salesCount}
+                    <span className="text-[9px] bg-orange-100 text-orange-800 border border-orange-300 px-1.5 py-0.5 rounded-md font-bold flex items-center gap-1" title={`تم بيعه ${item.salesCount} مرة`}>
+                      <Flame className="w-3 h-3 text-orange-600 fill-orange-500" />
+                      <span>{item.salesCount}</span>
                     </span>
                   )}
                 </div>

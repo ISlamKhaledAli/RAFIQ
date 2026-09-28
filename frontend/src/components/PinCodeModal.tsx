@@ -418,26 +418,25 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
                   autoFocus
                 />
 
-                {/* Bullets Display */}
+                {/* Bullets Display (Dynamic 4 to 8 digits) */}
                 <div 
                   onClick={() => inputRef.current?.focus()}
                   className="flex items-center gap-2.5 px-4 py-2.5 bg-surface rounded-2xl border border-line cursor-text shadow-2xs min-w-[200px] justify-center"
+                  dir="ltr"
                 >
-                  {[0, 1, 2, 3].map((idx) => (
-                    <div
-                      key={idx}
-                      className={`w-3.5 h-3.5 rounded-full transition-all duration-200 ${
-                        idx < pin.length
-                          ? 'bg-paid scale-110 shadow-xs shadow-paid/50'
-                          : 'border-2 border-line bg-transparent'
-                      }`}
-                    />
-                  ))}
-                  {pin.length > 4 && (
-                    <span className="text-xs font-mono font-bold text-paid mr-1">
-                      +{pin.length - 4}
-                    </span>
-                  )}
+                  {Array.from({ length: Math.max(4, pin.length) }).map((_, idx) => {
+                    const filled = idx < pin.length;
+                    return (
+                      <div
+                        key={idx}
+                        className={`w-3.5 h-3.5 rounded-full transition-all duration-200 ${
+                          filled
+                            ? 'bg-paid scale-110 shadow-xs shadow-paid/50'
+                            : 'border-2 border-line bg-transparent'
+                        }`}
+                      />
+                    );
+                  })}
                 </div>
               </div>
 

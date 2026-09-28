@@ -277,11 +277,11 @@ namespace RafiqPOS.Services
             var counts = new ClearCounts();
 
             // Count items before deleting
-            using (var pCmd = new SQLiteCommand("SELECT COUNT(*) FROM products WHERE id LIKE 'demo_%';", conn, trans))
+            using (var pCmd = new SQLiteCommand("SELECT COUNT(*) FROM products WHERE id LIKE 'demo_%' OR id LIKE 'stress_%' OR barcode LIKE 'STRESS%';", conn, trans))
             {
                 counts.Products = Convert.ToInt32(pCmd.ExecuteScalar());
             }
-            using (var sCmd = new SQLiteCommand("SELECT COUNT(*) FROM sales WHERE id LIKE 'demo_%';", conn, trans))
+            using (var sCmd = new SQLiteCommand("SELECT COUNT(*) FROM sales WHERE id LIKE 'demo_%' OR id LIKE 'stress_%';", conn, trans))
             {
                 counts.Sales = Convert.ToInt32(sCmd.ExecuteScalar());
             }
@@ -290,17 +290,17 @@ namespace RafiqPOS.Services
                 counts.Customers = Convert.ToInt32(cCmd.ExecuteScalar());
             }
 
-            // Safe atomic cascaded delete strictly for demo prefixed entities (Task 113-2)
+            // Safe atomic cascaded delete strictly for demo and stress benchmark entities (Task 113-2)
             string sqlDelete = @"
-                DELETE FROM stock_movements WHERE id LIKE 'demo_%' OR product_id LIKE 'demo_%';
-                DELETE FROM product_price_history WHERE product_id LIKE 'demo_%';
-                DELETE FROM product_barcodes WHERE product_id LIKE 'demo_%';
-                DELETE FROM sale_items WHERE sale_id LIKE 'demo_%' OR product_id LIKE 'demo_%';
-                DELETE FROM sales WHERE id LIKE 'demo_%';
+                DELETE FROM stock_movements WHERE id LIKE 'demo_%' OR product_id LIKE 'demo_%' OR product_id LIKE 'stress_%';
+                DELETE FROM product_price_history WHERE product_id LIKE 'demo_%' OR product_id LIKE 'stress_%';
+                DELETE FROM product_barcodes WHERE product_id LIKE 'demo_%' OR product_id LIKE 'stress_%';
+                DELETE FROM sale_items WHERE sale_id LIKE 'demo_%' OR product_id LIKE 'demo_%' OR sale_id LIKE 'stress_%' OR product_id LIKE 'stress_%';
+                DELETE FROM sales WHERE id LIKE 'demo_%' OR id LIKE 'stress_%';
                 DELETE FROM customer_transactions WHERE customer_id LIKE 'demo_%';
                 DELETE FROM customers WHERE id LIKE 'demo_%';
-                DELETE FROM quick_items WHERE id LIKE 'demo_%';
-                DELETE FROM products WHERE id LIKE 'demo_%';
+                DELETE FROM quick_items WHERE id LIKE 'demo_%' OR product_id LIKE 'stress_%';
+                DELETE FROM products WHERE id LIKE 'demo_%' OR id LIKE 'stress_%' OR barcode LIKE 'STRESS%';
             ";
 
             using (var delCmd = new SQLiteCommand(sqlDelete, conn, trans))

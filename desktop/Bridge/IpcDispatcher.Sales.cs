@@ -40,10 +40,16 @@ namespace RafiqPOS.Bridge
                         }
                         response = BridgeResponse.Ok(request.Id, createdSale);
                     }
+                    catch (InvalidOperationException invEx)
+                    {
+                        Logger.Warn("فشل التحقق من بيع الفاتورة أو الرصيد: " + invEx.Message);
+                        response = BridgeResponse.Fail(request.Id, "SALE_VALIDATION_FAILED", invEx.Message);
+                    }
                     catch (Exception ex)
                     {
                         Logger.Error("خطأ أثناء حفظ الفاتورة في قاعدة البيانات", ex);
-                        response = BridgeResponse.Fail(request.Id, "SALE_SAVE_FAILED", "تعذر حفظ الفاتورة في قاعدة البيانات، يرجى إعادة المحاولة.");
+                        string userMsg = !string.IsNullOrWhiteSpace(ex.Message) ? ex.Message : "تعذر حفظ الفاتورة في قاعدة البيانات، يرجى إعادة المحاولة.";
+                        response = BridgeResponse.Fail(request.Id, "SALE_SAVE_FAILED", userMsg);
                     }
                     return true;
 

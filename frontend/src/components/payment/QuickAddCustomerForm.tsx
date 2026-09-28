@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Check, UserPlus, X } from 'lucide-react';
 import type { Customer } from '../../types/models';
 
 interface QuickAddCustomerFormProps {
@@ -25,72 +25,85 @@ export const QuickAddCustomerForm = ({
   onSelectDuplicateCustomer,
   onCancel,
   onSubmit,
-  compact = false,
 }: QuickAddCustomerFormProps) => {
   return (
     <form 
       onSubmit={onSubmit} 
-      className={`${compact ? 'p-2.5 bg-surface border border-line' : 'p-3 bg-brand-soft/20 border border-brand/30'} rounded-lg flex flex-col gap-2.5 animate-in fade-in`}
+      className="p-3.5 bg-emerald-50/80 border-2 border-emerald-500/40 rounded-xl flex flex-col gap-3 shadow-xs animate-in fade-in"
     >
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-bold text-ink">إضافة عميل سريع (في أقل من 10 ثوانٍ):</span>
-        <span className="text-[10px] text-ink-muted">سيتم تسجيله واختياره مباشرة</span>
+      <div className="flex items-center justify-between border-b border-emerald-200/80 pb-2">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-md bg-emerald-600 text-white flex items-center justify-center shrink-0">
+            <UserPlus className="w-3.5 h-3.5" />
+          </div>
+          <span className="text-xs font-bold text-emerald-950">إضافة عميل جديد سريع (خلال ثوانٍ):</span>
+        </div>
+        <span className="text-[11px] text-emerald-800 font-semibold bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300/60">
+          سيتم حفظه واختياره فوراً
+        </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-[11px] font-semibold text-ink mb-1">اسم العميل *</label>
+          <label className="block text-xs font-bold text-slate-800 mb-1">
+            اسم العميل <span className="text-rose-600">*</span>
+          </label>
           <input
             type="text"
             required
+            autoFocus
             value={quickName}
             onChange={(e) => setQuickName(e.target.value)}
-            placeholder="اسم العميل"
-            className="w-full h-8 px-2.5 bg-canvas border border-line rounded text-xs text-ink focus:outline-none focus:border-brand"
+            placeholder="أدخل اسم العميل بالكامل"
+            className="w-full h-9 px-3 bg-white border-2 border-slate-300 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 rounded-lg text-xs font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal shadow-2xs transition-colors"
           />
         </div>
         <div>
-          <label className="block text-[11px] font-semibold text-ink mb-1">رقم الهاتف</label>
+          <label className="block text-xs font-bold text-slate-800 mb-1">
+            رقم الهاتف <span className="text-slate-500 font-normal">(اختياري)</span>
+          </label>
           <input
             type="text"
             value={quickPhone}
             onChange={(e) => setQuickPhone(e.target.value)}
-            placeholder="010..."
-            className="w-full h-8 px-2.5 bg-canvas border border-line rounded text-xs text-ink font-mono focus:outline-none focus:border-brand"
+            placeholder="مثال: 01012345678"
+            className="w-full h-9 px-3 bg-white border-2 border-slate-300 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 rounded-lg text-xs font-bold text-slate-900 font-mono placeholder:text-slate-400 placeholder:font-normal shadow-2xs transition-colors dir-ltr text-right"
           />
         </div>
       </div>
 
       {duplicateQuickCustomer && (
-        <div className="p-2 rounded bg-amber-500/15 border border-amber-400/40 text-amber-900 dark:text-amber-200 text-[11px] flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-            <span>هذا الرقم مسجل بالفعل للعميل: <strong>{duplicateQuickCustomer.name}</strong></span>
+        <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center justify-between gap-2 shadow-2xs">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span className="truncate">هذا الرقم مسجل بالفعل للعميل: <strong>{duplicateQuickCustomer.name}</strong></span>
           </div>
           <button
             type="button"
             onClick={() => onSelectDuplicateCustomer(duplicateQuickCustomer)}
-            className="px-2 py-0.5 rounded bg-brand text-white font-bold text-[10px] hover:bg-brand-hover cursor-pointer"
+            className="px-3 py-1 rounded-md bg-[#006D41] hover:bg-[#005a36] text-white font-bold text-xs shrink-0 cursor-pointer shadow-2xs"
           >
             اختيار هذا العميل
           </button>
         </div>
       )}
 
-      <div className="flex justify-end gap-2 pt-1">
+      <div className="flex items-center justify-end gap-2.5 pt-1 border-t border-emerald-200/60">
         <button
           type="button"
           onClick={onCancel}
-          className="px-3 py-1 rounded bg-surface border border-line text-xs font-semibold hover:bg-surface-2 text-ink cursor-pointer"
+          className="h-8 px-4 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
         >
-          إلغاء
+          <X className="w-3.5 h-3.5" />
+          <span>إلغاء</span>
         </button>
         <button
           type="submit"
           disabled={!quickName.trim() || quickSaving}
-          className="px-4 py-1 rounded bg-brand text-white text-xs font-bold hover:bg-brand-hover disabled:opacity-50 cursor-pointer"
+          className="h-8 px-5 rounded-lg bg-[#006D41] hover:bg-[#005a36] text-white text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
         >
-          {quickSaving ? 'جاري الحفظ...' : 'حفظ واختيار العميل'}
+          <Check className="w-3.5 h-3.5" />
+          <span>{quickSaving ? 'جاري الحفظ...' : 'حفظ واختيار العميل'}</span>
         </button>
       </div>
     </form>

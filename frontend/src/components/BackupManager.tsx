@@ -11,7 +11,8 @@ import {
   Save, 
   FolderCheck,
   AlertCircle,
-  RotateCcw
+  RotateCcw,
+  X
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { DatabaseRecoveryModal } from './DatabaseRecoveryModal';
@@ -289,9 +290,10 @@ export const BackupManager = () => {
           </div>
           <button 
             onClick={() => setActionMessage(null)}
-            className="text-xs opacity-60 hover:opacity-100 mr-2"
+            className="text-xs opacity-60 hover:opacity-100 mr-2 p-1 rounded hover:bg-black/5 cursor-pointer"
+            title="إغلاق"
           >
-            ✕
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}

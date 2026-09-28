@@ -17,6 +17,7 @@ export interface ProductsTableProps {
   onToggleSelectAll: (filteredProds: Product[]) => void;
   onToggleSelectProduct: (id: string) => void;
   onOpenBulkMinStockModal: () => void;
+  onBulkDelete?: () => void;
   onClearSelection: () => void;
   onSelectProdForMovements: (prod: Product) => void;
   onSelectProdForAdjustment: (prod: Product) => void;
@@ -32,6 +33,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
   onToggleSelectAll,
   onToggleSelectProduct,
   onOpenBulkMinStockModal,
+  onBulkDelete,
   onClearSelection,
   onSelectProdForMovements,
   onSelectProdForAdjustment,
@@ -270,6 +272,16 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
           >
             <span>تعديل حد الطلب جماعياً</span>
           </button>
+          {onBulkDelete && (
+            <button
+              type="button"
+              onClick={onBulkDelete}
+              className="px-3.5 py-1 bg-[#b23a2e] hover:bg-[#962e24] text-white rounded-full text-[11.5px] font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>حذف الأصناف المحددة ({selectedProductIds.length})</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={onClearSelection}

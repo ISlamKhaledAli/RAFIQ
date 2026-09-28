@@ -47,7 +47,7 @@ export const DemoDataTab = ({
             className="h-10 px-4 bg-[#0b4f42] hover:bg-[#0f6a57] text-white rounded-lg font-bold text-xs flex items-center gap-2 transition-colors shadow-xs cursor-pointer"
           >
             <FlaskConical className="w-4 h-4" />
-            <span>{demoStatus?.hasDemoData ? 'إدارة ومسح البيانات التجريبية' : 'تحميل بيانات تجريبية'}</span>
+            <span>{demoStatus?.hasDemoData ? 'مسح وإدارة البيانات التجريبية' : 'إدارة ومسح البيانات التجريبية'}</span>
           </button>
         </div>
       </div>
@@ -80,19 +80,30 @@ export const DemoDataTab = ({
       </div>
 
       {/* Isolation & Safety Invariant (Task 113-2 & 113-5) */}
-      <div className="p-4 bg-[#eaf5ee] border border-[#c4e3d0] rounded-lg flex items-start gap-3 shadow-2xs">
-        <div className="w-8 h-8 rounded-lg bg-white border border-[#c4e3d0] flex items-center justify-center shrink-0 mt-0.5">
-          <ShieldCheck className="w-5 h-5 text-[#006d41]" />
+      <div className="p-4 bg-[#eaf5ee] border border-[#c4e3d0] rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-2xs">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 rounded-lg bg-white border border-[#c4e3d0] flex items-center justify-center shrink-0 mt-0.5">
+            <ShieldCheck className="w-5 h-5 text-[#006d41]" />
+          </div>
+          <div className="text-xs space-y-1">
+            <span className="font-bold text-[#00372d] text-xs block">
+              ضمان الأمان والعزل الكامل (Data Isolation Invariant):
+            </span>
+            <p className="text-[#14181a] leading-relaxed m-0 text-xs">
+              جميع الكيانات التجريبية تُميّز بمعرف خاص يبدأ بـ <code className="font-mono bg-white border border-[#c4e3d0] px-1.5 py-0.5 rounded text-[#00372d] font-bold text-xs">demo_</code>.
+              عند طلب مسح البيانات التجريبية، ينفذ النظام مسحاً ذرياً محصوراً في تلك السجلات فقط، وتبقى كافة فواتير وأصناف المحل الحقيقية سليمة ومحفوظة بنسبة 100%.
+            </p>
+          </div>
         </div>
-        <div className="text-xs space-y-1.5 flex-1">
-          <span className="font-bold text-[#00372d] text-xs block">
-            ضمان الأمان والعزل الكامل (Data Isolation Invariant):
-          </span>
-          <p className="text-[#14181a] leading-relaxed m-0 text-xs">
-            جميع الكيانات التجريبية تُميّز بمعرف خاص يبدأ بـ <code className="font-mono bg-white border border-[#c4e3d0] px-1.5 py-0.5 rounded text-[#00372d] font-bold text-xs">demo_</code>.
-            عند طلب مسح البيانات التجريبية، ينفذ النظام مسحاً ذرياً محصوراً في تلك السجلات فقط، وتبقى كافة فواتير وأصناف المحل الحقيقية سليمة ومحفوظة بنسبة 100%.
-          </p>
-        </div>
+
+        <button
+          type="button"
+          onClick={onOpenDemoModal}
+          className="shrink-0 h-9 px-3.5 bg-[#006d41] hover:bg-[#005231] text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer self-start sm:self-auto"
+        >
+          <FlaskConical className="w-3.5 h-3.5" />
+          <span>{demoStatus?.hasDemoData ? 'مسح البيانات التجريبية الآن' : 'إدارة البيانات التجريبية'}</span>
+        </button>
       </div>
     </div>
   );

@@ -9,7 +9,8 @@ import {
   FileArchive,
   RefreshCw,
   FolderOpen,
-  Lock
+  Lock,
+  X
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 
@@ -119,9 +120,10 @@ export const DatabaseRecoveryModal = ({
           {!status.isCorrupt && onDismiss && (
             <button
               onClick={onDismiss}
-              className="text-white/80 hover:text-white text-xs px-2 py-1 rounded hover:bg-white/10"
+              className="text-white/80 hover:text-white text-xs px-2.5 py-1 rounded hover:bg-white/10 flex items-center gap-1 cursor-pointer"
             >
-              ✕ إغلاق
+              <X className="w-3.5 h-3.5" />
+              <span>إغلاق</span>
             </button>
           )}
         </div>

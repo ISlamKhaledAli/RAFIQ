@@ -3,11 +3,10 @@ import {
   Cpu, 
   Zap, 
   CheckCircle, 
-  Save, 
-  ToggleLeft, 
-  ToggleRight 
+  Save
 } from 'lucide-react';
 import { CustomSelect } from '../../components/CustomSelect';
+import { ToggleSwitch } from '../../components/ToggleSwitch';
 
 interface PrinterSettingsTabProps {
   printersList: { name: string; isDefault: boolean; isOnline: boolean }[];
@@ -175,9 +174,13 @@ export const PrinterSettingsTab = ({
                 إرسال أمر الطباعة تلقائياً للطابعة الافتراضية فور ضغط Enter على تأكيد الدفع دون الحاجة لفتح المعاينة
               </span>
             </div>
-            <button type="button" className="text-[#0b4f42] shrink-0 cursor-pointer">
-              {autoPrintOnSale ? <ToggleRight className="w-8 h-8 text-[#0b4f42]" /> : <ToggleLeft className="w-8 h-8 text-[#5b6664]/60" />}
-            </button>
+            <ToggleSwitch
+              checked={autoPrintOnSale}
+              onChange={(next) => {
+                setAutoPrintOnSale(next);
+                if (onToggleAutoPrint) onToggleAutoPrint(next);
+              }}
+            />
           </div>
 
           <div 
@@ -196,9 +199,13 @@ export const PrinterSettingsTab = ({
                 إرسال نبضة فتح الدرج (ESC/POS Pulse) مع كل عملية بيع نقدي
               </span>
             </div>
-            <button type="button" className="text-[#0b4f42] shrink-0 cursor-pointer">
-              {openDrawerOnSale ? <ToggleRight className="w-8 h-8 text-[#0b4f42]" /> : <ToggleLeft className="w-8 h-8 text-[#5b6664]/60" />}
-            </button>
+            <ToggleSwitch
+              checked={openDrawerOnSale}
+              onChange={(next) => {
+                setOpenDrawerOnSale(next);
+                if (onToggleOpenDrawer) onToggleOpenDrawer(next);
+              }}
+            />
           </div>
 
           <button

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Tag, Banknote, Percent, X } from 'lucide-react';
+import { Tag, Banknote, Percent, X, AlertTriangle } from 'lucide-react';
 import { 
   formatArabicCurrency, 
   normalizeArabicNumerals, 
@@ -177,8 +177,11 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
           {/* Supervisor Warning */}
           {reqSup && piastersVal > 0 && (
             <div className="mb-3 p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-800 dark:text-amber-200 text-xs flex items-center justify-between">
-              <span>⚠️ الخصم يتجاوز صلاحية الكاشير (أقصى حد {maxDiscountPercentCashier}% أو {formatArabicCurrency(maxDiscountAmountCashierPiasters)})</span>
-              <span className="font-bold">مطلوب موافقة المشرف</span>
+              <span className="flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>الخصم يتجاوز صلاحية الكاشير (أقصى حد {maxDiscountPercentCashier}% أو {formatArabicCurrency(maxDiscountAmountCashierPiasters)})</span>
+              </span>
+              <span className="font-bold whitespace-nowrap mr-2">مطلوب موافقة المشرف</span>
             </div>
           )}
 

@@ -9,8 +9,10 @@ import {
   Sparkles, 
   Check,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  AlertTriangle
 } from 'lucide-react';
+import { ToggleSwitch } from './ToggleSwitch';
 import type { ProductUnit } from '../types/models';
 import { MoneyInput } from './MoneyInput';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../utils/money';
@@ -244,43 +246,15 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
         </div>
 
         {/* Toggle Switch */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <span style={{
-            fontSize: 12,
-            fontWeight: 'bold',
-            padding: '4px 10px',
-            borderRadius: 4,
-            backgroundColor: isEnabled ? '#006D41' : '#E2E8F0',
-            color: isEnabled ? '#FFFFFF' : '#475569',
-            border: isEnabled ? 'none' : '1px solid #CBD5E1'
-          }}>
-            {isEnabled ? 'مُفعّل ✓' : 'معطّل ✕'}
-          </span>
-          {/* Custom SVG Toggle Switch */}
-          <div style={{
-            width: 44,
-            height: 24,
-            borderRadius: 12,
-            backgroundColor: isEnabled ? '#006D41' : '#CBD5E1',
-            position: 'relative',
-            cursor: 'pointer'
-          }}>
-            <div style={{
-              width: 18,
-              height: 18,
-              borderRadius: '50%',
-              backgroundColor: '#FFFFFF',
-              position: 'absolute',
-              top: 3,
-              left: isEnabled ? 23 : 3,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-              transition: 'left 0.2s'
-            }} />
-          </div>
+        <div className="flex items-center gap-2.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+          <ToggleSwitch
+            checked={isEnabled}
+            onChange={handleToggleEnabled}
+          />
           {isEnabled ? (
-            <ChevronUp style={{ width: 16, height: 16, color: '#006D41' }} />
+            <ChevronUp className="w-4 h-4 text-[#006D41]" />
           ) : (
-            <ChevronDown style={{ width: 16, height: 16, color: '#64748B' }} />
+            <ChevronDown className="w-4 h-4 text-[#64748B]" />
           )}
         </div>
       </div>
@@ -459,8 +433,9 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
                     )}
                     <span className="text-ink-muted">•</span>
                     {isLoss ? (
-                      <span className="text-danger font-bold">
-                        ⚠️ بيع بخسارة ({formatArabicCurrency(profitPiasters)})
+                      <span className="text-danger font-bold flex items-center gap-1">
+                        <AlertTriangle className="w-3.5 h-3.5 text-danger shrink-0" />
+                        <span>بيع بخسارة ({formatArabicCurrency(profitPiasters)})</span>
                       </span>
                     ) : (
                       <span className="text-brand font-bold flex items-center gap-1 font-mono">

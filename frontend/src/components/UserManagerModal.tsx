@@ -236,31 +236,34 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
       dir="rtl"
     >
-      <div className="bg-surface border border-line rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="bg-brand px-6 py-4 flex items-center justify-between border-b border-brand-dark">
+      <div className="bg-surface border border-line rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh]">
+        {/* Sleek Top Accent Line */}
+        <div className="h-1.5 w-full bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-600" />
+
+        {/* Modern Clean Header */}
+        <div className="bg-white px-6 py-4 flex items-center justify-between border-b border-slate-200/80">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-white font-bold">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 text-[#006D41] flex items-center justify-center shrink-0 shadow-2xs">
+              <svg className="w-5 h-5 text-[#006D41]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold text-white tracking-wide">إدارة حسابات الموظفين ونقاط البيع</h2>
-                <span className="bg-white/10 text-white text-[11px] px-2.5 py-0.5 rounded-full font-bold border border-white/20">
+                <h2 className="text-lg font-black text-slate-900 tracking-tight">إدارة حسابات الموظفين ونقاط البيع</h2>
+                <span className="bg-emerald-50 text-[#006D41] text-[11px] px-2.5 py-0.5 rounded-full font-bold border border-emerald-200 shadow-2xs">
                   صلاحيات مدير النظام
                 </span>
               </div>
-              <p className="text-xs text-white/80">إضافة وتعديل الكاشيرات، وتعيين الأرقام السرية بصلاحيات محمية</p>
+              <p className="text-xs text-slate-500 font-medium">إضافة وتعديل الكاشيرات، وتعيين الأرقام السرية بصلاحيات محمية</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-white/70 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
             title="إغلاق"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -312,27 +315,27 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
 
               {/* Table */}
               <div className="overflow-x-auto rounded-xl border border-line bg-surface">
-                <table className="w-full text-right text-sm">
-                  <thead className="bg-surface-2 text-ink-muted text-xs uppercase border-b border-line">
+                <table className="w-full text-right text-sm whitespace-nowrap">
+                  <thead className="bg-surface-2 text-ink-muted text-xs uppercase border-b border-line whitespace-nowrap">
                     <tr>
-                      <th className="px-4 py-3">الموظف</th>
-                      <th className="px-4 py-3">اسم الدخول</th>
-                      <th className="px-4 py-3">الدور / الصلاحية</th>
-                      <th className="px-4 py-3">الحالة</th>
-                      <th className="px-4 py-3">آخر تسجيل دخول</th>
-                      <th className="px-4 py-3 text-center">الإجراءات</th>
+                      <th className="px-4 py-3 whitespace-nowrap">الموظف</th>
+                      <th className="px-4 py-3 whitespace-nowrap">اسم الدخول</th>
+                      <th className="px-4 py-3 whitespace-nowrap">الدور / الصلاحية</th>
+                      <th className="px-4 py-3 whitespace-nowrap">الحالة</th>
+                      <th className="px-4 py-3 whitespace-nowrap">آخر تسجيل دخول</th>
+                      <th className="px-4 py-3 text-center whitespace-nowrap">الإجراءات</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-line">
+                  <tbody className="divide-y divide-line whitespace-nowrap">
                     {loading && users.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="text-center py-8 text-ink-muted">
+                        <td colSpan={6} className="text-center py-8 text-ink-muted whitespace-nowrap">
                           جاري تحميل الموظفين...
                         </td>
                       </tr>
                     ) : users.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="text-center py-8 text-ink-muted">
+                        <td colSpan={6} className="text-center py-8 text-ink-muted whitespace-nowrap">
                           لا يوجد موظفون مسجلون.
                         </td>
                       </tr>
@@ -341,28 +344,30 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                         const isAdmin = u.role === 'admin';
                         const isSelf = currentUser?.id === u.id;
                         return (
-                          <tr key={u.id} className="hover:bg-surface-2 transition-colors">
-                            <td className="px-4 py-3 font-bold text-ink flex items-center gap-2.5">
-                              <div
-                                className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs ${
-                                  isAdmin
-                                    ? 'bg-warn-soft text-warn border border-warn-border'
-                                    : 'bg-paid-soft text-paid border border-paid-border'
-                                }`}
-                              >
-                                {u.displayName.slice(0, 1)}
-                              </div>
-                              <div className="flex flex-col">
-                                <span>{u.displayName}</span>
-                                {isSelf && (
-                                  <span className="text-[10px] text-paid font-normal">(حسابك الحالي)</span>
-                                )}
+                          <tr key={u.id} className="hover:bg-surface-2 transition-colors whitespace-nowrap">
+                            <td className="px-4 py-3 font-bold text-ink whitespace-nowrap">
+                              <div className="flex items-center gap-2.5">
+                                <div
+                                  className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+                                    isAdmin
+                                      ? 'bg-warn-soft text-warn border border-warn-border'
+                                      : 'bg-paid-soft text-paid border border-paid-border'
+                                  }`}
+                                >
+                                  {u.displayName.slice(0, 1)}
+                                </div>
+                                <div className="flex flex-col whitespace-nowrap">
+                                  <span className="whitespace-nowrap">{u.displayName}</span>
+                                  {isSelf && (
+                                    <span className="text-[10px] text-paid font-normal whitespace-nowrap">(حسابك الحالي)</span>
+                                  )}
+                                </div>
                               </div>
                             </td>
-                            <td className="px-4 py-3 font-mono text-ink-muted text-xs">@{u.username}</td>
-                            <td className="px-4 py-3">
+                            <td className="px-4 py-3 font-mono text-ink-muted text-xs whitespace-nowrap">@{u.username}</td>
+                            <td className="px-4 py-3 whitespace-nowrap">
                               <span
-                                className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                                className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${
                                   isAdmin
                                     ? 'bg-warn-soft text-warn border border-warn-border'
                                     : 'bg-paid-soft text-paid border border-paid-border'
@@ -371,34 +376,34 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                                 {isAdmin ? 'مدير نظام (كامل الصلاحيات)' : 'كاشير (نقطة البيع)'}
                               </span>
                             </td>
-                            <td className="px-4 py-3">
+                            <td className="px-4 py-3 whitespace-nowrap">
                               <span
-                                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${
                                   u.isActive
                                     ? 'bg-paid-soft text-paid border border-paid-border'
                                     : 'bg-danger-soft text-danger border border-danger-border'
                                 }`}
                               >
-                                <span className={`w-1.5 h-1.5 rounded-full ${u.isActive ? 'bg-paid' : 'bg-danger'}`} />
-                                {u.isActive ? 'نشط' : 'معطّل'}
+                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${u.isActive ? 'bg-paid' : 'bg-danger'}`} />
+                                <span className="whitespace-nowrap">{u.isActive ? 'نشط' : 'معطّل'}</span>
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-ink-muted text-xs font-mono">
+                            <td className="px-4 py-3 text-ink-muted text-xs font-mono whitespace-nowrap">
                               {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString('ar-EG-u-nu-latn') : 'لم يدخل بعد'}
                             </td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center justify-center gap-2">
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="flex items-center justify-center gap-2 whitespace-nowrap">
                                 <button
                                   type="button"
                                   onClick={() => handleStartEdit(u)}
-                                  className="px-2.5 py-1 bg-surface hover:bg-surface-2 text-ink rounded-lg text-xs font-medium border border-line transition-colors"
+                                  className="px-2.5 py-1 bg-surface hover:bg-surface-2 text-ink rounded-lg text-xs font-medium border border-line transition-colors whitespace-nowrap shrink-0"
                                 >
                                   تعديل
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => handleStartResetPin(u)}
-                                  className={`px-2.5 py-1 rounded-lg text-xs font-medium border border-line transition-colors ${
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-medium border border-line transition-colors whitespace-nowrap shrink-0 ${
                                     isAdmin
                                       ? 'bg-warn-soft hover:bg-warn-soft/80 text-warn border-warn-border'
                                       : 'bg-surface hover:bg-surface-2 text-brand border-line'
@@ -411,7 +416,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => handleToggleStatus(u)}
-                                    className={`px-2 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                                    className={`px-2 py-1 rounded-lg text-xs font-medium border transition-colors whitespace-nowrap shrink-0 ${
                                       u.isActive
                                         ? 'bg-danger-soft hover:bg-danger-soft/80 text-danger border-danger-border'
                                         : 'bg-paid-soft hover:bg-paid-soft/80 text-paid border-paid-border'
@@ -421,7 +426,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                                     {u.isActive ? 'تعطيل' : 'تفعيل'}
                                   </button>
                                 ) : (
-                                  <span className="text-[10px] text-ink-muted px-1.5 py-1">محمي</span>
+                                  <span className="text-[10px] text-ink-muted px-1.5 py-1 whitespace-nowrap">محمي</span>
                                 )}
                               </div>
                             </td>

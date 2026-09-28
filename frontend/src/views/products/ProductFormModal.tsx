@@ -265,10 +265,10 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       <button
                         type="button"
                         onClick={() => onRemoveBarcode(idx)}
-                        className="text-ink-muted hover:text-danger hover:bg-danger-soft rounded p-0.5"
+                        className="text-ink-muted hover:text-danger hover:bg-danger-soft rounded p-0.5 cursor-pointer"
                         title="حذف هذا الباركود"
                       >
-                        ✕
+                        <X className="w-3 h-3" />
                       </button>
                     </span>
                   ))}

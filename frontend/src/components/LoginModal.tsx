@@ -3,6 +3,7 @@ import { invoke } from '../bridge/ipc';
 import type { UserDto, LoginResult } from '../bridge/ipc';
 import { UserManagerModal } from './UserManagerModal';
 import { SupervisorPromptModal } from './SupervisorPromptModal';
+import { ShieldCheck, Keyboard } from 'lucide-react';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -173,26 +174,29 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       tabIndex={0}
     >
       <div className="bg-surface border border-line rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="bg-brand px-6 py-4 flex items-center justify-between border-b border-brand-dark">
+        {/* Sleek Top Accent Line */}
+        <div className="h-1.5 w-full bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-600" />
+
+        {/* Modern Clean Header */}
+        <div className="bg-white px-6 py-4 flex items-center justify-between border-b border-slate-200/80">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-white font-black">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 text-[#006D41] flex items-center justify-center shrink-0 shadow-2xs">
+              <svg className="w-5 h-5 text-[#006D41]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white tracking-wide">تسجيل دخول الموظف</h2>
-              <p className="text-xs text-white/80">اختر حسابك وأدخل الرقم السري لبدء العمل</p>
+              <h2 className="text-lg font-black text-slate-900 tracking-tight">تسجيل دخول الموظف</h2>
+              <p className="text-xs text-slate-500 font-medium">اختر حسابك وأدخل الرقم السري لبدء العمل</p>
             </div>
           </div>
           {canCancel && onClose && (
             <button
               onClick={onClose}
-              className="text-white/70 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
               title="إغلاق"
             >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
@@ -303,25 +307,20 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     <span>الحساب مقفل: انتظر {lockoutSec} ثانية</span>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-3">
-                    {[0, 1, 2, 3].map((idx) => {
+                  <div className="flex items-center gap-2.5" dir="ltr">
+                    {Array.from({ length: Math.max(4, pin.length) }).map((_, idx) => {
                       const filled = idx < pin.length;
                       return (
                         <div
                           key={idx}
                           className={`w-3.5 h-3.5 rounded-full transition-all duration-150 ${
                             filled
-                              ? 'bg-paid scale-125 shadow-xs shadow-paid/50'
-                              : 'bg-line'
+                              ? 'bg-paid scale-110 shadow-xs shadow-paid/50'
+                              : 'border-2 border-line bg-transparent'
                           }`}
                         />
                       );
                     })}
-                    {pin.length > 4 && (
-                      <span className="text-xs text-paid font-mono font-bold mr-1">
-                        +{pin.length - 4}
-                      </span>
-                    )}
                   </div>
                 )}
               </div>
@@ -405,9 +404,15 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         </div>
 
         {/* Footer Guidance */}
-        <div className="px-6 py-2.5 bg-surface-2 border-t border-line flex items-center justify-between text-xs text-ink-muted">
-          <span>الافتراضي: المدير (1234) — الكاشير (0000)</span>
-          <span>يدعم لوحة الأرقام المادية (Numpad) وزر Enter</span>
+        <div className="px-6 py-3 bg-slate-50 border-t border-slate-200/80 flex items-center justify-between text-xs text-slate-500">
+          <div className="flex items-center gap-1.5 font-medium text-emerald-800">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>تسجيل دخول مشفر ومحمي بنظام الصلاحيات</span>
+          </div>
+          <div className="flex items-center gap-1.5 font-medium text-slate-500">
+            <Keyboard className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span>يدعم لوحة الأرقام (Numpad) وزر Enter</span>
+          </div>
         </div>
       </div>
 

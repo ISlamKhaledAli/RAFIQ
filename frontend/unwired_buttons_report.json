@@ -1,0 +1,2352 @@
+{
+  "backendMethodsCount": 145,
+  "backendMethods": [
+    "ADJUSTMENT",
+    "INITIAL",
+    "PURCHASE",
+    "RETURN",
+    "SALE",
+    "audit:create",
+    "audit:getLogs",
+    "audit:list",
+    "audit:resealChain",
+    "audit:verifyChain",
+    "auditLogs:create",
+    "auth:getActiveUsers",
+    "auth:getCurrentUser",
+    "auth:login",
+    "auth:logout",
+    "auth:verifySupervisor",
+    "backup:configure",
+    "backup:create",
+    "backup:getDrives",
+    "backup:getStatus",
+    "backup:verify",
+    "benchmark:run",
+    "categories:archive",
+    "categories:getAll",
+    "categories:reorder",
+    "categories:save",
+    "cost_update",
+    "counters:getNextExpectedInvoiceNumber",
+    "customers:cancelPayment",
+    "customers:checkPhone",
+    "customers:getAll",
+    "customers:getDetailedStatement",
+    "customers:getStatement",
+    "customers:recalculateBalance",
+    "customers:recordPayment",
+    "customers:runTests",
+    "customers:save",
+    "customers:search",
+    "customers:verifyBalance",
+    "database:checkIntegrity",
+    "database:restore",
+    "db:testTransaction",
+    "debt_payment",
+    "demo:clear",
+    "demo:getStatus",
+    "demo:load",
+    "excel:exportProducts",
+    "excel:getCustomerTemplate",
+    "excel:getTemplate",
+    "excel:importCustomers",
+    "excel:previewCustomerImport",
+    "features:getAll",
+    "features:set",
+    "health:getStatus",
+    "inventory:adjustStock",
+    "inventory:getDiscrepancies",
+    "inventory:getMovements",
+    "inventory:recalculate",
+    "inventory:runTests",
+    "license:activate",
+    "license:checkExpiry",
+    "license:getInfo",
+    "license:runTests",
+    "license:verify",
+    "price_update",
+    "printer:getList",
+    "printer:list",
+    "printer:printReceipt",
+    "printer:test",
+    "printer:testPrint",
+    "productUnits:calculateProfit",
+    "productUnits:delete",
+    "productUnits:getByProduct",
+    "productUnits:save",
+    "productUnits:setBase",
+    "product_create",
+    "product_delete",
+    "products:bulkUpdateMinStock",
+    "products:delete",
+    "products:getAll",
+    "products:getPriceHistory",
+    "products:getSmartCatalog",
+    "products:importBatch",
+    "products:save",
+    "products:search",
+    "quickItems:delete",
+    "quickItems:deleteCategory",
+    "quickItems:getAll",
+    "quickItems:renameCategory",
+    "quickItems:reorder",
+    "quickItems:save",
+    "readiness:getStatus",
+    "readiness:processTestSale",
+    "reports:getTodaySummary",
+    "returns:create",
+    "returns:getById",
+    "returns:getForSale",
+    "returns:getRecent",
+    "returns:printReceipt",
+    "sale_create",
+    "sale_void",
+    "sales:cancel",
+    "sales:cleanupHeld",
+    "sales:create",
+    "sales:deleteHeld",
+    "sales:getById",
+    "sales:getByInvoiceNumber",
+    "sales:getHeld",
+    "sales:getRecent",
+    "sales:hold",
+    "sales:recallHeld",
+    "sales:search",
+    "search:runBenchmark",
+    "security:disablePin",
+    "security:enablePin",
+    "security:getDeviceFingerprint",
+    "security:getStatus",
+    "security:resetWithRecovery",
+    "security:runTests",
+    "security:saveProtectedActions",
+    "security:setIdleTimeout",
+    "security:setPin",
+    "security:verifyPin",
+    "settings:getAll",
+    "settings:save",
+    "settings_update",
+    "stock_adjust",
+    "support:createBundle",
+    "support:getSystemInfo",
+    "system:checkClock",
+    "system:factoryReset",
+    "system:getInfo",
+    "system:ping",
+    "templates:apply",
+    "templates:getAll",
+    "templates:isFirstRunNeeded",
+    "tests:runSalesCompletionTests",
+    "users:changePin",
+    "users:create",
+    "users:getAll",
+    "users:update",
+    "window:close",
+    "window:isFullscreen",
+    "window:minimize",
+    "window:toggleFullscreen"
+  ],
+  "disconnectedButtons": [
+    {
+      "file": "src/App.tsx",
+      "line": 536,
+      "text": "setIsLoginModalOpen(true)}\r\n            className=\"flex items-center gap-1.5 bg-",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/App.tsx",
+      "line": 558,
+      "text": "setIsUserManagerOpen(true)}\r\n              className=\"flex items-center gap-1.5 ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/App.tsx",
+      "line": 574,
+      "text": "setIsReadinessOpen(true)}\r\n              className=\"flex items-center gap-1.5 h-",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/App.tsx",
+      "line": 620,
+      "text": "setClockWarning(null)} \r\n            className=\"text-white hover:bg-black/20 tex",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/App.tsx",
+      "line": 640,
+      "text": "setIsLicenseModalOpen(true)}\r\n              className=\"bg-amber-950 hover:bg-bla",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/App.tsx",
+      "line": 659,
+      "text": "setIsLockScreenOpen(true)}\r\n              className=\"bg-white text-amber-900 hov",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/App.tsx",
+      "line": 678,
+      "text": "{\r\n                setActiveTab('settings');\r\n                setSettingsSubTab(",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/App.tsx",
+      "line": 689,
+      "text": "setBackupWarning(null)} \r\n              className=\"text-white/80 hover:bg-white/",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/App.tsx",
+      "line": 708,
+      "text": "setIsTourOpen(true)}\r\n              className=\"bg-white/90 hover:bg-white text-a",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/App.tsx",
+      "line": 716,
+      "text": "{\r\n                  setActiveTab('settings');\r\n                  setSettingsSub",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/App.tsx",
+      "line": 749,
+      "text": "{\r\n                setIsSidebarCollapsed((prev) => {\r\n                  const ne",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/App.tsx",
+      "line": 783,
+      "text": "{\r\n                      handleNavClick(item.id, () => {\r\n                      ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/App.tsx",
+      "line": 810,
+      "text": "{\r\n                      if (isProductsItem) {\r\n                        if (effe",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/App.tsx",
+      "line": 865,
+      "text": "{\r\n                          setActiveTab('products');\r\n                        ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/App.tsx",
+      "line": 883,
+      "text": "{\r\n                          setActiveTab('products');\r\n                        ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/App.tsx",
+      "line": 910,
+      "text": "{\r\n                              setActiveTab('settings');\r\n                    ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/App.tsx",
+      "line": 943,
+      "text": "void handleExitApp()}\r\n              title=\"إغلاق البرنامج والخروج بأمان\"\r\n     ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\BackupManager.tsx",
+      "line": 261,
+      "text": "void handleCreateBackup()}\r\n            disabled={loading}\r\n            classNam",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\BackupManager.tsx",
+      "line": 290,
+      "text": "setActionMessage(null)}\r\n            className=\"text-xs opacity-60 hover:opacity",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\BackupManager.tsx",
+      "line": 313,
+      "text": "{\r\n                void fetchBackupStatus();\r\n                void fetchDrives()",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\BackupManager.tsx",
+      "line": 325,
+      "text": "void handleCreateBackup()}\r\n              disabled={loading}\r\n              clas",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\BackupManager.tsx",
+      "line": 417,
+      "text": "setTargetFolder(`${d.name}RafiqBackups`)}\r\n                className={`p-2.5 rou",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\BackupManager.tsx",
+      "line": 463,
+      "text": "setTargetFolder(status?.configuredFolder || '')}\r\n              className=\"px-3 ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\BackupManager.tsx",
+      "line": 541,
+      "text": "void handleSavePolicy()}\r\n          className=\"self-end mt-1 px-4 h-[36px] bg-br",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\BackupManager.tsx",
+      "line": 589,
+      "text": "{\r\n                            try {\r\n                              const res: a",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\BackupManager.tsx",
+      "line": 610,
+      "text": "setRestoreTarget(bk)}\r\n                          className=\"px-2.5 py-1 bg-surfa",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\BarcodeScannerSettingsModal.tsx",
+      "line": 344,
+      "text": "setSettings((s) => ({ ...s, speedThresholdMs: speed }))}\r\n                      ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\BarcodeScannerSettingsModal.tsx",
+      "line": 370,
+      "text": "setSettings((s) => ({ ...s, suffix: suf }))}\r\n                      className={`",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\CategoryManagerModal.tsx",
+      "line": 184,
+      "text": "void handleAddCategory()}\r\n              disabled={!newCatName.trim()}\r\n        ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\CategoryManagerModal.tsx",
+      "line": 233,
+      "text": "void handleMoveOrder(idx, 'up')}\r\n                          className=\"p-0.5 tex",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\CategoryManagerModal.tsx",
+      "line": 242,
+      "text": "void handleMoveOrder(idx, 'down')}\r\n                          className=\"p-0.5 t",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\CategoryManagerModal.tsx",
+      "line": 267,
+      "text": "void handleSaveEdit(cat)}\r\n                            className=\"p-1 rounded bg",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\CategoryManagerModal.tsx",
+      "line": 275,
+      "text": "setEditingId(null)}\r\n                            className=\"p-1 rounded bg-surfa",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\CategoryManagerModal.tsx",
+      "line": 306,
+      "text": "{\r\n                              setEditingId(cat.id);\r\n                        ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\CategoryManagerModal.tsx",
+      "line": 318,
+      "text": "void handleToggleArchive(cat)}\r\n                            className=\"p-1 text-",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\CustomSelect.tsx",
+      "line": 115,
+      "text": "!disabled && setIsOpen((prev) => !prev)}\r\n        className={`w-full ${sizeClass",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\CustomSelect.tsx",
+      "line": 181,
+      "text": "handleSelect(opt.value)}\r\n                      className={`w-full px-3 py-2 tex",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\CustomSelect.tsx",
+      "line": 199,
+      "text": "handleSelect(opt.value)}\r\n                  className={`w-full px-3 py-1.5 text-",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\DatabaseRecoveryModal.tsx",
+      "line": 217,
+      "text": "void handleRestore(status.latestValidBackupFile)}\r\n                disabled={res",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\DatabaseRecoveryModal.tsx",
+      "line": 244,
+      "text": "setUseCustomFile(!useCustomFile)}\r\n              className=\"text-brand hover:und",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\DatabaseRecoveryModal.tsx",
+      "line": 262,
+      "text": "void handleRestore(customFile)}\r\n                  disabled={restoring || !custo",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\DemoDataModal.tsx",
+      "line": 242,
+      "text": "setSelectedStoreType(opt.id)}\r\n                      className={`p-3 rounded-xl ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\DemoDataModal.tsx",
+      "line": 284,
+      "text": "setShowClearConfirm(true)}\r\n                  disabled={loading}\r\n              ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\DemoDataModal.tsx",
+      "line": 307,
+      "text": "setShowClearConfirm(false)}\r\n                      disabled={loading}\r\n         ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\DemoDataModal.tsx",
+      "line": 346,
+      "text": "{\r\n                  onClose();\r\n                  onStartTour();\r\n             ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\ExcelImportModal.tsx",
+      "line": 204,
+      "text": "{\r\n                setDownloadingTemplate(true);\r\n                try {\r\n       ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\ExcelImportModal.tsx",
+      "line": 262,
+      "text": "fileInputRef.current?.click()}\r\n                  className=\"px-2.5 py-1 text-[1",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\ExcelImportModal.tsx",
+      "line": 365,
+      "text": "downloadErrorReport(errorRows)}\r\n                        className=\"h-7 px-2.5 r",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\ExcelImportModal.tsx",
+      "line": 477,
+      "text": "void handleConfirmImport()}\r\n              disabled={!canImport || importing}\r\n ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\FactoryResetModal.tsx",
+      "line": 167,
+      "text": "void handleExecuteReset()}\r\n            disabled={!isConfirmed || loading}\r\n    ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\FirstRunWizardModal.tsx",
+      "line": 876,
+      "text": "setStep((prev) => (prev - 1) as any)}\r\n                    disabled={loading}\r\n ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\FirstRunWizardModal.tsx",
+      "line": 888,
+      "text": "{\r\n                      if (step === 2 && !storeName.trim()) {\r\n               ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\FirstRunWizardModal.tsx",
+      "line": 908,
+      "text": "void handleApply()}\r\n                    disabled={loading}\r\n                   ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\FirstRunWizardModal.tsx",
+      "line": 1003,
+      "text": "setStep((prev) => (prev - 1) as any)}\r\n                disabled={loading}\r\n     ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\FirstRunWizardModal.tsx",
+      "line": 1017,
+      "text": "{\r\n                  if (step === 2 && !storeName.trim()) {\r\n                   ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\FirstRunWizardModal.tsx",
+      "line": 1033,
+      "text": "void handleApply()}\r\n                disabled={loading}\r\n                classNa",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\GuidedTourModal.tsx",
+      "line": 184,
+      "text": "setCurrentStepIndex(idx)}\r\n                className={`h-2 transition-all rounde",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\HeldSalesModal.tsx",
+      "line": 175,
+      "text": "void handleRecall(sale)}\n                            disabled={loading}\n        ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\HeldSalesModal.tsx",
+      "line": 185,
+      "text": "{\n                              if (sale.id) void handleDelete(sale.id);\n       ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\ItemDiscountModal.tsx",
+      "line": 99,
+      "text": "{\r\n                setDiscountType('amount');\r\n                setInputValue('')",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\ItemDiscountModal.tsx",
+      "line": 114,
+      "text": "{\r\n                setDiscountType('percent');\r\n                setInputValue(''",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\ItemDiscountModal.tsx",
+      "line": 156,
+      "text": "setInputValue(String(amt))}\r\n                      className=\"h-8 rounded bg-sur",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\ItemDiscountModal.tsx",
+      "line": 169,
+      "text": "setInputValue(String(pct))}\r\n                      className=\"h-8 rounded bg-sur",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\ItemDiscountModal.tsx",
+      "line": 180,
+      "text": "setInputValue('0')}\r\n                className=\"col-span-4 h-8 rounded bg-surfac",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\LicenseExpiredLockScreen.tsx",
+      "line": 227,
+      "text": "void handlePasteKey()}\n                className=\"absolute left-2.5 top-1/2 -tra",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\LicenseExpiredLockScreen.tsx",
+      "line": 237,
+      "text": "void handleActivateNewKey()}\n              className=\"flex items-center gap-1.5 ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\LicenseExpiredLockScreen.tsx",
+      "line": 258,
+      "text": "void handleVerifyOnline()}\n            className=\"flex items-center justify-cent",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\LoginModal.tsx",
+      "line": 219,
+      "text": "handleSelectUser(user)}\r\n                      className={`w-full text-right p-3",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\LoginModal.tsx",
+      "line": 261,
+      "text": "{\r\n                  if (onOpenUserManager) {\r\n                    onOpenUserMan",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\LoginModal.tsx",
+      "line": 342,
+      "text": "handleNumberClick(digit)}\r\n                  className=\"h-12 bg-canvas hover:bg-",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\LoginModal.tsx",
+      "line": 364,
+      "text": "handleNumberClick('0')}\r\n                className=\"h-12 bg-canvas hover:bg-surf",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\LoginModal.tsx",
+      "line": 387,
+      "text": "handleSubmit()}\r\n              className=\"w-full mt-2 py-3 bg-brand hover:bg-bra",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\payment\\CashPaymentSection.tsx",
+      "line": 62,
+      "text": "onSetPreset(netPounds)}\n            className=\"py-1.5 px-3 rounded text-xs font-",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\payment\\CashPaymentSection.tsx",
+      "line": 71,
+      "text": "onSetPreset(amt)}\n              className=\"py-1.5 px-3 rounded text-xs font-mono",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\payment\\CreditPaymentSection.tsx",
+      "line": 50,
+      "text": "setShowQuickAdd(!showQuickAdd)}\n          className=\"text-xs text-brand font-bol",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\payment\\MultiPaymentSection.tsx",
+      "line": 75,
+      "text": "{\n            const half = Math.round(netTotalPiasters / 2);\n            setSpli",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\payment\\MultiPaymentSection.tsx",
+      "line": 88,
+      "text": "{\n            const cashRow = splitRows.find(r => r.method === 'cash');\n        ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\payment\\MultiPaymentSection.tsx",
+      "line": 136,
+      "text": "setSplitRows((rows) => rows.filter((r) => r.id !== row.id))}\n                cla",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\payment\\MultiPaymentSection.tsx",
+      "line": 150,
+      "text": "{\n            const remaining = Math.max(0, splitRemainingPiasters);\n           ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\payment\\MultiPaymentSection.tsx",
+      "line": 166,
+      "text": "{\n              if (splitRows.length > 0) {\n                setSplitRows(rows =>",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\payment\\MultiPaymentSection.tsx",
+      "line": 191,
+      "text": "setShowQuickAdd(!showQuickAdd)}\n              className=\"text-[11px] text-brand ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\payment\\QuickAddCustomerForm.tsx",
+      "line": 70,
+      "text": "onSelectDuplicateCustomer(duplicateQuickCustomer)}\n            className=\"px-2 p",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\PaymentModal.tsx",
+      "line": 402,
+      "text": "setActiveTab('cash')}\n              className={`flex-1 py-2 rounded-md text-xs f",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\PaymentModal.tsx",
+      "line": 415,
+      "text": "setActiveTab('card')}\n              className={`flex-1 py-2 rounded-md text-xs f",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\PaymentModal.tsx",
+      "line": 428,
+      "text": "setActiveTab('credit')}\n              className={`flex-1 py-2 rounded-md text-xs",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\PaymentModal.tsx",
+      "line": 441,
+      "text": "setActiveTab('multi')}\n              className={`flex-1 py-2 rounded-md text-xs ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\PaymentModal.tsx",
+      "line": 542,
+      "text": "void handleConfirm()}\n            disabled={loading || (activeTab === 'multi' &&",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\PinCodeModal.tsx",
+      "line": 290,
+      "text": "{\r\n                  onSuccess();\r\n                }}\r\n                className",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\PinCodeModal.tsx",
+      "line": 365,
+      "text": "{\r\n                    setIsRecoveryMode(false);\r\n                    setError(n",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\PinCodeModal.tsx",
+      "line": 447,
+      "text": "handleKeypadPress(num.toString())}\r\n                    className=\"h-11 rounded-",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\PinCodeModal.tsx",
+      "line": 465,
+      "text": "handleKeypadPress('0')}\r\n                  className=\"h-11 rounded-xl bg-surface",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\PinCodeModal.tsx",
+      "line": 486,
+      "text": "void handleVerify()}\r\n                  className=\"flex-1 py-2.5 bg-brand hover:",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\PinCodeModal.tsx",
+      "line": 506,
+      "text": "{\r\n                    setIsRecoveryMode(true);\r\n                    setError(nu",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\PinSettingsModal.tsx",
+      "line": 299,
+      "text": "void handleToggleEnable()}\r\n                disabled={loading}\r\n                ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\PinSettingsModal.tsx",
+      "line": 427,
+      "text": "setIsConfirmToggleOpen(false)}\r\n                className=\"p-1 rounded text-whit",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\PinSettingsModal.tsx",
+      "line": 453,
+      "text": "setIsConfirmToggleOpen(false)}\r\n                  className=\"flex-1 py-2 text-xs",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\ProductUnitsEditor.tsx",
+      "line": 329,
+      "text": "handleApplyPreset(idx, tpl)}\n                            className={`px-2.5 py-1",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\ProductUnitsEditor.tsx",
+      "line": 348,
+      "text": "handleDeleteAdditionalUnit(idx)}\n                      className=\"text-danger ho",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\ProductUnitsEditor.tsx",
+      "line": 404,
+      "text": "handleAutoCalculatePrices(idx)}\n                        className=\"text-[10px] t",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickAddProductModal.tsx",
+      "line": 233,
+      "text": "setUnit('piece')}\r\n                  className={`py-1 text-xs font-bold rounded ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickAddProductModal.tsx",
+      "line": 240,
+      "text": "setUnit('kg')}\r\n                  className={`py-1 text-xs font-bold rounded ${u",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickFastItemModal.tsx",
+      "line": 156,
+      "text": "{\r\n                    setName(preset.label);\r\n                    if (preset.is",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickFastItemModal.tsx",
+      "line": 254,
+      "text": "setUnit('piece')}\r\n                  className={`flex items-center justify-cente",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickFastItemModal.tsx",
+      "line": 266,
+      "text": "setUnit('kg')}\r\n                  className={`flex items-center justify-center g",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickFastItemModal.tsx",
+      "line": 299,
+      "text": "setIsCustomCategory(true)}\r\n                    className=\"px-2 bg-surface-2 hov",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickFastItemModal.tsx",
+      "line": 317,
+      "text": "{\r\n                      setIsCustomCategory(false);\r\n                      setC",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickFastItemModal.tsx",
+      "line": 336,
+      "text": "{\r\n                  onClose();\r\n                  onOpenFullManager();\r\n       ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickItemsManagerModal.tsx",
+      "line": 396,
+      "text": "{\r\n                          setActiveCategory(cat);\r\n                          ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickItemsManagerModal.tsx",
+      "line": 424,
+      "text": "{\r\n                      setIsAddingCategory(!isAddingCategory);\r\n              ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickItemsManagerModal.tsx",
+      "line": 466,
+      "text": "{\r\n                        setRenamedCategoryName(activeCategory);\r\n            ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickItemsManagerModal.tsx",
+      "line": 481,
+      "text": "{\r\n                        setDeleteCategoryConfirm(activeCategory);\r\n          ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickItemsManagerModal.tsx",
+      "line": 518,
+      "text": "setIsAddingCategory(false)}\r\n                    className=\"h-7 px-2.5 bg-surfac",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickItemsManagerModal.tsx",
+      "line": 548,
+      "text": "setIsRenamingCategory(false)}\r\n                    className=\"h-7 px-2.5 bg-surf",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickItemsManagerModal.tsx",
+      "line": 572,
+      "text": "handleDeleteCategory(deleteCategoryConfirm)}\r\n                      className=\"h",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickItemsManagerModal.tsx",
+      "line": 581,
+      "text": "setDeleteCategoryConfirm(null)}\r\n                      className=\"h-7 px-2.5 bg-",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickItemsManagerModal.tsx",
+      "line": 619,
+      "text": "handleMove(index, 'up')}\r\n                          disabled={index === 0}\r\n    ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickItemsManagerModal.tsx",
+      "line": 627,
+      "text": "handleMove(index, 'down')}\r\n                          disabled={index === filter",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickItemsManagerModal.tsx",
+      "line": 669,
+      "text": "handleDeleteItem(item.id)}\r\n                            className=\"px-2 py-0.5 b",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickItemsManagerModal.tsx",
+      "line": 675,
+      "text": "setDeleteConfirmId(null)}\r\n                            className=\"px-2 py-0.5 bg",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickItemsManagerModal.tsx",
+      "line": 684,
+      "text": "openEditForm(item)}\r\n                            className=\"p-1.5 rounded-md bg-",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickItemsManagerModal.tsx",
+      "line": 691,
+      "text": "setDeleteConfirmId(item.id)}\r\n                            className=\"p-1.5 round",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickItemsManagerModal.tsx",
+      "line": 715,
+      "text": "setIsFormOpen(false)}\r\n                    className=\"p-1 rounded text-ink-muted",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickItemsManagerModal.tsx",
+      "line": 726,
+      "text": "setIsSearchingProduct(!isSearchingProduct)}\r\n                    className=\"w-fu",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickItemsManagerModal.tsx",
+      "line": 754,
+      "text": "selectProductToLink(p)}\r\n                            className=\"w-full text-righ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickItemsManagerModal.tsx",
+      "line": 848,
+      "text": "setFormUnit('piece')}\r\n                      className={`py-1.5 text-xs font-sem",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickItemsManagerModal.tsx",
+      "line": 859,
+      "text": "setFormUnit('kg')}\r\n                      className={`py-1.5 text-xs font-semibo",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\QuickItemsManagerModal.tsx",
+      "line": 881,
+      "text": "setIsFormOpen(false)}\r\n                    className=\"px-3 py-2 text-xs font-bol",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\ReadinessCheckModal.tsx",
+      "line": 334,
+      "text": "{\r\n                              if (onNavigateToTab) {\r\n                       ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\ReturnModal.tsx",
+      "line": 340,
+      "text": "setMode('withInvoice')}\n                  className={`h-8 rounded-md text-xs fon",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\ReturnModal.tsx",
+      "line": 350,
+      "text": "setMode('withoutInvoice')}\n                  className={`h-8 rounded-md text-xs ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\ReturnModal.tsx",
+      "line": 491,
+      "text": "updateItemQty(idx, item.returnQuantityPieces - 1)}\n                             ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\ReturnModal.tsx",
+      "line": 506,
+      "text": "updateItemQty(idx, item.returnQuantityPieces + 1)}\n                             ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\ReturnModal.tsx",
+      "line": 516,
+      "text": "toggleItemDamaged(idx)}\n                                className={`px-2 py-0.5 ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\ReturnModal.tsx",
+      "line": 554,
+      "text": "setRefundMethod('cash')}\n                      className={`h-8 rounded-lg text-x",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\ReturnModal.tsx",
+      "line": 566,
+      "text": "setRefundMethod('credit')}\n                      className={`h-8 rounded-lg text",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\ReturnModal.tsx",
+      "line": 637,
+      "text": "void handleSubmitReturn()}\n                disabled={loading || activeReturnItem",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\StockAdjustmentModal.tsx",
+      "line": 250,
+      "text": "setReason(r)}\r\n                  className={`px-2.5 py-1 rounded text-[11px] fon",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\StockMovementsModal.tsx",
+      "line": 141,
+      "text": "{\r\n                  onClose();\r\n                  onOpenAdjustment();\r\n        ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\StockMovementsModal.tsx",
+      "line": 174,
+      "text": "setMovementTypeFilter(tab.id)}\r\n                className={`px-2.5 py-1 rounded ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\SupervisorPromptModal.tsx",
+      "line": 156,
+      "text": "handleNumberClick(digit)}\r\n                className=\"h-11 bg-surface hover:bg-s",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\SupervisorPromptModal.tsx",
+      "line": 174,
+      "text": "handleNumberClick('0')}\r\n              className=\"h-11 bg-surface hover:bg-surfa",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\SupervisorPromptModal.tsx",
+      "line": 196,
+      "text": "handleSubmit()}\r\n              className=\"flex-1 py-3 bg-brand hover:bg-brand-ho",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\UserManagerModal.tsx",
+      "line": 278,
+      "text": "setError('')} className=\"text-danger hover:text-ink font-bold\">×",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\UserManagerModal.tsx",
+      "line": 289,
+      "text": "setSuccessMsg('')} className=\"text-paid hover:text-ink font-bold\">×",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\UserManagerModal.tsx",
+      "line": 391,
+      "text": "handleStartEdit(u)}\r\n                                  className=\"px-2.5 py-1 bg",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\UserManagerModal.tsx",
+      "line": 398,
+      "text": "handleStartResetPin(u)}\r\n                                  className={`px-2.5 py",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\UserManagerModal.tsx",
+      "line": 411,
+      "text": "handleToggleStatus(u)}\r\n                                    className={`px-2 py-",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\UserManagerModal.tsx",
+      "line": 442,
+      "text": "setMode('list')}\r\n                  className=\"text-xs text-ink-muted hover:text",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\UserManagerModal.tsx",
+      "line": 478,
+      "text": "setRole('cashier')}\r\n                    className={`p-3 rounded-xl border text-",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\UserManagerModal.tsx",
+      "line": 490,
+      "text": "setRole('admin')}\r\n                    className={`p-3 rounded-xl border text-ri",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\UserManagerModal.tsx",
+      "line": 547,
+      "text": "setMode('list')}\r\n                  className=\"px-4 py-2.5 bg-surface hover:bg-s",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\UserManagerModal.tsx",
+      "line": 562,
+      "text": "setMode('list')}\r\n                  className=\"text-xs text-ink-muted hover:text",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\UserManagerModal.tsx",
+      "line": 600,
+      "text": "setRole('cashier')}\r\n                      className={`p-3 rounded-xl border tex",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\UserManagerModal.tsx",
+      "line": 611,
+      "text": "setRole('admin')}\r\n                      className={`p-3 rounded-xl border text-",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\UserManagerModal.tsx",
+      "line": 649,
+      "text": "setMode('list')}\r\n                  className=\"px-4 py-2.5 bg-surface hover:bg-s",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\UserManagerModal.tsx",
+      "line": 668,
+      "text": "setMode('list')}\r\n                  className=\"text-xs text-ink-muted hover:text",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\UserManagerModal.tsx",
+      "line": 734,
+      "text": "setMode('list')}\r\n                  className=\"px-4 py-2.5 bg-surface hover:bg-s",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\WeightInputModal.tsx",
+      "line": 170,
+      "text": "handleSwitchUnitMode('kg')}\r\n              className={`flex-1 py-1.5 rounded-md ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\WeightInputModal.tsx",
+      "line": 181,
+      "text": "handleSwitchUnitMode('gram')}\r\n              className={`flex-1 py-1.5 rounded-m",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\WeightInputModal.tsx",
+      "line": 222,
+      "text": "setPresetGrams(100)}\r\n              className=\"px-2.5 py-1.5 rounded bg-surface ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\WeightInputModal.tsx",
+      "line": 229,
+      "text": "setPresetGrams(250)}\r\n              className=\"px-2.5 py-1.5 rounded bg-surface ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\WeightInputModal.tsx",
+      "line": 236,
+      "text": "setPresetGrams(500)}\r\n              className=\"px-2.5 py-1.5 rounded bg-surface ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\WeightInputModal.tsx",
+      "line": 243,
+      "text": "setPresetGrams(750)}\r\n              className=\"px-2.5 py-1.5 rounded bg-surface ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\WeightInputModal.tsx",
+      "line": 250,
+      "text": "setPresetGrams(1000)}\r\n              className=\"px-3 py-1.5 rounded bg-brand/10 ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\WeightInputModal.tsx",
+      "line": 257,
+      "text": "setPresetGrams(2000)}\r\n              className=\"px-3 py-1.5 rounded bg-surface h",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\WeightInputModal.tsx",
+      "line": 269,
+      "text": "handleKeypadPress(key)}\r\n                className=\"h-[42px] bg-surface hover:bg",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/components\\WeightInputModal.tsx",
+      "line": 298,
+      "text": "handleKeypadPress('C')}\r\n            className=\"px-3 py-2 rounded-lg bg-surface ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\AuditLogView.tsx",
+      "line": 243,
+      "text": "void handleVerifyChain()}\r\n            disabled={verifying}\r\n            classNa",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\AuditLogView.tsx",
+      "line": 253,
+      "text": "void loadAuditLogs()}\r\n            disabled={loading}\r\n            className=\"h-",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\AuditLogView.tsx",
+      "line": 292,
+      "text": "void handleResealChain()}\r\n                disabled={resealing}\r\n               ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\customers\\CustomerFormModal.tsx",
+      "line": 101,
+      "text": "{\n                      onClose();\n                      onOpenStatementForDupli",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\customers\\CustomerPaymentModal.tsx",
+      "line": 60,
+      "text": "setPaymentAmountPiasters(selectedCustomer.balancePiasters)}\n                  cl",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\customers\\CustomerPrintStatementModal.tsx",
+      "line": 49,
+      "text": "setStatementPrintMode('thermal')}\n                className={`px-2.5 py-1 rounde",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\customers\\CustomerPrintStatementModal.tsx",
+      "line": 58,
+      "text": "setStatementPrintMode('a4')}\n                className={`px-2.5 py-1 rounded fon",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\customers\\CustomerStatementModal.tsx",
+      "line": 95,
+      "text": "void onVerifyBalance(selectedCustomer.id)}\n                disabled={isVerifying",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\customers\\CustomerStatementModal.tsx",
+      "line": 128,
+      "text": "void onFixBalance(selectedCustomer.id)}\n                  disabled={isFixingBala",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\customers\\CustomerStatementModal.tsx",
+      "line": 169,
+      "text": "{ setStatementStartDate(''); setStatementEndDate(''); }}\n                classNa",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\customers\\CustomerStatementModal.tsx",
+      "line": 176,
+      "text": "{\n                  const todayStr = new Date().toISOString().slice(0, 10);\n    ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\customers\\CustomerStatementModal.tsx",
+      "line": 187,
+      "text": "{\n                  const d = new Date();\n                  d.setDate(d.getDate(",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\customers\\CustomerStatementModal.tsx",
+      "line": 199,
+      "text": "{\n                  const d = new Date();\n                  d.setDate(1);\n      ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\customers\\CustomerStatementModal.tsx",
+      "line": 331,
+      "text": "setCancellingEntry(entry)}\n                                className=\"inline-fle",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\customers\\CustomerStatementModal.tsx",
+      "line": 387,
+      "text": "setCancellingEntry(null)} className=\"text-danger hover:opacity-75\">",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\customers\\CustomerStatementModal.tsx",
+      "line": 451,
+      "text": "setCancellingEntry(null)}\n                  disabled={isCancellingPayment}\n     ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\CustomersView.tsx",
+      "line": 562,
+      "text": "setFilterType('all')}\n              className={`px-3 py-1 rounded-md text-[11.5p",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\CustomersView.tsx",
+      "line": 572,
+      "text": "setFilterType('debtors')}\n              className={`px-3 py-1 rounded-md text-[1",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\CustomersView.tsx",
+      "line": 582,
+      "text": "setFilterType('settled')}\n              className={`px-3 py-1 rounded-md text-[1",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\CustomersView.tsx",
+      "line": 595,
+      "text": "{ setIsImportModalOpen(true); setImportError(null); setImportResult(null); }}\n  ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\CustomersView.tsx",
+      "line": 703,
+      "text": "openPaymentModal(cust)}\n                            disabled={!hasDebt}\n        ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\CustomersView.tsx",
+      "line": 718,
+      "text": "void openStatementModal(cust)}\n                            title=\"كشف حساب العمي",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\CustomersView.tsx",
+      "line": 728,
+      "text": "openEditModal(cust)}\n                            title=\"تعديل بيانات العميل\"\n   ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\DashboardView.tsx",
+      "line": 197,
+      "text": "setIsReadinessModalOpen(true)}\r\n            className=\"flex items-center gap-1.5",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\DashboardView.tsx",
+      "line": 206,
+      "text": "void loadData()}\r\n            disabled={isLoading}\r\n            className=\"flex ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\DashboardView.tsx",
+      "line": 284,
+      "text": "handleFixAction(health.primaryIssueFixTarget)}\r\n                className={`px-3",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\DashboardView.tsx",
+      "line": 297,
+      "text": "setIsReadinessModalOpen(true)}\r\n              className=\"px-3 py-1.5 bg-white ho",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\DashboardView.tsx",
+      "line": 661,
+      "text": "onNavigateToProducts('movements')}\r\n                className=\"px-2.5 py-0.5 rou",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\DashboardView.tsx",
+      "line": 761,
+      "text": "handleFixAction(al.fixTarget)}\r\n                        className=\"px-2 py-1 rou",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\DashboardView.tsx",
+      "line": 782,
+      "text": "onNavigateToProducts()}\r\n                className=\"px-2 py-0.5 rounded bg-white",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosBarcodeBar.tsx",
+      "line": 110,
+      "text": "setIsSearchDropdownOpen(false)}\n              className=\"hover:text-[#14181a] te",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosCartTable.tsx",
+      "line": 236,
+      "text": "openWeightEditorForCartItem(index)}\n                      className=\"h-8 px-2 bg",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosCartTable.tsx",
+      "line": 249,
+      "text": "updateQuantity(index, -1)}\n                        className=\"w-6 h-6 flex items",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosCartTable.tsx",
+      "line": 269,
+      "text": "updateQuantity(index, 1)}\n                        className=\"w-6 h-6 flex items-",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosCartTable.tsx",
+      "line": 283,
+      "text": "onOpenItemDiscount(index)}\n                    className={`px-2 py-1 rounded-md ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosCartTable.tsx",
+      "line": 310,
+      "text": "removeItem(index)}\n                    className=\"text-[#5b6664] hover:text-[#b2",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosCatalogPanel.tsx",
+      "line": 79,
+      "text": "setCatalogSearchQuery('')}\n            className=\"absolute left-2 top-1/2 -trans",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosCatalogPanel.tsx",
+      "line": 91,
+      "text": "setActiveCatalogTab('__POPULAR__')}\n          className={`h-7 text-[11px] font-b",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosCatalogPanel.tsx",
+      "line": 106,
+      "text": "setActiveCatalogTab('__CUSTOM__')}\n          className={`h-7 text-[11px] font-bo",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosCatalogPanel.tsx",
+      "line": 121,
+      "text": "setActiveCatalogTab('__ALL__')}\n          className={`h-7 text-[11px] font-bold ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosCatalogPanel.tsx",
+      "line": 135,
+      "text": "setActiveCatalogTab(cat.name)}\n            className={`h-7 text-[11px] font-bold",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosCatalogPanel.tsx",
+      "line": 158,
+      "text": "handleSmartItemClick(item)}\n              className={`min-h-[86px] rounded-xl p-",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosCheckoutPanel.tsx",
+      "line": 159,
+      "text": "setPaymentMethod('cash')}\n                  className={`px-1.5 py-0.5 rounded fo",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosCheckoutPanel.tsx",
+      "line": 166,
+      "text": "setPaymentMethod('credit')}\n                  className={`px-1.5 py-0.5 rounded ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosCheckoutPanel.tsx",
+      "line": 203,
+      "text": "handleOpenCheckout('credit')}\n              disabled={loading || cart.length ===",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosCheckoutPanel.tsx",
+      "line": 220,
+      "text": "handleOpenCheckout('cash')}\n                disabled={loading || cart.length ===",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosCheckoutPanel.tsx",
+      "line": 236,
+      "text": "handleOpenCheckout('cash')}\n                disabled={loading || cart.length ===",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosCheckoutPanel.tsx",
+      "line": 281,
+      "text": "void handleHoldCurrentSale()}\n            disabled={cart.length === 0}\n         ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosInvoiceDiscountModal.tsx",
+      "line": 87,
+      "text": "{\n                setInvoiceDiscountType('amount');\n                setDiscountI",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosInvoiceDiscountModal.tsx",
+      "line": 102,
+      "text": "{\n                setInvoiceDiscountType('percent');\n                setDiscount",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosInvoiceDiscountModal.tsx",
+      "line": 143,
+      "text": "setDiscountInputEgp(String(val))}\n                      className=\"h-8 rounded b",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosInvoiceDiscountModal.tsx",
+      "line": 156,
+      "text": "setDiscountInputEgp(String(pct))}\n                      className=\"h-8 rounded b",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosInvoiceDiscountModal.tsx",
+      "line": 167,
+      "text": "setDiscountInputEgp('0')}\n                className=\"col-span-4 h-8 rounded bg-s",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosQuantityModal.tsx",
+      "line": 55,
+      "text": "{\n                const curr = parseFloat(quantityInputVal) || 1;\n              ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosQuantityModal.tsx",
+      "line": 72,
+      "text": "{\n                const curr = parseFloat(quantityInputVal) || 0;\n              ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\pos\\PosQuantityModal.tsx",
+      "line": 87,
+      "text": "setQuantityInputVal(String(n))}\n                className=\"h-8 rounded bg-surfac",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\products\\ProductFormModal.tsx",
+      "line": 170,
+      "text": "setSimilarWarning(null)}\n                    className=\"px-2.5 py-1 bg-white hov",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\products\\ProductFormModal.tsx",
+      "line": 177,
+      "text": "void onSave(undefined, true)}\n                    className=\"px-3 py-1 bg-amber-",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\products\\ProductFormModal.tsx",
+      "line": 265,
+      "text": "onRemoveBarcode(idx)}\n                        className=\"text-ink-muted hover:te",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\products\\ProductFormModal.tsx",
+      "line": 283,
+      "text": "{\n                    setUnit('piece');\n                    setProductUnits(prod",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\products\\ProductFormModal.tsx",
+      "line": 298,
+      "text": "{\n                    setUnit('kg');\n                    setProductUnits(product",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\products\\ProductFormModal.tsx",
+      "line": 454,
+      "text": "setBelowCostWarning(null)}\n                    className=\"px-2.5 h-6 bg-surface ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\products\\ProductFormModal.tsx",
+      "line": 461,
+      "text": "void onSave(undefined, false, true)}\n                    className=\"px-2.5 h-6 b",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\products\\ProductsTable.tsx",
+      "line": 217,
+      "text": "onSelectProdForMovements(prod)}\n                    className=\"p-1 rounded text-",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\products\\ProductsTable.tsx",
+      "line": 224,
+      "text": "onSelectProdForAdjustment(prod)}\n                    className=\"p-1 rounded text",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\products\\ProductsTable.tsx",
+      "line": 231,
+      "text": "onOpenPriceHistory(prod)}\n                    className=\"p-1 rounded text-[#5b66",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\products\\ProductsTable.tsx",
+      "line": 238,
+      "text": "onEditProduct(prod)}\n                    className=\"p-1 rounded text-[#5b6664] h",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\products\\ProductsTable.tsx",
+      "line": 245,
+      "text": "onDeleteProduct(prod)}\n                    className=\"p-1 rounded text-[#5b6664]",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\products\\StockMovementsTab.tsx",
+      "line": 126,
+      "text": "setRecalcSuccessMsg(null)}\n            className=\"text-paid hover:text-ink p-1\"\n",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\products\\StockMovementsTab.tsx",
+      "line": 148,
+      "text": "{\n                setMovementTypeFilter(tab.id);\n                setTimeout(() =",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\products\\StockMovementsTab.tsx",
+      "line": 177,
+      "text": "setMovementSearchQuery('')}\n              className=\"text-ink-muted hover:text-i",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\ProductsView.tsx",
+      "line": 565,
+      "text": "{\n                        setSearchQuery('');\n                        void loadP",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\ProductsView.tsx",
+      "line": 586,
+      "text": "void loadProducts(searchQuery)}\n                disabled={loading}\n             ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\ProductsView.tsx",
+      "line": 595,
+      "text": "setShowExcelImportModal(true)}\n                className=\"h-[36px] px-3 bg-white",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\ProductsView.tsx",
+      "line": 605,
+      "text": "void handleExportProductsToExcel()}\n                disabled={isExportingExcel}\n",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\ProductsView.tsx",
+      "line": 626,
+      "text": "{\n                  void loadMovements();\n                  void checkDiscrepanc",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\ProductsView.tsx",
+      "line": 650,
+      "text": "setImportSuccessAlert(null)}\n            className=\"text-[#1b7a4d] hover:text-[#",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\ProductsView.tsx",
+      "line": 665,
+      "text": "setSelectedCategoryFilter('all')}\n                className={`px-3 py-1 rounded-",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\ProductsView.tsx",
+      "line": 683,
+      "text": "setSelectedCategoryFilter(cat.id)}\n                    className={`px-3 py-1 rou",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\ProductsView.tsx",
+      "line": 700,
+      "text": "setShowCategoryModal(true)}\n              className=\"shrink-0 px-2.5 py-1 rounde",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\SalesHistoryView.tsx",
+      "line": 285,
+      "text": "void loadSales()}\r\n            disabled={loading}\r\n            className=\"w-9 h-",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\SalesHistoryView.tsx",
+      "line": 314,
+      "text": "{\r\n                setSearchQuery('');\r\n                setSearchError(null);\r\n ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\SalesHistoryView.tsx",
+      "line": 328,
+      "text": "setDateFilter('all')}\r\n            className={`px-3 py-1 rounded text-[11.5px] f",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\SalesHistoryView.tsx",
+      "line": 338,
+      "text": "setDateFilter('today')}\r\n            className={`px-3 py-1 rounded text-[11.5px]",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\SalesHistoryView.tsx",
+      "line": 348,
+      "text": "setDateFilter('yesterday')}\r\n            className={`px-3 py-1 rounded text-[11.",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\SalesHistoryView.tsx",
+      "line": 358,
+      "text": "setDateFilter('week')}\r\n            className={`px-3 py-1 rounded text-[11.5px] ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\SalesHistoryView.tsx",
+      "line": 368,
+      "text": "setDateFilter('custom')}\r\n            className={`px-2.5 py-1 rounded text-[11.5",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\SalesHistoryView.tsx",
+      "line": 394,
+      "text": "setStatusFilter('all')}\r\n            className={`px-3 py-1 rounded text-[11.5px]",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\SalesHistoryView.tsx",
+      "line": 404,
+      "text": "setStatusFilter('completed')}\r\n            className={`px-3 py-1 rounded text-[1",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\SalesHistoryView.tsx",
+      "line": 414,
+      "text": "setStatusFilter('cancelled')}\r\n            className={`px-3 py-1 rounded text-[1",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\SalesHistoryView.tsx",
+      "line": 424,
+      "text": "setStatusFilter('refunded')}\r\n            className={`px-3 py-1 rounded text-[11",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\SalesHistoryView.tsx",
+      "line": 540,
+      "text": "{\r\n                        e.stopPropagation();\r\n                        void ha",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\SalesHistoryView.tsx",
+      "line": 588,
+      "text": "setSelectedSale(null)}\r\n                className=\"text-ink-muted hover:text-dan",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\SalesHistoryView.tsx",
+      "line": 728,
+      "text": "setShowReturnModal(true)}\r\n                      className=\"h-[32px] px-3 bg-amb",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\SalesHistoryView.tsx",
+      "line": 737,
+      "text": "setShowCancelModal(true)}\r\n                      className=\"h-[32px] px-3 bg-dan",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\SalesHistoryView.tsx",
+      "line": 751,
+      "text": "setSelectedSale(null)}\r\n                  className=\"h-[36px] px-4 bg-surface ho",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\SalesHistoryView.tsx",
+      "line": 758,
+      "text": "void handleReprint()}\r\n                  disabled={isReprinting}\r\n              ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\settings\\PrinterSettingsTab.tsx",
+      "line": 178,
+      "text": "{autoPrintOnSale ?  : }",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\settings\\PrinterSettingsTab.tsx",
+      "line": 199,
+      "text": "{openDrawerOnSale ?  : }",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\settings\\StoreProfileTab.tsx",
+      "line": 179,
+      "text": "{\n                const next = !allowNegativeStock;\n                setAllowNega",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\settings\\SystemDiagnosticsTab.tsx",
+      "line": 115,
+      "text": "{isEnabled ? (\n                      \n                    ) : (\n                ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\settings\\SystemDiagnosticsTab.tsx",
+      "line": 150,
+      "text": "setDiagnosticResult(null)}\n              className=\"text-[#5b6664] hover:text-[#",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\settings\\SystemDiagnosticsTab.tsx",
+      "line": 161,
+      "text": "void runPrinterTest()}\n            disabled={diagnosticsLoading}\n            cla",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\settings\\SystemDiagnosticsTab.tsx",
+      "line": 171,
+      "text": "void runSqliteTest()}\n            disabled={diagnosticsLoading}\n            clas",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\settings\\SystemDiagnosticsTab.tsx",
+      "line": 181,
+      "text": "void runPingTest()}\n            disabled={diagnosticsLoading}\n            classN",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\settings\\SystemDiagnosticsTab.tsx",
+      "line": 238,
+      "text": "setSupportMessage(null)}\n                className=\"text-[#5b6664] hover:text-[#",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\settings\\SystemDiagnosticsTab.tsx",
+      "line": 247,
+      "text": "void runCreateSupportBundle()}\n            disabled={supportLoading}\n           ",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    },
+    {
+      "file": "src/views\\SettingsView.tsx",
+      "line": 437,
+      "text": "setIsLicenseModalOpen(true)}\n            className=\"flex items-center gap-1.5 px",
+      "isSubmit": false,
+      "onClickExpr": null,
+      "issue": "No onClick and not a submit button"
+    }
+  ]
+}

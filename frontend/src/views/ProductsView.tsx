@@ -395,6 +395,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
   };
 
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
   const confirmDeleteProduct = async () => {
     if (!productToDelete) return;
@@ -408,6 +409,22 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setFormError(`فشل حذف الصنف: ${msg}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const confirmBulkDelete = async () => {
+    if (selectedProductIds.length === 0) return;
+    setShowBulkDeleteConfirm(false);
+    try {
+      setLoading(true);
+      await Promise.all(selectedProductIds.map(id => invoke('products:delete', { id })));
+      setSelectedProductIds([]);
+      await loadProducts(searchQuery);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setFormError(`فشل حذف الأصناف المحددة: ${msg}`);
     } finally {
       setLoading(false);
     }
@@ -716,6 +733,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
             onToggleSelectAll={toggleSelectAll}
             onToggleSelectProduct={toggleSelectProduct}
             onOpenBulkMinStockModal={() => setShowBulkMinStockModal(true)}
+            onBulkDelete={() => setShowBulkDeleteConfirm(true)}
             onClearSelection={() => setSelectedProductIds([])}
             onSelectProdForMovements={(prod) => setSelectedProdForMovements(prod)}
             onSelectProdForAdjustment={(prod) => setSelectedProdForAdjustment(prod)}
@@ -807,6 +825,19 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
         isDanger={true}
         onConfirm={() => void confirmDeleteProduct()}
         onCancel={() => setProductToDelete(null)}
+      />
+
+      {/* Confirm Bulk Product Delete Modal */}
+      <ConfirmModal
+        isOpen={showBulkDeleteConfirm}
+        title="حذف جماعي للأصناف المحددة"
+        message={`هل أنت متأكد من رغبتك في حذف ${selectedProductIds.length} صنف دفعة واحدة من الكتالوج؟`}
+        consequence="سيتم إيقاف ظهور هذه الأصناف في شاشة البيع، مع الاحتفاظ ببيانات الفواتير القديمة بأمان."
+        confirmText={`نعم، حذف (${selectedProductIds.length}) صنف`}
+        cancelText="إلغاء وتراجع"
+        isDanger={true}
+        onConfirm={() => void confirmBulkDelete()}
+        onCancel={() => setShowBulkDeleteConfirm(false)}
       />
 
       {/* Category Manager Modal (Feature #16 / Task 16-2) */}

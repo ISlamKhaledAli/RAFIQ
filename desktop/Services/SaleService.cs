@@ -37,11 +37,11 @@ namespace RafiqPOS.Services
                 sale.NegativeStockWarnings = new List<string>();
             }
 
-            // Check negative stock policy setting (Feature #30 / Task 30-2)
-            string allowNegativeSetting = "1";
+            // Check negative stock policy setting (Feature #30 / Task 30-2) - Default: OFF (0)
+            string allowNegativeSetting = "0";
             if (DatabaseService.Settings != null)
             {
-                allowNegativeSetting = DatabaseService.Settings.Get("allow_negative_stock", "1");
+                allowNegativeSetting = DatabaseService.Settings.Get("allow_negative_stock", "0");
             }
             bool allowNegative = (allowNegativeSetting == "1" || string.Equals(allowNegativeSetting, "true", StringComparison.OrdinalIgnoreCase));
 
@@ -163,7 +163,9 @@ namespace RafiqPOS.Services
                     // Task 30-2: Negative stock handling
                     if (!allowNegative && product.StockQuantityMilli < requiredStockBaseMilli)
                     {
-                        throw new InvalidOperationException(string.Format("لا يمكن إتمام البيع: رصيد الصنف '{0}' غير كافٍ ({1:0.###}) وسياسة الرصيد السالب معطلة.", product.Name, product.StockQuantityMilli / 1000.0));
+                        double currentQty = product.StockQuantityMilli / 1000.0;
+                        string unitLabel = !string.IsNullOrWhiteSpace(product.Unit) ? product.Unit : "قطعة";
+                        throw new InvalidOperationException(string.Format("لا يمكن إتمام البيع: رصيد الصنف '{0}' في المخزن غير كافٍ (الرصيد المتاح حالياً: {1:0.###} {2}). يمكنك إضافة كمية للصنف من شاشة الأصناف أو تفعيل «السماح بالبيع بالسالب» من الإعدادات.", product.Name, currentQty, unitLabel));
                     }
                     else if (product.StockQuantityMilli < requiredStockBaseMilli)
                     {

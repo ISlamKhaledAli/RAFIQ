@@ -790,12 +790,12 @@ export function DashboardView({
             <div className="p-3 divide-y divide-[#DCE1DC] max-h-[220px] overflow-y-auto">
               {summary && summary.lowStockProducts && summary.lowStockProducts.length > 0 ? (
                 summary.lowStockProducts.map((p) => (
-                  <div key={p.productId} className="py-2 flex items-center justify-between text-xs">
-                    <div>
-                      <div className="font-bold text-[#14181A] truncate max-w-[160px]">{p.productName}</div>
-                      <div className="text-[10px] text-[#5B6664]">وحدة: {p.unit === 'kg' ? 'كيلوجرام' : 'قطعة'}</div>
+                  <div key={p.productId} className="py-2 flex items-center justify-between gap-3 text-xs">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-[#14181A] truncate whitespace-nowrap" title={p.productName}>{p.productName}</div>
+                      <div className="text-[10px] text-[#5B6664] whitespace-nowrap">وحدة: {p.unit === 'kg' ? 'كيلوجرام' : 'قطعة'}</div>
                     </div>
-                    <span className={`px-2 py-0.2 rounded text-[10.5px] font-mono font-bold tabular-nums border ${
+                    <span className={`shrink-0 px-2 py-0.5 rounded text-[10.5px] font-mono font-bold tabular-nums whitespace-nowrap border ${
                       p.currentStock <= 0 
                         ? 'bg-[#FDF3F2] text-[#B23A2E] border-[#F6CBC6]' 
                         : 'bg-[#FEF7EC] text-[#B3720E] border-[#F5DEB4]'

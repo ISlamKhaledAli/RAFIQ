@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react';
-import { Store, Save, Sparkles, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Store, Save, Sparkles } from 'lucide-react';
+import { ToggleSwitch } from '../../components/ToggleSwitch';
 
 interface StoreProfileTabProps {
   storeName: string;
@@ -176,22 +177,14 @@ export const StoreProfileTab = ({
                 موصى به في بداية التشغيل لتفادي تعطيل حركة البيع أمام طابور الزبائن عند عدم تطابق الجرد الفوري.
               </span>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                const next = !allowNegativeStock;
+            <ToggleSwitch
+              checked={allowNegativeStock}
+              onChange={(next) => {
                 setAllowNegativeStock(next);
                 if (onToggleNegativeStock) onToggleNegativeStock(next);
               }}
-              className="shrink-0 transition-transform active:scale-95 cursor-pointer"
               title={allowNegativeStock ? 'مفعّل (السماح بالسالب مع تحذير)' : 'معطّل (منع البيع عند عدم كفاية الرصيد)'}
-            >
-              {allowNegativeStock ? (
-                <ToggleRight className="w-8 h-8 text-[#0b4f42]" />
-              ) : (
-                <ToggleLeft className="w-8 h-8 text-[#5b6664]/60" />
-              )}
-            </button>
+            />
           </div>
 
           {/* Feature #110: Default Customer Credit Limit */}

@@ -316,9 +316,10 @@ export const SalesHistoryView = () => {
                 setSearchQuery('');
                 setSearchError(null);
               }}
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink text-xs"
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink cursor-pointer"
+              title="مسح البحث"
             >
-              ✕
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>

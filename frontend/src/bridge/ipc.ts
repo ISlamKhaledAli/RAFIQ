@@ -1714,7 +1714,7 @@ const DEFAULT_APP_SETTINGS: Record<string, string> = {
   tax_number: '',
   receipt_header: 'أهلاً بكم في متجرنا',
   receipt_footer: 'شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل خلال 14 يوماً بموجب الفاتورة.',
-  allow_negative_stock: '1',
+  allow_negative_stock: '0',
   default_customer_credit_limit_egp: '1000',
   default_printer_name: '',
   receipt_paper_width: '80mm',

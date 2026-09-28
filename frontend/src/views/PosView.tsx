@@ -658,7 +658,11 @@ export const PosView = () => {
       if (rawMsg.includes('SQL') || rawMsg.includes('SQLite') || rawMsg.includes('table') || rawMsg.includes('column') || rawMsg.includes('INTERNAL_ERROR')) {
         friendlyMsg = 'تعذر حفظ الفاتورة في قاعدة البيانات، يرجى إعادة المحاولة.';
       }
-      showStatus(`فشل حفظ الفاتورة: ${friendlyMsg}`, 'error');
+      if (friendlyMsg.includes('لا يمكن إتمام البيع') || friendlyMsg.includes('رصيد الصنف') || friendlyMsg.includes('غير كافٍ') || friendlyMsg.includes('غير قابلة للتجزئة')) {
+        showStatus(friendlyMsg, 'error');
+      } else {
+        showStatus(`تعذر إتمام الفاتورة: ${friendlyMsg}`, 'error');
+      }
     } finally {
       setLoading(false);
       barcodeInputRef.current?.focus();

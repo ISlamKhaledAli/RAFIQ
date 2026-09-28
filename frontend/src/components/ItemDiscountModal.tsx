@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Tag, Percent, Banknote } from 'lucide-react';
+import { X, Tag, Percent, Banknote, AlertTriangle } from 'lucide-react';
 import { formatArabicCurrency, normalizeArabicNumerals, calculateDiscountAmount } from '../utils/money';
 import type { SaleItem } from '../types/models';
 
@@ -190,8 +190,11 @@ export const ItemDiscountModal: React.FC<ItemDiscountModalProps> = ({
           {/* Supervisor Warning Badge */}
           {requiresSupervisor && (
             <div className="mb-3 p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-800 dark:text-amber-200 text-xs flex items-center justify-between">
-              <span>⚠️ يتطلب موافقة المشرف (أعلى من {maxPercentWithoutPin}%)</span>
-              <span className="font-bold">مطلوب PIN</span>
+              <span className="flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>يتطلب موافقة المشرف (أعلى من {maxPercentWithoutPin}%)</span>
+              </span>
+              <span className="font-bold whitespace-nowrap mr-2">مطلوب PIN</span>
             </div>
           )}
 

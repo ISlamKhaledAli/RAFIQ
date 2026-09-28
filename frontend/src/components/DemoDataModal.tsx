@@ -33,6 +33,13 @@ interface DemoDataModalProps {
   onDataChanged?: () => void;
 }
 
+const STORE_TYPE_OPTIONS = [
+  { id: 'supermarket', label: 'سوبرماركت وبقالة', icon: ShoppingCart },
+  { id: 'dairy_bakery', label: 'ألبان ومخبوزات', icon: Croissant },
+  { id: 'accessories_gifts', label: 'إكسسوارات وموبايل', icon: Smartphone },
+  { id: 'general_grocery', label: 'محل تجاري عام', icon: Store },
+];
+
 export const DemoDataModal: React.FC<DemoDataModalProps> = ({
   isOpen,
   onClose,
@@ -45,7 +52,26 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
     demoSalesCount: 0,
     demoCustomersCount: 0,
   });
-  const [selectedStoreType, setSelectedStoreType] = useState('supermarket');
+  const [selectedStoreType, setSelectedStoreType] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('rafiq_preferred_store_type');
+      if (saved) return saved;
+      const wizardState = localStorage.getItem('rafiq_wizard_state');
+      if (wizardState) {
+        const parsed = JSON.parse(wizardState);
+        if (parsed.selectedTemplateId) {
+          if (parsed.selectedTemplateId.includes('bakery') || parsed.selectedTemplateId.includes('dairy')) return 'dairy_bakery';
+          if (parsed.selectedTemplateId.includes('accessories') || parsed.selectedTemplateId.includes('mobile')) return 'accessories_gifts';
+          if (parsed.selectedTemplateId.includes('general')) return 'general_grocery';
+          return 'supermarket';
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return 'supermarket';
+  });
+  const [showTypeSelector, setShowTypeSelector] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -227,34 +253,66 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
           {/* Action 1: Load Demo Data */}
           {!status.hasDemoData && (
             <div className="space-y-3">
-              <label className="block text-sm font-bold text-slate-800">
-                اختر نشاط المحل لتحميل أصناف نموذجية ملائمة:
-              </label>
-              <div className="grid grid-cols-2 gap-2.5">
-                {[
-                  { id: 'supermarket', label: 'سوبرماركت وبقالة', icon: ShoppingCart },
-                  { id: 'dairy_bakery', label: 'ألبان ومخبوزات', icon: Croissant },
-                  { id: 'accessories_gifts', label: 'إكسسوارات وموبايل', icon: Smartphone },
-                  { id: 'general_grocery', label: 'محل تجاري عام', icon: Store },
-                ].map(opt => {
-                  const Icon = opt.icon;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => setSelectedStoreType(opt.id)}
-                      className={`p-3 rounded-xl border text-right transition-all flex items-center gap-3 cursor-pointer ${
-                        selectedStoreType === opt.id
-                          ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold shadow-sm ring-1 ring-emerald-500'
-                          : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
-                      }`}
-                    >
-                      <Icon className={`w-5 h-5 ${selectedStoreType === opt.id ? 'text-emerald-700' : 'text-slate-400'}`} />
-                      <span className="text-xs font-bold">{opt.label}</span>
-                    </button>
-                  );
-                })}
+              {/* Remembered Active Activity Banner */}
+              <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                    {(() => {
+                      const opt = STORE_TYPE_OPTIONS.find(o => o.id === selectedStoreType) || STORE_TYPE_OPTIONS[0];
+                      const Icon = opt.icon;
+                      return <Icon className="w-4 h-4 text-emerald-700" />;
+                    })()}
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-slate-500 font-semibold block">نشاط المحل المعتمد تلقائياً:</span>
+                    <span className="font-bold text-slate-900 text-xs">
+                      {(STORE_TYPE_OPTIONS.find(o => o.id === selectedStoreType) || STORE_TYPE_OPTIONS[0]).label}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowTypeSelector(prev => !prev)}
+                  className="px-2.5 py-1 text-[11px] font-bold text-emerald-800 hover:text-emerald-950 bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 rounded-lg transition-colors cursor-pointer"
+                >
+                  {showTypeSelector ? 'إخفاء الخيارات' : 'تغيير النشاط'}
+                </button>
               </div>
+
+              {/* Show the selection grid ONLY if the user clicks "تغيير النشاط" */}
+              {showTypeSelector && (
+                <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2 animate-fadeIn">
+                  <label className="block text-xs font-bold text-slate-700">
+                    اختر نشاط المتجر لتحميل أصناف ملائمة له:
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {STORE_TYPE_OPTIONS.map(opt => {
+                      const Icon = opt.icon;
+                      const isSelected = selectedStoreType === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedStoreType(opt.id);
+                            localStorage.setItem('rafiq_preferred_store_type', opt.id);
+                            setShowTypeSelector(false);
+                          }}
+                          className={`p-2.5 rounded-lg border text-right transition-all flex items-center gap-2.5 cursor-pointer ${
+                            isSelected
+                              ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold shadow-2xs ring-1 ring-emerald-500'
+                              : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                          }`}
+                        >
+                          <Icon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-emerald-700' : 'text-slate-400'}`} />
+                          <span className="text-xs font-bold">{opt.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               <button
                 type="button"
@@ -270,7 +328,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                 ) : (
                   <>
                     <Download className="w-4 h-4" />
-                    تحميل البيانات التجريبية الآن
+                    <span>تحميل أصناف تجريبية لـ «{(STORE_TYPE_OPTIONS.find(o => o.id === selectedStoreType) || STORE_TYPE_OPTIONS[0]).label}»</span>
                   </>
                 )}
               </button>
@@ -278,63 +336,61 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
           )}
 
           {/* Action 2: Clear Demo Data with Confirmation */}
-          {status.hasDemoData && (
-            <div className="space-y-3 pt-1">
-              {!showClearConfirm ? (
-                <button
-                  type="button"
-                  onClick={() => setShowClearConfirm(true)}
-                  disabled={loading}
-                  className="w-full py-3 bg-red-50 hover:bg-red-100 text-red-700 hover:text-red-800 border border-red-200 rounded-xl font-bold transition-colors flex items-center justify-center gap-2 text-sm cursor-pointer"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  مسح كافة البيانات التجريبية
-                </button>
-              ) : (
-                <div className="bg-red-50/90 border border-red-200 rounded-xl p-4 space-y-3 animate-fadeIn">
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="text-sm font-bold text-red-900">تأكيد مسح البيانات التجريبية؟</h4>
-                      <p className="text-xs text-red-800 mt-1 leading-relaxed">
-                        سيتم حذف كافة الأصناف والعملاء والفواتير التجريبية فقط. أي أصناف أو مبيعات حقيقية قمت بإضافتها
-                        ستظل محفوظة تماماً في قاعدة البيانات.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setShowClearConfirm(false)}
-                      disabled={loading}
-                      className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
-                    >
-                      إلغاء
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleClearDemo}
-                      disabled={loading}
-                      className="px-4 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-lg shadow transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
-                    >
-                      {loading ? (
-                        <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          جاري المسح...
-                        </>
-                      ) : (
-                        <>
-                          <Check className="w-3.5 h-3.5" />
-                          نعم، امسح البيانات التجريبية
-                        </>
-                      )}
-                    </button>
+          <div className="space-y-3 pt-1">
+            {!showClearConfirm ? (
+              <button
+                type="button"
+                onClick={() => setShowClearConfirm(true)}
+                disabled={loading}
+                className="w-full py-2.5 bg-red-50 hover:bg-red-100 text-red-700 hover:text-red-800 border border-red-200 rounded-xl font-bold transition-colors flex items-center justify-center gap-2 text-xs cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{status.hasDemoData ? 'مسح كافة البيانات التجريبية' : 'مسح وقائي لأي بيانات تجريبية متبقية'}</span>
+              </button>
+            ) : (
+              <div className="bg-red-50/90 border border-red-200 rounded-xl p-4 space-y-3 animate-fadeIn">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-bold text-red-900">تأكيد مسح البيانات التجريبية؟</h4>
+                    <p className="text-xs text-red-800 mt-1 leading-relaxed">
+                      سيتم حذف كافة الأصناف والعملاء والفواتير التجريبية فقط. أي أصناف أو مبيعات حقيقية قمت بإضافتها
+                      ستظل محفوظة تماماً في قاعدة البيانات.
+                    </p>
                   </div>
                 </div>
-              )}
-            </div>
-          )}
+
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowClearConfirm(false)}
+                    disabled={loading}
+                    className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    إلغاء
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClearDemo}
+                    disabled={loading}
+                    className="px-4 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-lg shadow transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        جاري المسح...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        نعم، امسح البيانات التجريبية
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Start Tour Button */}
           {onStartTour && (

@@ -201,7 +201,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                 ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
                 : 'bg-amber-100 text-amber-800 border-amber-300'
             }`}>
-              {isAlreadyActive ? 'مفعل ومعتمد ✓' : 'بحاجة لتفعيل'}
+              {isAlreadyActive ? 'مفعل ومعتمد' : 'بحاجة لتفعيل'}
             </span>
           </div>
 
