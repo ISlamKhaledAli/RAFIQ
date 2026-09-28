@@ -55,6 +55,15 @@ export interface Category {
   updatedAt: string;
 }
 
+export interface QuickBundleItem {
+  productId: string;
+  productName: string;
+  barcode?: string | null;
+  quantityMilli: number;
+  unit: string;
+  originalPricePiasters: number;
+}
+
 export interface QuickItem {
   id: string;
   productId?: string | null;
@@ -65,6 +74,8 @@ export interface QuickItem {
   categoryName: string;
   color?: string | null;
   displayOrder: number;
+  bundleItemsJson?: string | null;
+  bundleItems?: QuickBundleItem[];
   createdAt?: string;
   updatedAt?: string;
 }

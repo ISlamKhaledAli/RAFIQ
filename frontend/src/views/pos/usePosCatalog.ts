@@ -1,12 +1,12 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { FormEvent } from 'react';
-import type { Product, QuickItem } from '../../types/models';
+import type { Product, QuickItem, QuickBundleItem, ProductUnit } from '../../types/models';
 import type { SmartCatalogItem } from './types';
 
 interface UsePosCatalogProps {
   catalogProducts: Product[];
   quickItems: QuickItem[];
-  addProductToCart: (prod: Product) => void;
+  addProductToCart: (prod: Product, customWeightMilli?: number, specificUnit?: ProductUnit) => void;
   showStatus: (text: string, type?: 'success' | 'error' | 'warning') => void;
   barcodeInputRef: React.RefObject<HTMLInputElement | null>;
   setInitialWeightMilli: React.Dispatch<React.SetStateAction<number>>;
@@ -63,12 +63,12 @@ export const usePosCatalog = ({
       list.push({
         id: p.id,
         productId: p.id,
-        name: p.name,
-        pricePiasters: p.pricePiasters,
+        name: matchedQuick?.name || p.name,
+        pricePiasters: (matchedQuick && matchedQuick.pricePiasters > 0) ? matchedQuick.pricePiasters : p.pricePiasters,
         isOpenPrice: matchedQuick?.isOpenPrice || Boolean(p.isOpenPrice),
         unit: p.unit || 'piece',
         categoryId: p.categoryId,
-        categoryName: p.categoryName || 'عام',
+        categoryName: matchedQuick?.categoryName || p.categoryName || 'عام',
         stockQuantityMilli: p.stockQuantityMilli,
         barcode: p.barcode,
         barcodes: p.barcodes,
@@ -195,8 +195,49 @@ export const usePosCatalog = ({
       return;
     }
 
+    // Check if it's a Bundle / Combo offer (e.g. Ramadan Box)
+    const matchedQuickForBundle = quickItems.find((q) => q.id === item.id);
+    let bundleList: QuickBundleItem[] | null = null;
+    if (matchedQuickForBundle?.bundleItemsJson) {
+      try {
+        bundleList = JSON.parse(matchedQuickForBundle.bundleItemsJson);
+      } catch {
+        bundleList = null;
+      }
+    } else if (matchedQuickForBundle?.bundleItems && matchedQuickForBundle.bundleItems.length > 0) {
+      bundleList = matchedQuickForBundle.bundleItems;
+    }
+
+    if (bundleList && bundleList.length > 0) {
+      const totalOriginalPiasters = bundleList.reduce((sum, b) => sum + (b.originalPricePiasters * (b.quantityMilli / 1000)), 0);
+      const ratio = totalOriginalPiasters > 0 ? (item.pricePiasters / totalOriginalPiasters) : 1;
+
+      for (const bItem of bundleList) {
+        const linePrice = Math.max(1, Math.round(bItem.originalPricePiasters * ratio));
+        const bundleProd: Product = {
+          id: bItem.productId,
+          name: `${bItem.productName} (ضمن ${item.name})`,
+          barcode: bItem.barcode || null,
+          pricePiasters: linePrice,
+          costPiasters: Math.round(linePrice * 0.75),
+          stockQuantityMilli: 100000,
+          unit: bItem.unit || 'piece',
+          taxRatePercent: 0,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        addProductToCart(bundleProd, bItem.quantityMilli);
+      }
+      showStatus(`تمت إضافة أصناف "${item.name}" (${bundleList.length} أصناف) إلى السلة بسعر العرض!`, 'success');
+      barcodeInputRef.current?.focus();
+      return;
+    }
+
     if (item.productRef) {
-      addProductToCart(item.productRef);
+      const customPrice = item.pricePiasters !== item.productRef.pricePiasters;
+      const productToAdd = customPrice ? { ...item.productRef, pricePiasters: item.pricePiasters } : item.productRef;
+      addProductToCart(productToAdd);
       showStatus(`تمت إضافة: ${item.name}`, 'success');
       barcodeInputRef.current?.focus();
       return;
@@ -231,7 +272,7 @@ export const usePosCatalog = ({
     addProductToCart(dummyProduct);
     showStatus(`تمت إضافة: ${item.name}`, 'success');
     barcodeInputRef.current?.focus();
-  }, [addProductToCart, showStatus, barcodeInputRef, setInitialWeightMilli, setWeightModalProduct]);
+  }, [addProductToCart, showStatus, barcodeInputRef, setInitialWeightMilli, setWeightModalProduct, quickItems]);
 
   const handleConfirmOpenPrice = (e: FormEvent) => {
     e.preventDefault();

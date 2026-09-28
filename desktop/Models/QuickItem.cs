@@ -32,6 +32,9 @@ namespace RafiqPOS.Models
         [JsonProperty("displayOrder")]
         public int DisplayOrder { get; set; }
 
+        [JsonProperty("bundleItemsJson")]
+        public string BundleItemsJson { get; set; }
+
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
 

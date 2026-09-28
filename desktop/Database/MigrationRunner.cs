@@ -1647,6 +1647,29 @@ namespace RafiqPOS.Database
                             cmd.ExecuteNonQuery();
                         }
 
+                        // Ensure bundle_items_json column exists in quick_items (Combo & Bundle Offers)
+                        using (var checkColCmd = new SQLiteCommand("PRAGMA table_info(quick_items);", conn, trans))
+                        using (var colReader = checkColCmd.ExecuteReader())
+                        {
+                            bool hasBundleCol = false;
+                            while (colReader.Read())
+                            {
+                                string col = colReader["name"].ToString();
+                                if (string.Equals(col, "bundle_items_json", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    hasBundleCol = true;
+                                    break;
+                                }
+                            }
+                            if (!hasBundleCol)
+                            {
+                                using (var alterCmd = new SQLiteCommand("ALTER TABLE quick_items ADD COLUMN bundle_items_json TEXT DEFAULT NULL;", conn, trans))
+                                {
+                                    alterCmd.ExecuteNonQuery();
+                                }
+                            }
+                        }
+
                         // 2. Check if table is empty and seed defaults if so
                         long count = 0;
                         using (var checkCmd = new SQLiteCommand("SELECT COUNT(*) FROM quick_items;", conn, trans))

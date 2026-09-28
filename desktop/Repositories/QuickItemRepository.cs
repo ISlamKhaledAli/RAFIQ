@@ -21,7 +21,7 @@ namespace RafiqPOS.Repositories
             {
                 conn.Open();
                 string sql = @"
-                    SELECT id, product_id, name, price_piasters, is_open_price, unit, category_name, color, display_order, created_at, updated_at
+                    SELECT id, product_id, name, price_piasters, is_open_price, unit, category_name, color, display_order, bundle_items_json, created_at, updated_at
                     FROM quick_items
                     ORDER BY category_name ASC, display_order ASC, name ASC;
                 ";
@@ -41,6 +41,7 @@ namespace RafiqPOS.Repositories
                             CategoryName = reader["category_name"].ToString(),
                             Color = reader["color"] == DBNull.Value ? null : reader["color"].ToString(),
                             DisplayOrder = Convert.ToInt32(reader["display_order"]),
+                            BundleItemsJson = reader["bundle_items_json"] == DBNull.Value ? null : reader["bundle_items_json"].ToString(),
                             CreatedAt = reader["created_at"].ToString(),
                             UpdatedAt = reader["updated_at"].ToString()
                         });
@@ -58,7 +59,7 @@ namespace RafiqPOS.Repositories
             {
                 conn.Open();
                 string sql = @"
-                    SELECT id, product_id, name, price_piasters, is_open_price, unit, category_name, color, display_order, created_at, updated_at
+                    SELECT id, product_id, name, price_piasters, is_open_price, unit, category_name, color, display_order, bundle_items_json, created_at, updated_at
                     FROM quick_items
                     WHERE id = @id;
                 ";
@@ -80,6 +81,7 @@ namespace RafiqPOS.Repositories
                                 CategoryName = reader["category_name"].ToString(),
                                 Color = reader["color"] == DBNull.Value ? null : reader["color"].ToString(),
                                 DisplayOrder = Convert.ToInt32(reader["display_order"]),
+                                BundleItemsJson = reader["bundle_items_json"] == DBNull.Value ? null : reader["bundle_items_json"].ToString(),
                                 CreatedAt = reader["created_at"].ToString(),
                                 UpdatedAt = reader["updated_at"].ToString()
                             };
@@ -119,8 +121,8 @@ namespace RafiqPOS.Repositories
                             }
 
                             string insertSql = @"
-                                INSERT INTO quick_items (id, product_id, name, price_piasters, is_open_price, unit, category_name, color, display_order, created_at, updated_at)
-                                VALUES (@id, @productId, @name, @pricePiasters, @isOpenPrice, @unit, @categoryName, @color, @displayOrder, @createdAt, @updatedAt);
+                                INSERT INTO quick_items (id, product_id, name, price_piasters, is_open_price, unit, category_name, color, display_order, bundle_items_json, created_at, updated_at)
+                                VALUES (@id, @productId, @name, @pricePiasters, @isOpenPrice, @unit, @categoryName, @color, @displayOrder, @bundleItemsJson, @createdAt, @updatedAt);
                             ";
                             using (var cmd = new SQLiteCommand(insertSql, conn, trans))
                             {
@@ -133,6 +135,7 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@categoryName", string.IsNullOrWhiteSpace(item.CategoryName) ? "عام" : item.CategoryName);
                                 cmd.Parameters.AddWithValue("@color", (object)item.Color ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@displayOrder", item.DisplayOrder);
+                                cmd.Parameters.AddWithValue("@bundleItemsJson", (object)item.BundleItemsJson ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@createdAt", item.CreatedAt);
                                 cmd.Parameters.AddWithValue("@updatedAt", item.UpdatedAt);
                                 cmd.ExecuteNonQuery();
@@ -151,6 +154,7 @@ namespace RafiqPOS.Repositories
                                     category_name = @categoryName,
                                     color = @color,
                                     display_order = @displayOrder,
+                                    bundle_items_json = @bundleItemsJson,
                                     updated_at = @updatedAt
                                 WHERE id = @id;
                             ";
@@ -165,6 +169,7 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@categoryName", string.IsNullOrWhiteSpace(item.CategoryName) ? "عام" : item.CategoryName);
                                 cmd.Parameters.AddWithValue("@color", (object)item.Color ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@displayOrder", item.DisplayOrder);
+                                cmd.Parameters.AddWithValue("@bundleItemsJson", (object)item.BundleItemsJson ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@updatedAt", item.UpdatedAt);
                                 cmd.ExecuteNonQuery();
                             }
