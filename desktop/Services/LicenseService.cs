@@ -155,6 +155,7 @@ namespace RafiqPOS.Services
                     isExpired = true;
                     status = "expired";
                     statusLabel = "انتهت فترة الاشتراك في " + expiresAtUtc.ToString("yyyy-MM-dd");
+                    _settingsRepo.Set("license_status", "expired");
                 }
                 else if (isActive)
                 {

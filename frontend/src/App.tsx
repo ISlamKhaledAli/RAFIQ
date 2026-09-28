@@ -64,6 +64,23 @@ export interface SystemInfo {
 
 export type TabType = 'pos' | 'dashboard' | 'customers' | 'products' | 'sales' | 'audit' | 'settings';
 
+const formatLicenseExpiryTime = (details: LicenseExpiryDetails): string => {
+  if (!details.expiresAt) return 'قريباً';
+  try {
+    const raw = details.expiresAt.trim();
+    const d = new Date(raw.endsWith('Z') || raw.includes('T') ? raw : `${raw} UTC`);
+    if (isNaN(d.getTime())) return details.expiresAt;
+    const localTime = d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+    const localDate = d.toLocaleDateString('ar-EG', { year: 'numeric', month: 'numeric', day: 'numeric' });
+    if (details.daysRemaining <= 1) {
+      return `اليوم الساعة ${localTime}`;
+    }
+    return `خلال ${details.daysRemaining} أيام (${localDate} ${localTime})`;
+  } catch {
+    return details.expiresAt;
+  }
+};
+
 const HeaderClock: FC = memo(() => {
   const [time, setTime] = useState('');
   const [date, setDate] = useState('');
@@ -633,7 +650,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4 shrink-0 text-amber-900" />
             <span>
-              تنبيه هام: سينتهي اشتراك البرنامج خلال {licenseExpiry.daysRemaining} {licenseExpiry.daysRemaining === 1 ? 'يوم' : 'أيام'} ({licenseExpiry.expiresAt || 'قريباً'}). يرجى التجديد لتفادي توقف نقاط البيع تلقائياً.
+              تنبيه هام: سينتهي اشتراك البرنامج {formatLicenseExpiryTime(licenseExpiry)}. يرجى التجديد لتفادي توقف نقاط البيع تلقائياً.
             </span>
           </div>
           <div className="flex items-center gap-2">
