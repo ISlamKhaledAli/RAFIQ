@@ -32,16 +32,16 @@ export const PosFooterBar: React.FC<PosFooterBarProps> = ({
   onFastCashCheckout,
 }) => {
   return (
-    <footer className="h-11 w-full bg-[#f0f3f0] border-t border-[#dce1dc] flex items-center justify-between px-3 select-none shrink-0 z-10 text-xs overflow-x-auto gap-2">
+    <footer className="h-11 w-full bg-white border-t border-[#dce1dc] flex items-center justify-between px-3 select-none shrink-0 z-10 text-xs overflow-x-auto gap-2 shadow-[0_-1px_3px_rgba(0,0,0,0.02)]">
       <div className="flex items-center gap-1.5 overflow-x-auto py-1">
         {/* F1: Help */}
         <button 
           type="button"
           onClick={onOpenHelp}
-          className="h-8 px-2.5 rounded-lg bg-white hover:bg-[#e7eae6] active:bg-[#dce1dc] text-[#14181a] border border-[#dce1dc] border-b-2 border-b-[#c4cbc4] shadow-xs active:translate-y-0.5 transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
+          className="h-8 px-2.5 rounded-xl bg-white hover:bg-slate-50 text-[#0f172a] border border-[#dce1dc] hover:border-[#006d41]/50 shadow-2xs active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
           title="دليل اختصارات لوحة المفاتيح الكامل (F1)"
         >
-          <kbd className="px-1.5 py-0.5 rounded bg-[#e7eae6] border border-[#dce1dc] font-mono text-[10px] font-black text-[#006d41]">
+          <kbd className="px-1.5 py-0.5 rounded-md bg-[#eaf5ee] border border-[#c4e3d0] font-mono text-[10px] font-black text-[#006d41]">
             F1
           </kbd>
           <span>مساعدة</span>
@@ -51,10 +51,10 @@ export const PosFooterBar: React.FC<PosFooterBarProps> = ({
         <button 
           type="button"
           onClick={onFocusSearch}
-          className="h-8 px-2.5 rounded-lg bg-white hover:bg-[#e7eae6] active:bg-[#dce1dc] text-[#14181a] border border-[#dce1dc] border-b-2 border-b-[#c4cbc4] shadow-xs active:translate-y-0.5 transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
+          className="h-8 px-2.5 rounded-xl bg-white hover:bg-slate-50 text-[#0f172a] border border-[#dce1dc] hover:border-[#006d41]/50 shadow-2xs active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
           title="التركيز على حقل البحث والباركود (F2)"
         >
-          <kbd className="px-1.5 py-0.5 rounded bg-[#f0f3f0] border border-[#dce1dc] font-mono text-[10px] font-black text-[#5b6664]">
+          <kbd className="px-1.5 py-0.5 rounded-md bg-[#f1f5f4] border border-[#dce1dc] font-mono text-[10px] font-bold text-[#52605d]">
             F2
           </kbd>
           <span>بحث</span>
@@ -64,10 +64,10 @@ export const PosFooterBar: React.FC<PosFooterBarProps> = ({
         <button 
           type="button"
           onClick={onEditLastItemQuantity}
-          className="h-8 px-2.5 rounded-lg bg-white hover:bg-[#e7eae6] active:bg-[#dce1dc] text-[#14181a] border border-[#dce1dc] border-b-2 border-b-[#c4cbc4] shadow-xs active:translate-y-0.5 transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
+          className="h-8 px-2.5 rounded-xl bg-white hover:bg-slate-50 text-[#0f172a] border border-[#dce1dc] hover:border-[#006d41]/50 shadow-2xs active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
           title="تعديل كمية أو وزن الصنف الأخير في السلة (F3)"
         >
-          <kbd className="px-1.5 py-0.5 rounded bg-[#f0f3f0] border border-[#dce1dc] font-mono text-[10px] font-black text-[#5b6664]">
+          <kbd className="px-1.5 py-0.5 rounded-md bg-[#f1f5f4] border border-[#dce1dc] font-mono text-[10px] font-bold text-[#52605d]">
             F3
           </kbd>
           <span>كمية (+/-)</span>
@@ -77,10 +77,10 @@ export const PosFooterBar: React.FC<PosFooterBarProps> = ({
         <button 
           type="button"
           onClick={onOpenDiscountModal}
-          className="h-8 px-2.5 rounded-lg bg-white hover:bg-[#e7eae6] active:bg-[#dce1dc] text-[#14181a] border border-[#dce1dc] border-b-2 border-b-[#c4cbc4] shadow-xs active:translate-y-0.5 transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
+          className="h-8 px-2.5 rounded-xl bg-white hover:bg-slate-50 text-[#0f172a] border border-[#dce1dc] hover:border-[#006d41]/50 shadow-2xs active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
           title="إضافة خصم على إجمالي الفاتورة (F4)"
         >
-          <kbd className="px-1.5 py-0.5 rounded bg-[#f0f3f0] border border-[#dce1dc] font-mono text-[10px] font-black text-[#5b6664]">
+          <kbd className="px-1.5 py-0.5 rounded-md bg-[#f1f5f4] border border-[#dce1dc] font-mono text-[10px] font-bold text-[#52605d]">
             F4
           </kbd>
           <span>خصم</span>
@@ -90,10 +90,10 @@ export const PosFooterBar: React.FC<PosFooterBarProps> = ({
         <button 
           type="button"
           onClick={onHoldOrShowHeld}
-          className="h-8 px-2.5 rounded-lg bg-white hover:bg-[#e7eae6] active:bg-[#dce1dc] text-[#14181a] border border-[#dce1dc] border-b-2 border-b-[#c4cbc4] shadow-xs active:translate-y-0.5 transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
+          className="h-8 px-2.5 rounded-xl bg-white hover:bg-slate-50 text-[#0f172a] border border-[#dce1dc] hover:border-[#006d41]/50 shadow-2xs active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
           title="تعليق السلة الحالية أو استرجاع السلة المعلقة (F6)"
         >
-          <kbd className="px-1.5 py-0.5 rounded bg-[#f0f3f0] border border-[#dce1dc] font-mono text-[10px] font-black text-[#5b6664]">
+          <kbd className="px-1.5 py-0.5 rounded-md bg-[#f1f5f4] border border-[#dce1dc] font-mono text-[10px] font-bold text-[#52605d]">
             F6
           </kbd>
           <span>تعليق/معلقة</span>
@@ -108,10 +108,10 @@ export const PosFooterBar: React.FC<PosFooterBarProps> = ({
         <button 
           type="button"
           onClick={onOpenReturnModal}
-          className="h-8 px-2.5 rounded-lg bg-[#fff8f0] hover:bg-[#feeedb] active:bg-[#fddbb8] text-[#8a4e00] border border-[#f5cc9c] border-b-2 border-b-[#e5a863] shadow-xs active:translate-y-0.5 transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
+          className="h-8 px-2.5 rounded-xl bg-white hover:bg-amber-50 text-amber-900 border border-amber-200 hover:border-amber-400 shadow-2xs active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
           title="تسجيل مرتجع مبيعات للعميل (F11)"
         >
-          <kbd className="px-1.5 py-0.5 rounded bg-[#feeedb] border border-[#f5cc9c] font-mono text-[10px] font-black text-[#8a4e00]">
+          <kbd className="px-1.5 py-0.5 rounded-md bg-amber-100 border border-amber-200 font-mono text-[10px] font-black text-amber-800">
             F11
           </kbd>
           <span>مرتجع</span>
@@ -121,10 +121,10 @@ export const PosFooterBar: React.FC<PosFooterBarProps> = ({
         <button 
           type="button"
           onClick={onRequestClearCart}
-          className="h-8 px-2.5 rounded-lg bg-white hover:bg-[#e7eae6] active:bg-[#dce1dc] text-[#14181a] border border-[#dce1dc] border-b-2 border-b-[#c4cbc4] shadow-xs active:translate-y-0.5 transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
+          className="h-8 px-2.5 rounded-xl bg-white hover:bg-rose-50 text-rose-800 border border-rose-200 hover:border-rose-300 shadow-2xs active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
           title="مسح السلة وبدء فاتورة جديدة (F7)"
         >
-          <kbd className="px-1.5 py-0.5 rounded bg-[#f0f3f0] border border-[#dce1dc] font-mono text-[10px] font-black text-[#5b6664]">
+          <kbd className="px-1.5 py-0.5 rounded-md bg-rose-100 border border-rose-200 font-mono text-[10px] font-bold text-rose-700">
             F7
           </kbd>
           <span>سلة جديدة</span>
@@ -134,10 +134,10 @@ export const PosFooterBar: React.FC<PosFooterBarProps> = ({
         <button 
           type="button"
           onClick={onOpenScannerModal}
-          className="h-8 px-2.5 rounded-lg bg-white hover:bg-[#e7eae6] active:bg-[#dce1dc] text-[#14181a] border border-[#dce1dc] border-b-2 border-b-[#c4cbc4] shadow-xs active:translate-y-0.5 transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
+          className="h-8 px-2.5 rounded-xl bg-white hover:bg-slate-50 text-[#0f172a] border border-[#dce1dc] hover:border-[#006d41]/50 shadow-2xs active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
           title="إعدادات وضبط قارئ الباركود (F8)"
         >
-          <kbd className="px-1.5 py-0.5 rounded bg-[#f0f3f0] border border-[#dce1dc] font-mono text-[10px] font-black text-[#5b6664]">
+          <kbd className="px-1.5 py-0.5 rounded-md bg-[#f1f5f4] border border-[#dce1dc] font-mono text-[10px] font-bold text-[#52605d]">
             F8
           </kbd>
           <span>القارئ</span>
@@ -147,10 +147,10 @@ export const PosFooterBar: React.FC<PosFooterBarProps> = ({
         <button 
           type="button"
           onClick={onShowLastReceipt}
-          className="h-8 px-2.5 rounded-lg bg-white hover:bg-[#e7eae6] active:bg-[#dce1dc] text-[#14181a] border border-[#dce1dc] border-b-2 border-b-[#c4cbc4] shadow-xs active:translate-y-0.5 transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
+          className="h-8 px-2.5 rounded-xl bg-white hover:bg-slate-50 text-[#0f172a] border border-[#dce1dc] hover:border-[#006d41]/50 shadow-2xs active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs"
           title="معاينة وإعادة طباعة آخر إيصال تم حفظه (F9)"
         >
-          <kbd className="px-1.5 py-0.5 rounded bg-[#f0f3f0] border border-[#dce1dc] font-mono text-[10px] font-black text-[#5b6664]">
+          <kbd className="px-1.5 py-0.5 rounded-md bg-[#f1f5f4] border border-[#dce1dc] font-mono text-[10px] font-bold text-[#52605d]">
             F9
           </kbd>
           <span>إعادة الإيصال</span>
@@ -160,15 +160,15 @@ export const PosFooterBar: React.FC<PosFooterBarProps> = ({
         <button 
           type="button"
           onClick={onToggleCreditPayment}
-          className={`h-8 px-2.5 rounded-lg border border-b-2 shadow-xs active:translate-y-0.5 transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs ${
+          className={`h-8 px-2.5 rounded-xl border shadow-2xs active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-bold text-xs ${
             paymentMethod === 'credit'
-              ? 'bg-[#fff0f0] text-[#b23a2e] border-[#f8b4af] border-b-[#e5776d]'
-              : 'bg-white hover:bg-[#e7eae6] text-[#14181a] border-[#dce1dc] border-b-[#c4cbc4]'
+              ? 'bg-[#fdf3f2] text-[#b23a2e] border-[#f6cbc6]'
+              : 'bg-white hover:bg-slate-50 text-[#0f172a] border-[#dce1dc] hover:border-[#006d41]/50'
           }`}
           title="التبديل بين الدفع النقدي والبيع الآجل للعميل (F10)"
         >
-          <kbd className={`px-1.5 py-0.5 rounded font-mono text-[10px] font-black ${
-            paymentMethod === 'credit' ? 'bg-[#ffe4e3] border border-[#f8b4af] text-[#b23a2e]' : 'bg-[#f0f3f0] border border-[#dce1dc] text-[#5b6664]'
+          <kbd className={`px-1.5 py-0.5 rounded-md font-mono text-[10px] font-bold ${
+            paymentMethod === 'credit' ? 'bg-[#ffdad6] border border-[#f6cbc6] text-[#b23a2e]' : 'bg-[#f1f5f4] border border-[#dce1dc] text-[#52605d]'
           }`}>
             F10
           </kbd>
@@ -179,18 +179,18 @@ export const PosFooterBar: React.FC<PosFooterBarProps> = ({
         <button 
           type="button"
           onClick={onFastCashCheckout}
-          className="h-8 px-3 rounded-lg bg-[#006d41] hover:bg-[#005230] text-white border border-[#006d41] border-b-2 border-b-[#00372d] shadow-xs active:translate-y-0.5 transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-black text-xs"
+          className="h-8 px-3 rounded-xl bg-[#006d41] hover:bg-[#005734] text-white border border-[#006d41] shadow-xs active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0 font-black text-xs"
           title="سداد نقدي فوري وحفظ الفاتورة مباشرة (F12)"
         >
-          <kbd className="px-1.5 py-0.5 rounded bg-[#005230] text-white border border-[#00372d] font-mono text-[10px] font-black">
+          <kbd className="px-1.5 py-0.5 rounded-md bg-[#004d3f] text-white border border-[#00372d] font-mono text-[10px] font-bold">
             F12
           </kbd>
           <span>سداد نقدي</span>
         </button>
       </div>
 
-      <div className="text-[11px] font-mono text-[#5b6664] shrink-0 pr-2 flex items-center gap-1.5">
-        <span className="w-1.5 h-1.5 rounded-full bg-[#006d41] animate-pulse" />
+      <div className="text-[11px] font-mono text-[#52605d] shrink-0 pr-2 flex items-center gap-1.5 font-bold">
+        <span className="w-2 h-2 rounded-full bg-[#006d41] animate-pulse" />
         <span>كيبورد + لمس</span>
       </div>
     </footer>

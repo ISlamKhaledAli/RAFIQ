@@ -204,11 +204,11 @@ const HeaderClock: FC = memo(() => {
   }, []);
 
   return (
-    <div className="flex items-center gap-2 bg-surface-2 border border-line px-3 py-1 rounded tabular-nums text-[12px] font-semibold text-ink">
-      <Clock className="w-3.5 h-3.5 text-ink-muted" />
-      <span className="text-ink-muted font-normal text-[11px]">{date}</span>
-      <span className="text-line">|</span>
-      <span className="font-mono text-brand font-bold">{time || '00:00:00'}</span>
+    <div className="flex items-center gap-2 bg-white border border-[#dce1dc] px-3 py-1.5 rounded-xl tabular-nums text-[12px] font-semibold text-[#0f172a] shadow-2xs">
+      <Clock className="w-3.5 h-3.5 text-[#52605d]" />
+      <span className="text-[#52605d] font-normal text-[11px]">{date}</span>
+      <span className="text-[#dce1dc]">|</span>
+      <span className="font-mono text-[#006d41] font-bold tracking-wide">{time || '00:00:00'}</span>
     </div>
   );
 });
@@ -624,48 +624,50 @@ export default function App() {
   return (
     <div className="flex flex-col h-screen w-screen bg-canvas text-ink select-none overflow-hidden">
       {/* 1. TOP BAR (60px high, hairline-b, Spans across top) */}
-      <header className="h-[60px] w-full bg-surface hairline-b flex items-center justify-between px-5 shrink-0 z-20">
+      <header className="h-[60px] w-full bg-white hairline-b flex items-center justify-between px-5 shrink-0 z-20 shadow-[0_1px_4px_rgba(0,0,0,0.02)]">
         {/* Right Side: Store Title & Status Badges */}
         <div className="flex items-center gap-3">
-          <img 
-            src="/logo.png" 
-            alt="رفيق" 
-            className="w-8 h-8 object-contain drop-shadow-sm" 
-          />
+          <div className="w-9 h-9 rounded-xl bg-[#eaf5ee] border border-[#c4e3d0] flex items-center justify-center p-1.5 shadow-2xs">
+            <img 
+              src="/logo.png" 
+              alt="رفيق" 
+              className="w-full h-full object-contain drop-shadow-xs" 
+            />
+          </div>
           <div>
-            <h1 className="text-[17px] font-bold text-ink leading-tight m-0">{storeName || 'رفيق POS'}</h1>
-            <p className="text-[11px] text-ink-muted m-0 mt-0.5">نظام نقاط البيع وإدارة المتاجر</p>
+            <h1 className="text-[16px] font-extrabold text-[#0f172a] leading-tight m-0">{storeName || 'رفيق POS'}</h1>
+            <p className="text-[10.5px] font-medium text-[#52605d] m-0 mt-0.5">نظام نقاط البيع وإدارة السوبرماركت</p>
           </div>
         </div>
 
         {/* Left Side: Offline status, Cashier Badge, Action Buttons, Date, Time */}
         <div className="flex items-center gap-2.5 text-xs">
           {/* Offline Status Pill (Informational - Distinct from interactive buttons) */}
-          <div className="flex items-center gap-1.5 bg-emerald-50/90 border border-emerald-200/80 px-2.5 py-1 rounded-full text-emerald-800 font-semibold text-[11px] select-none shadow-2xs">
-            <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+          <div className="flex items-center gap-1.5 bg-[#eaf5ee] border border-[#c4e3d0] px-2.5 py-1 rounded-xl text-[#006d41] font-bold text-[11px] select-none shadow-2xs">
+            <span className="w-2 h-2 rounded-full bg-[#006d41] animate-pulse"></span>
             <span>أوفلاين • محلي</span>
-            <WifiOff className="w-3.5 h-3.5 text-emerald-700 opacity-75 mr-0.5" />
+            <WifiOff className="w-3.5 h-3.5 text-[#006d41] opacity-80 mr-0.5" />
           </div>
 
           {/* Cashier / Employee Identity Badge (Clickable to switch user or lock screen) */}
           <button
             type="button"
             onClick={() => setIsLoginModalOpen(true)}
-            className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 border border-slate-300/80 px-2.5 py-1 rounded-full text-slate-700 text-[11px] font-medium shadow-2xs transition-all cursor-pointer group"
+            className="flex items-center gap-1.5 bg-white hover:bg-slate-50 border border-[#dce1dc] hover:border-[#006d41]/50 px-2.5 py-1 rounded-xl text-[#0f172a] text-[11px] font-medium shadow-2xs transition-all cursor-pointer group active:scale-[0.98]"
             title="انقر لتبديل الموظف أو قفل الشاشة"
           >
-            <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${
-              currentUser?.role === 'admin' ? 'bg-amber-500 text-white' : 'bg-emerald-600 text-white'
+            <div className={`w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-extrabold ${
+              currentUser?.role === 'admin' ? 'bg-[#b3720e] text-white shadow-2xs' : 'bg-[#006d41] text-white shadow-2xs'
             }`}>
               {currentUser?.displayName ? currentUser.displayName.slice(0, 1) : 'ك'}
             </div>
-            <span className="font-bold text-slate-900">{currentUser?.displayName || cashierName || 'كاشير (1)'}</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold ${
-              currentUser?.role === 'admin' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+            <span className="font-bold text-[#0f172a]">{currentUser?.displayName || cashierName || 'كاشير (1)'}</span>
+            <span className={`text-[9.5px] px-1.5 py-0.2 rounded-md font-bold ${
+              currentUser?.role === 'admin' ? 'bg-amber-100 text-amber-900 border border-amber-200' : 'bg-emerald-100 text-emerald-900 border border-emerald-200'
             }`}>
               {currentUser?.role === 'admin' ? 'مدير' : 'كاشير'}
             </span>
-            <KeyRound className="w-3 h-3 text-slate-400 group-hover:text-slate-600" />
+            <KeyRound className="w-3 h-3 text-[#52605d] group-hover:text-[#006d41] transition-colors" />
           </button>
 
           {/* Manage Users Button for Admin (Task 166-4) */}
@@ -673,7 +675,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setIsUserManagerOpen(true)}
-              className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-white hover:bg-amber-50 active:bg-amber-100 text-amber-800 border border-amber-300/90 hover:border-amber-400 border-b-2 border-b-amber-500/70 font-bold text-xs shadow-2xs hover:shadow-xs active:translate-y-0.5 active:scale-[0.98] transition-all cursor-pointer"
+              className="flex items-center gap-1.5 h-8.5 px-3 rounded-xl bg-white hover:bg-amber-50/70 border border-amber-200 hover:border-amber-300 text-amber-900 font-bold text-xs shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer"
               title="إدارة حسابات الموظفين والصلاحيات"
             >
               <Users className="w-3.5 h-3.5 text-amber-600 shrink-0" />
@@ -682,17 +684,17 @@ export default function App() {
           )}
 
           {/* Vertical subtle divider */}
-          <div className="h-5 w-[1px] bg-slate-200 mx-0.5 hidden sm:block" />
+          <div className="h-5 w-[1px] bg-[#dce1dc] mx-0.5 hidden sm:block" />
 
           {/* Readiness Checklist Button (Feature #137) - Admin Only */}
           {currentUser?.role === 'admin' && (
             <button
               type="button"
               onClick={() => setIsReadinessOpen(true)}
-              className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white hover:bg-emerald-50/80 active:bg-emerald-100 text-[#006d41] border border-emerald-300/90 hover:border-emerald-500 border-b-2 border-b-emerald-500/70 font-bold text-xs shadow-2xs hover:shadow-xs active:translate-y-0.5 active:scale-[0.98] transition-all cursor-pointer"
+              className="flex items-center gap-1.5 h-8.5 px-3 rounded-xl bg-white hover:bg-[#eaf5ee] border border-[#c4e3d0] hover:border-[#006d41] text-[#006d41] font-bold text-xs shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer"
               title="فحص جاهزية النظام والعتاد قبل أول بيع"
             >
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <CheckCircle2 className="w-3.5 h-3.5 text-[#006d41] shrink-0" />
               <span>جاهزية التشغيل</span>
             </button>
           )}
@@ -701,7 +703,7 @@ export default function App() {
           <button
             type="button"
             onClick={handleToggleFullscreen}
-            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-300 hover:border-slate-400 border-b-2 border-b-slate-400/80 font-bold text-xs shadow-2xs hover:shadow-xs active:translate-y-0.5 active:scale-[0.98] transition-all cursor-pointer"
+            className="flex items-center gap-1.5 h-8.5 px-3 rounded-xl bg-white hover:bg-slate-50 border border-[#dce1dc] hover:border-slate-400 text-[#0f172a] font-bold text-xs shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer"
             title={isFullscreen ? 'الخروج من ملء الشاشة (F11)' : 'ملء الشاشة بالكامل وإخفاء شريط ويندوز (F11)'}
           >
             {isFullscreen ? (
@@ -715,7 +717,7 @@ export default function App() {
                 <span className="hidden sm:inline">ملء الشاشة</span>
               </>
             )}
-            <kbd className="hidden md:inline-flex items-center justify-center px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 font-mono text-[10px] font-bold">
+            <kbd className="hidden md:inline-flex items-center justify-center px-1.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-600 font-mono text-[10px] font-bold">
               F11
             </kbd>
           </button>
@@ -833,18 +835,18 @@ export default function App() {
 
       {/* 2. MAIN APP SHELL (Sidebar Navigation + Dynamic Content Canvas) */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Navigation Sidebar (RTL Right side, Responsive Collapsible: 64px collapsed / 220px expanded) */}
+        {/* Navigation Sidebar (RTL Right side, Responsive Collapsible: 68px collapsed / 230px expanded) */}
         <aside 
           className={`${
-            isSidebarCollapsed ? 'w-[64px] px-1 py-2 items-center' : 'w-[225px] p-3'
-          } bg-surface hairline-l flex flex-col shrink-0 select-none transition-all duration-150 h-full min-h-0 overflow-hidden`}
+            isSidebarCollapsed ? 'w-[68px] px-2 py-3 items-center' : 'w-[230px] p-3'
+          } bg-white hairline-l flex flex-col shrink-0 select-none transition-all duration-150 h-full min-h-0 overflow-hidden shadow-[2px_0_6px_rgba(0,0,0,0.02)]`}
         >
           {/* Top Header of Sidebar: Title + Toggle Icon Button */}
-          <div className={`w-full flex items-center mb-2 pb-2 border-b border-line shrink-0 ${
+          <div className={`w-full flex items-center mb-2 pb-2 border-b border-[#dce1dc] shrink-0 ${
             isSidebarCollapsed ? 'justify-center' : 'justify-between px-1'
           }`}>
             {!isSidebarCollapsed && (
-              <span className="text-[11px] font-bold text-ink-muted uppercase tracking-wider">
+              <span className="text-[11px] font-bold text-[#52605d] uppercase tracking-wider">
                 القوائم الرئيسية
               </span>
             )}
@@ -862,12 +864,12 @@ export default function App() {
                 });
               }}
               title={isSidebarCollapsed ? 'توسيع القائمة الجانبية' : 'تصغير القائمة الجانبية'}
-              className="w-7 h-7 rounded-md flex items-center justify-center text-ink-muted hover:text-brand hover:bg-brand-soft/70 transition-colors"
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-[#52605d] hover:text-[#00372d] hover:bg-[#eaf5ee] transition-colors cursor-pointer"
             >
               {isSidebarCollapsed ? (
-                <PanelRightOpen className="w-4 h-4 text-brand" />
+                <PanelRightOpen className="w-4 h-4 text-[#00372d]" />
               ) : (
-                <PanelRightClose className="w-4 h-4 text-ink-muted hover:text-brand" />
+                <PanelRightClose className="w-4 h-4 text-[#52605d] hover:text-[#00372d]" />
               )}
             </button>
           </div>
@@ -892,16 +894,13 @@ export default function App() {
                       });
                     }}
                     title={`${item.label} (${item.shortcut})`}
-                    className={`relative w-full h-[44px] rounded flex items-center justify-center transition-colors group ${
+                    className={`relative w-full h-[46px] rounded-xl flex items-center justify-center transition-all duration-150 group cursor-pointer ${
                       isActive
-                        ? 'bg-brand-soft text-brand font-bold'
-                        : 'text-ink-muted hover:bg-surface-2 hover:text-ink'
+                        ? 'bg-[#00372d] text-white shadow-xs'
+                        : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a]'
                     }`}
                   >
-                    <Icon className={`w-5 h-5 ${isActive ? 'text-brand' : 'text-ink-muted group-hover:text-ink'}`} />
-                    {isActive && (
-                      <span className="absolute right-0 top-1.5 bottom-1.5 w-[3px] bg-brand rounded-r" />
-                    )}
+                    <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-[#52605d] group-hover:text-[#0f172a]'}`} />
                     <span className="sr-only">{item.label}</span>
                   </button>
                 );
@@ -928,25 +927,29 @@ export default function App() {
                         handleNavClick(item.id);
                       }
                     }}
-                    className={`w-full relative flex items-center justify-between px-3 h-[44px] rounded text-[13px] transition-colors ${
+                    className={`w-full relative flex items-center justify-between px-3 h-[44px] rounded-xl text-[13px] transition-all duration-150 cursor-pointer ${
                       isActive
-                        ? 'bg-brand-soft text-brand font-bold'
-                        : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
+                        ? 'bg-[#00372d] text-white font-bold shadow-xs'
+                        : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <Icon className={`w-4 h-4 ${isActive ? 'text-brand' : 'text-ink-muted'}`} />
+                      <Icon className={`w-4.5 h-4.5 ${isActive ? 'text-white' : 'text-[#52605d]'}`} />
                       <span>{item.label}</span>
                     </div>
 
                     <div className="flex items-center gap-1.5">
                       {item.shortcut && (
-                        <span className="text-[10px] font-mono text-ink-muted/70 bg-surface-2 px-1 rounded border border-line">
+                        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-md border ${
+                          isActive
+                            ? 'bg-white/15 text-white/90 border-white/20'
+                            : 'bg-slate-100 text-[#52605d] border-[#dce1dc]'
+                        }`}>
                           {item.shortcut}
                         </span>
                       )}
                       {(isProductsItem || isSettingsItem) && (
-                        <span className="text-ink-muted/70">
+                        <span className={isActive ? 'text-white/80' : 'text-[#52605d]'}>
                           {(isProductsItem ? isProductsMenuExpanded : isSettingsMenuExpanded) ? (
                             <ChevronDown className="w-3.5 h-3.5" />
                           ) : (
@@ -955,25 +958,21 @@ export default function App() {
                         </span>
                       )}
                     </div>
-
-                    {isActive && (
-                      <div className="absolute right-0 top-0 bottom-0 w-[3.5px] bg-brand rounded-r"></div>
-                    )}
                   </button>
 
                   {/* Sub-tree for Products & Inventory */}
                   {isProductsItem && isProductsMenuExpanded && (
-                    <div className="mr-4 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-brand/20 animate-in slide-in-from-top-1 duration-150">
+                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-[#00372d]/25 animate-in slide-in-from-top-1 duration-150">
                       <button
                         type="button"
                         onClick={() => {
                           setActiveTab('products');
                           setProductsSubView('catalog');
                         }}
-                        className={`w-full flex items-center justify-between px-2.5 h-[32px] rounded text-[12px] transition-colors ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
                           effectiveActiveTab === 'products' && productsSubView === 'catalog'
-                            ? 'bg-brand text-white font-bold shadow-xs'
-                            : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
+                            ? 'bg-[#006d41] text-white font-bold shadow-2xs'
+                            : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
                         }`}
                       >
                         <div className="flex items-center gap-2">
@@ -988,10 +987,10 @@ export default function App() {
                           setActiveTab('products');
                           setProductsSubView('movements');
                         }}
-                        className={`w-full flex items-center justify-between px-2.5 h-[32px] rounded text-[12px] transition-colors ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
                           effectiveActiveTab === 'products' && productsSubView === 'movements'
-                            ? 'bg-brand text-white font-bold shadow-xs'
-                            : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
+                            ? 'bg-[#006d41] text-white font-bold shadow-2xs'
+                            : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
                         }`}
                       >
                         <div className="flex items-center gap-2">
@@ -1004,7 +1003,7 @@ export default function App() {
 
                   {/* Sub-tree for Settings */}
                   {isSettingsItem && isSettingsMenuExpanded && (
-                    <div className="mr-4 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-brand/20 animate-in slide-in-from-top-1 duration-150">
+                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-[#00372d]/25 animate-in slide-in-from-top-1 duration-150">
                       {settingsTreeItems.map((sub) => {
                         const SubIcon = sub.icon;
                         const isSubActive = activeTab === 'settings' && settingsSubTab === sub.id;
@@ -1017,14 +1016,14 @@ export default function App() {
                               setActiveTab('settings');
                               setSettingsSubTab(sub.id);
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 h-[32px] rounded text-[12px] transition-colors ${
+                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
                               isSubActive
-                                ? 'bg-brand text-white font-bold shadow-xs'
-                                : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
+                                ? 'bg-[#006d41] text-white font-bold shadow-2xs'
+                                : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
                             }`}
                           >
                             <div className="flex items-center gap-2 truncate">
-                              <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white' : 'text-ink-muted'}`} />
+                              <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white' : 'text-[#52605d]'}`} />
                               <span className="truncate">{sub.label}</span>
                             </div>
                             {sub.id === 'demo' && hasDemoData && (

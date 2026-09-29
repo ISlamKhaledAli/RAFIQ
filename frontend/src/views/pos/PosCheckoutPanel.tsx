@@ -68,118 +68,120 @@ export const PosCheckoutPanel: React.FC<PosCheckoutPanelProps> = ({
   onOpenReturnModal,
 }) => {
   return (
-    <section className="w-[24%] min-w-[220px] max-w-[290px] h-full bg-white border-r border-[#dce1dc] flex flex-col justify-between p-3 select-none overflow-y-auto shrink-0">
+    <section className="w-[24%] min-w-[220px] max-w-[290px] h-full bg-[#f8faf9] border-r border-[#dce1dc] flex flex-col justify-between p-3 select-none overflow-y-auto shrink-0">
       {/* Top Section: Line Breakdown */}
       <div className="flex flex-col gap-2.5">
-        <div className="pb-2 border-b border-[#dce1dc] flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs sm:text-sm font-bold text-[#14181a]">ملخص الفاتورة</span>
-            <span className="text-[11px] font-mono font-bold text-[#0b4f42] bg-[#0b4f42]/10 border border-[#0b4f42]/20 px-2 py-0.5 rounded">
-              #{nextExpectedInvoiceNumber || (lastInvoiceNumber ? lastInvoiceNumber + 1 : '1')}
+        <div className="bg-white p-3 rounded-2xl border border-[#dce1dc] shadow-2xs flex flex-col gap-2">
+          <div className="pb-2 border-b border-[#dce1dc] flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs sm:text-sm font-bold text-[#0f172a]">ملخص الفاتورة</span>
+              <span className="text-[11px] font-mono font-bold text-[#006d41] bg-[#eaf5ee] border border-[#c4e3d0] px-2 py-0.5 rounded-md">
+                #{nextExpectedInvoiceNumber || (lastInvoiceNumber ? lastInvoiceNumber + 1 : '1')}
+              </span>
+            </div>
+            <span className="text-[11px] font-mono text-[#52605d] bg-[#f8fafc] border border-[#dce1dc] px-2 py-0.5 rounded-md">
+              {cart.length} أصناف ({totalItemCount} ق)
             </span>
           </div>
-          <span className="text-[11px] font-mono text-[#5b6664] bg-[#f7f8f6] border border-[#dce1dc] px-2 py-0.5 rounded">
-            {cart.length} أصناف ({totalItemCount} ق)
-          </span>
-        </div>
 
-        {/* Breakdown Rows */}
-        <div className="flex justify-between items-center text-xs py-0.5">
-          <span className="text-[#5b6664]">المجموع الفرعي:</span>
-          <span className="font-bold text-[#14181a] font-mono tabular-nums">
-            {formatArabicCurrency(subtotalPiasters)}
-          </span>
-        </div>
-
-        <div className="flex justify-between items-center text-xs py-0.5 gap-2">
-          <span className="text-[#b23a2e] font-bold text-xs shrink-0">الخصم:</span>
-          <div className="w-32">
-            <MoneyInput
-              valuePiasters={discountPiasters}
-              onChangePiasters={setDiscountPiasters}
-              className="h-8 text-xs text-[#b23a2e] font-bold border-[#b23a2e]/40 focus:border-[#b23a2e] bg-[#fdf3f2] text-right pr-2 pl-8 rounded-lg"
-            />
-          </div>
-        </div>
-
-        {showTaxes && (
-          <div className="flex justify-between items-center text-[11px] py-1 text-[#5b6664] border-t border-[#dce1dc]">
-            <span>الضريبة:</span>
-            <span className="font-mono text-[#5b6664] font-semibold">
-              {totalTaxPiasters > 0
-                ? `${formatArabicCurrency(totalTaxPiasters)} (مشمولة)`
-                : '0.00 ج.م'}
+          {/* Breakdown Rows */}
+          <div className="flex justify-between items-center text-xs py-0.5">
+            <span className="text-[#52605d]">المجموع الفرعي:</span>
+            <span className="font-bold text-[#0f172a] font-mono tabular-nums">
+              {formatArabicCurrency(subtotalPiasters)}
             </span>
+          </div>
+
+          <div className="flex justify-between items-center text-xs py-0.5 gap-2">
+            <span className="text-[#b23a2e] font-bold text-xs shrink-0">الخصم:</span>
+            <div className="w-32">
+              <MoneyInput
+                valuePiasters={discountPiasters}
+                onChangePiasters={setDiscountPiasters}
+                className="h-8 text-xs text-[#b23a2e] font-bold border-[#b23a2e]/40 focus:border-[#b23a2e] bg-[#fdf3f2] text-right pr-2 pl-8 rounded-lg"
+              />
+            </div>
+          </div>
+
+          {showTaxes && (
+            <div className="flex justify-between items-center text-[11px] py-1 text-[#52605d] border-t border-[#dce1dc]">
+              <span>الضريبة:</span>
+              <span className="font-mono text-[#52605d] font-semibold">
+                {totalTaxPiasters > 0
+                  ? `${formatArabicCurrency(totalTaxPiasters)} (مشمولة)`
+                  : '0.00 ج.م'}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Customer & Debt Account Selector (Toggled by Feature #105) */}
+        {showCredit && (
+          <div className="bg-white p-2.5 rounded-2xl border border-[#dce1dc] flex flex-col gap-1.5 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] sm:text-[11px] font-bold text-[#0f172a] flex items-center gap-1">
+                <UserCheck className="w-3.5 h-3.5 text-[#006d41]" />
+                <span>عميل الفاتورة:</span>
+              </span>
+              {selectedCustomerId && (() => {
+                const cust = customers.find(c => c.id === selectedCustomerId);
+                if (cust && cust.balancePiasters > 0) {
+                  return (
+                    <span className="text-[9px] text-[#b23a2e] font-mono font-bold bg-[#fdf3f2] px-1.5 py-0.2 rounded-md border border-[#f6cbc6]">
+                      دين: {(cust.balancePiasters / 100).toFixed(0)} ج.م
+                    </span>
+                  );
+                }
+                return null;
+              })()}
+            </div>
+
+            <div className="flex gap-1">
+              <CustomSelect
+                value={selectedCustomerId}
+                onChange={(val) => {
+                  setSelectedCustomerId(val);
+                  if (!val) setPaymentMethod('cash');
+                }}
+                options={[
+                  { value: '', label: 'عميل نقدي عام (بدون حساب)' },
+                  ...customers.map((c) => ({
+                    value: c.id,
+                    label: `${c.name} ${c.phone ? `(${c.phone})` : ''} ${c.balancePiasters > 0 ? `[دين: ${(c.balancePiasters / 100).toFixed(0)}]` : ''}`
+                  }))
+                ]}
+                className="flex-1 min-w-0"
+                size="sm"
+                searchable
+              />
+
+              {selectedCustomerId && (
+                <div className="flex bg-[#f1f5f4] p-0.5 rounded-lg border border-[#dce1dc] text-[10px] shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('cash')}
+                    className={`px-1.5 py-0.5 rounded-md font-semibold transition-all ${paymentMethod === 'cash' ? 'bg-white text-[#0f172a] font-bold shadow-2xs' : 'text-[#52605d]'}`}
+                  >
+                    نقدي
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('credit')}
+                    className={`px-1.5 py-0.5 rounded-md font-semibold transition-all ${paymentMethod === 'credit' ? 'bg-[#fdf3f2] text-[#b23a2e] font-bold border border-[#f6cbc6]' : 'text-[#52605d]'}`}
+                  >
+                    آجل
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
 
-      {/* Customer & Debt Account Selector (Toggled by Feature #105) */}
-      {showCredit && (
-        <div className="bg-surface p-2 rounded border border-line flex flex-col gap-1 shrink-0 my-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] sm:text-[11px] font-bold text-ink flex items-center gap-1">
-              <UserCheck className="w-3 h-3 text-brand" />
-              <span>عميل الفاتورة:</span>
-            </span>
-            {selectedCustomerId && (() => {
-              const cust = customers.find(c => c.id === selectedCustomerId);
-              if (cust && cust.balancePiasters > 0) {
-                return (
-                  <span className="text-[9px] text-danger font-mono font-bold bg-danger-soft px-1 py-0.2 rounded border border-danger-border">
-                    دين: {(cust.balancePiasters / 100).toFixed(0)} ج.م
-                  </span>
-                );
-              }
-              return null;
-            })()}
-          </div>
-
-          <div className="flex gap-1">
-            <CustomSelect
-              value={selectedCustomerId}
-              onChange={(val) => {
-                setSelectedCustomerId(val);
-                if (!val) setPaymentMethod('cash');
-              }}
-              options={[
-                { value: '', label: 'عميل نقدي عام (بدون حساب)' },
-                ...customers.map((c) => ({
-                  value: c.id,
-                  label: `${c.name} ${c.phone ? `(${c.phone})` : ''} ${c.balancePiasters > 0 ? `[دين: ${(c.balancePiasters / 100).toFixed(0)}]` : ''}`
-                }))
-              ]}
-              className="flex-1 min-w-0"
-              size="sm"
-              searchable
-            />
-
-            {selectedCustomerId && (
-              <div className="flex bg-surface-2 p-0.5 rounded border border-line text-[10px] shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('cash')}
-                  className={`px-1.5 py-0.5 rounded font-semibold ${paymentMethod === 'cash' ? 'bg-surface text-ink font-bold shadow-xs' : 'text-ink-muted'}`}
-                >
-                  نقدي
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('credit')}
-                  className={`px-1.5 py-0.5 rounded font-semibold ${paymentMethod === 'credit' ? 'bg-danger-soft text-danger font-bold border border-danger-border' : 'text-ink-muted'}`}
-                >
-                  آجل
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Bottom Section: Hero Grand Total + Action Triggers */}
       <div className="flex flex-col gap-2 shrink-0 pt-2">
-        {/* Grand Total Solid Dark Bar (#00372D / #14181A) */}
-        <div className="w-full bg-[#00372d] rounded-lg border border-[#0b4f42] p-2.5 flex flex-col justify-between shadow-md shrink-0">
+        {/* Grand Total Solid Dark Bar (#00372D / #004D3F) */}
+        <div className="w-full bg-gradient-to-br from-[#00372d] via-[#004d3f] to-[#0b4f42] rounded-2xl border border-[#0b4f42] p-3 flex flex-col justify-between shadow-[0_8px_20px_rgba(0,55,45,0.18)] shrink-0">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-[#83bfaf]">المطلوب سداده</span>
             {totalTaxPiasters > 0 && (
@@ -190,7 +192,7 @@ export const PosCheckoutPanel: React.FC<PosCheckoutPanelProps> = ({
             <span className="text-xs font-bold text-[#b1efdd]">جنيه مصري</span>
           </div>
           <div className="flex items-baseline justify-end pt-1">
-            <span className="text-white text-2xl sm:text-[28px] leading-tight font-bold font-mono tabular-nums tracking-tight">
+            <span className="text-white text-2xl sm:text-[28px] leading-tight font-black font-mono tabular-nums tracking-tight">
               {formatArabicCurrency(netTotalPiasters)}
             </span>
           </div>
@@ -204,7 +206,7 @@ export const PosCheckoutPanel: React.FC<PosCheckoutPanelProps> = ({
               type="button"
               onClick={() => handleOpenCheckout('credit')}
               disabled={loading || cart.length === 0}
-              className="col-span-2 h-11 bg-[#b23a2e] hover:bg-[#962f25] active:bg-[#7a251d] disabled:bg-[#f1f4f6] disabled:text-[#5b6664] text-white rounded-lg px-3 flex items-center justify-between transition-colors shadow-sm cursor-pointer"
+              className="col-span-2 h-12 bg-[#b23a2e] hover:bg-[#962f25] active:bg-[#7a251d] disabled:bg-[#f1f4f6] disabled:text-[#52605d] text-white rounded-xl px-3 flex items-center justify-between transition-all shadow-sm active:scale-[0.98] cursor-pointer"
             >
               <div className="flex items-center gap-1.5 min-w-0">
                 <CreditCard className="w-4 h-4 shrink-0" />
@@ -221,7 +223,7 @@ export const PosCheckoutPanel: React.FC<PosCheckoutPanelProps> = ({
                 type="button"
                 onClick={() => handleOpenCheckout('cash')}
                 disabled={loading || cart.length === 0}
-                className="h-11 bg-[#0b4f42] hover:bg-[#0f6a57] active:bg-[#00372d] disabled:bg-[#f1f4f6] disabled:text-[#5b6664] text-white rounded-lg px-2 flex items-center justify-between transition-colors shadow-sm cursor-pointer"
+                className="h-12 bg-[#004d3f] hover:bg-[#00372d] active:bg-[#002720] disabled:bg-[#f1f4f6] disabled:text-[#52605d] text-white rounded-xl px-2.5 flex items-center justify-between transition-all shadow-sm active:scale-[0.98] cursor-pointer"
               >
                 <div className="flex items-center gap-1 min-w-0">
                   <CreditCard className="w-3.5 h-3.5 shrink-0" />
@@ -237,7 +239,7 @@ export const PosCheckoutPanel: React.FC<PosCheckoutPanelProps> = ({
                 type="button"
                 onClick={() => handleOpenCheckout('cash')}
                 disabled={loading || cart.length === 0}
-                className="h-11 bg-[#006d41] hover:bg-[#005734] active:bg-[#003d24] disabled:bg-[#f1f4f6] disabled:text-[#5b6664] text-white rounded-lg px-2 flex items-center justify-between transition-colors shadow-sm cursor-pointer"
+                className="h-12 bg-[#006d41] hover:bg-[#005734] active:bg-[#003d24] disabled:bg-[#f1f4f6] disabled:text-[#52605d] text-white rounded-xl px-2.5 flex items-center justify-between transition-all shadow-sm active:scale-[0.98] cursor-pointer"
               >
                 <div className="flex items-center gap-1 min-w-0">
                   <Printer className="w-3.5 h-3.5 shrink-0" />
@@ -257,9 +259,9 @@ export const PosCheckoutPanel: React.FC<PosCheckoutPanelProps> = ({
             type="button"
             onClick={requestClearCart}
             disabled={cart.length === 0}
-            className="flex-1 h-[32px] sm:h-[34px] bg-surface hover:bg-danger-soft text-danger disabled:text-ink-muted border border-danger disabled:border-line text-[11px] font-bold rounded flex items-center justify-center gap-1 transition-colors"
+            className="flex-1 h-[34px] sm:h-[36px] bg-white hover:bg-danger-soft text-danger disabled:text-ink-muted border border-danger/60 disabled:border-line text-[11px] font-bold rounded-xl flex items-center justify-center gap-1 transition-all shadow-2xs cursor-pointer active:scale-[0.98]"
           >
-            <RotateCcw className="w-3 h-3" />
+            <RotateCcw className="w-3.5 h-3.5" />
             <span>فاتورة جديدة (F7)</span>
           </button>
 
@@ -267,22 +269,22 @@ export const PosCheckoutPanel: React.FC<PosCheckoutPanelProps> = ({
             <button 
               type="button"
               onClick={onOpenReceipt}
-              className="px-2 h-[32px] sm:h-[34px] bg-surface border border-line hover:bg-surface-2 text-ink text-[11px] font-semibold rounded flex items-center gap-1 transition-colors"
+              className="px-2.5 h-[34px] sm:h-[36px] bg-white border border-[#dce1dc] hover:border-[#006d41]/50 hover:bg-[#eaf5ee] text-[#0f172a] text-[11px] font-semibold rounded-xl flex items-center gap-1 transition-all shadow-2xs cursor-pointer"
               title="معاينة إيصال آخر فاتورة"
             >
-              <Eye className="w-3 h-3 text-brand" />
+              <Eye className="w-3.5 h-3.5 text-[#006d41]" />
               <span>الإيصال</span>
             </button>
           )}
         </div>
 
         {/* Quick Action Strip (Held Sales / Recall / Return) */}
-        <div className="grid grid-cols-3 gap-1 h-[30px] sm:h-[32px]">
+        <div className="grid grid-cols-3 gap-1.5 h-[32px] sm:h-[34px]">
           <button
             type="button"
             onClick={() => void handleHoldCurrentSale()}
             disabled={cart.length === 0}
-            className="h-full bg-surface hover:bg-surface-2 text-ink disabled:text-ink-muted border border-line text-[10px] sm:text-[11px] font-bold rounded transition-colors truncate px-1 flex items-center justify-center gap-1 cursor-pointer"
+            className="h-full bg-white hover:bg-slate-50 text-[#0f172a] disabled:text-[#52605d] border border-[#dce1dc] hover:border-[#006d41]/40 text-[10px] sm:text-[11px] font-bold rounded-xl transition-all truncate px-1 flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-[0.98]"
             title="تعليق السلة الحالية (F6)"
           >
             <span>تعليق (F6)</span>
@@ -290,7 +292,7 @@ export const PosCheckoutPanel: React.FC<PosCheckoutPanelProps> = ({
           <button
             type="button"
             onClick={onOpenHeldSales}
-            className="h-full bg-surface hover:bg-surface-2 text-ink border border-line text-[10px] sm:text-[11px] font-bold rounded transition-colors truncate px-1 flex items-center justify-center gap-1 cursor-pointer"
+            className="h-full bg-white hover:bg-slate-50 text-[#0f172a] border border-[#dce1dc] hover:border-amber-400 text-[10px] sm:text-[11px] font-bold rounded-xl transition-all truncate px-1 flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-[0.98]"
             title="عرض واسترجاع الفواتير المعلقة"
           >
             <span>معلقة</span>
@@ -303,7 +305,7 @@ export const PosCheckoutPanel: React.FC<PosCheckoutPanelProps> = ({
           <button
             type="button"
             onClick={onOpenReturnModal}
-            className="h-full bg-surface hover:bg-amber-50 text-amber-800 border border-amber-300 text-[10px] sm:text-[11px] font-bold rounded transition-colors truncate px-1 flex items-center justify-center gap-1 cursor-pointer"
+            className="h-full bg-white hover:bg-amber-50 text-amber-800 border border-amber-200 hover:border-amber-400 text-[10px] sm:text-[11px] font-bold rounded-xl transition-all truncate px-1 flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-[0.98]"
             title="تسجيل مرتجع مبيعات (F11)"
           >
             <span>مرتجع (F11)</span>

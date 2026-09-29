@@ -522,43 +522,43 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#f3f5f2] p-3.5 gap-3 overflow-hidden select-none">
+    <div className="flex flex-col h-full bg-[#F8FAFC] p-3.5 gap-3 overflow-hidden select-none">
       {/* 1. Header Toolbar (Title, Count Badge, Search, Add Button) */}
-      <div className="min-h-[56px] py-2 bg-white border border-[#dce1dc] rounded-lg px-3 sm:px-4 flex flex-wrap items-center justify-between gap-2 shrink-0 shadow-2xs">
+      <div className="min-h-[58px] py-2 bg-white border border-[#E2E8F0] rounded-2xl px-4 flex flex-wrap items-center justify-between gap-2 shrink-0 shadow-xs">
         <div className="flex items-center gap-3">
           {activeSubView === 'catalog' ? (
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-[#e1eae5] text-[#006d41] flex items-center justify-center border border-[#83bfaf] shadow-2xs">
-                <Package className="w-4 h-4" />
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#006D41] flex items-center justify-center border border-emerald-200/80 shadow-2xs">
+                <Package className="w-5 h-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-black text-[#14181a] leading-tight">كتالوج الأصناف والأسعار</h2>
-                  <span className="font-mono text-xs px-2 py-0.5 rounded bg-[#f7f8f6] text-[#14181a] font-bold border border-[#dce1dc] tabular-nums">
+                  <h2 className="text-sm font-black text-[#0F172A] leading-tight">كتالوج الأصناف والأسعار</h2>
+                  <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-[#F8FAFC] text-[#0F172A] font-bold border border-[#E2E8F0] tabular-nums">
                     {products.length} صنف
                   </span>
                 </div>
-                <p className="text-[11px] text-[#5b6664]">إدارة المنتجات، الأسعار، الباركود، ومستويات حد الطلب</p>
+                <p className="text-[11px] text-[#52605D]">إدارة المنتجات، الأسعار، الباركود، ومستويات حد الطلب</p>
               </div>
             </div>
           ) : (
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-[#e1eae5] text-[#006d41] flex items-center justify-center border border-[#83bfaf] shadow-2xs">
-                <Boxes className="w-4 h-4" />
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#006D41] flex items-center justify-center border border-emerald-200/80 shadow-2xs">
+                <Boxes className="w-5 h-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-black text-[#14181a] leading-tight">دفتر حركات وجرد المخزون</h2>
-                  <span className="font-mono text-xs px-2 py-0.5 rounded bg-[#f7f8f6] text-[#14181a] font-bold border border-[#dce1dc] tabular-nums">
+                  <h2 className="text-sm font-black text-[#0F172A] leading-tight">دفتر حركات وجرد المخزون</h2>
+                  <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-[#F8FAFC] text-[#0F172A] font-bold border border-[#E2E8F0] tabular-nums">
                     {allMovements.length} حركة
                   </span>
                   {discrepancies.length > 0 && (
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-[#fef7ec] border border-[#f5deb4] text-[#b3720e] animate-pulse">
+                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 animate-pulse">
                       {discrepancies.length} صنف بحاجة لمطابقة
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-[#5b6664]">سجل الوارد والمنصرف، المبيعات، المرتجعات، والتسويات الجردية</p>
+                <p className="text-[11px] text-[#52605D]">سجل الوارد والمنصرف، المبيعات، المرتجعات، والتسويات الجردية</p>
               </div>
             </div>
           )}
@@ -569,14 +569,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
           {activeSubView === 'catalog' ? (
             <>
               <form onSubmit={handleSearch} className="flex items-center gap-1.5">
-                <div className="relative w-64 h-[36px] flex items-center bg-[#f7f8f6] border border-[#dce1dc] rounded-lg px-2.5 focus-within:border-[#0b4f42] focus-within:bg-white transition-colors">
-                  <Search className="w-4 h-4 text-[#5b6664] ml-2 shrink-0 pointer-events-none" />
+                <div className="relative w-64 h-9 flex items-center bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-2.5 focus-within:border-[#006D41] focus-within:ring-2 focus-within:ring-[#006D41]/20 focus-within:bg-white transition-all">
+                  <Search className="w-4 h-4 text-[#52605D] ml-2 shrink-0 pointer-events-none" />
                   <input
                     type="text"
                     placeholder="ابحث بالاسم أو الباركود..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(normalizeArabicNumerals(e.target.value))}
-                    className="w-full bg-transparent border-none text-xs text-[#14181a] placeholder:text-[#5b6664] focus:outline-none"
+                    className="w-full bg-transparent border-none text-xs text-[#0F172A] placeholder:text-[#52605D] focus:outline-none"
                   />
                   {searchQuery && (
                     <button
@@ -585,7 +585,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
                         setSearchQuery('');
                         void loadProducts('');
                       }}
-                      className="text-[#5b6664] hover:text-[#14181a] text-xs cursor-pointer"
+                      className="text-[#52605D] hover:text-[#0F172A] text-xs cursor-pointer"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -594,7 +594,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
 
                 <button
                   type="submit"
-                  className="h-[36px] px-3 bg-white hover:bg-[#f7f8f6] border border-[#dce1dc] text-[#14181a] rounded-lg text-xs font-bold transition-colors shadow-2xs cursor-pointer"
+                  className="h-9 px-3.5 bg-white hover:bg-[#F8FAFC] border border-[#E2E8F0] text-[#0F172A] rounded-xl text-xs font-bold transition-colors shadow-2xs cursor-pointer"
                 >
                   بحث
                 </button>
@@ -603,19 +603,19 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
               <button
                 onClick={() => void loadProducts(searchQuery)}
                 disabled={loading}
-                className="h-[36px] w-[36px] flex items-center justify-center bg-white hover:bg-[#f7f8f6] border border-[#dce1dc] text-[#5b6664] hover:text-[#14181a] rounded-lg transition-colors shadow-2xs cursor-pointer"
+                className="h-9 w-9 flex items-center justify-center bg-white hover:bg-[#F8FAFC] border border-[#E2E8F0] text-[#52605D] hover:text-[#0F172A] rounded-xl transition-colors shadow-2xs cursor-pointer"
                 title="تحديث القائمة"
               >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#006d41]' : ''}`} />
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#006D41]' : ''}`} />
               </button>
 
               <button
                 type="button"
                 onClick={() => setShowExcelImportModal(true)}
-                className="h-[36px] px-3 bg-white hover:bg-[#f7f8f6] border border-[#dce1dc] text-[#14181a] rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+                className="h-9 px-3.5 bg-white hover:bg-[#F8FAFC] border border-[#E2E8F0] text-[#0F172A] rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
                 title="استيراد وتحديث المنتجات من ملف إكسل أو CSV"
               >
-                <FileSpreadsheet className="w-4 h-4 text-[#006d41]" />
+                <FileSpreadsheet className="w-4 h-4 text-[#006D41]" />
                 <span>استيراد إكسل</span>
               </button>
 
@@ -623,16 +623,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
                 type="button"
                 onClick={() => void handleExportProductsToExcel()}
                 disabled={isExportingExcel}
-                className="h-[36px] px-3 bg-white hover:bg-[#f7f8f6] border border-[#dce1dc] text-[#14181a] rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs disabled:opacity-60 cursor-pointer"
+                className="h-9 px-3.5 bg-white hover:bg-[#F8FAFC] border border-[#E2E8F0] text-[#0F172A] rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs disabled:opacity-60 cursor-pointer"
                 title="تصدير كامل كتالوج الأصناف إلى ملف إكسل ملون واحترافي"
               >
-                <Download className={`w-4 h-4 text-[#006d41] ${isExportingExcel ? 'animate-bounce' : ''}`} />
+                <Download className={`w-4 h-4 text-[#006D41] ${isExportingExcel ? 'animate-bounce' : ''}`} />
                 <span>{isExportingExcel ? 'جاري التصدير...' : 'تصدير إكسل'}</span>
               </button>
 
               <button
                 onClick={openAddModal}
-                className="h-[36px] px-3.5 bg-[#006d41] hover:bg-[#005230] text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:translate-y-0.5"
+                className="h-9 px-4 bg-[#004D3F] hover:bg-[#00372D] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-[0.98]"
               >
                 <Plus className="w-4 h-4" />
                 <span>إضافة صنف جديد</span>
@@ -647,9 +647,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
                   void checkDiscrepancies();
                 }}
                 disabled={movementsLoading}
-                className="h-[36px] px-3 bg-white hover:bg-[#f7f8f6] border border-[#dce1dc] text-[#14181a] rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+                className="h-9 px-3.5 bg-white hover:bg-[#F8FAFC] border border-[#E2E8F0] text-[#0F172A] rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
               >
-                <RefreshCw className={`w-4 h-4 ${movementsLoading ? 'animate-spin text-[#006d41]' : ''}`} />
+                <RefreshCw className={`w-4 h-4 ${movementsLoading ? 'animate-spin text-[#006D41]' : ''}`} />
                 <span>تحديث الحركات</span>
               </button>
             </div>
@@ -659,15 +659,15 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
 
       {/* Success Notification Alert */}
       {importSuccessAlert && (
-        <div className="bg-[#eaf5ee] border border-[#c4e3d0] text-[#1b7a4d] px-4 py-2 rounded-lg flex items-center justify-between text-xs font-bold animate-in fade-in shrink-0">
+        <div className="bg-emerald-50 border border-emerald-200 text-[#006D41] px-4 py-2.5 rounded-2xl flex items-center justify-between text-xs font-bold animate-in fade-in shrink-0 shadow-xs">
           <div className="flex items-center gap-2">
-            <Check className="w-4 h-4 text-[#1b7a4d]" />
+            <Check className="w-4 h-4 text-[#006D41]" />
             <span>{importSuccessAlert}</span>
           </div>
           <button
             type="button"
             onClick={() => setImportSuccessAlert(null)}
-            className="text-[#1b7a4d] hover:text-[#00372d] p-1 cursor-pointer"
+            className="text-[#006D41] hover:text-[#00372D] p-1 cursor-pointer"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -676,16 +676,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
 
       {activeSubView === 'catalog' ? (
         <>
-          {/* Category Filter Chips Bar (Feature #16 / Task 16-3) */}
-          <div className="bg-white border border-[#dce1dc] rounded-lg px-3 py-2 flex items-center justify-between gap-2 overflow-x-auto shrink-0 select-none shadow-2xs">
+          {/* Category Filter Chips Bar */}
+          <div className="bg-white border border-[#E2E8F0] rounded-2xl px-4 py-2 flex items-center justify-between gap-2 overflow-x-auto shrink-0 select-none shadow-xs">
             <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
               <button
                 type="button"
                 onClick={() => setSelectedCategoryFilter('all')}
-                className={`px-3 py-1 rounded-md text-[11.5px] font-bold transition-all flex items-center gap-1.5 shrink-0 border shadow-2xs cursor-pointer ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
                   selectedCategoryFilter === 'all'
-                    ? 'bg-[#00372d] text-white border-[#00372d] shadow-xs'
-                    : 'bg-white text-[#5b6664] border-[#dce1dc] hover:border-[#0b4f42] hover:bg-[#f7f8f6] hover:text-[#0b4f42]'
+                    ? 'bg-[#00372D] text-white shadow-xs'
+                    : 'bg-[#F8FAFC] text-[#52605D] border border-[#E2E8F0] hover:text-[#004D3F] hover:border-[#006D41]'
                 }`}
               >
                 <span>كل الأصناف</span>
@@ -701,10 +701,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
                     key={cat.id}
                     type="button"
                     onClick={() => setSelectedCategoryFilter(cat.id)}
-                    className={`px-3 py-1 rounded-md text-[11.5px] font-bold transition-all flex items-center gap-1.5 shrink-0 border shadow-2xs cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
                       isSelected
-                        ? 'bg-[#00372d] text-white border-[#00372d] shadow-xs'
-                        : 'bg-white text-[#5b6664] border-[#dce1dc] hover:border-[#0b4f42] hover:bg-[#f7f8f6] hover:text-[#0b4f42]'
+                        ? 'bg-[#00372D] text-white shadow-xs'
+                        : 'bg-[#F8FAFC] text-[#52605D] border border-[#E2E8F0] hover:text-[#004D3F] hover:border-[#006D41]'
                     }`}
                   >
                     <span>{cat.name}</span>
@@ -717,10 +717,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
             <button
               type="button"
               onClick={() => setShowCategoryModal(true)}
-              className="shrink-0 px-2.5 py-1 rounded-md bg-white hover:bg-[#f7f8f6] border border-[#dce1dc] text-[#5b6664] hover:text-[#14181a] text-[11.5px] font-bold flex items-center gap-1.5 transition-colors shadow-2xs mr-2 cursor-pointer"
+              className="shrink-0 px-3 py-1.5 rounded-xl bg-white hover:bg-[#F8FAFC] border border-[#E2E8F0] text-[#52605D] hover:text-[#0F172A] text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs mr-2 cursor-pointer"
               title="إضافة وتعديل وأرشفة وترتيب أقسام السلع"
             >
-              <Tags className="w-3.5 h-3.5 text-[#006d41]" />
+              <Tags className="w-3.5 h-3.5 text-[#006D41]" />
               <span>إدارة التصنيفات</span>
             </button>
           </div>

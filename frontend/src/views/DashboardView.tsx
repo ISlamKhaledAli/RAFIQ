@@ -391,24 +391,24 @@ export function DashboardView({
       {/* 3. FINANCIAL & OPERATIONAL KPI METRICS (6 clean cards with no clipping) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 shrink-0">
         {/* KPI 1: Today Sales */}
-        <div className="bg-white rounded-lg border border-[#DCE1DC] p-3.5 shadow-2xs hover:border-[#83bfaf] transition-all flex flex-col justify-between min-h-[125px]">
+        <div className="bg-white rounded-2xl border border-[#dce1dc] p-3.5 shadow-2xs hover:border-[#006d41] hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[125px]">
           <div>
-            <div className="flex items-center justify-between text-xs text-[#5B6664] mb-1.5">
-              <span className="font-bold text-[#14181A]">مبيعات اليوم</span>
-              <div className="w-6 h-6 rounded bg-[#E1EAE5] text-[#0B4F42] flex items-center justify-center">
-                <ShoppingCart className="w-3.5 h-3.5" />
+            <div className="flex items-center justify-between text-xs text-[#52605d] mb-1.5">
+              <span className="font-bold text-[#0f172a]">مبيعات اليوم</span>
+              <div className="w-7 h-7 rounded-xl bg-[#eaf5ee] text-[#006d41] border border-[#c4e3d0] flex items-center justify-center shadow-2xs">
+                <ShoppingCart className="w-3.5 h-3.5 stroke-[2.5]" />
               </div>
             </div>
             <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-bold font-mono text-[#14181A] tabular-nums leading-none">
+              <span className="text-2xl font-black font-mono text-[#0f172a] tabular-nums leading-none">
                 {summary ? (summary.todaySalesPiasters / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
               </span>
-              <span className="text-[11px] font-medium text-[#5B6664]">ج.م</span>
+              <span className="text-[11px] font-bold text-[#52605d]">ج.م</span>
             </div>
           </div>
-          <div className="pt-2 mt-2 border-t border-[#DCE1DC] flex items-center justify-between text-[10.5px] text-[#5B6664]">
-            <span>نقدي: <strong className="text-[#14181A] font-mono tabular-nums">{summary ? (summary.todayCashPiasters / 100).toFixed(0) : '0'}</strong></span>
-            <span>آجل: <strong className="text-[#14181A] font-mono tabular-nums">{summary ? (summary.todayCreditPiasters / 100).toFixed(0) : '0'}</strong></span>
+          <div className="pt-2 mt-2 border-t border-[#dce1dc]/60 flex items-center justify-between text-[10.5px] text-[#52605d]">
+            <span>نقدي: <strong className="text-[#0f172a] font-mono tabular-nums">{summary ? (summary.todayCashPiasters / 100).toFixed(0) : '0'}</strong></span>
+            <span>آجل: <strong className="text-[#0f172a] font-mono tabular-nums">{summary ? (summary.todayCreditPiasters / 100).toFixed(0) : '0'}</strong></span>
           </div>
         </div>
 
@@ -419,37 +419,37 @@ export function DashboardView({
           const absNetProfit = Math.abs(netProfit);
 
           return (
-            <div className={`bg-white rounded-lg border ${
-              isLoss ? 'border-[#F6CBC6] hover:border-[#B23A2E]' : 'border-[#DCE1DC] hover:border-[#83bfaf]'
-            } p-3.5 shadow-2xs transition-all flex flex-col justify-between min-h-[125px]`}>
+            <div className={`bg-white rounded-2xl border ${
+              isLoss ? 'border-[#f6cbc6] hover:border-[#b23a2e]' : 'border-[#dce1dc] hover:border-[#006d41]'
+            } p-3.5 shadow-2xs hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[125px]`}>
               <div>
-                <div className="flex items-center justify-between text-xs text-[#5B6664] mb-1.5">
-                  <span className={`font-bold ${isLoss ? 'text-[#B23A2E]' : 'text-[#14181A]'}`}>
+                <div className="flex items-center justify-between text-xs text-[#52605d] mb-1.5">
+                  <span className={`font-bold ${isLoss ? 'text-[#b23a2e]' : 'text-[#0f172a]'}`}>
                     {isLoss ? 'صافي خسائر اليوم' : 'صافي أرباح اليوم'}
                   </span>
-                  <div className={`w-6 h-6 rounded flex items-center justify-center ${
-                    isLoss ? 'bg-[#FDF3F2] text-[#B23A2E]' : 'bg-[#E1EAE5] text-[#006d41]'
+                  <div className={`w-7 h-7 rounded-xl flex items-center justify-center shadow-2xs border ${
+                    isLoss ? 'bg-[#fdf3f2] text-[#b23a2e] border-[#f6cbc6]' : 'bg-[#eaf5ee] text-[#006d41] border-[#c4e3d0]'
                   }`}>
                     {isLoss ? <TrendingDown className="w-3.5 h-3.5" /> : <TrendingUp className="w-3.5 h-3.5" />}
                   </div>
                 </div>
                 <div className="flex items-baseline gap-1">
-                  <span className={`text-2xl font-bold font-mono tabular-nums leading-none ${
-                    isLoss ? 'text-[#B23A2E]' : 'text-[#006d41]'
+                  <span className={`text-2xl font-black font-mono tabular-nums leading-none ${
+                    isLoss ? 'text-[#b23a2e]' : 'text-[#006d41]'
                   }`}>
                     {isLoss ? '-' : ''}{(absNetProfit / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
-                  <span className={`text-[11px] font-medium ${isLoss ? 'text-[#B23A2E]' : 'text-[#5B6664]'}`}>ج.م</span>
+                  <span className={`text-[11px] font-bold ${isLoss ? 'text-[#b23a2e]' : 'text-[#52605d]'}`}>ج.م</span>
                 </div>
               </div>
-              <div className="pt-2 mt-2 border-t border-[#DCE1DC] flex items-center justify-between text-[10.5px] text-[#5B6664]">
+              <div className="pt-2 mt-2 border-t border-[#dce1dc]/60 flex items-center justify-between text-[10.5px] text-[#52605d]">
                 <span className="truncate">
                   {summary && (summary.todayInventoryLossPiasters || 0) > 0
                     ? `مبيعات: ${((summary.todayProfitsPiasters || 0) / 100).toFixed(0)} | عجز: -${((summary.todayInventoryLossPiasters || 0) / 100).toFixed(0)}`
                     : 'صافي بعد التكاليف'}
                 </span>
-                <span className={`font-bold font-mono text-[9.5px] px-1.5 py-0.2 rounded border ${
-                  isLoss ? 'bg-[#FDF3F2] text-[#B23A2E] border-[#F6CBC6]' : 'bg-[#E1EAE5] text-[#006d41] border-[#83bfaf]'
+                <span className={`font-bold font-mono text-[9.5px] px-1.5 py-0.2 rounded-md border ${
+                  isLoss ? 'bg-[#fdf3f2] text-[#b23a2e] border-[#f6cbc6]' : 'bg-[#eaf5ee] text-[#006d41] border-[#c4e3d0]'
                 }`}>
                   {isLoss ? 'عجز وتالف' : 'فعلي'}
                 </span>
@@ -461,29 +461,29 @@ export function DashboardView({
         {/* KPI 3: Inventory Loss / Shrinkage */}
         <div 
           onClick={() => onNavigateToProducts('movements')}
-          className="bg-white rounded-lg border border-[#DCE1DC] p-3.5 shadow-2xs hover:border-[#83bfaf] transition-all flex flex-col justify-between min-h-[125px] cursor-pointer group"
+          className="bg-white rounded-2xl border border-[#dce1dc] p-3.5 shadow-2xs hover:border-amber-400 hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[125px] cursor-pointer group"
         >
           <div>
-            <div className="flex items-center justify-between text-xs text-[#5B6664] mb-1.5">
-              <span className="font-bold text-[#14181A]">عجز وتالف الجرد اليوم</span>
-              <div className="w-6 h-6 rounded bg-[#FEF7EC] text-[#B3720E] flex items-center justify-center group-hover:scale-105 transition-transform">
+            <div className="flex items-center justify-between text-xs text-[#52605d] mb-1.5">
+              <span className="font-bold text-[#0f172a]">عجز وتالف الجرد اليوم</span>
+              <div className="w-7 h-7 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 flex items-center justify-center group-hover:scale-105 transition-transform shadow-2xs">
                 <Scale className="w-3.5 h-3.5" />
               </div>
             </div>
             <div className="flex items-baseline gap-1">
-              <span className={`text-2xl font-bold font-mono tabular-nums leading-none ${
-                (summary?.todayInventoryLossPiasters || 0) > 0 ? 'text-[#B3720E]' : 'text-[#14181A]'
+              <span className={`text-2xl font-black font-mono tabular-nums leading-none ${
+                (summary?.todayInventoryLossPiasters || 0) > 0 ? 'text-[#b3720e]' : 'text-[#0f172a]'
               }`}>
                 {summary && summary.todayInventoryLossPiasters != null 
                   ? (summary.todayInventoryLossPiasters / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                   : '0.00'}
               </span>
-              <span className="text-[11px] font-medium text-[#5B6664]">ج.م</span>
+              <span className="text-[11px] font-bold text-[#52605d]">ج.م</span>
             </div>
           </div>
-          <div className="pt-2 mt-2 border-t border-[#DCE1DC] flex items-center justify-between text-[10.5px] text-[#5B6664]">
-            <span>التسويات: <strong className="text-[#14181A] font-mono tabular-nums">{summary?.todayAdjustmentsCount || 0}</strong></span>
-            <span className="text-[#0B4F42] font-bold text-[10.5px] flex items-center gap-0.5 group-hover:underline">
+          <div className="pt-2 mt-2 border-t border-[#dce1dc]/60 flex items-center justify-between text-[10.5px] text-[#52605d]">
+            <span>التسويات: <strong className="text-[#0f172a] font-mono tabular-nums">{summary?.todayAdjustmentsCount || 0}</strong></span>
+            <span className="text-[#006d41] font-bold text-[10.5px] flex items-center gap-0.5 group-hover:underline">
               عرض الحركات
               <ChevronLeft className="w-3 h-3" />
             </span>
@@ -491,31 +491,31 @@ export function DashboardView({
         </div>
 
         {/* KPI 4: Invoices Count */}
-        <div className="bg-white rounded-lg border border-[#DCE1DC] p-3.5 shadow-2xs hover:border-[#83bfaf] transition-all flex flex-col justify-between min-h-[125px]">
+        <div className="bg-white rounded-2xl border border-[#dce1dc] p-3.5 shadow-2xs hover:border-[#006d41] hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[125px]">
           <div>
-            <div className="flex items-center justify-between text-xs text-[#5B6664] mb-1.5">
-              <span className="font-bold text-[#14181A]">فواتير الكاشير اليوم</span>
-              <div className="w-6 h-6 rounded bg-[#E1EAE5] text-[#0B4F42] flex items-center justify-center">
-                <DollarSign className="w-3.5 h-3.5" />
+            <div className="flex items-center justify-between text-xs text-[#52605d] mb-1.5">
+              <span className="font-bold text-[#0f172a]">فواتير الكاشير اليوم</span>
+              <div className="w-7 h-7 rounded-xl bg-[#eaf5ee] text-[#006d41] border border-[#c4e3d0] flex items-center justify-center shadow-2xs">
+                <DollarSign className="w-3.5 h-3.5 stroke-[2.5]" />
               </div>
             </div>
             <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-bold font-mono text-[#14181A] tabular-nums leading-none">
+              <span className="text-2xl font-black font-mono text-[#0f172a] tabular-nums leading-none">
                 {summary ? summary.todayInvoicesCount : '0'}
               </span>
-              <span className="text-[11px] font-medium text-[#5B6664]">فاتورة</span>
+              <span className="text-[11px] font-bold text-[#52605d]">فاتورة</span>
             </div>
           </div>
-          <div className="pt-2 mt-2 border-t border-[#DCE1DC] flex items-center justify-between text-[10.5px] text-[#5B6664]">
-            <span>متوسط: <strong className="text-[#14181A] font-bold font-mono tabular-nums">{summary && summary.todayInvoicesCount > 0 ? ((summary.todaySalesPiasters / summary.todayInvoicesCount) / 100).toFixed(0) : '0'}</strong> ج.م</span>
+          <div className="pt-2 mt-2 border-t border-[#dce1dc]/60 flex items-center justify-between text-[10.5px] text-[#52605d]">
+            <span>متوسط: <strong className="text-[#0f172a] font-bold font-mono tabular-nums">{summary && summary.todayInvoicesCount > 0 ? ((summary.todaySalesPiasters / summary.todayInvoicesCount) / 100).toFixed(0) : '0'}</strong> ج.م</span>
             <div className="flex items-center gap-1.5 font-bold text-[9.5px]">
               {summary && (summary.todayCancelledCount || 0) > 0 && (
-                <span className="text-[#B23A2E] bg-[#FDF3F2] px-1.5 py-0.2 rounded border border-[#F6CBC6]" title="فواتير ملغاة اليوم">
+                <span className="text-[#b23a2e] bg-[#fdf3f2] px-1.5 py-0.2 rounded-md border border-[#f6cbc6]" title="فواتير ملغاة اليوم">
                   {summary.todayCancelledCount} ملغاة
                 </span>
               )}
               {summary && (summary.todayReturnsCount || 0) > 0 && (
-                <span className="text-[#B3720E] bg-[#FEF7EC] px-1.5 py-0.2 rounded border border-[#F5DEB4]" title="عمليات مرتجع اليوم">
+                <span className="text-[#b3720e] bg-amber-50 px-1.5 py-0.2 rounded-md border border-amber-200" title="عمليات مرتجع اليوم">
                   {summary.todayReturnsCount} مرتجع
                 </span>
               )}
@@ -524,25 +524,25 @@ export function DashboardView({
         </div>
 
         {/* KPI 5: Drawer Balance */}
-        <div className="bg-white rounded-lg border border-[#DCE1DC] p-3.5 shadow-2xs hover:border-[#83bfaf] transition-all flex flex-col justify-between min-h-[125px]">
+        <div className="bg-white rounded-2xl border border-[#dce1dc] p-3.5 shadow-2xs hover:border-[#006d41] hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[125px]">
           <div>
-            <div className="flex items-center justify-between text-xs text-[#5B6664] mb-1.5">
-              <span className="font-bold text-[#14181A]">نقدي في الدرج</span>
-              <div className="w-6 h-6 rounded bg-[#E1EAE5] text-[#006d41] flex items-center justify-center">
-                <Wallet className="w-3.5 h-3.5" />
+            <div className="flex items-center justify-between text-xs text-[#52605d] mb-1.5">
+              <span className="font-bold text-[#0f172a]">نقدي في الدرج</span>
+              <div className="w-7 h-7 rounded-xl bg-[#eaf5ee] text-[#006d41] border border-[#c4e3d0] flex items-center justify-center shadow-2xs">
+                <Wallet className="w-3.5 h-3.5 stroke-[2.5]" />
               </div>
             </div>
             <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-bold font-mono text-[#14181A] tabular-nums leading-none">
+              <span className="text-2xl font-black font-mono text-[#0f172a] tabular-nums leading-none">
                 {summary ? (summary.cashDrawerPiasters / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
               </span>
-              <span className="text-[11px] font-medium text-[#5B6664]">ج.م</span>
+              <span className="text-[11px] font-bold text-[#52605d]">ج.م</span>
             </div>
           </div>
-          <div className="pt-2 mt-2 border-t border-[#DCE1DC] flex items-center justify-between text-[10.5px] text-[#5B6664]">
-            <span>نقدية: <strong className="text-[#14181A] font-mono tabular-nums">{summary ? (summary.todayCashPiasters / 100).toFixed(0) : '0'}</strong></span>
+          <div className="pt-2 mt-2 border-t border-[#dce1dc]/60 flex items-center justify-between text-[10.5px] text-[#52605d]">
+            <span>نقدية: <strong className="text-[#0f172a] font-mono tabular-nums">{summary ? (summary.todayCashPiasters / 100).toFixed(0) : '0'}</strong></span>
             {summary && (summary.todayReturnsPiasters || 0) > 0 && (
-              <span className="text-[#B3720E] font-bold font-mono text-[9.5px]" title="مخصوم مبالغ مرتجعات نقدية">
+              <span className="text-amber-800 font-bold font-mono text-[9.5px]" title="مخصوم مبالغ مرتجعات نقدية">
                 -{((summary.todayReturnsPiasters || 0) / 100).toFixed(0)} مرتجع
               </span>
             )}
@@ -557,26 +557,26 @@ export function DashboardView({
         {/* KPI 6: Customer Debts */}
         <div 
           onClick={onNavigateToCustomers}
-          className={`bg-white rounded-lg border border-[#DCE1DC] p-3.5 shadow-2xs hover:border-[#83bfaf] transition-all flex flex-col justify-between min-h-[125px] ${onNavigateToCustomers ? 'cursor-pointer' : ''}`}
+          className={`bg-white rounded-2xl border border-[#dce1dc] p-3.5 shadow-2xs hover:border-rose-400 hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[125px] ${onNavigateToCustomers ? 'cursor-pointer' : ''}`}
         >
           <div>
-            <div className="flex items-center justify-between text-xs text-[#5B6664] mb-1.5">
-              <span className="font-bold text-[#14181A]">ديون العملاء (الآجل)</span>
-              <div className="w-6 h-6 rounded bg-[#FDF3F2] text-[#B23A2E] flex items-center justify-center">
+            <div className="flex items-center justify-between text-xs text-[#52605d] mb-1.5">
+              <span className="font-bold text-[#0f172a]">ديون العملاء (الآجل)</span>
+              <div className="w-7 h-7 rounded-xl bg-rose-50 text-[#b23a2e] border border-rose-200 flex items-center justify-center shadow-2xs">
                 <Users className="w-3.5 h-3.5" />
               </div>
             </div>
             <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-bold font-mono text-[#B23A2E] tabular-nums leading-none">
+              <span className="text-2xl font-black font-mono text-[#b23a2e] tabular-nums leading-none">
                 {summary && summary.totalCustomerDebtsPiasters != null 
                   ? (summary.totalCustomerDebtsPiasters / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) 
                   : '0.00'}
               </span>
-              <span className="text-[11px] font-medium text-[#5B6664]">ج.م</span>
+              <span className="text-[11px] font-bold text-[#52605d]">ج.م</span>
             </div>
           </div>
-          <div className="pt-2 mt-2 border-t border-[#DCE1DC] flex items-center justify-between text-[10.5px] text-[#5B6664]">
-            <span>المدينون: <strong className="text-[#B23A2E] font-mono tabular-nums">{summary?.debtorsCount || 0}</strong></span>
+          <div className="pt-2 mt-2 border-t border-[#dce1dc]/60 flex items-center justify-between text-[10.5px] text-[#52605d]">
+            <span>المدينون: <strong className="text-[#b23a2e] font-mono tabular-nums">{summary?.debtorsCount || 0}</strong></span>
             {onNavigateToCustomers && (
               <span className="text-[#006d41] font-bold text-[10.5px] flex items-center gap-0.5 hover:underline">
                 عرض الدفتر

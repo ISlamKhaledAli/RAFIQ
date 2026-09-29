@@ -8,33 +8,33 @@ export default {
   theme: {
     extend: {
       colors: {
-        canvas: "#F3F5F2",
+        canvas: "#F8FAFC",
         surface: {
           DEFAULT: "#FFFFFF",
           pure: "#FFFFFF",
-          2: "#F7F8F6",
-          3: "#EEF1F4",
+          2: "#F1F5F4",
+          3: "#EBF0EE",
           dim: "#D7DADD",
-          bright: "#F7FAFC",
+          bright: "#F8FAFC",
         },
         line: {
           DEFAULT: "#DCE1DC",
           hover: "#B5C0B7",
         },
         brand: {
-          DEFAULT: "#0B4F42",
-          hover: "#0F6A57",
+          DEFAULT: "#004D3F",
+          hover: "#00372D",
           container: "#0B4F42",
-          soft: "#E1EAE5",
+          soft: "#E6F2ED",
           dark: "#00372D",
         },
         ink: {
-          DEFAULT: "#14181A",
-          muted: "#5B6664",
+          DEFAULT: "#0F172A",
+          muted: "#52605D",
         },
         paid: {
-          DEFAULT: "#1B7A4D",
-          hover: "#15633E",
+          DEFAULT: "#006D41",
+          hover: "#005734",
           soft: "#EAF5EE",
           border: "#C4E3D0",
         },
@@ -51,8 +51,8 @@ export default {
         },
         secondary: {
           DEFAULT: "#006D41",
-          hover: "#005230",
-          soft: "#E1EAE5",
+          hover: "#005734",
+          soft: "#EAF5EE",
         },
       },
       boxShadow: {

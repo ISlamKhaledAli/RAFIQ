@@ -4,16 +4,17 @@
 
 @layer base {
   :root {
-    --canvas: #F3F5F2;
+    --canvas: #F8FAFC;
     --surface: #FFFFFF;
-    --surface-2: #F7F8F6;
-    --ink: #14181A;
-    --ink-muted: #5B6664;
+    --surface-2: #F1F5F4;
+    --ink: #0F172A;
+    --ink-muted: #52605D;
     --line: #DCE1DC;
-    --brand: #0B4F42;
-    --brand-hover: #0F6A57;
-    --brand-soft: #E1EAE5;
-    --paid: #1B7A4D;
+    --brand: #004D3F;
+    --brand-dark: #00372D;
+    --brand-hover: #00372D;
+    --brand-soft: #E6F2ED;
+    --paid: #006D41;
     --warn: #B3720E;
     --danger: #B23A2E;
   }
