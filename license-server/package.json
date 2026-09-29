@@ -18,10 +18,11 @@
     "licensing",
     "activation"
   ],
-  "author": "Rafiq POS Team",
+  "author": "ISlam Khaled Ali",
   "license": "UNLICENSED",
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241230.0",
+    "@types/node": "^26.6.3",
     "typescript": "^5.4.5",
     "wrangler": "^3.109.0"
   }

@@ -211,6 +211,9 @@ namespace RafiqPOS.Services
             if (!info.IsActive)
             {
                 expiryStatus = info.Status == "disabled" ? "disabled" : "expired";
+
+                // If expired locally, trigger background online check so extensions reflect automatically
+                TriggerAsyncVerifyIfExpired();
             }
             else if (info.DaysRemaining <= 7 && !string.IsNullOrEmpty(info.ExpiresAt))
             {
@@ -231,6 +234,32 @@ namespace RafiqPOS.Services
             result.DeviceFingerprint = info.DeviceFingerprint;
 
             return result;
+        }
+
+        private void TriggerAsyncVerifyIfExpired()
+        {
+            try
+            {
+                string lastAttemptStr = _settingsRepo.Get("last_online_verify_attempt", "");
+                DateTime lastAttempt;
+                if (DateTime.TryParse(lastAttemptStr, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out lastAttempt))
+                {
+                    if ((DateTime.UtcNow - lastAttempt).TotalSeconds < 30)
+                    {
+                        return;
+                    }
+                }
+
+                ThreadPool.QueueUserWorkItem(delegate(object state)
+                {
+                    try
+                    {
+                        VerifyLicenseOnline();
+                    }
+                    catch { }
+                });
+            }
+            catch { }
         }
 
         public bool IsLicenseExpired()
@@ -388,11 +417,12 @@ namespace RafiqPOS.Services
         {
             LicenseOperationResult result = new LicenseOperationResult();
             string token = _settingsRepo.Get("license_token", "");
+            string key = _settingsRepo.Get("license_key", "");
             string fp = EncryptionService.GenerateDeviceFingerprint();
 
             _settingsRepo.Set("last_online_verify_attempt", DateTime.UtcNow.ToString("o"));
 
-            if (string.IsNullOrEmpty(token))
+            if (string.IsNullOrEmpty(token) && string.IsNullOrEmpty(key))
             {
                 result.Success = false;
                 result.Code = "NO_TOKEN";
@@ -415,6 +445,7 @@ namespace RafiqPOS.Services
                 var payload = new
                 {
                     token = token,
+                    license_key = key,
                     machine_fingerprint = fp
                 };
 
@@ -435,6 +466,12 @@ namespace RafiqPOS.Services
 
                         if (json["success"] != null && (bool)json["success"])
                         {
+                            // Save fresh cryptographically signed token issued by server (e.g. on license extension)
+                            if (json["token"] != null && !string.IsNullOrEmpty(json["token"].ToString()))
+                            {
+                                _settingsRepo.Set("license_token", json["token"].ToString());
+                            }
+
                             // Feature #171 / Task 171-4 & Feature #174 / Task 174-3
                             JToken details = json["details"];
                             if (details != null)
@@ -523,12 +560,16 @@ namespace RafiqPOS.Services
                 {
                     try
                     {
-                        // Rate limit check: at least 15 minutes between background online calls
+                        // Dynamic rate limit: If license is expired or <= 1 day left, check every 1 minute.
+                        // Otherwise, check at most every 15 minutes to preserve network/resources.
+                        LicenseInfo currentInfo = GetLicenseInfo();
+                        int minIntervalMinutes = (currentInfo.IsExpired || currentInfo.DaysRemaining <= 1) ? 1 : 15;
+
                         string lastAttemptStr = _settingsRepo.Get("last_online_verify_attempt", "");
                         DateTime lastAttempt;
                         if (DateTime.TryParse(lastAttemptStr, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out lastAttempt))
                         {
-                            if ((DateTime.UtcNow - lastAttempt).TotalMinutes < 15)
+                            if ((DateTime.UtcNow - lastAttempt).TotalMinutes < minIntervalMinutes)
                             {
                                 return;
                             }
@@ -542,8 +583,8 @@ namespace RafiqPOS.Services
                     }
                 },
                 null,
-                10000, // Initial delay 10s (Task 174-2)
-                60 * 60 * 1000 // Repeat every 60 minutes (Task 174-1)
+                2000, // Initial delay 2s on startup so license extension reflects immediately
+                60 * 1000 // Run timer every 60 seconds
             );
         }
 

@@ -54,12 +54,12 @@ namespace RafiqPOS.Services
             {
                 conn.Open();
 
-                using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM products WHERE id LIKE 'demo_%';", conn))
+                using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM products WHERE id LIKE 'demo_%' OR id LIKE 'stress_%' OR barcode LIKE 'STRESS%' OR name LIKE '%تجريبي%' OR name LIKE '%اختبار الحمل%';", conn))
                 {
                     status.DemoProductsCount = Convert.ToInt32(cmd.ExecuteScalar());
                 }
 
-                using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM sales WHERE id LIKE 'demo_%';", conn))
+                using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM sales WHERE id LIKE 'demo_%' OR id LIKE 'stress_%';", conn))
                 {
                     status.DemoSalesCount = Convert.ToInt32(cmd.ExecuteScalar());
                 }
@@ -248,7 +248,7 @@ namespace RafiqPOS.Services
                         LogAudit("DEMO_DATA_CLEARED", "DEMO", "SYSTEM", string.Format("تم مسح كافة البيانات التجريبية بأمان ({0} منتج، {1} فاتورة)", counts.Products, counts.Sales));
 
                         res.Success = true;
-                        res.Message = "تم مسح كافة البيانات التجريبية بأمان دون المساس ببيانات المحل الحقيقية.";
+                        res.Message = string.Format("تم مسح كافة البيانات التجريبية بنجاح! تم حذف {0} صنف تجريبي، و {1} فاتورة، و {2} عميل.", counts.Products, counts.Sales, counts.Customers);
                         res.DeletedProducts = counts.Products;
                         res.DeletedSales = counts.Sales;
                         res.DeletedCustomers = counts.Customers;
@@ -277,7 +277,7 @@ namespace RafiqPOS.Services
             var counts = new ClearCounts();
 
             // Count items before deleting
-            using (var pCmd = new SQLiteCommand("SELECT COUNT(*) FROM products WHERE id LIKE 'demo_%' OR id LIKE 'stress_%' OR barcode LIKE 'STRESS%';", conn, trans))
+            using (var pCmd = new SQLiteCommand("SELECT COUNT(*) FROM products WHERE id LIKE 'demo_%' OR id LIKE 'stress_%' OR barcode LIKE 'STRESS%' OR name LIKE '%تجريبي%' OR name LIKE '%اختبار الحمل%';", conn, trans))
             {
                 counts.Products = Convert.ToInt32(pCmd.ExecuteScalar());
             }
@@ -292,15 +292,16 @@ namespace RafiqPOS.Services
 
             // Safe atomic cascaded delete strictly for demo and stress benchmark entities (Task 113-2)
             string sqlDelete = @"
-                DELETE FROM stock_movements WHERE id LIKE 'demo_%' OR product_id LIKE 'demo_%' OR product_id LIKE 'stress_%';
-                DELETE FROM product_price_history WHERE product_id LIKE 'demo_%' OR product_id LIKE 'stress_%';
-                DELETE FROM product_barcodes WHERE product_id LIKE 'demo_%' OR product_id LIKE 'stress_%';
-                DELETE FROM sale_items WHERE sale_id LIKE 'demo_%' OR product_id LIKE 'demo_%' OR sale_id LIKE 'stress_%' OR product_id LIKE 'stress_%';
+                DELETE FROM stock_movements WHERE id LIKE 'demo_%' OR product_id LIKE 'demo_%' OR product_id LIKE 'stress_%' OR product_id IN (SELECT id FROM products WHERE name LIKE '%تجريبي%' OR name LIKE '%اختبار الحمل%');
+                DELETE FROM product_price_history WHERE product_id LIKE 'demo_%' OR product_id LIKE 'stress_%' OR product_id IN (SELECT id FROM products WHERE name LIKE '%تجريبي%' OR name LIKE '%اختبار الحمل%');
+                DELETE FROM product_barcodes WHERE product_id LIKE 'demo_%' OR product_id LIKE 'stress_%' OR product_id IN (SELECT id FROM products WHERE name LIKE '%تجريبي%' OR name LIKE '%اختبار الحمل%');
+                DELETE FROM sale_items WHERE sale_id LIKE 'demo_%' OR product_id LIKE 'demo_%' OR sale_id LIKE 'stress_%' OR product_id LIKE 'stress_%' OR product_id IN (SELECT id FROM products WHERE name LIKE '%تجريبي%' OR name LIKE '%اختبار الحمل%');
                 DELETE FROM sales WHERE id LIKE 'demo_%' OR id LIKE 'stress_%';
                 DELETE FROM customer_transactions WHERE customer_id LIKE 'demo_%';
+                DELETE FROM customer_ledger WHERE customer_id LIKE 'demo_%';
                 DELETE FROM customers WHERE id LIKE 'demo_%';
-                DELETE FROM quick_items WHERE id LIKE 'demo_%' OR product_id LIKE 'stress_%';
-                DELETE FROM products WHERE id LIKE 'demo_%' OR id LIKE 'stress_%' OR barcode LIKE 'STRESS%';
+                DELETE FROM quick_items WHERE id LIKE 'demo_%' OR product_id LIKE 'stress_%' OR product_id IN (SELECT id FROM products WHERE name LIKE '%تجريبي%' OR name LIKE '%اختبار الحمل%');
+                DELETE FROM products WHERE id LIKE 'demo_%' OR id LIKE 'stress_%' OR barcode LIKE 'STRESS%' OR name LIKE '%تجريبي%' OR name LIKE '%اختبار الحمل%';
             ";
 
             using (var delCmd = new SQLiteCommand(sqlDelete, conn, trans))

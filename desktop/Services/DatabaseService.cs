@@ -524,8 +524,8 @@ namespace RafiqPOS.Services
                             result.DeletedProductsCount = cmd.ExecuteNonQuery();
                         }
 
-                        // 4. Reset sequence counters
-                        using (var cmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM counters;", conn, trans))
+                        // 4. Reset sequence counters and first run flag
+                        using (var cmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM counters; DELETE FROM settings WHERE key IN ('first_run_completed', 'has_demo_data');", conn, trans))
                         {
                             cmd.ExecuteNonQuery();
                         }

@@ -513,11 +513,26 @@ namespace RafiqPOS
                 Directory.CreateDirectory(baseDataFolder);
             }
 
-            // 4. Initialize WebView2 with dedicated error handling
+            // 4. Initialize WebView2 with dedicated error handling & Win7 Offline Performance Optimizations
             try
             {
+                if (_lblStatus != null) _lblStatus.Text = "جاري تهيئة محرك العرض السريع...";
+
                 string userDataFolder = Path.Combine(baseDataFolder, "webview_profile");
-                var env = await CoreWebView2Environment.CreateAsync(browserExecutableFolder, userDataFolder);
+
+                // تحسينات سرعة التشغيل الصارمة لويندوز 7 والعمل بدون إنترنت (تجاوز مهلة WPAD وفحص البروكسي البالغة 3 دقائق)
+                string browserArgs = "--no-proxy-server " +
+                                     "--disable-background-networking " +
+                                     "--disable-component-update " +
+                                     "--disable-domain-reliability " +
+                                     "--disable-sync " +
+                                     "--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider,CalculateNativeWinOcclusion " +
+                                     "--disable-gpu-watchdog " +
+                                     "--no-first-run " +
+                                     "--autoplay-policy=no-user-gesture-required";
+
+                CoreWebView2EnvironmentOptions envOptions = new CoreWebView2EnvironmentOptions(browserArgs, null, null, false);
+                var env = await CoreWebView2Environment.CreateAsync(browserExecutableFolder, userDataFolder, envOptions);
 
                 await _webView.EnsureCoreWebView2Async(env);
 
@@ -537,17 +552,8 @@ namespace RafiqPOS
 
                 _webView.CoreWebView2.Settings.AreDevToolsEnabled = true;
 
-                // Clear HTTP cache on startup to ensure instant updates of frontend assets
-                try
-                {
-                    await _webView.CoreWebView2.Profile.ClearBrowsingDataAsync(CoreWebView2BrowsingDataKinds.DiskCache);
-                }
-                catch
-                {
-                    // Ignore if not supported in runtime version
-                }
-
                 // Navigate to app with cache-buster parameter
+                if (_lblStatus != null) _lblStatus.Text = "جاري فتح واجهة نظام رفيق...";
                 string cacheBuster = DateTime.UtcNow.Ticks.ToString();
                 _webView.CoreWebView2.Navigate("https://app.rafiq.local/index.html?v=" + cacheBuster);
 

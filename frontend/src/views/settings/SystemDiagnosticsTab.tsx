@@ -9,7 +9,8 @@ import {
   Layers, 
   Package, 
   ShieldCheck,
-  X
+  X,
+  PhoneCall
 } from 'lucide-react';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import type { SystemInfo } from '../../App';
@@ -213,6 +214,17 @@ export const SystemDiagnosticsTab = ({
           </div>
         </div>
 
+        {/* Developer & Copyright Info */}
+        <div className="flex items-center justify-between p-3 rounded-lg bg-white border border-[#dce1dc] text-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-slate-500 font-medium">المطور والناشر:</span>
+            <span className="font-bold text-[#006d41]">ISlam Khaled Ali</span>
+          </div>
+          <span className="text-slate-500 text-[11px] font-mono">
+            جميع الحقوق محفوظة © 2026 رفيق POS
+          </span>
+        </div>
+
         {/* Support Bundle Section (Feature #111) */}
         <div className="mt-1 p-4 rounded-lg bg-[#f7f8f6] border border-[#dce1dc] flex flex-col gap-3">
           <div className="flex items-center justify-between">
@@ -229,6 +241,21 @@ export const SystemDiagnosticsTab = ({
           <p className="text-[11px] text-[#5b6664] leading-relaxed m-0 font-sans">
             عند مواجهة أي استفسار أو مشكلة تقنية، انقر على الزر لتوليد ملف مضغوط آمن على سطح المكتب يحتوي على سجل الأخطاء الفنية ومواصفات النظام لإرساله لفريق الدعم.
           </p>
+
+          <div className="flex items-center justify-between p-3 rounded-lg bg-white border border-[#dce1dc]">
+            <div className="flex items-center gap-2 text-xs text-slate-700">
+              <PhoneCall className="w-4 h-4 text-[#0b4f42]" />
+              <span className="font-bold">رقم الدعم الفني وخدمة العملاء:</span>
+            </div>
+            <a 
+              href="tel:01097782965" 
+              className="font-mono text-[#0b4f42] hover:underline font-black text-sm select-all tracking-wider" 
+              dir="ltr"
+              title="انقر للاتصال المباشر"
+            >
+              01097782965
+            </a>
+          </div>
 
           {supportMessage && (
             <div className="p-3 rounded-lg bg-[#e1eae5] border border-[#0b4f42]/30 text-[#14181a] text-xs flex items-center justify-between whitespace-pre-line">

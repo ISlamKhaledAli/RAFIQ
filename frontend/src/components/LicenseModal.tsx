@@ -6,7 +6,9 @@ import {
   Check, 
   X, 
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  Clock,
+  PhoneCall
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { rafiqAlert } from '../utils/dialogService';
@@ -36,6 +38,39 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
   const [isLoading, setIsLoading] = useState(false);
   const [copiedFp, setCopiedFp] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [countdownStr, setCountdownStr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!license?.expiresAt) return;
+
+    const updateModalTimer = () => {
+      try {
+        const raw = license.expiresAt.trim();
+        const target = new Date(raw.endsWith('Z') || raw.includes('T') ? raw : `${raw} UTC`).getTime();
+        if (isNaN(target)) return;
+        const diff = target - Date.now();
+        if (diff <= 0) {
+          setCountdownStr('انتهت الصلاحية');
+          return;
+        }
+        if (diff <= 24 * 60 * 60 * 1000) {
+          const totalSecs = Math.floor(diff / 1000);
+          const h = Math.floor(totalSecs / 3600);
+          const m = Math.floor((totalSecs % 3600) / 60);
+          const s = totalSecs % 60;
+          setCountdownStr(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+        } else {
+          setCountdownStr(null);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    updateModalTimer();
+    const timer = setInterval(updateModalTimer, 1000);
+    return () => clearInterval(timer);
+  }, [license?.expiresAt]);
 
   const fetchLicense = useCallback(async () => {
     try {
@@ -193,6 +228,17 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                     المنشأة: <span className="font-semibold text-slate-900">{license.shopName}</span>
                   </div>
                 )}
+                {license?.expiresAt && (
+                  <div className="text-xs text-slate-600 mt-1 flex flex-wrap items-center gap-2">
+                    <span>ينتهي في: <span className="font-semibold text-slate-900">{license.expiresAt.split('T')[0]}</span></span>
+                    {countdownStr && (
+                      <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 border border-rose-200 px-2 py-0.5 rounded-full font-mono text-[11px] font-bold">
+                        <Clock className="w-3 h-3 text-rose-600 animate-pulse" />
+                        متبقي {countdownStr}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -241,6 +287,20 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
             <p className="text-[11px] text-slate-500 leading-relaxed">
               * الترخيص يُربط مشفراً بمعالج ولوحة أم هذا الجهاز لمنع التكرار، ولا يتأثر بتغيير الهارد ديسك أو إعادة تثبيت الويندوز.
             </p>
+            <div className="flex items-center justify-between pt-2 border-t border-slate-200/80 text-xs text-slate-600">
+              <span className="flex items-center gap-1.5 font-medium">
+                <PhoneCall className="w-3.5 h-3.5 text-[#006d41]" />
+                لطلب كود تفعيل أو الدعم الفني:
+              </span>
+              <a 
+                href="tel:01097782965"
+                className="font-mono text-[#006d41] hover:underline font-black text-sm select-all tracking-wider" 
+                dir="ltr"
+                title="انقر للاتصال"
+              >
+                01097782965
+              </a>
+            </div>
           </div>
 
           {/* License Key Input Form */}

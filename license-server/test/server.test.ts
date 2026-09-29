@@ -240,6 +240,45 @@ describe('Rafiq POS License Server & D1 Tests (Feature #170)', () => {
       assert.equal(verifyData.valid, false);
       assert.equal(verifyData.code, 'INVALID_TOKEN');
     });
+
+    it('Verifies active license and returns fresh token when verified online', async () => {
+      // 1. Activate to get valid token
+      const req = new Request('http://localhost/api/activate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Rafiq-Api-Key': APP_SECRET,
+        },
+        body: JSON.stringify({
+          license_key: 'RFQ-TEST-2026-DEMO',
+          machine_fingerprint: 'pc-uuid-valid',
+        }),
+      });
+      const res = await server.fetch(req, env);
+      const data = await res.json() as any;
+      const initialToken: string = data.token;
+
+      // 2. Verify with initial token
+      const verifyReq = new Request('http://localhost/api/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Rafiq-Api-Key': APP_SECRET,
+        },
+        body: JSON.stringify({
+          token: initialToken,
+          machine_fingerprint: 'pc-uuid-valid',
+        }),
+      });
+
+      const verifyRes = await server.fetch(verifyReq, env);
+      assert.equal(verifyRes.status, 200);
+      const verifyData = await verifyRes.json() as any;
+      assert.equal(verifyData.success, true);
+      assert.equal(verifyData.valid, true);
+      assert.ok(verifyData.token, 'Should return fresh token on verification');
+      assert.equal(verifyData.details.status, 'active');
+    });
   });
 
   describe('Task 170-7: Admin Dashboard & APIs', () => {

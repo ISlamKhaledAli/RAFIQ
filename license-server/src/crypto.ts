@@ -73,8 +73,9 @@ export async function signActivationToken(
  */
 export async function verifyActivationToken(
   token: string,
-  secret: string
-): Promise<{ valid: boolean; payload?: ActivationTokenPayload; error?: string }> {
+  secret: string,
+  ignoreExpiration = false
+): Promise<{ valid: boolean; payload?: ActivationTokenPayload; isExpired?: boolean; error?: string }> {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) {
@@ -108,13 +109,14 @@ export async function verifyActivationToken(
     }
 
     const payload: ActivationTokenPayload = JSON.parse(base64UrlDecode(encodedPayload));
+    const isExpired = Boolean(payload.exp && payload.exp < Math.floor(Date.now() / 1000));
 
-    // Check expiration if present
-    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
-      return { valid: false, payload, error: 'انتهت صلاحية توكن التفعيل' };
+    // Check expiration if present and not explicitly ignored
+    if (!ignoreExpiration && isExpired) {
+      return { valid: false, payload, isExpired: true, error: 'انتهت صلاحية توكن التفعيل' };
     }
 
-    return { valid: true, payload };
+    return { valid: true, payload, isExpired };
   } catch {
     return { valid: false, error: 'فشل فك تشفير وفحص التوكن' };
   }

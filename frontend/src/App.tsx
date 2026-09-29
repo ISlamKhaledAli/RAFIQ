@@ -81,6 +81,104 @@ const formatLicenseExpiryTime = (details: LicenseExpiryDetails): string => {
   }
 };
 
+const LicenseExpiryBanner: FC<{
+  licenseExpiry: LicenseExpiryDetails;
+  onRenew: () => void;
+}> = memo(({ licenseExpiry, onRenew }) => {
+  const [countdown, setCountdown] = useState<string | null>(null);
+  const [isCritical, setIsCritical] = useState<boolean>(licenseExpiry.daysRemaining <= 1);
+
+  useEffect(() => {
+    if (!licenseExpiry.expiresAt) return;
+
+    const updateTimer = () => {
+      try {
+        const raw = licenseExpiry.expiresAt.trim();
+        const targetTime = new Date(raw.endsWith('Z') || raw.includes('T') ? raw : `${raw} UTC`).getTime();
+        if (isNaN(targetTime)) return;
+
+        const diffMs = targetTime - Date.now();
+        if (diffMs <= 0) {
+          setCountdown('00:00:00 (انتهى)');
+          setIsCritical(true);
+          return;
+        }
+
+        // When <= 24 hours (1 day)
+        if (diffMs <= 24 * 60 * 60 * 1000) {
+          setIsCritical(true);
+          const totalSecs = Math.floor(diffMs / 1000);
+          const hours = Math.floor(totalSecs / 3600);
+          const minutes = Math.floor((totalSecs % 3600) / 60);
+          const seconds = totalSecs % 60;
+          setCountdown(
+            `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+          );
+        } else {
+          setIsCritical(false);
+          setCountdown(null);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [licenseExpiry.expiresAt]);
+
+  return (
+    <div
+      className={`px-4 py-2 flex items-center justify-between text-[12px] font-bold shrink-0 select-none border-b transition-colors ${
+        isCritical
+          ? 'bg-rose-600 text-white border-rose-700 shadow-sm'
+          : 'bg-amber-500 text-amber-950 border-amber-600/30'
+      }`}
+    >
+      <div className="flex items-center gap-2.5">
+        <Clock className={`w-4 h-4 shrink-0 ${isCritical ? 'text-rose-200 animate-pulse' : 'text-amber-900'}`} />
+        <div className="flex items-center gap-2 flex-wrap">
+          {isCritical ? (
+            <>
+              <span className="bg-rose-950/60 text-rose-100 px-2 py-0.5 rounded text-[11px] font-extrabold uppercase tracking-wide border border-rose-400/30">
+                تنبيه حرج
+              </span>
+              <span>سينتهي اشتراك البرنامج قريباً جداً!</span>
+              {countdown && (
+                <span className="inline-flex items-center gap-1.5 bg-black/40 text-white px-2.5 py-0.5 rounded-full font-mono font-black text-xs tracking-wider border border-white/20 tabular-nums">
+                  <span className="w-2 h-2 rounded-full bg-rose-400 animate-ping"></span>
+                  متبقي {countdown}
+                </span>
+              )}
+              <span className="text-rose-100 text-[11px] font-semibold">(ساعات : دقائق : ثواني)</span>
+              <span>— يرجى التجديد لتفادي توقف نقاط البيع تلقائياً.</span>
+            </>
+          ) : (
+            <span>
+              تنبيه هام: سينتهي اشتراك البرنامج {formatLicenseExpiryTime(licenseExpiry)}. يرجى التجديد لتفادي توقف نقاط البيع تلقائياً.
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onRenew}
+          className={`${
+            isCritical
+              ? 'bg-white text-rose-700 hover:bg-rose-50 shadow-md'
+              : 'bg-amber-950 hover:bg-black text-amber-100 shadow-xs'
+          } text-xs px-3.5 py-1 rounded font-bold transition-all cursor-pointer`}
+        >
+          تجديد الترخيص الآن
+        </button>
+      </div>
+    </div>
+  );
+});
+
+
 const HeaderClock: FC = memo(() => {
   const [time, setTime] = useState('');
   const [date, setDate] = useState('');
@@ -644,25 +742,12 @@ export default function App() {
         </div>
       )}
 
-      {/* Feature #172 / Task 172-2: 7-Day Expiry Warning Banner */}
-      {licenseExpiry && licenseExpiry.status === 'warning' && !isLockScreenOpen && !isLicenseReadOnlyMode && (
-        <div className="bg-amber-500 text-amber-950 px-4 py-2 flex items-center justify-between text-[12px] font-bold shrink-0 select-none border-b border-amber-600/30">
-          <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4 shrink-0 text-amber-900" />
-            <span>
-              تنبيه هام: سينتهي اشتراك البرنامج {formatLicenseExpiryTime(licenseExpiry)}. يرجى التجديد لتفادي توقف نقاط البيع تلقائياً.
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setIsLicenseModalOpen(true)}
-              className="bg-amber-950 hover:bg-black text-amber-100 text-xs px-3 py-1 rounded font-bold transition-colors shadow-xs"
-            >
-              تجديد الترخيص الآن
-            </button>
-          </div>
-        </div>
+      {/* Feature #172 / Task 172-2: Expiry Warning Banner with Live Countdown */}
+      {licenseExpiry && (licenseExpiry.status === 'warning' || licenseExpiry.daysRemaining <= 1) && !isLockScreenOpen && !isLicenseReadOnlyMode && (
+        <LicenseExpiryBanner
+          licenseExpiry={licenseExpiry}
+          onRenew={() => setIsLicenseModalOpen(true)}
+        />
       )}
 
       {/* Feature #172 / Task 172-5: Read-Only Mode Banner */}

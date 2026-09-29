@@ -277,7 +277,9 @@ function serveAdminHtml(): Response {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>لوحة إدارة تراخيص رفيق POS</title>
+  <meta name="author" content="ISlam Khaled Ali">
+  <meta name="copyright" content="Copyright © 2026 ISlam Khaled Ali. All rights reserved.">
+  <title>لوحة إدارة تراخيص رفيق POS — تطوير: ISlam Khaled Ali</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;600;700;800;900&display=swap" rel="stylesheet">
@@ -617,6 +619,34 @@ function serveAdminHtml(): Response {
     .pill-disabled { background: #fee2e2; color: #991b1b; }
     .pill-expired { background: #f1f5f9; color: #475569; }
 
+    /* Countdown Badge for <24h Expiry */
+    .countdown-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: #fff1f2;
+      color: #be123c;
+      border: 1px solid #fecdd3;
+      padding: 2px 7px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-weight: 800;
+      font-size: 11.5px;
+      margin-inline-start: 6px;
+    }
+    .pulse-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #e11d48;
+      animation: countdownPulse 1.2s infinite;
+    }
+    @keyframes countdownPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.3; transform: scale(0.8); }
+    }
+
     /* Action buttons in rows */
     .row-actions {
       display: flex;
@@ -790,7 +820,7 @@ function serveAdminHtml(): Response {
       <div class="brand-mark">RFQ</div>
       <div>
         <div class="brand-title">لوحة إدارة تراخيص رفيق POS</div>
-        <div class="brand-sub">بوابة إدارة التراخيص المركزية — Cloudflare Edge</div>
+        <div class="brand-sub">بوابة إدارة التراخيص المركزية — تطوير: ISlam Khaled Ali</div>
       </div>
     </div>
 
@@ -887,7 +917,7 @@ function serveAdminHtml(): Response {
 
       <div class="table-bar">
         <div class="search-box">
-          <input type="text" id="searchInput" oninput="applyFilters()" placeholder="بحث باسم المنشأة، الهاتف، أو رمز الترخيص...">
+          <input type="text" id="searchInput" oninput="applyFilters()" placeholder="بحث باسم المنشأة، الهاتف، رمز الترخيص، أو بصمة الجهاز (HWID)...">
         </div>
 
         <div class="filters">
@@ -1010,14 +1040,22 @@ function serveAdminHtml(): Response {
 
         <div class="field">
           <label>إجراء التمديد</label>
-          <select id="editExtendAction">
+          <select id="editExtendAction" onchange="toggleEditCustomDays()">
             <option value="none" selected>بدون تغيير الصلاحية (تعديل البيانات فقط)</option>
+            <option value="7">+ تمديد 7 أيام (أسبوع)</option>
+            <option value="14">+ تمديد 14 يوم (أسبوعين)</option>
             <option value="30">+ تمديد 30 يوم (شهر)</option>
             <option value="90">+ تمديد 90 يوم (3 أشهر)</option>
             <option value="180">+ تمديد 180 يوم (6 أشهر)</option>
             <option value="365">+ تمديد 365 يوم (سنة كاملة)</option>
+            <option value="custom">فترة مخصصة (تحديد عدد الأيام)...</option>
             <option value="lifetime">ترقية إلى دائم مدى الحياة (Lifetime)</option>
           </select>
+        </div>
+
+        <div class="field" id="editCustomDaysWrapper" style="display:none;">
+          <label>عدد أيام التمديد المخصصة</label>
+          <input type="number" id="editCustomDaysInput" min="1" max="3650" placeholder="مثلاً: 15 أو 45 أو 60 يوم">
         </div>
 
         <div class="field">
@@ -1203,7 +1241,8 @@ function serveAdminHtml(): Response {
           const matchKey = l.license_key.toLowerCase().includes(q);
           const matchShop = l.shop_name.toLowerCase().includes(q);
           const matchPhone = (l.owner_phone || '').includes(q);
-          if (!matchKey && !matchShop && !matchPhone) return false;
+          const matchFp = (l.machine_fingerprint || '').toLowerCase().includes(q);
+          if (!matchKey && !matchShop && !matchPhone && !matchFp) return false;
         }
         return true;
       });
@@ -1225,17 +1264,20 @@ function serveAdminHtml(): Response {
       list.forEach(lic => {
         const tr = document.createElement('tr');
 
-        // Remaining Days calculation
+        // Remaining Days calculation & Countdown
         let expText = '<span style="color:#059669; font-weight:800;">دائم مدى الحياة</span>';
         let isExpired = false;
         if (lic.expires_at) {
           const expDate = new Date(lic.expires_at);
-          const diffDays = Math.ceil((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          const diffMs = expDate.getTime() - now.getTime();
+          const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
           const dateStr = expDate.toISOString().split('T')[0];
 
-          if (diffDays <= 0) {
+          if (diffMs <= 0) {
             isExpired = true;
             expText = '<span style="color:#dc2626; font-weight:700;">' + dateStr + ' (منتهي)</span>';
+          } else if (diffMs <= 24 * 60 * 60 * 1000) {
+            expText = '<span>' + dateStr + ' <span class="countdown-badge" data-expires="' + lic.expires_at + '"><span class="pulse-dot"></span><span class="countdown-text">جارٍ الحساب...</span></span></span>';
           } else {
             expText = '<span>' + dateStr + ' <small style="color:#059669; font-weight:700;">(متبقي ' + diffDays + ' يوم)</small></span>';
           }
@@ -1294,7 +1336,34 @@ function serveAdminHtml(): Response {
 
         tbody.appendChild(tr);
       });
+
+      updateCountdowns();
     }
+
+    function updateCountdowns() {
+      const now = Date.now();
+      document.querySelectorAll('.countdown-badge').forEach(el => {
+        const expiresAt = el.getAttribute('data-expires');
+        if (!expiresAt) return;
+        const target = new Date(expiresAt).getTime();
+        const diff = target - now;
+        const textEl = el.querySelector('.countdown-text');
+        if (!textEl) return;
+        if (diff <= 0) {
+          const parent = el.parentElement;
+          if (parent) {
+            parent.innerHTML = '<span style="color:#dc2626; font-weight:700;">' + new Date(expiresAt).toISOString().split('T')[0] + ' (منتهي)</span>';
+          }
+          return;
+        }
+        const h = Math.floor(diff / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000);
+        const s = Math.floor((diff % 60000) / 1000);
+        textEl.textContent = 'متبقي ' + String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+      });
+    }
+
+    setInterval(updateCountdowns, 1000);
 
     function translateType(type, expiresAt) {
       if (!expiresAt || type === 'lifetime') return 'دائم';
@@ -1383,7 +1452,9 @@ function serveAdminHtml(): Response {
 1. افتح برنامج رفيق POS على جهاز الكمبيوتر.
 2. اضغط على "ترخيص البرنامج" في الإعدادات أو الشاشة الرئيسية.
 3. أدخل الرمز أعلاه واضغط على "تفعيل الترخيص أونلاين".
-4. سيعمل البرنامج بعدها أوفلاين تماماً بدون الحاجة للإنترنت.\`;
+4. سيعمل البرنامج بعدها أوفلاين تماماً بدون الحاجة للإنترنت.
+
+لأي استفسار أو دعم فني مباشر: 01097782965\`;
 
       document.getElementById('shareTextarea').value = message;
       openModal('shareModal');
@@ -1410,8 +1481,9 @@ function serveAdminHtml(): Response {
       document.getElementById('editLicenseId').value = lic.id;
       document.getElementById('editShopName').value = lic.shop_name;
       document.getElementById('editOwnerPhone').value = lic.owner_phone || '';
-      document.getElementById('editNotes').value = lic.notes || '';
       document.getElementById('editExtendAction').value = 'none';
+      document.getElementById('editCustomDaysWrapper').style.display = 'none';
+      document.getElementById('editCustomDaysInput').value = '';
 
       let expText = 'دائم مدى الحياة';
       if (lic.expires_at) {
@@ -1420,6 +1492,17 @@ function serveAdminHtml(): Response {
       document.getElementById('editCurrentExpDisplay').textContent = expText;
 
       openModal('editModal');
+    }
+
+    function toggleEditCustomDays() {
+      const val = document.getElementById('editExtendAction').value;
+      const w = document.getElementById('editCustomDaysWrapper');
+      if (val === 'custom') {
+        w.style.display = 'block';
+        document.getElementById('editCustomDaysInput').focus();
+      } else {
+        w.style.display = 'none';
+      }
     }
 
     async function submitEdit() {
@@ -1432,6 +1515,13 @@ function serveAdminHtml(): Response {
       const payload = { shop_name, owner_phone, notes };
       if (action === 'lifetime') {
         payload.set_lifetime = true;
+      } else if (action === 'custom') {
+        const customDays = parseInt(document.getElementById('editCustomDaysInput').value);
+        if (!customDays || customDays <= 0) {
+          showToast('يرجى إدخال عدد أيام تمديد صحيح (1 فأكثر)', true);
+          return;
+        }
+        payload.days_to_add = customDays;
       } else if (action !== 'none') {
         payload.days_to_add = parseInt(action);
       }

@@ -277,7 +277,10 @@ export const DatabaseRecoveryModal = ({
 
         {/* 3. Modal Footer */}
         <div className="p-3 bg-surface-2 border-t border-line flex items-center justify-between text-[11px] text-ink-muted">
-          <span>يتم أخذ نسخة أمان للحالة الحالية دائماً قبل أي استرجاع.</span>
+          <span className="flex items-center gap-1.5">
+            <span>يتم أخذ نسخة أمان للحالة الحالية دائماً قبل أي استرجاع • للدعم الفني الطارئ:</span>
+            <a href="tel:01097782965" className="font-mono font-bold text-[#006d41] hover:underline" dir="ltr">01097782965</a>
+          </span>
           {!status.isCorrupt && onDismiss && !isStandaloneDialog && (
             <button
               onClick={onDismiss}

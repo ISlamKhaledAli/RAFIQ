@@ -17,6 +17,8 @@ import {
   Croissant,
   Smartphone,
   Store,
+  Sparkles,
+  RefreshCw,
 } from 'lucide-react';
 
 interface DemoDataStatus {
@@ -75,6 +77,13 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [clearSuccessInfo, setClearSuccessInfo] = useState<{
+    message: string;
+    deletedProducts: number;
+    deletedSales: number;
+    deletedCustomers: number;
+  } | null>(null);
+  const [isTriggeringWizard, setIsTriggeringWizard] = useState(false);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -111,6 +120,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
   const handleLoadDemo = async () => {
     setLoading(true);
     setMessage(null);
+    setClearSuccessInfo(null);
     try {
       const res = await invoke<{ success: boolean; message: string }>('demo:load', {
         storeType: selectedStoreType,
@@ -133,13 +143,30 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
   const handleClearDemo = async () => {
     setLoading(true);
     setMessage(null);
+    setClearSuccessInfo(null);
     try {
-      const res = await invoke<{ success: boolean; message: string }>('demo:clear');
+      const res = await invoke<{
+        success: boolean;
+        message: string;
+        deletedProducts?: number;
+        deletedSales?: number;
+        deletedCustomers?: number;
+      }>('demo:clear');
       if (res && res.success) {
-        setMessage({ text: res.message || 'تم مسح البيانات التجريبية بأمان.', type: 'success' });
+        setClearSuccessInfo({
+          message: res.message || 'تم مسح كافة البيانات التجريبية بنجاح!',
+          deletedProducts: res.deletedProducts ?? 0,
+          deletedSales: res.deletedSales ?? 0,
+          deletedCustomers: res.deletedCustomers ?? 0,
+        });
         setShowClearConfirm(false);
         await refreshStatus();
         if (onDataChanged) onDataChanged();
+        window.dispatchEvent(new CustomEvent('rafiq:catalog-updated'));
+        window.dispatchEvent(new CustomEvent('rafiq:demo-cleared'));
+        setTimeout(() => {
+          window.location.reload();
+        }, 2200);
       } else {
         setMessage({ text: 'فشل مسح البيانات التجريبية.', type: 'error' });
       }
@@ -148,6 +175,20 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
       setMessage({ text: errMsg, type: 'error' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleStartWizardFresh = async () => {
+    setIsTriggeringWizard(true);
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('rafiq_first_run_completed');
+        localStorage.removeItem('rafiq_wizard_state');
+      }
+      await invoke('settings:save', { first_run_completed: '0' });
+      window.location.reload();
+    } catch {
+      window.location.reload();
     }
   };
 
@@ -180,7 +221,58 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
 
         {/* Content Body */}
         <div className="p-6 overflow-y-auto space-y-5 flex-1">
-          {message && (
+          {clearSuccessInfo && (
+            <div className="bg-emerald-50 border-2 border-emerald-500 rounded-2xl p-5 text-center space-y-3.5 animate-fadeIn shadow-md">
+              <div className="w-14 h-14 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                <CheckCircle2 className="w-8 h-8" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-emerald-950">تم مسح كافة البيانات التجريبية بنجاح!</h3>
+                <p className="text-xs text-emerald-800 mt-1 font-bold leading-relaxed">
+                  {clearSuccessInfo.message}
+                </p>
+              </div>
+              <div className="grid grid-cols-3 gap-2.5 max-w-sm mx-auto">
+                <div className="bg-white border border-emerald-200 rounded-xl p-2.5 shadow-2xs">
+                  <span className="block text-2xl font-black text-emerald-900">{clearSuccessInfo.deletedProducts}</span>
+                  <span className="text-[11px] font-bold text-slate-500">أصناف محذوفة</span>
+                </div>
+                <div className="bg-white border border-emerald-200 rounded-xl p-2.5 shadow-2xs">
+                  <span className="block text-2xl font-black text-emerald-900">{clearSuccessInfo.deletedSales}</span>
+                  <span className="text-[11px] font-bold text-slate-500">فواتير محذوفة</span>
+                </div>
+                <div className="bg-white border border-emerald-200 rounded-xl p-2.5 shadow-2xs">
+                  <span className="block text-2xl font-black text-emerald-900">{clearSuccessInfo.deletedCustomers}</span>
+                  <span className="text-[11px] font-bold text-slate-500">عملاء محذوفين</span>
+                </div>
+              </div>
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="w-full sm:w-auto px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold text-xs shadow transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>تحديث الشاشة الآن لتطبيق التغييرات</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClearSuccessInfo(null);
+                    onClose();
+                  }}
+                  className="w-full sm:w-auto px-4 py-2.5 bg-white border border-emerald-300 text-emerald-900 hover:bg-emerald-50 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                >
+                  إغلاق النافذة
+                </button>
+              </div>
+              <p className="text-[11px] text-emerald-700 font-semibold animate-pulse">
+                سيتم إعادة تحميل الشاشة وتحديث الكتالوج خلال لحظات تلقائياً...
+              </p>
+            </div>
+          )}
+
+          {message && !clearSuccessInfo && (
             <div
               className={`p-3.5 rounded-xl text-sm font-semibold flex items-center gap-2.5 ${
                 message.type === 'success'
@@ -336,60 +428,88 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
           )}
 
           {/* Action 2: Clear Demo Data with Confirmation */}
-          <div className="space-y-3 pt-1">
-            {!showClearConfirm ? (
-              <button
-                type="button"
-                onClick={() => setShowClearConfirm(true)}
-                disabled={loading}
-                className="w-full py-2.5 bg-red-50 hover:bg-red-100 text-red-700 hover:text-red-800 border border-red-200 rounded-xl font-bold transition-colors flex items-center justify-center gap-2 text-xs cursor-pointer"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>{status.hasDemoData ? 'مسح كافة البيانات التجريبية' : 'مسح وقائي لأي بيانات تجريبية متبقية'}</span>
-              </button>
-            ) : (
-              <div className="bg-red-50/90 border border-red-200 rounded-xl p-4 space-y-3 animate-fadeIn">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-sm font-bold text-red-900">تأكيد مسح البيانات التجريبية؟</h4>
-                    <p className="text-xs text-red-800 mt-1 leading-relaxed">
-                      سيتم حذف كافة الأصناف والعملاء والفواتير التجريبية فقط. أي أصناف أو مبيعات حقيقية قمت بإضافتها
-                      ستظل محفوظة تماماً في قاعدة البيانات.
-                    </p>
+          {!clearSuccessInfo && (
+            <div className="space-y-3 pt-1">
+              {!showClearConfirm ? (
+                <button
+                  type="button"
+                  onClick={() => setShowClearConfirm(true)}
+                  disabled={loading}
+                  className="w-full py-2.5 bg-red-50 hover:bg-red-100 text-red-700 hover:text-red-800 border border-red-200 rounded-xl font-bold transition-colors flex items-center justify-center gap-2 text-xs cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>{status.hasDemoData ? 'مسح كافة البيانات التجريبية واختبارات الحمل' : 'مسح وقائي لأي بيانات أو أصناف تجريبية متبقية'}</span>
+                </button>
+              ) : (
+                <div className="bg-red-50 border-2 border-red-300 rounded-xl p-4 space-y-3 animate-fadeIn shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="text-sm font-bold text-red-900">تأكيد مسح كافة البيانات التجريبية واختبارات الحمل؟</h4>
+                      <p className="text-xs text-red-800 mt-1 leading-relaxed font-medium">
+                        سيقوم النظام بفحص قاعدة البيانات بالكامل، وحذف أي أصناف تجريبية (بما فيها أصناف اختبار الحمل والتدريب)
+                        والفواتير والعملاء التجريبيين بأمان تام، ولن تمس أي فواتير أو أصناف حقيقية أنشأتها بنفسك.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowClearConfirm(false)}
+                      disabled={loading}
+                      className="px-3.5 py-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+                    >
+                      إلغاء
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearDemo}
+                      disabled={loading}
+                      className="px-5 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-lg shadow-md transition-colors flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                    >
+                      {loading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>جاري الفحص والحذف من قاعدة البيانات...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4" />
+                          <span>نعم، امسح كافة البيانات التجريبية</span>
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
+              )}
+            </div>
+          )}
 
-                <div className="flex items-center justify-end gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setShowClearConfirm(false)}
-                    disabled={loading}
-                    className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
-                  >
-                    إلغاء
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleClearDemo}
-                    disabled={loading}
-                    className="px-4 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-lg shadow transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        جاري المسح...
-                      </>
-                    ) : (
-                      <>
-                        <Check className="w-3.5 h-3.5" />
-                        نعم، امسح البيانات التجريبية
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
+          {/* Start First Run Setup Wizard */}
+          <div className="border-t border-slate-200 pt-4 flex items-center justify-between">
+            <div>
+              <span className="text-xs font-bold text-slate-800 block">بدء الإعداد الأولي للمحل من الصفر</span>
+              <span className="text-[11px] text-slate-500">تحديد اسم المحل، النشاط، الفئات، ونظام البيع كأول تشغيل</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleStartWizardFresh}
+              disabled={isTriggeringWizard}
+              className="px-3.5 py-2 text-xs font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-300 rounded-xl transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+            >
+              {isTriggeringWizard ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  جاري الفتح...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  تشغيل معالج الإعداد (Wizard)
+                </>
+              )}
+            </button>
           </div>
 
           {/* Start Tour Button */}

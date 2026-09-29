@@ -6,7 +6,8 @@
 #define MyAppName "رفيق POS"
 #define MyAppEnglishName "Rafiq POS"
 #define MyAppVersion "1.0.0"
-#define MyAppPublisher "Rafiq POS"
+#define MyAppPublisher "ISlam Khaled Ali"
+#define MyAppCopyright "Copyright © 2026 ISlam Khaled Ali. All rights reserved."
 #define MyAppExeName "RafiqPOS.exe"
 
 [Setup]
@@ -15,6 +16,7 @@ AppId={{A879E05E-9F93-4B9F-84E3-8E5F92CE3C81}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
+AppCopyright={#MyAppCopyright}
 DefaultDirName={autopf}\RafiqPOS
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
@@ -23,9 +25,10 @@ OutputBaseFilename=RafiqPOS_Setup_v{#MyAppVersion}
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
+WizardSizePercent=120,120
 SetupIconFile=app.ico
-WizardImageFile=wizard_sidebar.bmp
-WizardSmallImageFile=wizard_small.bmp
+WizardImageFile=wizard_sidebar.bmp,wizard_sidebar_2x.bmp
+WizardSmallImageFile=wizard_small.bmp,wizard_small_2x.bmp
 UninstallDisplayIcon={app}\{#MyAppExeName}
 
 ; التوافق مع الأنظمة: ويندوز 7 الحزمة 1 كحد أدنى
@@ -42,20 +45,26 @@ Name: "arabic"; MessagesFile: "compiler:Languages\Arabic.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Messages]
-arabic.BeveledLabel=رفيق POS — Rafiq POS
-english.BeveledLabel=Rafiq POS
+arabic.BeveledLabel=رفيق POS — Rafiq Enterprise POS
+english.BeveledLabel=Rafiq POS — Enterprise Edition
 
 ; تخصيص نصوص معالج التثبيت لتعكس الهوية الاحترافية لنظام رفيق
-arabic.WelcomeLabel1=أهلاً بك في معالج تثبيت رفيق POS
-arabic.WelcomeLabel2=سيقوم هذا المعالج بتثبيت برنامج رفيق لنقاط البيع وإدارة المتاجر على جهاز الكمبيوتر الخاص بك.%n%nالميزات التأسيسية التي يتم تهيئتها تلقائياً:%n• تشغيل أوفلاين 100%% بدون الحاجة لأي اتصال بالإنترنت.%n• محرك بيانات فائق الاستقرار ومعاملات مالية ذرية آمنة لحماية بيانات المحل.%n• توافق مباشر مع قارئ الباركود، موازين الأوزان، وطابعات الإيصالات الحرارية.%n• توافق تام بنسخة واحدة من Windows 7 SP1 حتى Windows 11.%n%nانقر على «التالي» للمتابعة، أو «إلغاء» للخروج من معالج التثبيت.
+arabic.WelcomeLabel1=مرحباً بك في معالج تثبيت منصة رفيق POS
+arabic.WelcomeLabel2=سيقوم هذا المعالج بتثبيت منصة رفيق المتكاملة لنقاط البيع وإدارة السوبرماركت والمتاجر على جهاز الكمبيوتر الخاص بك.%n%nالمواصفات الهندسية الأساسية للنظام:%n• تشغيل أوفلاين 100%% بدون الحاجة لأي اتصال بالإنترنت.%n• محرك بيانات فائق الاستقرار ومعاملات مالية ذرية آمنة لحماية بيانات المحل.%n• توافق فوري مع قارئ الباركود، موازين الأوزان، وطابعات الإيصالات الحرارية.%n• توافق تام بنسخة واحدة مستقرة من Windows 7 SP1 حتى Windows 11.%n%nانقر على «التالي» للمتابعة، أو «إلغاء» للخروج من معالج التثبيت.
 
 arabic.FinishedHeadingLabel=اكتمل تثبيت رفيق POS بنجاح!
-arabic.FinishedLabelNoIcons=تم تثبيت برنامج رفيق لنقاط البيع وإدارة المتاجر بنجاح على جهازك.%n%nيمكنك الآن تشغيل البرنامج وبدء إعداد متجرك التجاري.
-arabic.FinishedLabel=تم اكتمال تثبيت رفيق POS بنجاح.%n%nانقر على «إنهاء» لتشغيل رفيق والبدء مباشرة.
+arabic.FinishedLabelNoIcons=تم تثبيت نظام رفيق لنقاط البيع وإدارة المتاجر بنجاح على جهازك.%n%nيمكنك الآن تشغيل البرنامج وبدء إعداد متجرك التجاري.
+arabic.FinishedLabel=تم تثبيت نظام رفيق لنقاط البيع وإدارة المتاجر بنجاح وهو جاهز للتشغيل الفوري.%n%nانقر على «إنهاء» لتشغيل رفيق والبدء مباشرة.
+
+english.WelcomeLabel1=Welcome to Rafiq POS Setup
+english.WelcomeLabel2=This wizard will install Rafiq Enterprise POS (Supermarket & Retail System) on your computer.%n%nBuilt-in Enterprise Capabilities:%n• 100%% Offline Operation — no internet required.%n• Ultra-fast & crash-resilient SQLite WAL database engine.%n• Instant compatibility with barcode scanners, digital scales, and receipt printers.%n• Runs reliably on Windows 7 SP1 through Windows 11.%n%nClick Next to continue, or Cancel to exit Setup.
+english.FinishedHeadingLabel=Rafiq POS Setup Complete!
+english.FinishedLabelNoIcons=Rafiq POS has been successfully installed on your computer.%n%nYou may now launch the application to start setting up your store.
+english.FinishedLabel=Rafiq POS has been successfully installed and is ready for use.%n%nClick Finish to launch Rafiq POS and get started.
 
 [Tasks]
-Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
-Name: "cleaninstall"; Description: "مسح أي بيانات سابقة والبدء من جديد تماماً (تثبيت نظيف 100%)"; GroupDescription: "تهيئة البيانات:"; Flags: checkedonce
+Name: "desktopicon"; Description: "إنشاء اختصار لبرنامج رفيق على سطح المكتب"; GroupDescription: "خيارات إضافية:"
+Name: "cleaninstall"; Description: "بدء تثبيت نظيف 100% (تفريغ أي بيانات تجريبية والبدء من جديد)"; GroupDescription: "تهيئة بيانات المتجر:"; Flags: checkedonce
 
 [Dirs]
 ; إعطاء صلاحيات الكتابة الكاملة لجميع المستخدمين في مجلد البيانات
@@ -173,19 +182,27 @@ begin
   WizardForm.WelcomeLabel1.Font.Name := 'Segoe UI';
   WizardForm.WelcomeLabel1.Font.Size := 13;
   WizardForm.WelcomeLabel1.Font.Style := [fsBold];
-  WizardForm.WelcomeLabel1.Font.Color := $00372D; // Forest Green ($00BBGGRR)
+  WizardForm.WelcomeLabel1.Font.Color := $002D3700; // Forest Green #00372D ($00BBGGRR)
 
   // ترقية خط ولون عنوان شاشة النهاية
   WizardForm.FinishedHeadingLabel.Font.Name := 'Segoe UI';
   WizardForm.FinishedHeadingLabel.Font.Size := 13;
   WizardForm.FinishedHeadingLabel.Font.Style := [fsBold];
-  WizardForm.FinishedHeadingLabel.Font.Color := $00372D;
+  WizardForm.FinishedHeadingLabel.Font.Color := $002D3700;
 
-  // ترقية عناوين الصفحات الداخلية
+  // ترقية عناوين ووصف الصفحات الداخلية
   WizardForm.PageNameLabel.Font.Name := 'Segoe UI';
   WizardForm.PageNameLabel.Font.Size := 10;
   WizardForm.PageNameLabel.Font.Style := [fsBold];
-  WizardForm.PageNameLabel.Font.Color := $00372D;
+  WizardForm.PageNameLabel.Font.Color := $002D3700;
+
+  WizardForm.PageDescriptionLabel.Font.Name := 'Segoe UI';
+  WizardForm.PageDescriptionLabel.Font.Size := 9;
+  WizardForm.PageDescriptionLabel.Font.Color := $004A453C;
+
+  // إخفاء الحواف ثلاثية الأبعاد الكلاسيكية القديمة لمظهر مسطح وعصري
+  WizardForm.Bevel.Visible := False;
+  WizardForm.Bevel1.Visible := False;
 
   WizardForm.OnShow := @WizardOnShow;
   ForceWizardToForeground();
@@ -331,6 +348,7 @@ begin
         DeleteFile(DataDir + '\rafiq_pos.db');
         DeleteFile(DataDir + '\rafiq_pos.db-wal');
         DeleteFile(DataDir + '\rafiq_pos.db-shm');
+        DelTree(DataDir + '\webview_profile', True, True, True);
       end;
     end;
   end;
