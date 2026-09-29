@@ -5,6 +5,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   base: './',
+  envDir: '../',
   build: {
     target: 'chrome109',
     outDir: 'dist',
