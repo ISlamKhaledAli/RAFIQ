@@ -288,6 +288,21 @@ describe('Rafiq POS License Server & D1 Tests (Feature #170)', () => {
       assert.equal(res.status, 200);
       const html = await res.text();
       assert.ok(html.includes('لوحة إدارة تراخيص رفيق POS'));
+      assert.ok(html.includes('tabBtnLicenses'), 'Must have separate Licenses tab button');
+      assert.ok(html.includes('tabBtnLogs'), 'Must have separate Audit Logs tab button');
+      assert.ok(html.includes('licensesPaginationBar'), 'Must have Licenses pagination bar');
+      assert.ok(html.includes('logsPaginationBar'), 'Must have Logs pagination bar');
+    });
+
+    it('Admin can list audit logs via /api/admin/logs', async () => {
+      const req = new Request('http://localhost/api/admin/logs', {
+        headers: { 'X-Admin-Secret': ADMIN_SECRET },
+      });
+      const res = await server.fetch(req, env);
+      assert.equal(res.status, 200);
+      const data = await res.json() as any;
+      assert.equal(data.success, true);
+      assert.ok(Array.isArray(data.data));
     });
 
     it('Admin can create a new license and list licenses', async () => {

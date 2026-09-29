@@ -9,10 +9,12 @@ import {
   AlertTriangle,
   Phone,
   FileSpreadsheet,
+  Download,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { normalizeArabicNumerals } from '../utils/money';
 import { rafiqConfirm, rafiqAlert } from '../utils/dialogService';
+import { exportCustomersToExcel } from '../utils/excelImport';
 import type { Customer, CustomerLedgerEntry, CustomerImportPreviewResult, CustomerImportResult, CustomerBalanceVerification } from '../types/models';
 import { CustomerFormModal } from './customers/CustomerFormModal';
 import { CustomerPaymentModal } from './customers/CustomerPaymentModal';
@@ -75,6 +77,37 @@ export function CustomersView() {
   const [isFixingBalance, setIsFixingBalance] = useState(false);
   const [auditFeedback, setAuditFeedback] = useState<string | null>(null);
 
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+
+  const handleExportCustomersToExcel = async () => {
+    setIsExportingExcel(true);
+    try {
+      const res = await exportCustomersToExcel();
+      if (res.success) {
+        void rafiqAlert({
+          title: 'تم تصدير سجل العملاء بنجاح',
+          message: `تم تصدير ${res.count || customers.length} عميل مع حساباتهم وديونهم إلى ملف إكسل بنجاح!`,
+          variant: 'success',
+        });
+      } else {
+        void rafiqAlert({
+          title: 'فشل تصدير ملف الإكسل',
+          message: `تعذر تصدير ملف الإكسل: ${res.message || 'خطأ غير معروف'}`,
+          variant: 'error',
+        });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      void rafiqAlert({
+        title: 'خطأ أثناء التصدير',
+        message: `خطأ أثناء التصدير: ${msg}`,
+        variant: 'error',
+      });
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
   const handleDownloadTemplate = async () => {
     setIsDownloadingTemplate(true);
     setImportError(null);
@@ -112,7 +145,7 @@ export function CustomersView() {
         try {
           const result = evt.target?.result as string;
           const base64 = result.split(',')[1] || result;
-          const preview = await invoke<CustomerImportPreviewResult>('excel:previewCustomerImport', { base64 });
+          const preview = await invoke<CustomerImportPreviewResult>('excel:previewCustomerImport', { base64 }, 120000);
           setImportPreview(preview);
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : 'فشل تحليل ملف الإكسل';
@@ -138,7 +171,7 @@ export function CustomersView() {
     setIsImporting(true);
     setImportError(null);
     try {
-      const res = await invoke<CustomerImportResult>('excel:importCustomers', { rows: importPreview.rows });
+      const res = await invoke<CustomerImportResult>('excel:importCustomers', { rows: importPreview.rows }, 120000);
       setImportResult(res);
       await loadCustomers();
     } catch (err: unknown) {
@@ -148,6 +181,7 @@ export function CustomersView() {
       setIsImporting(false);
     }
   };
+
 
   const resetImportModal = () => {
     setIsImportModalOpen(false);
@@ -625,6 +659,19 @@ export function CustomersView() {
             <FileSpreadsheet className="w-4 h-4 text-[#006D41]" />
             <span>استيراد إكسل</span>
           </button>
+
+          {/* Export to Excel Button */}
+          <button
+            type="button"
+            onClick={() => void handleExportCustomersToExcel()}
+            disabled={isExportingExcel || customers.length === 0}
+            className="flex items-center gap-1.5 h-9 px-3.5 bg-white hover:bg-[#F8FAFC] border border-[#E2E8F0] text-[#0F172A] rounded-xl text-xs font-bold shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+            title="تصدير كشف حسابات وأرصدة العملاء والديون إلى ملف إكسل"
+          >
+            <Download className={`w-4 h-4 text-[#006D41] ${isExportingExcel ? 'animate-bounce' : ''}`} />
+            <span>{isExportingExcel ? 'جاري التصدير...' : 'تصدير إكسل'}</span>
+          </button>
+
 
           {/* Add Customer Button */}
           <button

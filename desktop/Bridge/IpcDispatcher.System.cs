@@ -722,7 +722,7 @@ namespace RafiqPOS.Bridge
                     return true;
 
                 case "excel:exportProducts":
-                    var prodsToExport = DatabaseService.ProductRepo.GetAll(50000);
+                    var prodsToExport = DatabaseService.ProductRepo.GetAllForExport();
                     var cats = DatabaseService.CategoryRepo.GetAll(true);
                     var catDict = new Dictionary<string, string>();
                     if (cats != null)
@@ -742,6 +742,21 @@ namespace RafiqPOS.Bridge
                         count = prodsToExport.Count
                     });
                     return true;
+
+                case "excel:exportCustomers":
+                    var custsToExport = DatabaseService.CustomerRepo.GetAll(50000);
+                    string expCustBase64 = DatabaseService.Excel.ExportCustomersBase64(custsToExport);
+
+                    string custExportFileName = string.Format("سجل_عملاء_رفيق_{0}.xlsx", DateTime.Now.ToString("yyyyMMdd_HHmm"));
+                    response = BridgeResponse.Ok(request.Id, new
+                    {
+                        success = true,
+                        fileName = custExportFileName,
+                        base64 = expCustBase64,
+                        count = custsToExport.Count
+                    });
+                    return true;
+
 
                 case "excel:getCustomerTemplate":
                     string custTplBase64 = DatabaseService.Excel.GenerateCustomerTemplateBase64();

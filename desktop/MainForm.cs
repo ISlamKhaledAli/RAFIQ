@@ -616,21 +616,70 @@ namespace RafiqPOS
 
         private void CoreWebView2_WebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs e)
         {
+            string rawJson = null;
             try
             {
-                string rawJson = e.WebMessageAsJson;
-                var request = JsonConvert.DeserializeObject<BridgeRequest>(rawJson);
-                var response = IpcDispatcher.Dispatch(request);
-                string responseJson = JsonConvert.SerializeObject(response, BridgeSerializerSettings);
-
-                _webView.CoreWebView2.PostWebMessageAsJson(responseJson);
+                rawJson = e.WebMessageAsJson;
             }
             catch (Exception ex)
             {
-                var errResponse = BridgeResponse.Fail("", "DISPATCHER_ERROR", ex.Message);
-                _webView.CoreWebView2.PostWebMessageAsJson(JsonConvert.SerializeObject(errResponse, BridgeSerializerSettings));
+                Logger.Error("فشل قراءة رسالة الويب: ", ex);
+                return;
             }
+
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            {
+                BridgeRequest request = null;
+                string reqId = "";
+                BridgeResponse response = null;
+
+                try
+                {
+                    request = JsonConvert.DeserializeObject<BridgeRequest>(rawJson);
+                    if (request != null && !string.IsNullOrEmpty(request.Id))
+                    {
+                        reqId = request.Id;
+                    }
+
+                    response = IpcDispatcher.Dispatch(request);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error("خطأ غير متوقع في معالج IPC: ", ex);
+                    response = BridgeResponse.Fail(reqId, "DISPATCHER_ERROR", ex.Message);
+                }
+
+                if (response == null)
+                {
+                    response = BridgeResponse.Fail(reqId, "EMPTY_RESPONSE", "لم يتم إرجاع استجابة");
+                }
+
+                string responseJson = JsonConvert.SerializeObject(response, BridgeSerializerSettings);
+
+                try
+                {
+                    this.BeginInvoke(new Action(delegate
+                    {
+                        try
+                        {
+                            if (_webView != null && _webView.CoreWebView2 != null)
+                            {
+                                _webView.CoreWebView2.PostWebMessageAsJson(responseJson);
+                            }
+                        }
+                        catch (Exception postEx)
+                        {
+                            Logger.Error("فشل إرسال رد IPC إلى WebView2: ", postEx);
+                        }
+                    }));
+                }
+                catch (Exception invokeEx)
+                {
+                    Logger.Error("فشل تنفيذ BeginInvoke للرد: ", invokeEx);
+                }
+            });
         }
+
 
         public void ToggleFullscreen()
         {

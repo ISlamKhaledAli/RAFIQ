@@ -206,12 +206,142 @@ export async function downloadExcelTemplate(): Promise<void> {
   XLSX.writeFile(wb, 'قالب_استيراد_المنتجات_رفيق_POS.xlsx');
 }
 
+function getFormattedTimestamp(): string {
+  const d = new Date();
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}_${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function exportProductsViaSheetJs(products: Product[], catMap: Map<string, string>): void {
+  const headers = [
+    'م',
+    'اسم الصنف',
+    'الباركود الرئيسي',
+    'القسم / التصنيف',
+    'الوحدة',
+    'سعر البيع (ج.م)',
+    'سعر التكلفة (ج.م)',
+    'هامش الربح (ج.م)',
+    'نسبة الربح',
+    'الرصيد الحالي',
+    'حد الطلب الأدنى',
+    'حالة المخزون',
+    'نسبة الضريبة',
+    'كود الصنف (SKU)',
+  ];
+
+  const rows = products.map((prod, idx) => {
+    const sellPounds = (prod.pricePiasters || 0) / 100.0;
+    const costPounds = (prod.costPiasters || 0) / 100.0;
+    const profitPounds = Math.max(0, sellPounds - costPounds);
+    const marginPercent = costPounds > 0 ? (profitPounds / costPounds) * 100.0 : 0.0;
+    const currentStock = (prod.stockQuantityMilli || 0) / 1000.0;
+    const minStock = (prod.minStockQuantityMilli || 0) / 1000.0;
+    const catName = (prod.categoryId && catMap.get(prod.categoryId)) || 'عام / متنوع';
+
+    let stockStatus = 'متوفر بالمخزن';
+    if (currentStock <= 0) stockStatus = 'نفد من المخزن';
+    else if (currentStock <= minStock) stockStatus = 'قارب على النفاد';
+
+    return [
+      idx + 1,
+      prod.name || '',
+      prod.barcode || '',
+      catName,
+      prod.unit === 'kg' ? 'كجم' : 'قطعة',
+      sellPounds,
+      costPounds,
+      profitPounds,
+      marginPercent > 0 ? `${marginPercent.toFixed(1)}%` : '0%',
+      currentStock,
+      minStock,
+      stockStatus,
+      prod.taxRatePercent ? `${prod.taxRatePercent}%` : '0%',
+      prod.internalCode || '',
+    ];
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws['!cols'] = [
+    { wch: 8 },
+    { wch: 32 },
+    { wch: 20 },
+    { wch: 20 },
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 16 },
+    { wch: 18 },
+    { wch: 14 },
+    { wch: 20 },
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'كتالوج_الأصناف');
+  XLSX.writeFile(wb, `كتالوج_أصناف_رفيق_${getFormattedTimestamp()}.xlsx`);
+}
+
+function exportCustomersViaSheetJs(customers: any[]): void {
+  const headers = [
+    'م',
+    'اسم العميل',
+    'رقم الهاتف',
+    'الرصيد المستحق الحالي (ج.م)',
+    'حد الائتمان / التنبيه (ج.م)',
+    'حالة الحساب',
+    'ملاحظات',
+  ];
+
+  const rows = customers.map((c, idx) => {
+    const balPounds = (c.balancePiasters || 0) / 100.0;
+    const limitPounds = (c.creditLimitPiasters || 0) / 100.0;
+    let statusText = 'مسدد بالكامل';
+    if (c.balancePiasters > c.creditLimitPiasters && c.creditLimitPiasters > 0) {
+      statusText = 'تجاوز حد الائتمان';
+    } else if (c.balancePiasters > 0) {
+      statusText = 'عليه رصيد مدين';
+    }
+
+    return [
+      idx + 1,
+      c.name || '',
+      c.phone || '',
+      balPounds,
+      limitPounds,
+      statusText,
+      c.notes || '',
+    ];
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws['!cols'] = [
+    { wch: 8 },
+    { wch: 30 },
+    { wch: 20 },
+    { wch: 24 },
+    { wch: 24 },
+    { wch: 22 },
+    { wch: 35 },
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'حسابات_العملاء');
+  XLSX.writeFile(wb, `سجل_عملاء_رفيق_${getFormattedTimestamp()}.xlsx`);
+}
+
+
 /**
  * تصدير كامل أصناف النظام إلى ملف إكسل احترافي ملون ومفصل مع هوامش الربح
  */
 export async function exportProductsToExcel(): Promise<{ success: boolean; count?: number; message?: string }> {
   try {
-    const res = await invoke<{ success: boolean; base64?: string; fileName?: string; count?: number }>('excel:exportProducts');
+    const res = await invoke<{ success: boolean; base64?: string; fileName?: string; count?: number }>(
+      'excel:exportProducts',
+      undefined,
+      120000
+    );
     if (res && res.base64) {
       downloadBase64File(
         res.base64,
@@ -221,11 +351,67 @@ export async function exportProductsToExcel(): Promise<{ success: boolean; count
       return { success: true, count: res.count };
     }
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
+    console.warn('Native excel export failed, attempting client-side fallback:', err);
+  }
+
+  // Client-side SheetJS fallback
+  try {
+    const products = await invoke<Product[]>('products:getAll', { limit: 50000 });
+    const categories = await invoke<Category[]>('categories:getAll', { includeInactive: true });
+    const catMap = new Map<string, string>();
+    if (Array.isArray(categories)) {
+      categories.forEach((c) => catMap.set(c.id, c.name));
+    }
+
+    if (Array.isArray(products) && products.length > 0) {
+      exportProductsViaSheetJs(products, catMap);
+      return { success: true, count: products.length };
+    }
+  } catch (fallbackErr: unknown) {
+    const msg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
     return { success: false, message: msg };
   }
+
   return { success: false, message: 'تعذر توليد ملف الإكسل' };
 }
+
+/**
+ * تصدير كشف حسابات وأرصدة العملاء والديون إلى ملف إكسل
+ */
+export async function exportCustomersToExcel(): Promise<{ success: boolean; count?: number; message?: string }> {
+  try {
+    const res = await invoke<{ success: boolean; base64?: string; fileName?: string; count?: number }>(
+      'excel:exportCustomers',
+      undefined,
+      120000
+    );
+    if (res && res.base64) {
+      downloadBase64File(
+        res.base64,
+        res.fileName || 'سجل_عملاء_رفيق.xlsx',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
+      return { success: true, count: res.count };
+    }
+  } catch (err: unknown) {
+    console.warn('Native customer excel export failed, attempting fallback:', err);
+  }
+
+  // Client-side SheetJS fallback
+  try {
+    const customers = await invoke<any[]>('customers:getAll');
+    if (Array.isArray(customers) && customers.length > 0) {
+      exportCustomersViaSheetJs(customers);
+      return { success: true, count: customers.length };
+    }
+  } catch (fallbackErr: unknown) {
+    const msg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+    return { success: false, message: msg };
+  }
+
+  return { success: false, message: 'تعذر تصدير بيانات العملاء' };
+}
+
 
 /**
  * تصدير تقرير بالأصناف المرفوضة التي تحتوي على أخطاء لإصلاحها

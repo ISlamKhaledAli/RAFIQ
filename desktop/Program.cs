@@ -54,6 +54,58 @@ namespace RafiqPOS
                         }
                         return;
                     }
+                    if (args[i] == "--run-excel-tests")
+                    {
+                        try
+                        {
+                            Services.DatabaseService.Initialize();
+                            var sw = System.Diagnostics.Stopwatch.StartNew();
+                            var resProducts = Bridge.IpcDispatcher.Dispatch(new Bridge.BridgeRequest
+                            {
+                                Id = "test-exp-prod",
+                                Action = "excel:exportProducts"
+                            });
+                            sw.Stop();
+                            long prodMs = sw.ElapsedMilliseconds;
+
+                            var swCust = System.Diagnostics.Stopwatch.StartNew();
+                            var resCust = Bridge.IpcDispatcher.Dispatch(new Bridge.BridgeRequest
+                            {
+                                Id = "test-exp-cust",
+                                Action = "excel:exportCustomers"
+                            });
+                            swCust.Stop();
+                            long custMs = swCust.ElapsedMilliseconds;
+
+                            var resTpl = Bridge.IpcDispatcher.Dispatch(new Bridge.BridgeRequest
+                            {
+                                Id = "test-tpl",
+                                Action = "excel:getTemplate"
+                            });
+
+                            var resCustTpl = Bridge.IpcDispatcher.Dispatch(new Bridge.BridgeRequest
+                            {
+                                Id = "test-cust-tpl",
+                                Action = "excel:getCustomerTemplate"
+                            });
+
+                            bool allSuccess = resProducts.Success && resCust.Success && resTpl.Success && resCustTpl.Success;
+                            string summary = string.Format(
+                                "Excel Tests: Success={0}, ExportProductsTime={1}ms, ExportCustomersTime={2}ms, ProductsSuccess={3}, CustomersSuccess={4}",
+                                allSuccess, prodMs, custMs, resProducts.Success, resCust.Success
+                            );
+                            Console.WriteLine(summary);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "excel_test_output.txt"), summary);
+                            Environment.Exit(allSuccess ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Excel test error: " + ex.ToString());
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
+
 #if DEBUG
                     if (args[i] == "--demo-error" || args[i] == "--test-error")
                     {

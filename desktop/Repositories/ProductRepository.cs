@@ -263,6 +263,29 @@ namespace RafiqPOS.Repositories
             return results;
         }
 
+        public List<Product> GetAllForExport(int limit = 100000)
+        {
+            var results = new List<Product>();
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = "SELECT * FROM products WHERE is_active = 1 ORDER BY name ASC LIMIT @limit;";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@limit", limit);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            results.Add(MapReaderToProduct(reader));
+                        }
+                    }
+                }
+            }
+            return results;
+        }
+
+
         public List<Product> GetSmartCatalog(int limit = 1000)
         {
             var results = new List<Product>();

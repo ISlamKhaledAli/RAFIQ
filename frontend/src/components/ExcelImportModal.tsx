@@ -137,18 +137,24 @@ export const ExcelImportModal = ({
       }));
 
       const res = await invoke<{
-        totalProcessed: number;
-        createdCount: number;
-        updatedCount: number;
-        skippedCount: number;
-        failedCount: number;
-        errors: string[];
+        totalProcessed?: number;
+        totalRows?: number;
+        createdCount?: number;
+        importedCount?: number;
+        updatedCount?: number;
+        skippedCount?: number;
+        failedCount?: number;
+        errors?: string[];
       }>('products:importBatch', {
         items: itemsPayload,
         duplicateStrategy
-      });
+      }, 120000);
 
-      const summary = `تمت العملية بنجاح: تم إضافة (${res.createdCount}) صنف جديد، وتحديث (${res.updatedCount})، وتخطي (${res.skippedCount}) صنف مكرر.`;
+      const added = res.createdCount ?? res.importedCount ?? 0;
+      const updated = res.updatedCount ?? 0;
+      const skipped = res.skippedCount ?? 0;
+      const summary = `تمت العملية بنجاح: تم إضافة (${added}) صنف جديد، وتحديث (${updated})، وتخطي (${skipped}) صنف مكرر.`;
+
       onSuccess(summary);
       onClose();
     } catch (err: unknown) {

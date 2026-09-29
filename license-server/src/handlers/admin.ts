@@ -20,10 +20,10 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
     );
   }
 
-  // 1. GET /api/admin/licenses - List all licenses
+  // 1. GET /api/admin/licenses - List all licenses (up to 1000)
   if (request.method === 'GET' && url.pathname === '/api/admin/licenses') {
     const licenses = await env.DB.prepare(
-      'SELECT * FROM licenses ORDER BY created_at DESC LIMIT 200'
+      'SELECT * FROM licenses ORDER BY created_at DESC LIMIT 1000'
     ).all<LicenseRecord>();
 
     return new Response(
@@ -117,9 +117,9 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
       );
     }
 
-    let newShopName = body.shop_name ? body.shop_name.trim() : existing.shop_name;
-    let newPhone = body.owner_phone !== undefined ? (body.owner_phone ? body.owner_phone.trim() : null) : existing.owner_phone;
-    let newNotes = body.notes !== undefined ? body.notes.trim() : existing.notes;
+    const newShopName = body.shop_name ? body.shop_name.trim() : existing.shop_name;
+    const newPhone = body.owner_phone !== undefined ? (body.owner_phone ? body.owner_phone.trim() : null) : existing.owner_phone;
+    const newNotes = body.notes !== undefined ? body.notes.trim() : existing.notes;
     let newExpiresAt = existing.expires_at;
     let newType = existing.license_type;
     let newStatus = existing.status;
@@ -233,10 +233,10 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
     );
   }
 
-  // 8. GET /api/admin/logs - Recent activation logs
+  // 8. GET /api/admin/logs - Recent activation logs (up to 1000)
   if (request.method === 'GET' && url.pathname === '/api/admin/logs') {
     const logs = await env.DB.prepare(
-      'SELECT * FROM activation_logs ORDER BY created_at DESC LIMIT 50'
+      'SELECT * FROM activation_logs ORDER BY created_at DESC LIMIT 1000'
     ).all<ActivationLogRecord>();
 
     return new Response(
@@ -270,6 +270,7 @@ function generateLicenseKey(): string {
 
 /**
  * Professional, clean Arabic Admin UI matching Rafiq POS Identity
+ * With clean separation between Licenses & Audit Logs, full pagination, and luxury design.
  */
 function serveAdminHtml(): Response {
   const html = `<!DOCTYPE html>
@@ -286,58 +287,68 @@ function serveAdminHtml(): Response {
   <style>
     :root {
       --primary: #00372d;
+      --primary-dark: #00261f;
       --emerald: #006d41;
-      --emerald-dark: #002b23;
+      --emerald-soft: #eaf5ee;
+      --emerald-border: #c4e3d0;
       --emerald-light: #10b981;
       --bg: #f8fafc;
       --surface: #ffffff;
       --border: #e2e8f0;
       --text: #0f172a;
-      --text-muted: #64748b;
-      --danger: #dc2626;
+      --text-muted: #52605d;
+      --danger: #b91c1c;
       --danger-bg: #fef2f2;
-      --warning: #d97706;
+      --danger-border: #fecaca;
+      --warning: #b45309;
       --warning-bg: #fffbeb;
-      --success-bg: #f0fdf4;
+      --warning-border: #fde68a;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.05);
+      --radius-xl: 16px;
+      --radius-lg: 12px;
+      --radius-md: 8px;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Cairo', -apple-system, sans-serif; }
-    body { background-color: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
+    body { background-color: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; line-height: 1.5; }
 
     /* Top Bar */
     .topbar {
       background-color: var(--primary);
       color: white;
-      padding: 12px 24px;
+      padding: 12px 28px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       border-bottom: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
     }
     .topbar-brand {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 14px;
     }
     .brand-mark {
-      background-color: #00523a;
+      background-color: #004d3f;
       color: #6ee7b7;
       font-weight: 900;
       font-size: 15px;
-      padding: 6px 12px;
-      border-radius: 6px;
+      padding: 6px 14px;
+      border-radius: var(--radius-md);
       letter-spacing: 0.5px;
       border: 1px solid rgba(110,231,183,0.3);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
     }
     .brand-title {
       font-size: 16px;
-      font-weight: 800;
+      font-weight: 900;
       letter-spacing: -0.2px;
     }
     .brand-sub {
       font-size: 11px;
       color: #a7f3d0;
-      font-weight: 500;
+      font-weight: 600;
     }
     .topbar-actions {
       display: flex;
@@ -347,12 +358,12 @@ function serveAdminHtml(): Response {
     .sys-pill {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 7px;
       background: rgba(255,255,255,0.08);
       border: 1px solid rgba(255,255,255,0.15);
-      padding: 4px 10px;
-      border-radius: 6px;
-      font-size: 11px;
+      padding: 5px 12px;
+      border-radius: var(--radius-md);
+      font-size: 11.5px;
       font-weight: 700;
       color: #d1fae5;
     }
@@ -361,33 +372,96 @@ function serveAdminHtml(): Response {
       height: 7px;
       border-radius: 50%;
       background-color: #10b981;
+      box-shadow: 0 0 8px #10b981;
+      animation: pulseDot 2s infinite;
+    }
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.85); }
     }
     .btn-top {
       background: rgba(255,255,255,0.1);
       border: 1px solid rgba(255,255,255,0.2);
       color: white;
-      padding: 5px 12px;
-      border-radius: 6px;
+      padding: 6px 14px;
+      border-radius: var(--radius-md);
       font-size: 12px;
-      font-weight: 700;
+      font-weight: 800;
       cursor: pointer;
       display: flex;
       align-items: center;
-      gap: 5px;
-      transition: background 0.15s;
+      gap: 6px;
+      transition: all 0.15s ease;
     }
     .btn-top:hover {
       background: rgba(255,255,255,0.2);
+      transform: translateY(-1px);
     }
 
     /* Container */
     .app-container {
-      max-width: 1400px;
+      max-width: 1440px;
       margin: 20px auto;
-      padding: 0 20px;
+      padding: 0 24px;
       display: flex;
       flex-direction: column;
       gap: 20px;
+    }
+
+    /* Top Navigation Tabs (Separating Licenses & Logs) */
+    .tabs-nav-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .tabs-nav {
+      display: inline-flex;
+      align-items: center;
+      background: #eef2f0;
+      padding: 5px;
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--border);
+      gap: 6px;
+      box-shadow: var(--shadow-sm);
+    }
+    .nav-tab {
+      background: transparent;
+      border: none;
+      padding: 8px 18px;
+      border-radius: var(--radius-lg);
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .nav-tab:hover:not(.active) {
+      color: var(--primary);
+      background: rgba(255,255,255,0.6);
+    }
+    .nav-tab.active {
+      background: var(--primary);
+      color: white;
+      box-shadow: 0 2px 8px rgba(0,55,45,0.25);
+    }
+    .tab-badge {
+      font-family: ui-monospace, monospace;
+      font-size: 11px;
+      font-weight: 900;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #e2e8f0;
+      color: #475569;
+      transition: all 0.2s ease;
+    }
+    .nav-tab.active .tab-badge {
+      background: var(--emerald);
+      color: #ffffff;
     }
 
     /* KPI Summary Row */
@@ -399,15 +473,26 @@ function serveAdminHtml(): Response {
     .kpi-box {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 14px 18px;
+      border-radius: var(--radius-xl);
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: var(--shadow-sm);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .kpi-box:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
+    }
+    .kpi-info {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 2px;
     }
     .kpi-label {
-      font-size: 12px;
-      font-weight: 700;
+      font-size: 11.5px;
+      font-weight: 800;
       color: var(--text-muted);
     }
     .kpi-value {
@@ -415,20 +500,36 @@ function serveAdminHtml(): Response {
       font-weight: 900;
       color: var(--text);
       line-height: 1.1;
+      font-family: ui-monospace, monospace;
+    }
+    .kpi-icon-box {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-lg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      background: #f1f5f4;
+      color: var(--text-muted);
     }
     .kpi-active .kpi-value { color: var(--emerald); }
+    .kpi-active .kpi-icon-box { background: var(--emerald-soft); color: var(--emerald); border: 1px solid var(--emerald-border); }
     .kpi-pending .kpi-value { color: var(--warning); }
+    .kpi-pending .kpi-icon-box { background: var(--warning-bg); color: var(--warning); border: 1px solid var(--warning-border); }
     .kpi-disabled .kpi-value { color: var(--danger); }
+    .kpi-disabled .kpi-icon-box { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger-border); }
 
     /* Panels / Cards */
     .panel {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: var(--radius-xl);
       overflow: hidden;
+      box-shadow: var(--shadow-sm);
     }
     .panel-header {
-      padding: 14px 18px;
+      padding: 16px 22px;
       border-bottom: 1px solid var(--border);
       display: flex;
       justify-content: space-between;
@@ -436,68 +537,75 @@ function serveAdminHtml(): Response {
       background: #fafbfc;
     }
     .panel-title {
-      font-size: 14px;
-      font-weight: 800;
+      font-size: 14.5px;
+      font-weight: 900;
       color: var(--primary);
     }
     .panel-desc {
       font-size: 11.5px;
       color: var(--text-muted);
+      margin-top: 2px;
     }
     .panel-body {
-      padding: 18px;
+      padding: 20px;
     }
 
     /* Creation Form Layout */
     .create-grid {
       display: grid;
-      grid-template-columns: 2fr 1.2fr 1.5fr 1fr auto;
-      gap: 12px;
+      grid-template-columns: 2fr 1.3fr 1.5fr 1fr auto;
+      gap: 14px;
       align-items: flex-end;
     }
     .field {
       display: flex;
       flex-direction: column;
-      gap: 5px;
+      gap: 6px;
     }
     .field label {
       font-size: 11.5px;
-      font-weight: 700;
+      font-weight: 800;
       color: #334155;
     }
     .field input, .field select {
-      height: 38px;
-      padding: 0 12px;
+      height: 40px;
+      padding: 0 14px;
       border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: var(--radius-lg);
       font-size: 13px;
       font-weight: 600;
       color: var(--text);
       background: #fff;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
     .field input:focus, .field select:focus {
       outline: none;
       border-color: var(--emerald);
-      box-shadow: 0 0 0 2px rgba(0,109,65,0.12);
+      box-shadow: 0 0 0 3px rgba(0,109,65,0.12);
     }
     .btn-create {
-      height: 38px;
+      height: 40px;
       background: var(--emerald);
       color: white;
       border: none;
-      border-radius: 6px;
-      padding: 0 20px;
+      border-radius: var(--radius-lg);
+      padding: 0 22px;
       font-size: 13px;
-      font-weight: 800;
+      font-weight: 900;
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 6px;
       white-space: nowrap;
-      transition: background 0.15s;
+      transition: background 0.15s, transform 0.1s;
+      box-shadow: 0 2px 6px rgba(0,109,65,0.25);
     }
     .btn-create:hover {
       background: var(--primary);
+      transform: translateY(-1px);
+    }
+    .btn-create:active {
+      transform: scale(0.98);
     }
 
     /* Table Toolbar */
@@ -505,43 +613,64 @@ function serveAdminHtml(): Response {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 12px 18px;
+      padding: 14px 20px;
       border-bottom: 1px solid var(--border);
-      gap: 12px;
+      gap: 14px;
       background: #fff;
+      flex-wrap: wrap;
     }
     .search-box {
-      width: 320px;
+      width: 340px;
+      position: relative;
     }
     .search-box input {
       width: 100%;
-      height: 34px;
-      padding: 0 12px;
+      height: 38px;
+      padding: 0 14px;
       border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: var(--radius-lg);
       font-size: 12.5px;
+      font-weight: 600;
+      background: #f8fafc;
+      transition: all 0.15s;
+    }
+    .search-box input:focus {
+      outline: none;
+      background: #fff;
+      border-color: var(--emerald);
+      box-shadow: 0 0 0 3px rgba(0,109,65,0.1);
     }
     .filters {
       display: flex;
       gap: 4px;
-      background: #f1f5f9;
-      padding: 3px;
-      border-radius: 6px;
+      background: #f1f5f4;
+      padding: 4px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
     }
     .filter-tab {
       background: transparent;
       border: none;
-      padding: 4px 12px;
+      padding: 5px 14px;
       font-size: 12px;
-      font-weight: 700;
+      font-weight: 800;
       color: var(--text-muted);
-      border-radius: 4px;
+      border-radius: var(--radius-md);
       cursor: pointer;
+      transition: all 0.15s ease;
     }
     .filter-tab.active {
       background: white;
       color: var(--primary);
-      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .filter-tab.active.danger {
+      background: var(--danger);
+      color: white;
+    }
+    .filter-tab.active.success {
+      background: var(--emerald);
+      color: white;
     }
 
     /* Table */
@@ -549,11 +678,11 @@ function serveAdminHtml(): Response {
       width: 100%;
       border-collapse: collapse;
       text-align: right;
-      font-size: 13px;
+      font-size: 12.5px;
     }
     th {
       background: #f8fafc;
-      padding: 10px 14px;
+      padding: 12px 16px;
       font-size: 11.5px;
       font-weight: 800;
       color: var(--text-muted);
@@ -561,13 +690,16 @@ function serveAdminHtml(): Response {
       white-space: nowrap;
     }
     td {
-      padding: 10px 14px;
+      padding: 12px 16px;
       border-bottom: 1px solid #f1f5f9;
       vertical-align: middle;
       white-space: nowrap;
     }
+    tbody tr {
+      transition: background-color 0.1s ease;
+    }
     tbody tr:hover {
-      background: #fafbfc;
+      background: #f8fafc;
     }
 
     /* Key Box - Compact & strictly one line */
@@ -579,24 +711,25 @@ function serveAdminHtml(): Response {
     .key-text {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       font-size: 13px;
-      font-weight: 800;
+      font-weight: 900;
       color: var(--primary);
-      background: #f0fdf4;
-      border: 1px solid #bbf7d0;
+      background: var(--emerald-soft);
+      border: 1px solid var(--emerald-border);
       padding: 3px 8px;
-      border-radius: 4px;
+      border-radius: 6px;
       letter-spacing: 0.5px;
       white-space: nowrap;
     }
     .btn-icon-copy {
       background: #f1f5f9;
       border: 1px solid #cbd5e1;
-      border-radius: 4px;
-      padding: 3px 6px;
+      border-radius: 6px;
+      padding: 3px 8px;
       font-size: 11px;
-      font-weight: 700;
+      font-weight: 800;
       color: #475569;
       cursor: pointer;
+      transition: all 0.15s;
     }
     .btn-icon-copy:hover {
       background: #e2e8f0;
@@ -608,16 +741,31 @@ function serveAdminHtml(): Response {
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      padding: 3px 8px;
-      border-radius: 4px;
+      padding: 3px 9px;
+      border-radius: 999px;
       font-size: 11px;
       font-weight: 800;
       line-height: 1;
     }
-    .pill-active { background: #dcfce7; color: #166534; }
-    .pill-pending { background: #fef9c3; color: #854d0e; }
-    .pill-disabled { background: #fee2e2; color: #991b1b; }
-    .pill-expired { background: #f1f5f9; color: #475569; }
+    .pill-active { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .pill-pending { background: #fef9c3; color: #854d0e; border: 1px solid #fde047; }
+    .pill-disabled { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+    .pill-expired { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+
+    /* Action Types Pills for Logs */
+    .action-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .action-activate { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    .action-verify { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+    .action-reset { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+    .action-revoke { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
 
     /* Countdown Badge for <24h Expiry */
     .countdown-badge {
@@ -631,7 +779,7 @@ function serveAdminHtml(): Response {
       border-radius: 6px;
       font-family: monospace;
       font-weight: 800;
-      font-size: 11.5px;
+      font-size: 11px;
       margin-inline-start: 6px;
     }
     .pulse-dot {
@@ -656,15 +804,16 @@ function serveAdminHtml(): Response {
     .btn-row {
       background: #fff;
       border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 4px 8px;
+      border-radius: 6px;
+      padding: 4px 9px;
       font-size: 11.5px;
-      font-weight: 700;
+      font-weight: 800;
       color: #334155;
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 4px;
+      transition: all 0.15s ease;
     }
     .btn-row:hover {
       background: #f8fafc;
@@ -686,12 +835,77 @@ function serveAdminHtml(): Response {
       background: #dcfce7;
     }
 
+    /* Pagination Footer */
+    .pagination-bar {
+      padding: 12px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f8fafc;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .pagination-info {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .pagination-size-select {
+      height: 30px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 0 6px;
+      color: var(--text);
+    }
+    .pagination-controls {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .page-btn {
+      min-width: 32px;
+      height: 32px;
+      padding: 0 8px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+    }
+    .page-btn:hover:not(:disabled):not(.active) {
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+    }
+    .page-btn.active {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+    .page-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
     /* Modal System */
     .modal-overlay {
       display: none;
       position: fixed;
       inset: 0;
       background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(2px);
       z-index: 50;
       align-items: center;
       justify-content: center;
@@ -699,46 +913,54 @@ function serveAdminHtml(): Response {
     }
     .modal-card {
       background: white;
-      border-radius: 10px;
+      border-radius: var(--radius-xl);
       width: 100%;
-      max-width: 480px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+      max-width: 500px;
+      box-shadow: 0 20px 35px rgba(0,0,0,0.2);
       border: 1px solid var(--border);
       overflow: hidden;
+      animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes modalPop {
+      0% { opacity: 0; transform: scale(0.95); }
+      100% { opacity: 1; transform: scale(1); }
     }
     .modal-header {
       background: var(--primary);
       color: white;
-      padding: 12px 18px;
+      padding: 14px 20px;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
     .modal-header h4 {
-      font-size: 14px;
-      font-weight: 800;
+      font-size: 14.5px;
+      font-weight: 900;
     }
     .modal-close {
       background: none;
       border: none;
       color: white;
-      font-size: 18px;
+      font-size: 20px;
       cursor: pointer;
       line-height: 1;
+      opacity: 0.8;
+      transition: opacity 0.15s;
     }
+    .modal-close:hover { opacity: 1; }
     .modal-body {
-      padding: 18px;
+      padding: 20px;
       display: flex;
       flex-direction: column;
       gap: 14px;
     }
     .modal-footer {
-      padding: 12px 18px;
+      padding: 14px 20px;
       background: #f8fafc;
       border-top: 1px solid var(--border);
       display: flex;
       justify-content: flex-end;
-      gap: 8px;
+      gap: 10px;
     }
 
     /* Login Screen */
@@ -754,16 +976,17 @@ function serveAdminHtml(): Response {
     }
     .login-box {
       background: white;
-      border-radius: 10px;
-      padding: 28px;
+      border-radius: var(--radius-xl);
+      padding: 32px;
       width: 100%;
-      max-width: 380px;
+      max-width: 400px;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 18px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
     }
     .login-box h3 {
-      font-size: 18px;
+      font-size: 19px;
       font-weight: 900;
       color: var(--primary);
     }
@@ -776,22 +999,29 @@ function serveAdminHtml(): Response {
     /* Notification Toast */
     #toast {
       position: fixed;
-      bottom: 20px;
-      left: 20px;
+      bottom: 24px;
+      left: 24px;
       background: #0f172a;
       color: white;
-      padding: 10px 18px;
-      border-radius: 6px;
-      font-size: 12.5px;
-      font-weight: 700;
+      padding: 12px 22px;
+      border-radius: var(--radius-lg);
+      font-size: 13px;
+      font-weight: 800;
       display: none;
       z-index: 999;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+      border: 1px solid rgba(255,255,255,0.15);
+      animation: slideUp 0.2s ease;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(10px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
     }
 
     @media (max-width: 900px) {
       .kpi-row { grid-template-columns: repeat(2, 1fr); }
       .create-grid { grid-template-columns: 1fr; }
+      .search-box { width: 100%; }
     }
   </style>
 </head>
@@ -801,15 +1031,15 @@ function serveAdminHtml(): Response {
   <div id="login-screen">
     <div class="login-box">
       <div>
-        <h3>تسجيل الدخول للإدارة</h3>
-        <p>يرجى إدخال كلمة سر المشرف للوصول إلى لوحة إدارة التراخيص.</p>
+        <h3>تسجيل الدخول للوحة الإدارة</h3>
+        <p>يرجى إدخال كلمة سر المشرف للوصول إلى إدارة التراخيص وسجلات التدقيق.</p>
       </div>
-      <form onsubmit="handleLogin(event)" style="display:flex; flex-direction:column; gap:12px;">
+      <form onsubmit="handleLogin(event)" style="display:flex; flex-direction:column; gap:14px;">
         <div class="field">
           <label>كلمة سر الإدارة (Admin Secret Key):</label>
           <input type="password" id="loginSecretInput" required placeholder="أدخل كلمة السر...">
         </div>
-        <button type="submit" class="btn-create" style="justify-content:center; width:100%;">دخول للنظام</button>
+        <button type="submit" class="btn-create" style="justify-content:center; width:100%; height:42px;">دخول للنظام</button>
       </form>
     </div>
   </div>
@@ -829,159 +1059,317 @@ function serveAdminHtml(): Response {
         <div class="sys-pill-dot"></div>
         <span>السيرفر السحابي: متصل</span>
       </div>
-      <button class="btn-top" onclick="loadLicenses()">تحديث</button>
+      <button class="btn-top" onclick="refreshCurrentView()">
+        <span>↻</span>
+        <span>تحديث</span>
+      </button>
       <button class="btn-top" onclick="logout()" style="color:#fca5a5;">خروج</button>
     </div>
   </header>
 
   <main class="app-container">
 
-    <!-- KPI Summary Row -->
-    <div class="kpi-row">
-      <div class="kpi-box">
-        <span class="kpi-label">إجمالي التراخيص</span>
-        <span class="kpi-value" id="kpi-total">0</span>
+    <!-- Top Navigation Tabs (Separating Licenses & Audit Logs) -->
+    <div class="tabs-nav-wrapper">
+      <div class="tabs-nav">
+        <button class="nav-tab active" id="tabBtnLicenses" onclick="switchMainTab('licenses')">
+          <span style="font-size:15px;">🔑</span>
+          <span>قائمة التراخيص الصادرة</span>
+          <span class="tab-badge" id="badgeLicensesCount">0</span>
+        </button>
+
+        <button class="nav-tab" id="tabBtnLogs" onclick="switchMainTab('logs')">
+          <span style="font-size:15px;">📋</span>
+          <span>سجل حركات وتدقيق التفعيل (Audit Logs)</span>
+          <span class="tab-badge" id="badgeLogsCount">0</span>
+        </button>
       </div>
-      <div class="kpi-box kpi-active">
-        <span class="kpi-label">النشطة والمفعلة</span>
-        <span class="kpi-value" id="kpi-active">0</span>
-      </div>
-      <div class="kpi-box kpi-pending">
-        <span class="kpi-label">قيد انتظار التفعيل</span>
-        <span class="kpi-value" id="kpi-pending">0</span>
-      </div>
-      <div class="kpi-box kpi-disabled">
-        <span class="kpi-label">معطلة أو منتهية</span>
-        <span class="kpi-value" id="kpi-disabled">0</span>
+
+      <div style="font-size:11.5px; font-weight:700; color:var(--text-muted);">
+        إصدار النظام: <strong style="color:var(--primary);">v1.0 Production</strong> | SQLite Cloudflare D1
       </div>
     </div>
 
-    <!-- Section 1: Create License -->
-    <div class="panel">
-      <div class="panel-header">
-        <div>
-          <div class="panel-title">إصدار رمز ترخيص جديد لمنشأة أو نشاط</div>
-          <div class="panel-desc">توليد مفتاح ترخيص معتمد وتحديد مدة الصلاحية ليتم تسليمه لصاحب المنشأة</div>
-        </div>
-      </div>
-      <div class="panel-body">
-        <form onsubmit="handleCreate(event)">
-          <div class="create-grid">
-            <div class="field">
-              <label>اسم المنشأة أو النشاط التجاري *</label>
-              <input type="text" id="shopName" required placeholder="مثال: أسواق الأمانة، مطعم الصفا، محل البرنس...">
-            </div>
-
-            <div class="field">
-              <label>رقم هاتف المالك / المسؤول</label>
-              <input type="text" id="ownerPhone" placeholder="010xxxxxxxx" dir="ltr" style="text-align:right;">
-            </div>
-
-            <div class="field">
-              <label>نوع وصلاحية الترخيص *</label>
-              <select id="durationSelect" onchange="toggleCustomDays()">
-                <option value="lifetime" selected>دائم مدى الحياة (Lifetime)</option>
-                <option value="365">سنوي (365 يوم)</option>
-                <option value="180">نصف سنوي (180 يوم)</option>
-                <option value="90">ربع سنوي (90 يوم)</option>
-                <option value="30">شهري (30 يوم)</option>
-                <option value="14">تجريبي (14 يوم)</option>
-                <option value="custom">مدة مخصصة (أيام محددة)...</option>
-              </select>
-            </div>
-
-            <div class="field" id="customDaysWrapper" style="display:none;">
-              <label>عدد الأيام</label>
-              <input type="number" id="customDaysInput" min="1" max="3650" placeholder="مثلاً: 60">
-            </div>
-
-            <div class="field">
-              <label>ملاحظات إضافية</label>
-              <input type="text" id="notesInput" placeholder="رقم الإيصال، اسم المندوب...">
-            </div>
-
-            <button type="submit" class="btn-create">إصدار الرمز</button>
+    <!-- ========================================== -->
+    <!-- TAB 1: LICENSES VIEW                       -->
+    <!-- ========================================== -->
+    <div id="licensesView" style="display:flex; flex-direction:column; gap:20px;">
+      
+      <!-- KPI Summary Row for Licenses -->
+      <div class="kpi-row">
+        <div class="kpi-box">
+          <div class="kpi-info">
+            <span class="kpi-label">إجمالي التراخيص</span>
+            <span class="kpi-value" id="kpi-total">0</span>
           </div>
-        </form>
+          <div class="kpi-icon-box">📊</div>
+        </div>
+
+        <div class="kpi-box kpi-active">
+          <div class="kpi-info">
+            <span class="kpi-label">النشطة والمفعلة</span>
+            <span class="kpi-value" id="kpi-active">0</span>
+          </div>
+          <div class="kpi-icon-box">✓</div>
+        </div>
+
+        <div class="kpi-box kpi-pending">
+          <div class="kpi-info">
+            <span class="kpi-label">قيد انتظار التفعيل</span>
+            <span class="kpi-value" id="kpi-pending">0</span>
+          </div>
+          <div class="kpi-icon-box">⏳</div>
+        </div>
+
+        <div class="kpi-box kpi-disabled">
+          <div class="kpi-info">
+            <span class="kpi-label">معطلة أو منتهية</span>
+            <span class="kpi-value" id="kpi-disabled">0</span>
+          </div>
+          <div class="kpi-icon-box">✕</div>
+        </div>
+      </div>
+
+      <!-- Section: Create License Panel -->
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">إصدار رمز ترخيص جديد لمنشأة أو نشاط</div>
+            <div class="panel-desc">توليد مفتاح ترخيص معتمد وتحديد مدة الصلاحية ليتم تسليمه لصاحب المنشأة</div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <form onsubmit="handleCreate(event)">
+            <div class="create-grid">
+              <div class="field">
+                <label>اسم المنشأة أو النشاط التجاري *</label>
+                <input type="text" id="shopName" required placeholder="مثال: أسواق الأمانة، سوبرماركت البركة...">
+              </div>
+
+              <div class="field">
+                <label>رقم هاتف المالك / المسؤول</label>
+                <input type="text" id="ownerPhone" placeholder="010xxxxxxxx" dir="ltr" style="text-align:right;">
+              </div>
+
+              <div class="field">
+                <label>نوع وصلاحية الترخيص *</label>
+                <select id="durationSelect" onchange="toggleCustomDays()">
+                  <option value="lifetime" selected>دائم مدى الحياة (Lifetime)</option>
+                  <option value="365">سنوي (365 يوم)</option>
+                  <option value="180">نصف سنوي (180 يوم)</option>
+                  <option value="90">ربع سنوي (90 يوم)</option>
+                  <option value="30">شهري (30 يوم)</option>
+                  <option value="14">تجريبي (14 يوم)</option>
+                  <option value="custom">مدة مخصصة (أيام محددة)...</option>
+                </select>
+              </div>
+
+              <div class="field" id="customDaysWrapper" style="display:none;">
+                <label>عدد الأيام</label>
+                <input type="number" id="customDaysInput" min="1" max="3650" placeholder="مثلاً: 60">
+              </div>
+
+              <div class="field">
+                <label>ملاحظات إضافية</label>
+                <input type="text" id="notesInput" placeholder="رقم الإيصال، اسم المندوب...">
+              </div>
+
+              <button type="submit" class="btn-create">إصدار الرمز</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Section: Licenses Table with Filters & Pagination -->
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">جدول التراخيص الصادرة</div>
+            <div class="panel-desc">متابعة المنشآت المسجلة، تسليم الرموز، تمديد الصلاحية، وفك ربط الأجهزة</div>
+          </div>
+        </div>
+
+        <div class="table-bar">
+          <div class="search-box">
+            <input type="text" id="searchInput" oninput="onLicenseFilterChange()" placeholder="بحث باسم المنشأة، الهاتف، رمز الترخيص، أو بصمة الجهاز...">
+          </div>
+
+          <div class="filters">
+            <button class="filter-tab active" onclick="setLicenseFilter('all', this)">الكل</button>
+            <button class="filter-tab" onclick="setLicenseFilter('active', this)">النشطة</button>
+            <button class="filter-tab" onclick="setLicenseFilter('pending', this)">في الانتظار</button>
+            <button class="filter-tab" onclick="setLicenseFilter('disabled', this)">المعطلة</button>
+            <button class="filter-tab" onclick="setLicenseFilter('expired', this)">المنتهية</button>
+          </div>
+        </div>
+
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>رمز الترخيص (Key)</th>
+                <th>المنشأة</th>
+                <th>الهاتف</th>
+                <th>نوع الصلاحية</th>
+                <th>تاريخ الصلاحية والمتبقي</th>
+                <th>الحالة</th>
+                <th>الجهاز المرتبط (HWID)</th>
+                <th>الإجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="licensesTableBody">
+              <tr>
+                <td colspan="9" style="text-align:center; padding:36px; color:var(--text-muted);">
+                  جارٍ تحميل التراخيص من السيرفر السحابي...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Licenses Pagination Bar -->
+        <div class="pagination-bar" id="licensesPaginationBar">
+          <div class="pagination-info">
+            <span id="licensesPaginationText">عرض 0 إلى 0 من 0 ترخيص</span>
+            <span>|</span>
+            <label>
+              عرض:
+              <select class="pagination-size-select" id="licensesPageSizeSelect" onchange="onLicensesPageSizeChange(this.value)">
+                <option value="10">10 تراخيص</option>
+                <option value="15" selected>15 ترخيص</option>
+                <option value="25">25 ترخيص</option>
+                <option value="50">50 ترخيص</option>
+                <option value="100">100 ترخيص</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="pagination-controls" id="licensesPaginationControls"></div>
+        </div>
       </div>
     </div>
 
-    <!-- Section 2: Licenses Table -->
-    <div class="panel">
-      <div class="panel-header">
-        <div>
-          <div class="panel-title">قائمة التراخيص الصادرة</div>
-          <div class="panel-desc">متابعة المنشآت المسجلة، تسليم الرموز، تمديد الصلاحية، وفك ربط الأجهزة</div>
+    <!-- ========================================== -->
+    <!-- TAB 2: AUDIT LOGS VIEW (Separated)         -->
+    <!-- ========================================== -->
+    <div id="logsView" style="display:none; flex-direction:column; gap:20px;">
+
+      <!-- KPI Summary Row for Audit Logs -->
+      <div class="kpi-row">
+        <div class="kpi-box">
+          <div class="kpi-info">
+            <span class="kpi-label">إجمالي الحركات المسجلة</span>
+            <span class="kpi-value" id="kpi-logs-total">0</span>
+          </div>
+          <div class="kpi-icon-box">📋</div>
+        </div>
+
+        <div class="kpi-box kpi-active">
+          <div class="kpi-info">
+            <span class="kpi-label">حركات ناجحة</span>
+            <span class="kpi-value" id="kpi-logs-success">0</span>
+          </div>
+          <div class="kpi-icon-box">✓</div>
+        </div>
+
+        <div class="kpi-box kpi-disabled">
+          <div class="kpi-info">
+            <span class="kpi-label">محاولات مرفوضة</span>
+            <span class="kpi-value" id="kpi-logs-failed">0</span>
+          </div>
+          <div class="kpi-icon-box">✕</div>
+        </div>
+
+        <div class="kpi-box">
+          <div class="kpi-info">
+            <span class="kpi-label">الأجهزة المفحوصة</span>
+            <span class="kpi-value" id="kpi-logs-devices">0</span>
+          </div>
+          <div class="kpi-icon-box">💻</div>
         </div>
       </div>
 
-      <div class="table-bar">
-        <div class="search-box">
-          <input type="text" id="searchInput" oninput="applyFilters()" placeholder="بحث باسم المنشأة، الهاتف، رمز الترخيص، أو بصمة الجهاز (HWID)...">
+      <!-- Audit Logs Table Panel -->
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">سجل حركات وتدقيق التفعيل والتحقق (Audit Logs)</div>
+            <div class="panel-desc">توثيق مباشر ومفصل لجميع استدعاءات التفعيل والتحقق الدوري وفك الربط مع الـ IP وبصمة الجهاز</div>
+          </div>
+          <button class="btn-row" onclick="loadLogs()" title="تحديث السجلات الآن">
+            <span>↻</span>
+            <span>تحديث السجل</span>
+          </button>
         </div>
 
-        <div class="filters">
-          <button class="filter-tab active" onclick="setFilter('all', this)">الكل</button>
-          <button class="filter-tab" onclick="setFilter('active', this)">النشطة</button>
-          <button class="filter-tab" onclick="setFilter('pending', this)">في الانتظار</button>
-          <button class="filter-tab" onclick="setFilter('disabled', this)">المعطلة</button>
-          <button class="filter-tab" onclick="setFilter('expired', this)">المنتهية</button>
-        </div>
-      </div>
+        <!-- Logs Filter Toolbar -->
+        <div class="table-bar">
+          <div class="search-box">
+            <input type="text" id="logsSearchInput" oninput="onLogsFilterChange()" placeholder="بحث برمز الترخيص، عنوان IP، بصمة الجهاز، أو سبب الرفض...">
+          </div>
 
-      <div style="overflow-x:auto;">
-        <table>
-          <thead>
-            <tr>
-              <th>رمز الترخيص (Key)</th>
-              <th>المنشأة</th>
-              <th>الهاتف</th>
-              <th>نوع الصلاحية</th>
-              <th>تاريخ الصلاحية والمتبقي</th>
-              <th>الحالة</th>
-              <th>الجهاز المرتبط</th>
-              <th>الإجراءات</th>
-            </tr>
-          </thead>
-          <tbody id="licensesTableBody">
-            <tr>
-              <td colspan="8" style="text-align:center; padding:30px; color:var(--text-muted);">
-                جارٍ تحميل البيانات من السيرفر السحابي...
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <!-- Action Filter -->
+            <div class="filters">
+              <button class="filter-tab active" onclick="setLogsActionFilter('all', this)">كافة الحركات</button>
+              <button class="filter-tab" onclick="setLogsActionFilter('activate', this)">تفعيل (Activate)</button>
+              <button class="filter-tab" onclick="setLogsActionFilter('verify', this)">فحص دوري (Verify)</button>
+              <button class="filter-tab" onclick="setLogsActionFilter('reset', this)">فك ربط (Reset)</button>
+              <button class="filter-tab" onclick="setLogsActionFilter('revoke', this)">إيقاف (Revoke)</button>
+            </div>
 
-    <!-- Section 3: Audit Logs -->
-    <div class="panel">
-      <div class="panel-header">
-        <div>
-          <div class="panel-title">سجل حركات وتدقيق التفعيل (Audit Logs)</div>
-          <div class="panel-desc">توثيق مباشر لعمليات التفعيل والتحقق من الأجهزة مع الـ IP</div>
+            <!-- Status Filter -->
+            <div class="filters">
+              <button class="filter-tab active" onclick="setLogsStatusFilter('all', this)">الكل</button>
+              <button class="filter-tab success" onclick="setLogsStatusFilter('success', this)">ناجحة</button>
+              <button class="filter-tab danger" onclick="setLogsStatusFilter('failed', this)">فاشلة</button>
+            </div>
+          </div>
         </div>
-      </div>
-      <div style="overflow-x:auto;">
-        <table>
-          <thead>
-            <tr>
-              <th>التاريخ والوقت</th>
-              <th>رمز الترخيص</th>
-              <th>العملية</th>
-              <th>الحالة</th>
-              <th>النتيجة</th>
-              <th>عنوان IP</th>
-            </tr>
-          </thead>
-          <tbody id="logsTableBody">
-            <tr>
-              <td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted);">
-                جارٍ تحميل السجلات...
-              </td>
-            </tr>
-          </tbody>
-        </table>
+
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>التاريخ والوقت</th>
+                <th>رمز الترخيص (Key)</th>
+                <th>نوع العملية</th>
+                <th>حالة العملية</th>
+                <th>تفاصيل النتيجة / سبب الرفض</th>
+                <th>عنوان IP</th>
+                <th>بصمة الجهاز (HWID)</th>
+              </tr>
+            </thead>
+            <tbody id="logsTableBody">
+              <tr>
+                <td colspan="8" style="text-align:center; padding:36px; color:var(--text-muted);">
+                  جارٍ تحميل سجلات التدقيق...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Logs Pagination Bar -->
+        <div class="pagination-bar" id="logsPaginationBar">
+          <div class="pagination-info">
+            <span id="logsPaginationText">عرض 0 إلى 0 من 0 حركة</span>
+            <span>|</span>
+            <label>
+              عرض:
+              <select class="pagination-size-select" id="logsPageSizeSelect" onchange="onLogsPageSizeChange(this.value)">
+                <option value="15" selected>15 حركة</option>
+                <option value="25">25 حركة</option>
+                <option value="50">50 حركة</option>
+                <option value="100">100 حركة</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="pagination-controls" id="logsPaginationControls"></div>
+        </div>
       </div>
     </div>
 
@@ -999,10 +1387,10 @@ function serveAdminHtml(): Response {
           تم توليد رسالة التسليم متضمنة رمز التفعيل الخاص بالمنشأة وطريقة التفعيل:
         </p>
 
-        <div style="background:#f8fafc; border:1px solid var(--border); border-radius:6px; padding:12px;">
-          <div style="font-size:11px; font-weight:700; color:var(--text-muted); margin-bottom:4px;">رمز الترخيص:</div>
-          <div id="shareKeyDisplay" style="font-family:monospace; font-size:18px; font-weight:900; color:var(--emerald); margin-bottom:10px;"></div>
-          <textarea id="shareTextarea" readonly style="width:100%; height:120px; font-size:12px; border:1px solid #cbd5e1; border-radius:4px; padding:8px; resize:none;"></textarea>
+        <div style="background:#f8fafc; border:1px solid var(--border); border-radius:var(--radius-lg); padding:14px;">
+          <div style="font-size:11px; font-weight:800; color:var(--text-muted); margin-bottom:4px;">رمز الترخيص:</div>
+          <div id="shareKeyDisplay" style="font-family:monospace; font-size:20px; font-weight:900; color:var(--emerald); margin-bottom:12px;"></div>
+          <textarea id="shareTextarea" readonly style="width:100%; height:130px; font-size:12px; border:1px solid #cbd5e1; border-radius:6px; padding:10px; resize:none; font-family:inherit;"></textarea>
         </div>
       </div>
       <div class="modal-footer">
@@ -1078,7 +1466,7 @@ function serveAdminHtml(): Response {
         <button class="modal-close" onclick="closeModal('confirmModal')">&times;</button>
       </div>
       <div class="modal-body">
-        <p id="confirmModalMessage" style="font-size:13px; line-height:1.5; color:#334155; font-weight:600;"></p>
+        <p id="confirmModalMessage" style="font-size:13px; line-height:1.5; color:#334155; font-weight:700;"></p>
       </div>
       <div class="modal-footer">
         <button class="btn-row" onclick="closeModal('confirmModal')">تراجع</button>
@@ -1092,9 +1480,25 @@ function serveAdminHtml(): Response {
 
   <script>
     const DEFAULT_SECRET = 'rafiq_admin_super_secret_2026';
+    
+    // State
+    let activeMainTab = 'licenses'; // 'licenses' | 'logs'
     let allLicenses = [];
-    let currentFilter = 'all';
+    let allLogs = [];
     let currentShareData = null;
+
+    // Licenses Filter & Pagination State
+    let currentLicenseFilter = 'all';
+    let licensesCurrentPage = 1;
+    let licensesPageSize = 15;
+    let filteredLicensesCache = [];
+
+    // Logs Filter & Pagination State
+    let currentLogsActionFilter = 'all';
+    let currentLogsStatusFilter = 'all';
+    let logsCurrentPage = 1;
+    let logsPageSize = 15;
+    let filteredLogsCache = [];
 
     function getSecret() {
       return localStorage.getItem('rafiq_admin_secret') || sessionStorage.getItem('rafiq_admin_secret') || '';
@@ -1122,7 +1526,7 @@ function serveAdminHtml(): Response {
       if (!val) return;
       setSecret(val);
       document.getElementById('login-screen').style.display = 'none';
-      loadLicenses();
+      initDashboard();
     }
 
     function logout() {
@@ -1158,6 +1562,38 @@ function serveAdminHtml(): Response {
       openModal('confirmModal');
     }
 
+    // Main Tab Switching (Separating Licenses & Logs)
+    function switchMainTab(tab) {
+      activeMainTab = tab;
+      const licView = document.getElementById('licensesView');
+      const logsView = document.getElementById('logsView');
+      const tabBtnLic = document.getElementById('tabBtnLicenses');
+      const tabBtnLogs = document.getElementById('tabBtnLogs');
+
+      if (tab === 'licenses') {
+        licView.style.display = 'flex';
+        logsView.style.display = 'none';
+        tabBtnLic.classList.add('active');
+        tabBtnLogs.classList.remove('active');
+      } else {
+        licView.style.display = 'none';
+        logsView.style.display = 'flex';
+        tabBtnLic.classList.remove('active');
+        tabBtnLogs.classList.add('active');
+        if (allLogs.length === 0) {
+          loadLogs();
+        }
+      }
+    }
+
+    function refreshCurrentView() {
+      if (activeMainTab === 'licenses') {
+        loadLicenses();
+      } else {
+        loadLogs();
+      }
+    }
+
     function toggleCustomDays() {
       const val = document.getElementById('durationSelect').value;
       const w = document.getElementById('customDaysWrapper');
@@ -1169,6 +1605,9 @@ function serveAdminHtml(): Response {
       }
     }
 
+    // ==========================================
+    // LICENSES LOGIC & PAGINATION
+    // ==========================================
     async function loadLicenses() {
       if (!checkAuth()) return;
 
@@ -1190,15 +1629,15 @@ function serveAdminHtml(): Response {
         }
 
         allLicenses = data.data || [];
-        updateMetrics();
-        applyFilters();
-        loadLogs();
+        document.getElementById('badgeLicensesCount').textContent = allLicenses.length;
+        updateLicenseMetrics();
+        applyLicenseFilters();
       } catch (err) {
         showToast('خطأ في الاتصال بالخادم: ' + err.message, true);
       }
     }
 
-    function updateMetrics() {
+    function updateLicenseMetrics() {
       document.getElementById('kpi-total').textContent = allLicenses.length;
       const now = new Date();
       let active = 0, pending = 0, disabled = 0;
@@ -1219,23 +1658,29 @@ function serveAdminHtml(): Response {
       document.getElementById('kpi-disabled').textContent = disabled;
     }
 
-    function setFilter(f, btn) {
-      currentFilter = f;
-      document.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
+    function setLicenseFilter(f, btn) {
+      currentLicenseFilter = f;
+      document.querySelectorAll('#licensesView .filter-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      applyFilters();
+      licensesCurrentPage = 1;
+      applyLicenseFilters();
     }
 
-    function applyFilters() {
+    function onLicenseFilterChange() {
+      licensesCurrentPage = 1;
+      applyLicenseFilters();
+    }
+
+    function applyLicenseFilters() {
       const q = (document.getElementById('searchInput').value || '').trim().toLowerCase();
       const now = new Date();
 
-      const list = allLicenses.filter(l => {
+      filteredLicensesCache = allLicenses.filter(l => {
         const isExp = l.expires_at && new Date(l.expires_at) < now;
-        if (currentFilter === 'active' && (l.status !== 'active' || isExp)) return false;
-        if (currentFilter === 'pending' && l.status !== 'pending') return false;
-        if (currentFilter === 'disabled' && l.status !== 'disabled') return false;
-        if (currentFilter === 'expired' && (!isExp && l.status !== 'expired')) return false;
+        if (currentLicenseFilter === 'active' && (l.status !== 'active' || isExp)) return false;
+        if (currentLicenseFilter === 'pending' && l.status !== 'pending') return false;
+        if (currentLicenseFilter === 'disabled' && l.status !== 'disabled') return false;
+        if (currentLicenseFilter === 'expired' && (!isExp && l.status !== 'expired')) return false;
 
         if (q) {
           const matchKey = l.license_key.toLowerCase().includes(q);
@@ -1247,22 +1692,55 @@ function serveAdminHtml(): Response {
         return true;
       });
 
-      renderTable(list);
+      renderLicensesTable();
     }
 
-    function renderTable(list) {
+    function onLicensesPageSizeChange(size) {
+      licensesPageSize = parseInt(size, 10) || 15;
+      licensesCurrentPage = 1;
+      renderLicensesTable();
+    }
+
+    function goToLicensesPage(p) {
+      licensesCurrentPage = p;
+      renderLicensesTable();
+    }
+
+    function renderLicensesTable() {
       const tbody = document.getElementById('licensesTableBody');
       tbody.innerHTML = '';
 
-      if (list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:24px; color:var(--text-muted);">لا توجد سجلات تطابق الفلتر أو البحث</td></tr>';
+      const totalItems = filteredLicensesCache.length;
+      const totalPages = Math.ceil(totalItems / licensesPageSize) || 1;
+
+      if (licensesCurrentPage > totalPages) licensesCurrentPage = totalPages;
+      if (licensesCurrentPage < 1) licensesCurrentPage = 1;
+
+      const startIndex = (licensesCurrentPage - 1) * licensesPageSize;
+      const endIndex = Math.min(startIndex + licensesPageSize, totalItems);
+      const pageSlice = filteredLicensesCache.slice(startIndex, endIndex);
+
+      // Render Pagination Info & Controls
+      document.getElementById('licensesPaginationText').textContent = 
+        totalItems === 0 ? 'لا توجد نتائج' : \`عرض \${startIndex + 1} إلى \${endIndex} من أصل \${totalItems} ترخيص\`;
+
+      renderPaginationControls(
+        'licensesPaginationControls',
+        licensesCurrentPage,
+        totalPages,
+        goToLicensesPage
+      );
+
+      if (pageSlice.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:32px; color:var(--text-muted); font-size:13px; font-weight:700;">لا توجد تراخيص تطابق خيارات البحث أو الفلتر المحدد</td></tr>';
         return;
       }
 
       const now = new Date();
 
-      list.forEach(lic => {
+      pageSlice.forEach((lic, idx) => {
         const tr = document.createElement('tr');
+        const rowNumber = startIndex + idx + 1;
 
         // Remaining Days calculation & Countdown
         let expText = '<span style="color:#059669; font-weight:800;">دائم مدى الحياة</span>';
@@ -1275,11 +1753,11 @@ function serveAdminHtml(): Response {
 
           if (diffMs <= 0) {
             isExpired = true;
-            expText = '<span style="color:#dc2626; font-weight:700;">' + dateStr + ' (منتهي)</span>';
+            expText = '<span style="color:#dc2626; font-weight:800;">' + dateStr + ' (منتهي)</span>';
           } else if (diffMs <= 24 * 60 * 60 * 1000) {
             expText = '<span>' + dateStr + ' <span class="countdown-badge" data-expires="' + lic.expires_at + '"><span class="pulse-dot"></span><span class="countdown-text">جارٍ الحساب...</span></span></span>';
           } else {
-            expText = '<span>' + dateStr + ' <small style="color:#059669; font-weight:700;">(متبقي ' + diffDays + ' يوم)</small></span>';
+            expText = '<span>' + dateStr + ' <small style="color:#059669; font-weight:800;">(متبقي ' + diffDays + ' يوم)</small></span>';
           }
         }
 
@@ -1295,10 +1773,11 @@ function serveAdminHtml(): Response {
 
         // Hardware device info
         const fpDisplay = lic.machine_fingerprint 
-          ? '<span style="font-family:monospace; font-size:11px; color:#0f766e;" title="' + lic.machine_fingerprint + '">' + lic.machine_fingerprint.substring(0, 16) + '...</span>' 
+          ? '<span style="font-family:monospace; font-size:11px; color:#0f766e; font-weight:700;" title="' + lic.machine_fingerprint + '">' + lic.machine_fingerprint.substring(0, 16) + '...</span>' 
           : '<span style="color:var(--text-muted); font-size:11.5px;">غير مربوط</span>';
 
         tr.innerHTML = \`
+          <td style="font-family:monospace; color:var(--text-muted); font-size:12px; font-weight:700;">\${rowNumber}</td>
           <td>
             <div class="key-cell">
               <span class="key-text">\${lic.license_key}</span>
@@ -1306,13 +1785,13 @@ function serveAdminHtml(): Response {
             </div>
           </td>
           <td>
-            <div style="font-weight:800; color:var(--primary);">\${lic.shop_name}</div>
+            <div style="font-weight:900; color:var(--primary); font-size:13px;">\${lic.shop_name}</div>
           </td>
           <td>
-            <div style="font-family:monospace; font-size:12px;">\${lic.owner_phone || '-'}</div>
+            <div style="font-family:monospace; font-size:12px; font-weight:700;">\${lic.owner_phone || '-'}</div>
           </td>
           <td>
-            <span style="font-weight:700;">\${translateType(lic.license_type, lic.expires_at)}</span>
+            <span style="font-weight:800;">\${translateType(lic.license_type, lic.expires_at)}</span>
           </td>
           <td>\${expText}</td>
           <td>\${statusHtml}</td>
@@ -1340,6 +1819,224 @@ function serveAdminHtml(): Response {
       updateCountdowns();
     }
 
+    // ==========================================
+    // AUDIT LOGS LOGIC & PAGINATION
+    // ==========================================
+    async function loadLogs() {
+      if (!checkAuth()) return;
+
+      try {
+        const res = await fetch('/api/admin/logs', {
+          headers: { 'X-Admin-Secret': getSecret() }
+        });
+        const data = await res.json();
+        if (!data.success) {
+          showToast('فشل جلب سجلات التدقيق: ' + data.message, true);
+          return;
+        }
+
+        allLogs = data.data || [];
+        document.getElementById('badgeLogsCount').textContent = allLogs.length;
+        updateLogsMetrics();
+        applyLogsFilters();
+      } catch (err) {
+        showToast('خطأ في جلب السجلات: ' + err.message, true);
+      }
+    }
+
+    function updateLogsMetrics() {
+      document.getElementById('kpi-logs-total').textContent = allLogs.length;
+      let successCount = 0;
+      let failedCount = 0;
+      const deviceSet = new Set();
+
+      allLogs.forEach(log => {
+        if (log.status === 'success') successCount++;
+        else failedCount++;
+        if (log.machine_fingerprint) deviceSet.add(log.machine_fingerprint);
+      });
+
+      document.getElementById('kpi-logs-success').textContent = successCount;
+      document.getElementById('kpi-logs-failed').textContent = failedCount;
+      document.getElementById('kpi-logs-devices').textContent = deviceSet.size;
+    }
+
+    function setLogsActionFilter(action, btn) {
+      currentLogsActionFilter = action;
+      btn.parentElement.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      logsCurrentPage = 1;
+      applyLogsFilters();
+    }
+
+    function setLogsStatusFilter(status, btn) {
+      currentLogsStatusFilter = status;
+      btn.parentElement.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      logsCurrentPage = 1;
+      applyLogsFilters();
+    }
+
+    function onLogsFilterChange() {
+      logsCurrentPage = 1;
+      applyLogsFilters();
+    }
+
+    function applyLogsFilters() {
+      const q = (document.getElementById('logsSearchInput').value || '').trim().toLowerCase();
+
+      filteredLogsCache = allLogs.filter(log => {
+        if (currentLogsActionFilter !== 'all' && log.action !== currentLogsActionFilter) return false;
+        if (currentLogsStatusFilter !== 'all' && log.status !== currentLogsStatusFilter) return false;
+
+        if (q) {
+          const matchKey = (log.license_key || '').toLowerCase().includes(q);
+          const matchIp = (log.ip_address || '').toLowerCase().includes(q);
+          const matchFp = (log.machine_fingerprint || '').toLowerCase().includes(q);
+          const matchReason = (log.failure_reason || '').toLowerCase().includes(q);
+          if (!matchKey && !matchIp && !matchFp && !matchReason) return false;
+        }
+        return true;
+      });
+
+      renderLogsTable();
+    }
+
+    function onLogsPageSizeChange(size) {
+      logsPageSize = parseInt(size, 10) || 15;
+      logsCurrentPage = 1;
+      renderLogsTable();
+    }
+
+    function goToLogsPage(p) {
+      logsCurrentPage = p;
+      renderLogsTable();
+    }
+
+    function renderLogsTable() {
+      const tbody = document.getElementById('logsTableBody');
+      tbody.innerHTML = '';
+
+      const totalItems = filteredLogsCache.length;
+      const totalPages = Math.ceil(totalItems / logsPageSize) || 1;
+
+      if (logsCurrentPage > totalPages) logsCurrentPage = totalPages;
+      if (logsCurrentPage < 1) logsCurrentPage = 1;
+
+      const startIndex = (logsCurrentPage - 1) * logsPageSize;
+      const endIndex = Math.min(startIndex + logsPageSize, totalItems);
+      const pageSlice = filteredLogsCache.slice(startIndex, endIndex);
+
+      // Render Pagination Info & Controls
+      document.getElementById('logsPaginationText').textContent = 
+        totalItems === 0 ? 'لا توجد حركات تدقيق' : \`عرض \${startIndex + 1} إلى \${endIndex} من أصل \${totalItems} حركة\`;
+
+      renderPaginationControls(
+        'logsPaginationControls',
+        logsCurrentPage,
+        totalPages,
+        goToLogsPage
+      );
+
+      if (pageSlice.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:32px; color:var(--text-muted); font-size:13px; font-weight:700;">لا توجد حركات تدقيق تطابق الفلتر أو البحث</td></tr>';
+        return;
+      }
+
+      pageSlice.forEach((log, idx) => {
+        const tr = document.createElement('tr');
+        const rowNumber = startIndex + idx + 1;
+        const isSuccess = log.status === 'success';
+
+        let actionBadge = \`<span class="action-badge action-\${log.action}">\${translateAction(log.action)}</span>\`;
+
+        const fpDisplay = log.machine_fingerprint 
+          ? \`<span style="font-family:monospace; font-size:11px; color:#0f766e; font-weight:700;" title="\${log.machine_fingerprint}">\${log.machine_fingerprint.substring(0, 16)}...</span>\`
+          : '<span style="color:var(--text-muted); font-size:11.5px;">—</span>';
+
+        tr.innerHTML = \`
+          <td style="font-family:monospace; color:var(--text-muted); font-size:12px; font-weight:700;">\${rowNumber}</td>
+          <td style="font-size:12px; font-family:monospace; color:#334155; font-weight:700;">\${formatLogDate(log.created_at)}</td>
+          <td>
+            <div class="key-cell">
+              <code style="font-weight:900; color:var(--primary); font-family:monospace; font-size:12px;">\${log.license_key}</code>
+              <button class="btn-icon-copy" onclick="copyKey('\${log.license_key}')" title="نسخ المفتاح">نسخ</button>
+            </div>
+          </td>
+          <td>\${actionBadge}</td>
+          <td>
+            <span class="pill \${isSuccess ? 'pill-active' : 'pill-disabled'}">
+              \${isSuccess ? '✓ ناجح' : '✕ فشل'}
+            </span>
+          </td>
+          <td>\${translateReason(log.failure_reason)}</td>
+          <td>
+            <code style="font-size:12px; color:var(--text); font-family:monospace; font-weight:700;">\${log.ip_address || '-'}</code>
+          </td>
+          <td>\${fpDisplay}</td>
+        \`;
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Generic Pagination Controls Builder
+    function renderPaginationControls(containerId, currentPage, totalPages, onPageClick) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = '';
+
+      if (totalPages <= 1) return;
+
+      // First Button
+      const firstBtn = document.createElement('button');
+      firstBtn.className = 'page-btn';
+      firstBtn.textContent = '«';
+      firstBtn.title = 'الصفحة الأولى';
+      firstBtn.disabled = currentPage === 1;
+      firstBtn.onclick = () => onPageClick(1);
+      container.appendChild(firstBtn);
+
+      // Prev Button
+      const prevBtn = document.createElement('button');
+      prevBtn.className = 'page-btn';
+      prevBtn.textContent = '‹';
+      prevBtn.title = 'الصفحة السابقة';
+      prevBtn.disabled = currentPage === 1;
+      prevBtn.onclick = () => onPageClick(currentPage - 1);
+      container.appendChild(prevBtn);
+
+      // Page Number Buttons (window around current page)
+      const startPage = Math.max(1, currentPage - 2);
+      const endPage = Math.min(totalPages, startPage + 4);
+
+      for (let p = startPage; p <= endPage; p++) {
+        const pageBtn = document.createElement('button');
+        pageBtn.className = 'page-btn' + (p === currentPage ? ' active' : '');
+        pageBtn.textContent = p;
+        pageBtn.onclick = () => onPageClick(p);
+        container.appendChild(pageBtn);
+      }
+
+      // Next Button
+      const nextBtn = document.createElement('button');
+      nextBtn.className = 'page-btn';
+      nextBtn.textContent = '›';
+      nextBtn.title = 'الصفحة التالية';
+      nextBtn.disabled = currentPage === totalPages;
+      nextBtn.onclick = () => onPageClick(currentPage + 1);
+      container.appendChild(nextBtn);
+
+      // Last Button
+      const lastBtn = document.createElement('button');
+      lastBtn.className = 'page-btn';
+      lastBtn.textContent = '»';
+      lastBtn.title = 'الصفحة الأخيرة';
+      lastBtn.disabled = currentPage === totalPages;
+      lastBtn.onclick = () => onPageClick(totalPages);
+      container.appendChild(lastBtn);
+    }
+
+    // Helpers
     function updateCountdowns() {
       const now = Date.now();
       document.querySelectorAll('.countdown-badge').forEach(el => {
@@ -1352,7 +2049,7 @@ function serveAdminHtml(): Response {
         if (diff <= 0) {
           const parent = el.parentElement;
           if (parent) {
-            parent.innerHTML = '<span style="color:#dc2626; font-weight:700;">' + new Date(expiresAt).toISOString().split('T')[0] + ' (منتهي)</span>';
+            parent.innerHTML = '<span style="color:#dc2626; font-weight:800;">' + new Date(expiresAt).toISOString().split('T')[0] + ' (منتهي)</span>';
           }
           return;
         }
@@ -1371,6 +2068,38 @@ function serveAdminHtml(): Response {
       if (type === 'monthly') return 'شهري';
       if (type === 'trial') return 'تجريبي';
       return type;
+    }
+
+    function translateAction(a) {
+      if (a === 'activate') return 'تفعيل ترخيص';
+      if (a === 'verify') return 'فحص دوري';
+      if (a === 'reset') return 'فك ربط جهاز';
+      if (a === 'revoke') return 'إيقاف ترخيص';
+      return a;
+    }
+
+    function translateReason(r) {
+      if (!r) return '<span style="color:#059669; font-weight:800;">تمت العملية بنجاح</span>';
+      if (r === 'DEVICE_MISMATCH') return '<span style="color:#dc2626; font-weight:800;">مربوط بجهاز كمبيوتر آخر</span>';
+      if (r === 'LICENSE_DISABLED') return '<span style="color:#dc2626; font-weight:800;">الترخيص معطل من الإدارة</span>';
+      if (r === 'LICENSE_EXPIRED') return '<span style="color:#475569; font-weight:800;">انتهت فترة الصلاحية</span>';
+      if (r === 'LICENSE_NOT_FOUND') return '<span style="color:#dc2626; font-weight:800;">الرمز غير مسجل بقاعدة البيانات</span>';
+      return '<span style="font-weight:700;">' + r + '</span>';
+    }
+
+    function formatLogDate(d) {
+      if (!d) return '—';
+      try {
+        const dateObj = new Date(d.replace(' ', 'T') + 'Z');
+        if (isNaN(dateObj.getTime())) return d;
+        return dateObj.toLocaleString('ar-EG-u-nu-latn', {
+          dateStyle: 'short',
+          timeStyle: 'medium',
+          hour12: true
+        });
+      } catch (_) {
+        return d;
+      }
     }
 
     function copyKey(key) {
@@ -1461,17 +2190,19 @@ function serveAdminHtml(): Response {
     }
 
     function copyShareText() {
-      const txt = document.getElementById('shareTextarea').value;
-      navigator.clipboard.writeText(txt);
-      showToast('تم نسخ رسالة التسليم');
+      const text = document.getElementById('shareTextarea').value;
+      navigator.clipboard.writeText(text);
+      showToast('تم نسخ رسالة التسليم بنجاح');
     }
 
     function openWhatsApp() {
       if (!currentShareData || !currentShareData.owner_phone) return;
-      const phone = currentShareData.owner_phone.replace(/\\D/g, '');
-      const fullPhone = phone.startsWith('0') ? '2' + phone : phone;
+      let phone = currentShareData.owner_phone.replace(/\\D/g, '');
+      if (phone.startsWith('01')) {
+        phone = '2' + phone; // Egypt prefix
+      }
       const text = encodeURIComponent(document.getElementById('shareTextarea').value);
-      window.open('https://wa.me/' + fullPhone + '?text=' + text, '_blank');
+      window.open('https://wa.me/' + phone + '?text=' + text, '_blank');
     }
 
     function openEditModal(id) {
@@ -1481,15 +2212,15 @@ function serveAdminHtml(): Response {
       document.getElementById('editLicenseId').value = lic.id;
       document.getElementById('editShopName').value = lic.shop_name;
       document.getElementById('editOwnerPhone').value = lic.owner_phone || '';
+      document.getElementById('editNotes').value = lic.notes || '';
       document.getElementById('editExtendAction').value = 'none';
       document.getElementById('editCustomDaysWrapper').style.display = 'none';
-      document.getElementById('editCustomDaysInput').value = '';
 
-      let expText = 'دائم مدى الحياة';
+      let expStr = 'دائم مدى الحياة';
       if (lic.expires_at) {
-        expText = lic.expires_at.split('T')[0];
+        expStr = 'ينتهي في: ' + lic.expires_at.split('T')[0];
       }
-      document.getElementById('editCurrentExpDisplay').textContent = expText;
+      document.getElementById('editCurrentExpDisplay').textContent = expStr;
 
       openModal('editModal');
     }
@@ -1498,7 +2229,7 @@ function serveAdminHtml(): Response {
       const val = document.getElementById('editExtendAction').value;
       const w = document.getElementById('editCustomDaysWrapper');
       if (val === 'custom') {
-        w.style.display = 'block';
+        w.style.display = 'flex';
         document.getElementById('editCustomDaysInput').focus();
       } else {
         w.style.display = 'none';
@@ -1510,20 +2241,21 @@ function serveAdminHtml(): Response {
       const shop_name = document.getElementById('editShopName').value.trim();
       const owner_phone = document.getElementById('editOwnerPhone').value.trim();
       const notes = document.getElementById('editNotes').value.trim();
-      const action = document.getElementById('editExtendAction').value;
+      const act = document.getElementById('editExtendAction').value;
+
+      if (!shop_name) {
+        showToast('اسم المنشأة مطلوب', true);
+        return;
+      }
 
       const payload = { shop_name, owner_phone, notes };
-      if (action === 'lifetime') {
+
+      if (act === 'lifetime') {
         payload.set_lifetime = true;
-      } else if (action === 'custom') {
-        const customDays = parseInt(document.getElementById('editCustomDaysInput').value);
-        if (!customDays || customDays <= 0) {
-          showToast('يرجى إدخال عدد أيام تمديد صحيح (1 فأكثر)', true);
-          return;
-        }
-        payload.days_to_add = customDays;
-      } else if (action !== 'none') {
-        payload.days_to_add = parseInt(action);
+      } else if (act === 'custom') {
+        payload.days_to_add = parseInt(document.getElementById('editCustomDaysInput').value) || 0;
+      } else if (act !== 'none') {
+        payload.days_to_add = parseInt(act) || 0;
       }
 
       try {
@@ -1539,9 +2271,9 @@ function serveAdminHtml(): Response {
         const data = await res.json();
         if (!data.success) throw new Error(data.message);
 
+        showToast(data.message);
         closeModal('editModal');
-        showToast('تم حفظ التعديلات بنجاح');
-        loadLicenses();
+        await loadLicenses();
       } catch (err) {
         showToast('خطأ: ' + err.message, true);
       }
@@ -1613,54 +2345,12 @@ function serveAdminHtml(): Response {
       );
     }
 
-    async function loadLogs() {
-      try {
-        const res = await fetch('/api/admin/logs', {
-          headers: { 'X-Admin-Secret': getSecret() }
-        });
-        const data = await res.json();
-        if (!data.success) return;
-
-        const tbody = document.getElementById('logsTableBody');
-        tbody.innerHTML = '';
-        if (!data.data || data.data.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:16px; color:var(--text-muted);">لا توجد حركات تدقيق حتى الآن</td></tr>';
-          return;
-        }
-
-        data.data.forEach(log => {
-          const tr = document.createElement('tr');
-          const isSuccess = log.status === 'success';
-          tr.innerHTML = \`
-            <td style="font-size:12px; color:var(--text-muted);">\${log.created_at}</td>
-            <td><code style="font-weight:700; color:var(--primary); font-family:monospace;">\${log.license_key}</code></td>
-            <td><strong>\${translateAction(log.action)}</strong></td>
-            <td><span class="pill \${isSuccess ? 'pill-active' : 'pill-disabled'}">\${isSuccess ? 'ناجح' : 'فشل'}</span></td>
-            <td>\${translateReason(log.failure_reason)}</td>
-            <td><code style="font-size:11.5px; color:var(--text-muted); font-family:monospace;">\${log.ip_address || '-'}</code></td>
-          \`;
-          tbody.appendChild(tr);
-        });
-      } catch (_) {}
+    function initDashboard() {
+      loadLicenses();
+      loadLogs();
     }
 
-    function translateAction(a) {
-      if (a === 'activate') return 'تفعيل';
-      if (a === 'verify') return 'فحص دوري';
-      if (a === 'reset') return 'فك ربط';
-      if (a === 'revoke') return 'إيقاف';
-      return a;
-    }
-
-    function translateReason(r) {
-      if (!r) return '<span style="color:#059669; font-weight:700;">تم بنجاح</span>';
-      if (r === 'DEVICE_MISMATCH') return '<span style="color:#dc2626; font-weight:700;">مربوط بجهاز آخر</span>';
-      if (r === 'LICENSE_DISABLED') return '<span style="color:#dc2626; font-weight:700;">الترخيص معطل</span>';
-      if (r === 'LICENSE_EXPIRED') return '<span style="color:#475569; font-weight:700;">انتهت الصلاحية</span>';
-      return r;
-    }
-
-    window.onload = loadLicenses;
+    window.onload = initDashboard;
   </script>
 </body>
 </html>`;

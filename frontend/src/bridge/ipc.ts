@@ -90,6 +90,20 @@ function ensureListenerAttached() {
     isListenerAttached = true;
   }
 }
+function getDefaultTimeout(action: string): number {
+  if (
+    action.startsWith('excel:') ||
+    action.startsWith('products:import') ||
+    action.startsWith('system:restore') ||
+    action.startsWith('system:createBackup') ||
+    action.startsWith('system:vacuum') ||
+    action.startsWith('inventory:recalculate') ||
+    action.startsWith('backup:')
+  ) {
+    return 120000; // 2 minutes for heavy file/batch operations
+  }
+  return 15000; // 15 seconds default for normal operations on low-end POS hardware
+}
 
 /**
  * Execute a command on C# Host
@@ -97,7 +111,7 @@ function ensureListenerAttached() {
 export async function invoke<TResult = any, TPayload = any>(
   action: string,
   payload?: TPayload,
-  timeoutMs: number = 8000
+  timeoutMs?: number
 ): Promise<TResult> {
   ensureListenerAttached();
 
@@ -108,18 +122,21 @@ export async function invoke<TResult = any, TPayload = any>(
     payload: payload as TPayload,
   };
 
+  const effectiveTimeout = timeoutMs ?? getDefaultTimeout(action);
+
   // Check if we are running inside native WebView2
   if (window.chrome?.webview) {
     return new Promise<TResult>((resolve, reject) => {
       const timer = setTimeout(() => {
         pendingRequests.delete(id);
         reject(new Error(`انتهت مهلة الانتظار للعملية: ${action}`));
-      }, timeoutMs);
+      }, effectiveTimeout);
 
       pendingRequests.set(id, { resolve, reject, timer });
       window.chrome!.webview!.postMessage(request);
     });
   }
+
 
   // Fallback: Browser Development Mode Mock
   console.info(`[IPC-DEV-MOCK] Action: "${action}"`, payload);
@@ -453,6 +470,14 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         fileName: 'كتالوج_أصناف_رفيق_تجريبي.xlsx',
         count: 5,
       };
+
+    case 'excel:exportCustomers':
+      return {
+        success: true,
+        fileName: 'سجل_عملاء_رفيق_تجريبي.xlsx',
+        count: 3,
+      };
+
 
     case 'quickItems:getAll':
       return [

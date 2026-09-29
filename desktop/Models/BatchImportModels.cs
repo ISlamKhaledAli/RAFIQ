@@ -76,8 +76,15 @@ namespace RafiqPOS.Models
         [JsonProperty("importedCount")]
         public int ImportedCount { get; set; }
 
+        [JsonProperty("createdCount")]
+        public int CreatedCount
+        {
+            get { return this.ImportedCount; }
+        }
+
         [JsonProperty("updatedCount")]
         public int UpdatedCount { get; set; }
+
 
         [JsonProperty("skippedCount")]
         public int SkippedCount { get; set; }
