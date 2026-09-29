@@ -188,11 +188,6 @@ export const PosFooterBar: React.FC<PosFooterBarProps> = ({
           <span>سداد نقدي</span>
         </button>
       </div>
-
-      <div className="text-[11px] font-mono text-[#52605d] shrink-0 pr-2 flex items-center gap-1.5 font-bold">
-        <span className="w-2 h-2 rounded-full bg-[#006d41] animate-pulse" />
-        <span>كيبورد + لمس</span>
-      </div>
     </footer>
   );
 };

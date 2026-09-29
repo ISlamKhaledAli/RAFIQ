@@ -28,7 +28,9 @@ import {
   Barcode,
   KeyRound,
   FlaskConical,
-  Power
+  Power,
+  Play,
+  Trash2
 } from 'lucide-react';
 import { invoke } from './bridge/ipc';
 import { PosView } from './views/PosView';
@@ -130,48 +132,76 @@ const LicenseExpiryBanner: FC<{
 
   return (
     <div
-      className={`px-4 py-2 flex items-center justify-between text-[12px] font-bold shrink-0 select-none border-b transition-colors ${
+      className={`px-4 py-2 flex items-center justify-between text-[12px] shrink-0 select-none border-b transition-all duration-200 ${
         isCritical
-          ? 'bg-rose-600 text-white border-rose-700 shadow-sm'
-          : 'bg-amber-500 text-amber-950 border-amber-600/30'
+          ? 'bg-[#fff1f2] border-[#fecdd3] text-[#881337] shadow-2xs'
+          : 'bg-[#fffbeb] border-[#fde68a] text-[#78350f] shadow-2xs'
       }`}
     >
-      <div className="flex items-center gap-2.5">
-        <Clock className={`w-4 h-4 shrink-0 ${isCritical ? 'text-rose-200 animate-pulse' : 'text-amber-900'}`} />
-        <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-3">
+        <div
+          className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 shadow-2xs ${
+            isCritical
+              ? 'bg-[#ffe4e6] border border-[#fecdd3] text-[#e11d48]'
+              : 'bg-[#fef3c7] border border-[#fde68a] text-[#b45309]'
+          }`}
+        >
+          {isCritical ? (
+            <ShieldAlert className="w-4 h-4 animate-pulse" />
+          ) : (
+            <AlertTriangle className="w-4 h-4" />
+          )}
+        </div>
+
+        <div className="flex items-center gap-2.5 flex-wrap">
           {isCritical ? (
             <>
-              <span className="bg-rose-950/60 text-rose-100 px-2 py-0.5 rounded text-[11px] font-extrabold uppercase tracking-wide border border-rose-400/30">
+              <span className="bg-[#e11d48] text-white px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider shadow-2xs flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
                 تنبيه حرج
               </span>
-              <span>سينتهي اشتراك البرنامج قريباً جداً!</span>
+              <span className="font-extrabold text-[#9f1239] text-[13px] tracking-tight">
+                سينتهي اشتراك البرنامج قريباً جداً!
+              </span>
               {countdown && (
-                <span className="inline-flex items-center gap-1.5 bg-black/40 text-white px-2.5 py-0.5 rounded-full font-mono font-black text-xs tracking-wider border border-white/20 tabular-nums">
-                  <span className="w-2 h-2 rounded-full bg-rose-400 animate-ping"></span>
-                  متبقي {countdown}
-                </span>
+                <div className="inline-flex items-center gap-1.5 bg-white text-[#9f1239] border border-[#fecdd3] px-2.5 py-0.5 rounded-lg shadow-2xs font-mono tabular-nums">
+                  <Clock className="w-3.5 h-3.5 text-[#e11d48] shrink-0" />
+                  <span className="text-[#9f1239] text-[11px] font-sans font-bold">متبقي:</span>
+                  <span className="font-black text-xs text-[#881337] tracking-wider">{countdown}</span>
+                  <span className="text-[10px] text-[#e11d48] bg-[#ffe4e6] border border-[#fecdd3] px-1.5 py-0.2 rounded font-sans font-bold">
+                    س : د : ث
+                  </span>
+                </div>
               )}
-              <span className="text-rose-100 text-[11px] font-semibold">(ساعات : دقائق : ثواني)</span>
-              <span>— يرجى التجديد لتفادي توقف نقاط البيع تلقائياً.</span>
+              <span className="text-[#9f1239]/80 text-xs font-semibold hidden lg:inline">
+                — يرجى التجديد لتفادي توقف نقاط البيع تلقائياً.
+              </span>
             </>
           ) : (
-            <span>
-              تنبيه هام: سينتهي اشتراك البرنامج {formatLicenseExpiryTime(licenseExpiry)}. يرجى التجديد لتفادي توقف نقاط البيع تلقائياً.
-            </span>
+            <>
+              <span className="bg-[#d97706] text-white px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider shadow-2xs">
+                تنبيه التجديد
+              </span>
+              <span className="font-bold text-[#78350f] text-xs">
+                سينتهي اشتراك البرنامج {formatLicenseExpiryTime(licenseExpiry)}. يرجى التجديد لتفادي توقف نقاط البيع تلقائياً.
+              </span>
+            </>
           )}
         </div>
       </div>
-      <div className="flex items-center gap-2">
+
+      <div className="flex items-center gap-2 shrink-0">
         <button
           type="button"
           onClick={onRenew}
           className={`${
             isCritical
-              ? 'bg-white text-rose-700 hover:bg-rose-50 shadow-md'
-              : 'bg-amber-950 hover:bg-black text-amber-100 shadow-xs'
-          } text-xs px-3.5 py-1 rounded font-bold transition-all cursor-pointer`}
+              ? 'bg-[#e11d48] hover:bg-[#be123c] text-white shadow-xs'
+              : 'bg-[#d97706] hover:bg-[#b45309] text-white shadow-xs'
+          } text-xs px-3.5 py-1.5 rounded-lg font-bold transition-all duration-150 cursor-pointer flex items-center gap-1.5 active:scale-95`}
         >
-          تجديد الترخيص الآن
+          <KeyRound className="w-3.5 h-3.5 text-white" />
+          <span>تجديد الترخيص الآن</span>
         </button>
       </div>
     </div>
@@ -754,18 +784,28 @@ export default function App() {
 
       {/* Feature #172 / Task 172-5: Read-Only Mode Banner */}
       {isLicenseReadOnlyMode && (
-        <div className="bg-amber-700 text-white px-4 py-2 flex items-center justify-between text-[12px] font-bold shrink-0 animate-in slide-in-from-top-1 select-none border-b border-white/20">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-200" />
-            <span>وضع القراءة والنسخ الاحتياطي نشط: انتهت فترة الاشتراك. عمليات البيع معطلة، ويتاح فقط عرض التقارير والمبيعات السابقة وأخذ نسخة احتياطية.</span>
+        <div className="bg-[#fffbeb] border-b border-[#fde68a] text-[#78350f] px-4 py-2 flex items-center justify-between text-[12px] shrink-0 animate-in slide-in-from-top-1 select-none shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="w-7 h-7 rounded-lg bg-[#fef3c7] border border-[#fde68a] flex items-center justify-center shrink-0 text-[#b45309] shadow-2xs">
+              <AlertTriangle className="w-4 h-4" />
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="bg-[#fef3c7] text-[#92400e] border border-[#fde68a] px-2.5 py-0.5 rounded-full text-[11px] font-bold shadow-2xs">
+                وضع القراءة والنسخ الاحتياطي
+              </span>
+              <span className="text-[#854d0e] text-xs font-semibold">
+                انتهت فترة الاشتراك. عمليات البيع معطلة، ويتاح فقط عرض التقارير والمبيعات السابقة وأخذ نسخة احتياطية.
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => setIsLockScreenOpen(true)}
-              className="bg-white text-amber-900 hover:bg-amber-100 text-xs px-3 py-1 rounded font-bold transition-colors shadow-xs"
+              className="bg-[#00372d] hover:bg-[#002820] text-white font-bold text-xs px-4 py-1.5 rounded-lg shadow-xs transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
             >
-              تفعيل الترخيص / التحقق
+              <KeyRound className="w-3.5 h-3.5 text-white" />
+              <span>تفعيل الترخيص / التحقق</span>
             </button>
           </div>
         </div>
@@ -773,12 +813,14 @@ export default function App() {
 
       {/* Backup Overdue Warning Banner (Feature #9 / Task 9-6) - Admin Only */}
       {currentUser?.role === 'admin' && backupWarning && (
-        <div className="bg-brand text-white px-4 py-2 flex items-center justify-between text-[12px] font-semibold shrink-0 animate-in slide-in-from-top-1 select-none border-b border-white/10">
-          <div className="flex items-center gap-2">
-            <Database className="w-4 h-4 shrink-0 text-paid" />
-            <span className="whitespace-pre-line">{backupWarning}</span>
+        <div className="bg-[#f0fdf4] border-b border-[#bbf7d0] text-[#14532d] px-4 py-2 flex items-center justify-between text-[12px] shrink-0 animate-in slide-in-from-top-1 select-none shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="w-7 h-7 rounded-lg bg-[#dcfce7] border border-[#bbf7d0] flex items-center justify-center shrink-0 text-[#16a34a] shadow-2xs">
+              <Database className="w-4 h-4" />
+            </div>
+            <span className="whitespace-pre-line text-xs font-semibold text-[#14532d]">{backupWarning}</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button 
               type="button"
               onClick={() => {
@@ -786,14 +828,14 @@ export default function App() {
                 setSettingsSubTab('backup');
                 setIsSettingsMenuExpanded(true);
               }} 
-              className="bg-paid hover:bg-paid-hover text-white text-xs px-3 py-1 rounded font-bold transition-colors shadow-xs"
+              className="bg-[#006d41] hover:bg-[#005734] text-white text-xs px-3.5 py-1.5 rounded-lg font-bold transition-all shadow-xs active:scale-95 cursor-pointer"
             >
               فتح شاشة النسخ الاحتياطي
             </button>
             <button 
               type="button"
               onClick={() => setBackupWarning(null)} 
-              className="text-white/80 hover:bg-white/10 text-xs px-2 py-1 rounded transition-colors"
+              className="text-[#166534] hover:bg-[#dcfce7] text-xs px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
             >
               إخفاء
             </button>
@@ -803,18 +845,29 @@ export default function App() {
 
       {/* Demo Mode Active Banner (Feature #113 / Task 113-3) */}
       {hasDemoData && (
-        <div className="bg-amber-500 text-amber-950 px-4 py-1.5 flex items-center justify-between text-[12px] font-bold shrink-0 animate-in slide-in-from-top-1 select-none border-b border-amber-600/30">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
-            <span>وضع تجريبي نشط: يحتوي النظام على بيانات نموذجية لتدريب الكاشير وتجربة البرنامج.</span>
+        <div className="bg-[#fffbeb] border-b border-[#fde68a] text-[#78350f] px-4 py-1.5 flex items-center justify-between text-[12px] shrink-0 animate-in slide-in-from-top-1 select-none shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="w-7 h-7 rounded-lg bg-[#fef3c7] border border-[#fde68a] flex items-center justify-center shrink-0 text-[#b45309] shadow-2xs">
+              <FlaskConical className="w-3.5 h-3.5" />
+            </div>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 bg-[#fef3c7] text-[#92400e] border border-[#fde68a] px-2.5 py-0.5 rounded-full text-[11px] font-bold shadow-2xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#d97706] animate-pulse" />
+                وضع تجريبي نشط
+              </span>
+              <span className="text-[#854d0e] text-xs font-semibold">
+                يحتوي النظام على بيانات نموذجية لتدريب الكاشير وتجربة كافة الميزات بأمان.
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => setIsTourOpen(true)}
-              className="bg-white/90 hover:bg-white text-amber-950 text-xs px-2.5 py-0.5 rounded font-bold transition-colors shadow-xs"
+              className="bg-white hover:bg-[#fef3c7] text-[#92400e] border border-[#fde68a] text-xs px-3 py-1 rounded-lg font-bold transition-all shadow-2xs flex items-center gap-1.5 active:scale-95 cursor-pointer"
             >
-              جولة النظام (5 خطوات)
+              <Play className="w-3 h-3 text-[#b45309] fill-[#b45309]/30" />
+              <span>جولة النظام (5 خطوات)</span>
             </button>
             {currentUser?.role === 'admin' && (
               <button
@@ -824,9 +877,10 @@ export default function App() {
                   setSettingsSubTab('demo');
                   setIsSettingsMenuExpanded(true);
                 }}
-                className="bg-amber-950 hover:bg-black text-white text-xs px-2.5 py-0.5 rounded transition-colors"
+                className="bg-[#00372d] hover:bg-[#002820] text-white font-bold text-xs px-3.5 py-1 rounded-lg shadow-xs transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
               >
-                إدارة ومسح البيانات
+                <Trash2 className="w-3.5 h-3.5 text-white/90" />
+                <span>إدارة ومسح البيانات</span>
               </button>
             )}
           </div>

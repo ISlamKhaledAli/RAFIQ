@@ -270,7 +270,7 @@ function generateLicenseKey(): string {
 
 /**
  * Professional, clean Arabic Admin UI matching Rafiq POS Identity
- * With clean separation between Licenses & Audit Logs, full pagination, and luxury design.
+ * Zero emojis - Pure crisp Lucide-grade SVG icons & Custom Page Size Dropdown.
  */
 function serveAdminHtml(): Response {
   const html = `<!DOCTYPE html>
@@ -304,7 +304,8 @@ function serveAdminHtml(): Response {
       --warning-bg: #fffbeb;
       --warning-border: #fde68a;
       --shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
-      --shadow-md: 0 4px 12px rgba(0,0,0,0.05);
+      --shadow-md: 0 4px 14px rgba(0,0,0,0.06);
+      --shadow-lg: 0 10px 25px rgba(0,55,45,0.12), 0 2px 6px rgba(0,0,0,0.04);
       --radius-xl: 16px;
       --radius-lg: 12px;
       --radius-md: 8px;
@@ -312,6 +313,22 @@ function serveAdminHtml(): Response {
 
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Cairo', -apple-system, sans-serif; }
     body { background-color: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; line-height: 1.5; }
+
+    /* Crisp SVG Icons */
+    .icon {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      stroke-width: 2.2;
+      stroke: currentColor;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      vertical-align: middle;
+      flex-shrink: 0;
+    }
+    .icon-sm { width: 13px; height: 13px; stroke-width: 2.3; }
+    .icon-lg { width: 22px; height: 22px; stroke-width: 2; }
 
     /* Top Bar */
     .topbar {
@@ -322,7 +339,7 @@ function serveAdminHtml(): Response {
       justify-content: space-between;
       align-items: center;
       border-bottom: 1px solid rgba(255,255,255,0.08);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.15);
     }
     .topbar-brand {
       display: flex;
@@ -509,7 +526,6 @@ function serveAdminHtml(): Response {
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 20px;
       background: #f1f5f4;
       color: var(--text-muted);
     }
@@ -620,13 +636,22 @@ function serveAdminHtml(): Response {
       flex-wrap: wrap;
     }
     .search-box {
-      width: 340px;
+      width: 360px;
       position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .search-icon-inside {
+      position: absolute;
+      right: 12px;
+      pointer-events: none;
+      color: var(--text-muted);
     }
     .search-box input {
       width: 100%;
       height: 38px;
-      padding: 0 14px;
+      padding: 0 14px 0 14px;
+      padding-right: 36px;
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
       font-size: 12.5px;
@@ -641,36 +666,123 @@ function serveAdminHtml(): Response {
       box-shadow: 0 0 0 3px rgba(0,109,65,0.1);
     }
     .filters {
-      display: flex;
-      gap: 4px;
-      background: #f1f5f4;
-      padding: 4px;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      background: #eef2f1;
+      padding: 3px;
       border-radius: var(--radius-lg);
       border: 1px solid var(--border);
     }
     .filter-tab {
       background: transparent;
-      border: none;
-      padding: 5px 14px;
+      border: 1px solid transparent;
+      padding: 5px 12px;
       font-size: 12px;
       font-weight: 800;
       color: var(--text-muted);
       border-radius: var(--radius-md);
       cursor: pointer;
-      transition: all 0.15s ease;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      user-select: none;
+      white-space: nowrap;
+    }
+    .filter-tab:hover {
+      color: var(--primary);
+      background: rgba(255, 255, 255, 0.6);
     }
     .filter-tab.active {
       background: white;
-      color: var(--primary);
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      color: var(--emerald);
+      border-color: rgba(0, 109, 65, 0.15);
+      box-shadow: 0 2px 6px rgba(0, 55, 45, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+      transform: scale(1.02);
     }
     .filter-tab.active.danger {
-      background: var(--danger);
-      color: white;
+      background: white;
+      color: var(--danger);
+      border-color: rgba(220, 38, 38, 0.2);
+      box-shadow: 0 2px 6px rgba(220, 38, 38, 0.08);
     }
     .filter-tab.active.success {
-      background: var(--emerald);
-      color: white;
+      background: white;
+      color: var(--emerald);
+      border-color: rgba(0, 109, 65, 0.2);
+      box-shadow: 0 2px 6px rgba(0, 109, 65, 0.08);
+    }
+    .filter-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      font-size: 10.5px;
+      font-weight: 800;
+      font-family: ui-monospace, monospace;
+      border-radius: 9999px;
+      background: #dce1dc;
+      color: #52605d;
+      transition: all 0.2s ease;
+    }
+    .filter-tab.active .filter-count {
+      background: var(--emerald-soft);
+      color: var(--emerald);
+      border: 1px solid var(--emerald-border);
+    }
+    .filter-tab.active.danger .filter-count {
+      background: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid var(--danger-border);
+    }
+    .filter-tab.active.success .filter-count {
+      background: var(--emerald-soft);
+      color: var(--emerald);
+      border: 1px solid var(--emerald-border);
+    }
+
+    /* Table Smooth Staggered Row Animation */
+    @keyframes tableRowSlideIn {
+      0% {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .table-row-animated {
+      animation: tableRowSlideIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+      animation-delay: calc(var(--delay, 0) * 30ms);
+    }
+
+    /* Sleek Custom Scrollbar & Min-Height (Prevents Content Jumping) */
+    .table-responsive-container {
+      min-height: 420px;
+      overflow-x: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #cbd5e1 transparent;
+      -webkit-overflow-scrolling: touch;
+      position: relative;
+    }
+    .table-responsive-container::-webkit-scrollbar {
+      height: 6px;
+    }
+    .table-responsive-container::-webkit-scrollbar-track {
+      background: #f8fafc;
+      border-radius: 9999px;
+    }
+    .table-responsive-container::-webkit-scrollbar-thumb {
+      background-color: #cbd5e1;
+      border-radius: 9999px;
+      border: 1px solid #f8fafc;
+    }
+    .table-responsive-container::-webkit-scrollbar-thumb:hover {
+      background-color: #94a3b8;
     }
 
     /* Table */
@@ -724,11 +836,14 @@ function serveAdminHtml(): Response {
       background: #f1f5f9;
       border: 1px solid #cbd5e1;
       border-radius: 6px;
-      padding: 3px 8px;
+      padding: 4px 8px;
       font-size: 11px;
       font-weight: 800;
       color: #475569;
       cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
       transition: all 0.15s;
     }
     .btn-icon-copy:hover {
@@ -756,10 +871,10 @@ function serveAdminHtml(): Response {
     .action-badge {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      padding: 3px 9px;
+      gap: 5px;
+      padding: 4px 10px;
       border-radius: 6px;
-      font-size: 11px;
+      font-size: 11.5px;
       font-weight: 800;
     }
     .action-activate { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
@@ -805,14 +920,14 @@ function serveAdminHtml(): Response {
       background: #fff;
       border: 1px solid var(--border);
       border-radius: 6px;
-      padding: 4px 9px;
+      padding: 5px 10px;
       font-size: 11.5px;
       font-weight: 800;
       color: #334155;
       cursor: pointer;
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 5px;
       transition: all 0.15s ease;
     }
     .btn-row:hover {
@@ -835,7 +950,9 @@ function serveAdminHtml(): Response {
       background: #dcfce7;
     }
 
-    /* Pagination Footer */
+    /* ========================================== */
+    /* CUSTOM LUXURY PAGE SIZE DROPDOWN (Zero OS) */
+    /* ========================================== */
     .pagination-bar {
       padding: 12px 20px;
       border-top: 1px solid var(--border);
@@ -852,18 +969,86 @@ function serveAdminHtml(): Response {
       font-weight: 700;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
     }
-    .pagination-size-select {
-      height: 30px;
+    
+    .custom-dropdown-container {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+    .custom-dropdown-trigger {
+      height: 32px;
+      padding: 0 12px;
+      background: #ffffff;
       border: 1px solid var(--border);
-      border-radius: 6px;
-      background: #fff;
+      border-radius: var(--radius-md);
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--primary);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.15s ease;
+    }
+    .custom-dropdown-trigger:hover {
+      background: #f1f5f4;
+      border-color: var(--emerald);
+    }
+    .custom-dropdown-menu {
+      position: absolute;
+      bottom: calc(100% + 6px);
+      right: 0;
+      min-width: 140px;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      padding: 6px;
+      z-index: 50;
+      display: none;
+      flex-direction: column;
+      gap: 2px;
+      animation: popupOpen 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .custom-dropdown-menu.show {
+      display: flex;
+    }
+    @keyframes popupOpen {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .custom-dropdown-item {
+      padding: 7px 10px;
       font-size: 12px;
       font-weight: 700;
-      padding: 0 6px;
-      color: var(--text);
+      color: #334155;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: background 0.1s, color 0.1s;
     }
+    .custom-dropdown-item:hover {
+      background: #f1f5f4;
+      color: var(--primary);
+    }
+    .custom-dropdown-item.selected {
+      background: var(--emerald-soft);
+      color: var(--emerald);
+      font-weight: 900;
+    }
+    .custom-dropdown-check {
+      color: var(--emerald);
+      opacity: 0;
+    }
+    .custom-dropdown-item.selected .custom-dropdown-check {
+      opacity: 1;
+    }
+
     .pagination-controls {
       display: flex;
       align-items: center;
@@ -895,7 +1080,7 @@ function serveAdminHtml(): Response {
       border-color: var(--primary);
     }
     .page-btn:disabled {
-      opacity: 0.4;
+      opacity: 0.35;
       cursor: not-allowed;
     }
 
@@ -906,7 +1091,7 @@ function serveAdminHtml(): Response {
       inset: 0;
       background: rgba(15, 23, 42, 0.6);
       backdrop-filter: blur(2px);
-      z-index: 50;
+      z-index: 60;
       align-items: center;
       justify-content: center;
       padding: 16px;
@@ -936,6 +1121,9 @@ function serveAdminHtml(): Response {
     .modal-header h4 {
       font-size: 14.5px;
       font-weight: 900;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
     .modal-close {
       background: none;
@@ -989,6 +1177,9 @@ function serveAdminHtml(): Response {
       font-size: 19px;
       font-weight: 900;
       color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
     .login-box p {
       font-size: 12px;
@@ -1031,7 +1222,10 @@ function serveAdminHtml(): Response {
   <div id="login-screen">
     <div class="login-box">
       <div>
-        <h3>تسجيل الدخول للوحة الإدارة</h3>
+        <h3>
+          <svg class="icon icon-lg" style="color:var(--emerald);" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span>تسجيل الدخول للإدارة</span>
+        </h3>
         <p>يرجى إدخال كلمة سر المشرف للوصول إلى إدارة التراخيص وسجلات التدقيق.</p>
       </div>
       <form onsubmit="handleLogin(event)" style="display:flex; flex-direction:column; gap:14px;">
@@ -1060,10 +1254,13 @@ function serveAdminHtml(): Response {
         <span>السيرفر السحابي: متصل</span>
       </div>
       <button class="btn-top" onclick="refreshCurrentView()">
-        <span>↻</span>
+        <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l6.67-6.67"/></svg>
         <span>تحديث</span>
       </button>
-      <button class="btn-top" onclick="logout()" style="color:#fca5a5;">خروج</button>
+      <button class="btn-top" onclick="logout()" style="color:#fca5a5;">
+        <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <span>خروج</span>
+      </button>
     </div>
   </header>
 
@@ -1073,13 +1270,13 @@ function serveAdminHtml(): Response {
     <div class="tabs-nav-wrapper">
       <div class="tabs-nav">
         <button class="nav-tab active" id="tabBtnLicenses" onclick="switchMainTab('licenses')">
-          <span style="font-size:15px;">🔑</span>
+          <svg class="icon" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>
           <span>قائمة التراخيص الصادرة</span>
           <span class="tab-badge" id="badgeLicensesCount">0</span>
         </button>
 
         <button class="nav-tab" id="tabBtnLogs" onclick="switchMainTab('logs')">
-          <span style="font-size:15px;">📋</span>
+          <svg class="icon" viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>
           <span>سجل حركات وتدقيق التفعيل (Audit Logs)</span>
           <span class="tab-badge" id="badgeLogsCount">0</span>
         </button>
@@ -1102,7 +1299,9 @@ function serveAdminHtml(): Response {
             <span class="kpi-label">إجمالي التراخيص</span>
             <span class="kpi-value" id="kpi-total">0</span>
           </div>
-          <div class="kpi-icon-box">📊</div>
+          <div class="kpi-icon-box">
+            <svg class="icon icon-lg" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </div>
         </div>
 
         <div class="kpi-box kpi-active">
@@ -1110,7 +1309,9 @@ function serveAdminHtml(): Response {
             <span class="kpi-label">النشطة والمفعلة</span>
             <span class="kpi-value" id="kpi-active">0</span>
           </div>
-          <div class="kpi-icon-box">✓</div>
+          <div class="kpi-icon-box">
+            <svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
         </div>
 
         <div class="kpi-box kpi-pending">
@@ -1118,7 +1319,9 @@ function serveAdminHtml(): Response {
             <span class="kpi-label">قيد انتظار التفعيل</span>
             <span class="kpi-value" id="kpi-pending">0</span>
           </div>
-          <div class="kpi-icon-box">⏳</div>
+          <div class="kpi-icon-box">
+            <svg class="icon icon-lg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
         </div>
 
         <div class="kpi-box kpi-disabled">
@@ -1126,7 +1329,9 @@ function serveAdminHtml(): Response {
             <span class="kpi-label">معطلة أو منتهية</span>
             <span class="kpi-value" id="kpi-disabled">0</span>
           </div>
-          <div class="kpi-icon-box">✕</div>
+          <div class="kpi-icon-box">
+            <svg class="icon icon-lg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          </div>
         </div>
       </div>
 
@@ -1174,7 +1379,10 @@ function serveAdminHtml(): Response {
                 <input type="text" id="notesInput" placeholder="رقم الإيصال، اسم المندوب...">
               </div>
 
-              <button type="submit" class="btn-create">إصدار الرمز</button>
+              <button type="submit" class="btn-create">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>إصدار الرمز</span>
+              </button>
             </div>
           </form>
         </div>
@@ -1191,19 +1399,35 @@ function serveAdminHtml(): Response {
 
         <div class="table-bar">
           <div class="search-box">
+            <svg class="icon search-icon-inside" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input type="text" id="searchInput" oninput="onLicenseFilterChange()" placeholder="بحث باسم المنشأة، الهاتف، رمز الترخيص، أو بصمة الجهاز...">
           </div>
 
           <div class="filters">
-            <button class="filter-tab active" onclick="setLicenseFilter('all', this)">الكل</button>
-            <button class="filter-tab" onclick="setLicenseFilter('active', this)">النشطة</button>
-            <button class="filter-tab" onclick="setLicenseFilter('pending', this)">في الانتظار</button>
-            <button class="filter-tab" onclick="setLicenseFilter('disabled', this)">المعطلة</button>
-            <button class="filter-tab" onclick="setLicenseFilter('expired', this)">المنتهية</button>
+            <button class="filter-tab active" onclick="setLicenseFilter('all', this)">
+              <span>الكل</span>
+              <span class="filter-count" id="count-lic-all">0</span>
+            </button>
+            <button class="filter-tab" onclick="setLicenseFilter('active', this)">
+              <span>النشطة</span>
+              <span class="filter-count" id="count-lic-active">0</span>
+            </button>
+            <button class="filter-tab" onclick="setLicenseFilter('pending', this)">
+              <span>في الانتظار</span>
+              <span class="filter-count" id="count-lic-pending">0</span>
+            </button>
+            <button class="filter-tab" onclick="setLicenseFilter('disabled', this)">
+              <span>المعطلة</span>
+              <span class="filter-count" id="count-lic-disabled">0</span>
+            </button>
+            <button class="filter-tab" onclick="setLicenseFilter('expired', this)">
+              <span>المنتهية</span>
+              <span class="filter-count" id="count-lic-expired">0</span>
+            </button>
           </div>
         </div>
 
-        <div style="overflow-x:auto;">
+        <div class="table-responsive-container">
           <table>
             <thead>
               <tr>
@@ -1228,21 +1452,42 @@ function serveAdminHtml(): Response {
           </table>
         </div>
 
-        <!-- Licenses Pagination Bar -->
+        <!-- Licenses Pagination Bar with Custom Dropdown (No default OS Select) -->
         <div class="pagination-bar" id="licensesPaginationBar">
           <div class="pagination-info">
             <span id="licensesPaginationText">عرض 0 إلى 0 من 0 ترخيص</span>
             <span>|</span>
-            <label>
-              عرض:
-              <select class="pagination-size-select" id="licensesPageSizeSelect" onchange="onLicensesPageSizeChange(this.value)">
-                <option value="10">10 تراخيص</option>
-                <option value="15" selected>15 ترخيص</option>
-                <option value="25">25 ترخيص</option>
-                <option value="50">50 ترخيص</option>
-                <option value="100">100 ترخيص</option>
-              </select>
-            </label>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span>عرض:</span>
+              <div class="custom-dropdown-container" id="licensesCustomDropdown">
+                <button type="button" class="custom-dropdown-trigger" onclick="toggleCustomDropdown('licenses', event)">
+                  <span id="licensesPageSizeLabel">15 ترخيص</span>
+                  <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="custom-dropdown-menu" id="licensesDropdownMenu">
+                  <div class="custom-dropdown-item" onclick="choosePageSize('licenses', 10, '10 تراخيص')">
+                    <span>10 تراخيص</span>
+                    <svg class="icon icon-sm custom-dropdown-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div class="custom-dropdown-item selected" onclick="choosePageSize('licenses', 15, '15 ترخيص')">
+                    <span>15 ترخيص</span>
+                    <svg class="icon icon-sm custom-dropdown-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div class="custom-dropdown-item" onclick="choosePageSize('licenses', 25, '25 ترخيص')">
+                    <span>25 ترخيص</span>
+                    <svg class="icon icon-sm custom-dropdown-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div class="custom-dropdown-item" onclick="choosePageSize('licenses', 50, '50 ترخيص')">
+                    <span>50 ترخيص</span>
+                    <svg class="icon icon-sm custom-dropdown-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div class="custom-dropdown-item" onclick="choosePageSize('licenses', 100, '100 ترخيص')">
+                    <span>100 ترخيص</span>
+                    <svg class="icon icon-sm custom-dropdown-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="pagination-controls" id="licensesPaginationControls"></div>
@@ -1262,7 +1507,9 @@ function serveAdminHtml(): Response {
             <span class="kpi-label">إجمالي الحركات المسجلة</span>
             <span class="kpi-value" id="kpi-logs-total">0</span>
           </div>
-          <div class="kpi-icon-box">📋</div>
+          <div class="kpi-icon-box">
+            <svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>
+          </div>
         </div>
 
         <div class="kpi-box kpi-active">
@@ -1270,7 +1517,9 @@ function serveAdminHtml(): Response {
             <span class="kpi-label">حركات ناجحة</span>
             <span class="kpi-value" id="kpi-logs-success">0</span>
           </div>
-          <div class="kpi-icon-box">✓</div>
+          <div class="kpi-icon-box">
+            <svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+          </div>
         </div>
 
         <div class="kpi-box kpi-disabled">
@@ -1278,7 +1527,9 @@ function serveAdminHtml(): Response {
             <span class="kpi-label">محاولات مرفوضة</span>
             <span class="kpi-value" id="kpi-logs-failed">0</span>
           </div>
-          <div class="kpi-icon-box">✕</div>
+          <div class="kpi-icon-box">
+            <svg class="icon icon-lg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          </div>
         </div>
 
         <div class="kpi-box">
@@ -1286,7 +1537,9 @@ function serveAdminHtml(): Response {
             <span class="kpi-label">الأجهزة المفحوصة</span>
             <span class="kpi-value" id="kpi-logs-devices">0</span>
           </div>
-          <div class="kpi-icon-box">💻</div>
+          <div class="kpi-icon-box">
+            <svg class="icon icon-lg" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="12" rx="2"/><line x1="2" y1="20" x2="22" y2="20"/></svg>
+          </div>
         </div>
       </div>
 
@@ -1298,7 +1551,7 @@ function serveAdminHtml(): Response {
             <div class="panel-desc">توثيق مباشر ومفصل لجميع استدعاءات التفعيل والتحقق الدوري وفك الربط مع الـ IP وبصمة الجهاز</div>
           </div>
           <button class="btn-row" onclick="loadLogs()" title="تحديث السجلات الآن">
-            <span>↻</span>
+            <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l6.67-6.67"/></svg>
             <span>تحديث السجل</span>
           </button>
         </div>
@@ -1306,6 +1559,7 @@ function serveAdminHtml(): Response {
         <!-- Logs Filter Toolbar -->
         <div class="table-bar">
           <div class="search-box">
+            <svg class="icon search-icon-inside" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input type="text" id="logsSearchInput" oninput="onLogsFilterChange()" placeholder="بحث برمز الترخيص، عنوان IP، بصمة الجهاز، أو سبب الرفض...">
           </div>
 
@@ -1328,7 +1582,7 @@ function serveAdminHtml(): Response {
           </div>
         </div>
 
-        <div style="overflow-x:auto;">
+        <div class="table-responsive-container">
           <table>
             <thead>
               <tr>
@@ -1352,20 +1606,42 @@ function serveAdminHtml(): Response {
           </table>
         </div>
 
-        <!-- Logs Pagination Bar -->
+        <!-- Logs Pagination Bar with Custom Dropdown -->
         <div class="pagination-bar" id="logsPaginationBar">
           <div class="pagination-info">
             <span id="logsPaginationText">عرض 0 إلى 0 من 0 حركة</span>
             <span>|</span>
-            <label>
-              عرض:
-              <select class="pagination-size-select" id="logsPageSizeSelect" onchange="onLogsPageSizeChange(this.value)">
-                <option value="15" selected>15 حركة</option>
-                <option value="25">25 حركة</option>
-                <option value="50">50 حركة</option>
-                <option value="100">100 حركة</option>
-              </select>
-            </label>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span>عرض:</span>
+              <div class="custom-dropdown-container" id="logsCustomDropdown">
+                <button type="button" class="custom-dropdown-trigger" onclick="toggleCustomDropdown('logs', event)">
+                  <span id="logsPageSizeLabel">15 حركة</span>
+                  <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="custom-dropdown-menu" id="logsDropdownMenu">
+                  <div class="custom-dropdown-item" onclick="choosePageSize('logs', 10, '10 حركات')">
+                    <span>10 حركات</span>
+                    <svg class="icon icon-sm custom-dropdown-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div class="custom-dropdown-item selected" onclick="choosePageSize('logs', 15, '15 حركة')">
+                    <span>15 حركة</span>
+                    <svg class="icon icon-sm custom-dropdown-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div class="custom-dropdown-item" onclick="choosePageSize('logs', 25, '25 حركة')">
+                    <span>25 حركة</span>
+                    <svg class="icon icon-sm custom-dropdown-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div class="custom-dropdown-item" onclick="choosePageSize('logs', 50, '50 حركة')">
+                    <span>50 حركة</span>
+                    <svg class="icon icon-sm custom-dropdown-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div class="custom-dropdown-item" onclick="choosePageSize('logs', 100, '100 حركة')">
+                    <span>100 حركة</span>
+                    <svg class="icon icon-sm custom-dropdown-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="pagination-controls" id="logsPaginationControls"></div>
@@ -1379,7 +1655,10 @@ function serveAdminHtml(): Response {
   <div class="modal-overlay" id="shareModal">
     <div class="modal-card">
       <div class="modal-header">
-        <h4>تسليم الترخيص للعميل</h4>
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          <span>تسليم الترخيص للعميل</span>
+        </h4>
         <button class="modal-close" onclick="closeModal('shareModal')">&times;</button>
       </div>
       <div class="modal-body">
@@ -1395,8 +1674,14 @@ function serveAdminHtml(): Response {
       </div>
       <div class="modal-footer">
         <button class="btn-row" onclick="closeModal('shareModal')">إغلاق</button>
-        <button class="btn-row btn-row-share" onclick="copyShareText()">نسخ الرسالة</button>
-        <button class="btn-row btn-row-share" id="shareWhatsAppBtn" onclick="openWhatsApp()">إرسال واتساب</button>
+        <button class="btn-row btn-row-share" onclick="copyShareText()">
+          <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <span>نسخ الرسالة</span>
+        </button>
+        <button class="btn-row btn-row-share" id="shareWhatsAppBtn" onclick="openWhatsApp()">
+          <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          <span>إرسال واتساب</span>
+        </button>
       </div>
     </div>
   </div>
@@ -1405,7 +1690,10 @@ function serveAdminHtml(): Response {
   <div class="modal-overlay" id="editModal">
     <div class="modal-card">
       <div class="modal-header">
-        <h4>تعديل وتمديد صلاحية الترخيص</h4>
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          <span>تعديل وتمديد صلاحية الترخيص</span>
+        </h4>
         <button class="modal-close" onclick="closeModal('editModal')">&times;</button>
       </div>
       <div class="modal-body">
@@ -1606,6 +1894,60 @@ function serveAdminHtml(): Response {
     }
 
     // ==========================================
+    // CUSTOM PAGE SIZE DROPDOWNS (No Default Select)
+    // ==========================================
+    function toggleCustomDropdown(type, event) {
+      if (event) event.stopPropagation();
+      const menu = document.getElementById(type === 'licenses' ? 'licensesDropdownMenu' : 'logsDropdownMenu');
+      const otherMenu = document.getElementById(type === 'licenses' ? 'logsDropdownMenu' : 'licensesDropdownMenu');
+      if (otherMenu) otherMenu.classList.remove('show');
+      if (menu) menu.classList.toggle('show');
+    }
+
+    function choosePageSize(type, size, label) {
+      const isLic = type === 'licenses';
+      const menu = document.getElementById(isLic ? 'licensesDropdownMenu' : 'logsDropdownMenu');
+      const labelEl = document.getElementById(isLic ? 'licensesPageSizeLabel' : 'logsPageSizeLabel');
+      
+      if (labelEl) labelEl.textContent = label;
+
+      if (menu) {
+        menu.querySelectorAll('.custom-dropdown-item').forEach(item => {
+          if (item.textContent.trim().startsWith(String(size))) {
+            item.classList.add('selected');
+          } else {
+            item.classList.remove('selected');
+          }
+        });
+        menu.classList.remove('show');
+      }
+
+      if (isLic) {
+        licensesPageSize = size;
+        licensesCurrentPage = 1;
+        renderLicensesTable();
+      } else {
+        logsPageSize = size;
+        logsCurrentPage = 1;
+        renderLogsTable();
+      }
+    }
+
+    // Global listener to close custom dropdowns on click outside
+    document.addEventListener('click', (e) => {
+      const licDropdown = document.getElementById('licensesCustomDropdown');
+      const logsDropdown = document.getElementById('logsCustomDropdown');
+      if (licDropdown && !licDropdown.contains(e.target)) {
+        const m = document.getElementById('licensesDropdownMenu');
+        if (m) m.classList.remove('show');
+      }
+      if (logsDropdown && !logsDropdown.contains(e.target)) {
+        const m = document.getElementById('logsDropdownMenu');
+        if (m) m.classList.remove('show');
+      }
+    });
+
+    // ==========================================
     // LICENSES LOGIC & PAGINATION
     // ==========================================
     async function loadLicenses() {
@@ -1640,12 +1982,14 @@ function serveAdminHtml(): Response {
     function updateLicenseMetrics() {
       document.getElementById('kpi-total').textContent = allLicenses.length;
       const now = new Date();
-      let active = 0, pending = 0, disabled = 0;
+      let active = 0, pending = 0, disabled = 0, expired = 0;
 
       allLicenses.forEach(l => {
         const isExp = l.expires_at && new Date(l.expires_at) < now;
-        if (l.status === 'disabled' || l.status === 'expired' || isExp) {
+        if (l.status === 'disabled') {
           disabled++;
+        } else if (l.status === 'expired' || isExp) {
+          expired++;
         } else if (l.status === 'active') {
           active++;
         } else if (l.status === 'pending') {
@@ -1656,14 +2000,41 @@ function serveAdminHtml(): Response {
       document.getElementById('kpi-active').textContent = active;
       document.getElementById('kpi-pending').textContent = pending;
       document.getElementById('kpi-disabled').textContent = disabled;
+
+      const elAll = document.getElementById('count-lic-all');
+      if (elAll) elAll.textContent = allLicenses.length;
+      const elAct = document.getElementById('count-lic-active');
+      if (elAct) elAct.textContent = active;
+      const elPen = document.getElementById('count-lic-pending');
+      if (elPen) elPen.textContent = pending;
+      const elDis = document.getElementById('count-lic-disabled');
+      if (elDis) elDis.textContent = disabled;
+      const elExp = document.getElementById('count-lic-expired');
+      if (elExp) elExp.textContent = expired;
     }
 
     function setLicenseFilter(f, btn) {
+      if (currentLicenseFilter === f && licensesCurrentPage === 1) return;
       currentLicenseFilter = f;
       document.querySelectorAll('#licensesView .filter-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       licensesCurrentPage = 1;
-      applyLicenseFilters();
+
+      const tbody = document.getElementById('licensesTableBody');
+      if (tbody) {
+        tbody.style.transition = 'opacity 0.1s ease-out, transform 0.1s ease-out';
+        tbody.style.opacity = '0.25';
+        tbody.style.transform = 'translateY(4px)';
+      }
+
+      setTimeout(() => {
+        applyLicenseFilters();
+        if (tbody) {
+          tbody.style.transition = 'opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1), transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)';
+          tbody.style.opacity = '1';
+          tbody.style.transform = 'translateY(0)';
+        }
+      }, 90);
     }
 
     function onLicenseFilterChange() {
@@ -1695,20 +2066,32 @@ function serveAdminHtml(): Response {
       renderLicensesTable();
     }
 
-    function onLicensesPageSizeChange(size) {
-      licensesPageSize = parseInt(size, 10) || 15;
-      licensesCurrentPage = 1;
-      renderLicensesTable();
-    }
-
     function goToLicensesPage(p) {
-      licensesCurrentPage = p;
-      renderLicensesTable();
+      if (licensesCurrentPage === p) return;
+      const tbody = document.getElementById('licensesTableBody');
+      if (tbody) {
+        tbody.style.transition = 'opacity 0.1s ease-out, transform 0.1s ease-out';
+        tbody.style.opacity = '0.25';
+        tbody.style.transform = 'translateY(4px)';
+      }
+
+      setTimeout(() => {
+        licensesCurrentPage = p;
+        renderLicensesTable();
+        if (tbody) {
+          tbody.style.transition = 'opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1), transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)';
+          tbody.style.opacity = '1';
+          tbody.style.transform = 'translateY(0)';
+        }
+      }, 90);
     }
 
     function renderLicensesTable() {
       const tbody = document.getElementById('licensesTableBody');
       tbody.innerHTML = '';
+      tbody.classList.remove('table-fade-in');
+      void tbody.offsetWidth;
+      tbody.classList.add('table-fade-in');
 
       const totalItems = filteredLicensesCache.length;
       const totalPages = Math.ceil(totalItems / licensesPageSize) || 1;
@@ -1740,6 +2123,8 @@ function serveAdminHtml(): Response {
 
       pageSlice.forEach((lic, idx) => {
         const tr = document.createElement('tr');
+        tr.className = 'table-row-animated';
+        tr.style.setProperty('--delay', String(idx));
         const rowNumber = startIndex + idx + 1;
 
         // Remaining Days calculation & Countdown
@@ -1781,7 +2166,10 @@ function serveAdminHtml(): Response {
           <td>
             <div class="key-cell">
               <span class="key-text">\${lic.license_key}</span>
-              <button class="btn-icon-copy" onclick="copyKey('\${lic.license_key}')" title="نسخ المفتاح">نسخ</button>
+              <button class="btn-icon-copy" onclick="copyKey('\${lic.license_key}')" title="نسخ المفتاح">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span>نسخ</span>
+              </button>
             </div>
           </td>
           <td>
@@ -1798,17 +2186,35 @@ function serveAdminHtml(): Response {
           <td>\${fpDisplay}</td>
           <td>
             <div class="row-actions">
-              <button class="btn-row btn-row-share" onclick="openShareModal('\${lic.id}')" title="تسليم المفتاح للعميل">تسليم</button>
-              <button class="btn-row" onclick="openEditModal('\${lic.id}')" title="تمديد وتعديل">تمديد</button>
+              <button class="btn-row btn-row-share" onclick="openShareModal('\${lic.id}')" title="تسليم المفتاح للعميل">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                <span>تسليم</span>
+              </button>
+              <button class="btn-row" onclick="openEditModal('\${lic.id}')" title="تمديد وتعديل">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                <span>تمديد</span>
+              </button>
               \${lic.machine_fingerprint ? \`
-                <button class="btn-row" onclick="resetDevice('\${lic.id}', '\${lic.shop_name}')" title="فك ربط الجهاز لنقله لكمبيوتر جديد">فك ربط</button>
+                <button class="btn-row" onclick="resetDevice('\${lic.id}', '\${lic.shop_name}')" title="فك ربط الجهاز لنقله لكمبيوتر جديد">
+                  <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+                  <span>فك ربط</span>
+                </button>
               \` : ''}
               \${lic.status === 'active' ? \`
-                <button class="btn-row btn-row-danger" onclick="toggleStatus('\${lic.id}', '\${lic.shop_name}', 'revoke')" title="إيقاف">إيقاف</button>
+                <button class="btn-row btn-row-danger" onclick="toggleStatus('\${lic.id}', '\${lic.shop_name}', 'revoke')" title="إيقاف">
+                  <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                  <span>إيقاف</span>
+                </button>
               \` : \`
-                <button class="btn-row" onclick="toggleStatus('\${lic.id}', '\${lic.shop_name}', 'activate')" title="تشغيل">تفعيل</button>
+                <button class="btn-row" onclick="toggleStatus('\${lic.id}', '\${lic.shop_name}', 'activate')" title="تشغيل">
+                  <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                  <span>تفعيل</span>
+                </button>
               \`}
-              <button class="btn-row btn-row-danger" onclick="deleteLicense('\${lic.id}', '\${lic.shop_name}')" title="حذف">حذف</button>
+              <button class="btn-row btn-row-danger" onclick="deleteLicense('\${lic.id}', '\${lic.shop_name}')" title="حذف">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                <span>حذف</span>
+              </button>
             </div>
           </td>
         \`;
@@ -1862,19 +2268,51 @@ function serveAdminHtml(): Response {
     }
 
     function setLogsActionFilter(action, btn) {
+      if (currentLogsActionFilter === action && logsCurrentPage === 1) return;
       currentLogsActionFilter = action;
       btn.parentElement.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       logsCurrentPage = 1;
-      applyLogsFilters();
+
+      const tbody = document.getElementById('logsTableBody');
+      if (tbody) {
+        tbody.style.transition = 'opacity 0.1s ease-out, transform 0.1s ease-out';
+        tbody.style.opacity = '0.25';
+        tbody.style.transform = 'translateY(4px)';
+      }
+
+      setTimeout(() => {
+        applyLogsFilters();
+        if (tbody) {
+          tbody.style.transition = 'opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1), transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)';
+          tbody.style.opacity = '1';
+          tbody.style.transform = 'translateY(0)';
+        }
+      }, 90);
     }
 
     function setLogsStatusFilter(status, btn) {
+      if (currentLogsStatusFilter === status && logsCurrentPage === 1) return;
       currentLogsStatusFilter = status;
       btn.parentElement.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       logsCurrentPage = 1;
-      applyLogsFilters();
+
+      const tbody = document.getElementById('logsTableBody');
+      if (tbody) {
+        tbody.style.transition = 'opacity 0.1s ease-out, transform 0.1s ease-out';
+        tbody.style.opacity = '0.25';
+        tbody.style.transform = 'translateY(4px)';
+      }
+
+      setTimeout(() => {
+        applyLogsFilters();
+        if (tbody) {
+          tbody.style.transition = 'opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1), transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)';
+          tbody.style.opacity = '1';
+          tbody.style.transform = 'translateY(0)';
+        }
+      }, 90);
     }
 
     function onLogsFilterChange() {
@@ -1902,20 +2340,32 @@ function serveAdminHtml(): Response {
       renderLogsTable();
     }
 
-    function onLogsPageSizeChange(size) {
-      logsPageSize = parseInt(size, 10) || 15;
-      logsCurrentPage = 1;
-      renderLogsTable();
-    }
-
     function goToLogsPage(p) {
-      logsCurrentPage = p;
-      renderLogsTable();
+      if (logsCurrentPage === p) return;
+      const tbody = document.getElementById('logsTableBody');
+      if (tbody) {
+        tbody.style.transition = 'opacity 0.1s ease-out, transform 0.1s ease-out';
+        tbody.style.opacity = '0.25';
+        tbody.style.transform = 'translateY(4px)';
+      }
+
+      setTimeout(() => {
+        logsCurrentPage = p;
+        renderLogsTable();
+        if (tbody) {
+          tbody.style.transition = 'opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1), transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)';
+          tbody.style.opacity = '1';
+          tbody.style.transform = 'translateY(0)';
+        }
+      }, 90);
     }
 
     function renderLogsTable() {
       const tbody = document.getElementById('logsTableBody');
       tbody.innerHTML = '';
+      tbody.classList.remove('table-fade-in');
+      void tbody.offsetWidth;
+      tbody.classList.add('table-fade-in');
 
       const totalItems = filteredLogsCache.length;
       const totalPages = Math.ceil(totalItems / logsPageSize) || 1;
@@ -1945,6 +2395,8 @@ function serveAdminHtml(): Response {
 
       pageSlice.forEach((log, idx) => {
         const tr = document.createElement('tr');
+        tr.className = 'table-row-animated';
+        tr.style.setProperty('--delay', String(idx));
         const rowNumber = startIndex + idx + 1;
         const isSuccess = log.status === 'success';
 
@@ -1960,13 +2412,21 @@ function serveAdminHtml(): Response {
           <td>
             <div class="key-cell">
               <code style="font-weight:900; color:var(--primary); font-family:monospace; font-size:12px;">\${log.license_key}</code>
-              <button class="btn-icon-copy" onclick="copyKey('\${log.license_key}')" title="نسخ المفتاح">نسخ</button>
+              <button class="btn-icon-copy" onclick="copyKey('\${log.license_key}')" title="نسخ المفتاح">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span>نسخ</span>
+              </button>
             </div>
           </td>
           <td>\${actionBadge}</td>
           <td>
             <span class="pill \${isSuccess ? 'pill-active' : 'pill-disabled'}">
-              \${isSuccess ? '✓ ناجح' : '✕ فشل'}
+              <svg class="icon icon-sm" viewBox="0 0 24 24">
+                \${isSuccess 
+                  ? '<polyline points="20 6 9 17 4 12"/>' 
+                  : '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>'}
+              </svg>
+              <span>\${isSuccess ? 'ناجح' : 'فشل'}</span>
             </span>
           </td>
           <td>\${translateReason(log.failure_reason)}</td>
@@ -1980,26 +2440,26 @@ function serveAdminHtml(): Response {
       });
     }
 
-    // Generic Pagination Controls Builder
+    // Generic Pagination Controls Builder (with SVG Chevrons)
     function renderPaginationControls(containerId, currentPage, totalPages, onPageClick) {
       const container = document.getElementById(containerId);
       container.innerHTML = '';
 
       if (totalPages <= 1) return;
 
-      // First Button
+      // First Button (RTL First is double chevron right)
       const firstBtn = document.createElement('button');
       firstBtn.className = 'page-btn';
-      firstBtn.textContent = '«';
+      firstBtn.innerHTML = '<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>';
       firstBtn.title = 'الصفحة الأولى';
       firstBtn.disabled = currentPage === 1;
       firstBtn.onclick = () => onPageClick(1);
       container.appendChild(firstBtn);
 
-      // Prev Button
+      // Prev Button (RTL Prev is single chevron right)
       const prevBtn = document.createElement('button');
       prevBtn.className = 'page-btn';
-      prevBtn.textContent = '‹';
+      prevBtn.innerHTML = '<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>';
       prevBtn.title = 'الصفحة السابقة';
       prevBtn.disabled = currentPage === 1;
       prevBtn.onclick = () => onPageClick(currentPage - 1);
@@ -2017,19 +2477,19 @@ function serveAdminHtml(): Response {
         container.appendChild(pageBtn);
       }
 
-      // Next Button
+      // Next Button (RTL Next is single chevron left)
       const nextBtn = document.createElement('button');
       nextBtn.className = 'page-btn';
-      nextBtn.textContent = '›';
+      nextBtn.innerHTML = '<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>';
       nextBtn.title = 'الصفحة التالية';
       nextBtn.disabled = currentPage === totalPages;
       nextBtn.onclick = () => onPageClick(currentPage + 1);
       container.appendChild(nextBtn);
 
-      // Last Button
+      // Last Button (RTL Last is double chevron left)
       const lastBtn = document.createElement('button');
       lastBtn.className = 'page-btn';
-      lastBtn.textContent = '»';
+      lastBtn.innerHTML = '<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>';
       lastBtn.title = 'الصفحة الأخيرة';
       lastBtn.disabled = currentPage === totalPages;
       lastBtn.onclick = () => onPageClick(totalPages);
