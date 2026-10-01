@@ -54,6 +54,40 @@ namespace RafiqPOS
                         }
                         return;
                     }
+                    if (args[i] == "--run-inventory-tests")
+                    {
+                        try
+                        {
+                            var res = Services.InventoryTestRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "inventory_test_output.json"), json);
+                            Environment.Exit(res.Success ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Inventory test error: " + ex.ToString());
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
+                    if (args[i] == "--run-purchases-tests")
+                    {
+                        try
+                        {
+                            var res = Services.PurchasesTestRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "purchases_test_output.json"), json);
+                            Environment.Exit(res.Success ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Purchases test error: " + ex.ToString());
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
                     if (args[i] == "--run-excel-tests")
                     {
                         try

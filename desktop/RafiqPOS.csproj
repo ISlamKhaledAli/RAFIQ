@@ -76,6 +76,8 @@
     <Compile Include="Bridge\IpcDispatcher.Products.cs" />
     <Compile Include="Bridge\IpcDispatcher.Sales.cs" />
     <Compile Include="Bridge\IpcDispatcher.Customers.cs" />
+    <Compile Include="Bridge\IpcDispatcher.Suppliers.cs" />
+    <Compile Include="Bridge\IpcDispatcher.Purchases.cs" />
     <Compile Include="Bridge\IpcDispatcher.Inventory.cs" />
     <Compile Include="Bridge\IpcDispatcher.System.cs" />
     <Compile Include="Common\Money.cs" />
@@ -89,6 +91,10 @@
     <Compile Include="Models\ProductUnit.cs" />
     <Compile Include="Models\Sale.cs" />
     <Compile Include="Models\Customer.cs" />
+    <Compile Include="Models\Supplier.cs" />
+    <Compile Include="Models\Purchase.cs" />
+    <Compile Include="Models\PurchaseItem.cs" />
+    <Compile Include="Models\SupplierTransaction.cs" />
     <Compile Include="Models\DashboardSummary.cs" />
     <Compile Include="Models\AuditLog.cs" />
     <Compile Include="Models\Category.cs" />
@@ -105,6 +111,8 @@
     <Compile Include="Repositories\CounterRepository.cs" />
     <Compile Include="Repositories\SettingsRepository.cs" />
     <Compile Include="Repositories\CustomerRepository.cs" />
+    <Compile Include="Repositories\SupplierRepository.cs" />
+    <Compile Include="Repositories\PurchaseRepository.cs" />
     <Compile Include="Repositories\AuditLogRepository.cs" />
     <Compile Include="Repositories\CategoryRepository.cs" />
     <Compile Include="Repositories\ProductPriceHistoryRepository.cs" />
@@ -120,6 +128,9 @@
     <Compile Include="Services\SaleService.cs" />
     <Compile Include="Services\HeldSaleService.cs" />
     <Compile Include="Services\ReturnService.cs" />
+    <Compile Include="Services\SupplierService.cs" />
+    <Compile Include="Services\PurchaseService.cs" />
+    <Compile Include="Services\PurchasesTestRunner.cs" />
     <Compile Include="Services\InventoryService.cs" />
     <Compile Include="Services\InventoryTestRunner.cs" />
     <Compile Include="Services\CustomerLedgerTestRunner.cs" />

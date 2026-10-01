@@ -25,6 +25,27 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, allProducts);
                     return true;
 
+                case "products:getLowStock":
+                    int lowStockLimit = 100;
+                    JObject lowStockObj = request.Payload as JObject;
+                    if (lowStockObj != null && lowStockObj["limit"] != null)
+                    {
+                        lowStockLimit = lowStockObj["limit"].Value<int>();
+                    }
+                    var lowStockItems = DatabaseService.Products.GetLowStock(lowStockLimit);
+                    int totalLowStockCount = DatabaseService.Products.GetLowStockCount();
+                    response = BridgeResponse.Ok(request.Id, new
+                    {
+                        products = lowStockItems,
+                        count = totalLowStockCount
+                    });
+                    return true;
+
+                case "products:getLowStockCount":
+                    int countOnly = DatabaseService.Products.GetLowStockCount();
+                    response = BridgeResponse.Ok(request.Id, new { count = countOnly });
+                    return true;
+
                 case "products:getSmartCatalog":
                     int smartLimit = 1000;
                     JObject smartObj = request.Payload as JObject;

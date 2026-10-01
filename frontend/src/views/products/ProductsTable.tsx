@@ -3,6 +3,7 @@ import {
   Package,
   Scale,
   Boxes,
+  Truck,
   History,
   Edit2,
   Trash2,
@@ -21,6 +22,7 @@ export interface ProductsTableProps {
   onClearSelection: () => void;
   onSelectProdForMovements: (prod: Product) => void;
   onSelectProdForAdjustment: (prod: Product) => void;
+  onSelectProdForPurchase?: (prod: Product) => void;
   onOpenPriceHistory: (prod: Product) => void;
   onEditProduct: (prod: Product) => void;
   onDeleteProduct: (prod: Product) => void;
@@ -37,6 +39,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
   onClearSelection,
   onSelectProdForMovements,
   onSelectProdForAdjustment,
+  onSelectProdForPurchase,
   onOpenPriceHistory,
   onEditProduct,
   onDeleteProduct,
@@ -223,6 +226,15 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                   >
                     <Boxes className="w-3.5 h-3.5" />
                   </button>
+                  {onSelectProdForPurchase && (
+                    <button
+                      onClick={() => onSelectProdForPurchase(prod)}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-[#52605D] hover:text-brand hover:bg-brand-soft transition-colors cursor-pointer"
+                      title="استلام بضاعة / تسجيل شراء بالوحدة (كرتونة/دستة)"
+                    >
+                      <Truck className="w-3.5 h-3.5 text-brand" />
+                    </button>
+                  )}
                   <button
                     onClick={() => onSelectProdForAdjustment(prod)}
                     className="w-7 h-7 flex items-center justify-center rounded-lg text-[#52605D] hover:text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer"

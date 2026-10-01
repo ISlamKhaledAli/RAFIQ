@@ -67,7 +67,7 @@ interface SystemHealthData {
 
 interface DashboardViewProps {
   onNavigateToPos: () => void;
-  onNavigateToProducts: (subView?: 'catalog' | 'movements') => void;
+  onNavigateToProducts: (subView?: 'catalog' | 'movements', filter?: 'all' | 'lowStock' | 'outOfStock') => void;
   onNavigateToSales?: () => void;
   onNavigateToSettings?: (target?: string) => void;
   onNavigateToCustomers?: () => void;
@@ -772,15 +772,20 @@ export function DashboardView({
             </div>
           )}
 
-          {/* Low Stock Alerts */}
+          {/* Low Stock Alerts (Story 79 / Task 36-2) */}
           <div className="bg-white rounded-lg border border-[#DCE1DC] flex flex-col overflow-hidden shadow-2xs">
             <div className="h-10 bg-[#F7F8F6] border-b border-[#DCE1DC] px-4 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-1.5 text-[#B23A2E] font-bold text-xs">
-                <AlertTriangle className="w-4 h-4" />
+              <div className="flex items-center gap-2 text-[#B23A2E] font-bold text-xs">
+                <AlertTriangle className="w-4 h-4 animate-pulse" />
                 <span>تنبيهات النواقص بالمخزن</span>
+                {summary && (summary.lowStockCount ?? summary.lowStockProducts?.length) > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-md bg-[#FDF3F2] text-[#B23A2E] text-[10px] font-mono font-bold border border-[#F6CBC6]">
+                    {summary.lowStockCount ?? summary.lowStockProducts.length} صنف
+                  </span>
+                )}
               </div>
               <button 
-                onClick={() => onNavigateToProducts()}
+                onClick={() => onNavigateToProducts('catalog', 'lowStock')}
                 className="px-2 py-0.5 rounded bg-white hover:bg-[#F7F8F6] text-[#14181A] text-[10.5px] font-bold transition-all shadow-2xs border border-[#DCE1DC] cursor-pointer"
               >
                 عرض الكل
@@ -790,17 +795,26 @@ export function DashboardView({
             <div className="p-3 divide-y divide-[#DCE1DC] max-h-[220px] overflow-y-auto">
               {summary && summary.lowStockProducts && summary.lowStockProducts.length > 0 ? (
                 summary.lowStockProducts.map((p) => (
-                  <div key={p.productId} className="py-2 flex items-center justify-between gap-3 text-xs">
+                  <div 
+                    key={p.productId} 
+                    onClick={() => onNavigateToProducts('catalog', 'lowStock')}
+                    className="py-2 flex items-center justify-between gap-3 text-xs hover:bg-[#F7F8F6] -mx-1 px-1 rounded transition-colors cursor-pointer"
+                    title="انقر لفتح الصنف في إدارة المخزن"
+                  >
                     <div className="flex-1 min-w-0">
                       <div className="font-bold text-[#14181A] truncate whitespace-nowrap" title={p.productName}>{p.productName}</div>
-                      <div className="text-[10px] text-[#5B6664] whitespace-nowrap">وحدة: {p.unit === 'kg' ? 'كيلوجرام' : 'قطعة'}</div>
+                      <div className="text-[10px] text-[#5B6664] whitespace-nowrap flex items-center gap-1.5 mt-0.5">
+                        <span>وحدة: {p.unit === 'kg' ? 'كيلوجرام' : 'قطعة'}</span>
+                        <span className="text-[#DCE1DC]">•</span>
+                        <span>حد الطلب: {p.minStock ?? 5}</span>
+                      </div>
                     </div>
                     <span className={`shrink-0 px-2 py-0.5 rounded text-[10.5px] font-mono font-bold tabular-nums whitespace-nowrap border ${
                       p.currentStock <= 0 
                         ? 'bg-[#FDF3F2] text-[#B23A2E] border-[#F6CBC6]' 
                         : 'bg-[#FEF7EC] text-[#B3720E] border-[#F5DEB4]'
                     }`}>
-                      {p.currentStock <= 0 ? 'نفد (0)' : `متبقي: ${p.currentStock}`}
+                      {p.currentStock <= 0 ? 'نافد (0)' : `متبقي: ${p.currentStock}`}
                     </span>
                   </div>
                 ))

@@ -240,13 +240,13 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // 4. Low stock products (stock <= 5000 milli, i.e. 5 units or kilos)
+                // 4. Low stock products (stock <= min_stock_quantity_milli) (Task 36-1)
                 string lowStockSql = @"
-                    SELECT id, name, stock_quantity_milli / 1000 AS stock, unit 
+                    SELECT id, name, stock_quantity_milli / 1000 AS stock, min_stock_quantity_milli / 1000 AS min_stock, unit 
                     FROM products 
-                    WHERE is_active = 1 AND stock_quantity_milli <= 5000 
-                    ORDER BY stock_quantity_milli ASC 
-                    LIMIT 6;
+                    WHERE is_active = 1 AND stock_quantity_milli <= min_stock_quantity_milli 
+                    ORDER BY stock_quantity_milli ASC, (min_stock_quantity_milli - stock_quantity_milli) DESC 
+                    LIMIT 8;
                 ";
                 using (var cmd = new SQLiteCommand(lowStockSql, conn))
                 {
@@ -259,9 +259,20 @@ namespace RafiqPOS.Services
                                 ProductId = reader["id"].ToString(),
                                 ProductName = reader["name"].ToString(),
                                 CurrentStock = Convert.ToInt32(reader["stock"]),
+                                MinStock = Convert.ToInt32(reader["min_stock"]),
                                 Unit = reader["unit"].ToString()
                             });
                         }
+                    }
+                }
+
+                string countLowStockSql = "SELECT COUNT(1) FROM products WHERE is_active = 1 AND stock_quantity_milli <= min_stock_quantity_milli;";
+                using (var cmd = new SQLiteCommand(countLowStockSql, conn))
+                {
+                    object cnt = cmd.ExecuteScalar();
+                    if (cnt != null && cnt != DBNull.Value)
+                    {
+                        summary.LowStockCount = Convert.ToInt32(cnt);
                     }
                 }
 

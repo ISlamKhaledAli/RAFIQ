@@ -221,6 +221,7 @@ export interface LowStockItem {
   productId: string;
   productName: string;
   currentStock: number;
+  minStock?: number;
   unit: string;
 }
 
@@ -275,6 +276,7 @@ export interface DashboardSummary {
   cashDrawerFormatted?: string;
   topSellingProducts: TopSellingItem[];
   lowStockProducts: LowStockItem[];
+  lowStockCount?: number;
   totalCustomerDebtsPiasters?: number;
   totalCustomerDebtsFormatted?: string;
   debtorsCount?: number;
@@ -395,6 +397,64 @@ export interface SearchBenchmarkResult {
   scannerSimulationPassed: boolean;
   summaryReport: string;
   testLog: string[];
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  phone?: string | null;
+  companyName?: string | null;
+  address?: string | null;
+  balancePiasters: number;
+  notes?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PurchaseItem {
+  id: string;
+  purchaseId: string;
+  productId: string;
+  productName: string;
+  barcode?: string | null;
+  quantityMilli: number;
+  unitCostPiasters: number;
+  totalCostPiasters: number;
+  previousCostPiasters: number;
+  newSellingPricePiasters?: number | null;
+  createdAt: string;
+}
+
+export interface Purchase {
+  id: string;
+  invoiceNumber: number;
+  supplierId?: string | null;
+  supplierName?: string | null;
+  supplierInvoiceNumber?: string | null;
+  invoiceDate: string;
+  totalCostPiasters: number;
+  discountPiasters: number;
+  netCostPiasters: number;
+  paidAmountPiasters: number;
+  remainingAmountPiasters: number;
+  paymentStatus: 'PAID' | 'CREDIT' | 'PARTIAL' | string;
+  status: 'COMPLETED' | 'CANCELLED' | string;
+  notes?: string | null;
+  createdByUserId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items?: PurchaseItem[];
+}
+
+export interface SupplierTransaction {
+  id: string;
+  supplierId: string;
+  transactionType: 'OPENING_BALANCE' | 'PURCHASE_INVOICE' | 'PAYMENT' | 'RETURN' | string;
+  referenceId?: string | null;
+  amountPiasters: number;
+  notes?: string | null;
+  createdAt: string;
 }
 
 

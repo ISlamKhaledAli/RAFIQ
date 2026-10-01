@@ -263,6 +263,60 @@ namespace RafiqPOS.Repositories
             return results;
         }
 
+        /// <summary>
+        /// Task 36-1: استعلام الأصناف التي كميتها أقل من أو تساوي حد الطلب
+        /// </summary>
+        public List<Product> GetLowStock(int limit = 100)
+        {
+            var results = new List<Product>();
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = @"
+                    SELECT * FROM products 
+                    WHERE is_active = 1 AND stock_quantity_milli <= min_stock_quantity_milli 
+                    ORDER BY stock_quantity_milli ASC, (min_stock_quantity_milli - stock_quantity_milli) DESC 
+                    LIMIT @limit;
+                ";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@limit", limit);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            results.Add(MapReaderToProduct(reader));
+                        }
+                    }
+                }
+
+                foreach (var prod in results)
+                {
+                    prod.Barcodes = GetBarcodesForProductInternal(conn, prod.Id);
+                    prod.Units = GetUnitsForProductInternal(conn, prod.Id);
+                }
+            }
+            return results;
+        }
+
+        public int GetLowStockCount()
+        {
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = "SELECT COUNT(1) FROM products WHERE is_active = 1 AND stock_quantity_milli <= min_stock_quantity_milli;";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    object scalar = cmd.ExecuteScalar();
+                    if (scalar != null && scalar != DBNull.Value)
+                    {
+                        return Convert.ToInt32(scalar);
+                    }
+                }
+            }
+            return 0;
+        }
+
         public List<Product> GetAllForExport(int limit = 100000)
         {
             var results = new List<Product>();

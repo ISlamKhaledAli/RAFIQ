@@ -96,8 +96,12 @@ namespace RafiqPOS.Services
         public static LicenseService License { get; private set; }
         public static HeldSaleRepository HeldSaleRepo { get; private set; }
         public static ReturnRepository ReturnRepo { get; private set; }
+        public static SupplierRepository SupplierRepo { get; private set; }
+        public static PurchaseRepository PurchaseRepo { get; private set; }
         public static HeldSaleService HeldSales { get; private set; }
         public static ReturnService Returns { get; private set; }
+        public static SupplierService Suppliers { get; private set; }
+        public static PurchaseService Purchases { get; private set; }
 
         public static void Initialize(string customBaseFolder = null)
         {
@@ -180,8 +184,13 @@ namespace RafiqPOS.Services
 
             HeldSaleRepo = new HeldSaleRepository(_connectionString);
             ReturnRepo = new ReturnRepository(_connectionString, CounterRepo, AuditRepo);
+            SupplierRepo = new SupplierRepository(_connectionString, AuditRepo);
+            PurchaseRepo = new PurchaseRepository(_connectionString, CounterRepo, SupplierRepo, PriceHistoryRepo, AuditRepo);
+
             HeldSales = new HeldSaleService(HeldSaleRepo);
             Returns = new ReturnService(ReturnRepo, SaleRepo);
+            Suppliers = new SupplierService(SupplierRepo);
+            Purchases = new PurchaseService(PurchaseRepo);
 
             // Cleanup old held sales (> 7 days) on startup (Task 25-4)
             try

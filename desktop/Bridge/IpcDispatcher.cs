@@ -28,6 +28,11 @@ namespace RafiqPOS.Bridge
                 request.Action == "categories:reorder" ||
                 request.Action == "customers:save" ||
                 request.Action == "customers:recordPayment" ||
+                request.Action == "suppliers:save" ||
+                request.Action == "suppliers:recordPayment" ||
+                request.Action == "suppliers:archive" ||
+                request.Action == "suppliers:delete" ||
+                request.Action == "purchases:create" ||
                 request.Action == "quickItems:save" ||
                 request.Action == "quickItems:delete" ||
                 request.Action == "quickItems:deleteCategory" ||
@@ -49,6 +54,8 @@ namespace RafiqPOS.Bridge
                 if (TryDispatchProducts(request, out response)) return response;
                 if (TryDispatchSales(request, out response)) return response;
                 if (TryDispatchCustomers(request, out response)) return response;
+                if (TryDispatchSuppliers(request, out response)) return response;
+                if (TryDispatchPurchases(request, out response)) return response;
                 if (TryDispatchInventory(request, out response)) return response;
                 if (TryDispatchSystem(request, out response)) return response;
 

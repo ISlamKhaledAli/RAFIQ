@@ -405,5 +405,15 @@ namespace RafiqPOS.Services
         {
             return _repo.GetSmartCatalog(limit);
         }
+
+        public List<Product> GetLowStock(int limit = 100)
+        {
+            return _repo.GetLowStock(limit);
+        }
+
+        public int GetLowStockCount()
+        {
+            return _repo.GetLowStockCount();
+        }
     }
 }

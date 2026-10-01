@@ -30,13 +30,15 @@ import {
   FlaskConical,
   Power,
   Play,
-  Trash2
+  Trash2,
+  Truck
 } from 'lucide-react';
 import { invoke } from './bridge/ipc';
 import { PosView } from './views/PosView';
 import { DashboardView } from './views/DashboardView';
 import { CustomersView } from './views/CustomersView';
 import { ProductsView } from './views/ProductsView';
+import { PurchasesView } from './views/PurchasesView';
 import { SalesHistoryView } from './views/SalesHistoryView';
 import { AuditLogView } from './views/AuditLogView';
 import { SettingsView } from './views/SettingsView';
@@ -64,7 +66,7 @@ export interface SystemInfo {
   dbStatus: string;
 }
 
-export type TabType = 'pos' | 'dashboard' | 'customers' | 'products' | 'sales' | 'audit' | 'settings';
+export type TabType = 'pos' | 'dashboard' | 'customers' | 'products' | 'purchases' | 'sales' | 'audit' | 'settings';
 
 const formatLicenseExpiryTime = (details: LicenseExpiryDetails): string => {
   if (!details.expiresAt) return 'قريباً';
@@ -243,7 +245,7 @@ const HeaderClock: FC = memo(() => {
   );
 });
 
-const ADMIN_ONLY_TABS: TabType[] = ['dashboard', 'products', 'sales', 'audit', 'settings'];
+const ADMIN_ONLY_TABS: TabType[] = ['dashboard', 'products', 'purchases', 'sales', 'audit', 'settings'];
 const CASHIER_ALLOWED_TABS: TabType[] = ['pos', 'customers'];
 
 export default function App() {
@@ -268,6 +270,9 @@ export default function App() {
   const [clockWarning, setClockWarning] = useState<string | null>(null);
   const [backupWarning, setBackupWarning] = useState<string | null>(null);
   const [corruptDbStatus, setCorruptDbStatus] = useState<DatabaseIntegrityStatus | null>(null);
+  const [lowStockCount, setLowStockCount] = useState<number>(0);
+  const [lowStockDismissed, setLowStockDismissed] = useState<boolean>(false);
+  const [initialProductFilter, setInitialProductFilter] = useState<'all' | 'lowStock' | 'outOfStock'>('all');
   const [isFirstRunWizardOpen, setIsFirstRunWizardOpen] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('rafiq_first_run_completed') !== 'true';
@@ -512,6 +517,17 @@ export default function App() {
         // Ignore in dev
       }
     };
+    const checkLowStock = async () => {
+      try {
+        const res: any = await invoke('products:getLowStockCount');
+        if (res && typeof res.count === 'number' && isMounted) {
+          setLowStockCount(res.count);
+        }
+      } catch {
+        // Ignore in dev
+      }
+    };
+    void checkLowStock();
     void checkDemo();
     void checkSettings();
 
@@ -542,11 +558,14 @@ export default function App() {
             setIsProductsMenuExpanded(true);
           } else if (e.key === '5') {
             e.preventDefault();
-            setActiveTab('sales');
+            setActiveTab('purchases');
           } else if (e.key === '6') {
             e.preventDefault();
-            setActiveTab('audit');
+            setActiveTab('sales');
           } else if (e.key === '7') {
+            e.preventDefault();
+            setActiveTab('audit');
+          } else if (e.key === '8') {
             e.preventDefault();
             setActiveTab('settings');
             setIsSettingsMenuExpanded(true);
@@ -624,9 +643,10 @@ export default function App() {
     { id: 'dashboard' as TabType, label: 'لوحة اليوم والمتابعة', icon: LayoutDashboard, shortcut: 'Alt+2' },
     { id: 'customers' as TabType, label: 'العملاء والآجل', icon: Users, shortcut: 'Alt+3' },
     { id: 'products' as TabType, label: 'السلع والمخزن', icon: Package, shortcut: 'Alt+4' },
-    { id: 'sales' as TabType, label: 'سجل الفواتير', icon: FileText, shortcut: 'Alt+5' },
-    { id: 'audit' as TabType, label: 'سجل العمليات الحساسة', icon: ShieldAlert, shortcut: 'Alt+6' },
-    { id: 'settings' as TabType, label: 'إعدادات المتجر والصيانة', icon: Settings, shortcut: 'Alt+7' },
+    { id: 'purchases' as TabType, label: 'المشتريات والموردين', icon: Truck, shortcut: 'Alt+5' },
+    { id: 'sales' as TabType, label: 'سجل الفواتير', icon: FileText, shortcut: 'Alt+6' },
+    { id: 'audit' as TabType, label: 'سجل العمليات الحساسة', icon: ShieldAlert, shortcut: 'Alt+7' },
+    { id: 'settings' as TabType, label: 'إعدادات المتجر والصيانة', icon: Settings, shortcut: 'Alt+8' },
   ];
 
   const navItems = currentUser?.role === 'cashier'
@@ -843,6 +863,48 @@ export default function App() {
         </div>
       )}
 
+      {/* Low Stock Alert Banner (Story 79 / Task 36-2) */}
+      {lowStockCount > 0 && !lowStockDismissed && (
+        <div className="bg-[#fef2f2] border-b border-[#fecaca] text-[#991b1b] px-4 py-2 flex items-center justify-between text-[12px] shrink-0 animate-in slide-in-from-top-1 select-none shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="w-7 h-7 rounded-lg bg-[#fee2e2] border border-[#fecaca] flex items-center justify-center shrink-0 text-[#dc2626] shadow-2xs">
+              <AlertTriangle className="w-4 h-4 text-[#dc2626] animate-pulse" />
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="bg-[#dc2626] text-white px-2 py-0.5 rounded-full text-[10.5px] font-black uppercase tracking-wider shadow-2xs">
+                تنبيه حد الطلب
+              </span>
+              <span className="text-xs font-bold text-[#991b1b]">
+                يوجد {lowStockCount} صنف في المخزن وصلت إلى حد الطلب الأدنى أو نفدت تماماً.
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button 
+              type="button"
+              onClick={() => {
+                setActiveTab('products');
+                setProductsSubView('catalog');
+                setInitialProductFilter('lowStock');
+                setIsProductsMenuExpanded(true);
+              }} 
+              className="bg-[#dc2626] hover:bg-[#b91c1c] text-white text-xs px-3.5 py-1.5 rounded-lg font-bold transition-all shadow-xs active:scale-95 cursor-pointer flex items-center gap-1.5"
+            >
+              <Package className="w-3.5 h-3.5" />
+              <span>معاينة النواقص</span>
+            </button>
+            <button 
+              type="button"
+              onClick={() => setLowStockDismissed(true)} 
+              className="text-[#991b1b] hover:bg-[#fee2e2] text-xs px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+            >
+              إخفاء
+            </button>
+          </div>
+        </div>
+      )}
+
+
       {/* Demo Mode Active Banner (Feature #113 / Task 113-3) */}
       {hasDemoData && (
         <div className="bg-[#fffbeb] border-b border-[#fde68a] text-[#78350f] px-4 py-1.5 flex items-center justify-between text-[12px] shrink-0 animate-in slide-in-from-top-1 select-none shadow-2xs">
@@ -955,6 +1017,11 @@ export default function App() {
                     }`}
                   >
                     <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-[#52605d] group-hover:text-[#0f172a]'}`} />
+                    {isProductsItem && lowStockCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-600 text-white text-[9px] font-bold flex items-center justify-center animate-pulse border-2 border-white shadow-2xs">
+                        {lowStockCount > 9 ? '+9' : lowStockCount}
+                      </span>
+                    )}
                     <span className="sr-only">{item.label}</span>
                   </button>
                 );
@@ -990,6 +1057,13 @@ export default function App() {
                     <div className="flex items-center gap-3">
                       <Icon className={`w-4.5 h-4.5 ${isActive ? 'text-white' : 'text-[#52605d]'}`} />
                       <span>{item.label}</span>
+                      {isProductsItem && lowStockCount > 0 && (
+                        <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full flex items-center gap-0.5 ${
+                          isActive ? 'bg-rose-500 text-white' : 'bg-rose-100 text-rose-800 border border-rose-200'
+                        }`}>
+                          {lowStockCount}
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-1.5">
@@ -1022,9 +1096,10 @@ export default function App() {
                         onClick={() => {
                           setActiveTab('products');
                           setProductsSubView('catalog');
+                          setInitialProductFilter('all');
                         }}
                         className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
-                          effectiveActiveTab === 'products' && productsSubView === 'catalog'
+                          effectiveActiveTab === 'products' && productsSubView === 'catalog' && initialProductFilter === 'all'
                             ? 'bg-[#006d41] text-white font-bold shadow-2xs'
                             : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
                         }`}
@@ -1033,6 +1108,34 @@ export default function App() {
                           <Tag className="w-3.5 h-3.5" />
                           <span>كتالوج الأصناف</span>
                         </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('products');
+                          setProductsSubView('catalog');
+                          setInitialProductFilter('lowStock');
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
+                          effectiveActiveTab === 'products' && productsSubView === 'catalog' && initialProductFilter === 'lowStock'
+                            ? 'bg-[#b91c1c] text-white font-bold shadow-2xs'
+                            : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className={`w-3.5 h-3.5 ${effectiveActiveTab === 'products' && initialProductFilter === 'lowStock' ? 'text-white' : 'text-rose-600'}`} />
+                          <span>النواقص وحد الطلب</span>
+                        </div>
+                        {lowStockCount > 0 && (
+                          <span className={`font-mono text-[10px] px-1.5 py-0.2 rounded-full font-bold border ${
+                            effectiveActiveTab === 'products' && initialProductFilter === 'lowStock'
+                              ? 'bg-white/20 text-white border-white/30'
+                              : 'bg-rose-100 text-rose-800 border-rose-200'
+                          }`}>
+                            {lowStockCount}
+                          </span>
+                        )}
                       </button>
 
                       <button
@@ -1122,9 +1225,10 @@ export default function App() {
           {!isCashier && effectiveActiveTab === 'dashboard' && (
             <DashboardView 
               onNavigateToPos={() => setActiveTab('pos')} 
-              onNavigateToProducts={(sub?: 'catalog' | 'movements') => {
+              onNavigateToProducts={(sub?: 'catalog' | 'movements', filter?: 'all' | 'lowStock' | 'outOfStock') => {
                 setActiveTab('products');
                 setProductsSubView(sub || 'catalog');
+                if (filter) setInitialProductFilter(filter);
                 setIsProductsMenuExpanded(true);
               }} 
               onNavigateToCustomers={() => setActiveTab('customers')}
@@ -1141,8 +1245,11 @@ export default function App() {
             <ProductsView 
               subView={productsSubView} 
               onSubViewChange={(tab) => setProductsSubView(tab)} 
+              initialFilter={initialProductFilter}
+              onResetFilter={() => setInitialProductFilter('all')}
             />
           )}
+          {!isCashier && effectiveActiveTab === 'purchases' && <PurchasesView />}
           {!isCashier && effectiveActiveTab === 'sales' && <SalesHistoryView />}
           {!isCashier && effectiveActiveTab === 'audit' && <AuditLogView />}
           {!isCashier && effectiveActiveTab === 'settings' && (

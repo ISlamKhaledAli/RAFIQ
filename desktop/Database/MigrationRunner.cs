@@ -6,7 +6,7 @@ namespace RafiqPOS.Database
 {
     public static class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 19;
+        public const int LATEST_SUPPORTED_VERSION = 21;
 
         public static void ApplyMigrations(string connectionString, string dbPath)
         {
@@ -196,7 +196,14 @@ namespace RafiqPOS.Database
                     ApplyMigration20(conn);
                 }
 
-                // 24. Self-Healing Schema Guard: Automatically repair missing columns or indexes
+                // 24. Apply Migration 21: Suppliers and Purchases Management (Milestone 8 / Features #38, #39)
+                if (currentVersion < 21)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration21(conn);
+                }
+
+                // 25. Self-Healing Schema Guard: Automatically repair missing columns or indexes
                 EnsureSchemaHealth(conn);
             }
         }
@@ -2596,6 +2603,134 @@ namespace RafiqPOS.Database
                     using (var logCmd = new SQLiteCommand(@"
                         INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
                         VALUES (20, 'Held sales and returns system (Features 25, 26, 33)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        logCmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        private static void ApplyMigration21(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // 1. Table: suppliers (Feature #39 / Task 39-1)
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS suppliers (
+                            id TEXT PRIMARY KEY,
+                            name TEXT NOT NULL,
+                            phone TEXT,
+                            company_name TEXT,
+                            address TEXT,
+                            balance_piasters INTEGER NOT NULL DEFAULT 0,
+                            notes TEXT,
+                            is_active INTEGER NOT NULL DEFAULT 1,
+                            created_at TEXT NOT NULL,
+                            updated_at TEXT NOT NULL
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_suppliers_name ON suppliers(name);
+                        CREATE INDEX IF NOT EXISTS idx_suppliers_phone ON suppliers(phone);
+                        CREATE INDEX IF NOT EXISTS idx_suppliers_is_active ON suppliers(is_active);
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 2. Table: purchases (Feature #38 / Task 38-1)
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS purchases (
+                            id TEXT PRIMARY KEY,
+                            invoice_number INTEGER NOT NULL,
+                            supplier_id TEXT,
+                            supplier_invoice_number TEXT,
+                            invoice_date TEXT NOT NULL,
+                            total_cost_piasters INTEGER NOT NULL,
+                            discount_piasters INTEGER NOT NULL DEFAULT 0,
+                            net_cost_piasters INTEGER NOT NULL,
+                            paid_amount_piasters INTEGER NOT NULL DEFAULT 0,
+                            remaining_amount_piasters INTEGER NOT NULL DEFAULT 0,
+                            payment_status TEXT NOT NULL DEFAULT 'PAID',
+                            status TEXT NOT NULL DEFAULT 'COMPLETED',
+                            notes TEXT,
+                            created_by_user_id TEXT,
+                            created_at TEXT NOT NULL,
+                            updated_at TEXT NOT NULL,
+                            FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_purchases_invoice_number ON purchases(invoice_number);
+                        CREATE INDEX IF NOT EXISTS idx_purchases_supplier_id ON purchases(supplier_id);
+                        CREATE INDEX IF NOT EXISTS idx_purchases_invoice_date ON purchases(invoice_date);
+                        CREATE INDEX IF NOT EXISTS idx_purchases_payment_status ON purchases(payment_status);
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 3. Table: purchase_items (Feature #38 / Task 38-1)
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS purchase_items (
+                            id TEXT PRIMARY KEY,
+                            purchase_id TEXT NOT NULL,
+                            product_id TEXT NOT NULL,
+                            product_name TEXT NOT NULL,
+                            barcode TEXT,
+                            quantity_milli INTEGER NOT NULL,
+                            unit_cost_piasters INTEGER NOT NULL,
+                            total_cost_piasters INTEGER NOT NULL,
+                            previous_cost_piasters INTEGER NOT NULL DEFAULT 0,
+                            new_selling_price_piasters INTEGER,
+                            created_at TEXT NOT NULL,
+                            FOREIGN KEY (purchase_id) REFERENCES purchases(id) ON DELETE CASCADE,
+                            FOREIGN KEY (product_id) REFERENCES products(id)
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_purchase_items_purchase_id ON purchase_items(purchase_id);
+                        CREATE INDEX IF NOT EXISTS idx_purchase_items_product_id ON purchase_items(product_id);
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 4. Table: supplier_transactions (Feature #39 / Task 39-1)
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS supplier_transactions (
+                            id TEXT PRIMARY KEY,
+                            supplier_id TEXT NOT NULL,
+                            transaction_type TEXT NOT NULL,
+                            reference_id TEXT,
+                            amount_piasters INTEGER NOT NULL,
+                            notes TEXT,
+                            created_at TEXT NOT NULL,
+                            FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_supplier_trans_supplier_id ON supplier_transactions(supplier_id);
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 5. Ensure counter for purchase invoices (Feature #38 / Task 38-1)
+                    using (var cmd = new SQLiteCommand(@"
+                        INSERT OR IGNORE INTO counters (name, current_value, updated_at)
+                        VALUES ('purchase_invoice', 0, datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 6. Update schema_migrations
+                    using (var logCmd = new SQLiteCommand(@"
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (21, 'Suppliers and Purchases Management (Features 38, 39)', datetime('now'));
                     ", conn, trans))
                     {
                         logCmd.ExecuteNonQuery();

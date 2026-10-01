@@ -60,6 +60,9 @@ namespace RafiqPOS.Models
         [JsonProperty("lowStockProducts")]
         public List<LowStockItem> LowStockProducts { get; set; }
 
+        [JsonProperty("lowStockCount")]
+        public int LowStockCount { get; set; }
+
         [JsonProperty("totalCustomerDebtsPiasters")]
         public long TotalCustomerDebtsPiasters { get; set; }
 
@@ -223,6 +226,9 @@ namespace RafiqPOS.Models
 
         [JsonProperty("currentStock")]
         public int CurrentStock { get; set; }
+
+        [JsonProperty("minStock")]
+        public int MinStock { get; set; }
 
         [JsonProperty("unit")]
         public string Unit { get; set; }

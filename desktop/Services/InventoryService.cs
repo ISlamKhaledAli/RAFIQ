@@ -12,17 +12,23 @@ namespace RafiqPOS.Services
         private readonly StockMovementRepository _movementRepo;
         private readonly ProductRepository _productRepo;
         private readonly AuditLogRepository _auditRepo;
+        private readonly ProductUnitRepository _unitRepo;
+        private readonly ProductPriceHistoryRepository _priceHistoryRepo;
 
         public InventoryService(
             string connectionString,
             StockMovementRepository movementRepo,
             ProductRepository productRepo,
-            AuditLogRepository auditRepo = null)
+            AuditLogRepository auditRepo = null,
+            ProductUnitRepository unitRepo = null,
+            ProductPriceHistoryRepository priceHistoryRepo = null)
         {
             _connectionString = connectionString;
             _movementRepo = movementRepo;
             _productRepo = productRepo;
             _auditRepo = auditRepo;
+            _unitRepo = unitRepo ?? new ProductUnitRepository(connectionString);
+            _priceHistoryRepo = priceHistoryRepo ?? new ProductPriceHistoryRepository(connectionString);
         }
 
         /// <summary>
@@ -119,10 +125,23 @@ namespace RafiqPOS.Services
         }
 
         /// <summary>
-        /// إجراء تسوية جردية لصنف محدد (زيادة أو عجز) مع حساب الفارق تلقائياً وتوثيقه في السجل
+        /// Task 37-1, 37-2: إجراء تسوية جردية لصنف محدد (زيادة أو عجز) مع حساب الفارق تلقائياً وتوثيقه في السجل
         /// </summary>
-        public StockMovement AdjustStock(string productId, long newStockQuantityMilli, string reason, string userId = null)
+        public StockMovement AdjustStock(string productId, long newStockQuantityMilli, string reason, string userId = null, string adjustmentType = null)
         {
+            if (string.IsNullOrWhiteSpace(productId))
+            {
+                throw new ArgumentException("معرف المنتج مطلوب للتسوية الجردية", "productId");
+            }
+            if (newStockQuantityMilli < 0)
+            {
+                throw new ArgumentException("الرصيد الفعلي بعد التسوية لا يمكن أن يكون سالباً", "newStockQuantityMilli");
+            }
+            if (string.IsNullOrWhiteSpace(reason))
+            {
+                throw new ArgumentException("سبب التسوية الجردية إجباري لتوثيق العملية في السجل", "reason");
+            }
+
             var product = _productRepo.GetById(productId);
             if (product == null)
             {
@@ -137,10 +156,17 @@ namespace RafiqPOS.Services
                 return null; // No change needed
             }
 
-            string cleanReason = string.IsNullOrWhiteSpace(reason) ? "تسوية جردية يدوية" : reason.Trim();
-            string fullNote = string.Format("تسوية جردية: من {0} إلى {1} ({2})", 
+            string cleanReason = reason.Trim();
+            string cleanAdjType = string.IsNullOrWhiteSpace(adjustmentType) 
+                ? (delta > 0 ? "SURPLUS" : "SHORTAGE") 
+                : adjustmentType.Trim().ToUpperInvariant();
+
+            string fullNote = string.Format("تسوية جردية [{0}]: من {1} إلى {2} (فارق: {3}{4}) - السبب: {5}",
+                cleanAdjType,
                 (currentStock / 1000.0).ToString("0.###"),
                 (newStockQuantityMilli / 1000.0).ToString("0.###"),
+                delta > 0 ? "+" : "",
+                (delta / 1000.0).ToString("0.###"),
                 cleanReason
             );
 
@@ -152,10 +178,10 @@ namespace RafiqPOS.Services
                 referenceId: Guid.NewGuid().ToString(),
                 referenceType: "MANUAL_ADJUSTMENT",
                 note: fullNote,
-                batchNumber: null
+                batchNumber: cleanAdjType
             );
 
-            // Audit Log
+            // Audit Log (ACID compliant, Task 37-2)
             if (_auditRepo != null)
             {
                 try
@@ -166,14 +192,219 @@ namespace RafiqPOS.Services
                         EntityType = "product",
                         EntityId = product.Id,
                         UserId = userId,
-                        DetailsJson = string.Format("{{\"productName\":\"{0}\",\"oldStockMilli\":{1},\"newStockMilli\":{2},\"deltaMilli\":{3},\"reason\":\"{4}\"}}",
-                            product.Name, currentStock, newStockQuantityMilli, delta, cleanReason)
+                        DetailsJson = string.Format("{{\"productName\":\"{0}\",\"oldStockMilli\":{1},\"newStockMilli\":{2},\"deltaMilli\":{3},\"adjustmentType\":\"{4}\",\"reason\":\"{5}\"}}",
+                            product.Name, currentStock, newStockQuantityMilli, delta, cleanAdjType, cleanReason)
                     });
                 }
                 catch { }
             }
 
             return m;
+        }
+
+        /// <summary>
+        /// Task 37-2: تسوية المخزون بإضافة أو خصم كمية محددة مباشرة (+ / -)
+        /// </summary>
+        public StockMovement AdjustStockByDelta(string productId, long quantityDeltaMilli, string reason, string userId = null, string adjustmentType = null)
+        {
+            if (string.IsNullOrWhiteSpace(productId))
+            {
+                throw new ArgumentException("معرف المنتج مطلوب للتسوية الجردية", "productId");
+            }
+            if (quantityDeltaMilli == 0)
+            {
+                return null;
+            }
+
+            var product = _productRepo.GetById(productId);
+            if (product == null)
+            {
+                throw new InvalidOperationException("المنتج غير موجود: " + productId);
+            }
+
+            long targetStock = product.StockQuantityMilli + quantityDeltaMilli;
+            if (targetStock < 0)
+            {
+                throw new ArgumentException(string.Format("لا يمكن خصم {0} لأن الرصيد المتاح {1} فقط (الرصيد الناتج سالب)", 
+                    Math.Abs(quantityDeltaMilli / 1000.0).ToString("0.###"), 
+                    (product.StockQuantityMilli / 1000.0).ToString("0.###")), "quantityDeltaMilli");
+            }
+
+            return AdjustStock(productId, targetStock, reason, userId, adjustmentType);
+        }
+
+
+        /// <summary>
+        /// Tasks 161-8, 161-9, 161-10: تسجيل استلام مشتريات بالوحدات المتعددة مع زيادة المخزون واحتساب التكلفة بالوحدة الأساسية
+        /// </summary>
+        public StockMovement RecordPurchase(
+            string productId,
+            string unitId,
+            double purchaseQuantity,
+            long packageCostPiasters,
+            string invoiceNumber,
+            string supplierName,
+            bool updateProductCost,
+            string userId)
+        {
+            if (string.IsNullOrWhiteSpace(productId))
+            {
+                throw new ArgumentException("معرف المنتج مطلوب لتسجيل الشراء", "productId");
+            }
+            if (purchaseQuantity <= 0)
+            {
+                throw new ArgumentException("كمية الشراء يجب أن تكون أكبر من صفر", "purchaseQuantity");
+            }
+            if (packageCostPiasters < 0)
+            {
+                throw new ArgumentException("سعر الشراء لا يمكن أن يكون سالباً", "packageCostPiasters");
+            }
+
+            var product = _productRepo.GetById(productId);
+            if (product == null)
+            {
+                throw new InvalidOperationException("المنتج غير موجود: " + productId);
+            }
+
+            ProductUnit unit = null;
+            if (!string.IsNullOrWhiteSpace(unitId))
+            {
+                unit = _unitRepo.GetById(unitId);
+            }
+
+            long factor = 1;
+            string unitName = product.Unit == "kg" ? "كجم" : "قطعة";
+
+            if (unit != null)
+            {
+                factor = unit.ConversionFactor > 0 ? unit.ConversionFactor : 1;
+                unitName = unit.UnitName;
+            }
+
+            // Task 161-9: إضافة المخزون بالوحدة الأساسية تلقائياً (الكمية × المعامل)
+            long baseQuantityDeltaMilli = (long)Math.Round(purchaseQuantity * factor * 1000);
+
+            // Task 161-10: حساب سعر التكلفة للوحدة الأساسية تلقائياً من سعر الشراء بالوحدة الكبيرة
+            long baseCostPiasters = (long)Math.Round((double)packageCostPiasters / factor);
+
+            string cleanSupplier = string.IsNullOrWhiteSpace(supplierName) ? "مورد عام" : supplierName.Trim();
+            string cleanInvoice = string.IsNullOrWhiteSpace(invoiceNumber) ? ("PO-" + DateTime.Now.ToString("yyyyMMddHHmmss")) : invoiceNumber.Trim();
+
+            string fullNote = string.Format("استلام مشتريات: {0} {1} (×{2}) بسعر {3:N2} ج.م/{1} | مورد: {4} | إذن/فاتورة: {5}",
+                purchaseQuantity.ToString("0.###"),
+                unitName,
+                factor,
+                packageCostPiasters / 100.0,
+                cleanSupplier,
+                cleanInvoice
+            );
+
+            StockMovement movement = null;
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var trans = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        // 1. Record stock change in ledger & update stock_quantity_milli
+                        movement = RecordStockChange(
+                            productId: product.Id,
+                            movementType: "PURCHASE",
+                            quantityDeltaMilli: baseQuantityDeltaMilli,
+                            unitCostPiasters: baseCostPiasters,
+                            referenceId: cleanInvoice,
+                            referenceType: "PURCHASE_RECEIPT",
+                            note: fullNote,
+                            batchNumber: null,
+                            conn: conn,
+                            trans: trans
+                        );
+
+                        // 2. Update product default cost if requested (Task 161-10)
+                        if (updateProductCost && baseCostPiasters > 0 && baseCostPiasters != product.CostPiasters)
+                        {
+                            long oldCost = product.CostPiasters;
+                            string updateCostSql = @"
+                                UPDATE products
+                                SET cost_piasters = @cost,
+                                    updated_at = @now
+                                WHERE id = @pid;
+                            ";
+                            using (var cmd = new SQLiteCommand(updateCostSql, conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@cost", baseCostPiasters);
+                                cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
+                                cmd.Parameters.AddWithValue("@pid", product.Id);
+                                cmd.ExecuteNonQuery();
+                            }
+
+                            // 3. Log price history for cost change
+                            if (_priceHistoryRepo != null)
+                            {
+                                var hist = new ProductPriceHistory
+                                {
+                                    Id = Guid.NewGuid().ToString(),
+                                    ProductId = product.Id,
+                                    OldPricePiasters = product.PricePiasters,
+                                    NewPricePiasters = product.PricePiasters,
+                                    OldCostPiasters = oldCost,
+                                    NewCostPiasters = baseCostPiasters,
+                                    ChangeReason = string.Format("تحديث تكلفة تلقائي من شراء {0} {1}", purchaseQuantity, unitName),
+                                    CreatedAt = DateTime.UtcNow.ToString("o")
+                                };
+                                _priceHistoryRepo.Add(hist, conn, trans);
+                            }
+                        }
+
+                        // 4. Update the package unit costPricePiasters in product_units if applicable
+                        if (unit != null && packageCostPiasters > 0 && !unit.IsBaseUnit)
+                        {
+                            string updateUnitSql = @"
+                                UPDATE product_units
+                                SET cost_price_piasters = @cost,
+                                    updated_at = @now
+                                WHERE id = @uid;
+                            ";
+                            using (var cmd = new SQLiteCommand(updateUnitSql, conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@cost", packageCostPiasters);
+                                cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
+                                cmd.Parameters.AddWithValue("@uid", unit.Id);
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+
+                        trans.Commit();
+                    }
+                    catch
+                    {
+                        trans.Rollback();
+                        throw;
+                    }
+                }
+            }
+
+            // Audit Log
+            if (_auditRepo != null)
+            {
+                try
+                {
+                    _auditRepo.Log(new AuditLog
+                    {
+                        Action = "purchase_recorded",
+                        EntityType = "inventory",
+                        EntityId = product.Id,
+                        UserId = userId,
+                        DetailsJson = string.Format("{{\"productName\":\"{0}\",\"unitName\":\"{1}\",\"quantity\":{2},\"baseAdded\":{3},\"packageCostPiasters\":{4},\"baseCostPiasters\":{5},\"invoice\":\"{6}\"}}",
+                            product.Name, unitName, purchaseQuantity, baseQuantityDeltaMilli / 1000.0, packageCostPiasters, baseCostPiasters, cleanInvoice)
+                    });
+                }
+                catch { }
+            }
+
+            return movement;
         }
 
         public List<StockMovement> GetMovements(string productId = null, string movementType = null, string fromDate = null, string toDate = null, int limit = 200)

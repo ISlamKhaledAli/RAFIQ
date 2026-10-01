@@ -269,6 +269,36 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       );
     }
 
+    case 'products:getLowStock': {
+      const mockLowStock = [
+        {
+          id: 'p_4',
+          name: 'شاي العروسة ناعم 250 جم',
+          normalizedName: 'شاي العروسه ناعم 250 جم',
+          barcode: '6224001122334',
+          barcodes: ['6224001122334'],
+          pricePiasters: 2500,
+          costPiasters: 2000,
+          stockQuantityMilli: 2000,
+          minStockQuantityMilli: 5000,
+          unit: 'piece',
+          taxRatePercent: 0,
+          isActive: true,
+          priceFormatted: '25.00 ج.م',
+          stockFormatted: '2',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }
+      ];
+      return {
+        products: mockLowStock,
+        count: mockLowStock.length,
+      };
+    }
+
+    case 'products:getLowStockCount':
+      return { count: 1 };
+
     case 'search:runBenchmark':
       return {
         success: true,
@@ -431,13 +461,25 @@ async function mockHandler(action: string, payload: any): Promise<any> {
 
     case 'inventory:adjustStock':
       return {
-        id: 'mov_mock_adj',
-        productId: payload?.productId,
-        movementType: 'ADJUSTMENT',
-        quantityMilli: 5000,
-        unitCostPiasters: 2500,
-        note: payload?.reason || 'تسوية جردية',
-        createdAt: new Date().toISOString(),
+        movement: {
+          id: 'mov_mock_adj',
+          productId: payload?.productId,
+          movementType: 'ADJUSTMENT',
+          quantityMilli: payload?.quantityDeltaMilli || 5000,
+          unitCostPiasters: 2500,
+          note: payload?.reason || 'تسوية جردية',
+          createdAt: new Date().toISOString(),
+        },
+        product: {
+          id: payload?.productId || 'p_1',
+          name: 'لبن جهينة كامل الدسم 1 لتر',
+          stockQuantityMilli: payload?.newStockQuantityMilli ?? 45000,
+          minStockQuantityMilli: 10000,
+          pricePiasters: 4200,
+          costPiasters: 3400,
+          unit: 'piece',
+          isActive: true
+        }
       };
 
     case 'inventory:getDiscrepancies':
@@ -1726,6 +1768,121 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         customQuickItems: [],
       };
 
+    case 'suppliers:getAll': {
+      const includeInactive = Boolean(payload?.includeInactive);
+      return includeInactive ? [...mockSuppliers] : mockSuppliers.filter((s: any) => s.isActive);
+    }
+
+    case 'suppliers:getById': {
+      const id = typeof payload === 'string' ? payload : payload?.id;
+      return mockSuppliers.find((s: any) => s.id === id) || null;
+    }
+
+    case 'suppliers:save': {
+      const s = payload as any;
+      if (!s.id) {
+        const newSup = {
+          ...s,
+          id: `sup_${Date.now()}`,
+          balancePiasters: s.balancePiasters || 0,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        mockSuppliers.push(newSup);
+        return newSup;
+      }
+      const idx = mockSuppliers.findIndex((x: any) => x.id === s.id);
+      if (idx >= 0) {
+        mockSuppliers[idx] = { ...mockSuppliers[idx], ...s, updatedAt: new Date().toISOString() };
+        return mockSuppliers[idx];
+      }
+      return s;
+    }
+
+    case 'suppliers:archive': {
+      const id = typeof payload === 'string' ? payload : payload?.id;
+      const sup = mockSuppliers.find((s: any) => s.id === id);
+      if (sup) sup.isActive = false;
+      return { success: true };
+    }
+
+    case 'suppliers:restore': {
+      const id = typeof payload === 'string' ? payload : payload?.id;
+      const sup = mockSuppliers.find((s: any) => s.id === id);
+      if (sup) sup.isActive = true;
+      return { success: true };
+    }
+
+    case 'suppliers:delete': {
+      const id = typeof payload === 'string' ? payload : payload?.id;
+      mockSuppliers = mockSuppliers.filter((s: any) => s.id !== id);
+      return { success: true };
+    }
+
+    case 'suppliers:recordPayment': {
+      const { supplierId, amountPiasters, notes } = payload || {};
+      const sup = mockSuppliers.find((s: any) => s.id === supplierId);
+      if (sup) {
+        sup.balancePiasters = Math.max(0, (sup.balancePiasters || 0) - amountPiasters);
+        mockSupplierTransactions.unshift({
+          id: `st_${Date.now()}`,
+          supplierId,
+          transactionType: 'PAYMENT',
+          amountPiasters,
+          notes: notes || 'سداد دفعة نقدية',
+          createdAt: new Date().toISOString(),
+        });
+      }
+      return sup;
+    }
+
+    case 'suppliers:getTransactions': {
+      const supplierId = typeof payload === 'string' ? payload : payload?.supplierId;
+      return mockSupplierTransactions.filter((t: any) => t.supplierId === supplierId);
+    }
+
+    case 'purchases:getAll': {
+      let list = [...mockPurchases];
+      if (payload?.supplierId) {
+        list = list.filter((p: any) => p.supplierId === payload.supplierId);
+      }
+      return list;
+    }
+
+    case 'purchases:getById': {
+      const id = typeof payload === 'string' ? payload : payload?.id;
+      return mockPurchases.find((p: any) => p.id === id) || null;
+    }
+
+    case 'purchases:create': {
+      const p = (payload?.purchase || payload) as any;
+      const newPur = {
+        ...p,
+        id: `pur_${Date.now()}`,
+        invoiceNumber: mockPurchases.length + 1001,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      mockPurchases.unshift(newPur);
+      if (newPur.supplierId && newPur.remainingAmountPiasters > 0) {
+        const sup = mockSuppliers.find((s: any) => s.id === newPur.supplierId);
+        if (sup) {
+          sup.balancePiasters = (sup.balancePiasters || 0) + newPur.remainingAmountPiasters;
+          mockSupplierTransactions.unshift({
+            id: `st_${Date.now()}`,
+            supplierId: newPur.supplierId,
+            transactionType: 'PURCHASE_INVOICE',
+            referenceId: newPur.id,
+            amountPiasters: newPur.remainingAmountPiasters,
+            notes: `فاتورة شراء #${newPur.invoiceNumber}`,
+            createdAt: new Date().toISOString(),
+          });
+        }
+      }
+      return newPur;
+    }
+
     default:
       return { success: true, echoed: payload };
   }
@@ -1896,4 +2053,92 @@ let mockCustomers: any[] = [
 ];
 
 let mockLedgerEntries: any[] = [];
+
+let mockSuppliers: any[] = [
+  {
+    id: 'sup_1',
+    name: 'شركة النيل للمواد الغذائية والتوزيع',
+    phone: '01012345678',
+    companyName: 'النيل للتوزيع',
+    address: 'القاهرة - العبور',
+    balancePiasters: 125000,
+    notes: 'مورد معتمد لمنتجات الألبان والعصائر',
+    isActive: true,
+    createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
+    updatedAt: new Date(Date.now() - 30 * 86400000).toISOString(),
+  },
+  {
+    id: 'sup_2',
+    name: 'مؤسسة الأهرام للبقوليات والزيوت',
+    phone: '01198765432',
+    companyName: 'الأهرام التجارية',
+    address: 'الجيزة - المنطقة الصناعية',
+    balancePiasters: 0,
+    notes: 'مورد البقوليات والأرز والسكر',
+    isActive: true,
+    createdAt: new Date(Date.now() - 60 * 86400000).toISOString(),
+    updatedAt: new Date(Date.now() - 60 * 86400000).toISOString(),
+  },
+];
+
+let mockSupplierTransactions: any[] = [
+  {
+    id: 'st_1',
+    supplierId: 'sup_1',
+    transactionType: 'PURCHASE_INVOICE',
+    referenceId: 'pur_1',
+    amountPiasters: 125000,
+    notes: 'فاتورة شراء آجل #1001',
+    createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+  },
+];
+
+let mockPurchases: any[] = [
+  {
+    id: 'pur_1',
+    invoiceNumber: 1001,
+    supplierId: 'sup_1',
+    supplierName: 'شركة النيل للمواد الغذائية والتوزيع',
+    supplierInvoiceNumber: 'INV-4091',
+    invoiceDate: new Date(Date.now() - 2 * 86400000).toISOString(),
+    totalCostPiasters: 125000,
+    discountPiasters: 0,
+    netCostPiasters: 125000,
+    paidAmountPiasters: 0,
+    remainingAmountPiasters: 125000,
+    paymentStatus: 'CREDIT',
+    status: 'COMPLETED',
+    notes: 'بضاعة ألبان أسبوعية',
+    createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+    updatedAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+    items: [
+      {
+        id: 'pi_1',
+        purchaseId: 'pur_1',
+        productId: 'p_1',
+        productName: 'لبن جهينة كامل الدسم 1 لتر',
+        barcode: '6221007011',
+        quantityMilli: 25000,
+        unitCostPiasters: 3200,
+        totalCostPiasters: 80000,
+        previousCostPiasters: 3000,
+        newSellingPricePiasters: 3800,
+        createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+      },
+      {
+        id: 'pi_2',
+        purchaseId: 'pur_1',
+        productId: 'p_4',
+        productName: 'شاي العروسة ناعم 250 جم',
+        barcode: '6224001122334',
+        quantityMilli: 20000,
+        unitCostPiasters: 2250,
+        totalCostPiasters: 45000,
+        previousCostPiasters: 2000,
+        newSellingPricePiasters: 2500,
+        createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+      },
+    ],
+  },
+];
 

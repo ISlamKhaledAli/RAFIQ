@@ -101,7 +101,52 @@ namespace RafiqPOS.Services
                 var finalDiscrepancies = invService.CheckDiscrepancies();
                 Assert(finalDiscrepancies.Count == 0, "لا توجد أي فروقات بعد الإصلاح", result);
 
-                result.Message = string.Format("نجحت جميع اختبارات المخزون وحركات الصنف ({0}/{1} تأكيد سليم)", result.PassedAssertions, result.TotalAssertions);
+                // TEST 5: Low stock detection & queries (Story 79 / Task 36-1)
+                int initialLowCount = pService.GetLowStockCount();
+                Assert(initialLowCount == 0, "الصنف حالياً فوق حد الطلب (45000 > 10000) ورصيد النواقص = 0", result);
+
+                // Adjust stock to below reorder point (e.g., 8000 milli <= 10000 milli)
+                var lowAdj = invService.AdjustStock(prod.Id, 8000, "تلف بضاعة وسكب مياه", "tester", "DAMAGED");
+                Assert(lowAdj != null && lowAdj.QuantityMilli == -37000, "تسوية خفضت الرصيد إلى ما دون حد الطلب", result);
+
+                int afterLowCount = pService.GetLowStockCount();
+                Assert(afterLowCount == 1, "تم اكتشاف الصنف ضمن النواقص بنجاح (GetLowStockCount = 1)", result);
+
+                var lowStockList = pService.GetLowStock(10);
+                Assert(lowStockList.Count == 1 && lowStockList[0].Id == prod.Id, "استرجاع قائمة الأصناف تحت حد الطلب بدقة", result);
+
+                // TEST 6: Adjust by delta (+ / -) (Story 80 / Task 37-2)
+                var deltaAdj = invService.AdjustStockByDelta(prod.Id, 7000, "توريد عينات ترويجية مجانية", "tester", "GIFT_PROMOTION");
+                Assert(deltaAdj != null && deltaAdj.QuantityMilli == 7000, "نجاح التسوية بإضافة دلتا مباشرة (+7000 ملي)", result);
+
+                var afterDeltaProd = pRepo.GetById(prod.Id);
+                Assert(afterDeltaProd.StockQuantityMilli == 15000, "الرصيد بعد إضافة الدلتا أصبح 15 قطعة (15000 ملي)", result);
+                Assert(pService.GetLowStockCount() == 0, "خروج الصنف من النواقص بعد زيادة الرصيد فوق حد الطلب", result);
+
+                // TEST 7: Validation constraints (negative stock & empty reason) (Story 80 / Task 37-2)
+                bool caughtNegative = false;
+                try
+                {
+                    invService.AdjustStock(prod.Id, -5000, "محاولة رصيد سالب", "tester");
+                }
+                catch (ArgumentException)
+                {
+                    caughtNegative = true;
+                }
+                Assert(caughtNegative, "رفض إدخال رصيد نهائي سالب بنجاح", result);
+
+                bool caughtEmptyReason = false;
+                try
+                {
+                    invService.AdjustStock(prod.Id, 10000, "   ", "tester");
+                }
+                catch (ArgumentException)
+                {
+                    caughtEmptyReason = true;
+                }
+                Assert(caughtEmptyReason, "فرض إجبارية إدخال سبب التسوية الجردية لحماية السجل المالي", result);
+
+                result.Message = string.Format("نجحت جميع اختبارات المخزون والتسوية الجردية وتنبيهات النواقص ({0}/{1} تأكيد سليم)", result.PassedAssertions, result.TotalAssertions);
             }
             catch (Exception ex)
             {

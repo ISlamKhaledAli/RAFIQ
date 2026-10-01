@@ -1,5 +1,6 @@
 using System;
 using Newtonsoft.Json.Linq;
+using RafiqPOS.Models;
 using RafiqPOS.Services;
 
 namespace RafiqPOS.Bridge
@@ -40,17 +41,78 @@ namespace RafiqPOS.Bridge
                         return true;
                     }
                     JObject adjObj = request.Payload as JObject;
-                    if (adjObj == null || adjObj["productId"] == null || adjObj["newStockQuantityMilli"] == null)
+                    if (adjObj == null || adjObj["productId"] == null)
                     {
-                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "معرف المنتج والرصيد الجديد مطلوبان");
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "معرف المنتج مطلوب للتسوية");
                         return true;
                     }
                     string adjProdId = adjObj["productId"].ToString();
-                    long newStockMilli = adjObj["newStockQuantityMilli"].Value<long>();
-                    string adjReason = adjObj["reason"] != null ? adjObj["reason"].ToString() : "";
+                    string adjReason = adjObj["reason"] != null ? adjObj["reason"].ToString().Trim() : "";
+                    if (string.IsNullOrWhiteSpace(adjReason))
+                    {
+                        response = BridgeResponse.Fail(request.Id, "REASON_REQUIRED", "سبب التسوية الجردية إجباري لتوثيق العملية في السجل المالي");
+                        return true;
+                    }
+
                     string adjUser = adjObj["userId"] != null ? adjObj["userId"].ToString() : "admin";
-                    var adjMovement = DatabaseService.Inventory.AdjustStock(adjProdId, newStockMilli, adjReason, adjUser);
-                    response = BridgeResponse.Ok(request.Id, adjMovement);
+                    string adjType = adjObj["adjustmentType"] != null ? adjObj["adjustmentType"].ToString() : null;
+
+                    StockMovement adjMovement = null;
+                    if (adjObj["newStockQuantityMilli"] != null)
+                    {
+                        long newStockMilli = adjObj["newStockQuantityMilli"].Value<long>();
+                        adjMovement = DatabaseService.Inventory.AdjustStock(adjProdId, newStockMilli, adjReason, adjUser, adjType);
+                    }
+                    else if (adjObj["quantityDeltaMilli"] != null)
+                    {
+                        long deltaMilli = adjObj["quantityDeltaMilli"].Value<long>();
+                        adjMovement = DatabaseService.Inventory.AdjustStockByDelta(adjProdId, deltaMilli, adjReason, adjUser, adjType);
+                    }
+                    else
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "يجب تحديد الرصيد الجديد أو مقدار الزيادة/العجز");
+                        return true;
+                    }
+
+                    var updatedProd = DatabaseService.Products.GetById(adjProdId);
+                    response = BridgeResponse.Ok(request.Id, new
+                    {
+                        movement = adjMovement,
+                        product = updatedProd
+                    });
+                    return true;
+
+                case "inventory:recordPurchase":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات فاتورة الشراء فارغة");
+                        return true;
+                    }
+                    JObject purObj = request.Payload as JObject;
+                    if (purObj == null || purObj["productId"] == null || purObj["purchaseQuantity"] == null || purObj["packageCostPiasters"] == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "معرف المنتج والكمية وسعر الشراء مطلوبة");
+                        return true;
+                    }
+                    try
+                    {
+                        string purProdId = purObj["productId"].ToString();
+                        string purUnitId = purObj["unitId"] != null ? purObj["unitId"].ToString() : null;
+                        double purQty = purObj["purchaseQuantity"].Value<double>();
+                        long purPkgCost = purObj["packageCostPiasters"].Value<long>();
+                        string purInvoice = purObj["invoiceNumber"] != null ? purObj["invoiceNumber"].ToString() : null;
+                        string purSupplier = purObj["supplierName"] != null ? purObj["supplierName"].ToString() : null;
+                        bool purUpdateCost = purObj["updateProductCost"] == null || purObj["updateProductCost"].Value<bool>();
+                        string purUserId = purObj["userId"] != null ? purObj["userId"].ToString() : "admin";
+
+                        var purMovement = DatabaseService.Inventory.RecordPurchase(
+                            purProdId, purUnitId, purQty, purPkgCost, purInvoice, purSupplier, purUpdateCost, purUserId);
+                        response = BridgeResponse.Ok(request.Id, purMovement);
+                    }
+                    catch (Exception ex)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "RECORD_PURCHASE_FAILED", ex.Message);
+                    }
                     return true;
 
                 case "inventory:getDiscrepancies":

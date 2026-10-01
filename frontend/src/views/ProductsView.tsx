@@ -11,6 +11,7 @@ import {
   FileSpreadsheet,
   Boxes,
   Download,
+  AlertTriangle,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { rafiqAlert } from '../utils/dialogService';
@@ -23,6 +24,7 @@ import { PriceHistoryModal } from '../components/PriceHistoryModal';
 import { ExcelImportModal } from '../components/ExcelImportModal';
 import { StockMovementsModal } from '../components/StockMovementsModal';
 import { StockAdjustmentModal } from '../components/StockAdjustmentModal';
+import { PurchaseEntryModal } from '../components/PurchaseEntryModal';
 import { ProductFormModal } from './products/ProductFormModal';
 import { BulkMinStockModal } from './products/BulkMinStockModal';
 import { StockMovementsTab } from './products/StockMovementsTab';
@@ -31,13 +33,26 @@ import { ProductsTable } from './products/ProductsTable';
 export interface ProductsViewProps {
   subView?: 'catalog' | 'movements';
   onSubViewChange?: (view: 'catalog' | 'movements') => void;
+  initialFilter?: 'all' | 'lowStock' | 'outOfStock';
+  onResetFilter?: () => void;
 }
 
-export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
+export const ProductsView: React.FC<ProductsViewProps> = ({ 
+  subView, 
+  initialFilter = 'all', 
+  onResetFilter 
+}) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [prevInitialFilter, setPrevInitialFilter] = useState(initialFilter);
+  const [stockStatusFilter, setStockStatusFilter] = useState<'all' | 'lowStock' | 'outOfStock'>(initialFilter);
+
+  if (initialFilter !== prevInitialFilter) {
+    setPrevInitialFilter(initialFilter);
+    setStockStatusFilter(initialFilter);
+  }
 
   // Form state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -112,6 +127,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
 
   const [selectedProdForMovements, setSelectedProdForMovements] = useState<Product | null>(null);
   const [selectedProdForAdjustment, setSelectedProdForAdjustment] = useState<Product | null>(null);
+  const [selectedProdForPurchase, setSelectedProdForPurchase] = useState<Product | null>(null);
   const [allMovements, setAllMovements] = useState<StockMovement[]>([]);
   const [movementsLoading, setMovementsLoading] = useState(false);
   const [movementTypeFilter, setMovementTypeFilter] = useState('ALL');
@@ -521,6 +537,24 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
     }
   };
 
+  const lowStockCount = products.filter(
+    (p) => (p.stockQuantityMilli || 0) <= (p.minStockQuantityMilli ?? 5000)
+  ).length;
+
+  const outOfStockCount = products.filter(
+    (p) => (p.stockQuantityMilli || 0) <= 0
+  ).length;
+
+  const displayedProducts = products.filter((p) => {
+    if (stockStatusFilter === 'lowStock') {
+      return (p.stockQuantityMilli || 0) <= (p.minStockQuantityMilli ?? 5000);
+    }
+    if (stockStatusFilter === 'outOfStock') {
+      return (p.stockQuantityMilli || 0) <= 0;
+    }
+    return true;
+  });
+
   return (
     <div className="flex flex-col h-full bg-[#F8FAFC] p-3.5 gap-3 overflow-hidden select-none">
       {/* 1. Header Toolbar (Title, Count Badge, Search, Add Button) */}
@@ -713,11 +747,54 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
                 );
               })}
             </div>
+          </div>
+
+          {/* Quick Stock Level Tabs (Story 79 / Task 36-2) */}
+          <div className="flex flex-wrap items-center justify-between gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 p-1 bg-white border border-[#E2E8F0] rounded-xl shadow-2xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setStockStatusFilter('all');
+                  onResetFilter?.();
+                }}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  stockStatusFilter === 'all'
+                    ? 'bg-[#00372D] text-white shadow-xs'
+                    : 'text-[#52605D] hover:bg-[#F8FAFC]'
+                }`}
+              >
+                كافة الأصناف ({products.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStockStatusFilter('lowStock')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  stockStatusFilter === 'lowStock'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'text-amber-800 hover:bg-amber-50'
+                }`}
+              >
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>النواقص وحد الطلب ({lowStockCount})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setStockStatusFilter('outOfStock')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  stockStatusFilter === 'outOfStock'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'text-rose-800 hover:bg-rose-50'
+                }`}
+              >
+                <span>النافد من المخزن ({outOfStockCount})</span>
+              </button>
+            </div>
 
             <button
               type="button"
               onClick={() => setShowCategoryModal(true)}
-              className="shrink-0 px-3 py-1.5 rounded-xl bg-white hover:bg-[#F8FAFC] border border-[#E2E8F0] text-[#52605D] hover:text-[#0F172A] text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs mr-2 cursor-pointer"
+              className="shrink-0 px-3 py-1.5 rounded-xl bg-white hover:bg-[#F8FAFC] border border-[#E2E8F0] text-[#52605D] hover:text-[#0F172A] text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
               title="إضافة وتعديل وأرشفة وترتيب أقسام السلع"
             >
               <Tags className="w-3.5 h-3.5 text-[#006D41]" />
@@ -725,9 +802,33 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
             </button>
           </div>
 
+          {/* Active Stock Filter Notification */}
+          {stockStatusFilter !== 'all' && (
+            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold shrink-0 animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  {stockStatusFilter === 'lowStock'
+                    ? `تصفية النواقص: يتم عرض الأصناف التي كميتها أقل من أو تساوي حد الطلب (${displayedProducts.length} صنف)`
+                    : `تصفية النافد: يتم عرض الأصناف التي نفدت تماماً من المخزن (${displayedProducts.length} صنف)`}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setStockStatusFilter('all');
+                  onResetFilter?.();
+                }}
+                className="px-2 py-0.5 rounded bg-white hover:bg-amber-100 border border-amber-300 text-amber-800 text-[11px] font-bold transition-colors cursor-pointer"
+              >
+                إلغاء الفلتر وعرض الكل
+              </button>
+            </div>
+          )}
+
           {/* 2. Products Data Table Subcomponent */}
           <ProductsTable
-            products={products}
+            products={displayedProducts}
             selectedCategoryFilter={selectedCategoryFilter}
             selectedProductIds={selectedProductIds}
             onToggleSelectAll={toggleSelectAll}
@@ -737,6 +838,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
             onClearSelection={() => setSelectedProductIds([])}
             onSelectProdForMovements={(prod) => setSelectedProdForMovements(prod)}
             onSelectProdForAdjustment={(prod) => setSelectedProdForAdjustment(prod)}
+            onSelectProdForPurchase={(prod) => setSelectedProdForPurchase(prod)}
             onOpenPriceHistory={(prod) => openPriceHistory(prod)}
             onEditProduct={(prod) => openEditModal(prod)}
             onDeleteProduct={(prod) => setProductToDelete(prod)}
@@ -902,6 +1004,19 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ subView }) => {
         isOpen={selectedProdForAdjustment !== null}
         onClose={() => setSelectedProdForAdjustment(null)}
         product={selectedProdForAdjustment}
+        onSuccess={() => {
+          void loadProducts(searchQuery);
+          void loadMovements();
+          void checkDiscrepancies();
+        }}
+      />
+
+      {/* Multi-Unit Purchase Receiving Modal (Story 74 - Feature #161 / Tasks 161-8 to 161-10) */}
+      <PurchaseEntryModal
+        key={selectedProdForPurchase?.id || 'none'}
+        isOpen={selectedProdForPurchase !== null}
+        onClose={() => setSelectedProdForPurchase(null)}
+        product={selectedProdForPurchase}
         onSuccess={() => {
           void loadProducts(searchQuery);
           void loadMovements();
