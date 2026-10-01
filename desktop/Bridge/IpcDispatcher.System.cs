@@ -982,6 +982,111 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, licTestRes);
                     return true;
 
+                case "migration:getMetrics":
+                    var curMetrics = DatabaseService.Migration != null ? DatabaseService.Migration.GetCurrentMetrics() : new MigrationAuditMetrics();
+                    response = BridgeResponse.Ok(request.Id, curMetrics);
+                    return true;
+
+                case "migration:export":
+                    string exportFolder = null;
+                    if (request.Payload != null)
+                    {
+                        JObject expObj = request.Payload as JObject;
+                        if (expObj != null && expObj["folder"] != null)
+                        {
+                            exportFolder = expObj["folder"].ToString();
+                        }
+                    }
+                    var expResult = DatabaseService.Migration != null
+                        ? DatabaseService.Migration.CreateMigrationPackage(exportFolder)
+                        : new MigrationPackageExportResult { Success = false, Message = "خدمة النقل غير متوفرة." };
+                    response = BridgeResponse.Ok(request.Id, expResult);
+                    return true;
+
+                case "migration:inspect":
+                    string inspectPath = null;
+                    if (request.Payload != null)
+                    {
+                        JObject insObj = request.Payload as JObject;
+                        if (insObj != null && insObj["packagePath"] != null)
+                        {
+                            inspectPath = insObj["packagePath"].ToString();
+                        }
+                        else
+                        {
+                            inspectPath = request.Payload.ToString().Trim('"', ' ');
+                        }
+                    }
+                    var insResult = DatabaseService.Migration != null
+                        ? DatabaseService.Migration.InspectPackage(inspectPath)
+                        : new MigrationPackageInspectResult { Success = false, Message = "خدمة النقل غير متوفرة." };
+                    response = BridgeResponse.Ok(request.Id, insResult);
+                    return true;
+
+                case "migration:restore":
+                    string restorePkgPath = null;
+                    if (request.Payload != null)
+                    {
+                        JObject resObj = request.Payload as JObject;
+                        if (resObj != null && resObj["packagePath"] != null)
+                        {
+                            restorePkgPath = resObj["packagePath"].ToString();
+                        }
+                        else
+                        {
+                            restorePkgPath = request.Payload.ToString().Trim('"', ' ');
+                        }
+                    }
+                    var restResult = DatabaseService.Migration != null
+                        ? DatabaseService.Migration.RestorePackage(restorePkgPath)
+                        : new MigrationRestoreResult { Success = false, Message = "خدمة النقل غير متوفرة." };
+                    response = BridgeResponse.Ok(request.Id, restResult);
+                    return true;
+
+                case "migration:runTests":
+                    var migTestRes = MigrationTestRunner.RunAllTests();
+                    response = BridgeResponse.Ok(request.Id, migTestRes);
+                    return true;
+
+                case "migration:browseFile":
+                    string selectedFile = null;
+                    var fileThread = new System.Threading.Thread(delegate()
+                    {
+                        using (var ofd = new System.Windows.Forms.OpenFileDialog())
+                        {
+                            ofd.Filter = "حزمة رفيق للنقل (*.rafiqpkg;*.zip)|*.rafiqpkg;*.zip|جميع الملفات (*.*)|*.*";
+                            ofd.Title = "اختر حزمة نقل نظام رفيق لاسترجاعها";
+                            if (ofd.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                            {
+                                selectedFile = ofd.FileName;
+                            }
+                        }
+                    });
+                    fileThread.SetApartmentState(System.Threading.ApartmentState.STA);
+                    fileThread.Start();
+                    fileThread.Join();
+                    response = BridgeResponse.Ok(request.Id, new { selectedPath = selectedFile, cancelled = string.IsNullOrEmpty(selectedFile) });
+                    return true;
+
+                case "migration:browseFolder":
+                    string selectedFolder = null;
+                    var folderThread = new System.Threading.Thread(delegate()
+                    {
+                        using (var fbd = new System.Windows.Forms.FolderBrowserDialog())
+                        {
+                            fbd.Description = "اختر المجلد أو الفلاشة لحفظ حزمة النقل";
+                            if (fbd.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                            {
+                                selectedFolder = fbd.SelectedPath;
+                            }
+                        }
+                    });
+                    folderThread.SetApartmentState(System.Threading.ApartmentState.STA);
+                    folderThread.Start();
+                    folderThread.Join();
+                    response = BridgeResponse.Ok(request.Id, new { selectedFolder = selectedFolder, cancelled = string.IsNullOrEmpty(selectedFolder) });
+                    return true;
+
                 default:
                     return false;
             }

@@ -8,7 +8,9 @@ import {
   HardDrive, 
   Barcode, 
   KeyRound, 
-  FlaskConical 
+  FlaskConical,
+  Laptop,
+  BookOpen
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useFeatures } from '../context/useFeatures';
@@ -23,6 +25,8 @@ import { GuidedTourModal } from '../components/GuidedTourModal';
 import { SearchBenchmarkModal } from '../components/SearchBenchmarkModal';
 import { UserManagerModal } from '../components/UserManagerModal';
 import { LicenseModal } from '../components/LicenseModal';
+import { MigrationWizardModal } from '../components/MigrationWizardModal';
+import { QuickStartGuideModal } from '../components/QuickStartGuideModal';
 
 import { StoreProfileTab } from './settings/StoreProfileTab';
 import { PrinterSettingsTab } from './settings/PrinterSettingsTab';
@@ -54,6 +58,8 @@ export const SettingsView = ({
   const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
   const [isTourModalOpen, setIsTourModalOpen] = useState(false);
   const [isBenchmarkModalOpen, setIsBenchmarkModalOpen] = useState(false);
+  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+  const [isQuickGuideModalOpen, setIsQuickGuideModalOpen] = useState(false);
   const [pinStatus, setPinStatus] = useState<any>(null);
   const [demoStatus, setDemoStatus] = useState<any>(null);
   const [storeName, setStoreName] = useState('متجر رفيق');
@@ -436,6 +442,26 @@ export const SettingsView = ({
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => setIsMigrationModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-soft border border-brand/20 text-brand hover:bg-brand-soft/80 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+            title="نقل البرنامج والبيانات إلى جهاز جديد مع مقارنة الأرقام (فيتشر #139)"
+          >
+            <Laptop className="w-3.5 h-3.5 text-brand" />
+            <span>نقل لجهاز جديد</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsQuickGuideModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-2 border border-line hover:border-line-hover text-ink text-xs font-bold transition-all cursor-pointer shadow-2xs"
+            title="دليل التشغيل السريع وفيديوهات التدريب (فيتشر #140)"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-brand" />
+            <span>دليل التشغيل والتدريب</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setIsLicenseModalOpen(true)}
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-[#006D41] hover:bg-emerald-100/80 text-xs font-bold transition-all cursor-pointer shadow-2xs"
             title="إدارة وتفعيل ترخيص رفيق POS"
@@ -596,6 +622,16 @@ export const SettingsView = ({
       <LicenseModal
         isOpen={isLicenseModalOpen}
         onClose={() => setIsLicenseModalOpen(false)}
+      />
+
+      <MigrationWizardModal
+        isOpen={isMigrationModalOpen}
+        onClose={() => setIsMigrationModalOpen(false)}
+      />
+
+      <QuickStartGuideModal
+        isOpen={isQuickGuideModalOpen}
+        onClose={() => setIsQuickGuideModalOpen(false)}
       />
     </div>
   );

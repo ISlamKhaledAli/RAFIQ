@@ -162,6 +162,8 @@
     <Compile Include="Services\ReportsAndClosingTestRunner.cs" />
     <Compile Include="Services\LicenseService.cs" />
     <Compile Include="Services\LicenseTestRunner.cs" />
+    <Compile Include="Services\MigrationService.cs" />
+    <Compile Include="Services\MigrationTestRunner.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

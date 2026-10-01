@@ -104,6 +104,7 @@ namespace RafiqPOS.Services
         public static PurchaseService Purchases { get; private set; }
         public static DailyClosingRepository DailyClosingRepo { get; private set; }
         public static DailyClosingService DailyClosing { get; private set; }
+        public static MigrationService Migration { get; private set; }
 
         public static void Initialize(string customBaseFolder = null)
         {
@@ -196,6 +197,7 @@ namespace RafiqPOS.Services
 
             DailyClosingRepo = new DailyClosingRepository(_connectionString);
             DailyClosing = new DailyClosingService(_connectionString, DailyClosingRepo, CounterRepo, AuditRepo, SettingsRepo);
+            Migration = new MigrationService(_connectionString, _dbPath, SettingsRepo, AuditRepo);
 
             // Cleanup old held sales (> 7 days) on startup (Task 25-4)
             try

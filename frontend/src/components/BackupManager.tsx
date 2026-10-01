@@ -12,10 +12,12 @@ import {
   FolderCheck,
   AlertCircle,
   RotateCcw,
+  Laptop,
   X
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { DatabaseRecoveryModal } from './DatabaseRecoveryModal';
+import { MigrationWizardModal } from './MigrationWizardModal';
 import { rafiqAlert } from '../utils/dialogService';
 
 interface BackupFileInfo {
@@ -77,6 +79,7 @@ export const BackupManager = () => {
   const [actionMessage, setActionMessage] = useState<{ text: string; type: 'success' | 'warning' | 'error' } | null>(null);
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<BackupFileInfo | null>(null);
+  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
 
   const fetchBackupStatus = async () => {
     try {
@@ -329,6 +332,16 @@ export const BackupManager = () => {
               title="تحديث الحالة والأقراص المتصلة"
             >
               <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsMigrationModalOpen(true)}
+              className="h-[38px] px-3.5 bg-brand-soft hover:bg-brand-soft/80 border border-brand/30 text-brand rounded text-[12.5px] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+              title="نقل البرنامج والبيانات إلى جهاز جديد مع مقارنة الأرقام (فيتشر #139)"
+            >
+              <Laptop className="w-4 h-4 text-brand" />
+              <span>نقل لجهاز جديد</span>
             </button>
 
             <button
@@ -676,6 +689,16 @@ export const BackupManager = () => {
           }}
         />
       )}
+
+      <MigrationWizardModal
+        isOpen={isMigrationModalOpen}
+        onClose={() => setIsMigrationModalOpen(false)}
+        onComplete={() => {
+          setIsMigrationModalOpen(false);
+          void fetchBackupStatus();
+          void fetchDrives();
+        }}
+      />
     </div>
   );
 };
