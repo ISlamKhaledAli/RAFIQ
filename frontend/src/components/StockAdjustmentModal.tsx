@@ -9,6 +9,7 @@ import {
   RefreshCw 
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { CustomSelect } from './CustomSelect';
 import type { Product } from '../types/models';
 import { normalizeArabicNumerals } from '../utils/money';
 
@@ -234,17 +235,16 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
               {unitsList.length > 1 && (
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] text-ink-muted">الوحدة:</span>
-                  <select
-                    value={activeUnit ? activeUnit.id : ''}
-                    onChange={(e) => setSelectedUnitId(e.target.value)}
-                    className="h-6 px-1.5 bg-surface-2 border border-line text-brand text-[11px] font-bold rounded focus:outline-none"
-                  >
-                    {unitsList.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.unitName} (×{u.conversionFactor})
-                      </option>
-                    ))}
-                  </select>
+                  <CustomSelect
+                    value={activeUnit?.id || ''}
+                    onChange={(val) => setSelectedUnitId(val)}
+                    options={unitsList.map((u) => ({
+                      value: u.id || '',
+                      label: `${u.unitName} (×${u.conversionFactor})`
+                    }))}
+                    className="w-36"
+                    size="sm"
+                  />
                 </div>
               )}
             </div>

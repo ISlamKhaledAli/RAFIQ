@@ -155,10 +155,13 @@ namespace RafiqPOS
 
             _singleInstanceMutex = new Mutex(true, mutexName, out createdNew);
 
+            Logger.Info(string.Format("فحص تشغيل نسخة وحيدة: createdNew={0}", createdNew));
+
             // Prevent running multiple instances on same data file (Feature #126 / Task 126-1)
             // If already open, activate and bring the running instance to the front without showing confusing dialogs
             if (!createdNew && !isDemoError)
             {
+                Logger.Warn("تم إنهاء هذا المسار لأن التطبيق يعمل بالفعل في نافذة أخرى.");
                 BringExistingInstanceToFront();
                 return;
             }

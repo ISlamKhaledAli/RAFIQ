@@ -13,6 +13,7 @@ import {
 import { invoke } from '../bridge/ipc';
 import type { Product, ProductUnit } from '../types/models';
 import { MoneyInput } from './MoneyInput';
+import { CustomSelect } from './CustomSelect';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../utils/money';
 
 export interface PurchaseEntryModalProps {
@@ -176,19 +177,16 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
                 وحدة الشراء المستلمة <span className="text-danger">*</span>
               </label>
               {unitsList.length > 1 ? (
-                <div className="relative">
-                  <select
+                  <CustomSelect
                     value={selectedUnit?.id || ''}
-                    onChange={(e) => handleUnitChange(e.target.value)}
-                    className="w-full h-10 px-3 bg-surface border border-line rounded text-xs font-bold text-brand focus:border-brand focus:outline-none"
-                  >
-                    {unitsList.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.unitName} {u.conversionFactor > 1 ? `(تحتوي على ${u.conversionFactor} قطعة)` : '(الوحدة الأساسية)'}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                    onChange={(val) => handleUnitChange(val)}
+                    options={unitsList.map((u) => ({
+                      value: u.id || '',
+                      label: `${u.unitName} ${u.conversionFactor > 1 ? `(تحتوي على ${u.conversionFactor} قطعة)` : '(الوحدة الأساسية)'}`
+                    }))}
+                    className="w-full"
+                    size="md"
+                  />
               ) : (
                 <div className="h-10 px-3 bg-surface-2 border border-line rounded flex items-center justify-between text-xs text-ink font-bold">
                   <span>{unitName} (الوحدة الأساسية)</span>

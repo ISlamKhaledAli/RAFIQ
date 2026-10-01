@@ -543,6 +543,115 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, summary);
                     return true;
 
+                case "reports:getPeriodSales":
+                    string repPeriod = "today";
+                    string fromDate = null;
+                    string toDate = null;
+                    JObject repObj = request.Payload as JObject;
+                    if (repObj != null)
+                    {
+                        if (repObj["period"] != null) repPeriod = repObj["period"].ToString();
+                        if (repObj["fromDate"] != null) fromDate = repObj["fromDate"].ToString();
+                        if (repObj["toDate"] != null) toDate = repObj["toDate"].ToString();
+                    }
+                    var periodReport = DatabaseService.Reports.GetPeriodSalesReport(repPeriod, fromDate, toDate);
+                    response = BridgeResponse.Ok(request.Id, periodReport);
+                    return true;
+
+                case "reports:getLowStock":
+                    var lowStockItems = DatabaseService.Reports.GetLowStockReport();
+                    response = BridgeResponse.Ok(request.Id, lowStockItems);
+                    return true;
+
+                case "reports:getDebtors":
+                    var debtorsList = DatabaseService.Reports.GetDebtorsReport();
+                    response = BridgeResponse.Ok(request.Id, debtorsList);
+                    return true;
+
+                case "reports:runMilestone9Tests":
+                    var m9TestResult = ReportsAndClosingTestRunner.RunAllTests();
+                    response = BridgeResponse.Ok(request.Id, m9TestResult);
+                    return true;
+
+                case "closing:getPreview":
+                    string bDate = null;
+                    JObject prevObj = request.Payload as JObject;
+                    if (prevObj != null && prevObj["businessDate"] != null)
+                    {
+                        bDate = prevObj["businessDate"].ToString();
+                    }
+                    var closingPreview = DatabaseService.DailyClosing.GetClosingPreview(bDate);
+                    response = BridgeResponse.Ok(request.Id, closingPreview);
+                    return true;
+
+                case "closing:save":
+                    JObject savePayload = request.Payload as JObject;
+                    if (savePayload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات إقفال اليومية فارغة");
+                        return true;
+                    }
+                    DailyClosingSaveRequest saveReq = savePayload.ToObject<DailyClosingSaveRequest>();
+                    var savedClosing = DatabaseService.DailyClosing.SaveClosing(saveReq);
+                    response = BridgeResponse.Ok(request.Id, savedClosing);
+                    return true;
+
+                case "closing:getHistory":
+                    int histLimit = 30;
+                    JObject histObj = request.Payload as JObject;
+                    if (histObj != null && histObj["limit"] != null)
+                    {
+                        histLimit = histObj["limit"].Value<int>();
+                    }
+                    var closingHistory = DatabaseService.DailyClosing.GetHistory(histLimit);
+                    response = BridgeResponse.Ok(request.Id, closingHistory);
+                    return true;
+
+                case "closing:getById":
+                    string closingTargetId = null;
+                    JObject idObj = request.Payload as JObject;
+                    if (idObj != null && idObj["id"] != null)
+                    {
+                        closingTargetId = idObj["id"].ToString();
+                    }
+                    var singleClosing = DatabaseService.DailyClosing.GetById(closingTargetId);
+                    response = BridgeResponse.Ok(request.Id, singleClosing);
+                    return true;
+
+                case "closing:checkPreviousDay":
+                    var prevDayAlert = DatabaseService.DailyClosing.CheckPreviousDayClosed();
+                    response = BridgeResponse.Ok(request.Id, prevDayAlert);
+                    return true;
+
+                case "closing:print":
+                    string printPName = null;
+                    DailyClosing closingToPrint = null;
+                    JObject printObj = request.Payload as JObject;
+                    if (printObj != null)
+                    {
+                        if (printObj["printerName"] != null) printPName = printObj["printerName"].ToString();
+                        if (printObj["closing"] != null)
+                        {
+                            var cObj = printObj["closing"] as JObject;
+                            if (cObj != null)
+                            {
+                                closingToPrint = cObj.ToObject<DailyClosing>();
+                            }
+                        }
+                        else if (printObj["closingId"] != null)
+                        {
+                            closingToPrint = DatabaseService.DailyClosing.GetById(printObj["closingId"].ToString());
+                        }
+                    }
+                    if (closingToPrint == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "NOT_FOUND", "سجل الإقفال المطلوب طباعته غير موجود");
+                        return true;
+                    }
+                    var printRes = DatabaseService.Printer.PrintDailyClosingReport(closingToPrint, printPName);
+                    response = BridgeResponse.Ok(request.Id, printRes);
+                    return true;
+
                 case "audit:list":
                 case "audit:getLogs":
                     int auditLimit = 100;

@@ -398,6 +398,7 @@ namespace RafiqPOS
 
         private async void InitializeApplication()
         {
+            Logger.Info("بدء تهيئة InitializeApplication...");
 #if DEBUG
             if (_isDemoError)
             {
@@ -415,7 +416,9 @@ namespace RafiqPOS
             // 1. Initialize SQLite Database (Separated Error Handling & Self-Healing)
             try
             {
+                Logger.Info("جاري استدعاء DatabaseService.Initialize()...");
                 DatabaseService.Initialize();
+                Logger.Info("اكتملت تهيئة DatabaseService بنجاح.");
                 if (DatabaseService.License != null)
                 {
                     DatabaseService.License.StartBackgroundPeriodicCheck();
@@ -427,6 +430,7 @@ namespace RafiqPOS
             }
             catch (Exception dbEx)
             {
+                Logger.Error("خطأ في DatabaseService.Initialize", dbEx);
                 ShowFatalError(
                     "فشل في تهيئة قاعدة البيانات المحلية (SQLite)",
                     dbEx.Message + "\n\nمسار ملف القاعدة:\n" + DatabaseService.DbPath,
@@ -457,6 +461,7 @@ namespace RafiqPOS
                 // In Production, load from local dist folder next to exe
                 distFolder = Path.Combine(baseDir, "dist");
             }
+            Logger.Info(string.Format("مسار الواجهة distFolder: {0}", distFolder));
 
             if (!Directory.Exists(distFolder) || !File.Exists(Path.Combine(distFolder, "index.html")))
             {
@@ -520,6 +525,7 @@ namespace RafiqPOS
             // 4. Initialize WebView2 with dedicated error handling & Win7 Offline Performance Optimizations
             try
             {
+                Logger.Info("بدء تهيئة CoreWebView2Environment...");
                 if (_lblStatus != null) _lblStatus.Text = "جاري تهيئة محرك العرض السريع...";
 
                 string userDataFolder = Path.Combine(baseDataFolder, "webview_profile");
@@ -536,9 +542,12 @@ namespace RafiqPOS
                                      "--autoplay-policy=no-user-gesture-required";
 
                 CoreWebView2EnvironmentOptions envOptions = new CoreWebView2EnvironmentOptions(browserArgs, null, null, false);
+                Logger.Info(string.Format("استدعاء CreateAsync(browserExecutable={0}, userDataFolder={1})", browserExecutableFolder ?? "null", userDataFolder));
                 var env = await CoreWebView2Environment.CreateAsync(browserExecutableFolder, userDataFolder, envOptions);
+                Logger.Info("تم إنشاء CoreWebView2Environment بنجاح. جاري استدعاء EnsureCoreWebView2Async...");
 
                 await _webView.EnsureCoreWebView2Async(env);
+                Logger.Info("اكتمل EnsureCoreWebView2Async بنجاح.");
 
                 // Configure WebView settings for retail POS
                 _webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
@@ -559,6 +568,7 @@ namespace RafiqPOS
                 // Navigate to app with cache-buster parameter
                 if (_lblStatus != null) _lblStatus.Text = "جاري فتح واجهة نظام رفيق...";
                 string cacheBuster = DateTime.UtcNow.Ticks.ToString();
+                Logger.Info("جاري استدعاء Navigate إلى واجهة التطبيق...");
                 _webView.CoreWebView2.Navigate("https://app.rafiq.local/index.html?v=" + cacheBuster);
 
                 _lblStatus.Visible = false;
@@ -566,9 +576,11 @@ namespace RafiqPOS
                 _webView.Visible = true;
                 _webView.Focus();
                 WindowHelper.ActivateAndBringToFront(this);
+                Logger.Info("تم الانتهاء من تهيئة الواجهة وتشغيلها بنجاح.");
             }
             catch (Exception wvEx)
             {
+                Logger.Error("خطأ استثنائي أثناء تهيئة محرك WebView2: ", wvEx);
                 string osName = OsDetector.GetOsFriendlyName();
                 string advice = isLegacyWindows
                     ? string.Format("نظام التشغيل لديك هو: {0}.\nيتطلب النظام مشغل WebView2 Runtime إصدار 109 المخصص لويندوز 7.\nيرجى تشغيل أداة التثبيت واختيار تثبيت المشغل الأوفلاين.", osName)

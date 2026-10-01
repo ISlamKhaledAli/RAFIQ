@@ -691,6 +691,174 @@ namespace RafiqPOS.Services
             }
         }
 
+        /// <summary>
+        /// Story 87 / Task 49-4: طباعة ملخص تقرير قفل اليومية (Z-Report) على الطابعة الحرارية
+        /// </summary>
+        public PrintResult PrintDailyClosingReport(DailyClosing closing, string printerName = null, string paperWidth = null)
+        {
+            if (closing == null)
+            {
+                return new PrintResult { Success = false, Message = "بيانات تقرير الإقفال فارغة" };
+            }
+
+            string targetPrinter = ResolvePrinterName(printerName);
+            string targetWidth = paperWidth ?? GetConfiguredPaperWidth();
+            int printWidth = (targetWidth == "57mm") ? 200 : 285;
+
+            try
+            {
+                var store = _settings != null ? _settings.GetAllSettings() : new Dictionary<string, string>();
+                string storeName = store.ContainsKey("store_name") ? store["store_name"] : "متجر رفيق";
+
+                using (var doc = new PrintDocument())
+                {
+                    if (!string.IsNullOrWhiteSpace(targetPrinter))
+                    {
+                        doc.PrinterSettings.PrinterName = targetPrinter;
+                    }
+
+                    if (!doc.PrinterSettings.IsValid)
+                    {
+                        return new PrintResult
+                        {
+                            Success = false,
+                            Message = string.Format("الطابعة المحددة '{0}' غير صالحة أو غير مثبتة في النظام.", targetPrinter),
+                            PrinterUsed = targetPrinter
+                        };
+                    }
+
+                    doc.DocumentName = string.Format("تقرير إقفال اليومية Z-Report #{0}", closing.ClosingNumber);
+                    doc.PrintController = new StandardPrintController();
+
+                    doc.PrintPage += delegate(object sender, PrintPageEventArgs e)
+                    {
+                        RenderDailyClosingPage(e.Graphics, closing, storeName, printWidth);
+                        e.HasMorePages = false;
+                    };
+
+                    doc.Print();
+                }
+
+                return new PrintResult
+                {
+                    Success = true,
+                    Message = string.Format("تم إرسال تقرير إقفال اليومية #{0} إلى الطابعة '{1}' بنجاح.", closing.ClosingNumber, targetPrinter),
+                    PrinterUsed = targetPrinter
+                };
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(string.Format("فشل طباعة تقرير إقفال اليومية #{0}: {1}", closing.ClosingNumber, ex.Message), ex);
+                return new PrintResult
+                {
+                    Success = false,
+                    Message = "خطأ أثناء الطباعة: " + ex.Message,
+                    PrinterUsed = targetPrinter
+                };
+            }
+        }
+
+        private void RenderDailyClosingPage(Graphics g, DailyClosing closing, string storeName, int printWidth)
+        {
+            var fontTitle = new Font("Arial", 11, FontStyle.Bold);
+            var fontHeader = new Font("Arial", 9.5f, FontStyle.Bold);
+            var fontBody = new Font("Arial", 8.5f, FontStyle.Regular);
+            var fontBold = new Font("Arial", 8.5f, FontStyle.Bold);
+            var fontSmall = new Font("Arial", 7.5f, FontStyle.Regular);
+
+            var centerFormat = new StringFormat { Alignment = StringAlignment.Center };
+            var rightFormat = new StringFormat { Alignment = StringAlignment.Near, FormatFlags = StringFormatFlags.DirectionRightToLeft };
+            var leftFormat = new StringFormat { Alignment = StringAlignment.Far };
+
+            float y = 10;
+            float contentWidth = printWidth;
+
+            // 1. Store Header
+            g.DrawString(storeName, fontTitle, Brushes.Black, new RectangleF(0, y, contentWidth, 20), centerFormat);
+            y += 22;
+
+            g.DrawString("تقرير إقفال اليومية (Z-REPORT)", fontHeader, Brushes.Black, new RectangleF(0, y, contentWidth, 18), centerFormat);
+            y += 20;
+
+            g.DrawLine(Pens.Black, 0, y, contentWidth, y);
+            y += 6;
+
+            // 2. Info Block
+            g.DrawString(string.Format("رقم الإقفال: #{0}", closing.ClosingNumber), fontBold, Brushes.Black, new RectangleF(0, y, contentWidth, 16), rightFormat);
+            y += 16;
+
+            g.DrawString(string.Format("يوم العمل: {0}", closing.BusinessDate), fontBody, Brushes.Black, new RectangleF(0, y, contentWidth, 16), rightFormat);
+            y += 16;
+
+            g.DrawString(string.Format("الكاشير: {0}", closing.CashierName ?? "غير محدد"), fontBody, Brushes.Black, new RectangleF(0, y, contentWidth, 16), rightFormat);
+            y += 16;
+
+            g.DrawString(string.Format("وقت الإقفال: {0}", DateTime.Now.ToString("yyyy-MM-dd HH:mm")), fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, 16), rightFormat);
+            y += 18;
+
+            g.DrawLine(Pens.Black, 0, y, contentWidth, y);
+            y += 8;
+
+            // Helper row
+            Action<string, string, bool> drawRow = delegate(string label, string val, bool isBold)
+            {
+                var f = isBold ? fontBold : fontBody;
+                g.DrawString(label, f, Brushes.Black, new RectangleF(0, y, contentWidth * 0.6f, 16), rightFormat);
+                g.DrawString(val, f, Brushes.Black, new RectangleF(contentWidth * 0.55f, y, contentWidth * 0.45f, 16), leftFormat);
+                y += 17;
+            };
+
+            // 3. Sales Breakdown
+            g.DrawString("ملخص المبيعات والحركات", fontBold, Brushes.Black, new RectangleF(0, y, contentWidth, 16), rightFormat);
+            y += 18;
+
+            drawRow(string.Format("إجمالي المبيعات ({0} فواتير):", closing.InvoicesCount), (closing.TotalSalesPiasters / 100.0).ToString("N2") + " ج.م", true);
+            drawRow("  • مبيعات نقدية:", (closing.CashSalesPiasters / 100.0).ToString("N2") + " ج.م", false);
+            drawRow("  • مبيعات آجلة:", (closing.CreditSalesPiasters / 100.0).ToString("N2") + " ج.م", false);
+
+            if (closing.ReturnsTotalPiasters > 0)
+            {
+                drawRow(string.Format("المرتجعات ({0} عمليات):", closing.ReturnsCount), "-" + (closing.ReturnsTotalPiasters / 100.0).ToString("N2") + " ج.م", false);
+            }
+
+            if (closing.DebtPaymentsPiasters > 0)
+            {
+                drawRow("سداد ديون العملاء (نقدي):", "+" + (closing.DebtPaymentsPiasters / 100.0).ToString("N2") + " ج.م", false);
+            }
+
+            if (closing.CancelledCount > 0)
+            {
+                drawRow(string.Format("فواتير ملغاة ({0}):", closing.CancelledCount), (closing.CancelledTotalPiasters / 100.0).ToString("N2") + " ج.م", false);
+            }
+
+            y += 4;
+            g.DrawLine(Pens.Black, 0, y, contentWidth, y);
+            y += 8;
+
+            // 4. Cash Drawer Reconciliation (مقارنة الدرج والفرق)
+            g.DrawString("جرد النقدية والخزينة", fontBold, Brushes.Black, new RectangleF(0, y, contentWidth, 16), rightFormat);
+            y += 18;
+
+            drawRow("النقد المفترض في الدرج:", (closing.ExpectedCashPiasters / 100.0).ToString("N2") + " ج.م", true);
+            drawRow("النقد الفعلي المعدود:", (closing.ActualCashPiasters / 100.0).ToString("N2") + " ج.م", true);
+
+            string diffLabel = closing.DifferencePiasters == 0 ? "مطابق تماماً (لا يوجد فرق)" :
+                               closing.DifferencePiasters > 0 ? "فائض نقدية (+):" : "عجز نقدية (-):";
+            drawRow(diffLabel, (Math.Abs(closing.DifferencePiasters) / 100.0).ToString("N2") + " ج.م", true);
+
+            y += 4;
+            g.DrawLine(Pens.Black, 0, y, contentWidth, y);
+            y += 8;
+
+            // 5. Profitability & Footer
+            drawRow("الربح التقريبي لليوم:", (closing.GrossProfitPiasters / 100.0).ToString("N2") + " ج.م", true);
+            y += 8;
+
+            g.DrawString("سجل إقفال رسمي ومختوم رقمياً • لا يُعدّل بعد الحفظ", fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, 16), centerFormat);
+            y += 16;
+            g.DrawString("نظام رفيق لنقاط البيع وإدارة السوبرماركت", fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, 16), centerFormat);
+        }
+
         private string ResolvePrinterName(string explicitPrinter)
         {
             if (!string.IsNullOrWhiteSpace(explicitPrinter))

@@ -64,6 +64,9 @@ namespace RafiqPOS.Bridge
                 case "products:search":
                     string query = "";
                     int searchLimit = 50;
+                    int searchOffset = 0;
+                    string stockStatus = "all";
+                    string categoryId = "all";
                     JObject searchObj = request.Payload as JObject;
                     if (searchObj != null)
                     {
@@ -75,13 +78,36 @@ namespace RafiqPOS.Bridge
                         {
                             searchLimit = searchObj["limit"].Value<int>();
                         }
+                        if (searchObj["offset"] != null)
+                        {
+                            searchOffset = searchObj["offset"].Value<int>();
+                        }
+                        if (searchObj["stockStatus"] != null)
+                        {
+                            stockStatus = searchObj["stockStatus"].ToString();
+                        }
+                        if (searchObj["categoryId"] != null)
+                        {
+                            categoryId = searchObj["categoryId"].ToString();
+                        }
                     }
                     else if (request.Payload != null)
                     {
                         query = request.Payload.ToString().Trim('"', ' ');
                     }
-                    var searchResults = DatabaseService.Products.Search(query, searchLimit);
-                    response = BridgeResponse.Ok(request.Id, searchResults);
+                    var searchResults = DatabaseService.Products.Search(query, searchLimit, searchOffset, stockStatus, categoryId);
+                    int searchTotalCount = DatabaseService.Products.GetSearchCount(query, stockStatus, categoryId);
+                    int globalLowStockCount = DatabaseService.Products.GetLowStockCount();
+                    int globalOutOfStockCount = DatabaseService.Products.GetOutOfStockCount();
+                    response = BridgeResponse.Ok(request.Id, new
+                    {
+                        products = searchResults,
+                        totalCount = searchTotalCount,
+                        lowStockCount = globalLowStockCount,
+                        outOfStockCount = globalOutOfStockCount,
+                        offset = searchOffset,
+                        limit = searchLimit
+                    });
                     return true;
 
                 case "products:save":

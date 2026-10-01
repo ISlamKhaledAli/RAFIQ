@@ -31,7 +31,10 @@ import {
   Power,
   Play,
   Trash2,
-  Truck
+  Truck,
+  Receipt,
+  Plus,
+  Building2,
 } from 'lucide-react';
 import { invoke } from './bridge/ipc';
 import { PosView } from './views/PosView';
@@ -39,6 +42,7 @@ import { DashboardView } from './views/DashboardView';
 import { CustomersView } from './views/CustomersView';
 import { ProductsView } from './views/ProductsView';
 import { PurchasesView } from './views/PurchasesView';
+import type { PurchasesSubView } from './views/PurchasesView';
 import { SalesHistoryView } from './views/SalesHistoryView';
 import { AuditLogView } from './views/AuditLogView';
 import { SettingsView } from './views/SettingsView';
@@ -255,6 +259,8 @@ export default function App() {
   const effectiveActiveTab: TabType = isCashier && !CASHIER_ALLOWED_TABS.includes(activeTab) ? 'pos' : activeTab;
   const [productsSubView, setProductsSubView] = useState<'catalog' | 'movements'>('catalog');
   const [isProductsMenuExpanded, setIsProductsMenuExpanded] = useState(false);
+  const [purchasesSubView, setPurchasesSubView] = useState<PurchasesSubView>('invoices');
+  const [isPurchasesMenuExpanded, setIsPurchasesMenuExpanded] = useState(false);
   const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('profile');
   const [isSettingsMenuExpanded, setIsSettingsMenuExpanded] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
@@ -996,6 +1002,7 @@ export default function App() {
               const Icon = item.icon;
               const isActive = effectiveActiveTab === item.id;
               const isProductsItem = item.id === 'products';
+              const isPurchasesItem = item.id === 'purchases';
               const isSettingsItem = item.id === 'settings';
 
               if (isSidebarCollapsed) {
@@ -1006,6 +1013,7 @@ export default function App() {
                     onClick={() => {
                       handleNavClick(item.id, () => {
                         if (isProductsItem) setProductsSubView('catalog');
+                        if (isPurchasesItem) setPurchasesSubView('invoices');
                         if (isSettingsItem) setSettingsSubTab('profile');
                       });
                     }}
@@ -1037,6 +1045,12 @@ export default function App() {
                           handleNavClick('products', () => setIsProductsMenuExpanded(true));
                         } else {
                           setIsProductsMenuExpanded(!isProductsMenuExpanded);
+                        }
+                      } else if (isPurchasesItem) {
+                        if (effectiveActiveTab !== 'purchases') {
+                          handleNavClick('purchases', () => setIsPurchasesMenuExpanded(true));
+                        } else {
+                          setIsPurchasesMenuExpanded(!isPurchasesMenuExpanded);
                         }
                       } else if (isSettingsItem) {
                         if (effectiveActiveTab !== 'settings') {
@@ -1076,9 +1090,9 @@ export default function App() {
                           {item.shortcut}
                         </span>
                       )}
-                      {(isProductsItem || isSettingsItem) && (
+                      {(isProductsItem || isPurchasesItem || isSettingsItem) && (
                         <span className={isActive ? 'text-white/80' : 'text-[#52605d]'}>
-                          {(isProductsItem ? isProductsMenuExpanded : isSettingsMenuExpanded) ? (
+                          {(isProductsItem ? isProductsMenuExpanded : isPurchasesItem ? isPurchasesMenuExpanded : isSettingsMenuExpanded) ? (
                             <ChevronDown className="w-3.5 h-3.5" />
                           ) : (
                             <ChevronLeft className="w-3.5 h-3.5" />
@@ -1099,7 +1113,7 @@ export default function App() {
                           setInitialProductFilter('all');
                         }}
                         className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
-                          effectiveActiveTab === 'products' && productsSubView === 'catalog' && initialProductFilter === 'all'
+                          effectiveActiveTab === 'products' && productsSubView === 'catalog'
                             ? 'bg-[#006d41] text-white font-bold shadow-2xs'
                             : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
                         }`}
@@ -1108,34 +1122,6 @@ export default function App() {
                           <Tag className="w-3.5 h-3.5" />
                           <span>كتالوج الأصناف</span>
                         </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveTab('products');
-                          setProductsSubView('catalog');
-                          setInitialProductFilter('lowStock');
-                        }}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
-                          effectiveActiveTab === 'products' && productsSubView === 'catalog' && initialProductFilter === 'lowStock'
-                            ? 'bg-[#b91c1c] text-white font-bold shadow-2xs'
-                            : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <AlertTriangle className={`w-3.5 h-3.5 ${effectiveActiveTab === 'products' && initialProductFilter === 'lowStock' ? 'text-white' : 'text-rose-600'}`} />
-                          <span>النواقص وحد الطلب</span>
-                        </div>
-                        {lowStockCount > 0 && (
-                          <span className={`font-mono text-[10px] px-1.5 py-0.2 rounded-full font-bold border ${
-                            effectiveActiveTab === 'products' && initialProductFilter === 'lowStock'
-                              ? 'bg-white/20 text-white border-white/30'
-                              : 'bg-rose-100 text-rose-800 border-rose-200'
-                          }`}>
-                            {lowStockCount}
-                          </span>
-                        )}
                       </button>
 
                       <button
@@ -1153,6 +1139,65 @@ export default function App() {
                         <div className="flex items-center gap-2">
                           <Boxes className="w-3.5 h-3.5" />
                           <span>حركات وجرد المخزون</span>
+                        </div>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Sub-tree for Purchases & Suppliers */}
+                  {isPurchasesItem && isPurchasesMenuExpanded && (
+                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-[#00372d]/25 animate-in slide-in-from-top-1 duration-150">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('purchases');
+                          setPurchasesSubView('invoices');
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
+                          effectiveActiveTab === 'purchases' && purchasesSubView === 'invoices'
+                            ? 'bg-[#006d41] text-white font-bold shadow-2xs'
+                            : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Receipt className="w-3.5 h-3.5" />
+                          <span>فواتير المشتريات</span>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('purchases');
+                          setPurchasesSubView('new_invoice');
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
+                          effectiveActiveTab === 'purchases' && purchasesSubView === 'new_invoice'
+                            ? 'bg-[#006d41] text-white font-bold shadow-2xs'
+                            : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>تسجيل فاتورة شراء جديدة</span>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('purchases');
+                          setPurchasesSubView('suppliers');
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
+                          effectiveActiveTab === 'purchases' && purchasesSubView === 'suppliers'
+                            ? 'bg-[#006d41] text-white font-bold shadow-2xs'
+                            : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Building2 className="w-3.5 h-3.5" />
+                          <span>دليل الموردين</span>
                         </div>
                       </button>
                     </div>
@@ -1249,7 +1294,12 @@ export default function App() {
               onResetFilter={() => setInitialProductFilter('all')}
             />
           )}
-          {!isCashier && effectiveActiveTab === 'purchases' && <PurchasesView />}
+          {!isCashier && effectiveActiveTab === 'purchases' && (
+            <PurchasesView 
+              subView={purchasesSubView} 
+              onSubViewChange={(tab) => setPurchasesSubView(tab)} 
+            />
+          )}
           {!isCashier && effectiveActiveTab === 'sales' && <SalesHistoryView />}
           {!isCashier && effectiveActiveTab === 'audit' && <AuditLogView />}
           {!isCashier && effectiveActiveTab === 'settings' && (

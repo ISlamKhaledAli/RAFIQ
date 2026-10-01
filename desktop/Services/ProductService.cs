@@ -99,18 +99,18 @@ namespace RafiqPOS.Services
             return _repo.GetByBarcode(barcode);
         }
 
-        public List<Product> Search(string query, int limit = 50)
+        public List<Product> Search(string query, int limit = 50, int offset = 0, string stockStatus = "all", string categoryId = "all")
         {
             if (string.IsNullOrWhiteSpace(query))
             {
-                return _repo.GetAll(limit);
+                return _repo.GetAll(limit, offset, stockStatus, categoryId);
             }
-            return _repo.Search(query, limit);
+            return _repo.Search(query, limit, offset, stockStatus, categoryId);
         }
 
-        public List<Product> GetAll(int limit = 100)
+        public List<Product> GetAll(int limit = 100, int offset = 0, string stockStatus = "all", string categoryId = "all")
         {
-            return _repo.GetAll(limit);
+            return _repo.GetAll(limit, offset, stockStatus, categoryId);
         }
 
         public Product SaveProduct(Product product, bool confirmSimilarName = false, bool confirmBelowCost = false)
@@ -414,6 +414,21 @@ namespace RafiqPOS.Services
         public int GetLowStockCount()
         {
             return _repo.GetLowStockCount();
+        }
+
+        public int GetTotalActiveCount(string stockStatus = "all", string categoryId = "all")
+        {
+            return _repo.GetTotalActiveCount(stockStatus, categoryId);
+        }
+
+        public int GetOutOfStockCount()
+        {
+            return _repo.GetOutOfStockCount();
+        }
+
+        public int GetSearchCount(string query, string stockStatus = "all", string categoryId = "all")
+        {
+            return _repo.GetSearchCount(query, stockStatus, categoryId);
         }
     }
 }

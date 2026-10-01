@@ -14,6 +14,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { CustomSelect } from '../components/CustomSelect';
 import type { AuditLogEntry, AuditChainVerificationResult } from '../types/models';
 import { piastersToPounds } from '../utils/money';
 
@@ -225,19 +226,15 @@ export const AuditLogView = () => {
 
         {/* Filters and Actions */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 bg-surface-2 px-2.5 py-1 rounded border border-line">
+          <div className="flex items-center gap-1.5">
             <Filter className="w-3.5 h-3.5 text-ink-muted" />
-            <select
+            <CustomSelect
               value={selectedAction}
-              onChange={(e) => setSelectedAction(e.target.value)}
-              className="bg-transparent text-[12px] font-semibold text-ink focus:outline-none cursor-pointer"
-            >
-              {ACTION_FILTERS.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.label}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setSelectedAction(val)}
+              options={ACTION_FILTERS.map((f) => ({ value: f.id, label: f.label }))}
+              className="w-52"
+              size="sm"
+            />
           </div>
 
           <button

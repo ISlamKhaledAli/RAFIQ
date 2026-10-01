@@ -169,12 +169,12 @@ namespace RafiqPOS.Repositories
             return list;
         }
 
-        public List<Product> Search(string query, int limit = 50)
+        public List<Product> Search(string query, int limit = 50, int offset = 0, string stockStatus = "all", string categoryId = "all")
         {
             var results = new List<Product>();
             if (string.IsNullOrWhiteSpace(query))
             {
-                return GetAll(limit);
+                return GetAll(limit, offset, stockStatus, categoryId);
             }
 
             string cleanQuery = query.Trim();
@@ -183,11 +183,26 @@ namespace RafiqPOS.Repositories
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                string filterSql = "";
+                if (string.Equals(stockStatus, "lowStock", StringComparison.OrdinalIgnoreCase))
+                {
+                    filterSql = " AND p.stock_quantity_milli <= p.min_stock_quantity_milli";
+                }
+                else if (string.Equals(stockStatus, "outOfStock", StringComparison.OrdinalIgnoreCase))
+                {
+                    filterSql = " AND p.stock_quantity_milli <= 0";
+                }
+
+                if (!string.IsNullOrEmpty(categoryId) && !string.Equals(categoryId, "all", StringComparison.OrdinalIgnoreCase))
+                {
+                    filterSql += " AND (p.category_id = @categoryId OR (p.category_id IS NULL AND @categoryId = 'cat_general'))";
+                }
+
                 string sql = @"
                     SELECT DISTINCT p.* FROM products p
                     LEFT JOIN product_barcodes pb ON p.id = pb.product_id
                     LEFT JOIN product_units pu ON p.id = pu.product_id
-                    WHERE p.is_active = 1 
+                    WHERE p.is_active = 1 " + filterSql + @"
                       AND (
                            p.barcode = @exact 
                         OR pb.barcode = @exact 
@@ -206,7 +221,7 @@ namespace RafiqPOS.Repositories
                         ELSE 5
                       END,
                       p.name ASC 
-                    LIMIT @limit;
+                    LIMIT @limit OFFSET @offset;
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
@@ -215,7 +230,9 @@ namespace RafiqPOS.Repositories
                     cmd.Parameters.AddWithValue("@normPrefix", normalizedQuery + "%");
                     cmd.Parameters.AddWithValue("@normLike", "%" + normalizedQuery + "%");
                     cmd.Parameters.AddWithValue("@like", "%" + cleanQuery + "%");
+                    cmd.Parameters.AddWithValue("@categoryId", categoryId);
                     cmd.Parameters.AddWithValue("@limit", limit);
+                    cmd.Parameters.AddWithValue("@offset", offset);
                     using (var reader = cmd.ExecuteReader())
                     {
                         while (reader.Read())
@@ -235,16 +252,33 @@ namespace RafiqPOS.Repositories
             return results;
         }
 
-        public List<Product> GetAll(int limit = 100)
+        public List<Product> GetAll(int limit = 100, int offset = 0, string stockStatus = "all", string categoryId = "all")
         {
             var results = new List<Product>();
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = "SELECT * FROM products WHERE is_active = 1 ORDER BY created_at DESC LIMIT @limit;";
+                string filterSql = "";
+                if (string.Equals(stockStatus, "lowStock", StringComparison.OrdinalIgnoreCase))
+                {
+                    filterSql = " AND stock_quantity_milli <= min_stock_quantity_milli";
+                }
+                else if (string.Equals(stockStatus, "outOfStock", StringComparison.OrdinalIgnoreCase))
+                {
+                    filterSql = " AND stock_quantity_milli <= 0";
+                }
+
+                if (!string.IsNullOrEmpty(categoryId) && !string.Equals(categoryId, "all", StringComparison.OrdinalIgnoreCase))
+                {
+                    filterSql += " AND (category_id = @categoryId OR (category_id IS NULL AND @categoryId = 'cat_general'))";
+                }
+
+                string sql = "SELECT * FROM products WHERE is_active = 1" + filterSql + " ORDER BY created_at DESC LIMIT @limit OFFSET @offset;";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
+                    cmd.Parameters.AddWithValue("@categoryId", categoryId);
                     cmd.Parameters.AddWithValue("@limit", limit);
+                    cmd.Parameters.AddWithValue("@offset", offset);
                     using (var reader = cmd.ExecuteReader())
                     {
                         while (reader.Read())
@@ -307,6 +341,125 @@ namespace RafiqPOS.Repositories
                 string sql = "SELECT COUNT(1) FROM products WHERE is_active = 1 AND stock_quantity_milli <= min_stock_quantity_milli;";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
+                    object scalar = cmd.ExecuteScalar();
+                    if (scalar != null && scalar != DBNull.Value)
+                    {
+                        return Convert.ToInt32(scalar);
+                    }
+                }
+            }
+            return 0;
+        }
+
+        public int GetOutOfStockCount()
+        {
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = "SELECT COUNT(1) FROM products WHERE is_active = 1 AND stock_quantity_milli <= 0;";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    object scalar = cmd.ExecuteScalar();
+                    if (scalar != null && scalar != DBNull.Value)
+                    {
+                        return Convert.ToInt32(scalar);
+                    }
+                }
+            }
+            return 0;
+        }
+
+        /// <summary>
+        /// Returns total count of active products for pagination display.
+        /// </summary>
+        public int GetTotalActiveCount(string stockStatus = "all", string categoryId = "all")
+        {
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string filterSql = "";
+                if (string.Equals(stockStatus, "lowStock", StringComparison.OrdinalIgnoreCase))
+                {
+                    filterSql = " AND stock_quantity_milli <= min_stock_quantity_milli";
+                }
+                else if (string.Equals(stockStatus, "outOfStock", StringComparison.OrdinalIgnoreCase))
+                {
+                    filterSql = " AND stock_quantity_milli <= 0";
+                }
+
+                if (!string.IsNullOrEmpty(categoryId) && !string.Equals(categoryId, "all", StringComparison.OrdinalIgnoreCase))
+                {
+                    filterSql += " AND (category_id = @categoryId OR (category_id IS NULL AND @categoryId = 'cat_general'))";
+                }
+
+                string sql = "SELECT COUNT(1) FROM products WHERE is_active = 1" + filterSql + ";";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@categoryId", categoryId);
+                    object scalar = cmd.ExecuteScalar();
+                    if (scalar != null && scalar != DBNull.Value)
+                    {
+                        return Convert.ToInt32(scalar);
+                    }
+                }
+            }
+            return 0;
+        }
+
+        /// <summary>
+        /// Returns total count of active products matching a search query (for pagination).
+        /// </summary>
+        public int GetSearchCount(string query, string stockStatus = "all", string categoryId = "all")
+        {
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                return GetTotalActiveCount(stockStatus, categoryId);
+            }
+
+            string cleanQuery = query.Trim();
+            string normalizedQuery = Common.ArabicTextNormalizer.Normalize(cleanQuery);
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string filterSql = "";
+                if (string.Equals(stockStatus, "lowStock", StringComparison.OrdinalIgnoreCase))
+                {
+                    filterSql = " AND p.stock_quantity_milli <= p.min_stock_quantity_milli";
+                }
+                else if (string.Equals(stockStatus, "outOfStock", StringComparison.OrdinalIgnoreCase))
+                {
+                    filterSql = " AND p.stock_quantity_milli <= 0";
+                }
+
+                if (!string.IsNullOrEmpty(categoryId) && !string.Equals(categoryId, "all", StringComparison.OrdinalIgnoreCase))
+                {
+                    filterSql += " AND (p.category_id = @categoryId OR (p.category_id IS NULL AND @categoryId = 'cat_general'))";
+                }
+
+                string sql = @"
+                    SELECT COUNT(DISTINCT p.id) FROM products p
+                    LEFT JOIN product_barcodes pb ON p.id = pb.product_id
+                    LEFT JOIN product_units pu ON p.id = pu.product_id
+                    WHERE p.is_active = 1 " + filterSql + @"
+                      AND (
+                           p.barcode = @exact 
+                        OR pb.barcode = @exact 
+                        OR p.internal_code = @exact 
+                        OR p.normalized_name = @normExactText
+                        OR p.normalized_name LIKE @normPrefix
+                        OR p.normalized_name LIKE @normLike
+                        OR p.name LIKE @like
+                      );
+                ";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@exact", cleanQuery);
+                    cmd.Parameters.AddWithValue("@normExactText", normalizedQuery);
+                    cmd.Parameters.AddWithValue("@normPrefix", normalizedQuery + "%");
+                    cmd.Parameters.AddWithValue("@normLike", "%" + normalizedQuery + "%");
+                    cmd.Parameters.AddWithValue("@like", "%" + cleanQuery + "%");
+                    cmd.Parameters.AddWithValue("@categoryId", categoryId);
                     object scalar = cmd.ExecuteScalar();
                     if (scalar != null && scalar != DBNull.Value)
                     {

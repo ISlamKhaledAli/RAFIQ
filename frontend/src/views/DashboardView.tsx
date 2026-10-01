@@ -22,12 +22,18 @@ import {
   Flame,
   Lock,
   Scale,
-  Boxes
+  Boxes,
+  FileText
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
-import type { DashboardSummary } from '../types/models';
+import type { DashboardSummary, UnclosedDayAlert } from '../types/models';
 import { ReadinessCheckModal } from '../components/ReadinessCheckModal';
 import { LicenseModal } from '../components/LicenseModal';
+import { DailyClosingModal } from '../components/DailyClosingModal';
+import { LowStockReportModal } from '../components/LowStockReportModal';
+import { DebtorsReportModal } from '../components/DebtorsReportModal';
+import { PeriodSalesReportModal } from '../components/PeriodSalesReportModal';
+import { formatArabicCurrency } from '../utils/money';
 
 interface SystemAlert {
   id: string;
@@ -109,20 +115,30 @@ export function DashboardView({
 }: DashboardViewProps) {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [health, setHealth] = useState<SystemHealthData | null>(null);
+  const [unclosedAlert, setUnclosedAlert] = useState<UnclosedDayAlert | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<string>('');
   const [isReadinessModalOpen, setIsReadinessModalOpen] = useState(false);
   const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
 
+  // Milestone 9 Modals State
+  const [isClosingModalOpen, setIsClosingModalOpen] = useState(false);
+  const [closingTargetDate, setClosingTargetDate] = useState<string | undefined>(undefined);
+  const [isLowStockModalOpen, setIsLowStockModalOpen] = useState(false);
+  const [isDebtorsModalOpen, setIsDebtorsModalOpen] = useState(false);
+  const [isPeriodSalesModalOpen, setIsPeriodSalesModalOpen] = useState(false);
+
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [sumData, healthData] = await Promise.all([
+      const [sumData, healthData, unclosedData] = await Promise.all([
         invoke<DashboardSummary>('reports:getTodaySummary'),
         invoke<SystemHealthData>('health:getStatus'),
+        invoke<UnclosedDayAlert>('closing:checkPreviousDay')
       ]);
       if (sumData) setSummary(sumData);
       if (healthData) setHealth(healthData);
+      if (unclosedData) setUnclosedAlert(unclosedData);
       const now = new Date();
       setLastRefreshed(now.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch {
@@ -136,13 +152,15 @@ export function DashboardView({
     let active = true;
     void (async () => {
       try {
-        const [sumData, healthData] = await Promise.all([
+        const [sumData, healthData, unclosedData] = await Promise.all([
           invoke<DashboardSummary>('reports:getTodaySummary'),
           invoke<SystemHealthData>('health:getStatus'),
+          invoke<UnclosedDayAlert>('closing:checkPreviousDay')
         ]);
         if (active) {
           if (sumData) setSummary(sumData);
           if (healthData) setHealth(healthData);
+          if (unclosedData) setUnclosedAlert(unclosedData);
           const now = new Date();
           setLastRefreshed(now.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
         }
@@ -204,6 +222,29 @@ export function DashboardView({
           </button>
 
           <button
+            type="button"
+            onClick={() => {
+              setClosingTargetDate(undefined);
+              setIsClosingModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 h-9 px-3 bg-white hover:bg-[#F7F8F6] text-[#0B4F42] border border-[#DCE1DC] rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer active:translate-y-0.5"
+            title="إقفال اليومية ومطابقة النقدية (Z-Report)"
+          >
+            <Lock className="w-4 h-4 text-[#006d41]" />
+            <span>قفل اليومية (Z)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsPeriodSalesModalOpen(true)}
+            className="flex items-center gap-1.5 h-9 px-3 bg-white hover:bg-[#F7F8F6] text-[#0B4F42] border border-[#DCE1DC] rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer active:translate-y-0.5"
+            title="تقرير المبيعات والربح الدوري"
+          >
+            <FileText className="w-4 h-4 text-[#006d41]" />
+            <span>التقارير والأرباح</span>
+          </button>
+
+          <button
             onClick={() => void loadData()}
             disabled={isLoading}
             className="flex items-center gap-1.5 h-9 px-3 bg-white border border-[#DCE1DC] hover:bg-[#F7F8F6] rounded-lg text-xs font-bold text-[#14181A] transition-colors shadow-2xs disabled:opacity-50 cursor-pointer active:translate-y-0.5"
@@ -223,6 +264,41 @@ export function DashboardView({
           </button>
         </div>
       </div>
+
+      {/* Unclosed Previous Business Day Warning Alert Banner (Story 87 / Task 49-5) */}
+      {unclosedAlert && unclosedAlert.hasUnclosedDay && (
+        <div className="bg-amber-500/10 border-2 border-amber-500/30 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-ink shadow-xs shrink-0 animate-in fade-in duration-200">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="font-bold text-sm text-[#14181A]">
+                  تنبيه إقفال اليومية: يوم العمل السابق ({unclosedAlert.unclosedDate}) لم يُقفل بعد!
+                </h4>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-white">
+                  مطلوب الإقفال
+                </span>
+              </div>
+              <p className="text-xs text-[#5B6664] mt-0.5">
+                يوجد <strong>{unclosedAlert.unclosedSalesCount}</strong> فاتورة بإجمالي <strong>{formatArabicCurrency(unclosedAlert.unclosedSalesTotalPiasters)}</strong> لم يتم ترحيلها في تقرير إقفال رسمي. يرجى تصفية الوردية السابقة لضمان صحة دفاتر المحل.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setClosingTargetDate(unclosedAlert.unclosedDate);
+              setIsClosingModalOpen(true);
+            }}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition shadow-xs shrink-0 cursor-pointer active:translate-y-0.5 flex items-center gap-1.5 justify-center"
+          >
+            <Lock className="w-3.5 h-3.5" />
+            <span>إقفال يومية {unclosedAlert.unclosedDate} الآن</span>
+          </button>
+        </div>
+      )}
 
       {/* 2. EXECUTIVE SYSTEM HEALTH & HARDWARE STATUS STRIP */}
       <div className="bg-white rounded-lg border border-[#DCE1DC] shadow-2xs overflow-hidden transition-all shrink-0">
@@ -784,12 +860,21 @@ export function DashboardView({
                   </span>
                 )}
               </div>
-              <button 
-                onClick={() => onNavigateToProducts('catalog', 'lowStock')}
-                className="px-2 py-0.5 rounded bg-white hover:bg-[#F7F8F6] text-[#14181A] text-[10.5px] font-bold transition-all shadow-2xs border border-[#DCE1DC] cursor-pointer"
-              >
-                عرض الكل
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button 
+                  onClick={() => setIsLowStockModalOpen(true)}
+                  className="px-2 py-0.5 rounded bg-brand text-white hover:bg-brand-dark text-[10.5px] font-bold transition-all shadow-2xs cursor-pointer"
+                  title="أمر شراء النواقص"
+                >
+                  أمر الشراء
+                </button>
+                <button 
+                  onClick={() => onNavigateToProducts('catalog', 'lowStock')}
+                  className="px-2 py-0.5 rounded bg-white hover:bg-[#F7F8F6] text-[#14181A] text-[10.5px] font-bold transition-all shadow-2xs border border-[#DCE1DC] cursor-pointer"
+                >
+                  عرض الكل
+                </button>
+              </div>
             </div>
 
             <div className="p-3 divide-y divide-[#DCE1DC] max-h-[220px] overflow-y-auto">
@@ -834,14 +919,23 @@ export function DashboardView({
                 <Users className="w-4 h-4 text-[#006d41]" />
                 <span>أعلى العملاء مديونية (الآجل)</span>
               </div>
-              {onNavigateToCustomers && (
+              <div className="flex items-center gap-1.5">
                 <button 
-                  onClick={onNavigateToCustomers}
-                  className="px-2 py-0.5 rounded bg-white hover:bg-[#F7F8F6] text-[#0B4F42] text-[10.5px] font-bold transition-all shadow-2xs border border-[#DCE1DC] cursor-pointer"
+                  onClick={() => setIsDebtorsModalOpen(true)}
+                  className="px-2 py-0.5 rounded bg-brand text-white hover:bg-brand-dark text-[10.5px] font-bold transition-all shadow-2xs cursor-pointer"
+                  title="طباعة كشف ديون العملاء"
                 >
-                  كافة العملاء
+                  كشف للطباعة
                 </button>
-              )}
+                {onNavigateToCustomers && (
+                  <button 
+                    onClick={onNavigateToCustomers}
+                    className="px-2 py-0.5 rounded bg-white hover:bg-[#F7F8F6] text-[#0B4F42] text-[10.5px] font-bold transition-all shadow-2xs border border-[#DCE1DC] cursor-pointer"
+                  >
+                    كافة العملاء
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="p-3 divide-y divide-[#DCE1DC] max-h-[190px] overflow-y-auto">
@@ -889,6 +983,37 @@ export function DashboardView({
         isOpen={isLicenseModalOpen}
         onClose={() => setIsLicenseModalOpen(false)}
         onLicenseUpdated={loadData}
+      />
+
+      {/* Daily Closing & Z-Report Modal (Story 87 / Feature #49) */}
+      <DailyClosingModal
+        isOpen={isClosingModalOpen}
+        onClose={() => {
+          setIsClosingModalOpen(false);
+          setClosingTargetDate(undefined);
+        }}
+        targetDate={closingTargetDate}
+        onClosingCompleted={() => {
+          void loadData();
+        }}
+      />
+
+      {/* Low Stock & Purchase Order Modal (Story 86 / Feature #48) */}
+      <LowStockReportModal
+        isOpen={isLowStockModalOpen}
+        onClose={() => setIsLowStockModalOpen(false)}
+      />
+
+      {/* Debtors Statement Modal (Story 88 / Feature #50) */}
+      <DebtorsReportModal
+        isOpen={isDebtorsModalOpen}
+        onClose={() => setIsDebtorsModalOpen(false)}
+      />
+
+      {/* Period Sales & Profits Modal (Story 83 / Feature #45) */}
+      <PeriodSalesReportModal
+        isOpen={isPeriodSalesModalOpen}
+        onClose={() => setIsPeriodSalesModalOpen(false)}
       />
     </div>
   );

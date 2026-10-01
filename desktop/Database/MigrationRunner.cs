@@ -6,7 +6,7 @@ namespace RafiqPOS.Database
 {
     public static class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 21;
+        public const int LATEST_SUPPORTED_VERSION = 22;
 
         public static void ApplyMigrations(string connectionString, string dbPath)
         {
@@ -203,7 +203,14 @@ namespace RafiqPOS.Database
                     ApplyMigration21(conn);
                 }
 
-                // 25. Self-Healing Schema Guard: Automatically repair missing columns or indexes
+                // 25. Apply Migration 22: Daily Closing and Reporting System (Milestone 9 / Features #45, #48, #49, #50, #127, #137)
+                if (currentVersion < 22)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration22(conn);
+                }
+
+                // 26. Self-Healing Schema Guard: Automatically repair missing columns or indexes
                 EnsureSchemaHealth(conn);
             }
         }
@@ -2731,6 +2738,92 @@ namespace RafiqPOS.Database
                     using (var logCmd = new SQLiteCommand(@"
                         INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
                         VALUES (21, 'Suppliers and Purchases Management (Features 38, 39)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        logCmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        private static void ApplyMigration22(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // 1. Table: daily_closings (Story 87 / Tasks 49-1, 49-4)
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS daily_closings (
+                            id TEXT PRIMARY KEY,
+                            closing_number INTEGER NOT NULL,
+                            business_date TEXT NOT NULL,
+                            closed_at TEXT NOT NULL,
+                            cashier_id TEXT,
+                            cashier_name TEXT,
+                            total_sales_piasters INTEGER NOT NULL,
+                            cash_sales_piasters INTEGER NOT NULL,
+                            credit_sales_piasters INTEGER NOT NULL,
+                            returns_total_piasters INTEGER NOT NULL,
+                            returns_cash_piasters INTEGER NOT NULL,
+                            cancelled_total_piasters INTEGER NOT NULL,
+                            debt_payments_piasters INTEGER NOT NULL,
+                            expected_cash_piasters INTEGER NOT NULL,
+                            actual_cash_piasters INTEGER NOT NULL,
+                            difference_piasters INTEGER NOT NULL,
+                            gross_profit_piasters INTEGER NOT NULL,
+                            invoices_count INTEGER NOT NULL,
+                            returns_count INTEGER NOT NULL,
+                            cancelled_count INTEGER NOT NULL,
+                            notes TEXT,
+                            summary_json TEXT,
+                            is_sealed INTEGER NOT NULL DEFAULT 1
+                        );
+                        CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_closings_bdate ON daily_closings(business_date);
+                        CREATE INDEX IF NOT EXISTS idx_daily_closings_closed_at ON daily_closings(closed_at);
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 2. Sequential counter for daily_closing (Task 49-4)
+                    using (var cmd = new SQLiteCommand(@"
+                        INSERT OR IGNORE INTO counters (name, current_value, updated_at)
+                        VALUES ('daily_closing', 0, datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 3. Immutability triggers (Task 49-4: سجل لا يُعدَّل ولا يُحذف بعد الحفظ)
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TRIGGER IF NOT EXISTS trg_prevent_daily_closing_update
+                        BEFORE UPDATE ON daily_closings
+                        BEGIN
+                            SELECT RAISE(ABORT, 'لا يمكن تعديل سجل قفل اليومية بعد اعتماده');
+                        END;
+
+                        CREATE TRIGGER IF NOT EXISTS trg_prevent_daily_closing_delete
+                        BEFORE DELETE ON daily_closings
+                        BEGIN
+                            SELECT RAISE(ABORT, 'لا يمكن حذف سجل قفل اليومية بعد اعتماده');
+                        END;
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 4. Update schema_migrations
+                    using (var logCmd = new SQLiteCommand(@"
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (22, 'Daily Closing and Reporting System (Features 45, 48, 49, 50, 127, 137)', datetime('now'));
                     ", conn, trans))
                     {
                         logCmd.ExecuteNonQuery();

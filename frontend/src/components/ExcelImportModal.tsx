@@ -21,6 +21,7 @@ import {
 } from '../utils/excelImport';
 import { invoke } from '../bridge/ipc';
 import { formatArabicCurrency } from '../utils/money';
+import { CustomSelect } from './CustomSelect';
 
 interface ExcelImportModalProps {
   isOpen: boolean;
@@ -344,15 +345,17 @@ export const ExcelImportModal = ({
                   {/* Duplicate Strategy */}
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-ink text-[11.5px] shrink-0">معالجة الأصناف المكررة:</span>
-                    <select
+                    <CustomSelect
                       value={duplicateStrategy}
-                      onChange={(e) => setDuplicateStrategy(e.target.value as 'skip' | 'update' | 'error')}
-                      className="h-8 px-2.5 rounded bg-surface hairline-all text-ink text-[11px] font-bold focus:outline-none focus:border-emerald-500"
-                    >
-                      <option value="skip">تخطي (الإبقاء على الصنف القديم بدون تعديل)</option>
-                      <option value="update">تحديث (تعديل السعر والبيانات بالجديد)</option>
-                      <option value="error">إيقاف (رفض الاستيراد عند وجود أي تكرار)</option>
-                    </select>
+                      onChange={(val) => setDuplicateStrategy(val as 'skip' | 'update' | 'error')}
+                      options={[
+                        { value: 'skip', label: 'تخطي (الإبقاء على الصنف القديم بدون تعديل)' },
+                        { value: 'update', label: 'تحديث (تعديل السعر والبيانات بالجديد)' },
+                        { value: 'error', label: 'إيقاف (رفض الاستيراد عند وجود أي تكرار)' },
+                      ]}
+                      className="w-72"
+                      size="sm"
+                    />
                   </div>
 
                   {/* Filter Valid / Export Errors */}

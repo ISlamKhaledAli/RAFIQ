@@ -12,6 +12,8 @@ import {
   Boxes,
   Download,
   AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { rafiqAlert } from '../utils/dialogService';
@@ -48,6 +50,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [showModal, setShowModal] = useState(false);
   const [prevInitialFilter, setPrevInitialFilter] = useState(initialFilter);
   const [stockStatusFilter, setStockStatusFilter] = useState<'all' | 'lowStock' | 'outOfStock'>(initialFilter);
+
+  // Pagination state
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalLowStockCount, setTotalLowStockCount] = useState(0);
+  const [totalOutOfStockCount, setTotalOutOfStockCount] = useState(0);
+  const [pageSize, setPageSize] = useState(50);
+  const [currentPage, setCurrentPage] = useState(1);
 
   if (initialFilter !== prevInitialFilter) {
     setPrevInitialFilter(initialFilter);
@@ -259,11 +268,35 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     }
   };
 
-  const loadProducts = async (query = '') => {
+  const loadProducts = async (
+    query = searchQuery, 
+    page = currentPage, 
+    size = pageSize, 
+    stockStatus = stockStatusFilter,
+    categoryId = selectedCategoryFilter
+  ) => {
     setLoading(true);
     try {
-      const res = await invoke<Product[]>('products:search', { query });
-      setProducts(res || []);
+      const offset = (page - 1) * size;
+      const res = await invoke<{ 
+        products: Product[]; 
+        totalCount: number; 
+        lowStockCount?: number; 
+        outOfStockCount?: number; 
+        offset: number; 
+        limit: number 
+      }>('products:search', { query, limit: size, offset, stockStatus, categoryId });
+      if (res && Array.isArray(res.products)) {
+        setProducts(res.products);
+        setTotalCount(res.totalCount || 0);
+        if (typeof res.lowStockCount === 'number') setTotalLowStockCount(res.lowStockCount);
+        if (typeof res.outOfStockCount === 'number') setTotalOutOfStockCount(res.outOfStockCount);
+      } else if (Array.isArray(res)) {
+        // Fallback for backward compatibility
+        setProducts(res as unknown as Product[]);
+      } else {
+        setProducts([]);
+      }
     } catch (err: unknown) {
       console.error(err);
     } finally {
@@ -287,11 +320,31 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     void (async () => {
       try {
         const [prodRes, catRes] = await Promise.all([
-          invoke<Product[]>('products:search', { query: '' }),
+          invoke<{ 
+            products: Product[]; 
+            totalCount: number; 
+            lowStockCount?: number; 
+            outOfStockCount?: number; 
+            offset: number; 
+            limit: number 
+          }>('products:search', { 
+            query: searchQuery, 
+            limit: pageSize, 
+            offset: (currentPage - 1) * pageSize, 
+            stockStatus: stockStatusFilter, 
+            categoryId: selectedCategoryFilter 
+          }),
           invoke<Category[]>('categories:getAll', { includeArchived: false })
         ]);
         if (active) {
-          if (Array.isArray(prodRes)) setProducts(prodRes);
+          if (prodRes && Array.isArray(prodRes.products)) {
+            setProducts(prodRes.products);
+            setTotalCount(prodRes.totalCount || 0);
+            if (typeof prodRes.lowStockCount === 'number') setTotalLowStockCount(prodRes.lowStockCount);
+            if (typeof prodRes.outOfStockCount === 'number') setTotalOutOfStockCount(prodRes.outOfStockCount);
+          } else if (Array.isArray(prodRes)) {
+            setProducts(prodRes as unknown as Product[]);
+          }
           if (Array.isArray(catRes)) setCategories(catRes);
         }
       } catch (err: unknown) {
@@ -301,11 +354,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     return () => {
       active = false;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stockStatusFilter, selectedCategoryFilter]);
 
   const handleSearch = (e: FormEvent) => {
     e.preventDefault();
-    void loadProducts(searchQuery);
+    setCurrentPage(1);
+    void loadProducts(searchQuery, 1, pageSize);
   };
 
   const openAddModal = () => {
@@ -537,53 +592,40 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     }
   };
 
-  const lowStockCount = products.filter(
-    (p) => (p.stockQuantityMilli || 0) <= (p.minStockQuantityMilli ?? 5000)
-  ).length;
-
-  const outOfStockCount = products.filter(
-    (p) => (p.stockQuantityMilli || 0) <= 0
-  ).length;
-
-  const displayedProducts = products.filter((p) => {
-    if (stockStatusFilter === 'lowStock') {
-      return (p.stockQuantityMilli || 0) <= (p.minStockQuantityMilli ?? 5000);
-    }
-    if (stockStatusFilter === 'outOfStock') {
-      return (p.stockQuantityMilli || 0) <= 0;
-    }
-    return true;
-  });
+  const displayedProducts = products;
 
   return (
-    <div className="flex flex-col h-full bg-[#F8FAFC] p-3.5 gap-3 overflow-hidden select-none">
+    <div className="flex flex-col h-full bg-canvas p-3.5 gap-3 overflow-hidden select-none">
       {/* 1. Header Toolbar (Title, Count Badge, Search, Add Button) */}
-      <div className="min-h-[58px] py-2 bg-white border border-[#E2E8F0] rounded-2xl px-4 flex flex-wrap items-center justify-between gap-2 shrink-0 shadow-xs">
+      <div className="min-h-[58px] py-2 bg-surface border border-line rounded-2xl px-4 flex flex-wrap items-center justify-between gap-2 shrink-0 shadow-xs">
         <div className="flex items-center gap-3">
           {activeSubView === 'catalog' ? (
             <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#006D41] flex items-center justify-center border border-emerald-200/80 shadow-2xs">
+              <div className="w-10 h-10 rounded-xl bg-brand-soft text-brand flex items-center justify-center border border-brand/20 shadow-2xs">
                 <Package className="w-5 h-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-black text-[#0F172A] leading-tight">كتالوج الأصناف والأسعار</h2>
-                  <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-[#F8FAFC] text-[#0F172A] font-bold border border-[#E2E8F0] tabular-nums">
-                    {products.length} صنف
+                  <h2 className="text-sm font-black text-ink leading-tight">كتالوج الأصناف والأسعار</h2>
+                  <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-surface-2 text-ink font-bold border border-line tabular-nums">
+                    {totalCount > products.length
+                      ? `عرض ${products.length} من ${totalCount.toLocaleString('ar-EG')} صنف`
+                      : `${products.length} صنف`
+                    }
                   </span>
                 </div>
-                <p className="text-[11px] text-[#52605D]">إدارة المنتجات، الأسعار، الباركود، ومستويات حد الطلب</p>
+                <p className="text-[11px] text-ink-muted">إدارة المنتجات، الأسعار، الباركود، ومستويات حد الطلب</p>
               </div>
             </div>
           ) : (
             <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#006D41] flex items-center justify-center border border-emerald-200/80 shadow-2xs">
+              <div className="w-10 h-10 rounded-xl bg-brand-soft text-brand flex items-center justify-center border border-brand/20 shadow-2xs">
                 <Boxes className="w-5 h-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-black text-[#0F172A] leading-tight">دفتر حركات وجرد المخزون</h2>
-                  <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-[#F8FAFC] text-[#0F172A] font-bold border border-[#E2E8F0] tabular-nums">
+                  <h2 className="text-sm font-black text-ink leading-tight">دفتر حركات وجرد المخزون</h2>
+                  <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-surface-2 text-ink font-bold border border-line tabular-nums">
                     {allMovements.length} حركة
                   </span>
                   {discrepancies.length > 0 && (
@@ -592,7 +634,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-[#52605D]">سجل الوارد والمنصرف، المبيعات، المرتجعات، والتسويات الجردية</p>
+                <p className="text-[11px] text-ink-muted">سجل الوارد والمنصرف، المبيعات، المرتجعات، والتسويات الجردية</p>
               </div>
             </div>
           )}
@@ -603,23 +645,24 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           {activeSubView === 'catalog' ? (
             <>
               <form onSubmit={handleSearch} className="flex items-center gap-1.5">
-                <div className="relative w-64 h-9 flex items-center bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-2.5 focus-within:border-[#006D41] focus-within:ring-2 focus-within:ring-[#006D41]/20 focus-within:bg-white transition-all">
-                  <Search className="w-4 h-4 text-[#52605D] ml-2 shrink-0 pointer-events-none" />
+                <div className="relative w-64 h-9 flex items-center bg-surface-2 border border-line rounded-xl px-2.5 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/20 focus-within:bg-surface transition-all">
+                  <Search className="w-4 h-4 text-ink-muted ml-2 shrink-0 pointer-events-none" />
                   <input
                     type="text"
                     placeholder="ابحث بالاسم أو الباركود..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(normalizeArabicNumerals(e.target.value))}
-                    className="w-full bg-transparent border-none text-xs text-[#0F172A] placeholder:text-[#52605D] focus:outline-none"
+                    className="w-full bg-transparent border-none text-xs text-ink placeholder:text-ink-muted focus:outline-none"
                   />
                   {searchQuery && (
                     <button
                       type="button"
                       onClick={() => {
                         setSearchQuery('');
-                        void loadProducts('');
+                        setCurrentPage(1);
+                        void loadProducts('', 1, pageSize);
                       }}
-                      className="text-[#52605D] hover:text-[#0F172A] text-xs cursor-pointer"
+                      className="text-ink-muted hover:text-ink text-xs cursor-pointer"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -628,7 +671,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
                 <button
                   type="submit"
-                  className="h-9 px-3.5 bg-white hover:bg-[#F8FAFC] border border-[#E2E8F0] text-[#0F172A] rounded-xl text-xs font-bold transition-colors shadow-2xs cursor-pointer"
+                  className="h-9 px-3.5 bg-surface hover:bg-surface-2 border border-line text-ink rounded-xl text-xs font-bold transition-colors shadow-2xs cursor-pointer"
                 >
                   بحث
                 </button>
@@ -637,19 +680,19 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               <button
                 onClick={() => void loadProducts(searchQuery)}
                 disabled={loading}
-                className="h-9 w-9 flex items-center justify-center bg-white hover:bg-[#F8FAFC] border border-[#E2E8F0] text-[#52605D] hover:text-[#0F172A] rounded-xl transition-colors shadow-2xs cursor-pointer"
+                className="h-9 w-9 flex items-center justify-center bg-surface hover:bg-surface-2 border border-line text-ink-muted hover:text-ink rounded-xl transition-colors shadow-2xs cursor-pointer"
                 title="تحديث القائمة"
               >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#006D41]' : ''}`} />
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-brand' : ''}`} />
               </button>
 
               <button
                 type="button"
                 onClick={() => setShowExcelImportModal(true)}
-                className="h-9 px-3.5 bg-white hover:bg-[#F8FAFC] border border-[#E2E8F0] text-[#0F172A] rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+                className="h-9 px-3.5 bg-surface hover:bg-surface-2 border border-line text-ink rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
                 title="استيراد وتحديث المنتجات من ملف إكسل أو CSV"
               >
-                <FileSpreadsheet className="w-4 h-4 text-[#006D41]" />
+                <FileSpreadsheet className="w-4 h-4 text-brand" />
                 <span>استيراد إكسل</span>
               </button>
 
@@ -657,16 +700,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 type="button"
                 onClick={() => void handleExportProductsToExcel()}
                 disabled={isExportingExcel}
-                className="h-9 px-3.5 bg-white hover:bg-[#F8FAFC] border border-[#E2E8F0] text-[#0F172A] rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs disabled:opacity-60 cursor-pointer"
+                className="h-9 px-3.5 bg-surface hover:bg-surface-2 border border-line text-ink rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs disabled:opacity-60 cursor-pointer"
                 title="تصدير كامل كتالوج الأصناف إلى ملف إكسل ملون واحترافي"
               >
-                <Download className={`w-4 h-4 text-[#006D41] ${isExportingExcel ? 'animate-bounce' : ''}`} />
+                <Download className={`w-4 h-4 text-brand ${isExportingExcel ? 'animate-bounce' : ''}`} />
                 <span>{isExportingExcel ? 'جاري التصدير...' : 'تصدير إكسل'}</span>
               </button>
 
               <button
                 onClick={openAddModal}
-                className="h-9 px-4 bg-[#004D3F] hover:bg-[#00372D] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-[0.98]"
+                className="h-9 px-4 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-[0.98]"
               >
                 <Plus className="w-4 h-4" />
                 <span>إضافة صنف جديد</span>
@@ -681,9 +724,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   void checkDiscrepancies();
                 }}
                 disabled={movementsLoading}
-                className="h-9 px-3.5 bg-white hover:bg-[#F8FAFC] border border-[#E2E8F0] text-[#0F172A] rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+                className="h-9 px-3.5 bg-surface hover:bg-surface-2 border border-line text-ink rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
               >
-                <RefreshCw className={`w-4 h-4 ${movementsLoading ? 'animate-spin text-[#006D41]' : ''}`} />
+                <RefreshCw className={`w-4 h-4 ${movementsLoading ? 'animate-spin text-brand' : ''}`} />
                 <span>تحديث الحركات</span>
               </button>
             </div>
@@ -710,96 +753,123 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
       {activeSubView === 'catalog' ? (
         <>
-          {/* Category Filter Chips Bar */}
-          <div className="bg-white border border-[#E2E8F0] rounded-2xl px-4 py-2 flex items-center justify-between gap-2 overflow-x-auto shrink-0 select-none shadow-xs">
-            <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
-              <button
-                type="button"
-                onClick={() => setSelectedCategoryFilter('all')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                  selectedCategoryFilter === 'all'
-                    ? 'bg-[#00372D] text-white shadow-xs'
-                    : 'bg-[#F8FAFC] text-[#52605D] border border-[#E2E8F0] hover:text-[#004D3F] hover:border-[#006D41]'
-                }`}
-              >
-                <span>كل الأصناف</span>
-                <span className="font-mono text-[10px] opacity-80 tabular-nums">({products.length})</span>
-              </button>
-
-              {categories.map((cat) => {
-                const count = products.filter(p => (p.categoryId || 'cat_general') === cat.id).length;
-                const isSelected = selectedCategoryFilter === cat.id;
-
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setSelectedCategoryFilter(cat.id)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                      isSelected
-                        ? 'bg-[#00372D] text-white shadow-xs'
-                        : 'bg-[#F8FAFC] text-[#52605D] border border-[#E2E8F0] hover:text-[#004D3F] hover:border-[#006D41]'
-                    }`}
-                  >
-                    <span>{cat.name}</span>
-                    <span className="font-mono text-[10px] opacity-80 tabular-nums">({count})</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Quick Stock Level Tabs (Story 79 / Task 36-2) */}
-          <div className="flex flex-wrap items-center justify-between gap-2 shrink-0">
-            <div className="flex items-center gap-1.5 p-1 bg-white border border-[#E2E8F0] rounded-xl shadow-2xs">
+          {/* Unified Filter Toolbar (Stock Levels + Categories + Category Management) */}
+          <div className="bg-surface border border-line rounded-2xl p-1.5 flex flex-wrap items-center justify-between gap-2 shrink-0 select-none shadow-xs">
+            {/* Quick Stock Level Tabs */}
+            <div className="flex items-center gap-1 bg-surface-2 p-1 rounded-xl border border-line">
               <button
                 type="button"
                 onClick={() => {
                   setStockStatusFilter('all');
+                  setCurrentPage(1);
                   onResetFilter?.();
+                  void loadProducts(searchQuery, 1, pageSize, 'all', selectedCategoryFilter);
                 }}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   stockStatusFilter === 'all'
-                    ? 'bg-[#00372D] text-white shadow-xs'
-                    : 'text-[#52605D] hover:bg-[#F8FAFC]'
+                    ? 'bg-brand text-white shadow-xs'
+                    : 'text-ink-muted hover:text-ink hover:bg-surface'
                 }`}
               >
-                كافة الأصناف ({products.length})
+                <span>كافة الأصناف</span>
+                {totalCount > 0 && (
+                  <span className="font-mono text-[11px] mr-1.5 opacity-90 tabular-nums">
+                    ({totalCount.toLocaleString('ar-EG')})
+                  </span>
+                )}
               </button>
               <button
                 type="button"
-                onClick={() => setStockStatusFilter('lowStock')}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                onClick={() => {
+                  setStockStatusFilter('lowStock');
+                  setCurrentPage(1);
+                  void loadProducts(searchQuery, 1, pageSize, 'lowStock', selectedCategoryFilter);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                   stockStatusFilter === 'lowStock'
                     ? 'bg-amber-600 text-white shadow-xs'
                     : 'text-amber-800 hover:bg-amber-50'
                 }`}
               >
                 <AlertTriangle className="w-3.5 h-3.5" />
-                <span>النواقص وحد الطلب ({lowStockCount})</span>
+                <span>النواقص وحد الطلب</span>
+                <span className="font-mono text-[11px] mr-0.5 opacity-95 tabular-nums">
+                  ({totalLowStockCount.toLocaleString('ar-EG')})
+                </span>
               </button>
               <button
                 type="button"
-                onClick={() => setStockStatusFilter('outOfStock')}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                onClick={() => {
+                  setStockStatusFilter('outOfStock');
+                  setCurrentPage(1);
+                  void loadProducts(searchQuery, 1, pageSize, 'outOfStock', selectedCategoryFilter);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                   stockStatusFilter === 'outOfStock'
                     ? 'bg-rose-600 text-white shadow-xs'
                     : 'text-rose-800 hover:bg-rose-50'
                 }`}
               >
-                <span>النافد من المخزن ({outOfStockCount})</span>
+                <span>النافد من المخزن</span>
+                <span className="font-mono text-[11px] mr-0.5 opacity-95 tabular-nums">
+                  ({totalOutOfStockCount.toLocaleString('ar-EG')})
+                </span>
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowCategoryModal(true)}
-              className="shrink-0 px-3 py-1.5 rounded-xl bg-white hover:bg-[#F8FAFC] border border-[#E2E8F0] text-[#52605D] hover:text-[#0F172A] text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
-              title="إضافة وتعديل وأرشفة وترتيب أقسام السلع"
-            >
-              <Tags className="w-3.5 h-3.5 text-[#006D41]" />
-              <span>إدارة التصنيفات</span>
-            </button>
+            {/* Department / Category Filter & Management Button */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 overflow-x-auto max-w-[460px] py-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCategoryFilter('all');
+                    setCurrentPage(1);
+                    void loadProducts(searchQuery, 1, pageSize, stockStatusFilter, 'all');
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-[11.5px] font-bold transition-all shrink-0 cursor-pointer ${
+                    selectedCategoryFilter === 'all'
+                      ? 'bg-brand-dark text-white shadow-2xs'
+                      : 'bg-surface-2 text-ink-muted border border-line hover:text-brand hover:border-brand'
+                  }`}
+                >
+                  جميع الأقسام
+                </button>
+                {categories.map((cat) => {
+                  const isSelected = selectedCategoryFilter === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategoryFilter(cat.id);
+                        setCurrentPage(1);
+                        void loadProducts(searchQuery, 1, pageSize, stockStatusFilter, cat.id);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[11.5px] font-bold transition-all shrink-0 cursor-pointer ${
+                        isSelected
+                          ? 'bg-brand-dark text-white shadow-2xs'
+                          : 'bg-surface-2 text-ink-muted border border-line hover:text-brand hover:border-brand'
+                      }`}
+                    >
+                      {cat.name}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="h-5 w-[1px] bg-line hidden sm:block" />
+
+              <button
+                type="button"
+                onClick={() => setShowCategoryModal(true)}
+                className="shrink-0 px-3 py-1.5 rounded-xl bg-surface hover:bg-surface-2 border border-line text-ink-muted hover:text-ink text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+                title="إضافة وتعديل وأرشفة وترتيب أقسام السلع"
+              >
+                <Tags className="w-3.5 h-3.5 text-brand" />
+                <span>إدارة التصنيفات</span>
+              </button>
+            </div>
           </div>
 
           {/* Active Stock Filter Notification */}
@@ -809,15 +879,17 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                 <span>
                   {stockStatusFilter === 'lowStock'
-                    ? `تصفية النواقص: يتم عرض الأصناف التي كميتها أقل من أو تساوي حد الطلب (${displayedProducts.length} صنف)`
-                    : `تصفية النافد: يتم عرض الأصناف التي نفدت تماماً من المخزن (${displayedProducts.length} صنف)`}
+                    ? `تصفية النواقص: يتم عرض الأصناف التي كميتها أقل من أو تساوي حد الطلب (${totalCount.toLocaleString('ar-EG')} صنف)`
+                    : `تصفية النافد: يتم عرض الأصناف التي نفدت تماماً من المخزن (${totalCount.toLocaleString('ar-EG')} صنف)`}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => {
                   setStockStatusFilter('all');
+                  setCurrentPage(1);
                   onResetFilter?.();
+                  void loadProducts(searchQuery, 1, pageSize, 'all');
                 }}
                 className="px-2 py-0.5 rounded bg-white hover:bg-amber-100 border border-amber-300 text-amber-800 text-[11px] font-bold transition-colors cursor-pointer"
               >
@@ -843,6 +915,108 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             onEditProduct={(prod) => openEditModal(prod)}
             onDeleteProduct={(prod) => setProductToDelete(prod)}
           />
+
+          {/* Pagination Bar */}
+          {totalCount > 0 && (
+            <div className="bg-surface border border-line rounded-2xl px-4 py-2.5 flex items-center justify-between gap-3 shrink-0 shadow-xs select-none">
+              {/* Page Info */}
+              <div className="text-xs text-ink-muted font-bold">
+                عرض {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, totalCount)} من إجمالي {totalCount.toLocaleString('ar-EG')} صنف
+              </div>
+
+              {/* Navigation Buttons */}
+              <div className="flex items-center gap-1.5">
+                {/* Page Size Selector */}
+                <div className="flex items-center gap-1.5 ml-3 pl-3 border-l border-line">
+                  <span className="text-[11px] text-ink-muted font-bold">عرض:</span>
+                  {[50, 100, 250].map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => {
+                        setPageSize(size);
+                        setCurrentPage(1);
+                        void loadProducts(searchQuery, 1, size);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                        pageSize === size
+                          ? 'bg-brand-dark text-white shadow-xs'
+                          : 'bg-surface-2 text-ink-muted border border-line hover:border-brand hover:text-brand'
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Prev / Page Numbers / Next */}
+                <button
+                  type="button"
+                  disabled={currentPage <= 1}
+                  onClick={() => {
+                    const prev = currentPage - 1;
+                    setCurrentPage(prev);
+                    void loadProducts(searchQuery, prev, pageSize);
+                  }}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-2 border border-line text-ink-muted hover:bg-brand-soft hover:text-brand hover:border-brand disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                  title="الصفحة السابقة"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+
+                {(() => {
+                  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+                  const pages: (number | string)[] = [];
+                  if (totalPages <= 7) {
+                    for (let i = 1; i <= totalPages; i++) pages.push(i);
+                  } else {
+                    pages.push(1);
+                    if (currentPage > 3) pages.push('...');
+                    const start = Math.max(2, currentPage - 1);
+                    const end = Math.min(totalPages - 1, currentPage + 1);
+                    for (let i = start; i <= end; i++) pages.push(i);
+                    if (currentPage < totalPages - 2) pages.push('...');
+                    pages.push(totalPages);
+                  }
+                  return pages.map((p, idx) =>
+                    typeof p === 'string' ? (
+                      <span key={`dots-${idx}`} className="text-xs text-ink-muted px-1 select-none">…</span>
+                    ) : (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => {
+                          setCurrentPage(p);
+                          void loadProducts(searchQuery, p, pageSize);
+                        }}
+                        className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          currentPage === p
+                            ? 'bg-brand-dark text-white shadow-xs'
+                            : 'bg-surface-2 text-ink-muted border border-line hover:bg-brand-soft hover:text-brand hover:border-brand'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    )
+                  );
+                })()}
+
+                <button
+                  type="button"
+                  disabled={currentPage >= Math.ceil(totalCount / pageSize)}
+                  onClick={() => {
+                    const next = currentPage + 1;
+                    setCurrentPage(next);
+                    void loadProducts(searchQuery, next, pageSize);
+                  }}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-2 border border-line text-ink-muted hover:bg-brand-soft hover:text-brand hover:border-brand disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                  title="الصفحة التالية"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </>
       ) : (
         /* Movements & Inventory Audit SubView Subcomponent */

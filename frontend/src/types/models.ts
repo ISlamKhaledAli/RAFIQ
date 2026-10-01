@@ -457,5 +457,118 @@ export interface SupplierTransaction {
   createdAt: string;
 }
 
+export interface DailyClosing {
+  id: string;
+  closingNumber: number;
+  businessDate: string;
+  closedAt: string;
+  cashierId?: string | null;
+  cashierName?: string | null;
+  totalSalesPiasters: number;
+  cashSalesPiasters: number;
+  creditSalesPiasters: number;
+  returnsTotalPiasters: number;
+  returnsCashPiasters: number;
+  cancelledTotalPiasters: number;
+  debtPaymentsPiasters: number;
+  expectedCashPiasters: number;
+  actualCashPiasters: number;
+  differencePiasters: number;
+  grossProfitPiasters: number;
+  invoicesCount: number;
+  returnsCount: number;
+  cancelledCount: number;
+  notes?: string | null;
+  summaryJson?: string | null;
+  isSealed: boolean;
+  totalSalesFormatted?: string;
+  cashSalesFormatted?: string;
+  creditSalesFormatted?: string;
+  expectedCashFormatted?: string;
+  actualCashFormatted?: string;
+  differenceFormatted?: string;
+}
+
+export interface DailyClosingPreview {
+  businessDate: string;
+  currentUtc: string;
+  totalSalesPiasters: number;
+  cashSalesPiasters: number;
+  creditSalesPiasters: number;
+  returnsTotalPiasters: number;
+  returnsCashPiasters: number;
+  cancelledTotalPiasters: number;
+  debtPaymentsPiasters: number;
+  expectedCashPiasters: number;
+  grossProfitPiasters: number;
+  zeroCostItemsCount: number;
+  invoicesCount: number;
+  returnsCount: number;
+  cancelledCount: number;
+  isAlreadyClosed: boolean;
+  existingClosing?: DailyClosing | null;
+  isDateSuspicious: boolean;
+  dateSuspiciousReason?: string | null;
+}
+
+export interface DailyClosingSaveRequest {
+  businessDate?: string;
+  actualCashPiasters: number;
+  cashierId?: string;
+  cashierName?: string;
+  notes?: string;
+  confirmSuspiciousDate?: boolean;
+}
+
+export interface UnclosedDayAlert {
+  hasUnclosedDay: boolean;
+  unclosedDate?: string;
+  unclosedSalesCount: number;
+  unclosedSalesTotalPiasters: number;
+}
+
+export interface PeriodSalesReport {
+  period: string;
+  startDate: string;
+  endDate: string;
+  totalSalesPiasters: number;
+  cashSalesPiasters: number;
+  creditSalesPiasters: number;
+  cardSalesPiasters: number;
+  returnsTotalPiasters: number;
+  cancelledTotalPiasters: number;
+  netSalesPiasters: number;
+  grossProfitPiasters: number;
+  invoicesCount: number;
+  returnsCount: number;
+  cancelledCount: number;
+  zeroCostItemsCount: number;
+  topSellingProducts: TopSellingItem[];
+}
+
+export interface LowStockReportItem {
+  productId: string;
+  name: string;
+  barcode: string;
+  stockMilli: number;
+  minStockMilli: number;
+  suggestedOrderMilli: number;
+  unitCostPiasters: number;
+  estimatedCostPiasters: number;
+  unit: string;
+  categoryName: string;
+}
+
+export interface DebtorReportItem {
+  customerId: string;
+  name: string;
+  phone: string;
+  balancePiasters: number;
+  creditLimitPiasters: number;
+  notes?: string;
+  lastTransactionDate?: string;
+}
+
+
 
 

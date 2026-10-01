@@ -49,15 +49,15 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
   );
 
   return (
-    <div className="flex-1 bg-white border border-[#E2E8F0] rounded-2xl flex flex-col overflow-hidden relative shadow-xs">
+    <div className="flex-1 bg-surface border border-line rounded-2xl flex flex-col overflow-hidden relative shadow-xs">
       {/* Table Header */}
-      <div className="h-10 bg-[#F8FAFC] border-b border-[#E2E8F0] px-4 grid grid-cols-12 items-center text-xs font-bold text-[#52605D] shrink-0 select-none">
+      <div className="h-10 bg-surface-2 border-b border-line px-4 grid grid-cols-12 items-center text-xs font-bold text-ink-muted shrink-0 select-none">
         <div className="col-span-1 flex items-center justify-center gap-1.5">
           <input
             type="checkbox"
             checked={filteredProducts.length > 0 && selectedProductIds.length === filteredProducts.length}
             onChange={() => onToggleSelectAll(filteredProducts)}
-            className="w-4 h-4 rounded border-[#CBD5E1] accent-[#006D41] focus:ring-0 cursor-pointer"
+            className="w-4 h-4 rounded border-line accent-paid focus:ring-0 cursor-pointer"
             title="تحديد كل الأصناف المعروضة"
           />
           <span>#</span>
@@ -121,8 +121,8 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
             return (
               <div 
                 key={prod.id} 
-                className={`h-12 border-b border-[#E2E8F0] px-4 grid grid-cols-12 items-center text-xs hover:bg-[#F1F5F4]/60 transition-colors ${
-                  isSelected ? 'bg-[#004D3F]/10' : ''
+                className={`h-12 border-b border-line px-4 grid grid-cols-12 items-center text-xs hover:bg-surface-2/60 transition-colors ${
+                  isSelected ? 'bg-brand/10' : ''
                 }`}
               >
                 <div className="col-span-1 flex items-center justify-center gap-1.5">
@@ -130,13 +130,13 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                     type="checkbox"
                     checked={isSelected}
                     onChange={() => onToggleSelectProduct(prod.id)}
-                    className="w-4 h-4 rounded border-[#CBD5E1] accent-[#006D41] focus:ring-0 cursor-pointer"
+                    className="w-4 h-4 rounded border-line accent-paid focus:ring-0 cursor-pointer"
                   />
-                  <span className="font-mono text-xs text-[#52605D] tabular-nums">{index + 1}</span>
+                  <span className="font-mono text-xs text-ink-muted tabular-nums">{index + 1}</span>
                 </div>
                 
-                <div className="col-span-2 flex items-center gap-1 font-mono text-xs text-[#0F172A] truncate tabular-nums">
-                  <span className="truncate">{prod.barcode || <span className="text-[#52605D]/50">—</span>}</span>
+                <div className="col-span-2 flex items-center gap-1 font-mono text-xs text-ink truncate tabular-nums">
+                  <span className="truncate">{prod.barcode || <span className="text-ink-muted/50">—</span>}</span>
                   {prod.barcodes && prod.barcodes.length > 1 && (
                     <span 
                       className="px-1.5 py-0.5 rounded-full bg-[#F8FAFC] border border-[#E2E8F0] text-[10px] text-[#52605D] shrink-0 font-bold"
@@ -272,7 +272,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
       {/* Floating Bulk Action Bar */}
       {selectedProductIds.length > 0 && (
-        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 bg-[#00372D] text-white rounded-2xl px-5 py-2.5 shadow-2xl flex items-center gap-4 z-30 border border-[#006D41]/40 text-xs font-bold animate-fade-in">
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 bg-brand-dark text-white rounded-2xl px-5 py-2.5 shadow-2xl flex items-center gap-4 z-30 border border-paid/40 text-xs font-bold animate-fade-in">
           <span className="flex items-center gap-1.5 text-white">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span>تم تحديد {selectedProductIds.length} صنف</span>
@@ -280,7 +280,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
           <button
             type="button"
             onClick={onOpenBulkMinStockModal}
-            className="px-3.5 py-1.5 bg-[#006D41] hover:bg-[#005230] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+            className="px-3.5 py-1.5 bg-paid hover:bg-paid-hover text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
           >
             <span>تعديل حد الطلب جماعياً</span>
           </button>
@@ -305,9 +305,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
       )}
 
       {/* Table Footer Status */}
-      <div className="h-8 bg-[#F8FAFC] border-t border-[#E2E8F0] px-4 flex items-center justify-between text-[11px] text-[#52605D] shrink-0">
+      <div className="h-8 bg-surface-2 border-t border-line px-4 flex items-center justify-between text-[11px] text-ink-muted shrink-0">
         <span>يتم تخزين جميع الأسعار بالقروش وتحديث حركة المخزون في معاملات SQLite فورية.</span>
-        <span className="font-mono tabular-nums font-bold">{products.length} منتج مسجل</span>
+        <span className="font-mono tabular-nums font-bold">{filteredProducts.length} صنف في هذه الصفحة</span>
       </div>
     </div>
   );
