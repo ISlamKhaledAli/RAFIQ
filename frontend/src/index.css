@@ -292,3 +292,40 @@
   --tw-enter-translate-x: -8px;
 }
 
+/* =========================================================================
+   PRINT MEDIA RULES (80mm Thermal Receipt & A4 Statement Printing)
+   ========================================================================= */
+@media print {
+  @page {
+    margin: 0;
+    size: auto;
+  }
+
+  body {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    overflow: visible !important;
+    height: auto !important;
+    width: auto !important;
+  }
+
+  /* Hide application chrome, navigation, toolbars, and action buttons */
+  button,
+  nav,
+  aside,
+  header,
+  .no-print,
+  [data-no-print] {
+    display: none !important;
+  }
+
+  /* Isolate printable receipt or statement */
+  #printable-receipt,
+  .printable-statement {
+    position: relative !important;
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 auto !important;
+  }
+}
+
