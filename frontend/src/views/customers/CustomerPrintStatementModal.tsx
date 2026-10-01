@@ -81,7 +81,7 @@ export const CustomerPrintStatementModal: React.FC<CustomerPrintStatementModalPr
           >
             {/* Store Header */}
             <div className="text-center pb-3 border-b border-black mb-3">
-              <h2 className="text-base font-extrabold tracking-wide mb-0.5">رفيق لنقاط البيع وإدارة المتاجر</h2>
+              <h2 className="text-base font-extrabold mb-0.5">رفيق لنقاط البيع وإدارة المتاجر</h2>
               <p className="text-[11px] text-neutral-600 font-semibold">كشف حساب عميل تفصيلي</p>
               <p className="text-[10px] text-neutral-500 font-mono mt-0.5">
                 تاريخ الاستخراج: {new Date().toLocaleString('ar-EG-u-nu-latn')}

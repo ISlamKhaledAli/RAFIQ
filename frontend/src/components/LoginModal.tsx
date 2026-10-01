@@ -186,7 +186,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               </svg>
             </div>
             <div>
-              <h2 className="text-lg font-black text-slate-900 tracking-tight">تسجيل دخول الموظف</h2>
+              <h2 className="text-lg font-black text-slate-900">تسجيل دخول الموظف</h2>
               <p className="text-xs text-slate-500 font-medium">اختر حسابك وأدخل الرقم السري لبدء العمل</p>
             </div>
           </div>
@@ -207,7 +207,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         <div className="p-6 grid grid-cols-1 md:grid-cols-12 gap-6 bg-canvas">
           {/* Employee Selector Column (5 cols) */}
           <div className="md:col-span-5 flex flex-col gap-3">
-            <label className="text-xs font-bold text-ink uppercase tracking-wider">
+            <label className="text-xs font-bold text-ink">
               الموظفون النشطون ({activeUsers.length})
             </label>
             <div className="flex-1 max-h-[340px] overflow-y-auto space-y-2 pr-1 custom-scrollbar">

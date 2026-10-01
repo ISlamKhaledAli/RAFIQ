@@ -240,7 +240,7 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
             )}
           </div>
 
-          <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mb-1.5">
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900 mb-1.5">
             {isClockIssue ? 'يرجى تصحيح ساعة وتاريخ النظام' : 'انتهت فترة اشتراك رفيق POS'}
           </h2>
 

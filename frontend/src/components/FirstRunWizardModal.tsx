@@ -842,7 +842,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
               </div>
 
               {/* Title */}
-              <h1 className="text-ink text-[28px] font-semibold tracking-tight mb-3">
+              <h1 className="text-ink text-[28px] font-semibold mb-3">
                 تم تهيئة وتجهيز النظام بنجاح!
               </h1>
 

@@ -28,19 +28,19 @@
   input, textarea, select {
     user-select: text;
     -webkit-user-select: text;
-    font-family: 'Cairo', 'Tajawal', 'Segoe UI', Tahoma, sans-serif;
+    font-family: 'IBM Plex Sans Arabic', 'Cairo', 'Tajawal', 'Segoe UI', Tahoma, sans-serif;
   }
 
   /* High-clarity Arabic placeholder font & letter-spacing fix */
   input::placeholder, textarea::placeholder {
-    font-family: 'Cairo', 'Tajawal', 'Segoe UI', Tahoma, sans-serif !important;
+    font-family: 'IBM Plex Sans Arabic', 'Cairo', 'Tajawal', 'Segoe UI', Tahoma, sans-serif !important;
     letter-spacing: 0 !important;
     opacity: 0.55;
   }
 
   /* Branded Retail Select Dropdown */
   select {
-    font-family: 'Cairo', 'Tajawal', 'Segoe UI', Tahoma, sans-serif;
+    font-family: 'IBM Plex Sans Arabic', 'Cairo', 'Tajawal', 'Segoe UI', Tahoma, sans-serif;
     appearance: none;
     -webkit-appearance: none;
     background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230B4F42' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
@@ -60,7 +60,7 @@
   select option {
     background-color: #FFFFFF;
     color: #14181A;
-    font-family: 'Cairo', 'Tajawal', 'Segoe UI', sans-serif;
+    font-family: 'IBM Plex Sans Arabic', 'Cairo', 'Tajawal', 'Segoe UI', sans-serif;
     padding: 8px 12px;
   }
 
@@ -147,7 +147,7 @@
   body {
     margin: 0;
     padding: 0;
-    font-family: 'Cairo', 'Tajawal', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: 'IBM Plex Sans Arabic', 'Cairo', 'Tajawal', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background-color: #F3F5F2;
     color: #14181A;
     direction: rtl;
@@ -157,12 +157,27 @@
     width: 100vw;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    letter-spacing: 0;
   }
 }
 
-/* Tabular Numerals for Retail Accounting */
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
+/* International Arabic Typography Standards:
+   Arabic is a cursive script; positive letter-spacing disconnects characters and causes visual corruption.
+   Enforce zero letter-spacing on Arabic content while preserving intentional letter-spacing for Latin/codes/PINs. */
+[dir="rtl"] {
+  letter-spacing: 0;
+}
+
+[dir="rtl"] *:not([dir="ltr"]):not(.font-mono):not(input):not(code):not(pre) {
+  letter-spacing: 0 !important;
+}
+
+/* Tabular Numerals for Retail Accounting & High-Precision POS */
+.tabular-nums,
+.font-mono {
+  font-variant-numeric: tabular-nums lining-nums;
+  -webkit-font-feature-settings: "tnum" 1, "lnum" 1;
   font-feature-settings: "tnum" 1, "lnum" 1;
 }
 

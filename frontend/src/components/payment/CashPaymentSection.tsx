@@ -119,7 +119,7 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
           selectedCustomer ? (
             <>
               <div className="flex flex-col">
-                <span className="text-xs font-bold uppercase tracking-wider text-[#B3720E] whitespace-nowrap">
+                <span className="text-xs font-bold text-[#B3720E] whitespace-nowrap">
                   عجز الدفع (يُسجل كدين آجل):
                 </span>
                 <span className="text-2xl font-mono font-black mt-1 tabular-nums text-[#8A5200] whitespace-nowrap">
@@ -139,7 +139,7 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
           ) : (
             <>
               <div className="flex flex-col">
-                <span className="text-xs font-bold uppercase tracking-wider text-[#B23A2E] whitespace-nowrap">
+                <span className="text-xs font-bold text-[#B23A2E] whitespace-nowrap">
                   عجز في الدفع:
                 </span>
                 <span className="text-2xl font-mono font-black mt-1 tabular-nums text-[#B23A2E] whitespace-nowrap">
@@ -178,7 +178,7 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
         ) : (
           <>
             <div className="flex flex-col">
-              <span className="text-xs font-bold uppercase tracking-wider whitespace-nowrap">
+              <span className="text-xs font-bold whitespace-nowrap">
                 المبلغ المتبقي للعميل (الباقي):
               </span>
               <span className="text-3xl font-mono font-black mt-1 tabular-nums whitespace-nowrap">

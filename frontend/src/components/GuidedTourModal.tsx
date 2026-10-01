@@ -162,7 +162,7 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
                 {currentStep.step >= 5 && <BarChart3 className="w-6 h-6 text-white" />}
               </div>
               <div>
-                <span className="inline-block text-xs font-bold uppercase tracking-wider bg-white/25 px-2.5 py-0.5 rounded-full mb-1">
+                <span className="inline-block text-xs font-bold bg-white/25 px-2.5 py-0.5 rounded-full mb-1">
                   {currentStep.badgeText}
                 </span>
                 <h2 className="text-xl font-black leading-tight">{currentStep.title}</h2>
@@ -205,7 +205,7 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
 
           {/* Key Features List */}
           <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 space-y-2.5">
-            <h4 className="text-xs font-black text-slate-500 uppercase tracking-wider flex items-center gap-2">
+            <h4 className="text-xs font-black text-slate-500 flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               أهم المزايا في هذه الشاشة
             </h4>

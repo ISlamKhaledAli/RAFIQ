@@ -250,7 +250,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-black text-slate-900 tracking-tight">إدارة حسابات الموظفين ونقاط البيع</h2>
+                <h2 className="text-lg font-black text-slate-900">إدارة حسابات الموظفين ونقاط البيع</h2>
                 <span className="bg-emerald-50 text-[#006D41] text-[11px] px-2.5 py-0.5 rounded-full font-bold border border-emerald-200 shadow-2xs">
                   صلاحيات مدير النظام
                 </span>

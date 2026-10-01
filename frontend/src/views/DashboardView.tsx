@@ -176,7 +176,7 @@ export function DashboardView({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0 bg-white p-3.5 rounded-lg border border-[#DCE1DC] shadow-2xs">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-xl font-black text-[#14181A] tracking-tight">لوحة اليوم</h2>
+            <h2 className="text-xl font-black text-[#14181A]">لوحة اليوم</h2>
             <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-[#F7F8F6] border border-[#DCE1DC] text-[11px] font-medium text-[#14181A]">
               <span className="w-2 h-2 rounded-full bg-[#006d41] animate-pulse" />
               <span>يعمل بدون إنترنت (محلي)</span>
@@ -257,7 +257,7 @@ export function DashboardView({
 
             <div className="space-y-0.5">
               <div className="flex items-center gap-2">
-                <span className="text-[10.5px] font-bold uppercase tracking-wider text-[#5B6664]">
+                <span className="text-[11px] font-bold text-[#5B6664]">
                   مؤشر سلامة وتشغيل النظام
                 </span>
                 <span

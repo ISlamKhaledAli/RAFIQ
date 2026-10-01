@@ -206,7 +206,7 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
                       لوحة التحقق الشامل
                     </span>
                     <span className="text-xs text-emerald-200/70 font-mono">Rafiq Pre-Flight</span>

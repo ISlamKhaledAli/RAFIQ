@@ -87,10 +87,15 @@ export default {
         'fadeIn': 'fadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
         'scale-up': 'scaleUp 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
       },
+      fontSize: {
+        '2xs': ['0.6875rem', { lineHeight: '0.95rem' }], // 11px
+        'md': ['0.9375rem', { lineHeight: '1.4rem' }],   // 15px
+      },
       fontFamily: {
-        sans: ["Cairo", "Tajawal", "Segoe UI", "Tahoma", "sans-serif"],
-        cairo: ["Cairo", "Tajawal", "Segoe UI", "Tahoma", "sans-serif"],
-        mono: ["Cairo", "Consolas", "Courier New", "monospace"],
+        sans: ["'IBM Plex Sans Arabic'", "Cairo", "Tajawal", "Segoe UI", "Tahoma", "sans-serif"],
+        ibm: ["'IBM Plex Sans Arabic'", "Cairo", "Tajawal", "sans-serif"],
+        cairo: ["Cairo", "'IBM Plex Sans Arabic'", "Tajawal", "Segoe UI", "Tahoma", "sans-serif"],
+        mono: ["'IBM Plex Sans Arabic'", "Consolas", "Courier New", "monospace"],
       },
     },
   },
