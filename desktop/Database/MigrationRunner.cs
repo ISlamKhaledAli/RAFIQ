@@ -6,7 +6,7 @@ namespace RafiqPOS.Database
 {
     public static class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 22;
+        public const int LATEST_SUPPORTED_VERSION = 23;
 
         public static void ApplyMigrations(string connectionString, string dbPath)
         {
@@ -210,7 +210,14 @@ namespace RafiqPOS.Database
                     ApplyMigration22(conn);
                 }
 
-                // 26. Self-Healing Schema Guard: Automatically repair missing columns or indexes
+                // 26. Apply Migration 23: Customer Archival (Soft Delete) Support
+                if (currentVersion < 23)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration23(conn);
+                }
+
+                // 27. Self-Healing Schema Guard: Automatically repair missing columns or indexes
                 EnsureSchemaHealth(conn);
             }
         }
@@ -2824,6 +2831,63 @@ namespace RafiqPOS.Database
                     using (var logCmd = new SQLiteCommand(@"
                         INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
                         VALUES (22, 'Daily Closing and Reporting System (Features 45, 48, 49, 50, 127, 137)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        logCmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        private static void ApplyMigration23(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // 1. Add is_archived column to customers table (Soft Delete / Archival)
+                    // Default 0 = active, 1 = archived (hidden from UI but data preserved)
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand(
+                            "ALTER TABLE customers ADD COLUMN is_archived INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch
+                    {
+                        // Column already exists, safe to ignore
+                    }
+
+                    // 2. Add partial index for fast filtering of active customers
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE INDEX IF NOT EXISTS idx_customers_is_archived 
+                        ON customers(is_archived);
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 3. Ensure system customer is never archived
+                    using (var cmd = new SQLiteCommand(@"
+                        UPDATE customers SET is_archived = 0 WHERE id = 'cust_general_cash';
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 4. Update schema_migrations
+                    using (var logCmd = new SQLiteCommand(@"
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (23, 'Customer Archival Soft Delete Support', datetime('now'));
                     ", conn, trans))
                     {
                         logCmd.ExecuteNonQuery();

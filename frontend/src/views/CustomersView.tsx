@@ -10,6 +10,7 @@ import {
   Phone,
   FileSpreadsheet,
   Download,
+  Trash2,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { normalizeArabicNumerals } from '../utils/money';
@@ -519,6 +520,50 @@ export function CustomersView() {
     }
   };
 
+  const handleArchiveCustomer = async (cust: Customer) => {
+    // 1. Protect system customer
+    if (cust.id === 'cust_general_cash') {
+      void rafiqAlert({
+        title: 'لا يمكن حذف هذا العميل',
+        message: 'العميل النقدي العام هو حساب نظام أساسي مطلوب لتشغيل نقطة البيع ولا يمكن حذفه.',
+        variant: 'warning',
+      });
+      return;
+    }
+
+    // 2. Block if customer has active debt
+    if (cust.balancePiasters > 0) {
+      void rafiqAlert({
+        title: 'لا يمكن حذف العميل',
+        message: `العميل "${cust.name}" عليه رصيد دين مستحق (${(cust.balancePiasters / 100).toFixed(2)} ج.م). يجب تسوية حسابه أولاً قبل الحذف.`,
+        variant: 'warning',
+      });
+      return;
+    }
+
+    // 3. Confirm
+    const confirmed = await rafiqConfirm({
+      title: 'تأكيد حذف العميل',
+      message: `هل أنت متأكد من حذف العميل "${cust.name}"؟ سيختفي من القائمة لكن سجلاته المالية والفواتير المرتبطة ستبقى محفوظة في النظام.`,
+      confirmText: 'نعم، حذف العميل',
+      cancelText: 'تراجع',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+
+    // 4. Execute archive
+    try {
+      await invoke<{ success: boolean }>('customers:archive', { customerId: cust.id });
+      void loadCustomers();
+    } catch (err: unknown) {
+      void rafiqAlert({
+        title: 'فشل حذف العميل',
+        message: err instanceof Error ? err.message : 'تعذر حذف العميل',
+        variant: 'error',
+      });
+    }
+  };
+
   return (
     <div className="flex flex-col h-full w-full bg-[#F8FAFC] p-3.5 gap-3 select-none overflow-hidden">
       
@@ -807,6 +852,22 @@ export function CustomersView() {
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
+
+                          {/* Delete (Archive) Button — hidden for system customer */}
+                          {cust.id !== 'cust_general_cash' && (
+                            <button
+                              onClick={() => void handleArchiveCustomer(cust)}
+                              title={hasDebt ? 'لا يمكن الحذف — يوجد دين مستحق' : 'حذف العميل'}
+                              disabled={hasDebt}
+                              className={`w-7.5 h-7.5 flex items-center justify-center rounded-xl border transition-colors shadow-2xs cursor-pointer ${
+                                hasDebt
+                                  ? 'bg-slate-50 border-slate-200 text-slate-300 cursor-not-allowed opacity-40'
+                                  : 'bg-white border-[#E2E8F0] text-rose-400 hover:text-white hover:bg-rose-600 hover:border-rose-600'
+                              }`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

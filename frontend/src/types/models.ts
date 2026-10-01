@@ -153,6 +153,7 @@ export interface Customer {
   createdAt: string;
   balanceFormatted?: string;
   creditLimitFormatted?: string;
+  isArchived?: boolean;
 }
 
 export interface CustomerLedgerEntry {

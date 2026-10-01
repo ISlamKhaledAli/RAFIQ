@@ -150,6 +150,28 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, statement);
                     return true;
 
+                case "customers:archive":
+                    string archCustId = "";
+                    JObject archObj = request.Payload as JObject;
+                    if (archObj != null && archObj["customerId"] != null)
+                    {
+                        archCustId = archObj["customerId"].ToString();
+                    }
+                    else if (request.Payload != null)
+                    {
+                        archCustId = request.Payload.ToString().Trim('"', ' ');
+                    }
+                    try
+                    {
+                        DatabaseService.Customers.ArchiveCustomer(archCustId);
+                        response = BridgeResponse.Ok(request.Id, new { success = true, archivedId = archCustId });
+                    }
+                    catch (InvalidOperationException ioEx)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "ARCHIVE_BLOCKED", ioEx.Message);
+                    }
+                    return true;
+
                 case "customers:runTests":
                     var custTestRes = CustomerLedgerTestRunner.RunAllTests();
                     if (custTestRes.Success)

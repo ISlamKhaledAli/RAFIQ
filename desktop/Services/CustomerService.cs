@@ -78,5 +78,10 @@ namespace RafiqPOS.Services
         {
             return _repo.BatchImportCustomers(rows);
         }
+
+        public void ArchiveCustomer(string customerId)
+        {
+            _repo.ArchiveCustomer(customerId);
+        }
     }
 }

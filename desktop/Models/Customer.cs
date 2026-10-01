@@ -24,6 +24,9 @@ namespace RafiqPOS.Models
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
 
+        [JsonProperty("isArchived")]
+        public bool IsArchived { get; set; }
+
         [JsonProperty("balanceFormatted")]
         public string BalanceFormatted
         {

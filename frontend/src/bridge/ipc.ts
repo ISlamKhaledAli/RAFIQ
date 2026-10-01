@@ -1263,7 +1263,20 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     }
 
     case 'customers:getAll':
-      return [...mockCustomers];
+      return mockCustomers.filter((c: any) => !c.isArchived);
+
+    case 'customers:archive': {
+      const archiveId = typeof payload === 'string' ? payload : payload?.customerId;
+      if (archiveId === 'cust_general_cash') {
+        throw new Error('لا يمكن حذف العميل النقدي العام — هو حساب نظام أساسي مطلوب لتشغيل نقطة البيع');
+      }
+      const custToArchive = mockCustomers.find((c: any) => c.id === archiveId);
+      if (custToArchive && custToArchive.balancePiasters > 0) {
+        throw new Error(`لا يمكن حذف العميل "${custToArchive.name}" لأن عليه رصيد دين مستحق. يجب تسوية حسابه أولاً.`);
+      }
+      mockCustomers = mockCustomers.filter((c: any) => c.id !== archiveId);
+      return { success: true, archivedId: archiveId };
+    }
 
     case 'customers:search': {
       const q = (payload?.query || '').trim().toLowerCase();

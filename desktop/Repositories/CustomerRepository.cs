@@ -22,7 +22,7 @@ namespace RafiqPOS.Repositories
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = "SELECT * FROM customers ORDER BY balance_piasters DESC, name ASC LIMIT @limit;";
+                string sql = "SELECT * FROM customers WHERE is_archived = 0 ORDER BY balance_piasters DESC, name ASC LIMIT @limit;";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@limit", limit > 0 ? limit : 100);
@@ -46,7 +46,7 @@ namespace RafiqPOS.Repositories
                 conn.Open();
                 string sql = @"
                     SELECT * FROM customers 
-                    WHERE name LIKE @q OR phone LIKE @q 
+                    WHERE is_archived = 0 AND (name LIKE @q OR phone LIKE @q)
                     ORDER BY balance_piasters DESC, name ASC 
                     LIMIT 50;
                 ";
@@ -684,6 +684,20 @@ namespace RafiqPOS.Repositories
 
         private static Customer MapReaderToCustomer(SQLiteDataReader reader)
         {
+            bool isArchived = false;
+            try
+            {
+                int ordinal = reader.GetOrdinal("is_archived");
+                if (!reader.IsDBNull(ordinal))
+                {
+                    isArchived = Convert.ToInt32(reader["is_archived"]) == 1;
+                }
+            }
+            catch
+            {
+                // Column may not exist yet in older databases
+            }
+
             return new Customer
             {
                 Id = reader["id"].ToString(),
@@ -691,8 +705,101 @@ namespace RafiqPOS.Repositories
                 Phone = reader["phone"] != DBNull.Value ? reader["phone"].ToString() : "",
                 BalancePiasters = Convert.ToInt64(reader["balance_piasters"]),
                 CreditLimitPiasters = Convert.ToInt64(reader["credit_limit_piasters"]),
-                CreatedAt = reader["created_at"].ToString()
+                CreatedAt = reader["created_at"].ToString(),
+                IsArchived = isArchived
             };
+        }
+
+        /// <summary>
+        /// أرشفة العميل (Soft Delete) — يُخفي من القوائم لكن يبقى في قاعدة البيانات
+        /// للحفاظ على سلامة السجلات المالية والفواتير المرتبطة.
+        /// يمنع أرشفة: (1) العميل النقدي العام, (2) عميل عليه رصيد دين نشط.
+        /// </summary>
+        public void ArchiveCustomer(string customerId)
+        {
+            if (string.IsNullOrWhiteSpace(customerId))
+            {
+                throw new ArgumentException("معرف العميل مفقود");
+            }
+
+            // 1. Protect system customer
+            if (customerId == "cust_general_cash")
+            {
+                throw new InvalidOperationException("لا يمكن حذف العميل النقدي العام — هو حساب نظام أساسي مطلوب لتشغيل نقطة البيع");
+            }
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+
+                // 2. Fetch current customer
+                Customer cust = null;
+                using (var cmd = new SQLiteCommand("SELECT * FROM customers WHERE id = @id LIMIT 1;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", customerId);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            cust = MapReaderToCustomer(reader);
+                        }
+                    }
+                }
+
+                if (cust == null)
+                {
+                    throw new InvalidOperationException("العميل غير موجود في قاعدة البيانات");
+                }
+
+                // 3. Block archive if customer has active debt
+                if (cust.BalancePiasters > 0)
+                {
+                    throw new InvalidOperationException(
+                        string.Format("لا يمكن حذف العميل \"{0}\" لأن عليه رصيد دين مستحق ({1}). يجب تسوية حسابه أولاً.",
+                            cust.Name, Common.Money.FormatPiasters(cust.BalancePiasters)));
+                }
+
+                using (var trans = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        // 4. Set archived flag
+                        using (var cmd = new SQLiteCommand(
+                            "UPDATE customers SET is_archived = 1 WHERE id = @id;", conn, trans))
+                        {
+                            cmd.Parameters.AddWithValue("@id", customerId);
+                            cmd.ExecuteNonQuery();
+                        }
+
+                        // 5. Audit log
+                        if (_auditRepo != null)
+                        {
+                            try
+                            {
+                                _auditRepo.Log(new AuditLog
+                                {
+                                    Action = "customer_archive",
+                                    EntityType = "customer",
+                                    EntityId = customerId,
+                                    DetailsJson = string.Format("{{\"customerName\":\"{0}\",\"phone\":\"{1}\"}}",
+                                        (cust.Name ?? "").Replace("\"", ""), (cust.Phone ?? "").Replace("\"", ""))
+                                });
+                            }
+                            catch
+                            {
+                                // Audit failure should not block the archive operation
+                            }
+                        }
+
+                        trans.Commit();
+                    }
+                    catch
+                    {
+                        trans.Rollback();
+                        throw;
+                    }
+                }
+            }
         }
     }
 }
