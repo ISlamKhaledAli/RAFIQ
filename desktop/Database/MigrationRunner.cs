@@ -462,7 +462,38 @@ namespace RafiqPOS.Database
                         }
                     }
 
-                    // 3. Health check for sales table
+                    // 3. Health check for customers table (is_archived column)
+                    using (var checkCustCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='customers';", conn, trans))
+                    {
+                        var tbl = checkCustCmd.ExecuteScalar();
+                        if (tbl != null)
+                        {
+                            var existingCols = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            using (var infoCmd = new SQLiteCommand("PRAGMA table_info(customers);", conn, trans))
+                            using (var reader = infoCmd.ExecuteReader())
+                            {
+                                while (reader.Read())
+                                {
+                                    existingCols.Add(reader["name"].ToString());
+                                }
+                            }
+
+                            if (!existingCols.Contains("is_archived"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE customers ADD COLUMN is_archived INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+
+                            using (var idxCmd = new SQLiteCommand("CREATE INDEX IF NOT EXISTS idx_customers_is_archived ON customers(is_archived);", conn, trans))
+                            {
+                                idxCmd.ExecuteNonQuery();
+                            }
+                        }
+                    }
+
+                    // 4. Health check for sales table
                     using (var checkSalesCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='sales';", conn, trans))
                     {
                         var tbl = checkSalesCmd.ExecuteScalar();
