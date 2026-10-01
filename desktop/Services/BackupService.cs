@@ -52,6 +52,7 @@ namespace RafiqPOS.Services
         public int RetentionDays { get; set; }
         public int RetentionWeeks { get; set; }
         public int WarnAfterDays { get; set; }
+        public int MaxCopies { get; set; }
         public List<BackupFileInfo> RecentBackups { get; set; }
 
         public BackupStatusInfo()
@@ -62,6 +63,55 @@ namespace RafiqPOS.Services
 
     public class BackupService
     {
+        public const int MIN_GUARANTEED_COPIES = 3;
+        public const long LOW_DISK_SPACE_THRESHOLD_BYTES = 500L * 1024L * 1024L; // 500 MB
+
+        private class BackupFileEntry
+        {
+            public string FilePath;
+            public string FileName;
+            public DateTime Timestamp;
+            public string DateKey;
+            public long SizeBytes;
+        }
+
+        public static bool TryParseBackupTimestamp(string filePath, out DateTime timestamp)
+        {
+            timestamp = DateTime.MinValue;
+            try
+            {
+                string fileName = Path.GetFileNameWithoutExtension(filePath);
+                if (!string.IsNullOrEmpty(fileName) && fileName.StartsWith("rafiq_backup_") && fileName.Length >= 28)
+                {
+                    string datePart = fileName.Substring(13, 8); // yyyyMMdd
+                    string timePart = fileName.Substring(22, 6); // HHmmss
+                    int year = int.Parse(datePart.Substring(0, 4));
+                    int month = int.Parse(datePart.Substring(4, 2));
+                    int day = int.Parse(datePart.Substring(6, 2));
+                    int hour = int.Parse(timePart.Substring(0, 2));
+                    int minute = int.Parse(timePart.Substring(2, 2));
+                    int second = int.Parse(timePart.Substring(4, 2));
+                    timestamp = new DateTime(year, month, day, hour, minute, second, DateTimeKind.Local);
+                    return true;
+                }
+            }
+            catch
+            {
+                // Fallback to file creation time
+            }
+
+            try
+            {
+                var fi = new FileInfo(filePath);
+                timestamp = fi.CreationTime < fi.LastWriteTime ? fi.CreationTime : fi.LastWriteTime;
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private readonly string _connectionString;
         private readonly string _dbPath;
         private readonly SettingsRepository _settingsRepo;
@@ -195,18 +245,20 @@ namespace RafiqPOS.Services
                 _settingsRepo.Set("backup_last_size_bytes", fileInfo.Length.ToString());
                 _settingsRepo.Set("backup_last_status", result.FallbackToLocal ? "warning" : "success");
 
-                // Prune old backups per retention policy (Task 9-3)
+                // Prune old backups per retention policy (Task 9-3 & Senior Retention Engine)
                 int retentionDays = 7;
                 int retentionWeeks = 4;
+                int maxCopies = 20;
                 int.TryParse(_settingsRepo.Get("backup_retention_days", "7"), out retentionDays);
                 int.TryParse(_settingsRepo.Get("backup_retention_weeks", "4"), out retentionWeeks);
+                int.TryParse(_settingsRepo.Get("backup_max_copies", "20"), out maxCopies);
 
-                PruneOldBackups(targetFolder, retentionDays, retentionWeeks);
+                PruneOldBackups(targetFolder, retentionDays, retentionWeeks, maxCopies);
 
                 // If fallback folder was used and differs from target, prune default too
                 if (result.FallbackToLocal && targetFolder != defaultFolder)
                 {
-                    PruneOldBackups(defaultFolder, retentionDays, retentionWeeks);
+                    PruneOldBackups(defaultFolder, retentionDays, retentionWeeks, maxCopies);
                 }
 
                 // Audit log
@@ -365,54 +417,206 @@ namespace RafiqPOS.Services
 
         public void PruneOldBackups(string folderPath, int keepDays, int keepWeeks)
         {
+            int maxCopies = 20;
+            int.TryParse(_settingsRepo.Get("backup_max_copies", "20"), out maxCopies);
+            PruneOldBackups(folderPath, keepDays, keepWeeks, maxCopies);
+        }
+
+        public void PruneOldBackups(string folderPath, int keepDays, int keepWeeks, int maxCopies)
+        {
             try
             {
                 if (!Directory.Exists(folderPath)) return;
 
+                if (keepDays < 1) keepDays = 1;
+                if (keepWeeks < 1) keepWeeks = 1;
+                if (maxCopies < MIN_GUARANTEED_COPIES) maxCopies = MIN_GUARANTEED_COPIES;
+
+                // Pillar 5: Clean orphaned temporary files older than 1 hour & excess pre-migrations
+                CleanOrphanedFiles(folderPath);
+
+                // Pillar 1: Retrieve and check fail-safe floor
                 string[] files = Directory.GetFiles(folderPath, "rafiq_backup_*.db");
-                if (files.Length <= keepDays) return;
+                if (files.Length <= MIN_GUARANTEED_COPIES)
+                {
+                    return;
+                }
 
-                DateTime cutoffDays = DateTime.Now.AddDays(-keepDays);
-                DateTime cutoffWeeks = DateTime.Now.AddDays(-(keepWeeks * 7));
+                var entries = new List<BackupFileEntry>();
+                for (int i = 0; i < files.Length; i++)
+                {
+                    string f = files[i];
+                    DateTime ts;
+                    if (TryParseBackupTimestamp(f, out ts))
+                    {
+                        var fi = new FileInfo(f);
+                        entries.Add(new BackupFileEntry
+                        {
+                            FilePath = f,
+                            FileName = fi.Name,
+                            Timestamp = ts,
+                            DateKey = ts.ToString("yyyyMMdd"),
+                            SizeBytes = fi.Length
+                        });
+                    }
+                }
 
-                var weeklyKept = new HashSet<string>();
+                if (entries.Count <= MIN_GUARANTEED_COPIES)
+                {
+                    return;
+                }
 
-                foreach (string file in files)
+                // Sort by timestamp ascending (oldest first)
+                entries.Sort(delegate(BackupFileEntry a, BackupFileEntry b)
+                {
+                    return a.Timestamp.CompareTo(b.Timestamp);
+                });
+
+                var filesToDelete = new HashSet<string>();
+
+                // Pillar 2: Intra-Day Consolidation (دمج نسخ اليوم الواحد للأيام السابقة)
+                // For today: keep all backups. For past days: keep only the latest backup of that day.
+                string todayKey = DateTime.Today.ToString("yyyyMMdd");
+                var byDate = new Dictionary<string, List<BackupFileEntry>>();
+                for (int i = 0; i < entries.Count; i++)
+                {
+                    var e = entries[i];
+                    if (!byDate.ContainsKey(e.DateKey))
+                    {
+                        byDate[e.DateKey] = new List<BackupFileEntry>();
+                    }
+                    byDate[e.DateKey].Add(e);
+                }
+
+                foreach (var kvp in byDate)
+                {
+                    string dateKey = kvp.Key;
+                    List<BackupFileEntry> dayEntries = kvp.Value;
+
+                    if (dateKey != todayKey && dayEntries.Count > 1)
+                    {
+                        // Keep only the latest backup of that past day, delete earlier intra-day snapshots
+                        for (int i = 0; i < dayEntries.Count - 1; i++)
+                        {
+                            if (entries.Count - filesToDelete.Count > MIN_GUARANTEED_COPIES)
+                            {
+                                filesToDelete.Add(dayEntries[i].FilePath);
+                                Logger.Info(string.Format("تنظيف استبقاء: دمج وحذف نسخة مكررة لنفس اليوم السابق: {0}", dayEntries[i].FileName));
+                            }
+                        }
+                    }
+                }
+
+                // Pillar 3: Tiered Retention (GFS: Daily & Weekly)
+                DateTime now = DateTime.Now;
+                DateTime cutoffDays = now.Date.AddDays(-keepDays);
+                DateTime cutoffWeeks = now.Date.AddDays(-(keepWeeks * 7));
+
+                // Traverse from newest to oldest to preserve the latest backup for each calendar week
+                var keptWeeks = new HashSet<string>();
+                for (int i = entries.Count - 1; i >= 0; i--)
+                {
+                    var e = entries[i];
+                    if (filesToDelete.Contains(e.FilePath)) continue;
+
+                    // Recent days: kept
+                    if (e.Timestamp.Date >= cutoffDays)
+                    {
+                        continue;
+                    }
+
+                    // Expired past retention weeks: delete
+                    if (e.Timestamp.Date < cutoffWeeks)
+                    {
+                        if (entries.Count - filesToDelete.Count > MIN_GUARANTEED_COPIES)
+                        {
+                            filesToDelete.Add(e.FilePath);
+                            Logger.Info(string.Format("تنظيف استبقاء: تجاوزت النسخة الحد الأقصى للأسابيع ({0} أسابيع): {1}", keepWeeks, e.FileName));
+                        }
+                        continue;
+                    }
+
+                    // Between keepDays and keepWeeks: keep 1 per week
+                    int weekOfYear = e.Timestamp.DayOfYear / 7;
+                    string weekKey = string.Format("{0}_{1}", e.Timestamp.Year, weekOfYear);
+                    if (!keptWeeks.Contains(weekKey))
+                    {
+                        keptWeeks.Add(weekKey);
+                    }
+                    else
+                    {
+                        if (entries.Count - filesToDelete.Count > MIN_GUARANTEED_COPIES)
+                        {
+                            filesToDelete.Add(e.FilePath);
+                            Logger.Info(string.Format("تنظيف استبقاء: تكرار نسخة في نفس الأسبوع القديم: {0}", e.FileName));
+                        }
+                    }
+                }
+
+                // Pillar 4: Hard Ceiling (Max Total Copies)
+                int survivingCount = entries.Count - filesToDelete.Count;
+                if (survivingCount > maxCopies)
+                {
+                    for (int i = 0; i < entries.Count; i++)
+                    {
+                        var e = entries[i];
+                        if (filesToDelete.Contains(e.FilePath)) continue;
+
+                        if (entries.Count - filesToDelete.Count > maxCopies &&
+                            entries.Count - filesToDelete.Count > MIN_GUARANTEED_COPIES)
+                        {
+                            filesToDelete.Add(e.FilePath);
+                            Logger.Info(string.Format("تنظيف استبقاء: تجاوز الحد الأقصى لعدد النسخ ({0} نسخة): {1}", maxCopies, e.FileName));
+                        }
+                    }
+                }
+
+                // Pillar 5: Low Disk Space Emergency Pruning
+                try
+                {
+                    string root = Path.GetPathRoot(folderPath);
+                    if (!string.IsNullOrEmpty(root))
+                    {
+                        var drive = new DriveInfo(root);
+                        if (drive.IsReady && drive.AvailableFreeSpace < LOW_DISK_SPACE_THRESHOLD_BYTES)
+                        {
+                            for (int i = 0; i < entries.Count; i++)
+                            {
+                                var e = entries[i];
+                                if (filesToDelete.Contains(e.FilePath)) continue;
+
+                                if (entries.Count - filesToDelete.Count > MIN_GUARANTEED_COPIES)
+                                {
+                                    filesToDelete.Add(e.FilePath);
+                                    Logger.Warn(string.Format("تنظيف طارئ: حذف نسخة قديمة بسبب انخفاض مساحة القرص عن 500 ميجا: {0}", e.FileName));
+                                }
+
+                                drive = new DriveInfo(root);
+                                if (drive.AvailableFreeSpace >= LOW_DISK_SPACE_THRESHOLD_BYTES)
+                                {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                }
+
+                // Safe Deletions Execution
+                foreach (string f in filesToDelete)
                 {
                     try
                     {
-                        var info = new FileInfo(file);
-                        DateTime creationTime = info.CreationTime;
-
-                        // Keep all backups created within keepDays
-                        if (creationTime >= cutoffDays)
+                        if (File.Exists(f))
                         {
-                            continue;
-                        }
-
-                        // If older than keepWeeks, delete
-                        if (creationTime < cutoffWeeks)
-                        {
-                            File.Delete(file);
-                            continue;
-                        }
-
-                        // For files between keepDays and keepWeeks, keep only 1 per week (e.g. week key YYYY_WW)
-                        int weekOfYear = (creationTime.DayOfYear / 7);
-                        string weekKey = string.Format("{0}_{1}", creationTime.Year, weekOfYear);
-
-                        if (!weeklyKept.Contains(weekKey))
-                        {
-                            weeklyKept.Add(weekKey);
-                        }
-                        else
-                        {
-                            File.Delete(file);
+                            File.Delete(f);
                         }
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        // Ignore individual file deletion issues
+                        Logger.Warn(string.Format("تعذر حذف ملف النسخة القديمة '{0}': {1}", f, ex.Message));
                     }
                 }
             }
@@ -420,6 +624,57 @@ namespace RafiqPOS.Services
             {
                 Logger.Warn("فشل تنظيف النسخ الاحتياطية القديمة: " + ex.Message);
             }
+        }
+
+        private static void CleanOrphanedFiles(string folderPath)
+        {
+            try
+            {
+                DateTime oneHourAgo = DateTime.Now.AddHours(-1);
+
+                // Clean orphaned *.raw and *.tmp older than 1 hour
+                string[] tempFiles = Directory.GetFiles(folderPath, "*.*");
+                for (int i = 0; i < tempFiles.Length; i++)
+                {
+                    string f = tempFiles[i];
+                    string ext = Path.GetExtension(f);
+                    if (!string.IsNullOrEmpty(ext))
+                    {
+                        string lowerExt = ext.ToLowerInvariant();
+                        if (lowerExt == ".raw" || lowerExt == ".tmp")
+                        {
+                            try
+                            {
+                                var fi = new FileInfo(f);
+                                if (fi.CreationTime < oneHourAgo && fi.LastWriteTime < oneHourAgo)
+                                {
+                                    File.Delete(f);
+                                    Logger.Info("تنظيف مخلفات مؤقتة قديمة: " + fi.Name);
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+                }
+
+                // Clean pre_migration_*.db keeping only latest 2
+                string[] preMigFiles = Directory.GetFiles(folderPath, "pre_migration_*.db");
+                if (preMigFiles.Length > 2)
+                {
+                    Array.Sort(preMigFiles);
+                    int toDelete = preMigFiles.Length - 2;
+                    for (int i = 0; i < toDelete; i++)
+                    {
+                        try
+                        {
+                            File.Delete(preMigFiles[i]);
+                            Logger.Info("تنظيف نسخة ترحيل قديمة: " + Path.GetFileName(preMigFiles[i]));
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch { }
         }
 
         public BackupStatusInfo GetStatus()
@@ -450,6 +705,10 @@ namespace RafiqPOS.Services
             int warnDays = 2;
             int.TryParse(_settingsRepo.Get("backup_warn_after_days", "2"), out warnDays);
             status.WarnAfterDays = warnDays;
+
+            int maxCopies = 20;
+            int.TryParse(_settingsRepo.Get("backup_max_copies", "20"), out maxCopies);
+            status.MaxCopies = maxCopies;
 
             // Check overdue condition (Task 9-6)
             if (string.IsNullOrEmpty(lastSuccess))
@@ -554,7 +813,7 @@ namespace RafiqPOS.Services
             return list;
         }
 
-        public void SaveConfiguration(string targetFolder, bool autoOnClose, bool autoDaily, int retentionDays, int retentionWeeks, int warnDays)
+        public void SaveConfiguration(string targetFolder, bool autoOnClose, bool autoDaily, int retentionDays, int retentionWeeks, int warnDays, int maxCopies = 20)
         {
             var dict = new Dictionary<string, string>
             {
@@ -563,7 +822,8 @@ namespace RafiqPOS.Services
                 { "backup_auto_daily", autoDaily ? "1" : "0" },
                 { "backup_retention_days", retentionDays.ToString() },
                 { "backup_retention_weeks", retentionWeeks.ToString() },
-                { "backup_warn_after_days", warnDays.ToString() }
+                { "backup_warn_after_days", warnDays.ToString() },
+                { "backup_max_copies", (maxCopies > 0 ? maxCopies : 20).ToString() }
             };
             _settingsRepo.SaveBatch(dict);
         }

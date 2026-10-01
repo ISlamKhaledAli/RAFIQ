@@ -943,11 +943,40 @@ namespace RafiqPOS.Database
                     string timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
                     string backupFile = Path.Combine(backupDir, string.Format("pre_migration_{0}.db", timestamp));
                     File.Copy(dbPath, backupFile, true);
+
+                    // Clean older pre_migration backups (keep only last 2)
+                    PrunePreMigrationBackups(backupDir, 2);
                 }
             }
             catch
             {
                 // Silently continue if fresh DB
+            }
+        }
+
+        private static void PrunePreMigrationBackups(string backupDir, int keepCount)
+        {
+            try
+            {
+                if (!Directory.Exists(backupDir)) return;
+                string[] files = Directory.GetFiles(backupDir, "pre_migration_*.db");
+                if (files.Length <= keepCount) return;
+
+                Array.Sort(files);
+                int deleteCount = files.Length - keepCount;
+                for (int i = 0; i < deleteCount; i++)
+                {
+                    try
+                    {
+                        File.Delete(files[i]);
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+            catch
+            {
             }
         }
 

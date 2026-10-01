@@ -49,6 +49,7 @@ interface BackupStatusInfo {
   retentionDays: number;
   retentionWeeks: number;
   warnAfterDays: number;
+  maxCopies?: number;
   recentBackups: BackupFileInfo[];
 }
 
@@ -72,6 +73,7 @@ export const BackupManager = () => {
   const [retentionDays, setRetentionDays] = useState(7);
   const [retentionWeeks, setRetentionWeeks] = useState(4);
   const [warnAfterDays, setWarnAfterDays] = useState(2);
+  const [maxCopies, setMaxCopies] = useState(20);
   const [actionMessage, setActionMessage] = useState<{ text: string; type: 'success' | 'warning' | 'error' } | null>(null);
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<BackupFileInfo | null>(null);
@@ -87,6 +89,7 @@ export const BackupManager = () => {
         setRetentionDays(res.retentionDays || 7);
         setRetentionWeeks(res.retentionWeeks || 4);
         setWarnAfterDays(res.warnAfterDays || 2);
+        setMaxCopies(res.maxCopies || 20);
       }
     } catch (err: unknown) {
       console.error('Failed to get backup status:', err);
@@ -121,6 +124,7 @@ export const BackupManager = () => {
           setRetentionDays(statusRes.retentionDays || 7);
           setRetentionWeeks(statusRes.retentionWeeks || 4);
           setWarnAfterDays(statusRes.warnAfterDays || 2);
+          setMaxCopies(statusRes.maxCopies || 20);
         }
         if (Array.isArray(drivesRes)) {
           setDrives(drivesRes);
@@ -172,7 +176,8 @@ export const BackupManager = () => {
         autoDaily,
         retentionDays: Number(retentionDays) || 7,
         retentionWeeks: Number(retentionWeeks) || 4,
-        warnAfterDays: Number(warnAfterDays) || 2
+        warnAfterDays: Number(warnAfterDays) || 2,
+        maxCopies: Number(maxCopies) || 20
       });
       setSettingsSaved(true);
       setTimeout(() => setSettingsSaved(false), 2000);
@@ -190,7 +195,8 @@ export const BackupManager = () => {
         autoDaily: val,
         retentionDays: Number(retentionDays) || 7,
         retentionWeeks: Number(retentionWeeks) || 4,
-        warnAfterDays: Number(warnAfterDays) || 2
+        warnAfterDays: Number(warnAfterDays) || 2,
+        maxCopies: Number(maxCopies) || 20
       });
       setSettingsSaved(true);
       setTimeout(() => setSettingsSaved(false), 2000);
@@ -207,7 +213,8 @@ export const BackupManager = () => {
         autoDaily,
         retentionDays: Number(retentionDays) || 7,
         retentionWeeks: Number(retentionWeeks) || 4,
-        warnAfterDays: Number(warnAfterDays) || 2
+        warnAfterDays: Number(warnAfterDays) || 2,
+        maxCopies: Number(maxCopies) || 20
       });
       setSettingsSaved(true);
       setTimeout(() => setSettingsSaved(false), 3000);
@@ -501,42 +508,59 @@ export const BackupManager = () => {
           </div>
 
           {/* Retention Numbers */}
-          <div className="grid grid-cols-3 gap-2">
-            <div>
-              <label className="block text-[11px] text-ink-muted font-medium mb-1">حفظ نسخ آخر (أيام):</label>
-              <input
-                type="number"
-                min="1"
-                max="60"
-                value={retentionDays}
-                onChange={(e) => setRetentionDays(parseInt(e.target.value) || 7)}
-                className="w-full bg-surface border border-line rounded h-[34px] px-2 text-[12px] font-bold font-mono text-ink text-center"
-              />
-            </div>
+          <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div>
+                <label className="block text-[11px] text-ink-muted font-medium mb-1">حفظ نسخ آخر (أيام):</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="60"
+                  value={retentionDays}
+                  onChange={(e) => setRetentionDays(parseInt(e.target.value) || 7)}
+                  className="w-full bg-surface border border-line rounded h-[34px] px-2 text-[12px] font-bold font-mono text-ink text-center"
+                />
+              </div>
 
-            <div>
-              <label className="block text-[11px] text-ink-muted font-medium mb-1">نسخ أسبوعية (أسابيع):</label>
-              <input
-                type="number"
-                min="1"
-                max="52"
-                value={retentionWeeks}
-                onChange={(e) => setRetentionWeeks(parseInt(e.target.value) || 4)}
-                className="w-full bg-surface border border-line rounded h-[34px] px-2 text-[12px] font-bold font-mono text-ink text-center"
-              />
-            </div>
+              <div>
+                <label className="block text-[11px] text-ink-muted font-medium mb-1">نسخ أسبوعية (أسابيع):</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="52"
+                  value={retentionWeeks}
+                  onChange={(e) => setRetentionWeeks(parseInt(e.target.value) || 4)}
+                  className="w-full bg-surface border border-line rounded h-[34px] px-2 text-[12px] font-bold font-mono text-ink text-center"
+                />
+              </div>
 
-            <div>
-              <label className="block text-[11px] text-ink-muted font-medium mb-1">تنبيه بعد (أيام):</label>
-              <input
-                type="number"
-                min="1"
-                max="30"
-                value={warnAfterDays}
-                onChange={(e) => setWarnAfterDays(parseInt(e.target.value) || 2)}
-                className="w-full bg-surface border border-line rounded h-[34px] px-2 text-[12px] font-bold font-mono text-ink text-center"
-              />
+              <div>
+                <label className="block text-[11px] text-ink-muted font-medium mb-1">أقصى عدد نسخ (نسخة):</label>
+                <input
+                  type="number"
+                  min="3"
+                  max="50"
+                  value={maxCopies}
+                  onChange={(e) => setMaxCopies(parseInt(e.target.value) || 20)}
+                  className="w-full bg-surface border border-line rounded h-[34px] px-2 text-[12px] font-bold font-mono text-ink text-center"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-ink-muted font-medium mb-1">تنبيه بعد (أيام):</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="30"
+                  value={warnAfterDays}
+                  onChange={(e) => setWarnAfterDays(parseInt(e.target.value) || 2)}
+                  className="w-full bg-surface border border-line rounded h-[34px] px-2 text-[12px] font-bold font-mono text-ink text-center"
+                />
+              </div>
             </div>
+            <p className="text-[10.5px] text-ink-muted font-sans m-0 leading-relaxed">
+              * محرك الاستبقاء فائق الأمان: يدمج نسخ اليوم الواحد السابقة لمنع تراكم الملفات عند إغلاق البرنامج، ويحتفظ دائماً بـ 3 نسخ سليمة كحد أدنى مضمون مهما كانت الظروف.
+            </p>
           </div>
         </div>
 
