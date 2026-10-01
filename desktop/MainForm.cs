@@ -420,6 +420,10 @@ namespace RafiqPOS
                 {
                     DatabaseService.License.StartBackgroundPeriodicCheck();
                 }
+                if (DatabaseService.Backup != null)
+                {
+                    DatabaseService.Backup.StartBackgroundPeriodicCheck();
+                }
             }
             catch (Exception dbEx)
             {
@@ -716,6 +720,10 @@ namespace RafiqPOS
                 if (DatabaseService.License != null)
                 {
                     DatabaseService.License.StopBackgroundPeriodicCheck();
+                }
+                if (DatabaseService.Backup != null)
+                {
+                    DatabaseService.Backup.StopBackgroundPeriodicCheck();
                 }
 
                 if (DatabaseService.SettingsRepo != null)

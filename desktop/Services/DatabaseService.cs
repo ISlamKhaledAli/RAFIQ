@@ -267,6 +267,7 @@ namespace RafiqPOS.Services
                     string corruptCopy = Path.Combine(quarantineDir, string.Format("corrupt_db_{0}.db", timestamp));
                     File.Copy(dbPath, corruptCopy, true);
                     status.CorruptBackupSavedPath = corruptCopy;
+                    PruneDirectoryFiles(quarantineDir, "corrupt_db_*.db", 2);
                 }
                 catch (Exception qEx)
                 {
@@ -387,6 +388,7 @@ namespace RafiqPOS.Services
                         if (!Directory.Exists(safetyDir)) Directory.CreateDirectory(safetyDir);
                         string snapPath = Path.Combine(safetyDir, string.Format("pre_restore_{0}.db", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
                         File.Copy(_dbPath, snapPath, true);
+                        PruneDirectoryFiles(safetyDir, "pre_restore_*.db", 2);
                     }
                     catch { }
                 }
@@ -599,6 +601,23 @@ namespace RafiqPOS.Services
             }
 
             return result;
+        }
+
+        private static void PruneDirectoryFiles(string dir, string pattern, int keepCount)
+        {
+            try
+            {
+                if (!Directory.Exists(dir)) return;
+                string[] files = Directory.GetFiles(dir, pattern);
+                if (files.Length <= keepCount) return;
+                Array.Sort(files);
+                int toDelete = files.Length - keepCount;
+                for (int i = 0; i < toDelete; i++)
+                {
+                    try { File.Delete(files[i]); } catch { }
+                }
+            }
+            catch { }
         }
     }
 }

@@ -117,6 +117,7 @@ namespace RafiqPOS.Services
         private readonly SettingsRepository _settingsRepo;
         private readonly AuditLogRepository _auditRepo;
         private readonly EncryptionService _encryptionService;
+        private System.Threading.Timer _backgroundTimer;
 
         public BackupService(string connectionString, string dbPath, SettingsRepository settingsRepo, AuditLogRepository auditRepo, EncryptionService encryptionService = null)
         {
@@ -125,6 +126,80 @@ namespace RafiqPOS.Services
             this._settingsRepo = settingsRepo;
             this._auditRepo = auditRepo;
             this._encryptionService = encryptionService ?? new EncryptionService();
+        }
+
+        public void StartBackgroundPeriodicCheck()
+        {
+            if (_backgroundTimer != null) return;
+
+            _backgroundTimer = new System.Threading.Timer(
+                delegate(object state)
+                {
+                    try
+                    {
+                        // 1. Maintain SQLite WAL and internal optimization
+                        try
+                        {
+                            using (var conn = new SQLiteConnection(_connectionString))
+                            {
+                                conn.Open();
+                                using (var cmd = new SQLiteCommand("PRAGMA wal_checkpoint(PASSIVE); PRAGMA optimize;", conn))
+                                {
+                                    cmd.ExecuteNonQuery();
+                                }
+                            }
+                        }
+                        catch { }
+
+                        // 2. Check if Auto Daily Backup is enabled and due
+                        string autoDaily = _settingsRepo.Get("backup_auto_daily", "1");
+                        if (autoDaily == "1")
+                        {
+                            string lastSuccess = _settingsRepo.Get("backup_last_success_at", "");
+                            bool isDue = false;
+
+                            if (string.IsNullOrEmpty(lastSuccess))
+                            {
+                                isDue = true;
+                            }
+                            else
+                            {
+                                DateTime lastDt;
+                                if (DateTime.TryParse(lastSuccess, out lastDt))
+                                {
+                                    TimeSpan elapsed = DateTime.UtcNow - lastDt.ToUniversalTime();
+                                    if (elapsed.TotalHours >= 24 || lastDt.ToLocalTime().Date < DateTime.Today)
+                                    {
+                                        isDue = true;
+                                    }
+                                }
+                            }
+
+                            if (isDue)
+                            {
+                                Logger.Info("المؤقت الدوري: بدء تنفيذ النسخ الاحتياطي اليومي الآلي المجدول...");
+                                CreateBackup(null);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Warn("خطأ في المؤقت الدوري للنسخ الاحتياطي: " + ex.Message);
+                    }
+                },
+                null,
+                30 * 1000, // Initial delay 30s after startup
+                30 * 60 * 1000 // Check every 30 minutes
+            );
+        }
+
+        public void StopBackgroundPeriodicCheck()
+        {
+            if (_backgroundTimer != null)
+            {
+                try { _backgroundTimer.Dispose(); } catch { }
+                _backgroundTimer = null;
+            }
         }
 
         public string GetDefaultBackupFolder()
