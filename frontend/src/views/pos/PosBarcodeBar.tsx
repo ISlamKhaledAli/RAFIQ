@@ -1,7 +1,7 @@
 import React from 'react';
 import type { FormEvent } from 'react';
-import { Barcode, Search, Loader2 } from 'lucide-react';
-import type { Product } from '../../types/models';
+import { Barcode, Search, Loader2, Package } from 'lucide-react';
+import type { Product, ProductUnit } from '../../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
 
 interface PosBarcodeBarProps {
@@ -20,7 +20,7 @@ interface PosBarcodeBarProps {
   setLiveSearchResults: (val: Product[]) => void;
   selectedDropdownIndex: number;
   setSelectedDropdownIndex: (val: number) => void;
-  onSelectProduct: (prod: Product) => void;
+  onSelectProduct: (prod: Product, specificUnit?: ProductUnit) => void;
 }
 
 export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
@@ -124,6 +124,11 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
               const isOutOfStock = stock <= 0;
               const isLowStock = !isOutOfStock && stock <= minStock;
 
+              // Find primary packaging unit (e.g. carton/box) if exists
+              const packUnit = prod.units?.find((u) => !u.isBaseUnit && u.conversionFactor > 1);
+              const wholePacks = packUnit && packUnit.conversionFactor > 0 ? Math.floor(stock / packUnit.conversionFactor) : null;
+              const remPieces = packUnit && packUnit.conversionFactor > 0 ? stock % packUnit.conversionFactor : null;
+
               return (
                 <div
                   key={prod.id}
@@ -133,7 +138,7 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
                     isSelected ? 'bg-[#eaf5ee] border-r-4 border-r-[#006d41] pl-2' : 'hover:bg-[#f8fafc]'
                   }`}
                 >
-                  {/* Right: Product Info */}
+                  {/* Right: Product Info & Package Buttons */}
                   <div className="flex flex-col items-start gap-1">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-[13px] text-[#0f172a]">{prod.name}</span>
@@ -154,11 +159,35 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
                         <span className="text-[10px] text-[#52605d]">كود: {prod.internalCode}</span>
                       )}
                     </div>
+
+                    {/* Quick Package Action Buttons for Cashiers without Barcode Scanner */}
+                    {prod.units && prod.units.length > 1 && (
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        {prod.units.map((u) => (
+                          <button
+                            key={u.id || u.unitName}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectProduct(prod, u);
+                            }}
+                            className="px-2 py-0.5 text-[11px] font-bold rounded-lg bg-[#eaf5ee] hover:bg-[#006d41] text-[#006d41] hover:text-white border border-[#c4e3d0] hover:border-[#006d41] transition-all flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95"
+                            title={`إضافة ${u.unitName} (${u.conversionFactor} قطعة) - ${formatArabicCurrency(u.sellPricePiasters || (prod.pricePiasters * u.conversionFactor))}`}
+                          >
+                            <Package className="w-3 h-3" />
+                            <span>+ {u.unitName} ({u.conversionFactor})</span>
+                            <span className="font-mono text-[10px] opacity-80">
+                              {formatArabicCurrency(u.sellPricePiasters || (prod.pricePiasters * u.conversionFactor))}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Left: Stock Status & Price */}
                   <div className="flex items-center gap-4 text-left">
-                    {/* Stock status badge */}
+                    {/* Stock status badge with dynamic carton breakdown */}
                     <div className="text-right">
                       {isOutOfStock ? (
                         <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-[#fdf3f2] border border-[#f6cbc6] text-[#b23a2e]">
@@ -166,11 +195,13 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
                         </span>
                       ) : isLowStock ? (
                         <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 border border-amber-200 text-amber-800">
-                          مخزون منخفض ({stock.toLocaleString('en-US')} {prod.unit === 'kg' ? 'كجم' : 'قطعة'})
+                          مخزون منخفض ({stock.toLocaleString('en-US')} {prod.unit === 'kg' ? 'كجم' : 'قطعة'}
+                          {packUnit && wholePacks !== null && wholePacks > 0 ? ` = ${wholePacks} ${packUnit.unitName}` : ''})
                         </span>
                       ) : (
                         <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#eaf5ee] border border-[#c4e3d0] text-[#006d41]">
-                          متاح ({stock.toLocaleString('en-US')} {prod.unit === 'kg' ? 'كجم' : 'قطعة'})
+                          متاح: {stock.toLocaleString('en-US')} {prod.unit === 'kg' ? 'كجم' : 'قطعة'}
+                          {packUnit && wholePacks !== null ? ` (${wholePacks} ${packUnit.unitName}${remPieces && remPieces > 0 ? ` و ${remPieces} ق` : ''})` : ''}
                         </span>
                       )}
                     </div>

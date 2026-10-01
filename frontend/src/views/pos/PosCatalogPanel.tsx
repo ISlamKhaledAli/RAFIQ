@@ -1,5 +1,6 @@
 import React from 'react';
-import { Sparkles, Plus, Settings, Search, X, Flame, Star, Scale } from 'lucide-react';
+import { Sparkles, Plus, Settings, Search, X, Flame, Star, Scale, Package } from 'lucide-react';
+import type { ProductUnit } from '../../types/models';
 import type { SmartCatalogItem } from './types';
 
 interface PosCatalogPanelProps {
@@ -12,7 +13,7 @@ interface PosCatalogPanelProps {
   activeCatalogTab: string;
   setActiveCatalogTab: (tab: string) => void;
   displayedCatalogItems: SmartCatalogItem[];
-  handleSmartItemClick: (item: SmartCatalogItem) => void;
+  handleSmartItemClick: (item: SmartCatalogItem, specificUnit?: ProductUnit) => void;
   onOpenQuickFastItemModal: () => void;
   onOpenQuickItemsManager: () => void;
 }
@@ -221,11 +222,37 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                       متبقي: {isScale ? `${(stockMilli / 1000).toFixed(1)} كجم` : Math.floor(stockMilli / 1000)}
                     </span>
                   ) : stockMilli !== null && stockMilli > 0 ? (
-                    <span className="text-[9.5px] font-medium text-[#5b6664] font-mono tabular-nums opacity-80">
-                      {isScale ? `${(stockMilli / 1000).toFixed(1)} كجم` : `${Math.floor(stockMilli / 1000)} ق`}
-                    </span>
+                    (() => {
+                      const packUnit = item.units?.find((u) => !u.isBaseUnit && u.conversionFactor > 1);
+                      const wholePacks = packUnit && packUnit.conversionFactor > 0 ? Math.floor(stockMilli / (packUnit.conversionFactor * 1000)) : null;
+                      return (
+                        <span className="text-[9.5px] font-medium text-[#5b6664] font-mono tabular-nums opacity-80">
+                          {isScale ? `${(stockMilli / 1000).toFixed(1)} كجم` : `${Math.floor(stockMilli / 1000)} ق${wholePacks !== null && wholePacks > 0 ? ` (${wholePacks} ${packUnit?.unitName})` : ''}`}
+                        </span>
+                      );
+                    })()
                   ) : null}
                 </div>
+
+                {/* Multi-unit package pills for direct carton/box sales */}
+                {item.units && item.units.length > 1 && (
+                  <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                    {item.units.filter((u) => !u.isBaseUnit && u.conversionFactor > 1).map((u) => (
+                      <span
+                        key={u.id || u.unitName}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSmartItemClick(item, u);
+                        }}
+                        className="px-1.5 py-0.5 text-[9.5px] font-bold rounded-md bg-[#eaf5ee] hover:bg-[#006d41] text-[#006d41] hover:text-white border border-[#c4e3d0] transition-colors flex items-center gap-0.5 cursor-pointer shadow-2xs active:scale-95"
+                        title={`إضافة ${u.unitName} (${u.conversionFactor} قطعة) بسعر ${(u.sellPricePiasters / 100).toFixed(2)} ج.م`}
+                      >
+                        <Package className="w-2.5 h-2.5" />
+                        <span>+ {u.unitName} ({u.conversionFactor})</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Bottom section: Price & Quick Action */}

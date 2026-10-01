@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { FormEvent } from 'react';
 import {
   Package,
@@ -12,6 +12,11 @@ import {
   TrendingUp,
   Percent,
   Check,
+  Boxes,
+  RotateCcw,
+  Plus,
+  Coins,
+  Layers,
 } from 'lucide-react';
 import type { Category, ProductUnit } from '../../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
@@ -117,6 +122,53 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   onAddBarcode,
   onRemoveBarcode,
 }) => {
+  // Detected package if defined in product units
+  const detectedPackage = productUnits.find(u => !u.isBaseUnit && u.conversionFactor > 1);
+  const defaultPackSize = detectedPackage && detectedPackage.conversionFactor > 0 ? detectedPackage.conversionFactor : 24;
+  const packName = detectedPackage ? detectedPackage.unitName : 'كرتونة';
+
+  // Dynamic Carton Calculator state
+  const [customPackSize, setCustomPackSize] = useState<number | null>(null);
+  const effectivePackSize = customPackSize !== null && customPackSize > 0 ? customPackSize : defaultPackSize;
+
+  const parsedStock = parseFloat(stockInput) || 0;
+  const wholeCartons = effectivePackSize > 0 ? Math.floor(parsedStock / effectivePackSize) : 0;
+  const remainderPieces = effectivePackSize > 0 ? Math.round(parsedStock % effectivePackSize) : 0;
+
+  // When user edits cartons:
+  const handleCartonsChange = (newCartonsStr: string) => {
+    const c = parseInt(normalizeArabicNumerals(newCartonsStr), 10) || 0;
+    const newTotal = (c * effectivePackSize) + remainderPieces;
+    setStockInput(newTotal > 0 ? String(newTotal) : '0');
+  };
+
+  // When user edits pack size:
+  const handlePackSizeChange = (newPackSizeVal: number) => {
+    const p = newPackSizeVal > 0 ? newPackSizeVal : 24;
+    setCustomPackSize(p);
+    const newTotal = (wholeCartons * p) + remainderPieces;
+    setStockInput(newTotal > 0 ? String(newTotal) : '0');
+  };
+
+  // When user edits loose pieces:
+  const handleLoosePiecesChange = (newLooseStr: string) => {
+    const l = parseInt(normalizeArabicNumerals(newLooseStr), 10) || 0;
+    const newTotal = (wholeCartons * effectivePackSize) + l;
+    setStockInput(newTotal > 0 ? String(newTotal) : '0');
+  };
+
+  // When user types directly into stockInput:
+  const handleDirectStockChange = (newStockStr: string) => {
+    setStockInput(normalizeArabicNumerals(newStockStr));
+  };
+
+  // Quick increment function
+  const handleQuickAddStock = (amount: number) => {
+    const current = parseFloat(stockInput) || 0;
+    const nextVal = Math.max(0, current + amount);
+    setStockInput(String(nextVal));
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -272,6 +324,301 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       </button>
                     </span>
                   ))}
+                </div>
+              )}
+            </div>
+
+            {/* Integrated Dynamic Packaging & Stock Quantity Engine */}
+            <div className="p-3 bg-[#f8fafc] border-2 border-[#006d41]/30 rounded-lg flex flex-col gap-3 shadow-2xs">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Boxes className="w-4 h-4 text-[#006d41]" />
+                  <span className="text-[13px] font-bold text-ink">رصيد المخزن وجرد الكراتين *</span>
+                  <span className="px-1.5 py-0.5 bg-[#eaf5ee] text-[#006d41] border border-[#c4e3d0] rounded text-[10px] font-bold">
+                    حساب ديناميكي فوري
+                  </span>
+                </div>
+                {unit === 'piece' && (
+                  <div className="flex items-center gap-1 text-[11px] font-bold text-[#006d41] bg-white px-2 py-0.5 rounded-md border border-[#c4e3d0] shadow-2xs">
+                    <Package className="w-3.5 h-3.5 text-[#006d41]" />
+                    <span>العبوة: {packName} ({effectivePackSize} قطعة)</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Dynamic Equation Inputs for Pieces or Weight */}
+              {unit === 'piece' ? (
+                <>
+                  {/* Dynamic 4-Box Mathematical Calculation Row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-center bg-white p-2.5 rounded-lg border border-[#c4e3d0] shadow-2xs">
+                    {/* Cartons */}
+                    <div className="flex-1">
+                      <label className="block text-[11px] font-bold text-ink mb-1">
+                        عدد الكراتين ({packName}):
+                      </label>
+                      <input
+                        type="text"
+                        value={wholeCartons > 0 ? String(wholeCartons) : ''}
+                        onChange={(e) => handleCartonsChange(e.target.value)}
+                        placeholder="مثلاً: 1000"
+                        className="w-full bg-[#f8fafc] border border-line rounded h-[36px] px-2 text-[13px] font-mono text-center font-bold text-[#006d41] focus:outline-none focus:border-brand"
+                      />
+                    </div>
+
+                    {/* Pack Size */}
+                    <div className="flex-1 relative">
+                      <label className="block text-[11px] font-bold text-ink mb-1">
+                        سعة {packName} (قطعة):
+                      </label>
+                      <div className="relative flex items-center">
+                        <span className="absolute right-2 text-ink-muted text-xs font-bold pointer-events-none select-none">×</span>
+                        <input
+                          type="text"
+                          value={effectivePackSize}
+                          onChange={(e) => handlePackSizeChange(parseInt(normalizeArabicNumerals(e.target.value), 10) || 0)}
+                          placeholder="24"
+                          className="w-full bg-[#f8fafc] border border-line rounded h-[36px] pr-5 pl-2 text-[13px] font-mono text-center font-bold text-ink focus:outline-none focus:border-brand"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Loose Pieces */}
+                    <div className="flex-1 relative">
+                      <label className="block text-[11px] font-bold text-ink mb-1">
+                        قطع فرط (فردي):
+                      </label>
+                      <div className="relative flex items-center">
+                        <span className="absolute right-2 text-ink-muted text-xs font-bold pointer-events-none select-none">+</span>
+                        <input
+                          type="text"
+                          value={remainderPieces > 0 ? String(remainderPieces) : ''}
+                          onChange={(e) => handleLoosePiecesChange(e.target.value)}
+                          placeholder="0"
+                          className="w-full bg-[#f8fafc] border border-line rounded h-[36px] pr-5 pl-2 text-[13px] font-mono text-center font-bold text-ink focus:outline-none focus:border-brand"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Total Stock Pieces */}
+                    <div className="flex-1 relative">
+                      <label className="block text-[11px] font-bold text-[#006d41] mb-1">
+                        الرصيد الفعلي (بالقطعة) *
+                      </label>
+                      <div className="relative flex items-center">
+                        <span className="absolute right-2 text-[#006d41] text-xs font-bold pointer-events-none select-none">=</span>
+                        <input
+                          type="text"
+                          value={stockInput}
+                          onChange={(e) => handleDirectStockChange(e.target.value)}
+                          placeholder="0"
+                          className="w-full bg-[#eaf5ee] border-2 border-[#006d41] rounded h-[36px] pr-5 pl-2 text-[13px] font-mono text-center font-extrabold text-[#006d41] focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Min Stock Reorder Alert Input */}
+                  <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-line shadow-2xs">
+                    <label className="text-[11.5px] font-semibold text-ink shrink-0">
+                      حد التنبيه بالنواقص (قطعة):
+                    </label>
+                    <input
+                      type="text"
+                      value={minStockInput}
+                      onChange={(e) => setMinStockInput(normalizeArabicNumerals(e.target.value))}
+                      placeholder="تنبيه عند: 5 قطع"
+                      className="w-32 bg-[#f8fafc] border border-line rounded h-[30px] px-2 text-[12px] font-mono text-center text-ink focus:outline-none focus:border-brand"
+                    />
+                    <span className="text-[10.5px] text-ink-muted">ينبهك النظام تلقائياً عند هبوط الرصيد الفعلي لشراء بضاعة جديدة</span>
+                  </div>
+
+                  {/* Dynamic Equation Live Breakdown Banner */}
+                  <div className="p-2.5 bg-[#eaf5ee] border border-[#c4e3d0] rounded-md text-[#006d41] text-[11.5px] font-bold flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Boxes className="w-4 h-4 text-[#006d41] shrink-0" />
+                      <span>
+                        الناتج المحسوب: {wholeCartons > 0 ? `${wholeCartons} ${packName}` : '0 كرتونة'} × {effectivePackSize} قطعة
+                        {remainderPieces > 0 ? ` + ${remainderPieces} قطع فرط` : ''}
+                        {' = '}
+                        {stockInput || 0} قطعة رصيد فعلي بالمخزن
+                      </span>
+                    </div>
+                    <span className="font-mono text-[11px] bg-white text-[#006d41] px-2 py-0.5 rounded border border-[#c4e3d0]">
+                      {stockInput || 0} قطعة
+                    </span>
+                  </div>
+
+                  {/* Quick Increment Buttons in RTL Order */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                    <span className="text-[11px] font-semibold text-ink-muted ml-1 flex items-center gap-1">
+                      <Layers className="w-3.5 h-3.5 text-[#52605d]" />
+                      <span>إضافة سريعة:</span>
+                    </span>
+                    {detectedPackage && (
+                      <button
+                        type="button"
+                        onClick={() => handleQuickAddStock(effectivePackSize)}
+                        className="px-2.5 py-1 bg-white hover:bg-[#eaf5ee] border border-[#c4e3d0] text-[#006d41] rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                        title={`إضافة ${packName} كاملة (+${effectivePackSize} قطعة)`}
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>+1 {packName} ({effectivePackSize})</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleQuickAddStock(12)}
+                      className="px-2 py-1 bg-white hover:bg-surface-2 border border-line text-ink rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                    >
+                      <Plus className="w-3 h-3 text-ink-muted" />
+                      <span>+12 (دستة)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickAddStock(24)}
+                      className="px-2 py-1 bg-white hover:bg-surface-2 border border-line text-ink rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                    >
+                      <Plus className="w-3 h-3 text-ink-muted" />
+                      <span>+24 (كرتونة)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickAddStock(50)}
+                      className="px-2 py-1 bg-white hover:bg-surface-2 border border-line text-ink rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                    >
+                      <Plus className="w-3 h-3 text-ink-muted" />
+                      <span>+50</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickAddStock(100)}
+                      className="px-2 py-1 bg-white hover:bg-surface-2 border border-line text-ink rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                    >
+                      <Plus className="w-3 h-3 text-ink-muted" />
+                      <span>+100</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickAddStock(500)}
+                      className="px-2 py-1 bg-white hover:bg-surface-2 border border-line text-ink rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                    >
+                      <Plus className="w-3 h-3 text-ink-muted" />
+                      <span>+500</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickAddStock(1000)}
+                      className="px-2 py-1 bg-white hover:bg-surface-2 border border-line text-ink rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                    >
+                      <Plus className="w-3 h-3 text-ink-muted" />
+                      <span>+1000</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDirectStockChange('0')}
+                      className="px-2.5 py-1 bg-white hover:bg-danger-soft border border-line text-danger hover:border-danger-border rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs mr-auto"
+                      title="تصفير الرصيد (0)"
+                    >
+                      <RotateCcw className="w-3 h-3 text-danger" />
+                      <span>تصفير (0)</span>
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Weight Mode (kg) */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-ink font-semibold mb-1 text-[12px]">
+                        الرصيد الفعلي المتوفر (كجم) *
+                      </label>
+                      <input
+                        type="text"
+                        value={stockInput}
+                        onChange={(e) => setStockInput(normalizeArabicNumerals(e.target.value))}
+                        placeholder="مثلاً: 12.5 كجم"
+                        className="w-full bg-white border border-line rounded h-[38px] px-3 text-[13px] text-ink focus:outline-none focus:border-brand font-mono font-bold"
+                      />
+                      <p className="text-[10.5px] text-ink-muted mt-1 leading-tight">الوزن الإجمالي المتوفر حالياً على الرف</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-ink font-semibold mb-1 text-[12px]">
+                        حد التنبيه بالنواقص (كجم)
+                      </label>
+                      <input
+                        type="text"
+                        value={minStockInput}
+                        onChange={(e) => setMinStockInput(normalizeArabicNumerals(e.target.value))}
+                        placeholder="تنبيه عند: 5 كجم"
+                        className="w-full bg-white border border-line rounded h-[38px] px-3 text-[13px] text-ink focus:outline-none focus:border-brand font-mono"
+                      />
+                      <p className="text-[10.5px] text-ink-muted mt-1 leading-tight">ينبهك النظام تلقائياً عند هبوط الرصيد لطلب بضاعة</p>
+                    </div>
+                  </div>
+
+                  {/* Quick Weight Buttons */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                    <span className="text-[11px] font-semibold text-ink-muted ml-1 flex items-center gap-1">
+                      <Layers className="w-3.5 h-3.5 text-[#52605d]" />
+                      <span>إضافة سريعة:</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickAddStock(1)}
+                      className="px-2 py-1 bg-white hover:bg-surface-2 border border-line text-ink rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                    >
+                      <Plus className="w-3 h-3 text-ink-muted" />
+                      <span>+1 كجم</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickAddStock(5)}
+                      className="px-2 py-1 bg-white hover:bg-surface-2 border border-line text-ink rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                    >
+                      <Plus className="w-3 h-3 text-ink-muted" />
+                      <span>+5 كجم</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickAddStock(10)}
+                      className="px-2 py-1 bg-white hover:bg-surface-2 border border-line text-ink rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                    >
+                      <Plus className="w-3 h-3 text-ink-muted" />
+                      <span>+10 كجم</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickAddStock(25)}
+                      className="px-2 py-1 bg-white hover:bg-surface-2 border border-line text-ink rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                    >
+                      <Plus className="w-3 h-3 text-ink-muted" />
+                      <span>+25 كجم</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDirectStockChange('0')}
+                      className="px-2.5 py-1 bg-white hover:bg-danger-soft border border-line text-danger hover:border-danger-border rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs mr-auto"
+                      title="تصفير الرصيد (0)"
+                    >
+                      <RotateCcw className="w-3 h-3 text-danger" />
+                      <span>تصفير (0)</span>
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* Live Inventory Valuation (Capital invested in this item) */}
+              {parseFloat(stockInput) > 0 && costPiasters > 0 && (
+                <div className="px-2.5 py-1.5 bg-white border border-[#c4e3d0] rounded text-[11px] text-ink-muted flex items-center justify-between shadow-2xs">
+                  <div className="flex items-center gap-1.5">
+                    <Coins className="w-4 h-4 text-[#006d41]" />
+                    <span>إجمالي رأس المال المجمد في المخزون (بسعر التكلفة):</span>
+                  </div>
+                  <span className="font-mono font-bold text-[#006d41] text-[12px]">
+                    {formatArabicCurrency(Math.round(parseFloat(stockInput) * costPiasters))}
+                  </span>
                 </div>
               )}
             </div>
@@ -470,54 +817,23 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             )}
 
 
-            {/* Initial Stock, Min Stock Threshold, & Tax Rate (Feature #18 & #19) */}
-            <div className="grid grid-cols-3 gap-2.5">
+            {/* Tax & ETA E-Invoicing Readiness (Feature #6) */}
+            <div className="grid grid-cols-3 gap-3 bg-canvas/60 p-2.5 rounded border border-line">
               <div>
-                <label className="block text-ink font-semibold mb-1 text-[12px]">
-                  {unit === 'kg' ? 'رصيد المخزن الفعلي (كجم)' : 'رصيد المخزن الفعلي (قطعة)'}
-                </label>
-                <input
-                  type="text"
-                  value={stockInput}
-                  onChange={(e) => setStockInput(normalizeArabicNumerals(e.target.value))}
-                  placeholder={unit === 'kg' ? 'مثلاً: 12.5 كجم' : 'مثلاً: 10 قطع'}
-                  className="w-full bg-surface border border-line rounded h-[38px] px-3 text-[13px] text-ink focus:outline-none focus:border-brand font-mono"
-                />
-                <p className="text-[10px] text-ink-muted mt-1 leading-tight">الكمية المتوفرة حالياً على الرف</p>
-              </div>
-
-              <div>
-                <label className="block text-ink font-semibold mb-1 text-[12px]">
-                  {unit === 'kg' ? 'حد التنبيه بالنواقص (كجم)' : 'حد التنبيه بالنواقص (قطعة)'}
-                </label>
-                <input
-                  type="text"
-                  value={minStockInput}
-                  onChange={(e) => setMinStockInput(normalizeArabicNumerals(e.target.value))}
-                  placeholder={unit === 'kg' ? 'تنبيه عند: 5 كجم' : 'تنبيه عند: 5 قطع'}
-                  className="w-full bg-surface border border-line rounded h-[38px] px-3 text-[13px] text-ink focus:outline-none focus:border-brand font-mono"
-                />
-                <p className="text-[10px] text-ink-muted mt-1 leading-tight">ينبهك النظام لشراء بضاعة جديدة</p>
-              </div>
-
-              <div>
-                <label className="block text-ink font-semibold mb-1 text-[12px]">نسبة الضريبة (%)</label>
+                <label className="block text-ink font-semibold mb-1 text-[11px]">نسبة الضريبة (%)</label>
                 <div className="relative flex items-center">
                   <input
                     type="text"
                     value={taxRatePercent}
                     onChange={(e) => setTaxRatePercent(parseInt(normalizeArabicNumerals(e.target.value), 10) || 0)}
                     placeholder="0"
-                    className="w-full bg-surface border border-line rounded h-[38px] px-3 text-[13px] text-ink focus:outline-none focus:border-brand font-mono pl-8"
+                    className="w-full bg-surface border border-line rounded h-[34px] px-2.5 text-[12px] text-ink focus:outline-none focus:border-brand font-mono pl-7"
                   />
-                  <Percent className="w-3.5 h-3.5 text-ink-muted absolute left-3 pointer-events-none" />
+                  <Percent className="w-3.5 h-3.5 text-ink-muted absolute left-2 pointer-events-none" />
                 </div>
-                <p className="text-[10px] text-ink-muted mt-1 leading-tight">اكتب 0 للأصناف المعفية</p>
+                <p className="text-[9.5px] text-ink-muted mt-0.5 leading-tight">اكتب 0 للأصناف المعفية</p>
               </div>
-            </div>
 
-            {/* Tax & ETA E-Invoicing Readiness (Feature #6) */}
-            <div className="grid grid-cols-2 gap-3 bg-canvas/60 p-2.5 rounded border border-line">
               <div>
                 <label className="block text-ink-muted font-semibold mb-1 text-[11px]">
                   كود الصنف الداخلي (SKU)
@@ -533,11 +849,11 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
               <div>
                 <label className="block text-ink-muted font-semibold mb-1 text-[11px]">
-                  كود التصنيف الضريبي (GS1 / EGS)
+                  كود الفاتورة الإلكترونية (GS1 / EGS)
                 </label>
                 <input
                   type="text"
-                  placeholder="اختياري - للفاتورة الإلكترونية"
+                  placeholder="اختياري - للضرائب"
                   value={taxCategoryCode}
                   onChange={(e) => setTaxCategoryCode(e.target.value)}
                   className="w-full bg-surface border border-line rounded h-[34px] px-2.5 text-[12px] text-ink focus:outline-none focus:border-brand font-mono"

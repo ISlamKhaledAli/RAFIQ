@@ -171,7 +171,7 @@ export const usePosCatalog = ({
       });
   }, [smartItems, catalogSearchQuery, activeCatalogTab]);
 
-  const handleSmartItemClick = useCallback((item: SmartCatalogItem) => {
+  const handleSmartItemClick = useCallback((item: SmartCatalogItem, specificUnit?: ProductUnit) => {
     setLocalPopularity((prev) => ({
       ...prev,
       [item.id]: (prev[item.id] || 0) + 1,
@@ -237,8 +237,8 @@ export const usePosCatalog = ({
     if (item.productRef) {
       const customPrice = item.pricePiasters !== item.productRef.pricePiasters;
       const productToAdd = customPrice ? { ...item.productRef, pricePiasters: item.pricePiasters } : item.productRef;
-      addProductToCart(productToAdd);
-      showStatus(`تمت إضافة: ${item.name}`, 'success');
+      addProductToCart(productToAdd, undefined, specificUnit);
+      showStatus(`تمت إضافة: ${item.name}${specificUnit ? ` (${specificUnit.unitName})` : ''}`, 'success');
       barcodeInputRef.current?.focus();
       return;
     }

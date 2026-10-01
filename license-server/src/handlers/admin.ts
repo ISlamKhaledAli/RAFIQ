@@ -541,8 +541,14 @@ function serveAdminHtml(): Response {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius-xl);
-      overflow: hidden;
       box-shadow: var(--shadow-sm);
+      overflow: visible;
+    }
+    .panel-form {
+      overflow: visible !important;
+    }
+    .panel-table {
+      overflow: hidden;
     }
     .panel-header {
       padding: 16px 22px;
@@ -551,6 +557,8 @@ function serveAdminHtml(): Response {
       justify-content: space-between;
       align-items: center;
       background: #fafbfc;
+      border-top-left-radius: var(--radius-xl);
+      border-top-right-radius: var(--radius-xl);
     }
     .panel-title {
       font-size: 14.5px;
@@ -564,6 +572,7 @@ function serveAdminHtml(): Response {
     }
     .panel-body {
       padding: 20px;
+      overflow: visible !important;
     }
 
     /* Creation Form Layout */
@@ -572,11 +581,13 @@ function serveAdminHtml(): Response {
       grid-template-columns: 2fr 1.3fr 1.5fr 1fr auto;
       gap: 14px;
       align-items: flex-end;
+      overflow: visible !important;
     }
     .field {
       display: flex;
       flex-direction: column;
       gap: 6px;
+      position: relative;
     }
     .field label {
       font-size: 11.5px;
@@ -586,18 +597,150 @@ function serveAdminHtml(): Response {
     .field input, .field select {
       height: 40px;
       padding: 0 14px;
-      border: 1px solid var(--border);
+      border: 1.5px solid var(--border);
       border-radius: var(--radius-lg);
       font-size: 13px;
-      font-weight: 600;
+      font-weight: 700;
       color: var(--text);
       background: #fff;
       transition: border-color 0.15s, box-shadow 0.15s;
+      font-family: inherit;
     }
     .field input:focus, .field select:focus {
       outline: none;
       border-color: var(--emerald);
-      box-shadow: 0 0 0 3px rgba(0,109,65,0.12);
+      box-shadow: 0 0 0 3px rgba(0,109,65,0.14);
+    }
+    .field select {
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23006D41' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+      background-repeat: no-repeat;
+      background-position: left 14px center;
+      background-size: 16px;
+      padding-left: 38px;
+      cursor: pointer;
+    }
+
+    /* Rafiq POS Custom Luxury Select Component */
+    .rafiq-select {
+      position: relative;
+      width: 100%;
+      user-select: none;
+      z-index: 10;
+    }
+    .rafiq-select.open {
+      z-index: 1000 !important;
+    }
+    .rafiq-select-trigger {
+      width: 100%;
+      height: 40px;
+      padding: 0 14px;
+      background: #ffffff;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      outline: none;
+      font-family: inherit;
+    }
+    .rafiq-select-trigger:hover {
+      border-color: var(--emerald-border);
+      background: #fafcfb;
+    }
+    .rafiq-select.open .rafiq-select-trigger,
+    .rafiq-select-trigger:focus {
+      border-color: var(--emerald);
+      box-shadow: 0 0 0 3px rgba(0, 109, 65, 0.14);
+    }
+    .rafiq-select-label {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .rafiq-select-arrow {
+      width: 16px;
+      height: 16px;
+      stroke: var(--emerald);
+      stroke-width: 2.5;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: transform 0.2s ease;
+      flex-shrink: 0;
+      margin-right: 8px;
+    }
+    .rafiq-select.open .rafiq-select-arrow {
+      transform: rotate(180deg);
+    }
+    .rafiq-select-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      background: #ffffff;
+      border: 1.5px solid var(--emerald-border);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 16px 36px rgba(0, 55, 45, 0.22), 0 4px 12px rgba(0,0,0,0.08);
+      z-index: 9999 !important;
+      max-height: 280px;
+      overflow-y: auto;
+      padding: 6px;
+      display: none;
+      animation: rafiqSelectFade 0.15s ease-out;
+    }
+    .rafiq-select-menu.open-up {
+      top: auto;
+      bottom: calc(100% + 6px);
+      box-shadow: 0 -16px 36px rgba(0, 55, 45, 0.22), 0 -4px 12px rgba(0,0,0,0.08);
+    }
+    @keyframes rafiqSelectFade {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .rafiq-select.open .rafiq-select-menu {
+      display: block;
+    }
+    .rafiq-select-option {
+      padding: 9px 12px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.12s ease;
+    }
+    .rafiq-select-option:hover {
+      background: var(--emerald-soft);
+      color: var(--emerald);
+    }
+    .rafiq-select-option.selected {
+      background: var(--emerald);
+      color: #ffffff;
+    }
+    .rafiq-select-option.selected:hover {
+      background: var(--primary);
+      color: #ffffff;
+    }
+    .rafiq-select-option .check-icon {
+      width: 15px;
+      height: 15px;
+      stroke: currentColor;
+      stroke-width: 2.5;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
     .btn-create {
       height: 40px;
@@ -1103,7 +1246,7 @@ function serveAdminHtml(): Response {
       max-width: 500px;
       box-shadow: 0 20px 35px rgba(0,0,0,0.2);
       border: 1px solid var(--border);
-      overflow: hidden;
+      overflow: visible !important;
       animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
     @keyframes modalPop {
@@ -1117,6 +1260,8 @@ function serveAdminHtml(): Response {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      border-top-left-radius: var(--radius-xl);
+      border-top-right-radius: var(--radius-xl);
     }
     .modal-header h4 {
       font-size: 14.5px;
@@ -1141,14 +1286,17 @@ function serveAdminHtml(): Response {
       display: flex;
       flex-direction: column;
       gap: 14px;
+      overflow: visible !important;
     }
     .modal-footer {
       padding: 14px 20px;
       background: #f8fafc;
-      border-top: 1px solid var(--border);
+      border-bottom-left-radius: var(--radius-xl);
+      border-bottom-right-radius: var(--radius-xl);
       display: flex;
       justify-content: flex-end;
       gap: 10px;
+      border-top: 1px solid var(--border);
     }
 
     /* Login Screen */
@@ -1336,7 +1484,7 @@ function serveAdminHtml(): Response {
       </div>
 
       <!-- Section: Create License Panel -->
-      <div class="panel">
+      <div class="panel panel-form" style="overflow: visible;">
         <div class="panel-header">
           <div>
             <div class="panel-title">إصدار رمز ترخيص جديد لمنشأة أو نشاط</div>
@@ -1894,6 +2042,105 @@ function serveAdminHtml(): Response {
     }
 
     // ==========================================
+    // RAFIQ POS LUXURY CUSTOM SELECTS (durationSelect & editExtendAction)
+    // ==========================================
+    function initCustomSelect(selectId) {
+      const origSelect = document.getElementById(selectId);
+      if (!origSelect) return;
+
+      origSelect.style.display = 'none';
+
+      const existing = document.getElementById('custom-select-' + selectId);
+      if (existing) existing.remove();
+
+      const container = document.createElement('div');
+      container.className = 'rafiq-select';
+      container.id = 'custom-select-' + selectId;
+
+      const trigger = document.createElement('button');
+      trigger.type = 'button';
+      trigger.className = 'rafiq-select-trigger';
+
+      const selectedOption = origSelect.options[origSelect.selectedIndex] || origSelect.options[0];
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'rafiq-select-label';
+      labelSpan.textContent = selectedOption ? selectedOption.text : '';
+
+      const arrowSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      arrowSvg.setAttribute('class', 'rafiq-select-arrow');
+      arrowSvg.setAttribute('viewBox', '0 0 24 24');
+      arrowSvg.innerHTML = '<polyline points="6 9 12 15 18 9"></polyline>';
+
+      trigger.appendChild(labelSpan);
+      trigger.appendChild(arrowSvg);
+
+      const menu = document.createElement('div');
+      menu.className = 'rafiq-select-menu';
+
+      function renderOptions() {
+        menu.innerHTML = '';
+        for (let i = 0; i < origSelect.options.length; i++) {
+          const opt = origSelect.options[i];
+          const isSelected = opt.value === origSelect.value;
+          const item = document.createElement('div');
+          item.className = 'rafiq-select-option' + (isSelected ? ' selected' : '');
+          item.dataset.value = opt.value;
+
+          const textSpan = document.createElement('span');
+          textSpan.textContent = opt.text;
+          item.appendChild(textSpan);
+
+          if (isSelected) {
+            const checkSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            checkSvg.setAttribute('class', 'check-icon');
+            checkSvg.setAttribute('viewBox', '0 0 24 24');
+            checkSvg.innerHTML = '<polyline points="20 6 9 17 4 12"></polyline>';
+            item.appendChild(checkSvg);
+          }
+
+          item.addEventListener('click', (e) => {
+            e.stopPropagation();
+            origSelect.value = opt.value;
+            labelSpan.textContent = opt.text;
+            container.classList.remove('open');
+            renderOptions();
+            origSelect.dispatchEvent(new Event('change', { bubbles: true }));
+          });
+
+          menu.appendChild(item);
+        }
+      }
+
+      renderOptions();
+
+      trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = container.classList.contains('open');
+        document.querySelectorAll('.rafiq-select.open').forEach(el => el.classList.remove('open'));
+        if (!isOpen) {
+          const rect = trigger.getBoundingClientRect();
+          const spaceBelow = window.innerHeight - rect.bottom;
+          if (spaceBelow < 260 && rect.top > 260) {
+            menu.classList.add('open-up');
+          } else {
+            menu.classList.remove('open-up');
+          }
+          container.classList.add('open');
+        }
+      });
+
+      container.appendChild(trigger);
+      container.appendChild(menu);
+      origSelect.parentNode.insertBefore(container, origSelect.nextSibling);
+
+      origSelect._syncCustom = function() {
+        const curOpt = origSelect.options[origSelect.selectedIndex];
+        if (curOpt) labelSpan.textContent = curOpt.text;
+        renderOptions();
+      };
+    }
+
+    // ==========================================
     // CUSTOM PAGE SIZE DROPDOWNS (No Default Select)
     // ==========================================
     function toggleCustomDropdown(type, event) {
@@ -1935,6 +2182,7 @@ function serveAdminHtml(): Response {
 
     // Global listener to close custom dropdowns on click outside
     document.addEventListener('click', (e) => {
+      document.querySelectorAll('.rafiq-select.open').forEach(el => el.classList.remove('open'));
       const licDropdown = document.getElementById('licensesCustomDropdown');
       const logsDropdown = document.getElementById('logsCustomDropdown');
       if (licDropdown && !licDropdown.contains(e.target)) {
@@ -1944,6 +2192,12 @@ function serveAdminHtml(): Response {
       if (logsDropdown && !logsDropdown.contains(e.target)) {
         const m = document.getElementById('logsDropdownMenu');
         if (m) m.classList.remove('show');
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        document.querySelectorAll('.rafiq-select.open').forEach(el => el.classList.remove('open'));
       }
     });
 
@@ -2608,6 +2862,7 @@ function serveAdminHtml(): Response {
         document.getElementById('notesInput').value = '';
         document.getElementById('customDaysWrapper').style.display = 'none';
         document.getElementById('durationSelect').value = 'lifetime';
+        document.getElementById('durationSelect')._syncCustom?.();
         
         await loadLicenses();
         if (data.license && data.license.id) {
@@ -2674,6 +2929,7 @@ function serveAdminHtml(): Response {
       document.getElementById('editOwnerPhone').value = lic.owner_phone || '';
       document.getElementById('editNotes').value = lic.notes || '';
       document.getElementById('editExtendAction').value = 'none';
+      document.getElementById('editExtendAction')._syncCustom?.();
       document.getElementById('editCustomDaysWrapper').style.display = 'none';
 
       let expStr = 'دائم مدى الحياة';
@@ -2806,6 +3062,8 @@ function serveAdminHtml(): Response {
     }
 
     function initDashboard() {
+      initCustomSelect('durationSelect');
+      initCustomSelect('editExtendAction');
       loadLicenses();
       loadLogs();
     }

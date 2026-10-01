@@ -114,6 +114,7 @@ export const PosView = () => {
   const [maxDiscountPercentCashier, setMaxDiscountPercentCashier] = useState(10);
   const [maxDiscountAmountCashierPiasters, setMaxDiscountAmountCashierPiasters] = useState(5000); // 50 EGP
   const [currentUserRole, setCurrentUserRole] = useState<string>('cashier');
+  const [allowNegativeStock, setAllowNegativeStock] = useState(false);
 
   // Item-level Discount Modal State (Feature #24 / Task 24-2)
   const [selectedDiscountItemIndex, setSelectedDiscountItemIndex] = useState<number | null>(null);
@@ -211,13 +212,50 @@ export const PosView = () => {
     const isDivisible = unitToUse ? unitToUse.isDivisible : (prod.unit === 'kg');
 
     setCart((prev) => {
+      // Upfront Zero-Stock & Insufficient Stock Prevention
+      const existingBaseMilli = prev.reduce((sum, item) => {
+        if (item.productId === prod.id) {
+          const itemFactor = item.conversionFactor && item.conversionFactor > 0 ? item.conversionFactor : 1;
+          return sum + (item.quantityMilli * itemFactor);
+        }
+        return sum;
+      }, 0);
+
       const existingIndex = prev.findIndex((item) => 
         item.productId === prod.id && (item.unitId || '') === (unitId || '')
       );
+
+      const currentItemBaseMilli = existingIndex >= 0 
+        ? prev[existingIndex].quantityMilli * (prev[existingIndex].conversionFactor || 1)
+        : 0;
+
+      const newQty = existingIndex >= 0 
+        ? (customWeightMilli !== undefined ? customWeightMilli : (prev[existingIndex].quantityMilli + 1000))
+        : qtyMilli;
+
+      const newItemBaseMilli = newQty * factor;
+      const totalRequestedBaseMilli = (existingBaseMilli - currentItemBaseMilli) + newItemBaseMilli;
+      const availableStockMilli = prod.stockQuantityMilli ?? 0;
+
+      if (!allowNegativeStock) {
+        if (availableStockMilli <= 0) {
+          showStatus(`الصنف "${prod.name}" رصيده في المخزن 0 (غير متوفر للبيع)!`, 'error');
+          return prev;
+        }
+        if (totalRequestedBaseMilli > availableStockMilli) {
+          const maxRemainingBaseMilli = Math.max(0, availableStockMilli - (existingBaseMilli - currentItemBaseMilli));
+          const maxPossibleUnits = Math.floor(maxRemainingBaseMilli / (factor * 1000));
+          showStatus(
+            `رصيد الصنف "${prod.name}" غير كافٍ في المخزن! المتاح حالياً: ${Math.floor(availableStockMilli / 1000)} قطعة (يمكنك إضافة ${maxPossibleUnits} ${unitName || 'قطعة'} كحد أقصى).`,
+            'error'
+          );
+          return prev;
+        }
+      }
+
       if (existingIndex >= 0) {
         const updated = [...prev];
         const item = updated[existingIndex];
-        const newQty = customWeightMilli !== undefined ? customWeightMilli : (item.quantityMilli + 1000);
         item.quantityMilli = newQty;
         item.unit = unitName;
         item.unitName = unitName;
@@ -252,7 +290,7 @@ export const PosView = () => {
       };
       return [newItem, ...prev];
     });
-  }, []);
+  }, [allowNegativeStock, showStatus]);
 
   const changeCartItemUnit = useCallback((index: number, newUnitId: string) => {
     setCart((prev) => {
@@ -261,6 +299,28 @@ export const PosView = () => {
       if (!item || !item.productUnits) return prev;
       const targetUnit = item.productUnits.find(u => u.id === newUnitId);
       if (!targetUnit) return prev;
+
+      const newFactor = targetUnit.conversionFactor > 0 ? targetUnit.conversionFactor : 1;
+
+      // Upfront Stock Check when changing unit
+      if (!allowNegativeStock) {
+        const otherCartBaseMilli = prev.reduce((sum, it, i) => {
+          if (i !== index && it.productId === item.productId) {
+            const itFactor = it.conversionFactor && it.conversionFactor > 0 ? it.conversionFactor : 1;
+            return sum + (it.quantityMilli * itFactor);
+          }
+          return sum;
+        }, 0);
+        const neededBaseMilli = item.quantityMilli * newFactor;
+        const availableStockMilli = item.stockQuantityMilli ?? 0;
+        if (otherCartBaseMilli + neededBaseMilli > availableStockMilli) {
+          showStatus(
+            `لا يمكن التحويل إلى "${targetUnit.unitName}": الكمية المطلوبة تتجاوز رصيد المخزن المتاح (${Math.floor(availableStockMilli / 1000)} قطعة)!`,
+            'error'
+          );
+          return prev;
+        }
+      }
 
       const baseUnit = item.productUnits.find(u => u.isBaseUnit);
       const currentFactor = item.conversionFactor && item.conversionFactor > 0 ? item.conversionFactor : 1;
@@ -271,7 +331,6 @@ export const PosView = () => {
         ? baseUnit.costPricePiasters 
         : Math.round(item.unitCostPiasters / currentFactor);
 
-      const newFactor = targetUnit.conversionFactor > 0 ? targetUnit.conversionFactor : 1;
       const newPrice = targetUnit.sellPricePiasters > 0 ? targetUnit.sellPricePiasters : (basePrice * newFactor);
       const newCost = targetUnit.costPricePiasters > 0 ? targetUnit.costPricePiasters : (baseCost * newFactor);
 
@@ -291,7 +350,7 @@ export const PosView = () => {
       item.taxPiasters = calculateTaxPiasters(item.totalPiasters, item.taxRatePercent || 0, true);
       return updated;
     });
-  }, []);
+  }, [allowNegativeStock, showStatus]);
 
   const updateItemPrice = useCallback((index: number, newPricePiasters: number) => {
     setCart((prev) => {
@@ -550,6 +609,9 @@ export const PosView = () => {
           if (appSettings.max_discount_amount_cashier_piasters) {
             setMaxDiscountAmountCashierPiasters(parseInt(appSettings.max_discount_amount_cashier_piasters, 10) || 5000);
           }
+          if (appSettings.allow_negative_stock !== undefined) {
+            setAllowNegativeStock(appSettings.allow_negative_stock === '1' || appSettings.allow_negative_stock.toLowerCase() === 'true');
+          }
         }
         const cnt = await invoke<{ nextInvoiceNumber: number }>('counters:getNextExpectedInvoiceNumber');
         if (active && cnt && cnt.nextInvoiceNumber) {
@@ -686,13 +748,38 @@ export const PosView = () => {
       const updated = [...prev];
       if (updated[index]) {
         const item = updated[index];
+        const factor = item.conversionFactor && item.conversionFactor > 0 ? item.conversionFactor : 1;
+
+        if (!allowNegativeStock) {
+          const otherCartBaseMilli = prev.reduce((sum, it, i) => {
+            if (i !== index && it.productId === item.productId) {
+              const itFactor = it.conversionFactor && it.conversionFactor > 0 ? it.conversionFactor : 1;
+              return sum + (it.quantityMilli * itFactor);
+            }
+            return sum;
+          }, 0);
+
+          const neededBaseMilli = newQtyPieces * 1000 * factor;
+          const availableStockMilli = item.stockQuantityMilli ?? 0;
+
+          if (otherCartBaseMilli + neededBaseMilli > availableStockMilli) {
+            const maxRemainingBaseMilli = Math.max(0, availableStockMilli - otherCartBaseMilli);
+            const maxPossibleUnits = Math.floor(maxRemainingBaseMilli / (factor * 1000));
+            showStatus(
+              `الكمية المطلوبة (${newQtyPieces}) تتجاوز رصيد المخزن المتاح (${maxPossibleUnits} ${item.unitName || 'قطعة'})!`,
+              'error'
+            );
+            return prev;
+          }
+        }
+
         item.quantityMilli = newQtyPieces * 1000;
         item.totalPiasters = calculateLineTotal(item.unitPricePiasters, item.quantityMilli, item.discountPiasters);
         item.taxPiasters = calculateTaxPiasters(item.totalPiasters, item.taxRatePercent || 0, true);
       }
       return updated;
     });
-  }, []);
+  }, [allowNegativeStock, showStatus]);
 
   useEffect(() => {
     barcodeInputRef.current?.focus();
@@ -945,12 +1032,37 @@ export const PosView = () => {
       if (!item) return prev;
       const currentPieces = item.quantityMilli / 1000;
       const newPieces = Math.max(1, currentPieces + deltaPieces);
+      const factor = item.conversionFactor && item.conversionFactor > 0 ? item.conversionFactor : 1;
+
+      if (!allowNegativeStock && deltaPieces > 0) {
+        const otherCartBaseMilli = prev.reduce((sum, it, i) => {
+          if (i !== index && it.productId === item.productId) {
+            const itFactor = it.conversionFactor && it.conversionFactor > 0 ? it.conversionFactor : 1;
+            return sum + (it.quantityMilli * itFactor);
+          }
+          return sum;
+        }, 0);
+
+        const neededBaseMilli = newPieces * 1000 * factor;
+        const availableStockMilli = item.stockQuantityMilli ?? 0;
+
+        if (otherCartBaseMilli + neededBaseMilli > availableStockMilli) {
+          const maxRemainingBaseMilli = Math.max(0, availableStockMilli - otherCartBaseMilli);
+          const maxPossibleUnits = Math.floor(maxRemainingBaseMilli / (factor * 1000));
+          showStatus(
+            `لا يمكن زيادة الكمية: رصيد المخزن المتاح للصنف "${item.productName}" هو ${maxPossibleUnits} ${item.unitName || 'قطعة'} فقط!`,
+            'error'
+          );
+          return prev;
+        }
+      }
+
       item.quantityMilli = newPieces * 1000;
       item.totalPiasters = calculateLineTotal(item.unitPricePiasters, item.quantityMilli, item.discountPiasters);
       item.taxPiasters = calculateTaxPiasters(item.totalPiasters, item.taxRatePercent || 0, true);
       return updated;
     });
-  }, []);
+  }, [allowNegativeStock, showStatus]);
 
   const removeItem = useCallback((index: number) => {
     setCart((prev) => {
@@ -1073,11 +1185,11 @@ export const PosView = () => {
             setLiveSearchResults={setLiveSearchResults}
             selectedDropdownIndex={selectedDropdownIndex}
             setSelectedDropdownIndex={setSelectedDropdownIndex}
-            onSelectProduct={(prod) => {
-              addProductToCart(prod);
+            onSelectProduct={(prod, specificUnit) => {
+              addProductToCart(prod, undefined, specificUnit);
               setBarcodeQuery('');
               setIsSearchDropdownOpen(false);
-              showStatus(`تمت إضافة: ${prod.name}`, 'success');
+              showStatus(`تمت إضافة: ${prod.name}${specificUnit ? ` (${specificUnit.unitName})` : ''}`, 'success');
               barcodeInputRef.current?.focus();
             }}
           />
