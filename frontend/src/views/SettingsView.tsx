@@ -10,9 +10,11 @@ import {
   KeyRound, 
   FlaskConical,
   Laptop,
-  BookOpen
+  BookOpen,
+  HelpCircle,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { openHelpCenter } from '../utils/helpService';
 import { useFeatures } from '../context/useFeatures';
 import type { SystemInfo } from '../App';
 import { BackupManager } from '../components/BackupManager';
@@ -468,6 +470,16 @@ export const SettingsView = ({
           >
             <KeyRound className="w-3.5 h-3.5 text-[#006D41]" />
             <span>ترخيص البرنامج</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => openHelpCenter('backup_security')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-2 border border-line hover:border-line-hover text-[#006D41] text-xs font-bold transition-all cursor-pointer shadow-2xs"
+            title="مركز المساعدة والشروحات والدعم الفني (F1)"
+          >
+            <HelpCircle className="w-3.5 h-3.5 text-[#006D41]" />
+            <span>مركز المساعدة والدعم</span>
           </button>
 
           {saved && (

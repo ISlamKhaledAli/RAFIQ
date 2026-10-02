@@ -79,6 +79,7 @@
     <Compile Include="Bridge\IpcDispatcher.Suppliers.cs" />
     <Compile Include="Bridge\IpcDispatcher.Purchases.cs" />
     <Compile Include="Bridge\IpcDispatcher.Inventory.cs" />
+    <Compile Include="Bridge\IpcDispatcher.Batch.cs" />
     <Compile Include="Bridge\IpcDispatcher.System.cs" />
     <Compile Include="Common\Money.cs" />
     <Compile Include="Common\OsDetector.cs" />
@@ -99,6 +100,7 @@
     <Compile Include="Models\AuditLog.cs" />
     <Compile Include="Models\Category.cs" />
     <Compile Include="Models\ProductPriceHistory.cs" />
+    <Compile Include="Models\BulkPriceAdjustmentModels.cs" />
     <Compile Include="Models\BatchImportModels.cs" />
     <Compile Include="Models\StockMovement.cs" />
     <Compile Include="Models\QuickItem.cs" />
@@ -106,6 +108,7 @@
     <Compile Include="Models\User.cs" />
     <Compile Include="Models\HeldSale.cs" />
     <Compile Include="Models\Return.cs" />
+    <Compile Include="Models\ProductBatch.cs" />
     <Compile Include="Repositories\ProductRepository.cs" />
     <Compile Include="Repositories\SaleRepository.cs" />
     <Compile Include="Repositories\CounterRepository.cs" />
@@ -113,6 +116,7 @@
     <Compile Include="Repositories\CustomerRepository.cs" />
     <Compile Include="Repositories\SupplierRepository.cs" />
     <Compile Include="Repositories\PurchaseRepository.cs" />
+    <Compile Include="Repositories\ProductBatchRepository.cs" />
     <Compile Include="Repositories\AuditLogRepository.cs" />
     <Compile Include="Repositories\CategoryRepository.cs" />
     <Compile Include="Repositories\ProductPriceHistoryRepository.cs" />
@@ -125,12 +129,15 @@
     <Compile Include="Services\DatabaseService.cs" />
     <Compile Include="Services\ProductService.cs" />
     <Compile Include="Services\ProductUnitService.cs" />
+    <Compile Include="Services\ProductUnitTestRunner.cs" />
+    <Compile Include="Services\ProductBatchService.cs" />
     <Compile Include="Services\SaleService.cs" />
     <Compile Include="Services\HeldSaleService.cs" />
     <Compile Include="Services\ReturnService.cs" />
     <Compile Include="Services\SupplierService.cs" />
     <Compile Include="Services\PurchaseService.cs" />
     <Compile Include="Services\PurchasesTestRunner.cs" />
+    <Compile Include="Services\BatchTestRunner.cs" />
     <Compile Include="Services\InventoryService.cs" />
     <Compile Include="Services\InventoryTestRunner.cs" />
     <Compile Include="Services\CustomerLedgerTestRunner.cs" />
@@ -164,6 +171,23 @@
     <Compile Include="Services\LicenseTestRunner.cs" />
     <Compile Include="Services\MigrationService.cs" />
     <Compile Include="Services\MigrationTestRunner.cs" />
+    <Compile Include="Services\AppUpdateService.cs" />
+    <Compile Include="Services\AppUpdateTestRunner.cs" />
+    <Compile Include="Services\FullStoreExportTestRunner.cs" />
+    <Compile Include="Bridge\IpcDispatcher.Variants.cs" />
+    <Compile Include="Models\ProductVariant.cs" />
+    <Compile Include="Repositories\ProductVariantRepository.cs" />
+    <Compile Include="Services\ProductVariantService.cs" />
+    <Compile Include="Services\ProductVariantTestRunner.cs" />
+    <Compile Include="Common\BarcodeGenerator.cs" />
+    <Compile Include="Models\BarcodeLabel.cs" />
+    <Compile Include="Services\BarcodeLabelService.cs" />
+    <Compile Include="Services\BarcodeLabelTestRunner.cs" />
+    <Compile Include="Models\DataQualityModels.cs" />
+    <Compile Include="Services\DataQualityTestRunner.cs" />
+    <Compile Include="Services\BulkPriceAdjustmentTestRunner.cs" />
+    <Compile Include="Models\InternalBarcodeModels.cs" />
+    <Compile Include="Services\InternalBarcodeTestRunner.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

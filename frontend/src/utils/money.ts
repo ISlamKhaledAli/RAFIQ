@@ -18,6 +18,21 @@ export function normalizeArabicNumerals(str: string): string {
 }
 
 /**
+ * توحيد الحروف والنصوص العربية للبحث المطابق (الألف والتاء المربوطة والياء وإزالة التشكيل والتطويل)
+ */
+export function normalizeArabicText(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/[\u064B-\u0652]/g, '') // Remove Tashkeel
+    .replace(/\u0640/g, '') // Remove Tatweel
+    .replace(/[أإآٱ]/g, 'ا') // Normalize Alef
+    .replace(/ة/g, 'ه') // Normalize Teh Marbuta
+    .replace(/ى/g, 'ي') // Normalize Alef Maksura
+    .toLowerCase()
+    .trim();
+}
+
+/**
  * تحويل الجنيهات إلى قروش مع التقريب لأقرب قرش صحيح
  * @param pounds المبلغ بالجنيه (مثال: 15.50)
  * @returns المبلغ بالقروش كعدد صحيح (مثال: 1550)

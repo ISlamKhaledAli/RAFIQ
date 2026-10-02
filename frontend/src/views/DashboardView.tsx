@@ -26,13 +26,14 @@ import {
   FileText
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
-import type { DashboardSummary, UnclosedDayAlert } from '../types/models';
+import type { DashboardSummary, UnclosedDayAlert, BatchSummary } from '../types/models';
 import { ReadinessCheckModal } from '../components/ReadinessCheckModal';
 import { LicenseModal } from '../components/LicenseModal';
 import { DailyClosingModal } from '../components/DailyClosingModal';
 import { LowStockReportModal } from '../components/LowStockReportModal';
 import { DebtorsReportModal } from '../components/DebtorsReportModal';
 import { PeriodSalesReportModal } from '../components/PeriodSalesReportModal';
+import { DataQualityAuditModal } from '../components/DataQualityAuditModal';
 import { formatArabicCurrency } from '../utils/money';
 
 interface SystemAlert {
@@ -73,7 +74,7 @@ interface SystemHealthData {
 
 interface DashboardViewProps {
   onNavigateToPos: () => void;
-  onNavigateToProducts: (subView?: 'catalog' | 'movements', filter?: 'all' | 'lowStock' | 'outOfStock') => void;
+  onNavigateToProducts: (subView?: 'catalog' | 'movements' | 'batches', filter?: 'all' | 'lowStock' | 'outOfStock') => void;
   onNavigateToSales?: () => void;
   onNavigateToSettings?: (target?: string) => void;
   onNavigateToCustomers?: () => void;
@@ -120,6 +121,7 @@ export function DashboardView({
   const [lastRefreshed, setLastRefreshed] = useState<string>('');
   const [isReadinessModalOpen, setIsReadinessModalOpen] = useState(false);
   const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
+  const [batchSummary, setBatchSummary] = useState<BatchSummary | null>(null);
 
   // Milestone 9 Modals State
   const [isClosingModalOpen, setIsClosingModalOpen] = useState(false);
@@ -127,18 +129,21 @@ export function DashboardView({
   const [isLowStockModalOpen, setIsLowStockModalOpen] = useState(false);
   const [isDebtorsModalOpen, setIsDebtorsModalOpen] = useState(false);
   const [isPeriodSalesModalOpen, setIsPeriodSalesModalOpen] = useState(false);
+  const [isDataQualityModalOpen, setIsDataQualityModalOpen] = useState(false);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [sumData, healthData, unclosedData] = await Promise.all([
+      const [sumData, healthData, unclosedData, batchData] = await Promise.all([
         invoke<DashboardSummary>('reports:getTodaySummary'),
         invoke<SystemHealthData>('health:getStatus'),
-        invoke<UnclosedDayAlert>('closing:checkPreviousDay')
+        invoke<UnclosedDayAlert>('closing:checkPreviousDay'),
+        invoke<BatchSummary>('batch:summary').catch(() => null)
       ]);
       if (sumData) setSummary(sumData);
       if (healthData) setHealth(healthData);
       if (unclosedData) setUnclosedAlert(unclosedData);
+      if (batchData) setBatchSummary(batchData);
       const now = new Date();
       setLastRefreshed(now.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch {
@@ -152,15 +157,17 @@ export function DashboardView({
     let active = true;
     void (async () => {
       try {
-        const [sumData, healthData, unclosedData] = await Promise.all([
+        const [sumData, healthData, unclosedData, batchData] = await Promise.all([
           invoke<DashboardSummary>('reports:getTodaySummary'),
           invoke<SystemHealthData>('health:getStatus'),
-          invoke<UnclosedDayAlert>('closing:checkPreviousDay')
+          invoke<UnclosedDayAlert>('closing:checkPreviousDay'),
+          invoke<BatchSummary>('batch:summary').catch(() => null)
         ]);
         if (active) {
           if (sumData) setSummary(sumData);
           if (healthData) setHealth(healthData);
           if (unclosedData) setUnclosedAlert(unclosedData);
+          if (batchData) setBatchSummary(batchData);
           const now = new Date();
           setLastRefreshed(now.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
         }
@@ -245,6 +252,16 @@ export function DashboardView({
           </button>
 
           <button
+            type="button"
+            onClick={() => setIsDataQualityModalOpen(true)}
+            className="flex items-center gap-1.5 h-9 px-3 bg-white hover:bg-[#F7F8F6] text-[#0B4F42] border border-[#DCE1DC] rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer active:translate-y-0.5"
+            title="فحص جودة وصحة بيانات المخزون والأصناف"
+          >
+            <ShieldCheck className="w-4 h-4 text-[#006d41]" />
+            <span>فحص جودة البيانات</span>
+          </button>
+
+          <button
             onClick={() => void loadData()}
             disabled={isLoading}
             className="flex items-center gap-1.5 h-9 px-3 bg-white border border-[#DCE1DC] hover:bg-[#F7F8F6] rounded-lg text-xs font-bold text-[#14181A] transition-colors shadow-2xs disabled:opacity-50 cursor-pointer active:translate-y-0.5"
@@ -296,6 +313,54 @@ export function DashboardView({
           >
             <Lock className="w-3.5 h-3.5" />
             <span>إقفال يومية {unclosedAlert.unclosedDate} الآن</span>
+          </button>
+        </div>
+      )}
+
+      {/* Expiry Dates & Expiring Batches Alert Banner (Story 93 / Feature #60) */}
+      {batchSummary && (batchSummary.expiredCount > 0 || batchSummary.expiringSoonCount > 0) && (
+        <div className={`border-2 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-ink shadow-xs shrink-0 animate-in fade-in duration-200 ${
+          batchSummary.expiredCount > 0
+            ? 'bg-rose-500/10 border-rose-500/30'
+            : 'bg-amber-500/10 border-amber-500/30'
+        }`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs text-white ${
+              batchSummary.expiredCount > 0 ? 'bg-rose-600' : 'bg-amber-500'
+            }`}>
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="font-bold text-sm text-[#14181A]">
+                  {batchSummary.expiredCount > 0
+                    ? `تنبيه تواريخ الصلاحية: يوجد ${batchSummary.expiredCount} دفعة منتهية الصلاحية!`
+                    : `تنبيه الصلاحية: يوجد ${batchSummary.expiringSoonCount} دفعة أوشكت على الانتهاء`}
+                </h4>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold text-white ${
+                  batchSummary.expiredCount > 0 ? 'bg-rose-600' : 'bg-amber-600'
+                }`}>
+                  {batchSummary.expiredCount > 0 ? 'هالك محتمل' : 'متابعة مطلوبة'}
+                </span>
+              </div>
+              <p className="text-xs text-[#5B6664] mt-0.5">
+                {batchSummary.expiredCount > 0
+                  ? `يوجد دفعات منتهية الصلاحية بقيمة تقديرية ${formatArabicCurrency(batchSummary.expiredValuePiasters)}. يرجى إتلافها أو تسويتها لمنع بيعها.`
+                  : `يوجد ${batchSummary.expiringSoonCount} دفعة تقترب من تاريخ الانتهاء بقيمة ${formatArabicCurrency(batchSummary.expiringSoonValuePiasters)}. تُصرف تلقائياً أولاً بنظام FEFO.`}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onNavigateToProducts('batches')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold text-white transition shadow-xs shrink-0 cursor-pointer active:translate-y-0.5 flex items-center gap-1.5 justify-center ${
+              batchSummary.expiredCount > 0
+                ? 'bg-rose-700 hover:bg-rose-800'
+                : 'bg-amber-600 hover:bg-amber-700'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>عرض الدفعات وتواريخ الصلاحية</span>
           </button>
         </div>
       )}
@@ -1014,6 +1079,16 @@ export function DashboardView({
       <PeriodSalesReportModal
         isOpen={isPeriodSalesModalOpen}
         onClose={() => setIsPeriodSalesModalOpen(false)}
+      />
+
+      {/* Data Quality Health Audit Modal (Story 107 - Feature #117) */}
+      <DataQualityAuditModal
+        isOpen={isDataQualityModalOpen}
+        onClose={() => setIsDataQualityModalOpen(false)}
+        onFixProduct={() => {
+          setIsDataQualityModalOpen(false);
+          if (onNavigateToProducts) onNavigateToProducts('catalog');
+        }}
       />
     </div>
   );

@@ -1,12 +1,17 @@
+import { useState, useEffect } from 'react';
 import { 
   Printer, 
   Cpu, 
   Zap, 
   CheckCircle, 
-  Save
+  Save,
+  Server,
+  Tag
 } from 'lucide-react';
 import { CustomSelect } from '../../components/CustomSelect';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
+import { CertifiedHardwareModal } from '../../components/CertifiedHardwareModal';
+import { invoke } from '../../bridge/ipc';
 
 interface PrinterSettingsTabProps {
   printersList: { name: string; isDefault: boolean; isOnline: boolean }[];
@@ -51,6 +56,60 @@ export const PrinterSettingsTab = ({
   onSavePrinterSettings,
   saveLoading,
 }: PrinterSettingsTabProps) => {
+  const [isHardwareModalOpen, setIsHardwareModalOpen] = useState(false);
+  const [labelPrinter, setLabelPrinter] = useState('');
+  const [labelPaperSize, setLabelPaperSize] = useState('38x25');
+  const [labelTestPrinting, setLabelTestPrinting] = useState(false);
+  const [labelTestMessage, setLabelTestMessage] = useState<{ text: string; isError: boolean } | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const s = await invoke<Record<string, string>>('settings:getAll');
+        if (s) {
+          if (s.default_label_printer_name) setLabelPrinter(s.default_label_printer_name);
+          if (s.default_label_paper_size) setLabelPaperSize(s.default_label_paper_size);
+        }
+      } catch {
+        // ignore
+      }
+    })();
+  }, []);
+
+  const handleSaveAll = async () => {
+    try {
+      await invoke('settings:updateBatch', {
+        settings: {
+          default_label_printer_name: labelPrinter,
+          default_label_paper_size: labelPaperSize,
+        },
+      });
+    } catch {
+      // non-blocking
+    }
+    await onSavePrinterSettings();
+  };
+
+  const handleTestLabel = async () => {
+    setLabelTestPrinting(true);
+    setLabelTestMessage(null);
+    try {
+      const res = await invoke<{ success: boolean; message: string; printerUsed: string }>('printer:testLabel', {
+        printerName: labelPrinter || selectedPrinter,
+        paperSize: labelPaperSize,
+      });
+      if (res && res.success) {
+        setLabelTestMessage({ text: `تم إرسال الملصق التجريبي بنجاح إلى: ${res.printerUsed}`, isError: false });
+      } else {
+        setLabelTestMessage({ text: res?.message || 'فشلت تجربة طباعة الملصق', isError: true });
+      }
+    } catch (err: unknown) {
+      setLabelTestMessage({ text: err instanceof Error ? err.message : 'فشلت تجربة الطباعة', isError: true });
+    } finally {
+      setLabelTestPrinting(false);
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg border border-[#dce1dc] shadow-subtle p-5 flex flex-col gap-5 text-xs text-[#14181a]">
       {/* Top Header Card */}
@@ -66,6 +125,16 @@ export const PrinterSettingsTab = ({
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsHardwareModalOpen(true)}
+            className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-[#006d41] text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="عرض قائمة الطابعات والأجهزة المعتمدة والمجربة مع طريقة إعدادها"
+          >
+            <Server className="w-3.5 h-3.5 text-[#006d41]" />
+            <span>الأجهزة المعتمدة والمجربة</span>
+          </button>
+
           <button
             type="button"
             onClick={fetchPrinters}
@@ -207,18 +276,95 @@ export const PrinterSettingsTab = ({
               }}
             />
           </div>
+        </div>
+      </div>
+
+      {/* Feature #57: Barcode Label Printer Settings */}
+      <div className="border-t border-[#dce1dc] pt-5 mt-1 flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded bg-emerald-50 text-emerald-800 flex items-center justify-center font-bold">
+              <Tag className="w-4 h-4 text-[#0b4f42]" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-ink m-0">طابعة ملصقات الباركود والأسعار (فيتشر #57)</h4>
+              <p className="text-[11px] text-ink-muted m-0">تحديد طابعة باركود المنتجات ومقاس الورق الافتراضي (Roll & Sheet)</p>
+            </div>
+          </div>
 
           <button
             type="button"
-            onClick={onSavePrinterSettings}
-            disabled={saveLoading}
-            className="mt-2 h-11 bg-[#0b4f42] hover:bg-[#0f6a57] text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
+            onClick={handleTestLabel}
+            disabled={labelTestPrinting || printersList.length === 0}
+            className="px-3 py-1.5 rounded-lg bg-surface-2 hover:bg-line border border-line text-ink text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
           >
-            <Save className="w-4 h-4" />
-            <span>{saveLoading ? 'جاري الحفظ...' : 'حفظ وتفعيل إعدادات الطابعة'}</span>
+            <Zap className={`w-3.5 h-3.5 text-[#0b4f42] ${labelTestPrinting ? 'animate-spin' : ''}`} />
+            <span>{labelTestPrinting ? 'جاري إرسال الملصق...' : 'طباعة ملصق تجريبي'}</span>
           </button>
         </div>
+
+        {labelTestMessage && (
+          <div className={`p-2.5 rounded-lg text-xs font-semibold flex items-center gap-2 border ${
+            labelTestMessage.isError ? 'bg-[#fdf3f2] border-[#f6cbc6] text-[#b23a2e]' : 'bg-[#eaf5ee] border-[#c4e3d0] text-[#1b7a4d]'
+          }`}>
+            <span>{labelTestMessage.text}</span>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-ink font-semibold text-xs mb-1.5">طابعة ملصقات الباركود</label>
+            <CustomSelect
+              value={labelPrinter}
+              onChange={(val) => setLabelPrinter(val)}
+              options={[
+                { value: '', label: 'استخدام طابعة الإيصالات أو طابعة ويندوز الافتراضية' },
+                ...printersList.map((p) => ({
+                  value: p.name,
+                  label: `${p.name} ${p.isDefault ? '(الافتراضية في ويندوز)' : ''}`,
+                })),
+              ]}
+              size="md"
+              placeholder="اختر طابعة الباركود (Zebra, Xprinter, TSC...)"
+            />
+          </div>
+
+          <div>
+            <label className="block text-ink font-semibold text-xs mb-1.5">المقاس الافتراضي لملصقات الباركود</label>
+            <CustomSelect
+              value={labelPaperSize}
+              onChange={(val) => setLabelPaperSize(val)}
+              options={[
+                { value: '38x25', label: '38×25 مم (بكرة رول قياسية صغيرة - سوبرماركت وملابس)' },
+                { value: '40x30', label: '40×30 مم (بكرة رول متوسطة)' },
+                { value: '50x25', label: '50×25 مم (بكرة رول عريضة مدمجة)' },
+                { value: '50x30', label: '50×30 مم (بكرة رول عريضة قياسية)' },
+                { value: '50x40', label: '50×40 مم (ملصق رف وتخزين كبير)' },
+                { value: 'a4_24', label: 'ورق A4 ملصقات (24 ملصق بالورقة: 3 أعمدة × 8 صفوف)' },
+                { value: 'a4_40', label: 'ورق A4 ملصقات (40 ملصق بالورقة: 4 أعمدة × 10 صفوف)' },
+              ]}
+              size="md"
+              placeholder="اختر مقاس ورق الباركود..."
+            />
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleSaveAll}
+          disabled={saveLoading}
+          className="mt-2 h-11 bg-[#0b4f42] hover:bg-[#0f6a57] text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
+        >
+          <Save className="w-4 h-4" />
+          <span>{saveLoading ? 'جاري الحفظ...' : 'حفظ وتفعيل كافة إعدادات الطابعات والملصقات'}</span>
+        </button>
       </div>
+
+      <CertifiedHardwareModal
+        isOpen={isHardwareModalOpen}
+        onClose={() => setIsHardwareModalOpen(false)}
+        initialCategory="printer"
+      />
     </div>
   );
 };

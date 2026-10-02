@@ -12,19 +12,22 @@ namespace RafiqPOS.Repositories
         private readonly SupplierRepository _supplierRepo;
         private readonly ProductPriceHistoryRepository _priceHistoryRepo;
         private readonly AuditLogRepository _auditRepo;
+        private readonly ProductBatchRepository _batchRepo;
 
         public PurchaseRepository(
             string connectionString,
             CounterRepository counterRepo = null,
             SupplierRepository supplierRepo = null,
             ProductPriceHistoryRepository priceHistoryRepo = null,
-            AuditLogRepository auditRepo = null)
+            AuditLogRepository auditRepo = null,
+            ProductBatchRepository batchRepo = null)
         {
             _connectionString = connectionString;
             _counterRepo = counterRepo ?? new CounterRepository(connectionString);
             _auditRepo = auditRepo ?? new AuditLogRepository(connectionString);
             _supplierRepo = supplierRepo ?? new SupplierRepository(connectionString, _auditRepo);
             _priceHistoryRepo = priceHistoryRepo ?? new ProductPriceHistoryRepository(connectionString);
+            _batchRepo = batchRepo ?? new ProductBatchRepository(connectionString, _auditRepo);
         }
 
         public Purchase CreatePurchase(Purchase purchase, string costingMethod = "LATEST", string userId = null)
@@ -179,16 +182,44 @@ namespace RafiqPOS.Repositories
                             item.Barcode = barcode;
                             item.PreviousCostPiasters = currentCost;
 
+                            // Register or update Batch in product_batches (Feature #60 / Task 60-3)
+                            string batchId = null;
+                            string batchNumber = item.BatchNumber;
+                            if (!string.IsNullOrEmpty(batchNumber) || !string.IsNullOrEmpty(item.ExpiryDate))
+                            {
+                                if (string.IsNullOrEmpty(batchNumber))
+                                {
+                                    batchNumber = "P" + purchase.InvoiceNumber + "-" + (i + 1);
+                                }
+                                var batchRecord = new ProductBatch
+                                {
+                                    ProductId = item.ProductId,
+                                    BatchNumber = batchNumber,
+                                    ExpiryDate = item.ExpiryDate,
+                                    ProductionDate = item.ProductionDate,
+                                    QuantityMilli = item.QuantityMilli,
+                                    CostPricePiasters = item.UnitCostPiasters,
+                                    SupplierId = purchase.SupplierId,
+                                    PurchaseId = purchase.Id,
+                                    Notes = "فاتورة شراء #" + purchase.InvoiceNumber
+                                };
+                                batchRecord = _batchRepo.CreateOrUpdateBatch(batchRecord, conn, trans);
+                                batchId = batchRecord.Id;
+                                item.BatchNumber = batchRecord.BatchNumber;
+                            }
+
                             // Insert into purchase_items
                             string insertItemSql = @"
                                 INSERT INTO purchase_items (
                                     id, purchase_id, product_id, product_name, barcode,
                                     quantity_milli, unit_cost_piasters, total_cost_piasters,
-                                    previous_cost_piasters, new_selling_price_piasters, created_at
+                                    previous_cost_piasters, new_selling_price_piasters,
+                                    batch_number, expiry_date, production_date, created_at
                                 ) VALUES (
                                     @id, @purId, @prodId, @prodName, @barcode,
                                     @qty, @unitCost, @totalCost,
-                                    @prevCost, @newPrice, @createdAt
+                                    @prevCost, @newPrice,
+                                    @bnum, @exp, @prodDate, @createdAt
                                 );
                             ";
                             using (var cmd = new SQLiteCommand(insertItemSql, conn, trans))
@@ -203,6 +234,9 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@totalCost", item.TotalCostPiasters);
                                 cmd.Parameters.AddWithValue("@prevCost", item.PreviousCostPiasters);
                                 cmd.Parameters.AddWithValue("@newPrice", (object)item.NewSellingPricePiasters ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@bnum", (object)item.BatchNumber ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@exp", (object)item.ExpiryDate ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@prodDate", (object)item.ProductionDate ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@createdAt", item.CreatedAt);
                                 cmd.ExecuteNonQuery();
                             }
@@ -251,10 +285,10 @@ namespace RafiqPOS.Repositories
                             string insertSmSql = @"
                                 INSERT INTO stock_movements (
                                     id, product_id, movement_type, quantity_milli, reference_id, reference_type,
-                                    unit_cost_piasters, note, batch_number, created_at
+                                    unit_cost_piasters, note, batch_number, batch_id, created_at
                                 ) VALUES (
                                     @id, @prodId, 'PURCHASE', @qty, @refId, 'PURCHASE_INVOICE',
-                                    @unitCost, @note, NULL, @createdAt
+                                    @unitCost, @note, @bnum, @bid, @createdAt
                                 );
                             ";
                             using (var cmd = new SQLiteCommand(insertSmSql, conn, trans))
@@ -265,6 +299,8 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@refId", purchase.Id);
                                 cmd.Parameters.AddWithValue("@unitCost", item.UnitCostPiasters);
                                 cmd.Parameters.AddWithValue("@note", "فاتورة شراء رقم #" + purchase.InvoiceNumber);
+                                cmd.Parameters.AddWithValue("@bnum", (object)item.BatchNumber ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@bid", (object)batchId ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@createdAt", now);
                                 cmd.ExecuteNonQuery();
                             }
@@ -441,6 +477,27 @@ namespace RafiqPOS.Repositories
                 newPrice = Convert.ToInt64(reader["new_selling_price_piasters"]);
             }
 
+            string bNum = null;
+            string exp = null;
+            string prodDate = null;
+
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                string colName = reader.GetName(i);
+                if (string.Equals(colName, "batch_number", StringComparison.OrdinalIgnoreCase) && reader[i] != DBNull.Value)
+                {
+                    bNum = reader[i].ToString();
+                }
+                else if (string.Equals(colName, "expiry_date", StringComparison.OrdinalIgnoreCase) && reader[i] != DBNull.Value)
+                {
+                    exp = reader[i].ToString();
+                }
+                else if (string.Equals(colName, "production_date", StringComparison.OrdinalIgnoreCase) && reader[i] != DBNull.Value)
+                {
+                    prodDate = reader[i].ToString();
+                }
+            }
+
             return new PurchaseItem
             {
                 Id = reader["id"].ToString(),
@@ -453,6 +510,9 @@ namespace RafiqPOS.Repositories
                 TotalCostPiasters = Convert.ToInt64(reader["total_cost_piasters"]),
                 PreviousCostPiasters = Convert.ToInt64(reader["previous_cost_piasters"]),
                 NewSellingPricePiasters = newPrice,
+                BatchNumber = bNum,
+                ExpiryDate = exp,
+                ProductionDate = prodDate,
                 CreatedAt = reader["created_at"].ToString()
             };
         }

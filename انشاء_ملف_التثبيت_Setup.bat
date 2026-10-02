@@ -43,6 +43,16 @@ if %ERRORLEVEL% neq 0 (
 :: Copy latest installer to root folder as well
 copy /Y "installer\Output\RafiqPOS_Setup_v1.0.0.exe" "%~dp0RafiqPOS_Setup_v1.0.0.exe" > nul
 
+:: Step 5: Digital Code Signing (Feature #152 / Task 152-2)
+if exist "%~dp0RafiqCert.pfx" (
+    echo.
+    echo [5/5] Digitally signing installer with Authenticode...
+    signtool sign /tr http://timestamp.digicert.com /td sha256 /fd sha256 /f "%~dp0RafiqCert.pfx" /p "%CERT_PASS%" "%~dp0installer\Output\RafiqPOS_Setup_v1.0.0.exe"
+    copy /Y "%~dp0installer\Output\RafiqPOS_Setup_v1.0.0.exe" "%~dp0RafiqPOS_Setup_v1.0.0.exe" > nul
+) else (
+    echo [NOTE] No RafiqCert.pfx certificate found; skipping signing as documented in قرار_التوقيع_الرقمي_Code_Signing.md.
+)
+
 echo.
 echo ========================================================
 echo   [SUCCESS] Rafiq POS Setup Created Successfully!

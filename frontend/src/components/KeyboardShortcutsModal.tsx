@@ -1,5 +1,6 @@
 import React from 'react';
-import { Keyboard, X, Search, ShoppingCart, DollarSign, Printer, ArrowLeft } from 'lucide-react';
+import { Keyboard, X, Search, ShoppingCart, DollarSign, Printer, ArrowLeft, HelpCircle } from 'lucide-react';
+import { openHelpCenter } from '../utils/helpService';
 
 interface KeyboardShortcutsModalProps {
   isOpen: boolean;
@@ -114,13 +115,26 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
           <span className="text-ink-muted">
             مصمم لتمكين الكاشير من البيع بنسبة 100% بدون استخدام الماوس
           </span>
-          <button
-            onClick={onClose}
-            className="h-8 px-4 bg-brand hover:bg-brand-hover text-white rounded font-bold flex items-center gap-1 transition-colors"
-          >
-            <span>فهمت</span>
-            <ArrowLeft className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                openHelpCenter('pos');
+              }}
+              className="h-8 px-3 rounded bg-emerald-50 hover:bg-emerald-100 text-[#006d41] border border-emerald-300 font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+              <span>دليل الكاشير والأسئلة الشائعة والدعم</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="h-8 px-4 bg-brand hover:bg-brand-hover text-white rounded font-bold flex items-center gap-1 transition-colors cursor-pointer"
+            >
+              <span>فهمت</span>
+              <ArrowLeft className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

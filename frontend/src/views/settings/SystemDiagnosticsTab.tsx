@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { 
   Sliders, 
   Activity, 
@@ -10,9 +11,14 @@ import {
   Package, 
   ShieldCheck,
   X,
-  PhoneCall
+  PhoneCall,
+  DownloadCloud,
+  Sparkles,
+  FileSpreadsheet
 } from 'lucide-react';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
+import { AppUpdateModal } from '../../components/AppUpdateModal';
+import { FullStoreExportModal } from '../../components/FullStoreExportModal';
 import type { SystemInfo } from '../../App';
 
 interface SystemDiagnosticsTabProps {
@@ -48,6 +54,9 @@ export const SystemDiagnosticsTab = ({
   setSupportMessage,
   runCreateSupportBundle,
 }: SystemDiagnosticsTabProps) => {
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+
   return (
     <div className="flex flex-col gap-5 text-xs text-[#14181a]">
       {/* Feature Toggles Section (Feature #105: ملف تعريف المحل ومفاتيح تشغيل الميزات) */}
@@ -225,6 +234,60 @@ export const SystemDiagnosticsTab = ({
           </span>
         </div>
 
+        {/* App Updates Section (Feature #115) */}
+        <div className="mt-1 p-4 rounded-lg bg-[#f7f8f6] border border-[#dce1dc] flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <DownloadCloud className="w-4 h-4 text-[#0b4f42]" />
+              <span className="font-bold text-[#14181a] text-xs">تحديثات النظام التلقائية والآمنة (Rafiq Update)</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-[#1b7a4d] font-bold">
+              <ShieldCheck className="w-4 h-4" />
+              <span>نسخة احتياطية إجبارية وتراجع تلقائي عند أي خطأ</span>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-[#5b6664] leading-relaxed m-0 font-sans">
+            فحص أحدث إصدارات رفيق وتحميل التحديثات تلقائياً مع مطابقة الهاش الرقمي والتأمين الكامل لقاعدة البيانات.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => setIsUpdateModalOpen(true)}
+            className="h-10 bg-[#006d41] hover:bg-[#005a36] text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-colors text-xs cursor-pointer shadow-xs"
+          >
+            <Sparkles className="w-4 h-4 text-amber-300" />
+            <span>فحص وتثبيت التحديثات الجديدة</span>
+          </button>
+        </div>
+
+        {/* Full Store Export Section (Feature #148) */}
+        <div className="mt-1 p-4 rounded-lg bg-[#f7f8f6] border border-[#dce1dc] flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileSpreadsheet className="w-4 h-4 text-[#006d41]" />
+              <span className="font-bold text-[#14181a] text-xs">تصدير كل بيانات المحل بضغطة واحدة (بياناتك ملكك 100%)</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-[#006d41] font-bold">
+              <ShieldCheck className="w-4 h-4" />
+              <span>جداول Excel مفصلة + ملف شامل بدون أي تشفير</span>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-[#5b6664] leading-relaxed m-0 font-sans">
+            تصدير كافة بيانات متجرك بالكامل (المنتجات، المخزون، العملاء والديون، الموردين، فواتير المبيعات، حركات المخزون، والورديات) إلى مجلد مخصص بصيغة Excel نقية مع بيان رسمي لملكية البيانات.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => setIsExportModalOpen(true)}
+            className="h-10 bg-[#006d41] hover:bg-[#005a36] text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-colors text-xs cursor-pointer shadow-xs"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+            <span>تصدير كل بيانات المحل الآن (Excel)</span>
+          </button>
+        </div>
+
         {/* Support Bundle Section (Feature #111) */}
         <div className="mt-1 p-4 rounded-lg bg-[#f7f8f6] border border-[#dce1dc] flex flex-col gap-3">
           <div className="flex items-center justify-between">
@@ -281,6 +344,16 @@ export const SystemDiagnosticsTab = ({
           </button>
         </div>
       </div>
+
+      <AppUpdateModal
+        isOpen={isUpdateModalOpen}
+        onClose={() => setIsUpdateModalOpen(false)}
+      />
+
+      <FullStoreExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+      />
     </div>
   );
 };

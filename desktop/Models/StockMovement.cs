@@ -41,6 +41,9 @@ namespace RafiqPOS.Models
         [JsonProperty("batchNumber")]
         public string BatchNumber { get; set; }
 
+        [JsonProperty("batchId")]
+        public string BatchId { get; set; }
+
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
 

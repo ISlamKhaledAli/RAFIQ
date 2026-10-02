@@ -212,6 +212,38 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, importResult);
                     return true;
 
+                case "products:previewBulkPriceAdjustment":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات معاينة تعديل الأسعار فارغة");
+                        return true;
+                    }
+                    var previewReq = JsonConvert.DeserializeObject<BulkPricePreviewRequest>(request.Payload.ToString());
+                    if (previewReq == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "تعذر قراءة معايير تعديل الأسعار");
+                        return true;
+                    }
+                    var previewResult = DatabaseService.Products.PreviewBulkPriceAdjustment(previewReq);
+                    response = BridgeResponse.Ok(request.Id, previewResult);
+                    return true;
+
+                case "products:applyBulkPriceAdjustment":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات تنفيذ تعديل الأسعار فارغة");
+                        return true;
+                    }
+                    var applyReq = JsonConvert.DeserializeObject<BulkPriceApplyRequest>(request.Payload.ToString());
+                    if (applyReq == null || applyReq.Items == null || applyReq.Items.Count == 0)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "قائمة الأصناف المراد تعديل أسعارها فارغة");
+                        return true;
+                    }
+                    var applyResult = DatabaseService.Products.ApplyBulkPriceAdjustment(applyReq);
+                    response = BridgeResponse.Ok(request.Id, applyResult);
+                    return true;
+
                 // Product Units Management
                 case "productUnits:getByProduct":
                     string puProdId = "";
@@ -475,6 +507,63 @@ namespace RafiqPOS.Bridge
                     DatabaseService.QuickItems.RenameCategory(oldCatName, newCatName);
                     response = BridgeResponse.Ok(request.Id, new { success = true, oldName = oldCatName, newName = newCatName });
                     return true;
+
+                #region Feature #119 / Story 108: الباركود الداخلي القياسي
+
+                case "products:generateInternalBarcode":
+                    string nextBarcode = DatabaseService.Products.GenerateNextInternalBarcode();
+                    response = BridgeResponse.Ok(request.Id, new { barcode = nextBarcode });
+                    return true;
+
+                case "products:assignInternalBarcode":
+                    string assignProdId = "";
+                    string assignUserId = "usr_admin_default";
+                    JObject assignObj = request.Payload as JObject;
+                    if (assignObj != null)
+                    {
+                        if (assignObj["productId"] != null) assignProdId = assignObj["productId"].ToString();
+                        if (assignObj["userId"] != null) assignUserId = assignObj["userId"].ToString();
+                    }
+                    else if (request.Payload != null)
+                    {
+                        assignProdId = request.Payload.ToString().Trim('"', ' ');
+                    }
+
+                    if (string.IsNullOrWhiteSpace(assignProdId))
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PRODUCT_ID", "معرف الصنف مطلوب لتعيين الباركود الداخلي.");
+                        return true;
+                    }
+
+                    var assignRes = DatabaseService.Products.AssignInternalBarcode(assignProdId, assignUserId);
+                    if (assignRes.Success)
+                    {
+                        response = BridgeResponse.Ok(request.Id, assignRes);
+                    }
+                    else
+                    {
+                        response = BridgeResponse.Fail(request.Id, "ASSIGN_FAILED", assignRes.Message);
+                    }
+                    return true;
+
+                case "products:bulkGenerateInternalBarcodes":
+                    string bulkUserId = "usr_admin_default";
+                    JObject bulkBarcodeObj = request.Payload as JObject;
+                    if (bulkBarcodeObj != null && bulkBarcodeObj["userId"] != null)
+                    {
+                        bulkUserId = bulkBarcodeObj["userId"].ToString();
+                    }
+
+                    var bulkResult = DatabaseService.Products.BulkGenerateInternalBarcodes(bulkUserId);
+                    response = BridgeResponse.Ok(request.Id, bulkResult);
+                    return true;
+
+                case "products:getMissingBarcodeCount":
+                    int missingCount = DatabaseService.Products.GetMissingBarcodeCount();
+                    response = BridgeResponse.Ok(request.Id, new { count = missingCount });
+                    return true;
+
+                #endregion
 
                 default:
                     return false;

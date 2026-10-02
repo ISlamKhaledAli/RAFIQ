@@ -24,4 +24,8 @@ export interface SmartCatalogItem {
   salesCount: number;
   quickDisplayOrder: number;
   productRef?: Product;
+  hasVariants?: boolean;
+  variantColor?: string | null;
+  variantSize?: string | null;
+  variantsCount?: number;
 }

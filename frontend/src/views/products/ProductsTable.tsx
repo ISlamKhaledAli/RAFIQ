@@ -7,6 +7,9 @@ import {
   History,
   Edit2,
   Trash2,
+  Layers,
+  Tag,
+  TrendingUp,
 } from 'lucide-react';
 import type { Product } from '../../types/models';
 import { formatArabicCurrency } from '../../utils/money';
@@ -18,7 +21,9 @@ export interface ProductsTableProps {
   onToggleSelectAll: (filteredProds: Product[]) => void;
   onToggleSelectProduct: (id: string) => void;
   onOpenBulkMinStockModal: () => void;
+  onOpenBulkPriceAdjustment?: () => void;
   onBulkDelete?: () => void;
+  onBulkPrintLabels?: () => void;
   onClearSelection: () => void;
   onSelectProdForMovements: (prod: Product) => void;
   onSelectProdForAdjustment: (prod: Product) => void;
@@ -26,6 +31,7 @@ export interface ProductsTableProps {
   onOpenPriceHistory: (prod: Product) => void;
   onEditProduct: (prod: Product) => void;
   onDeleteProduct: (prod: Product) => void;
+  onPrintLabel?: (prod: Product) => void;
 }
 
 export const ProductsTable: React.FC<ProductsTableProps> = ({
@@ -35,7 +41,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
   onToggleSelectAll,
   onToggleSelectProduct,
   onOpenBulkMinStockModal,
+  onOpenBulkPriceAdjustment,
   onBulkDelete,
+  onBulkPrintLabels,
   onClearSelection,
   onSelectProdForMovements,
   onSelectProdForAdjustment,
@@ -43,6 +51,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
   onOpenPriceHistory,
   onEditProduct,
   onDeleteProduct,
+  onPrintLabel,
 }) => {
   const filteredProducts = products.filter(
     (p) => selectedCategoryFilter === 'all' || (p.categoryId || 'cat_general') === selectedCategoryFilter
@@ -168,6 +177,23 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                       {prod.taxRatePercent}% ضريبة
                     </span>
                   )}
+                  {prod.hasVariants && (
+                    <span
+                      className="shrink-0 px-2 py-0.5 bg-brand-soft text-brand text-[10px] font-bold rounded-full border border-brand/20 flex items-center gap-1"
+                      title="منتج متعدد المقاسات والألوان (Matrix)"
+                    >
+                      <Layers className="w-2.5 h-2.5" />
+                      <span>مقاسات وألوان</span>
+                    </span>
+                  )}
+                  {prod.variantColor && prod.variantSize && (
+                    <span
+                      className="shrink-0 px-1.5 py-0.2 rounded bg-surface-2 border border-line text-[10px] font-mono font-bold text-ink-muted"
+                      title={`تركيبة: ${prod.variantColor} - ${prod.variantSize}`}
+                    >
+                      {prod.variantColor} | {prod.variantSize}
+                    </span>
+                  )}
                 </div>
 
                 <div className="col-span-2 flex items-center justify-start gap-1 font-mono text-left pl-2 tabular-nums">
@@ -242,6 +268,15 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                   >
                     <Scale className="w-3.5 h-3.5" />
                   </button>
+                  {onPrintLabel && (
+                    <button
+                      onClick={() => onPrintLabel(prod)}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-[#52605D] hover:text-[#006D41] hover:bg-emerald-50 transition-colors cursor-pointer"
+                      title="طباعة ملصق باركود وسعر"
+                    >
+                      <Tag className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button
                     onClick={() => onOpenPriceHistory(prod)}
                     className="w-7 h-7 flex items-center justify-center rounded-lg text-[#52605D] hover:text-[#006D41] hover:bg-emerald-50 transition-colors cursor-pointer"
@@ -277,6 +312,26 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span>تم تحديد {selectedProductIds.length} صنف</span>
           </span>
+          {onBulkPrintLabels && (
+            <button
+              type="button"
+              onClick={onBulkPrintLabels}
+              className="px-3.5 py-1.5 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer border border-brand-soft/20"
+            >
+              <Tag className="w-3.5 h-3.5" />
+              <span>طباعة ملصقات ({selectedProductIds.length})</span>
+            </button>
+          )}
+          {onOpenBulkPriceAdjustment && (
+            <button
+              type="button"
+              onClick={onOpenBulkPriceAdjustment}
+              className="px-3.5 py-1.5 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer border border-brand-soft/20"
+            >
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+              <span>تعديل الأسعار والتكلفة ({selectedProductIds.length})</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={onOpenBulkMinStockModal}

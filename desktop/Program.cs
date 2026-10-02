@@ -37,6 +37,126 @@ namespace RafiqPOS
                         }
                         return;
                     }
+                    if (args[i] == "--run-update-tests")
+                    {
+                        try
+                        {
+                            Services.DatabaseService.Initialize();
+                            var res = Services.AppUpdateTestRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "update_test_output.json"), json);
+                            Environment.Exit(res.Success ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Update test error: " + ex.Message);
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
+                    if (args[i] == "--run-export-tests")
+                    {
+                        try
+                        {
+                            Services.DatabaseService.Initialize();
+                            var res = Services.FullStoreExportTestRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "full_store_export_test_output.json"), json);
+                            Environment.Exit(res.Success ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Export test error: " + ex.Message);
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
+                    if (args[i] == "--run-variant-tests")
+                    {
+                        try
+                        {
+                            var res = Services.ProductVariantTestRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "variant_test_output.json"), json);
+                            Environment.Exit(res.Success ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Variant test error: " + ex.Message);
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
+                    if (args[i] == "--run-label-tests")
+                    {
+                        try
+                        {
+                            bool passed = Services.BarcodeLabelTestRunner.RunAllTests();
+                            Environment.Exit(passed ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Barcode label test error: " + ex.Message);
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
+                    if (args[i] == "--run-bulk-price-tests")
+                    {
+                        try
+                        {
+                            var res = Services.BulkPriceAdjustmentTestRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "bulk_price_test_output.json"), json);
+                            Environment.Exit(res.Success ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Bulk price test error: " + ex.Message);
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
+                    if (args[i] == "--run-data-quality-tests")
+                    {
+                        try
+                        {
+                            Services.DatabaseService.Initialize();
+                            var res = Services.DataQualityTestRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data_quality_test_output.json"), json);
+                            Environment.Exit(res.Success ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Data quality test error: " + ex.Message);
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
+                    if (args[i] == "--run-internal-barcode-tests")
+                    {
+                        try
+                        {
+                            Services.DatabaseService.Initialize();
+                            var res = Services.InternalBarcodeTestRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "internal_barcode_test_output.json"), json);
+                            Environment.Exit(res.Success ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Internal barcode test error: " + ex.Message);
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
                     if (args[i] == "--run-sales-completion-tests")
                     {
                         try
@@ -84,6 +204,40 @@ namespace RafiqPOS
                         catch (Exception ex)
                         {
                             Console.WriteLine("Purchases test error: " + ex.ToString());
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
+                    if (args[i] == "--run-batch-tests")
+                    {
+                        try
+                        {
+                            var res = Services.BatchTestRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "batch_test_output.json"), json);
+                            Environment.Exit(res.Success ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Batch test error: " + ex.ToString());
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
+                    if (args[i] == "--run-unit-tests")
+                    {
+                        try
+                        {
+                            var res = Services.ProductUnitTestRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "unit_test_output.json"), json);
+                            Environment.Exit(res.Success ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Unit test error: " + ex.ToString());
                             Environment.Exit(2);
                         }
                         return;

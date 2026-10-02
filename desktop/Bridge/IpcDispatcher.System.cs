@@ -101,6 +101,44 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, testPrintResult);
                     return true;
 
+                case "printer:printLabels":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات ملصقات الباركود فارغة");
+                        return true;
+                    }
+                    var labelReq = JsonConvert.DeserializeObject<PrintLabelsRequest>(request.Payload.ToString());
+                    var labelResult = DatabaseService.BarcodeLabels.PrintLabels(labelReq);
+                    if (labelResult.Success)
+                    {
+                        response = BridgeResponse.Ok(request.Id, labelResult);
+                    }
+                    else
+                    {
+                        response = BridgeResponse.Fail(request.Id, "PRINT_FAILED", labelResult.Message);
+                    }
+                    return true;
+
+                case "printer:testLabel":
+                    string testLabelPrinter = null;
+                    string testPaperSize = "38x25";
+                    JObject testLabelPayload = request.Payload as JObject;
+                    if (testLabelPayload != null)
+                    {
+                        if (testLabelPayload["printerName"] != null) testLabelPrinter = testLabelPayload["printerName"].ToString();
+                        if (testLabelPayload["paperSize"] != null) testPaperSize = testLabelPayload["paperSize"].ToString();
+                    }
+                    var testLabelRes = DatabaseService.BarcodeLabels.PrintTestLabel(testLabelPrinter, testPaperSize);
+                    if (testLabelRes.Success)
+                    {
+                        response = BridgeResponse.Ok(request.Id, testLabelRes);
+                    }
+                    else
+                    {
+                        response = BridgeResponse.Fail(request.Id, "PRINT_FAILED", testLabelRes.Message);
+                    }
+                    return true;
+
                 case "printer:printReceipt":
                     if (request.Payload == null)
                     {
@@ -568,6 +606,11 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, debtorsList);
                     return true;
 
+                case "reports:getDataQuality":
+                    var dataQualityReport = DatabaseService.Reports.GetDataQualityReport();
+                    response = BridgeResponse.Ok(request.Id, dataQualityReport);
+                    return true;
+
                 case "reports:runMilestone9Tests":
                     var m9TestResult = ReportsAndClosingTestRunner.RunAllTests();
                     response = BridgeResponse.Ok(request.Id, m9TestResult);
@@ -763,15 +806,27 @@ namespace RafiqPOS.Bridge
 
                 case "database:restore":
                     string restoreFilePath = null;
+                    string restoreMasterKey = null;
                     if (request.Payload != null)
                     {
                         JObject rObj = request.Payload as JObject;
-                        if (rObj != null && rObj["backupFilePath"] != null)
+                        if (rObj != null)
                         {
-                            restoreFilePath = rObj["backupFilePath"].ToString();
+                            if (rObj["backupFilePath"] != null)
+                            {
+                                restoreFilePath = rObj["backupFilePath"].ToString();
+                            }
+                            if (rObj["masterKey"] != null)
+                            {
+                                restoreMasterKey = rObj["masterKey"].ToString();
+                            }
+                            else if (rObj["password"] != null)
+                            {
+                                restoreMasterKey = rObj["password"].ToString();
+                            }
                         }
                     }
-                    var restoreResult = DatabaseService.RestoreFromBackup(restoreFilePath);
+                    var restoreResult = DatabaseService.RestoreFromBackup(restoreFilePath, restoreMasterKey);
                     if (restoreResult.Success)
                     {
                         response = BridgeResponse.Ok(request.Id, new { success = true, message = restoreResult.Message });
@@ -907,6 +962,81 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, custImportResult);
                     return true;
 
+                case "excel:exportFullStore":
+                    {
+                        string targetDir = null;
+                        if (request.Payload != null)
+                        {
+                            var pObj = request.Payload as JObject;
+                            if (pObj != null && pObj["targetFolder"] != null)
+                            {
+                                targetDir = pObj["targetFolder"].ToString();
+                            }
+                            else if (request.Payload is string)
+                            {
+                                targetDir = request.Payload.ToString();
+                            }
+                        }
+                        var fullStoreExportResult = DatabaseService.Excel.ExportFullStoreData(targetDir);
+                        response = BridgeResponse.Ok(request.Id, fullStoreExportResult);
+                        return true;
+                    }
+
+                case "excel:browseExportFolder":
+                    {
+                        string chosenFolder = null;
+                        var browseExportThread = new System.Threading.Thread(delegate()
+                        {
+                            using (var fbd = new System.Windows.Forms.FolderBrowserDialog())
+                            {
+                                fbd.Description = "اختر المجلد أو الفلاشة لحفظ ملفات التصدير الشاملة";
+                                if (fbd.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                                {
+                                    chosenFolder = fbd.SelectedPath;
+                                }
+                            }
+                        });
+                        browseExportThread.SetApartmentState(System.Threading.ApartmentState.STA);
+                        browseExportThread.Start();
+                        browseExportThread.Join();
+                        response = BridgeResponse.Ok(request.Id, new { selectedFolder = chosenFolder, cancelled = string.IsNullOrEmpty(chosenFolder) });
+                        return true;
+                    }
+
+                case "excel:openExportFolder":
+                    {
+                        string openDir = null;
+                        if (request.Payload != null)
+                        {
+                            var pObj = request.Payload as JObject;
+                            if (pObj != null && pObj["folderPath"] != null)
+                            {
+                                openDir = pObj["folderPath"].ToString();
+                            }
+                            else if (request.Payload is string)
+                            {
+                                openDir = request.Payload.ToString();
+                            }
+                        }
+                        if (!string.IsNullOrEmpty(openDir) && System.IO.Directory.Exists(openDir))
+                        {
+                            System.Diagnostics.Process.Start("explorer.exe", openDir);
+                            response = BridgeResponse.Ok(request.Id, new { success = true });
+                        }
+                        else
+                        {
+                            response = BridgeResponse.Fail(request.Id, "FOLDER_NOT_FOUND", "المجلد المحدد غير موجود");
+                        }
+                        return true;
+                    }
+
+                case "excel:runExportTests":
+                    {
+                        var testRes = FullStoreExportTestRunner.RunAllTests();
+                        response = BridgeResponse.Ok(request.Id, testRes);
+                        return true;
+                    }
+
                 case "audit:verifyChain":
                     var chainCheck = DatabaseService.Audit.VerifyChainIntegrity();
                     response = BridgeResponse.Ok(request.Id, chainCheck);
@@ -975,6 +1105,63 @@ namespace RafiqPOS.Bridge
                         ? DatabaseService.License.CheckExpiry() 
                         : null;
                     response = BridgeResponse.Ok(request.Id, chkExpiry);
+                    return true;
+
+                case "license:deactivateForTransfer":
+                    string transReason = "";
+                    if (request.Payload != null)
+                    {
+                        JObject transObj = request.Payload as JObject;
+                        if (transObj != null && transObj["reason"] != null)
+                        {
+                            transReason = transObj["reason"].ToString();
+                        }
+                    }
+                    var deactRes = DatabaseService.License != null
+                        ? DatabaseService.License.DeactivateForTransfer(transReason)
+                        : new LicenseOperationResult { Success = false, Message = "خدمة التراخيص غير مهيأة" };
+                    response = BridgeResponse.Ok(request.Id, deactRes);
+                    return true;
+
+                case "license:activateSupportCode":
+                    string supCode = "";
+                    string supShop = "";
+                    if (request.Payload != null)
+                    {
+                        JObject actSupObj = request.Payload as JObject;
+                        if (actSupObj != null)
+                        {
+                            if (actSupObj["supportCode"] != null) supCode = actSupObj["supportCode"].ToString();
+                            else if (actSupObj["code"] != null) supCode = actSupObj["code"].ToString();
+                            if (actSupObj["shopName"] != null) supShop = actSupObj["shopName"].ToString();
+                        }
+                    }
+                    var actSupRes = DatabaseService.License != null
+                        ? DatabaseService.License.ActivateWithSupportCode(supCode, supShop)
+                        : new LicenseOperationResult { Success = false, Message = "خدمة التراخيص غير مهيأة" };
+                    response = BridgeResponse.Ok(request.Id, actSupRes);
+                    return true;
+
+                case "license:generateSupportCode":
+                    string genFp = "";
+                    string genType = "lifetime";
+                    int genDays = 9999;
+                    if (request.Payload != null)
+                    {
+                        JObject genObj = request.Payload as JObject;
+                        if (genObj != null)
+                        {
+                            if (genObj["deviceFingerprint"] != null) genFp = genObj["deviceFingerprint"].ToString();
+                            if (genObj["licenseType"] != null) genType = genObj["licenseType"].ToString();
+                            if (genObj["days"] != null) genDays = genObj["days"].Value<int>();
+                        }
+                    }
+                    if (string.IsNullOrEmpty(genFp))
+                    {
+                        genFp = EncryptionService.GenerateDeviceFingerprint();
+                    }
+                    string generatedCode = LicenseService.GenerateOfflineSupportCode(genFp, genType, genDays);
+                    response = BridgeResponse.Ok(request.Id, new { supportCode = generatedCode, deviceFingerprint = genFp });
                     return true;
 
                 case "license:runTests":
@@ -1086,6 +1273,49 @@ namespace RafiqPOS.Bridge
                     folderThread.Join();
                     response = BridgeResponse.Ok(request.Id, new { selectedFolder = selectedFolder, cancelled = string.IsNullOrEmpty(selectedFolder) });
                     return true;
+
+                case "updates:check":
+                    {
+                        string manifestOrUrl = null;
+                        if (request.Payload != null)
+                        {
+                            var pObj = request.Payload as JObject;
+                            if (pObj != null && pObj["url"] != null)
+                            {
+                                manifestOrUrl = pObj["url"].ToString();
+                            }
+                        }
+                        var updateInfo = DatabaseService.Updates.CheckForUpdates(manifestOrUrl);
+                        response = BridgeResponse.Ok(request.Id, updateInfo);
+                        return true;
+                    }
+
+                case "updates:apply":
+                    {
+                        string pkgPath = null;
+                        string expectedSha = null;
+                        bool simFail = false;
+                        if (request.Payload != null)
+                        {
+                            var pObj = request.Payload as JObject;
+                            if (pObj != null)
+                            {
+                                if (pObj["packagePath"] != null) pkgPath = pObj["packagePath"].ToString();
+                                if (pObj["expectedSha256"] != null) expectedSha = pObj["expectedSha256"].ToString();
+                                if (pObj["simulateFailure"] != null) simFail = pObj["simulateFailure"].Value<bool>();
+                            }
+                        }
+                        var updateApplyRes = DatabaseService.Updates.ApplyUpdate(pkgPath, expectedSha, simFail);
+                        response = BridgeResponse.Ok(request.Id, updateApplyRes);
+                        return true;
+                    }
+
+                case "updates:runTests":
+                    {
+                        var updateTestRes = AppUpdateTestRunner.RunAllTests();
+                        response = BridgeResponse.Ok(request.Id, updateTestRes);
+                        return true;
+                    }
 
                 default:
                     return false;

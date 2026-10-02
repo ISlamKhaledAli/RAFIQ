@@ -1092,6 +1092,36 @@ function serveAdminHtml(): Response {
     .btn-row-share:hover {
       background: #dcfce7;
     }
+    .btn-row-device {
+      color: #0f766e;
+      border-color: #99f6e4;
+      background: #f0fdfa;
+    }
+    .btn-row-device:hover {
+      background: #ccfbf1;
+      border-color: #5eead4;
+    }
+    .btn-fp-badge {
+      background: #f0fdfa;
+      border: 1px solid #99f6e4;
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 11px;
+      font-family: monospace;
+      font-weight: 700;
+      color: #0f766e;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+    }
+    .btn-fp-badge:hover {
+      background: #ccfbf1;
+      border-color: #2dd4bf;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 5px rgba(15,118,110,0.12);
+    }
 
     /* ========================================== */
     /* CUSTOM LUXURY PAGE SIZE DROPDOWN (Zero OS) */
@@ -1834,6 +1864,84 @@ function serveAdminHtml(): Response {
     </div>
   </div>
 
+  <!-- Modal: Device Fingerprint & Cloud Recovery (HWID & Disaster Recovery) -->
+  <div class="modal-overlay" id="deviceModal">
+    <div class="modal-card" style="max-width:560px;">
+      <div class="modal-header">
+        <h4>
+          <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          <span>معاينة بصمة الجهاز وكود الاسترجاع السحابي</span>
+        </h4>
+        <button class="modal-close" onclick="closeModal('deviceModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- License Header Banner -->
+        <div style="background:#f8fafc; border:1px solid var(--border); border-radius:var(--radius-lg); padding:12px 16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+          <div>
+            <div style="font-size:11px; font-weight:800; color:var(--text-muted);">المنشأة:</div>
+            <div id="devModalShopName" style="font-weight:900; color:var(--primary); font-size:14px;"></div>
+          </div>
+          <div>
+            <div style="font-size:11px; font-weight:800; color:var(--text-muted);">رمز الترخيص:</div>
+            <div id="devModalLicKey" style="font-family:monospace; font-weight:900; color:var(--emerald); font-size:13px;"></div>
+          </div>
+          <div>
+            <div style="font-size:11px; font-weight:800; color:var(--text-muted);">حالة الربط:</div>
+            <div id="devModalBindStatus"></div>
+          </div>
+        </div>
+
+        <!-- Machine HWID Fingerprint Box -->
+        <div class="field">
+          <label style="display:flex; justify-content:space-between; align-items:center;">
+            <span>بصمة الجهاز المربوط (Hardware ID / HWID)</span>
+            <span style="font-size:11px; color:var(--text-muted); font-weight:600;">مشتقة من المعالج واللوحة الأم للنظام</span>
+          </label>
+          <div style="position:relative;">
+            <div id="devModalFpBox" style="font-family:monospace; font-size:12px; background:#0f172a; color:#38bdf8; padding:12px 14px; border-radius:8px; line-height:1.6; word-break:break-all; user-select:all; border:1px solid #1e293b; min-height:46px;"></div>
+          </div>
+          <div style="display:flex; justify-content:flex-end; margin-top:6px;">
+            <button class="btn-row" id="devModalCopyFpBtn" onclick="copyDeviceFingerprint()">
+              <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>نسخ البصمة كاملة</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Cloud Emergency Recovery Key Box -->
+        <div class="field" style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:var(--radius-lg); padding:14px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+            <svg class="icon" style="color:#16a34a;" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span style="font-weight:900; font-size:13px; color:#14532d;">كود الاسترجاع السحابي للطوارئ (Master Recovery Key)</span>
+          </div>
+          <p style="font-size:11.5px; color:#166534; line-height:1.5; margin-bottom:10px;">
+            إذا تلف جهاز العميل أو احترق وأراد استرجاع نسخته الاحتياطية على جهاز جديد، زوده بهذا المفتاح في شاشة الاسترجاع لفك تشفير البيانات فوراً:
+          </p>
+          <div style="display:flex; align-items:center; justify-content:space-between; background:#ffffff; border:1px solid #86efac; border-radius:6px; padding:8px 12px;">
+            <span id="devModalRecoveryKeyBox" style="font-family:monospace; font-size:15px; font-weight:900; color:#047857; letter-spacing:0.5px;"></span>
+            <button class="btn-row btn-row-share" onclick="copyRecoveryKey()">
+              <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>نسخ المفتاح</span>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+        <button class="btn-row" onclick="closeModal('deviceModal')">إغلاق</button>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn-row btn-row-share" id="devModalWhatsAppBtn" onclick="openDeviceRecoveryWhatsApp()">
+            <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            <span>إرسال بيانات الاسترجاع للعميل</span>
+          </button>
+          <button class="btn-row btn-row-danger" id="devModalUnlinkBtn" onclick="unlinkFromDeviceModal()">
+            <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+            <span>فك ربط الجهاز</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Extend / Edit -->
   <div class="modal-overlay" id="editModal">
     <div class="modal-card">
@@ -2412,8 +2520,11 @@ function serveAdminHtml(): Response {
 
         // Hardware device info
         const fpDisplay = lic.machine_fingerprint 
-          ? '<span style="font-family:monospace; font-size:11px; color:#0f766e; font-weight:700;" title="' + lic.machine_fingerprint + '">' + lic.machine_fingerprint.substring(0, 16) + '...</span>' 
-          : '<span style="color:var(--text-muted); font-size:11.5px;">غير مربوط</span>';
+          ? \`<button class="btn-fp-badge" onclick="openDeviceModal('\${lic.id}')" title="معاينة بصمة الجهاز وكود الاسترجاع السحابي">
+               <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+               <span>\${lic.machine_fingerprint.substring(0, 14)}...</span>
+             </button>\`
+          : '<span style="color:var(--text-muted); font-size:11.5px; font-weight:700;">غير مربوط</span>';
 
         tr.innerHTML = \`
           <td style="font-family:monospace; color:var(--text-muted); font-size:12px; font-weight:700;">\${rowNumber}</td>
@@ -2440,6 +2551,10 @@ function serveAdminHtml(): Response {
           <td>\${fpDisplay}</td>
           <td>
             <div class="row-actions">
+              <button class="btn-row btn-row-device" onclick="openDeviceModal('\${lic.id}')" title="معاينة بصمة الجهاز وكود الاسترجاع للطوارئ">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                <span>البصمة</span>
+              </button>
               <button class="btn-row btn-row-share" onclick="openShareModal('\${lic.id}')" title="تسليم المفتاح للعميل">
                 <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                 <span>تسليم</span>
@@ -2918,6 +3033,90 @@ function serveAdminHtml(): Response {
       }
       const text = encodeURIComponent(document.getElementById('shareTextarea').value);
       window.open('https://wa.me/' + phone + '?text=' + text, '_blank');
+    }
+
+    let currentDeviceData = null;
+
+    function openDeviceModal(id) {
+      const lic = allLicenses.find(l => l.id === id);
+      if (!lic) return;
+      currentDeviceData = lic;
+
+      document.getElementById('devModalShopName').textContent = lic.shop_name;
+      document.getElementById('devModalLicKey').textContent = lic.license_key;
+
+      const fp = (lic.machine_fingerprint || '').trim();
+      const statusEl = document.getElementById('devModalBindStatus');
+      const fpBox = document.getElementById('devModalFpBox');
+      const copyFpBtn = document.getElementById('devModalCopyFpBtn');
+      const unlinkBtn = document.getElementById('devModalUnlinkBtn');
+      const recoveryBox = document.getElementById('devModalRecoveryKeyBox');
+      const whatsappBtn = document.getElementById('devModalWhatsAppBtn');
+
+      if (fp) {
+        statusEl.innerHTML = '<span class="pill pill-active">مربوط بجهاز نشط</span>';
+        fpBox.textContent = fp;
+        fpBox.style.color = '#38bdf8';
+        copyFpBtn.style.display = 'inline-flex';
+        unlinkBtn.style.display = 'inline-flex';
+        recoveryBox.textContent = lic.license_key;
+      } else {
+        statusEl.innerHTML = '<span class="pill pill-pending">غير مربوط (متاح للتفعيل)</span>';
+        fpBox.textContent = 'لا يوجد جهاز مربوط حالياً بهذا الترخيص. عند تفعيل العميل للبرنامج على جهازه، ستظهر البصمة هنا تلقائياً.';
+        fpBox.style.color = '#94a3b8';
+        copyFpBtn.style.display = 'none';
+        unlinkBtn.style.display = 'none';
+        recoveryBox.textContent = lic.license_key;
+      }
+
+      const phoneDigits = lic.owner_phone ? lic.owner_phone.replace(/\D/g, '') : '';
+      whatsappBtn.style.display = (fp && phoneDigits) ? 'inline-flex' : 'none';
+
+      openModal('deviceModal');
+    }
+
+    function copyDeviceFingerprint() {
+      if (!currentDeviceData || !currentDeviceData.machine_fingerprint) return;
+      navigator.clipboard.writeText(currentDeviceData.machine_fingerprint);
+      showToast('تم نسخ بصمة الجهاز كاملة بنجاح');
+    }
+
+    function copyRecoveryKey() {
+      if (!currentDeviceData) return;
+      navigator.clipboard.writeText(currentDeviceData.license_key);
+      showToast('تم نسخ مفتاح الاسترجاع بنجاح');
+    }
+
+    function unlinkFromDeviceModal() {
+      if (!currentDeviceData) return;
+      const targetId = currentDeviceData.id;
+      const targetShop = currentDeviceData.shop_name;
+      closeModal('deviceModal');
+      resetDevice(targetId, targetShop);
+    }
+
+    function openDeviceRecoveryWhatsApp() {
+      if (!currentDeviceData || !currentDeviceData.owner_phone) return;
+      let phone = currentDeviceData.owner_phone.replace(/\D/g, '');
+      if (phone.startsWith('01')) {
+        phone = '2' + phone; // Egypt prefix
+      }
+      const msg = \`مرحباً بك، فريق دعم رفيق لنقاط البيع (Rafiq POS)
+
+بيانات فك تشفير واسترجاع النسخة الاحتياطية على جهاز جديد:
+المنشأة: \${currentDeviceData.shop_name}
+رمز الترخيص: \${currentDeviceData.license_key}
+مفتاح الاسترجاع وفك التشفير (Master Recovery Key):
+\${currentDeviceData.license_key}
+
+خطوات الاسترجاع:
+1. قم بتثبيت برنامج رفيق POS على الكمبيوتر الجديد.
+2. في شاشة الدخول أو من الإعدادات، اختر "استرجاع نسخة احتياطية".
+3. حدد ملف النسخة المشفر من الفلاشة.
+4. أدخل مفتاح الاسترجاع أعلاه لفك التشفير واستعادة كافة بيانات المحل والفواتير بنجاح.
+
+لأي استفسار تواصل معنا مباشرة.\`;
+      window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank');
     }
 
     function openEditModal(id) {

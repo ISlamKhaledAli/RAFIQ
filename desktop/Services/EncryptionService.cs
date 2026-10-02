@@ -23,15 +23,26 @@ namespace RafiqPOS.Services
             get { return _deviceFingerprint; }
         }
 
-        public EncryptionService()
+        public EncryptionService() : this(null)
+        {
+        }
+
+        public EncryptionService(string customKeyOrPassword)
         {
             _deviceFingerprint = GenerateDeviceFingerprint();
+            string keyMaterial = !string.IsNullOrEmpty(customKeyOrPassword)
+                ? customKeyOrPassword
+                : _deviceFingerprint;
 
-            // Derive 32-byte AES key and 32-byte HMAC key using PBKDF2 with 10,000 iterations
-            using (var deriveBytes = new Rfc2898DeriveBytes(_deviceFingerprint, APP_SALT, 10000))
+            DeriveKeys(keyMaterial, out _aesKey, out _hmacKey);
+        }
+
+        public static void DeriveKeys(string keyMaterial, out byte[] aesKey, out byte[] hmacKey)
+        {
+            using (var deriveBytes = new Rfc2898DeriveBytes(keyMaterial, APP_SALT, 10000))
             {
-                _aesKey = deriveBytes.GetBytes(32);
-                _hmacKey = deriveBytes.GetBytes(32);
+                aesKey = deriveBytes.GetBytes(32);
+                hmacKey = deriveBytes.GetBytes(32);
             }
         }
 
@@ -234,6 +245,14 @@ namespace RafiqPOS.Services
         /// </summary>
         public void DecryptFile(string sourceEncryptedPath, string targetDecryptedPath)
         {
+            DecryptFile(sourceEncryptedPath, targetDecryptedPath, null);
+        }
+
+        /// <summary>
+        /// Decrypts a Rafiq encrypted file back to its original plain format with optional master key/password fallback
+        /// </summary>
+        public void DecryptFile(string sourceEncryptedPath, string targetDecryptedPath, string fallbackKeyOrPassword)
+        {
             if (!File.Exists(sourceEncryptedPath))
             {
                 throw new FileNotFoundException("ملف النسخة المشفرة غير موجود: " + sourceEncryptedPath);
@@ -274,15 +293,41 @@ namespace RafiqPOS.Services
                 }
 
                 long ciphertextStart = sourceStream.Position;
+                byte[] effectiveAesKey = _aesKey;
+                bool hmacValid = false;
 
-                // Verify HMAC integrity before decrypting
+                // 1. First attempt: Verify HMAC using device-bound key
                 using (var hmac = new HMACSHA256(_hmacKey))
                 {
                     byte[] computedHmac = hmac.ComputeHash(sourceStream);
-                    if (!ConstantTimeEquals(storedHmac, computedHmac))
+                    if (ConstantTimeEquals(storedHmac, computedHmac))
                     {
-                        throw new CryptographicException("فشل التحقق من صحة التشفير! الملف إما تالف أو تم تعديله خارج النظام أو أُخذ من جهاز مختلف.");
+                        hmacValid = true;
                     }
+                }
+
+                // 2. Second attempt: If failed and fallback key/password provided, try fallback key
+                if (!hmacValid && !string.IsNullOrEmpty(fallbackKeyOrPassword))
+                {
+                    byte[] fallbackAes;
+                    byte[] fallbackHmac;
+                    DeriveKeys(fallbackKeyOrPassword, out fallbackAes, out fallbackHmac);
+
+                    using (var hmac = new HMACSHA256(fallbackHmac))
+                    {
+                        sourceStream.Seek(ciphertextStart, SeekOrigin.Begin);
+                        byte[] computedHmac = hmac.ComputeHash(sourceStream);
+                        if (ConstantTimeEquals(storedHmac, computedHmac))
+                        {
+                            hmacValid = true;
+                            effectiveAesKey = fallbackAes;
+                        }
+                    }
+                }
+
+                if (!hmacValid)
+                {
+                    throw new CryptographicException("فشل التحقق من صحة التشفير! الملف إما تالف أو تم تعديله خارج النظام أو أُخذ من جهاز مختلف ومفتاح الاسترجاع غير مطابق.");
                 }
 
                 // Decrypt ciphertext to destination
@@ -298,7 +343,7 @@ namespace RafiqPOS.Services
                         aes.BlockSize = 128;
                         aes.Mode = CipherMode.CBC;
                         aes.Padding = PaddingMode.PKCS7;
-                        aes.Key = _aesKey;
+                        aes.Key = effectiveAesKey;
                         aes.IV = iv;
 
                         using (var decryptor = aes.CreateDecryptor())

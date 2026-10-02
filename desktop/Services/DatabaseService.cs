@@ -105,6 +105,12 @@ namespace RafiqPOS.Services
         public static DailyClosingRepository DailyClosingRepo { get; private set; }
         public static DailyClosingService DailyClosing { get; private set; }
         public static MigrationService Migration { get; private set; }
+        public static ProductBatchRepository ProductBatchRepo { get; private set; }
+        public static ProductBatchService ProductBatches { get; private set; }
+        public static ProductVariantRepository ProductVariantRepo { get; private set; }
+        public static ProductVariantService ProductVariants { get; private set; }
+        public static BarcodeLabelService BarcodeLabels { get; private set; }
+        public static AppUpdateService Updates { get; private set; }
 
         public static void Initialize(string customBaseFolder = null)
         {
@@ -152,8 +158,10 @@ namespace RafiqPOS.Services
             // Initialize Repositories and Services (Feature #5 & #7)
             CounterRepo = new CounterRepository(_connectionString);
             AuditRepo = new AuditLogRepository(_connectionString);
-            ProductRepo = new ProductRepository(_connectionString, AuditRepo);
-            SaleRepo = new SaleRepository(_connectionString, CounterRepo, AuditRepo);
+            ProductRepo = new ProductRepository(_connectionString, AuditRepo, CounterRepo);
+            ProductBatchRepo = new ProductBatchRepository(_connectionString, AuditRepo);
+            ProductVariantRepo = new ProductVariantRepository(_connectionString);
+            SaleRepo = new SaleRepository(_connectionString, CounterRepo, AuditRepo, ProductBatchRepo);
             SettingsRepo = new SettingsRepository(_connectionString);
             CustomerRepo = new CustomerRepository(_connectionString, AuditRepo);
             CategoryRepo = new CategoryRepository(_connectionString);
@@ -165,6 +173,8 @@ namespace RafiqPOS.Services
 
             Products = new ProductService(ProductRepo, AuditRepo, PriceHistoryRepo, StockMovementRepo);
             ProductUnits = new ProductUnitService(_connectionString);
+            ProductBatches = new ProductBatchService(ProductBatchRepo, SettingsRepo);
+            ProductVariants = new ProductVariantService(_connectionString);
             Sales = new SaleService(SaleRepo, ProductRepo);
             Inventory = new InventoryService(_connectionString, StockMovementRepo, ProductRepo, AuditRepo);
             Settings = new SettingsService(SettingsRepo);
@@ -188,7 +198,7 @@ namespace RafiqPOS.Services
             HeldSaleRepo = new HeldSaleRepository(_connectionString);
             ReturnRepo = new ReturnRepository(_connectionString, CounterRepo, AuditRepo);
             SupplierRepo = new SupplierRepository(_connectionString, AuditRepo);
-            PurchaseRepo = new PurchaseRepository(_connectionString, CounterRepo, SupplierRepo, PriceHistoryRepo, AuditRepo);
+            PurchaseRepo = new PurchaseRepository(_connectionString, CounterRepo, SupplierRepo, PriceHistoryRepo, AuditRepo, ProductBatchRepo);
 
             HeldSales = new HeldSaleService(HeldSaleRepo);
             Returns = new ReturnService(ReturnRepo, SaleRepo);
@@ -198,6 +208,8 @@ namespace RafiqPOS.Services
             DailyClosingRepo = new DailyClosingRepository(_connectionString);
             DailyClosing = new DailyClosingService(_connectionString, DailyClosingRepo, CounterRepo, AuditRepo, SettingsRepo);
             Migration = new MigrationService(_connectionString, _dbPath, SettingsRepo, AuditRepo);
+            Updates = new AppUpdateService(SettingsRepo, Backup, Audit);
+            BarcodeLabels = new BarcodeLabelService(Settings, Printer);
 
             // Cleanup old held sales (> 7 days) on startup (Task 25-4)
             try
@@ -321,6 +333,11 @@ namespace RafiqPOS.Services
 
         public static TransactionResult RestoreFromBackup(string backupFilePath)
         {
+            return RestoreFromBackup(backupFilePath, null);
+        }
+
+        public static TransactionResult RestoreFromBackup(string backupFilePath, string masterKey)
+        {
             string tempStaging = null;
             try
             {
@@ -349,7 +366,15 @@ namespace RafiqPOS.Services
                     {
                         Encryption = new EncryptionService();
                     }
-                    Encryption.DecryptFile(targetBackup, tempStaging);
+                    try
+                    {
+                        Encryption.DecryptFile(targetBackup, tempStaging, masterKey);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Error("فشل فك تشفير النسخة الاحتياطية أثناء الاسترجاع", ex);
+                        return new TransactionResult(false, "تعذر فك تشفير النسخة الاحتياطية: " + ex.Message);
+                    }
                     fileToRestore = tempStaging;
                 }
 

@@ -35,6 +35,15 @@ namespace RafiqPOS.Models
         [JsonProperty("newSellingPricePiasters")]
         public long? NewSellingPricePiasters { get; set; }
 
+        [JsonProperty("batchNumber")]
+        public string BatchNumber { get; set; }
+
+        [JsonProperty("expiryDate")]
+        public string ExpiryDate { get; set; }
+
+        [JsonProperty("productionDate")]
+        public string ProductionDate { get; set; }
+
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
     }

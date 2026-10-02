@@ -22,6 +22,8 @@ import { ItemDiscountModal } from '../components/ItemDiscountModal';
 import { SupervisorPromptModal } from '../components/SupervisorPromptModal';
 import { HeldSalesModal } from '../components/HeldSalesModal';
 import { ReturnModal } from '../components/ReturnModal';
+import { ProductVariantPickerModal } from '../components/ProductVariantPickerModal';
+import { ProductUnitPickerModal } from '../components/ProductUnitPickerModal';
 import { 
   convertArabicLayoutToBarcode,
   loadScannerSettings,
@@ -136,6 +138,12 @@ export const PosView = () => {
   const [quantityModalItem, setQuantityModalItem] = useState<{ index: number; name: string; currentQty: number } | null>(null);
   const [quantityInputVal, setQuantityInputVal] = useState('');
 
+  // Variant Picker Modal State (Feature #114 / Task 114-5)
+  const [variantPickerParentProduct, setVariantPickerParentProduct] = useState<Product | null>(null);
+
+  // Unit Picker Modal State (Feature #175 / Task 175-2)
+  const [unitPickerProduct, setUnitPickerProduct] = useState<Product | null>(null);
+
   // Live Instant Search State (Task 22-4)
   const [liveSearchResults, setLiveSearchResults] = useState<Product[]>([]);
   const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
@@ -182,6 +190,12 @@ export const PosView = () => {
   };
 
   const addProductToCart = useCallback((prod: Product, customWeightMilli?: number, specificUnit?: ProductUnit) => {
+    // If this product has variants (matrix parent), prompt variant picker modal
+    if (prod.hasVariants) {
+      setVariantPickerParentProduct(prod);
+      return;
+    }
+
     let unitToUse = specificUnit;
     if (!unitToUse && prod.units && prod.units.length > 0) {
       unitToUse = prod.units.find(u => u.isBaseUnit) || prod.units[0];
@@ -1023,6 +1037,7 @@ export const PosView = () => {
     barcodeInputRef,
     setInitialWeightMilli,
     setWeightModalProduct,
+    setUnitPickerProduct,
   });
 
   const updateQuantity = useCallback((index: number, deltaPieces: number) => {
@@ -1140,7 +1155,7 @@ export const PosView = () => {
   useEffect(() => {
     const isAnyModalOpen = isPaymentModalOpen || isReceiptOpen || isClearConfirmOpen || 
       isScannerModalOpen || isQuickAddModalOpen || isQuickItemsManagerOpen || 
-      isQuickFastItemModalOpen || isHelpModalOpen || isHeldSalesModalOpen || isReturnModalOpen || !!weightModalProduct;
+      isQuickFastItemModalOpen || isHelpModalOpen || isHeldSalesModalOpen || isReturnModalOpen || !!weightModalProduct || !!variantPickerParentProduct || !!unitPickerProduct;
 
     if (!isAnyModalOpen) {
       const timer = setTimeout(() => {
@@ -1159,7 +1174,9 @@ export const PosView = () => {
     isHelpModalOpen, 
     isHeldSalesModalOpen,
     isReturnModalOpen,
-    weightModalProduct
+    weightModalProduct,
+    variantPickerParentProduct,
+    unitPickerProduct
   ]);
 
   return (
@@ -1563,6 +1580,38 @@ export const PosView = () => {
         }}
         onReturnCompleted={(ret) => {
           showStatus(`تم تسجيل المرتجع رقم #${ret.returnNumber} بقيمة ${formatArabicCurrency(ret.totalPiasters)}`, 'success');
+        }}
+      />
+
+      {/* 16. VARIANT PICKER MODAL (Feature #114 / Task 114-5) */}
+      <ProductVariantPickerModal
+        isOpen={variantPickerParentProduct !== null}
+        onClose={() => {
+          setVariantPickerParentProduct(null);
+          barcodeInputRef.current?.focus();
+        }}
+        parentProduct={variantPickerParentProduct}
+        onSelectVariant={(variantProd) => {
+          addProductToCart(variantProd);
+          showStatus(`تمت إضافة: ${variantProd.name}`, 'success');
+        }}
+      />
+
+      {/* 17. UNIT PICKER MODAL (Feature #175 / Task 175-2) */}
+      <ProductUnitPickerModal
+        isOpen={unitPickerProduct !== null}
+        onClose={() => {
+          setUnitPickerProduct(null);
+          barcodeInputRef.current?.focus();
+        }}
+        product={unitPickerProduct}
+        onSelectUnit={(selectedUnit) => {
+          if (unitPickerProduct) {
+            addProductToCart(unitPickerProduct, undefined, selectedUnit);
+            showStatus(`تمت إضافة: ${unitPickerProduct.name} (${selectedUnit.unitName})`, 'success');
+          }
+          setUnitPickerProduct(null);
+          barcodeInputRef.current?.focus();
         }}
       />
     </div>

@@ -77,6 +77,27 @@ namespace RafiqPOS.Models
         [JsonProperty("quickDisplayOrder")]
         public int QuickDisplayOrder { get; set; }
 
+        [JsonProperty("parentId")]
+        public string ParentId { get; set; }
+
+        [JsonProperty("hasVariants")]
+        public bool HasVariants { get; set; }
+
+        [JsonProperty("variantSize")]
+        public string VariantSize { get; set; }
+
+        [JsonProperty("variantColor")]
+        public string VariantColor { get; set; }
+
+        [JsonProperty("variantSku")]
+        public string VariantSku { get; set; }
+
+        [JsonProperty("variantsCount")]
+        public int VariantsCount { get; set; }
+
+        [JsonProperty("variants")]
+        public System.Collections.Generic.List<ProductVariant> Variants { get; set; }
+
         // Presentation helpers (Never used in internal DB math)
         [JsonProperty("priceFormatted")]
         public string PriceFormatted

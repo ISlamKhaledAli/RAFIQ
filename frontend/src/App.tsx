@@ -10,8 +10,6 @@ import {
   LayoutDashboard,
   Users,
   ShieldAlert,
-  AlertTriangle,
-  Database,
   ChevronDown,
   ChevronLeft,
   Tag,
@@ -29,13 +27,18 @@ import {
   KeyRound,
   FlaskConical,
   Power,
-  Play,
-  Trash2,
   Truck,
   Receipt,
   Plus,
   Building2,
+  HelpCircle,
 } from 'lucide-react';
+import { 
+  NotificationBellButton, 
+  NotificationCenterDrawer, 
+  CompactAlertTickerBar 
+} from './components/NotificationCenter';
+import { useSystemNotifications } from './utils/useSystemNotifications';
 import { invoke } from './bridge/ipc';
 import { PosView } from './views/PosView';
 import { DashboardView } from './views/DashboardView';
@@ -61,6 +64,7 @@ import { SupervisorPromptModal } from './components/SupervisorPromptModal';
 import { LicenseExpiredLockScreen } from './components/LicenseExpiredLockScreen';
 import type { LicenseExpiryDetails } from './components/LicenseExpiredLockScreen';
 import { LicenseModal } from './components/LicenseModal';
+import { HelpCenterModal } from './components/HelpCenterModal';
 
 export interface SystemInfo {
   appName: string;
@@ -72,147 +76,7 @@ export interface SystemInfo {
 
 export type TabType = 'pos' | 'dashboard' | 'customers' | 'products' | 'purchases' | 'sales' | 'audit' | 'settings';
 
-const formatLicenseExpiryTime = (details: LicenseExpiryDetails): string => {
-  if (!details.expiresAt) return 'قريباً';
-  try {
-    const raw = details.expiresAt.trim();
-    const d = new Date(raw.endsWith('Z') || raw.includes('T') ? raw : `${raw} UTC`);
-    if (isNaN(d.getTime())) return details.expiresAt;
-    const localTime = d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
-    const localDate = d.toLocaleDateString('ar-EG', { year: 'numeric', month: 'numeric', day: 'numeric' });
-    if (details.daysRemaining <= 1) {
-      return `اليوم الساعة ${localTime}`;
-    }
-    return `خلال ${details.daysRemaining} أيام (${localDate} ${localTime})`;
-  } catch {
-    return details.expiresAt;
-  }
-};
 
-const LicenseExpiryBanner: FC<{
-  licenseExpiry: LicenseExpiryDetails;
-  onRenew: () => void;
-}> = memo(({ licenseExpiry, onRenew }) => {
-  const [countdown, setCountdown] = useState<string | null>(null);
-  const [isCritical, setIsCritical] = useState<boolean>(licenseExpiry.daysRemaining <= 1);
-
-  useEffect(() => {
-    if (!licenseExpiry.expiresAt) return;
-
-    const updateTimer = () => {
-      try {
-        const raw = licenseExpiry.expiresAt.trim();
-        const targetTime = new Date(raw.endsWith('Z') || raw.includes('T') ? raw : `${raw} UTC`).getTime();
-        if (isNaN(targetTime)) return;
-
-        const diffMs = targetTime - Date.now();
-        if (diffMs <= 0) {
-          setCountdown('00:00:00 (انتهى)');
-          setIsCritical(true);
-          return;
-        }
-
-        // When <= 24 hours (1 day)
-        if (diffMs <= 24 * 60 * 60 * 1000) {
-          setIsCritical(true);
-          const totalSecs = Math.floor(diffMs / 1000);
-          const hours = Math.floor(totalSecs / 3600);
-          const minutes = Math.floor((totalSecs % 3600) / 60);
-          const seconds = totalSecs % 60;
-          setCountdown(
-            `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-          );
-        } else {
-          setIsCritical(false);
-          setCountdown(null);
-        }
-      } catch {
-        // ignore
-      }
-    };
-
-    updateTimer();
-    const interval = setInterval(updateTimer, 1000);
-    return () => clearInterval(interval);
-  }, [licenseExpiry.expiresAt]);
-
-  return (
-    <div
-      className={`px-4 py-2 flex items-center justify-between text-[12px] shrink-0 select-none border-b transition-all duration-200 ${
-        isCritical
-          ? 'bg-[#fff1f2] border-[#fecdd3] text-[#881337] shadow-2xs'
-          : 'bg-[#fffbeb] border-[#fde68a] text-[#78350f] shadow-2xs'
-      }`}
-    >
-      <div className="flex items-center gap-3">
-        <div
-          className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 shadow-2xs ${
-            isCritical
-              ? 'bg-[#ffe4e6] border border-[#fecdd3] text-[#e11d48]'
-              : 'bg-[#fef3c7] border border-[#fde68a] text-[#b45309]'
-          }`}
-        >
-          {isCritical ? (
-            <ShieldAlert className="w-4 h-4 animate-pulse" />
-          ) : (
-            <AlertTriangle className="w-4 h-4" />
-          )}
-        </div>
-
-        <div className="flex items-center gap-2.5 flex-wrap">
-          {isCritical ? (
-            <>
-              <span className="bg-[#e11d48] text-white px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider shadow-2xs flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
-                تنبيه حرج
-              </span>
-              <span className="font-extrabold text-[#9f1239] text-[13px] tracking-tight">
-                سينتهي اشتراك البرنامج قريباً جداً!
-              </span>
-              {countdown && (
-                <div className="inline-flex items-center gap-1.5 bg-white text-[#9f1239] border border-[#fecdd3] px-2.5 py-0.5 rounded-lg shadow-2xs font-mono tabular-nums">
-                  <Clock className="w-3.5 h-3.5 text-[#e11d48] shrink-0" />
-                  <span className="text-[#9f1239] text-[11px] font-sans font-bold">متبقي:</span>
-                  <span className="font-black text-xs text-[#881337] tracking-wider">{countdown}</span>
-                  <span className="text-[10px] text-[#e11d48] bg-[#ffe4e6] border border-[#fecdd3] px-1.5 py-0.2 rounded font-sans font-bold">
-                    س : د : ث
-                  </span>
-                </div>
-              )}
-              <span className="text-[#9f1239]/80 text-xs font-semibold hidden lg:inline">
-                — يرجى التجديد لتفادي توقف نقاط البيع تلقائياً.
-              </span>
-            </>
-          ) : (
-            <>
-              <span className="bg-[#d97706] text-white px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider shadow-2xs">
-                تنبيه التجديد
-              </span>
-              <span className="font-bold text-[#78350f] text-xs">
-                سينتهي اشتراك البرنامج {formatLicenseExpiryTime(licenseExpiry)}. يرجى التجديد لتفادي توقف نقاط البيع تلقائياً.
-              </span>
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2 shrink-0">
-        <button
-          type="button"
-          onClick={onRenew}
-          className={`${
-            isCritical
-              ? 'bg-[#e11d48] hover:bg-[#be123c] text-white shadow-xs'
-              : 'bg-[#d97706] hover:bg-[#b45309] text-white shadow-xs'
-          } text-xs px-3.5 py-1.5 rounded-lg font-bold transition-all duration-150 cursor-pointer flex items-center gap-1.5 active:scale-95`}
-        >
-          <KeyRound className="w-3.5 h-3.5 text-white" />
-          <span>تجديد الترخيص الآن</span>
-        </button>
-      </div>
-    </div>
-  );
-});
 
 
 const HeaderClock: FC = memo(() => {
@@ -257,7 +121,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<UserDto | null>(null);
   const isCashier = currentUser?.role === 'cashier';
   const effectiveActiveTab: TabType = isCashier && !CASHIER_ALLOWED_TABS.includes(activeTab) ? 'pos' : activeTab;
-  const [productsSubView, setProductsSubView] = useState<'catalog' | 'movements'>('catalog');
+  const [productsSubView, setProductsSubView] = useState<'catalog' | 'movements' | 'batches'>('catalog');
   const [isProductsMenuExpanded, setIsProductsMenuExpanded] = useState(false);
   const [purchasesSubView, setPurchasesSubView] = useState<PurchasesSubView>('invoices');
   const [isPurchasesMenuExpanded, setIsPurchasesMenuExpanded] = useState(false);
@@ -307,9 +171,74 @@ export default function App() {
 
   // Feature #171 & #172: Real-time License Expiry & Lock Screen Enforcement
   const [licenseExpiry, setLicenseExpiry] = useState<LicenseExpiryDetails | null>(null);
+
+  // Feature #147: Offline Help Center & Support (Story 102)
+  const [isHelpCenterOpen, setIsHelpCenterOpen] = useState(false);
+  const [helpCenterSection, setHelpCenterSection] = useState<string>('pos');
+
+  const openHelpCenterModal = useCallback((sec?: string) => {
+    setHelpCenterSection(sec || effectiveActiveTab);
+    setIsHelpCenterOpen(true);
+  }, [effectiveActiveTab]);
+
+  useEffect(() => {
+    const handleHelpEvent = (e: any) => {
+      const sec = e.detail?.section || effectiveActiveTab;
+      openHelpCenterModal(sec);
+    };
+    window.addEventListener('rafiq:open-help', handleHelpEvent);
+    return () => window.removeEventListener('rafiq:open-help', handleHelpEvent);
+  }, [openHelpCenterModal, effectiveActiveTab]);
+
+  useEffect(() => {
+    const handleGlobalF1 = (e: KeyboardEvent) => {
+      if (e.key === 'F1') {
+        e.preventDefault();
+        openHelpCenterModal(effectiveActiveTab);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalF1);
+    return () => window.removeEventListener('keydown', handleGlobalF1);
+  }, [openHelpCenterModal, effectiveActiveTab]);
   const [isLockScreenOpen, setIsLockScreenOpen] = useState(false);
   const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
   const [isLicenseReadOnlyMode, setIsLicenseReadOnlyMode] = useState(false);
+
+  // Feature #176: Unified Notification & Alert System State
+  const [isNotificationDrawerOpen, setIsNotificationDrawerOpen] = useState(false);
+  const [isAlertTickerDismissed, setIsAlertTickerDismissed] = useState(false);
+
+  const systemNotifications = useSystemNotifications({
+    clockWarning,
+    setClockWarning,
+    licenseExpiry,
+    isLicenseReadOnlyMode,
+    isLockScreenOpen,
+    backupWarning,
+    setBackupWarning,
+    lowStockCount,
+    lowStockDismissed,
+    setLowStockDismissed,
+    hasDemoData,
+    onOpenLicenseModal: () => setIsLicenseModalOpen(true),
+    onOpenLockScreen: () => setIsLockScreenOpen(true),
+    onOpenBackupSettings: () => {
+      setActiveTab('settings');
+      setSettingsSubTab('backup');
+      setIsSettingsMenuExpanded(true);
+    },
+    onOpenLowStockCatalog: () => {
+      setActiveTab('products');
+      setProductsSubView('catalog');
+      setInitialProductFilter('lowStock');
+      setIsProductsMenuExpanded(true);
+    },
+    onOpenDemoManagement: () => {
+      setActiveTab('settings');
+      setSettingsSubTab('demo');
+      setIsSettingsMenuExpanded(true);
+    },
+  });
 
   const refreshLicenseStatus = useCallback(async () => {
     try {
@@ -778,182 +707,34 @@ export default function App() {
             </kbd>
           </button>
 
+          {/* Feature #176: Notification Center Bell Button with live Badge */}
+          <NotificationBellButton
+            count={systemNotifications.length}
+            hasCritical={systemNotifications.some((n) => n.type === 'critical')}
+            isOpen={isNotificationDrawerOpen}
+            onClick={() => setIsNotificationDrawerOpen((prev) => !prev)}
+          />
+
           {/* Date & Time (Isolated Component) */}
           <HeaderClock />
         </div>
       </header>
 
-      {/* Clock Sanity Warning Banner (Feature #127 / Task 127-2) */}
-      {clockWarning && (
-        <div className="bg-amber-600 text-white px-4 py-2 flex items-center justify-between text-[12px] font-semibold shrink-0 animate-in slide-in-from-top-1 select-none">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-200" />
-            <span className="whitespace-pre-line">{clockWarning}</span>
-          </div>
-          <button 
-            type="button"
-            onClick={() => setClockWarning(null)} 
-            className="text-white hover:bg-black/20 text-xs px-2.5 py-1 rounded border border-white/30 transition-colors"
-          >
-            تجاهل التنبيه مؤقتاً
-          </button>
-        </div>
-      )}
+      {/* Feature #176: Unified Compact Alert Ticker Bar (Single-line, Height ~34px) */}
+      <CompactAlertTickerBar
+        notifications={systemNotifications}
+        onOpenDrawer={() => setIsNotificationDrawerOpen(true)}
+        isDismissed={isAlertTickerDismissed}
+        onDismissTicker={() => setIsAlertTickerDismissed(true)}
+      />
 
-      {/* Feature #172 / Task 172-2: Expiry Warning Banner with Live Countdown */}
-      {licenseExpiry && (licenseExpiry.status === 'warning' || licenseExpiry.daysRemaining <= 1) && !isLockScreenOpen && !isLicenseReadOnlyMode && (
-        <LicenseExpiryBanner
-          licenseExpiry={licenseExpiry}
-          onRenew={() => setIsLicenseModalOpen(true)}
-        />
-      )}
-
-      {/* Feature #172 / Task 172-5: Read-Only Mode Banner */}
-      {isLicenseReadOnlyMode && (
-        <div className="bg-[#fffbeb] border-b border-[#fde68a] text-[#78350f] px-4 py-2 flex items-center justify-between text-[12px] shrink-0 animate-in slide-in-from-top-1 select-none shadow-2xs">
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg bg-[#fef3c7] border border-[#fde68a] flex items-center justify-center shrink-0 text-[#b45309] shadow-2xs">
-              <AlertTriangle className="w-4 h-4" />
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="bg-[#fef3c7] text-[#92400e] border border-[#fde68a] px-2.5 py-0.5 rounded-full text-[11px] font-bold shadow-2xs">
-                وضع القراءة والنسخ الاحتياطي
-              </span>
-              <span className="text-[#854d0e] text-xs font-semibold">
-                انتهت فترة الاشتراك. عمليات البيع معطلة، ويتاح فقط عرض التقارير والمبيعات السابقة وأخذ نسخة احتياطية.
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsLockScreenOpen(true)}
-              className="bg-[#00372d] hover:bg-[#002820] text-white font-bold text-xs px-4 py-1.5 rounded-lg shadow-xs transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
-            >
-              <KeyRound className="w-3.5 h-3.5 text-white" />
-              <span>تفعيل الترخيص / التحقق</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Backup Overdue Warning Banner (Feature #9 / Task 9-6) - Admin Only */}
-      {currentUser?.role === 'admin' && backupWarning && (
-        <div className="bg-[#f0fdf4] border-b border-[#bbf7d0] text-[#14532d] px-4 py-2 flex items-center justify-between text-[12px] shrink-0 animate-in slide-in-from-top-1 select-none shadow-2xs">
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg bg-[#dcfce7] border border-[#bbf7d0] flex items-center justify-center shrink-0 text-[#16a34a] shadow-2xs">
-              <Database className="w-4 h-4" />
-            </div>
-            <span className="whitespace-pre-line text-xs font-semibold text-[#14532d]">{backupWarning}</span>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button 
-              type="button"
-              onClick={() => {
-                setActiveTab('settings');
-                setSettingsSubTab('backup');
-                setIsSettingsMenuExpanded(true);
-              }} 
-              className="bg-[#006d41] hover:bg-[#005734] text-white text-xs px-3.5 py-1.5 rounded-lg font-bold transition-all shadow-xs active:scale-95 cursor-pointer"
-            >
-              فتح شاشة النسخ الاحتياطي
-            </button>
-            <button 
-              type="button"
-              onClick={() => setBackupWarning(null)} 
-              className="text-[#166534] hover:bg-[#dcfce7] text-xs px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
-            >
-              إخفاء
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Low Stock Alert Banner (Story 79 / Task 36-2) */}
-      {lowStockCount > 0 && !lowStockDismissed && (
-        <div className="bg-[#fef2f2] border-b border-[#fecaca] text-[#991b1b] px-4 py-2 flex items-center justify-between text-[12px] shrink-0 animate-in slide-in-from-top-1 select-none shadow-2xs">
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg bg-[#fee2e2] border border-[#fecaca] flex items-center justify-center shrink-0 text-[#dc2626] shadow-2xs">
-              <AlertTriangle className="w-4 h-4 text-[#dc2626] animate-pulse" />
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="bg-[#dc2626] text-white px-2 py-0.5 rounded-full text-[10.5px] font-black uppercase tracking-wider shadow-2xs">
-                تنبيه حد الطلب
-              </span>
-              <span className="text-xs font-bold text-[#991b1b]">
-                يوجد {lowStockCount} صنف في المخزن وصلت إلى حد الطلب الأدنى أو نفدت تماماً.
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button 
-              type="button"
-              onClick={() => {
-                setActiveTab('products');
-                setProductsSubView('catalog');
-                setInitialProductFilter('lowStock');
-                setIsProductsMenuExpanded(true);
-              }} 
-              className="bg-[#dc2626] hover:bg-[#b91c1c] text-white text-xs px-3.5 py-1.5 rounded-lg font-bold transition-all shadow-xs active:scale-95 cursor-pointer flex items-center gap-1.5"
-            >
-              <Package className="w-3.5 h-3.5" />
-              <span>معاينة النواقص</span>
-            </button>
-            <button 
-              type="button"
-              onClick={() => setLowStockDismissed(true)} 
-              className="text-[#991b1b] hover:bg-[#fee2e2] text-xs px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
-            >
-              إخفاء
-            </button>
-          </div>
-        </div>
-      )}
-
-
-      {/* Demo Mode Active Banner (Feature #113 / Task 113-3) */}
-      {hasDemoData && (
-        <div className="bg-[#fffbeb] border-b border-[#fde68a] text-[#78350f] px-4 py-1.5 flex items-center justify-between text-[12px] shrink-0 animate-in slide-in-from-top-1 select-none shadow-2xs">
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg bg-[#fef3c7] border border-[#fde68a] flex items-center justify-center shrink-0 text-[#b45309] shadow-2xs">
-              <FlaskConical className="w-3.5 h-3.5" />
-            </div>
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 bg-[#fef3c7] text-[#92400e] border border-[#fde68a] px-2.5 py-0.5 rounded-full text-[11px] font-bold shadow-2xs">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#d97706] animate-pulse" />
-                وضع تجريبي نشط
-              </span>
-              <span className="text-[#854d0e] text-xs font-semibold">
-                يحتوي النظام على بيانات نموذجية لتدريب الكاشير وتجربة كافة الميزات بأمان.
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsTourOpen(true)}
-              className="bg-white hover:bg-[#fef3c7] text-[#92400e] border border-[#fde68a] text-xs px-3 py-1 rounded-lg font-bold transition-all shadow-2xs flex items-center gap-1.5 active:scale-95 cursor-pointer"
-            >
-              <Play className="w-3 h-3 text-[#b45309] fill-[#b45309]/30" />
-              <span>جولة النظام (5 خطوات)</span>
-            </button>
-            {currentUser?.role === 'admin' && (
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('settings');
-                  setSettingsSubTab('demo');
-                  setIsSettingsMenuExpanded(true);
-                }}
-                className="bg-[#00372d] hover:bg-[#002820] text-white font-bold text-xs px-3.5 py-1 rounded-lg shadow-xs transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5 text-white/90" />
-                <span>إدارة ومسح البيانات</span>
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Feature #176: Notification Center Popover / Drawer */}
+      <NotificationCenterDrawer
+        notifications={systemNotifications}
+        isDrawerOpen={isNotificationDrawerOpen}
+        onToggleDrawer={() => setIsNotificationDrawerOpen((prev) => !prev)}
+        onCloseDrawer={() => setIsNotificationDrawerOpen(false)}
+      />
 
       {/* 2. MAIN APP SHELL (Sidebar Navigation + Dynamic Content Canvas) */}
       <div className="flex-1 flex overflow-hidden">
@@ -1141,6 +922,24 @@ export default function App() {
                           <span>حركات وجرد المخزون</span>
                         </div>
                       </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('products');
+                          setProductsSubView('batches');
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
+                          effectiveActiveTab === 'products' && productsSubView === 'batches'
+                            ? 'bg-[#006d41] text-white font-bold shadow-2xs'
+                            : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>تواريخ الصلاحية والدفعات</span>
+                        </div>
+                      </button>
                     </div>
                   )}
 
@@ -1241,8 +1040,30 @@ export default function App() {
             })}
           </nav>
 
-          {/* Bottom Exit App Button */}
-          <div className="pt-2 mt-auto border-t border-line shrink-0 w-full">
+          {/* Help Center & Support Button (Feature #147) */}
+          <div className="pt-2 mt-auto border-t border-line shrink-0 w-full flex flex-col gap-1.5">
+            <button
+              type="button"
+              onClick={() => openHelpCenterModal(effectiveActiveTab)}
+              title="مركز المساعدة والشروحات والدعم الفني (F1)"
+              className={`w-full rounded-xl transition-all duration-150 flex items-center gap-2.5 font-bold cursor-pointer ${
+                isSidebarCollapsed
+                  ? 'h-[44px] justify-center text-[#006d41] hover:bg-[#edf5f0] border border-transparent hover:border-emerald-200'
+                  : 'px-3 py-2 text-xs text-[#006d41] hover:text-[#00372d] bg-[#edf5f0] hover:bg-[#e0eee5] border border-emerald-200/80 shadow-2xs'
+              }`}
+            >
+              <HelpCircle className="w-4 h-4 text-[#006d41] shrink-0" />
+              {!isSidebarCollapsed && (
+                <div className="flex items-center justify-between flex-1 min-w-0">
+                  <span className="truncate">مركز المساعدة والدعم</span>
+                  <span className="font-mono text-[10px] text-emerald-800 bg-white/80 px-1.5 py-0.5 rounded border border-emerald-300">
+                    F1
+                  </span>
+                </div>
+              )}
+            </button>
+
+            {/* Bottom Exit App Button */}
             <button
               type="button"
               onClick={() => void handleExitApp()}
@@ -1250,7 +1071,7 @@ export default function App() {
               className={`w-full rounded-xl transition-all duration-150 flex items-center gap-2.5 font-bold ${
                 isSidebarCollapsed
                   ? 'h-[44px] justify-center text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-transparent hover:border-rose-200'
-                  : 'px-3 py-2.5 text-xs text-rose-600 hover:text-rose-700 bg-rose-50/60 hover:bg-rose-100/80 dark:bg-rose-950/30 dark:hover:bg-rose-950/60 border border-rose-200/80 dark:border-rose-900/50 shadow-xs'
+                  : 'px-3 py-2 text-xs text-rose-600 hover:text-rose-700 bg-rose-50/60 hover:bg-rose-100/80 dark:bg-rose-950/30 dark:hover:bg-rose-950/60 border border-rose-200/80 dark:border-rose-900/50 shadow-xs'
               }`}
             >
               <Power className="w-4 h-4 text-rose-600 shrink-0" />
@@ -1270,7 +1091,7 @@ export default function App() {
           {!isCashier && effectiveActiveTab === 'dashboard' && (
             <DashboardView 
               onNavigateToPos={() => setActiveTab('pos')} 
-              onNavigateToProducts={(sub?: 'catalog' | 'movements', filter?: 'all' | 'lowStock' | 'outOfStock') => {
+              onNavigateToProducts={(sub?: 'catalog' | 'movements' | 'batches', filter?: 'all' | 'lowStock' | 'outOfStock') => {
                 setActiveTab('products');
                 setProductsSubView(sub || 'catalog');
                 if (filter) setInitialProductFilter(filter);
@@ -1418,6 +1239,13 @@ export default function App() {
         onLicenseUpdated={() => {
           void refreshLicenseStatus();
         }}
+      />
+
+      {/* Feature #147: Offline In-App Help Center */}
+      <HelpCenterModal
+        isOpen={isHelpCenterOpen}
+        onClose={() => setIsHelpCenterOpen(false)}
+        initialSection={helpCenterSection}
       />
 
       {/* Global Rafiq Custom Dialog Modal System */}

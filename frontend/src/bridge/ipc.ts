@@ -40,6 +40,44 @@ export interface LoginResult {
   message?: string;
 }
 
+export interface AppUpdateInfo {
+  hasUpdate: boolean;
+  currentVersion: string;
+  latestVersion: string;
+  releaseDate?: string;
+  changelog?: string;
+  downloadUrl?: string;
+  sha256?: string;
+  isMandatory?: boolean;
+  fileSizeBytes?: number;
+  errorMessage?: string;
+}
+
+export interface AppUpdateResult {
+  success: boolean;
+  code: string;
+  message: string;
+  backupPath?: string;
+  rollbackTriggered?: boolean;
+}
+
+export interface FullStoreExportResult {
+  success: boolean;
+  message: string;
+  exportFolder: string;
+  productsCount: number;
+  customersCount: number;
+  suppliersCount: number;
+  salesCount: number;
+  stockMovementsCount: number;
+  closingsCount: number;
+  generatedFiles: string[];
+  totalSalesPiasters: number;
+  totalDebtsPiasters: number;
+  totalStockCostPiasters: number;
+  totalStockRetailPiasters: number;
+}
+
 declare global {
   interface Window {
     chrome?: {
@@ -165,6 +203,22 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         itemsSaved: payload?.count || 10,
         walActive: true,
         message: 'تم حفظ 10 أصناف بنجاح في معاملة ذرية واحدة (Mock)',
+      };
+
+    case 'printer:printLabels':
+      return {
+        success: true,
+        totalLabelsPrinted: payload?.items?.reduce((sum: number, it: any) => sum + (it.copies || 1), 0) || 1,
+        printerUsed: payload?.config?.printerName || 'طابعة الباركود الافتراضية (محاكاة)',
+        message: 'تمت طباعة ملصقات الباركود بنجاح (محاكاة المتصفح)',
+      };
+
+    case 'printer:testLabel':
+      return {
+        success: true,
+        totalLabelsPrinted: 1,
+        printerUsed: payload?.printerName || 'طابعة الباركود (محاكاة)',
+        message: 'تمت طباعة الملصق التجريبي بنجاح (محاكاة)',
       };
 
     case 'products:search': {
@@ -1777,7 +1831,87 @@ async function mockHandler(action: string, payload: any): Promise<any> {
 
     case 'products:getSmartCatalog':
       return {
-        products: [],
+        products: [
+          {
+            id: 'p_1',
+            name: 'لبن جهينة كامل الدسم 1 لتر',
+            normalizedName: 'لبن جهينه كامل الدسم 1 لتر',
+            barcode: '6223001234567',
+            barcodes: ['6223001234567'],
+            pricePiasters: 4200,
+            costPiasters: 3400,
+            stockQuantityMilli: 45000,
+            unit: 'piece',
+            categoryName: 'ألبان ومشروبات',
+            salesCount: 15,
+            priceFormatted: '42.00 ج.م',
+            stockFormatted: '45',
+            isActive: true,
+          },
+          {
+            id: 'p_3',
+            name: 'شاي العروسة ناعم 250 جم',
+            normalizedName: 'شاي العروسه ناعم 250 جم',
+            barcode: '6224005544332',
+            barcodes: ['6224005544332'],
+            pricePiasters: 5500,
+            costPiasters: 4600,
+            stockQuantityMilli: 12000,
+            unit: 'piece',
+            categoryName: 'بقوليات ومعلبات',
+            salesCount: 22,
+            priceFormatted: '55.00 ج.م',
+            stockFormatted: '12',
+            isActive: true,
+            units: [
+              {
+                id: 'u_tea_carton',
+                unitName: 'كرتونة',
+                conversionFactor: 24,
+                isBaseUnit: false,
+                sellPricePiasters: 120000,
+                costPricePiasters: 100000,
+                barcode: '6224005544999',
+                isDivisible: false,
+                sortOrder: 1,
+              }
+            ],
+          },
+          {
+            id: 'p_5',
+            name: 'طماطم بلدي طازجة',
+            normalizedName: 'طماطم بلدي طازجه',
+            barcode: 'FAST-TOMATO-01',
+            barcodes: ['FAST-TOMATO-01'],
+            pricePiasters: 1500,
+            costPiasters: 1000,
+            stockQuantityMilli: 25000,
+            unit: 'kg',
+            categoryName: 'خضروات وفواكه',
+            salesCount: 8,
+            priceFormatted: '15.00 ج.م',
+            stockFormatted: '25',
+            isActive: true,
+          },
+          {
+            id: 'p_variant_shirt',
+            name: 'قميص كاجوال رجالي فاخر',
+            normalizedName: 'قميص كاجوال رجالي فاخر',
+            barcode: '6227008899001',
+            barcodes: ['6227008899001'],
+            pricePiasters: 15000,
+            costPiasters: 9000,
+            stockQuantityMilli: 18000,
+            unit: 'piece',
+            categoryName: 'ملابس',
+            salesCount: 5,
+            priceFormatted: '150.00 ج.م',
+            stockFormatted: '18',
+            isActive: true,
+            hasVariants: true,
+            variantsCount: 2,
+          }
+        ],
         customQuickItems: [],
       };
 
@@ -1894,6 +2028,159 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         }
       }
       return newPur;
+    }
+
+    case 'variants:createMatrix': {
+      const parentId = payload?.parentProductId || `parent_${Date.now()}`;
+      const parentName = payload?.parentName || 'منتج متعدد التركيبات';
+      const cells = payload?.matrixCells || [];
+      const createdVariants: any[] = [];
+      let totalStock = 0;
+
+      for (let i = 0; i < cells.length; i++) {
+        const cell = cells[i];
+        if (!cell.isEnabled) continue;
+        const vId = `var_${Date.now()}_${i}`;
+        const prodId = `vprod_${Date.now()}_${i}`;
+        const stock = cell.stockQuantityMilli || 0;
+        totalStock += stock;
+        const price = cell.pricePiasters || payload?.defaultPricePiasters || 10000;
+        const cost = cell.costPiasters || payload?.defaultCostPiasters || 6000;
+        const barcode = cell.barcode || `214${Math.floor(100000000 + Math.random() * 900000000)}`;
+
+        createdVariants.push({
+          id: vId,
+          parentProductId: parentId,
+          variantProductId: prodId,
+          size: cell.size,
+          color: cell.color,
+          sku: cell.sku || `${parentName}-${cell.color}-${cell.size}`,
+          barcode,
+          pricePiasters: price,
+          costPiasters: cost,
+          stockQuantityMilli: stock,
+          minStockQuantityMilli: cell.minStockQuantityMilli || 5000,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          priceFormatted: `${(price / 100).toFixed(2)} ج.م`,
+          costFormatted: `${(cost / 100).toFixed(2)} ج.م`,
+          stockFormatted: `${stock / 1000}`,
+        });
+      }
+
+      return {
+        parentProduct: {
+          id: parentId,
+          name: parentName,
+          hasVariants: true,
+          stockQuantityMilli: totalStock,
+          pricePiasters: payload?.defaultPricePiasters || 10000,
+          costPiasters: payload?.defaultCostPiasters || 6000,
+        },
+        variants: createdVariants,
+        totalStockMilli: totalStock,
+        totalVariantsCount: createdVariants.length,
+      };
+    }
+
+    case 'variants:getByParentId': {
+      const pId = typeof payload === 'object' && payload?.parentId ? payload.parentId : payload;
+      return [
+        {
+          id: `var_${pId}_1`,
+          parentProductId: pId,
+          variantProductId: `vprod_${pId}_1`,
+          size: 'M',
+          color: 'أحمر',
+          sku: 'SKU-RED-M',
+          barcode: '214112233441',
+          pricePiasters: 15000,
+          costPiasters: 9000,
+          stockQuantityMilli: 10000,
+          minStockQuantityMilli: 2000,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          priceFormatted: '150.00 ج.م',
+          costFormatted: '90.00 ج.م',
+          stockFormatted: '10',
+        },
+        {
+          id: `var_${pId}_2`,
+          parentProductId: pId,
+          variantProductId: `vprod_${pId}_2`,
+          size: 'L',
+          color: 'أزرق',
+          sku: 'SKU-BLUE-L',
+          barcode: '214112233442',
+          pricePiasters: 15000,
+          costPiasters: 9000,
+          stockQuantityMilli: 8000,
+          minStockQuantityMilli: 2000,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          priceFormatted: '150.00 ج.م',
+          costFormatted: '90.00 ج.م',
+          stockFormatted: '8',
+        },
+      ];
+    }
+
+    case 'variants:getParentWithVariants': {
+      const pId = typeof payload === 'object' && payload?.parentId ? payload.parentId : payload;
+      return {
+        parentProduct: {
+          id: pId,
+          name: 'قميص كاجوال رجالي فاخر',
+          hasVariants: true,
+          stockQuantityMilli: 18000,
+          pricePiasters: 15000,
+          costPiasters: 9000,
+        },
+        variants: [
+          {
+            id: `var_${pId}_1`,
+            parentProductId: pId,
+            variantProductId: `vprod_${pId}_1`,
+            size: 'M',
+            color: 'أحمر',
+            sku: 'SKU-RED-M',
+            barcode: '214112233441',
+            pricePiasters: 15000,
+            costPiasters: 9000,
+            stockQuantityMilli: 10000,
+            minStockQuantityMilli: 2000,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            priceFormatted: '150.00 ج.م',
+            costFormatted: '90.00 ج.م',
+            stockFormatted: '10',
+          },
+          {
+            id: `var_${pId}_2`,
+            parentProductId: pId,
+            variantProductId: `vprod_${pId}_2`,
+            size: 'L',
+            color: 'أزرق',
+            sku: 'SKU-BLUE-L',
+            barcode: '214112233442',
+            pricePiasters: 15000,
+            costPiasters: 9000,
+            stockQuantityMilli: 8000,
+            minStockQuantityMilli: 2000,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            priceFormatted: '150.00 ج.م',
+            costFormatted: '90.00 ج.م',
+            stockFormatted: '8',
+          },
+        ],
+        totalStockMilli: 18000,
+        totalVariantsCount: 2,
+      };
+    }
+
+    case 'variants:getMatrixReport': {
+      return [];
     }
 
     default:

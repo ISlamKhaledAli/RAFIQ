@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import type { CartItem } from './types';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
+import { CustomSelect } from '../../components/CustomSelect';
 
 interface PosCartTableProps {
   cart: CartItem[];
@@ -158,20 +159,18 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                         <span>وزن</span>
                       </span>
                     )}
-                    {/* Task 161-5: Unit Selector Dropdown if multiple units exist */}
+                    {/* Task 161-5 & 54-4: Unit Selector Dropdown if multiple units exist */}
                     {item.productUnits && item.productUnits.length > 1 && (
-                      <select
+                      <CustomSelect
                         value={item.unitId || ''}
-                        onChange={(e) => changeCartItemUnit(index, e.target.value)}
-                        className="h-6 px-1.5 py-0 bg-[#eaf5ee] border border-[#c4e3d0] text-[#006d41] text-[10px] font-bold rounded-md cursor-pointer focus:outline-none shrink-0"
-                        title="تغيير وحدة البيع (قطعة، دستة، كرتونة)"
-                      >
-                        {item.productUnits.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.unitName} (×{u.conversionFactor})
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(val) => changeCartItemUnit(index, val)}
+                        options={item.productUnits.map((u) => ({
+                          value: u.id || '',
+                          label: `${u.unitName} (×${u.conversionFactor})`
+                        }))}
+                        size="sm"
+                        className="w-28 shrink-0 text-[10px]"
+                      />
                     )}
                   </div>
                   <div className="flex items-center gap-2">

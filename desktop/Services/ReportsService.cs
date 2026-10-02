@@ -672,5 +672,365 @@ namespace RafiqPOS.Services
 
             return list;
         }
+
+        /// <summary>
+        /// فحص جودة وصحة بيانات الأصناف والمخزون واكتشاف النواقص والمكررات (Feature #117 / Task 117-1)
+        /// </summary>
+        public DataQualityReport GetDataQualityReport()
+        {
+            var report = new DataQualityReport();
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+
+                // 1. Identify products with secondary barcodes (tables product_barcodes and product_units)
+                var productSecondaryBarcodes = new Dictionary<string, List<string>>();
+                try
+                {
+                    using (var checkPbCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='product_barcodes';", conn))
+                    {
+                        if (checkPbCmd.ExecuteScalar() != null)
+                        {
+                            string pbSql = "SELECT product_id, barcode FROM product_barcodes WHERE barcode IS NOT NULL AND TRIM(barcode) != '';";
+                            using (var cmd = new SQLiteCommand(pbSql, conn))
+                            using (var reader = cmd.ExecuteReader())
+                            {
+                                while (reader.Read())
+                                {
+                                    string pId = reader["product_id"].ToString();
+                                    string bc = reader["barcode"].ToString().Trim();
+                                    if (!string.IsNullOrEmpty(bc))
+                                    {
+                                        if (!productSecondaryBarcodes.ContainsKey(pId))
+                                        {
+                                            productSecondaryBarcodes[pId] = new List<string>();
+                                        }
+                                        productSecondaryBarcodes[pId].Add(bc);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    using (var checkPuCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='product_units';", conn))
+                    {
+                        if (checkPuCmd.ExecuteScalar() != null)
+                        {
+                            string puSql = "SELECT product_id, barcode FROM product_units WHERE barcode IS NOT NULL AND TRIM(barcode) != '';";
+                            using (var cmd = new SQLiteCommand(puSql, conn))
+                            using (var reader = cmd.ExecuteReader())
+                            {
+                                while (reader.Read())
+                                {
+                                    string pId = reader["product_id"].ToString();
+                                    string bc = reader["barcode"].ToString().Trim();
+                                    if (!string.IsNullOrEmpty(bc))
+                                    {
+                                        if (!productSecondaryBarcodes.ContainsKey(pId))
+                                        {
+                                            productSecondaryBarcodes[pId] = new List<string>();
+                                        }
+                                        productSecondaryBarcodes[pId].Add(bc);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // Ignore if table doesn't exist
+                }
+
+                // 2. Identify duplicate barcodes across active products (primary, secondary & unit barcodes)
+                var duplicateBarcodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                try
+                {
+                    string dupBarcodesSql = @"
+                        SELECT barcode 
+                        FROM (
+                            SELECT barcode, id AS product_id 
+                            FROM products 
+                            WHERE barcode IS NOT NULL AND TRIM(barcode) != '' AND is_active = 1
+                            UNION ALL
+                            SELECT pb.barcode, pb.product_id 
+                            FROM product_barcodes pb 
+                            INNER JOIN products p ON pb.product_id = p.id 
+                            WHERE pb.barcode IS NOT NULL AND TRIM(pb.barcode) != '' AND p.is_active = 1
+                            UNION ALL
+                            SELECT pu.barcode, pu.product_id 
+                            FROM product_units pu 
+                            INNER JOIN products p ON pu.product_id = p.id 
+                            WHERE pu.barcode IS NOT NULL AND TRIM(pu.barcode) != '' AND p.is_active = 1
+                        )
+                        GROUP BY barcode 
+                        HAVING COUNT(DISTINCT product_id) > 1;
+                    ";
+                    using (var cmd = new SQLiteCommand(dupBarcodesSql, conn))
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            string bc = reader["barcode"].ToString().Trim();
+                            if (!string.IsNullOrEmpty(bc))
+                            {
+                                duplicateBarcodes.Add(bc);
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // Fallback to products table only
+                    string fallbackSql = @"
+                        SELECT barcode 
+                        FROM products 
+                        WHERE barcode IS NOT NULL AND TRIM(barcode) != '' AND is_active = 1
+                        GROUP BY barcode 
+                        HAVING COUNT(*) > 1;
+                    ";
+                    using (var cmd = new SQLiteCommand(fallbackSql, conn))
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            string bc = reader["barcode"].ToString().Trim();
+                            if (!string.IsNullOrEmpty(bc))
+                            {
+                                duplicateBarcodes.Add(bc);
+                            }
+                        }
+                    }
+                }
+
+                // 3. Load all active products with categories
+                string productsSql = @"
+                    SELECT 
+                        p.id,
+                        p.name,
+                        p.barcode,
+                        p.category_id,
+                        COALESCE(c.name, '') AS category_name,
+                        p.stock_quantity_milli,
+                        p.cost_piasters,
+                        p.price_piasters,
+                        p.unit
+                    FROM products p
+                    LEFT JOIN categories c ON p.category_id = c.id
+                    WHERE p.is_active = 1
+                    ORDER BY p.name ASC;
+                ";
+
+                var productsWithIssues = new HashSet<string>();
+
+                using (var cmd = new SQLiteCommand(productsSql, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        report.TotalProductsAudited++;
+
+                        string productId = reader["id"].ToString();
+                        string productName = reader["name"].ToString();
+                        string barcode = reader["barcode"] != DBNull.Value ? reader["barcode"].ToString().Trim() : "";
+                        string categoryId = reader["category_id"] != DBNull.Value ? reader["category_id"].ToString().Trim() : "";
+                        string categoryName = reader["category_name"] != DBNull.Value ? reader["category_name"].ToString().Trim() : "";
+                        long stockMilli = Convert.ToInt64(reader["stock_quantity_milli"]);
+                        long costPiasters = Convert.ToInt64(reader["cost_piasters"]);
+                        long pricePiasters = Convert.ToInt64(reader["price_piasters"]);
+                        string unit = reader["unit"] != DBNull.Value ? reader["unit"].ToString() : "piece";
+
+                        bool productHasIssue = false;
+
+                        // Check A: Missing Cost (cost <= 0)
+                        if (costPiasters <= 0)
+                        {
+                            productHasIssue = true;
+                            report.MissingCostCount++;
+                            report.Issues.Add(new DataQualityIssueItem
+                            {
+                                ProductId = productId,
+                                ProductName = productName,
+                                Barcode = barcode,
+                                CategoryId = categoryId,
+                                CategoryName = categoryName,
+                                StockMilli = stockMilli,
+                                CostPiasters = costPiasters,
+                                PricePiasters = pricePiasters,
+                                Unit = unit,
+                                IssueType = "missing_cost",
+                                Severity = "warning",
+                                IssueTitle = "بدون سعر تكلفة",
+                                IssueDescription = "سعر الشراء غير محدد أو مسجل بصفر، مما يمنع احتساب الأرباح وهوامش الربح بدقة.",
+                                SuggestedFix = "قم بتسجيل سعر شراء التكلفة الفعلي للصنف."
+                            });
+                        }
+
+                        // Check B: Missing Barcode (no primary barcode and no secondary barcode)
+                        bool hasSecondary = productSecondaryBarcodes.ContainsKey(productId) && productSecondaryBarcodes[productId].Count > 0;
+                        bool hasBarcode = !string.IsNullOrEmpty(barcode) || hasSecondary;
+                        if (!hasBarcode)
+                        {
+                            productHasIssue = true;
+                            report.MissingBarcodeCount++;
+                            report.Issues.Add(new DataQualityIssueItem
+                            {
+                                ProductId = productId,
+                                ProductName = productName,
+                                Barcode = barcode,
+                                CategoryId = categoryId,
+                                CategoryName = categoryName,
+                                StockMilli = stockMilli,
+                                CostPiasters = costPiasters,
+                                PricePiasters = pricePiasters,
+                                Unit = unit,
+                                IssueType = "missing_barcode",
+                                Severity = "warning",
+                                IssueTitle = "بدون باركود",
+                                IssueDescription = "الصنف بلا باركود رئيسي أو إضافي، ويتطلب البحث اليدوي عند البيع بالكاشير.",
+                                SuggestedFix = "قم بإدخال باركود العبوة أو توليد باركود داخلي وطباعته."
+                            });
+                        }
+
+                        // Check C: Duplicate Barcode
+                        string dupBarcode = null;
+                        if (!string.IsNullOrEmpty(barcode) && duplicateBarcodes.Contains(barcode))
+                        {
+                            dupBarcode = barcode;
+                        }
+                        else if (hasSecondary)
+                        {
+                            foreach (var sbc in productSecondaryBarcodes[productId])
+                            {
+                                if (duplicateBarcodes.Contains(sbc))
+                                {
+                                    dupBarcode = sbc;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!string.IsNullOrEmpty(dupBarcode))
+                        {
+                            productHasIssue = true;
+                            report.DuplicateBarcodeCount++;
+                            report.Issues.Add(new DataQualityIssueItem
+                            {
+                                ProductId = productId,
+                                ProductName = productName,
+                                Barcode = dupBarcode,
+                                CategoryId = categoryId,
+                                CategoryName = categoryName,
+                                StockMilli = stockMilli,
+                                CostPiasters = costPiasters,
+                                PricePiasters = pricePiasters,
+                                Unit = unit,
+                                IssueType = "duplicate_barcode",
+                                Severity = "critical",
+                                IssueTitle = string.Format("باركود مكرر ({0})", dupBarcode),
+                                IssueDescription = "هذا الباركود مسجل لأكثر من صنف مختلف بالنظام، مما يسبب تضارباً عند قراءة الماسح.",
+                                SuggestedFix = "عدّل باركود أحد الصنفين ليكون لكل صنف باركود فريد تماماً."
+                            });
+                        }
+
+                        // Check D: Negative Stock
+                        if (stockMilli < 0)
+                        {
+                            productHasIssue = true;
+                            report.NegativeStockCount++;
+                            double stockQty = stockMilli / 1000.0;
+                            string unitLabel = unit == "kg" ? "كجم" : "قطعة";
+                            report.Issues.Add(new DataQualityIssueItem
+                            {
+                                ProductId = productId,
+                                ProductName = productName,
+                                Barcode = barcode,
+                                CategoryId = categoryId,
+                                CategoryName = categoryName,
+                                StockMilli = stockMilli,
+                                CostPiasters = costPiasters,
+                                PricePiasters = pricePiasters,
+                                Unit = unit,
+                                IssueType = "negative_stock",
+                                Severity = "critical",
+                                IssueTitle = string.Format("رصيد مخزني بالسالب ({0:0.##} {1})", stockQty, unitLabel),
+                                IssueDescription = "رصيد الصنف بالسالب نتيجة مبيعات تمت دون تسجيل فواتير شراء سابقة أو خطأ جرد.",
+                                SuggestedFix = "قم بإجراء تسوية جردية للمخزون أو تسجيل فاتورة مشتريات لتصحيح الرصيد."
+                            });
+                        }
+
+                        // Check E: Missing or Unassigned Category
+                        bool isCategoryMissing = string.IsNullOrEmpty(categoryId) || categoryId == "cat_general" || string.IsNullOrEmpty(categoryName);
+                        if (isCategoryMissing)
+                        {
+                            productHasIssue = true;
+                            report.MissingCategoryCount++;
+                            report.Issues.Add(new DataQualityIssueItem
+                            {
+                                ProductId = productId,
+                                ProductName = productName,
+                                Barcode = barcode,
+                                CategoryId = categoryId,
+                                CategoryName = categoryName,
+                                StockMilli = stockMilli,
+                                CostPiasters = costPiasters,
+                                PricePiasters = pricePiasters,
+                                Unit = unit,
+                                IssueType = "missing_category",
+                                Severity = "info",
+                                IssueTitle = "بدون تصنيف نوعي",
+                                IssueDescription = "الصنف غير منسوب لقسم مخصص (أو موجود بالتصنيف العام الافتراضي).",
+                                SuggestedFix = "انقل الصنف إلى قسم أو تصنيف مناسب لتنظيم التقارير والجرد."
+                            });
+                        }
+
+                        // Check F: Price Below Cost
+                        if (costPiasters > 0 && pricePiasters < costPiasters)
+                        {
+                            productHasIssue = true;
+                            report.PriceBelowCostCount++;
+                            double lossPounds = (costPiasters - pricePiasters) / 100.0;
+                            report.Issues.Add(new DataQualityIssueItem
+                            {
+                                ProductId = productId,
+                                ProductName = productName,
+                                Barcode = barcode,
+                                CategoryId = categoryId,
+                                CategoryName = categoryName,
+                                StockMilli = stockMilli,
+                                CostPiasters = costPiasters,
+                                PricePiasters = pricePiasters,
+                                Unit = unit,
+                                IssueType = "price_below_cost",
+                                Severity = "critical",
+                                IssueTitle = string.Format("سعر البيع أقل من التكلفة (خسارة {0:0.00} ج.م)", lossPounds),
+                                IssueDescription = "سعر بيع الصنف أقل من سعر تكلفة شرائه، مما يسبب خسارة مالية مباشرة عند كل عملية بيع.",
+                                SuggestedFix = "ارفع سعر البيع أو صحح سعر التكلفة فوراً."
+                            });
+                        }
+
+                        if (productHasIssue)
+                        {
+                            productsWithIssues.Add(productId);
+                        }
+                    }
+                }
+
+                report.TotalIssuesCount = report.Issues.Count;
+                if (report.TotalProductsAudited > 0)
+                {
+                    report.HealthyProductsCount = report.TotalProductsAudited - productsWithIssues.Count;
+                    report.HealthScorePercent = Math.Max(0, (report.HealthyProductsCount * 100) / report.TotalProductsAudited);
+                }
+                else
+                {
+                    report.HealthyProductsCount = 0;
+                    report.HealthScorePercent = 100;
+                }
+            }
+
+            return report;
+        }
     }
 }

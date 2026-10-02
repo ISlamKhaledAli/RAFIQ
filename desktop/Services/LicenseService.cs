@@ -26,13 +26,14 @@ namespace RafiqPOS.Services
         public int DaysRemaining { get; set; }
         public bool ClockTampered { get; set; }
         public string ClockTamperMessage { get; set; }
+        public string ReleaseCode { get; set; }
     }
 
     public class LicenseCheckExpiryResult
     {
         public bool IsActive { get; set; }
         public bool IsExpired { get; set; }
-        public string Status { get; set; } // "active", "warning", "expired", "disabled"
+        public string Status { get; set; } // "active", "warning", "expired", "disabled", "trial", "transferred"
         public string StatusLabel { get; set; }
         public int DaysRemaining { get; set; }
         public string ExpiresAt { get; set; }
@@ -41,6 +42,7 @@ namespace RafiqPOS.Services
         public string LicenseType { get; set; }
         public string ShopName { get; set; }
         public string DeviceFingerprint { get; set; }
+        public string ReleaseCode { get; set; }
     }
 
     public class LicenseOperationResult
@@ -49,12 +51,14 @@ namespace RafiqPOS.Services
         public string Code { get; set; }
         public string Message { get; set; }
         public LicenseInfo License { get; set; }
+        public string ReleaseCode { get; set; }
     }
 
     public class LicenseService : IDisposable
     {
         private const string DEFAULT_SERVER_URL = "https://rafiq-license-server.khaledislam9003.workers.dev";
         private const string CLIENT_API_KEY = "rafiq_pos_client_secret_k9x2m4p8";
+        private const string OFFLINE_MASTER_SECRET = "RafiqPOS_Master_Secret_Offline_2026_Secure";
         private const int REQUEST_TIMEOUT_MS = 8000;
 
         private readonly SettingsRepository _settingsRepo;
@@ -67,15 +71,35 @@ namespace RafiqPOS.Services
             this._auditService = auditService;
         }
 
+        public void EnsureTrialInitialized()
+        {
+            string key = _settingsRepo.Get("license_key", "");
+            string status = _settingsRepo.Get("license_status", "");
+            if (string.IsNullOrEmpty(key) && string.IsNullOrEmpty(status))
+            {
+                string nowStr = DateTime.UtcNow.ToString("o");
+                string trialExpiresStr = DateTime.UtcNow.AddDays(14).ToString("yyyy-MM-dd HH:mm:ss");
+                _settingsRepo.Set("license_status", "trial");
+                _settingsRepo.Set("license_type", "trial");
+                _settingsRepo.Set("license_activated_at", nowStr);
+                _settingsRepo.Set("license_expires_at", trialExpiresStr);
+                _settingsRepo.Set("trial_started_at", nowStr);
+                _settingsRepo.Set("last_known_utc", nowStr);
+            }
+        }
+
         public LicenseInfo GetLicenseInfo()
         {
+            EnsureTrialInitialized();
+
             string key = _settingsRepo.Get("license_key", "");
             string token = _settingsRepo.Get("license_token", "");
             string status = _settingsRepo.Get("license_status", "");
             string shopName = _settingsRepo.Get("license_shop_name", _settingsRepo.Get("store_name", "سوبرماركت رفيق"));
-            string licType = _settingsRepo.Get("license_type", "lifetime");
+            string licType = _settingsRepo.Get("license_type", "trial");
             string activatedAt = _settingsRepo.Get("license_activated_at", "");
             string expiresAt = _settingsRepo.Get("license_expires_at", "");
+            string releaseCode = _settingsRepo.Get("transfer_release_code", "");
             string fp = EncryptionService.GenerateDeviceFingerprint();
 
             bool isActive = false;
@@ -124,8 +148,46 @@ namespace RafiqPOS.Services
                 catch { }
             }
 
-            // 2. Base Activation State
-            if (!string.IsNullOrEmpty(key) && !string.IsNullOrEmpty(token) && status == "active")
+            // 2. Base Activation State & Lifecycle
+            if (status == "trial")
+            {
+                DateTime trialExpiresUtc;
+                if (!string.IsNullOrEmpty(expiresAt) && DateTime.TryParse(expiresAt, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out trialExpiresUtc))
+                {
+                    TimeSpan diff = trialExpiresUtc - DateTime.UtcNow;
+                    daysRemaining = (int)Math.Ceiling(diff.TotalDays);
+                    if (daysRemaining < 0) daysRemaining = 0;
+
+                    if (diff.TotalSeconds <= 0)
+                    {
+                        isActive = false;
+                        isExpired = true;
+                        status = "expired";
+                        statusLabel = "انتهت الفترة التجريبية المجانية (14 يوماً). يرجى تفعيل النسخة المشتراة.";
+                        _settingsRepo.Set("license_status", "expired");
+                    }
+                    else
+                    {
+                        isActive = true;
+                        isExpired = false;
+                        statusLabel = string.Format("فترة تجريبية مجانية (متبقي {0} أيام)", daysRemaining);
+                    }
+                }
+                else
+                {
+                    isActive = true;
+                    isExpired = false;
+                    statusLabel = "فترة تجريبية مجانية (14 يوماً)";
+                }
+            }
+            else if (status == "transferred")
+            {
+                isActive = false;
+                statusLabel = string.IsNullOrEmpty(releaseCode) 
+                    ? "تم إلغاء التفعيل ونقل الترخيص لجهاز آخر"
+                    : string.Format("تم إلغاء التفعيل ونقل الترخيص لجهاز آخر (كود الإثبات: {0})", releaseCode);
+            }
+            else if (!string.IsNullOrEmpty(key) && !string.IsNullOrEmpty(token) && status == "active")
             {
                 isActive = true;
                 statusLabel = licType == "lifetime" ? "ترخيص دائم نشط (مدى الحياة)" : "ترخيص نشط";
@@ -140,9 +202,9 @@ namespace RafiqPOS.Services
                 statusLabel = "انتهت فترة الاشتراك";
             }
 
-            // 3. Expiration Check against UTC (Feature #171 / Task 171-1)
+            // 3. Expiration Check against UTC for purchased licenses (Feature #171 / Task 171-1)
             DateTime expiresAtUtc;
-            if (!string.IsNullOrEmpty(expiresAt) && DateTime.TryParse(expiresAt, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out expiresAtUtc))
+            if (status != "trial" && status != "transferred" && !string.IsNullOrEmpty(expiresAt) && DateTime.TryParse(expiresAt, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out expiresAtUtc))
             {
                 DateTime nowUtc = DateTime.UtcNow;
                 TimeSpan diff = expiresAtUtc - nowUtc;
@@ -199,6 +261,7 @@ namespace RafiqPOS.Services
             info.DaysRemaining = daysRemaining;
             info.ClockTampered = clockTampered;
             info.ClockTamperMessage = clockTamperMessage;
+            info.ReleaseCode = releaseCode;
 
             return info;
         }
@@ -210,10 +273,19 @@ namespace RafiqPOS.Services
 
             if (!info.IsActive)
             {
-                expiryStatus = info.Status == "disabled" ? "disabled" : "expired";
+                expiryStatus = info.Status == "disabled" 
+                    ? "disabled" 
+                    : (info.Status == "transferred" ? "transferred" : "expired");
 
-                // If expired locally, trigger background online check so extensions reflect automatically
-                TriggerAsyncVerifyIfExpired();
+                // If expired locally and has a key, trigger background online check so extensions reflect automatically
+                if (!string.IsNullOrEmpty(info.LicenseKey))
+                {
+                    TriggerAsyncVerifyIfExpired();
+                }
+            }
+            else if (info.Status == "trial")
+            {
+                expiryStatus = info.DaysRemaining <= 3 ? "warning" : "trial";
             }
             else if (info.DaysRemaining <= 7 && !string.IsNullOrEmpty(info.ExpiresAt))
             {
@@ -232,6 +304,7 @@ namespace RafiqPOS.Services
             result.LicenseType = info.LicenseType;
             result.ShopName = info.ShopName;
             result.DeviceFingerprint = info.DeviceFingerprint;
+            result.ReleaseCode = info.ReleaseCode;
 
             return result;
         }
@@ -265,7 +338,7 @@ namespace RafiqPOS.Services
         public bool IsLicenseExpired()
         {
             LicenseInfo info = GetLicenseInfo();
-            return !info.IsActive || info.IsExpired || info.ClockTampered || info.Status == "expired" || info.Status == "disabled";
+            return !info.IsActive || info.IsExpired || info.ClockTampered || info.Status == "expired" || info.Status == "disabled" || info.Status == "transferred";
         }
 
         public void RecordKnownUtc()
@@ -546,6 +619,208 @@ namespace RafiqPOS.Services
                 return result;
             }
 
+            result.License = GetLicenseInfo();
+            return result;
+        }
+
+        // Feature #150 / Task 150-1: Deactivate license on old machine for transfer
+        public LicenseOperationResult DeactivateForTransfer(string reason)
+        {
+            LicenseOperationResult result = new LicenseOperationResult();
+            LicenseInfo current = GetLicenseInfo();
+            if (!current.IsActive && current.Status != "warning")
+            {
+                result.Success = false;
+                result.Code = "NOT_ACTIVE";
+                result.Message = "لا يوجد ترخيص نشط على هذا الجهاز لإلغاء تفعيله ونقله";
+                result.License = current;
+                return result;
+            }
+
+            string fp = EncryptionService.GenerateDeviceFingerprint();
+            string timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
+            string rawRel = string.Format("{0}|{1}|{2}", fp, current.LicenseKey ?? "NONE", timestamp);
+            string relSig;
+            using (var sha = System.Security.Cryptography.SHA256.Create())
+            {
+                byte[] hash = sha.ComputeHash(Encoding.UTF8.GetBytes(rawRel));
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < 6; i++)
+                {
+                    sb.Append(hash[i].ToString("X2"));
+                }
+                relSig = sb.ToString();
+            }
+
+            string releaseCode = string.Format("RFQ-REL-{0}-{1}", fp.Length >= 14 ? fp.Substring(10, 4) : "DEV", relSig);
+
+            _settingsRepo.Set("license_status", "transferred");
+            _settingsRepo.Set("license_token", "");
+            _settingsRepo.Set("transfer_release_code", releaseCode);
+            _settingsRepo.Set("transfer_deactivated_at", DateTime.UtcNow.ToString("o"));
+            _settingsRepo.Set("transfer_reason", string.IsNullOrEmpty(reason) ? "نقل لجهاز جديد" : reason);
+
+            if (_auditService != null)
+            {
+                _auditService.Log("LICENSE_TRANSFERRED", "SYSTEM", releaseCode, "{\"reason\":\"" + (reason ?? "") + "\"}", "SYSTEM");
+            }
+
+            result.Success = true;
+            result.Code = "TRANSFER_DEACTIVATED";
+            result.ReleaseCode = releaseCode;
+            result.Message = string.Format("تم إلغاء تفعيل الترخيص على هذا الجهاز بنجاح.\nكود إثبات النقل: {0}\nيرجى تزويد الدعم الفني بهذا الكود مع بصمة الجهاز الجديد لتفعيل رفيق على جهازك الجديد.", releaseCode);
+            result.License = GetLicenseInfo();
+            return result;
+        }
+
+        // Feature #150 / Task 150-1: Offline Support Code Generator
+        public static string GenerateOfflineSupportCode(string deviceFingerprint, string licenseType, int days)
+        {
+            if (string.IsNullOrEmpty(deviceFingerprint)) return null;
+            char typeChar = 'A';
+            if (licenseType == "lifetime" || days >= 9000)
+            {
+                typeChar = 'L';
+                days = 9999;
+            }
+            else if (licenseType == "monthly" || days <= 31)
+            {
+                typeChar = 'M';
+            }
+            else
+            {
+                typeChar = 'A';
+            }
+
+            string daysHex = days.ToString("X4");
+            string payload = string.Format("{0}:{1}{2}", deviceFingerprint.Trim().ToUpperInvariant(), typeChar, daysHex);
+
+            string sigHex;
+            using (var hmac = new System.Security.Cryptography.HMACSHA256(Encoding.UTF8.GetBytes(OFFLINE_MASTER_SECRET)))
+            {
+                byte[] hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < 6; i++) // 6 bytes = 12 hex chars
+                {
+                    sb.Append(hash[i].ToString("X2"));
+                }
+                sigHex = sb.ToString();
+            }
+
+            return string.Format("RFQ-SUP-{0}{1}-{2}", typeChar, daysHex, sigHex);
+        }
+
+        // Feature #150 / Task 150-1: Offline Activation via Support Code without Internet
+        public LicenseOperationResult ActivateWithSupportCode(string supportCode, string shopName)
+        {
+            LicenseOperationResult result = new LicenseOperationResult();
+            if (string.IsNullOrEmpty(supportCode) || string.IsNullOrEmpty(supportCode.Trim()))
+            {
+                result.Success = false;
+                result.Code = "EMPTY_CODE";
+                result.Message = "يرجى إدخال كود الدعم الفني للتفعيل";
+                return result;
+            }
+
+            string cleanCode = supportCode.Trim().ToUpperInvariant();
+            if (!cleanCode.StartsWith("RFQ-SUP-") || cleanCode.Length < 21)
+            {
+                result.Success = false;
+                result.Code = "INVALID_FORMAT";
+                result.Message = "صيغة كود الدعم غير صحيحة. يجب أن يبدأ بـ RFQ-SUP-";
+                return result;
+            }
+
+            string[] parts = cleanCode.Split('-');
+            if (parts.Length != 4 || parts[3].Length != 12)
+            {
+                result.Success = false;
+                result.Code = "INVALID_FORMAT";
+                result.Message = "صيغة كود الدعم غير صحيحة";
+                return result;
+            }
+
+            string typeAndDays = parts[2];
+            if (typeAndDays.Length != 5)
+            {
+                result.Success = false;
+                result.Code = "INVALID_FORMAT";
+                result.Message = "بيانات المدة في كود الدعم غير صالحة";
+                return result;
+            }
+
+            char typeChar = typeAndDays[0];
+            string daysHex = typeAndDays.Substring(1, 4);
+            int days;
+            try
+            {
+                days = Convert.ToInt32(daysHex, 16);
+            }
+            catch
+            {
+                result.Success = false;
+                result.Code = "INVALID_DAYS";
+                result.Message = "رمز المدة في كود الدعم غير صالح";
+                return result;
+            }
+
+            string expectedSig;
+            string fp = EncryptionService.GenerateDeviceFingerprint();
+            string payload = string.Format("{0}:{1}{2}", fp.Trim().ToUpperInvariant(), typeChar, daysHex);
+
+            using (var hmac = new System.Security.Cryptography.HMACSHA256(Encoding.UTF8.GetBytes(OFFLINE_MASTER_SECRET)))
+            {
+                byte[] hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < 6; i++)
+                {
+                    sb.Append(hash[i].ToString("X2"));
+                }
+                expectedSig = sb.ToString();
+            }
+
+            if (parts[3] != expectedSig)
+            {
+                result.Success = false;
+                result.Code = "DEVICE_MISMATCH";
+                result.Message = "كود الدعم غير صالح لبصمة هذا الجهاز. تأكد من إعطاء بصمة جهازك الصحيحة لفريق الدعم.";
+                return result;
+            }
+
+            string licType = "lifetime";
+            string expiresAt = "";
+            if (typeChar == 'L' || days >= 9000)
+            {
+                licType = "lifetime";
+                expiresAt = "";
+            }
+            else
+            {
+                licType = typeChar == 'M' ? "monthly" : "annual";
+                expiresAt = DateTime.UtcNow.AddDays(days).ToString("yyyy-MM-dd HH:mm:ss");
+            }
+
+            string nowStr = DateTime.UtcNow.ToString("o");
+            string token = "OFFLINE_SUP_" + expectedSig + "_" + DateTime.UtcNow.Ticks;
+
+            _settingsRepo.Set("license_key", cleanCode);
+            _settingsRepo.Set("license_token", token);
+            _settingsRepo.Set("license_status", "active");
+            _settingsRepo.Set("license_type", licType);
+            _settingsRepo.Set("license_activated_at", nowStr);
+            _settingsRepo.Set("license_expires_at", expiresAt);
+            _settingsRepo.Set("transfer_release_code", "");
+            if (!string.IsNullOrEmpty(shopName)) _settingsRepo.Set("license_shop_name", shopName);
+            _settingsRepo.Set("last_known_utc", DateTime.UtcNow.ToString("o"));
+
+            if (_auditService != null)
+            {
+                _auditService.Log("LICENSE_ACTIVATED_SUPPORT", "SYSTEM", cleanCode, "{\"type\":\"" + licType + "\"}", "SYSTEM");
+            }
+
+            result.Success = true;
+            result.Code = "SUPPORT_ACTIVATION_SUCCESS";
+            result.Message = "تم تفعيل الترخيص بنجاح عبر كود الدعم الفني أوفلاين!";
             result.License = GetLicenseInfo();
             return result;
         }

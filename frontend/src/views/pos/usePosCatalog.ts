@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import type { Product, QuickItem, QuickBundleItem, ProductUnit } from '../../types/models';
 import type { SmartCatalogItem } from './types';
+import { normalizeArabicNumerals, normalizeArabicText } from '../../utils/money';
 
 interface UsePosCatalogProps {
   catalogProducts: Product[];
@@ -18,6 +19,7 @@ interface UsePosCatalogProps {
     unit?: string;
     editingCartIndex?: number;
   } | null>>;
+  setUnitPickerProduct?: React.Dispatch<React.SetStateAction<Product | null>>;
 }
 
 export const usePosCatalog = ({
@@ -28,6 +30,7 @@ export const usePosCatalog = ({
   barcodeInputRef,
   setInitialWeightMilli,
   setWeightModalProduct,
+  setUnitPickerProduct,
 }: UsePosCatalogProps) => {
   const [catalogSearchQuery, setCatalogSearchQuery] = useState('');
   const [activeCatalogTab, setActiveCatalogTab] = useState<string>('__ALL__');
@@ -77,6 +80,10 @@ export const usePosCatalog = ({
         salesCount: popScore,
         quickDisplayOrder: matchedQuick?.displayOrder ?? p.quickDisplayOrder ?? 9999,
         productRef: p,
+        hasVariants: p.hasVariants,
+        variantColor: p.variantColor,
+        variantSize: p.variantSize,
+        variantsCount: p.variantsCount,
       });
       seenProductIds.add(p.id);
     }
@@ -127,12 +134,23 @@ export const usePosCatalog = ({
   const displayedCatalogItems = useMemo(() => {
     let result = smartItems;
 
-    const query = catalogSearchQuery.trim().toLowerCase();
-    if (query) {
+    const rawQuery = catalogSearchQuery.trim();
+    if (rawQuery) {
+      const normQuery = normalizeArabicText(normalizeArabicNumerals(rawQuery));
+      const lowerRaw = rawQuery.toLowerCase();
       result = result.filter((it) => {
-        const matchName = it.name.toLowerCase().includes(query);
-        const matchBarcode = it.barcode ? it.barcode.toLowerCase().includes(query) : false;
-        return matchName || matchBarcode;
+        const normName = normalizeArabicText(it.name);
+        const matchName = normName.includes(normQuery);
+        const matchBarcode = it.barcode ? it.barcode.toLowerCase().includes(lowerRaw) : false;
+        const matchBarcodes = it.barcodes ? it.barcodes.some((b) => b.toLowerCase().includes(lowerRaw)) : false;
+        const matchUnits = it.units ? it.units.some((u) => 
+          (u.barcode && u.barcode.toLowerCase().includes(lowerRaw)) || 
+          normalizeArabicText(u.unitName).includes(normQuery)
+        ) : false;
+        const matchCategory = it.categoryName ? normalizeArabicText(it.categoryName).includes(normQuery) : false;
+        const matchVariant = (it.variantColor ? normalizeArabicText(it.variantColor).includes(normQuery) : false) ||
+                             (it.variantSize ? it.variantSize.toLowerCase().includes(lowerRaw) : false);
+        return matchName || matchBarcode || matchBarcodes || matchUnits || matchCategory || matchVariant;
       });
     }
 
@@ -237,9 +255,43 @@ export const usePosCatalog = ({
     if (item.productRef) {
       const customPrice = item.pricePiasters !== item.productRef.pricePiasters;
       const productToAdd = customPrice ? { ...item.productRef, pricePiasters: item.pricePiasters } : item.productRef;
+
+      // If item has multiple units and no specific unit was chosen, prompt Unit Picker Modal
+      if (!specificUnit && productToAdd.units && productToAdd.units.length > 1 && setUnitPickerProduct) {
+        setUnitPickerProduct(productToAdd);
+        return;
+      }
+
       addProductToCart(productToAdd, undefined, specificUnit);
-      showStatus(`تمت إضافة: ${item.name}${specificUnit ? ` (${specificUnit.unitName})` : ''}`, 'success');
+      if (!productToAdd.hasVariants && productToAdd.unit !== 'kg') {
+        const unitSuffix = specificUnit ? ` (${specificUnit.unitName})` : '';
+        showStatus(`تمت إضافة: ${item.name}${unitSuffix}`, 'success');
+      }
       barcodeInputRef.current?.focus();
+      return;
+    }
+
+    if (item.hasVariants) {
+      const parentDummy: Product = {
+        id: item.productId || item.id,
+        name: item.name,
+        barcode: item.barcode || null,
+        barcodes: item.barcodes,
+        pricePiasters: item.pricePiasters,
+        costPiasters: Math.round(item.pricePiasters * 0.75),
+        stockQuantityMilli: typeof item.stockQuantityMilli === 'number' ? item.stockQuantityMilli : 100000,
+        unit: item.unit || 'piece',
+        taxRatePercent: 0,
+        isActive: true,
+        hasVariants: true,
+        variantColor: item.variantColor,
+        variantSize: item.variantSize,
+        variantsCount: item.variantsCount,
+        units: item.units,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      addProductToCart(parentDummy);
       return;
     }
 
@@ -259,20 +311,34 @@ export const usePosCatalog = ({
       id: item.productId || item.id,
       name: item.name,
       barcode: item.barcode || null,
+      barcodes: item.barcodes,
       pricePiasters: item.pricePiasters,
       costPiasters: Math.round(item.pricePiasters * 0.75),
-      stockQuantityMilli: 100000,
+      stockQuantityMilli: typeof item.stockQuantityMilli === 'number' ? item.stockQuantityMilli : 100000,
       unit: item.unit || 'piece',
       taxRatePercent: 0,
       isActive: true,
+      hasVariants: item.hasVariants,
+      variantColor: item.variantColor,
+      variantSize: item.variantSize,
+      variantsCount: item.variantsCount,
+      units: item.units,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
 
-    addProductToCart(dummyProduct);
-    showStatus(`تمت إضافة: ${item.name}`, 'success');
+    if (!specificUnit && dummyProduct.units && dummyProduct.units.length > 1 && setUnitPickerProduct) {
+      setUnitPickerProduct(dummyProduct);
+      return;
+    }
+
+    addProductToCart(dummyProduct, undefined, specificUnit);
+    if (!dummyProduct.hasVariants && dummyProduct.unit !== 'kg') {
+      const unitSuffix = specificUnit ? ` (${specificUnit.unitName})` : '';
+      showStatus(`تمت إضافة: ${item.name}${unitSuffix}`, 'success');
+    }
     barcodeInputRef.current?.focus();
-  }, [addProductToCart, showStatus, barcodeInputRef, setInitialWeightMilli, setWeightModalProduct, quickItems]);
+  }, [addProductToCart, showStatus, barcodeInputRef, setInitialWeightMilli, setWeightModalProduct, setUnitPickerProduct, quickItems]);
 
   const handleConfirmOpenPrice = (e: FormEvent) => {
     e.preventDefault();

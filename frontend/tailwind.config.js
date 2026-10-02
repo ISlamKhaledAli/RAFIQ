@@ -67,6 +67,7 @@ export default {
       spacing: {
         '0.2': '1px',
         '4.5': '1.125rem',
+        '8.5': '2.125rem', // 34px
       },
       zIndex: {
         '60': '60',

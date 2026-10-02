@@ -430,5 +430,179 @@ namespace RafiqPOS.Services
         {
             return _repo.GetSearchCount(query, stockStatus, categoryId);
         }
+
+        public static long RoundPrice(long piasters, string rule)
+        {
+            if (piasters < 0) return 0;
+            if (string.IsNullOrWhiteSpace(rule) || rule == "none") return piasters;
+
+            switch (rule)
+            {
+                case "half_pound": // 50 piasters
+                    return ((piasters + 25) / 50) * 50;
+
+                case "one_pound": // 100 piasters
+                    return ((piasters + 50) / 100) * 100;
+
+                case "five_pounds": // 500 piasters
+                    return ((piasters + 250) / 500) * 500;
+
+                case "ceil_pound": // Round up to next full pound
+                    return ((piasters + 99) / 100) * 100;
+
+                case "psychological_95":
+                    long pounds95 = piasters / 100;
+                    if (piasters % 100 > 95) pounds95++;
+                    if (pounds95 <= 0 && piasters < 95) return 95;
+                    return Math.Max(95, (pounds95 * 100) + 95);
+
+                case "psychological_50":
+                    long pounds50 = piasters / 100;
+                    return Math.Max(50, (pounds50 * 100) + 50);
+
+                default:
+                    return piasters;
+            }
+        }
+
+        public BulkPricePreviewResult PreviewBulkPriceAdjustment(BulkPricePreviewRequest request)
+        {
+            if (request == null) throw new ArgumentNullException("request");
+
+            var products = _repo.GetProductsForBulkPrice(request.Scope, request.ProductIds, request.CategoryId, request.SearchQuery);
+            var result = new BulkPricePreviewResult();
+            if (products == null || products.Count == 0) return result;
+
+            var excelMap = new Dictionary<string, BulkPriceExcelItem>(StringComparer.OrdinalIgnoreCase);
+            if (request.ExcelItems != null)
+            {
+                foreach (var exItem in request.ExcelItems)
+                {
+                    if (exItem != null && !string.IsNullOrWhiteSpace(exItem.Identifier))
+                    {
+                        excelMap[exItem.Identifier.Trim()] = exItem;
+                    }
+                }
+            }
+
+            double totalPercentSum = 0;
+            int itemsWithPercentCount = 0;
+
+            foreach (var prod in products)
+            {
+                long currentPrice = prod.PricePiasters;
+                long currentCost = prod.CostPiasters;
+                long newPrice = currentPrice;
+                long newCost = currentCost;
+
+                if (string.Equals(request.Method, "excel", StringComparison.OrdinalIgnoreCase))
+                {
+                    BulkPriceExcelItem matched = null;
+                    if (!string.IsNullOrWhiteSpace(prod.Barcode) && excelMap.TryGetValue(prod.Barcode, out matched)) { }
+                    else if (!string.IsNullOrWhiteSpace(prod.InternalCode) && excelMap.TryGetValue(prod.InternalCode, out matched)) { }
+                    else if (!string.IsNullOrWhiteSpace(prod.Id) && excelMap.TryGetValue(prod.Id, out matched)) { }
+
+                    if (matched != null)
+                    {
+                        if (matched.NewPricePiasters.HasValue) newPrice = matched.NewPricePiasters.Value;
+                        if (matched.NewCostPiasters.HasValue) newCost = matched.NewCostPiasters.Value;
+                    }
+                }
+                else if (string.Equals(request.Method, "percentage", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (request.TargetField == "price" || request.TargetField == "both")
+                    {
+                        long change = (long)Math.Round(currentPrice * (request.PercentageValue / 100.0));
+                        newPrice = RoundPrice(currentPrice + change, request.RoundingRule);
+                    }
+                    if (request.TargetField == "cost" || request.TargetField == "both")
+                    {
+                        long change = (long)Math.Round(currentCost * (request.PercentageValue / 100.0));
+                        newCost = RoundPrice(currentCost + change, request.RoundingRule);
+                    }
+                }
+                else if (string.Equals(request.Method, "fixed_amount", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (request.TargetField == "price" || request.TargetField == "both")
+                    {
+                        newPrice = RoundPrice(currentPrice + request.AmountPiasters, request.RoundingRule);
+                    }
+                    if (request.TargetField == "cost" || request.TargetField == "both")
+                    {
+                        newCost = RoundPrice(currentCost + request.AmountPiasters, request.RoundingRule);
+                    }
+                }
+
+                if (newPrice < 0) newPrice = 0;
+                if (newCost < 0) newCost = 0;
+
+                long priceDiff = newPrice - currentPrice;
+                double priceDiffPercent = currentPrice > 0 ? Math.Round(((double)priceDiff / currentPrice) * 100.0, 2) : 0;
+                long costDiff = newCost - currentCost;
+                bool belowCost = (newPrice < newCost) && (newPrice > 0 || newCost > 0);
+
+                if (belowCost)
+                {
+                    result.BelowCostCount++;
+                }
+
+                if (currentPrice > 0)
+                {
+                    totalPercentSum += priceDiffPercent;
+                    itemsWithPercentCount++;
+                }
+
+                result.Items.Add(new BulkPricePreviewItem
+                {
+                    ProductId = prod.Id,
+                    ProductName = prod.Name,
+                    Barcode = prod.Barcode,
+                    CategoryName = prod.CategoryName ?? "عام",
+                    CurrentPricePiasters = currentPrice,
+                    NewPricePiasters = newPrice,
+                    CurrentCostPiasters = currentCost,
+                    NewCostPiasters = newCost,
+                    PriceDiffPiasters = priceDiff,
+                    PriceDiffPercent = priceDiffPercent,
+                    CostDiffPiasters = costDiff,
+                    BelowCost = belowCost
+                });
+            }
+
+            result.TotalCount = result.Items.Count;
+            result.AverageIncreasePercent = itemsWithPercentCount > 0 ? Math.Round(totalPercentSum / itemsWithPercentCount, 2) : 0;
+
+            return result;
+        }
+
+        public BulkPriceApplyResult ApplyBulkPriceAdjustment(BulkPriceApplyRequest request)
+        {
+            if (request == null) throw new ArgumentNullException("request");
+            return _repo.ApplyBulkPriceAdjustment(request.Items, request.Reason, request.UserId);
+        }
+
+        #region Feature #119 / Story 108: توليد الباركود الداخلي للأصناف
+
+        public string GenerateNextInternalBarcode()
+        {
+            return _repo.GenerateNextInternalBarcode();
+        }
+
+        public AssignBarcodeResult AssignInternalBarcode(string productId, string userId = null)
+        {
+            return _repo.AssignInternalBarcode(productId, userId);
+        }
+
+        public BulkGenerateBarcodesResult BulkGenerateInternalBarcodes(string userId = null)
+        {
+            return _repo.BulkGenerateInternalBarcodes(userId);
+        }
+
+        public int GetMissingBarcodeCount()
+        {
+            return _repo.GetMissingBarcodeCount();
+        }
+
+        #endregion
     }
 }

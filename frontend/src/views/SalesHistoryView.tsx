@@ -13,9 +13,11 @@ import {
   Calendar,
   User,
   Ban,
-  RotateCcw
+  RotateCcw,
+  HelpCircle,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { openHelpCenter } from '../utils/helpService';
 import type { Sale } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
 import { VoidInvoiceModal } from '../components/VoidInvoiceModal';
@@ -287,14 +289,24 @@ export const SalesHistoryView = () => {
             </div>
             <span className="text-[10px] text-[#52605D] block mt-0.5">معاملات ذرية فورية</span>
           </div>
-          <button
-            onClick={() => void loadSales()}
-            disabled={loading}
-            className="w-10 h-10 rounded-xl bg-[#F8FAFC] hover:bg-[#F1F5F4] border border-[#E2E8F0] text-[#52605D] hover:text-[#0F172A] flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
-            title="تحديث البيانات"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#006D41]' : ''}`} />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => openHelpCenter('sales')}
+              className="w-10 h-10 rounded-xl bg-[#F8FAFC] hover:bg-[#F1F5F4] border border-[#E2E8F0] text-[#006D41] flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+              title="دليل وشروحات المبيعات والورديات والإغلاق اليومي (F1)"
+            >
+              <HelpCircle className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => void loadSales()}
+              disabled={loading}
+              className="w-10 h-10 rounded-xl bg-[#F8FAFC] hover:bg-[#F1F5F4] border border-[#E2E8F0] text-[#52605D] hover:text-[#0F172A] flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+              title="تحديث البيانات"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#006D41]' : ''}`} />
+            </button>
+          </div>
         </div>
       </div>
 

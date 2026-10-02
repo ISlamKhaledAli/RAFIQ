@@ -6,7 +6,7 @@ namespace RafiqPOS.Database
 {
     public static class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 23;
+        public const int LATEST_SUPPORTED_VERSION = 25;
 
         public static void ApplyMigrations(string connectionString, string dbPath)
         {
@@ -217,7 +217,21 @@ namespace RafiqPOS.Database
                     ApplyMigration23(conn);
                 }
 
-                // 27. Self-Healing Schema Guard: Automatically repair missing columns or indexes
+                // 27. Apply Migration 24: Product Batches and Expiry Tracking System (Feature #60)
+                if (currentVersion < 24)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration24(conn);
+                }
+
+                // 28. Apply Migration 25: Product Variants (Sizes & Colors) System (Feature #114)
+                if (currentVersion < 25)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration25(conn);
+                }
+
+                // 29. Self-Healing Schema Guard: Automatically repair missing columns or indexes
                 EnsureSchemaHealth(conn);
             }
         }
@@ -968,6 +982,119 @@ namespace RafiqPOS.Database
                     ", conn, trans))
                     {
                         cleanDemoCmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        private static void ApplyMigration25(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // 1. Table: product_variants (Feature #114 / Task 114-2)
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS product_variants (
+                            id TEXT PRIMARY KEY,
+                            parent_product_id TEXT NOT NULL,
+                            variant_product_id TEXT NOT NULL,
+                            size TEXT,
+                            color TEXT,
+                            sku TEXT,
+                            barcode TEXT,
+                            price_piasters INTEGER NOT NULL DEFAULT 0,
+                            cost_piasters INTEGER NOT NULL DEFAULT 0,
+                            stock_quantity_milli INTEGER NOT NULL DEFAULT 0,
+                            min_stock_quantity_milli INTEGER NOT NULL DEFAULT 0,
+                            created_at TEXT NOT NULL,
+                            updated_at TEXT NOT NULL,
+                            FOREIGN KEY (parent_product_id) REFERENCES products(id) ON DELETE CASCADE,
+                            FOREIGN KEY (variant_product_id) REFERENCES products(id) ON DELETE CASCADE
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_product_variants_parent ON product_variants(parent_product_id);
+                        CREATE INDEX IF NOT EXISTS idx_product_variants_child ON product_variants(variant_product_id);
+                        CREATE INDEX IF NOT EXISTS idx_product_variants_barcode ON product_variants(barcode);
+                        CREATE INDEX IF NOT EXISTS idx_product_variants_size_color ON product_variants(parent_product_id, size, color);
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 2. Add variant columns to products table if missing
+                    var existingProdCols = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    using (var infoCmd = new SQLiteCommand("PRAGMA table_info(products);", conn, trans))
+                    using (var reader = infoCmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            existingProdCols.Add(reader["name"].ToString());
+                        }
+                    }
+
+                    if (!existingProdCols.Contains("parent_id"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE products ADD COLUMN parent_id TEXT;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    if (!existingProdCols.Contains("has_variants"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE products ADD COLUMN has_variants INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    if (!existingProdCols.Contains("variant_size"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE products ADD COLUMN variant_size TEXT;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    if (!existingProdCols.Contains("variant_color"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE products ADD COLUMN variant_color TEXT;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    if (!existingProdCols.Contains("variant_sku"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE products ADD COLUMN variant_sku TEXT;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    using (var idxCmd = new SQLiteCommand(@"
+                        CREATE INDEX IF NOT EXISTS idx_products_parent_id ON products(parent_id);
+                        CREATE INDEX IF NOT EXISTS idx_products_has_variants ON products(has_variants);
+                    ", conn, trans))
+                    {
+                        idxCmd.ExecuteNonQuery();
+                    }
+
+                    // 3. Update schema_migrations
+                    using (var logCmd = new SQLiteCommand(@"
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (25, 'Product Variants (Sizes & Colors) System (Feature #114)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        logCmd.ExecuteNonQuery();
                     }
 
                     trans.Commit();
@@ -2919,6 +3046,130 @@ namespace RafiqPOS.Database
                     using (var logCmd = new SQLiteCommand(@"
                         INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
                         VALUES (23, 'Customer Archival Soft Delete Support', datetime('now'));
+                    ", conn, trans))
+                    {
+                        logCmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        private static void ApplyMigration24(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // 1. Table: product_batches (Feature #60 / Task 60-2)
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS product_batches (
+                            id TEXT PRIMARY KEY,
+                            product_id TEXT NOT NULL,
+                            batch_number TEXT NOT NULL,
+                            expiry_date TEXT,
+                            production_date TEXT,
+                            quantity_milli INTEGER NOT NULL DEFAULT 0,
+                            cost_price_piasters INTEGER NOT NULL DEFAULT 0,
+                            supplier_id TEXT,
+                            purchase_id TEXT,
+                            status TEXT NOT NULL DEFAULT 'ACTIVE',
+                            notes TEXT,
+                            created_at TEXT NOT NULL,
+                            updated_at TEXT NOT NULL,
+                            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+                            FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE SET NULL,
+                            FOREIGN KEY (purchase_id) REFERENCES purchases(id) ON DELETE SET NULL
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_product_batches_product_id ON product_batches(product_id);
+                        CREATE INDEX IF NOT EXISTS idx_product_batches_expiry_date ON product_batches(expiry_date);
+                        CREATE INDEX IF NOT EXISTS idx_product_batches_status ON product_batches(status);
+                        CREATE INDEX IF NOT EXISTS idx_product_batches_qty ON product_batches(product_id, quantity_milli);
+                        CREATE UNIQUE INDEX IF NOT EXISTS idx_product_batches_unique ON product_batches(product_id, batch_number);
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 2. Add batch_id to stock_movements if missing
+                    var existingSmCols = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    using (var infoCmd = new SQLiteCommand("PRAGMA table_info(stock_movements);", conn, trans))
+                    using (var reader = infoCmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            existingSmCols.Add(reader["name"].ToString());
+                        }
+                    }
+
+                    if (!existingSmCols.Contains("batch_id"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE stock_movements ADD COLUMN batch_id TEXT;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    using (var idxCmd = new SQLiteCommand("CREATE INDEX IF NOT EXISTS idx_stock_movements_batch_id ON stock_movements(batch_id);", conn, trans))
+                    {
+                        idxCmd.ExecuteNonQuery();
+                    }
+
+                    // 3. Add batch columns to purchase_items if missing
+                    var existingPiCols = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    using (var infoCmd = new SQLiteCommand("PRAGMA table_info(purchase_items);", conn, trans))
+                    using (var reader = infoCmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            existingPiCols.Add(reader["name"].ToString());
+                        }
+                    }
+
+                    if (!existingPiCols.Contains("batch_number"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE purchase_items ADD COLUMN batch_number TEXT;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    if (!existingPiCols.Contains("expiry_date"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE purchase_items ADD COLUMN expiry_date TEXT;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    if (!existingPiCols.Contains("production_date"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE purchase_items ADD COLUMN production_date TEXT;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    // 4. Default setting for expiry alert days (Task 60-5)
+                    using (var cmd = new SQLiteCommand(@"
+                        INSERT OR IGNORE INTO app_settings (key, value, updated_at)
+                        VALUES ('expiry_alert_days', '30', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 5. Update schema_migrations
+                    using (var logCmd = new SQLiteCommand(@"
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (24, 'Product Batches and Expiry Tracking System (Feature #60)', datetime('now'));
                     ", conn, trans))
                     {
                         logCmd.ExecuteNonQuery();

@@ -26,6 +26,62 @@ export interface Product {
   isCustomQuickItem?: boolean;
   isOpenPrice?: boolean;
   quickDisplayOrder?: number;
+  parentId?: string | null;
+  hasVariants?: boolean;
+  variantSize?: string | null;
+  variantColor?: string | null;
+  variantSku?: string | null;
+  variantsCount?: number;
+}
+
+export interface ProductVariant {
+  id: string;
+  parentProductId: string;
+  variantProductId: string;
+  size: string;
+  color: string;
+  sku: string;
+  barcode: string;
+  pricePiasters: number;
+  costPiasters: number;
+  stockQuantityMilli: number;
+  minStockQuantityMilli: number;
+  createdAt: string;
+  updatedAt: string;
+  priceFormatted?: string;
+  costFormatted?: string;
+  stockFormatted?: string;
+}
+
+export interface VariantMatrixCell {
+  size: string;
+  color: string;
+  barcode?: string;
+  sku?: string;
+  pricePiasters: number;
+  costPiasters: number;
+  stockQuantityMilli: number;
+  minStockQuantityMilli?: number;
+  isEnabled: boolean;
+}
+
+export interface CreateVariantMatrixRequest {
+  parentProductId?: string | null;
+  parentName: string;
+  categoryId?: string | null;
+  defaultPricePiasters: number;
+  defaultCostPiasters: number;
+  defaultMinStockQuantityMilli?: number;
+  sizes: string[];
+  colors: string[];
+  matrixCells: VariantMatrixCell[];
+}
+
+export interface ParentProductWithVariants {
+  parentProduct: Product;
+  variants: ProductVariant[];
+  totalStockMilli: number;
+  totalVariantsCount: number;
 }
 
 export interface ProductUnit {
@@ -424,7 +480,44 @@ export interface PurchaseItem {
   totalCostPiasters: number;
   previousCostPiasters: number;
   newSellingPricePiasters?: number | null;
+  batchNumber?: string | null;
+  expiryDate?: string | null;
+  productionDate?: string | null;
+  batchId?: string | null;
   createdAt: string;
+}
+
+export interface ProductBatch {
+  id: string;
+  productId: string;
+  batchNumber: string;
+  productionDate?: string | null;
+  expiryDate?: string | null;
+  quantityMilli: number;
+  initialQuantityMilli: number;
+  costPricePiasters: number;
+  sellingPricePiasters?: number | null;
+  status: 'ACTIVE' | 'DEPLETED' | 'EXPIRED' | string;
+  supplierId?: string | null;
+  purchaseInvoiceId?: string | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  productName?: string;
+  productBarcode?: string;
+  unit?: string;
+  daysUntilExpiry?: number;
+  isExpired?: boolean;
+  isExpiringSoon?: boolean;
+}
+
+export interface BatchSummary {
+  totalActiveBatches: number;
+  expiringSoonCount: number;
+  expiredCount: number;
+  expiredValuePiasters: number;
+  expiringSoonValuePiasters: number;
+  totalBatchStockValuePiasters: number;
 }
 
 export interface Purchase {
@@ -570,6 +663,159 @@ export interface DebtorReportItem {
   lastTransactionDate?: string;
 }
 
+export interface BarcodeLabelItem {
+  productId: string;
+  productName: string;
+  barcode: string;
+  pricePiasters: number;
+  variantInfo?: string;
+  copies: number;
+  expiryDate?: string;
+}
 
+export interface BarcodeLabelConfig {
+  printerName?: string;
+  paperSize: '38x25' | '40x30' | '50x25' | '50x30' | '50x40' | 'a4_24' | 'a4_40' | string;
+  customWidthMm?: number;
+  customHeightMm?: number;
+  showStoreName: boolean;
+  storeName?: string;
+  showPrice: boolean;
+  showBarcodeText: boolean;
+  showExpiryDate: boolean;
+}
 
+export interface PrintLabelsRequest {
+  items: BarcodeLabelItem[];
+  config: BarcodeLabelConfig;
+}
+
+export interface PrintLabelsResult {
+  success: boolean;
+  totalLabelsPrinted: number;
+  printerUsed: string;
+  message: string;
+}
+
+export interface BulkPriceExcelItem {
+  identifier: string;
+  newPricePiasters?: number | null;
+  newCostPiasters?: number | null;
+}
+
+export interface BulkPricePreviewRequest {
+  scope: 'selected' | 'category' | 'all' | 'search';
+  productIds?: string[];
+  categoryId?: string;
+  searchQuery?: string;
+  targetField: 'price' | 'cost' | 'both';
+  method: 'percentage' | 'fixed_amount' | 'excel';
+  percentageValue?: number;
+  amountPiasters?: number;
+  roundingRule: 'none' | 'half_pound' | 'one_pound' | 'five_pounds' | 'ceil_pound' | 'psychological_95' | 'psychological_50';
+  reason?: string;
+  excelItems?: BulkPriceExcelItem[];
+}
+
+export interface BulkPricePreviewItem {
+  productId: string;
+  productName: string;
+  barcode: string;
+  categoryName: string;
+  currentPricePiasters: number;
+  newPricePiasters: number;
+  currentCostPiasters: number;
+  newCostPiasters: number;
+  priceDiffPiasters: number;
+  priceDiffPercent: number;
+  costDiffPiasters: number;
+  belowCost: boolean;
+}
+
+export interface BulkPricePreviewResult {
+  items: BulkPricePreviewItem[];
+  totalCount: number;
+  belowCostCount: number;
+  averageIncreasePercent: number;
+}
+
+export interface BulkPriceApplyItem {
+  productId: string;
+  newPricePiasters: number;
+  newCostPiasters: number;
+  oldPricePiasters: number;
+  oldCostPiasters: number;
+}
+
+export interface BulkPriceApplyRequest {
+  items: BulkPriceApplyItem[];
+  reason: string;
+  userId?: string;
+}
+
+export interface BulkPriceApplyResult {
+  success: boolean;
+  updatedCount: number;
+  message: string;
+}
+
+export type DataQualityIssueType = 
+  | 'missing_cost' 
+  | 'missing_barcode' 
+  | 'missing_category' 
+  | 'duplicate_barcode' 
+  | 'negative_stock' 
+  | 'price_below_cost';
+
+export interface DataQualityIssueItem {
+  productId: string;
+  productName: string;
+  barcode: string;
+  categoryName: string;
+  categoryId: string;
+  stockMilli: number;
+  costPiasters: number;
+  pricePiasters: number;
+  unit: string;
+  issueType: DataQualityIssueType;
+  severity: 'critical' | 'warning' | 'info';
+  issueTitle: string;
+  issueDescription: string;
+  suggestedFix: string;
+}
+
+export interface DataQualityReport {
+  totalProductsAudited: number;
+  healthyProductsCount: number;
+  healthScorePercent: number;
+  totalIssuesCount: number;
+  missingCostCount: number;
+  missingBarcodeCount: number;
+  missingCategoryCount: number;
+  duplicateBarcodeCount: number;
+  negativeStockCount: number;
+  priceBelowCostCount: number;
+  issues: DataQualityIssueItem[];
+}
+
+export interface BulkBarcodeProductItem {
+  productId: string;
+  productName: string;
+  barcode: string;
+  pricePiasters: number;
+}
+
+export interface BulkGenerateBarcodesResult {
+  success: boolean;
+  count: number;
+  products: BulkBarcodeProductItem[];
+  message: string;
+}
+
+export interface AssignBarcodeResult {
+  success: boolean;
+  productId: string;
+  barcode: string;
+  message: string;
+}
 

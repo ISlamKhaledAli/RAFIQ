@@ -16,8 +16,10 @@ import {
   RotateCcw,
   Receipt,
   X,
+  HelpCircle,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { openHelpCenter } from '../utils/helpService';
 import { CustomSelect } from '../components/CustomSelect';
 import type { Supplier, Purchase, PurchaseItem, Product, SupplierTransaction } from '../types/models';
 
@@ -81,6 +83,9 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
     quantityUnits: number; // in units (converted to milli)
     unitCostPiasters: number;
     newSellingPricePiasters: number;
+    batchNumber?: string;
+    expiryDate?: string;
+    productionDate?: string;
   }
   const [lineItems, setLineItems] = useState<NewPurchaseLineItem[]>([]);
 
@@ -195,6 +200,9 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
           quantityUnits: 1,
           unitCostPiasters: prod.costPiasters > 0 ? prod.costPiasters : prod.pricePiasters,
           newSellingPricePiasters: prod.pricePiasters,
+          batchNumber: '',
+          expiryDate: '',
+          productionDate: '',
         },
       ]);
     }
@@ -249,6 +257,9 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
         totalCostPiasters: Math.round(item.quantityUnits * item.unitCostPiasters),
         previousCostPiasters: item.currentCostPiasters,
         newSellingPricePiasters: item.newSellingPricePiasters > 0 ? item.newSellingPricePiasters : undefined,
+        batchNumber: item.batchNumber?.trim() || undefined,
+        expiryDate: item.expiryDate?.trim() || undefined,
+        productionDate: item.productionDate?.trim() || undefined,
       }));
 
       const payload = {
@@ -606,14 +617,25 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setActiveTab('new_invoice')}
-                className="h-10 px-4 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
-              >
-                <Plus className="w-4 h-4" />
-                <span>فاتورة شراء جديدة</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => openHelpCenter('purchases')}
+                  className="h-10 w-10 flex items-center justify-center bg-surface hover:bg-surface-2 border border-line text-[#006d41] rounded-xl text-xs font-bold transition-colors shadow-2xs cursor-pointer"
+                  title="شرح ودليل فواتير المشتريات والموردين (F1)"
+                >
+                  <HelpCircle className="w-4 h-4" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('new_invoice')}
+                  className="h-10 px-4 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>فاتورة شراء جديدة</span>
+                </button>
+              </div>
             </div>
 
             {/* Invoices Table */}
@@ -863,106 +885,153 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
                       return (
                         <div
                           key={item.productId}
-                          className="h-14 grid grid-cols-12 px-4 items-center text-xs hover:bg-surface-2/60 transition-colors"
+                          className="py-2.5 px-4 flex flex-col gap-1.5 hover:bg-surface-2/60 transition-colors"
                         >
-                          <div className="col-span-4">
-                            <span className="font-bold text-ink block truncate">{item.productName}</span>
-                            <span className="text-[10px] font-mono text-ink-muted">
-                              كود: {item.barcode || '—'} | الرصيد الحالي: {(item.currentStockMilli / 1000).toFixed(0)}
-                            </span>
-                          </div>
+                          <div className="grid grid-cols-12 items-center text-xs">
+                            <div className="col-span-4">
+                              <span className="font-bold text-ink block truncate">{item.productName}</span>
+                              <span className="text-[10px] font-mono text-ink-muted">
+                                كود: {item.barcode || '—'} | الرصيد الحالي: {(item.currentStockMilli / 1000).toFixed(0)}
+                              </span>
+                            </div>
 
-                          {/* Quantity control */}
-                          <div className="col-span-2 flex items-center justify-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const updated = [...lineItems];
-                                if (updated[idx].quantityUnits > 1) {
-                                  updated[idx].quantityUnits -= 1;
+                            {/* Quantity control */}
+                            <div className="col-span-2 flex items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = [...lineItems];
+                                  if (updated[idx].quantityUnits > 1) {
+                                    updated[idx].quantityUnits -= 1;
+                                    setLineItems(updated);
+                                  }
+                                }}
+                                className="w-6 h-6 rounded-lg bg-surface-2 hover:bg-line flex items-center justify-center text-xs font-bold text-ink transition-colors cursor-pointer"
+                              >
+                                -
+                              </button>
+                              <input
+                                type="number"
+                                min="1"
+                                value={item.quantityUnits}
+                                onChange={(e) => {
+                                  const val = parseFloat(e.target.value) || 1;
+                                  const updated = [...lineItems];
+                                  updated[idx].quantityUnits = Math.max(1, val);
                                   setLineItems(updated);
-                                }
-                              }}
-                              className="w-6 h-6 rounded-lg bg-surface-2 hover:bg-line flex items-center justify-center text-xs font-bold text-ink transition-colors cursor-pointer"
-                            >
-                              -
-                            </button>
-                            <input
-                              type="number"
-                              min="1"
-                              value={item.quantityUnits}
-                              onChange={(e) => {
-                                const val = parseFloat(e.target.value) || 1;
-                                const updated = [...lineItems];
-                                updated[idx].quantityUnits = Math.max(1, val);
-                                setLineItems(updated);
-                              }}
-                              className="w-14 h-7 text-center font-mono font-bold bg-surface-2 border border-line rounded-lg text-xs text-ink focus:outline-none focus:border-brand"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const updated = [...lineItems];
-                                updated[idx].quantityUnits += 1;
-                                setLineItems(updated);
-                              }}
-                              className="w-6 h-6 rounded-lg bg-surface-2 hover:bg-line flex items-center justify-center text-xs font-bold text-ink transition-colors cursor-pointer"
-                            >
-                              +
-                            </button>
+                                }}
+                                className="w-14 h-7 text-center font-mono font-bold bg-surface-2 border border-line rounded-lg text-xs text-ink focus:outline-none focus:border-brand"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = [...lineItems];
+                                  updated[idx].quantityUnits += 1;
+                                  setLineItems(updated);
+                                }}
+                                className="w-6 h-6 rounded-lg bg-surface-2 hover:bg-line flex items-center justify-center text-xs font-bold text-ink transition-colors cursor-pointer"
+                              >
+                                +
+                              </button>
+                            </div>
+
+                            {/* Unit Cost input */}
+                            <div className="col-span-2 flex items-center justify-center gap-1">
+                              <input
+                                type="number"
+                                step="0.25"
+                                value={(item.unitCostPiasters / 100).toFixed(2)}
+                                onChange={(e) => {
+                                  const valEGP = parseFloat(e.target.value) || 0;
+                                  const updated = [...lineItems];
+                                  updated[idx].unitCostPiasters = Math.round(valEGP * 100);
+                                  setLineItems(updated);
+                                }}
+                                className="w-20 h-7 text-center font-mono font-bold bg-surface-2 border border-line rounded-lg text-xs text-ink focus:outline-none focus:border-brand"
+                              />
+                              <span className="text-[10px] text-ink-muted">ج.م</span>
+                            </div>
+
+                            {/* Line Total */}
+                            <div className="col-span-2 text-center font-mono font-bold text-ink">
+                              {formatMoney(lineTotal)}
+                            </div>
+
+                            {/* New Selling Price */}
+                            <div className="col-span-1 flex items-center justify-center">
+                              <input
+                                type="number"
+                                step="0.5"
+                                value={(item.newSellingPricePiasters / 100).toFixed(2)}
+                                onChange={(e) => {
+                                  const valEGP = parseFloat(e.target.value) || 0;
+                                  const updated = [...lineItems];
+                                  updated[idx].newSellingPricePiasters = Math.round(valEGP * 100);
+                                  setLineItems(updated);
+                                }}
+                                className="w-16 h-7 text-center font-mono text-xs text-ink bg-surface-2 border border-line rounded-lg focus:outline-none focus:border-brand"
+                                title="تحديث سعر البيع في الكتالوج"
+                              />
+                            </div>
+
+                            {/* Delete Item */}
+                            <div className="col-span-1 text-left">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setLineItems(lineItems.filter((_, i) => i !== idx));
+                                }}
+                                className="p-1.5 text-ink-muted hover:text-danger hover:bg-danger-soft rounded-lg transition-colors cursor-pointer"
+                                title="حذف هذا الصنف من الفاتورة"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
 
-                          {/* Unit Cost input */}
-                          <div className="col-span-2 flex items-center justify-center gap-1">
-                            <input
-                              type="number"
-                              step="0.25"
-                              value={(item.unitCostPiasters / 100).toFixed(2)}
-                              onChange={(e) => {
-                                const valEGP = parseFloat(e.target.value) || 0;
-                                const updated = [...lineItems];
-                                updated[idx].unitCostPiasters = Math.round(valEGP * 100);
-                                setLineItems(updated);
-                              }}
-                              className="w-20 h-7 text-center font-mono font-bold bg-surface-2 border border-line rounded-lg text-xs text-ink focus:outline-none focus:border-brand"
-                            />
-                            <span className="text-[10px] text-ink-muted">ج.م</span>
-                          </div>
-
-                          {/* Line Total */}
-                          <div className="col-span-2 text-center font-mono font-bold text-ink">
-                            {formatMoney(lineTotal)}
-                          </div>
-
-                          {/* New Selling Price */}
-                          <div className="col-span-1 flex items-center justify-center">
-                            <input
-                              type="number"
-                              step="0.5"
-                              value={(item.newSellingPricePiasters / 100).toFixed(2)}
-                              onChange={(e) => {
-                                const valEGP = parseFloat(e.target.value) || 0;
-                                const updated = [...lineItems];
-                                updated[idx].newSellingPricePiasters = Math.round(valEGP * 100);
-                                setLineItems(updated);
-                              }}
-                              className="w-16 h-7 text-center font-mono text-xs text-ink bg-surface-2 border border-line rounded-lg focus:outline-none focus:border-brand"
-                              title="تحديث سعر البيع في الكتالوج"
-                            />
-                          </div>
-
-                          {/* Delete Item */}
-                          <div className="col-span-1 text-left">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setLineItems(lineItems.filter((_, i) => i !== idx));
-                              }}
-                              className="p-1.5 text-ink-muted hover:text-danger hover:bg-danger-soft rounded-lg transition-colors cursor-pointer"
-                              title="حذف هذا الصنف من الفاتورة"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                          {/* Batch & Expiry Input Row (Task 60-3) */}
+                          <div className="flex items-center gap-3 pr-2 text-[11px] text-ink-muted flex-wrap bg-surface/60 p-1.5 rounded-lg border border-line/60">
+                            <span className="font-bold text-brand text-[10.5px]">بيانات الدفعة (FEFO):</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-ink-muted">رقم التشغيلة:</span>
+                              <input
+                                type="text"
+                                placeholder="مثال: BATCH-01"
+                                value={item.batchNumber || ''}
+                                onChange={(e) => {
+                                  const updated = [...lineItems];
+                                  updated[idx].batchNumber = e.target.value;
+                                  setLineItems(updated);
+                                }}
+                                className="h-6 w-28 px-2 bg-surface border border-line rounded text-[11px] font-mono focus:border-brand focus:outline-none"
+                              />
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-ink-muted">تاريخ انتهاء الصلاحية:</span>
+                              <input
+                                type="date"
+                                value={item.expiryDate || ''}
+                                onChange={(e) => {
+                                  const updated = [...lineItems];
+                                  updated[idx].expiryDate = e.target.value;
+                                  setLineItems(updated);
+                                }}
+                                className="h-6 px-2 bg-surface border border-line rounded text-[11px] font-mono focus:border-brand focus:outline-none"
+                              />
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-ink-muted">تاريخ الإنتاج:</span>
+                              <input
+                                type="date"
+                                value={item.productionDate || ''}
+                                onChange={(e) => {
+                                  const updated = [...lineItems];
+                                  updated[idx].productionDate = e.target.value;
+                                  setLineItems(updated);
+                                }}
+                                className="h-6 px-2 bg-surface border border-line rounded text-[11px] font-mono focus:border-brand focus:outline-none"
+                              />
+                            </div>
                           </div>
                         </div>
                       );

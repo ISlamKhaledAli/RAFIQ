@@ -22,6 +22,7 @@ namespace RafiqPOS.Bridge
                 request.Action == "products:save" ||
                 request.Action == "products:delete" ||
                 request.Action == "products:bulkUpdateMinStock" ||
+                request.Action == "products:applyBulkPriceAdjustment" ||
                 request.Action == "products:importBatch" ||
                 request.Action == "categories:save" ||
                 request.Action == "categories:archive" ||
@@ -39,7 +40,11 @@ namespace RafiqPOS.Bridge
                 request.Action == "quickItems:renameCategory" ||
                 request.Action == "quickItems:reorder" ||
                 request.Action == "inventory:adjustStock" ||
-                request.Action == "inventory:recalculate"))
+                request.Action == "inventory:recalculate" ||
+                request.Action == "batch:save" ||
+                request.Action == "batch:adjust" ||
+                request.Action == "batch:disposeExpired" ||
+                request.Action == "variants:createMatrix"))
             {
                 return BridgeResponse.Fail(
                     request.Id,
@@ -48,10 +53,24 @@ namespace RafiqPOS.Bridge
                 );
             }
 
+            // Feature #173: Block sale creation centrally in core dispatcher when license is expired (Task 173-2)
+            if (DatabaseService.License != null && DatabaseService.License.IsLicenseExpired() && (
+                request.Action == "sales:create" ||
+                request.Action == "sales:hold"))
+            {
+                return BridgeResponse.Fail(
+                    request.Id,
+                    "LICENSE_EXPIRED",
+                    "انتهت فترة اشتراك البرنامج أو تم إيقافه. يرجى تجديد الترخيص لاستكمال عمليات البيع."
+                );
+            }
+
             try
             {
                 BridgeResponse response;
                 if (TryDispatchProducts(request, out response)) return response;
+                if (TryDispatchBatches(request, out response)) return response;
+                if (TryDispatchVariants(request, out response)) return response;
                 if (TryDispatchSales(request, out response)) return response;
                 if (TryDispatchCustomers(request, out response)) return response;
                 if (TryDispatchSuppliers(request, out response)) return response;

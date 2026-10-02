@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Plus, Settings, Search, X, Flame, Star, Scale, Package } from 'lucide-react';
+import { Sparkles, Plus, Settings, Search, X, Flame, Star, Scale, Package, Layers } from 'lucide-react';
 import type { ProductUnit } from '../../types/models';
 import type { SmartCatalogItem } from './types';
 
@@ -206,9 +206,21 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                       <Scale className="w-2.5 h-2.5 text-sky-600" />
                       <span>ميزان</span>
                     </span>
+                  ) : item.hasVariants ? (
+                    <span className="text-[9.5px] font-bold bg-[#f3e8ff] text-[#6b21a8] border border-[#d8b4fe] px-1.5 py-0.5 rounded flex items-center gap-1" title="صنف يحتوي على ألوان ومقاسات">
+                      <Layers className="w-2.5 h-2.5 text-[#7e22ce]" />
+                      <span>ألوان ومقاسات</span>
+                    </span>
                   ) : (
                     <span className="text-[9.5px] font-medium text-[#5b6664] bg-[#f7f8f6] border border-[#dce1dc]/80 px-1.5 py-0.5 rounded truncate max-w-[85px]">
                       {item.categoryName || 'عام'}
+                    </span>
+                  )}
+
+                  {(item.variantColor || item.variantSize) && (
+                    <span className="text-[9.5px] font-semibold bg-[#e0e7ff] text-[#3730a3] border border-[#c7d2fe] px-1.5 py-0.5 rounded flex items-center gap-0.5 font-mono">
+                      {item.variantColor && <span>{item.variantColor}</span>}
+                      {item.variantSize && <span>({item.variantSize})</span>}
                     </span>
                   )}
 
@@ -268,8 +280,12 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                   )}
                 </div>
 
-                <div className="w-6 h-6 rounded-lg bg-[#f0f4f1] group-hover:bg-[#006d41] text-[#006d41] group-hover:text-white flex items-center justify-center transition-all duration-150 shadow-2xs shrink-0">
-                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                <div className="w-6 h-6 rounded-lg bg-[#f0f4f1] group-hover:bg-[#006d41] text-[#006d41] group-hover:text-white flex items-center justify-center transition-all duration-150 shadow-2xs shrink-0" title={item.hasVariants ? 'اختيار اللون والمقاس' : 'إضافة إلى الفاتورة'}>
+                  {item.hasVariants ? (
+                    <Layers className="w-3.5 h-3.5 stroke-[2]" />
+                  ) : (
+                    <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                  )}
                 </div>
               </div>
             </button>

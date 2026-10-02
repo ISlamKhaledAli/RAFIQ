@@ -14,10 +14,18 @@ import {
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
+  Calendar,
+  HelpCircle,
+  Layers,
+  Tag,
+  TrendingUp,
+  ShieldCheck,
+  Barcode,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { openHelpCenter } from '../utils/helpService';
 import { rafiqAlert } from '../utils/dialogService';
-import type { Product, Category, StockMovement, StockDiscrepancy, ProductUnit } from '../types/models';
+import type { Product, Category, StockMovement, StockDiscrepancy, ProductUnit, BulkGenerateBarcodesResult } from '../types/models';
 import { normalizeArabicNumerals } from '../utils/money';
 import { exportProductsToExcel } from '../utils/excelImport';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -27,14 +35,19 @@ import { ExcelImportModal } from '../components/ExcelImportModal';
 import { StockMovementsModal } from '../components/StockMovementsModal';
 import { StockAdjustmentModal } from '../components/StockAdjustmentModal';
 import { PurchaseEntryModal } from '../components/PurchaseEntryModal';
+import { ProductVariantMatrixModal } from '../components/ProductVariantMatrixModal';
+import { BarcodeLabelModal } from '../components/BarcodeLabelModal';
+import { DataQualityAuditModal } from '../components/DataQualityAuditModal';
 import { ProductFormModal } from './products/ProductFormModal';
 import { BulkMinStockModal } from './products/BulkMinStockModal';
 import { StockMovementsTab } from './products/StockMovementsTab';
+import { BatchesTab } from './products/BatchesTab';
 import { ProductsTable } from './products/ProductsTable';
+import { BulkPriceAdjustmentModal } from './products/BulkPriceAdjustmentModal';
 
 export interface ProductsViewProps {
-  subView?: 'catalog' | 'movements';
-  onSubViewChange?: (view: 'catalog' | 'movements') => void;
+  subView?: 'catalog' | 'movements' | 'batches';
+  onSubViewChange?: (view: 'catalog' | 'movements' | 'batches') => void;
   initialFilter?: 'all' | 'lowStock' | 'outOfStock';
   onResetFilter?: () => void;
 }
@@ -105,6 +118,30 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [showExcelImportModal, setShowExcelImportModal] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [importSuccessAlert, setImportSuccessAlert] = useState<string | null>(null);
+  const [showVariantMatrixModal, setShowVariantMatrixModal] = useState(false);
+
+  // Barcode Label Printing Modal State (Feature #57 / Tasks 57-1 to 57-4)
+  const [showBarcodeLabelModal, setShowBarcodeLabelModal] = useState(false);
+  const [labelModalProduct, setLabelModalProduct] = useState<Product | null>(null);
+
+  // Bulk Price Adjustment Modal State (Story 106 - Feature #116)
+  const [showBulkPriceModal, setShowBulkPriceModal] = useState(false);
+
+  // Data Quality Health Audit Modal State (Story 107 - Feature #117)
+  const [showDataQualityModal, setShowDataQualityModal] = useState(false);
+
+  // F8 Global Shortcut to open Barcode Label Modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F8') {
+        e.preventDefault();
+        setLabelModalProduct(null);
+        setShowBarcodeLabelModal(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleExportProductsToExcel = async () => {
     setIsExportingExcel(true);
@@ -459,10 +496,79 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setAdditionalBarcodes(additionalBarcodes.filter((_, idx) => idx !== indexToRemove));
   };
 
-  const generateInternalBarcode = () => {
-    // Generate clean Egyptian internal supermarket barcode with prefix 200
-    const randomDigits = Math.floor(100000000 + Math.random() * 900000000);
-    setBarcode(`200${randomDigits}`);
+  const generateInternalBarcode = async () => {
+    try {
+      const res = await invoke<{ barcode: string }>('products:generateInternalBarcode');
+      if (res && res.barcode) {
+        setBarcode(res.barcode);
+      }
+    } catch {
+      // Fallback in case of unexpected bridge error
+      const randomDigits = Math.floor(100000000 + Math.random() * 900000000);
+      setBarcode(`200${randomDigits}`);
+    }
+  };
+
+  const [showBulkBarcodeConfirm, setShowBulkBarcodeConfirm] = useState(false);
+  const [missingBarcodeCount, setMissingBarcodeCount] = useState(0);
+  const [isGeneratingBarcodes, setIsGeneratingBarcodes] = useState(false);
+
+  const handleStartBulkBarcodeGeneration = async () => {
+    try {
+      setLoading(true);
+      const res = await invoke<{ count: number }>('products:getMissingBarcodeCount');
+      const count = res?.count ?? 0;
+      setMissingBarcodeCount(count);
+      if (count === 0) {
+        await rafiqAlert({
+          title: 'اكتملت الباركودات',
+          message: 'جميع الأصناف النشطة في الكتالوج لديها باركود مسجل بالفعل.',
+          variant: 'info'
+        });
+      } else {
+        setShowBulkBarcodeConfirm(true);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await rafiqAlert({
+        title: 'خطأ',
+        message: `تعذر فحص عدد الأصناف الناقصة: ${msg}`,
+        variant: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmBulkBarcodeGeneration = async () => {
+    setShowBulkBarcodeConfirm(false);
+    try {
+      setIsGeneratingBarcodes(true);
+      const res = await invoke<BulkGenerateBarcodesResult>('products:bulkGenerateInternalBarcodes');
+      if (res && res.success) {
+        await loadProducts(searchQuery, currentPage, pageSize);
+        await rafiqAlert({
+          title: 'تم التوليد بنجاح',
+          message: `تم بنجاح توليد وتعيين باركود داخلي قياسي (EAN-13) لـ ${res.count} صنف! يمكنك الآن طباعة ملصقات الباركود لها من زر طباعة الملصقات (F8).`,
+          variant: 'success'
+        });
+      } else {
+        await rafiqAlert({
+          title: 'تنبيه',
+          message: res?.message || 'فشلت عملية التوليد الجماعي للباركودات.',
+          variant: 'warning'
+        });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await rafiqAlert({
+        title: 'خطأ في العملية',
+        message: `حدث خطأ أثناء التوليد الجماعي: ${msg}`,
+        variant: 'error'
+      });
+    } finally {
+      setIsGeneratingBarcodes(false);
+    }
   };
 
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
@@ -617,7 +723,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 <p className="text-[11px] text-ink-muted">إدارة المنتجات، الأسعار، الباركود، ومستويات حد الطلب</p>
               </div>
             </div>
-          ) : (
+          ) : activeSubView === 'movements' ? (
             <div className="flex items-center gap-2.5">
               <div className="w-10 h-10 rounded-xl bg-brand-soft text-brand flex items-center justify-center border border-brand/20 shadow-2xs">
                 <Boxes className="w-5 h-5" />
@@ -635,6 +741,21 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   )}
                 </div>
                 <p className="text-[11px] text-ink-muted">سجل الوارد والمنصرف، المبيعات، المرتجعات، والتسويات الجردية</p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-800 flex items-center justify-center border border-amber-200 shadow-2xs">
+                <Calendar className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-black text-ink leading-tight">تواريخ الصلاحية والدفعات (FEFO)</h2>
+                  <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-paid-soft text-paid font-bold border border-paid/20">
+                    الأقرب انتهاءً يصرف أولاً
+                  </span>
+                </div>
+                <p className="text-[11px] text-ink-muted">مراقبة تواريخ الانتهاء، تنبيهات الهالك الوشيك، وإتلاف الدفعات المنتهية</p>
               </div>
             </div>
           )}
@@ -705,6 +826,69 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               >
                 <Download className={`w-4 h-4 text-brand ${isExportingExcel ? 'animate-bounce' : ''}`} />
                 <span>{isExportingExcel ? 'جاري التصدير...' : 'تصدير إكسل'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => openHelpCenter('products')}
+                className="h-9 w-9 flex items-center justify-center bg-surface hover:bg-surface-2 border border-line text-[#006d41] rounded-xl transition-colors shadow-2xs cursor-pointer"
+                title="شرح ودليل إدارة الأصناف والمخزون والباركود (F1)"
+              >
+                <HelpCircle className="w-4 h-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowVariantMatrixModal(true)}
+                className="h-9 px-3.5 bg-brand-soft hover:bg-brand-soft/80 border border-brand/30 text-brand rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                title="إضافة منتج بمقاسات وألوان متعددة بجدول تفاعلي (Matrix)"
+              >
+                <Layers className="w-4 h-4" />
+                <span>مقاسات وألوان (Matrix)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setLabelModalProduct(null);
+                  setShowBarcodeLabelModal(true);
+                }}
+                className="h-9 px-3.5 bg-surface hover:bg-surface-2 border border-line text-ink rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                title="طباعة ملصقات الباركود والأسعار للطابعات الحرارية وورق A4 (F8)"
+              >
+                <Tag className="w-4 h-4 text-brand" />
+                <span>طباعة الملصقات (F8)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => void handleStartBulkBarcodeGeneration()}
+                disabled={isGeneratingBarcodes || loading}
+                className="h-9 px-3.5 bg-surface hover:bg-surface-2 border border-line text-ink rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+                title="توليد باركود داخلي قياسي (EAN-13 مع بادئة 200) لجميع الأصناف التي بلا باركود بضغطة واحدة"
+              >
+                <Barcode className={`w-4 h-4 text-brand ${isGeneratingBarcodes ? 'animate-pulse' : ''}`} />
+                <span>{isGeneratingBarcodes ? 'جاري التوليد...' : 'توليد باركود للنواقص'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowBulkPriceModal(true)}
+                className="h-9 px-3.5 bg-surface hover:bg-surface-2 border border-line text-ink rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                title="تعديل أسعار وتكلفة الأصناف بالجملة بنسبة مئوية أو مبلغ ثابت أو ملف إكسل"
+              >
+                <TrendingUp className="w-4 h-4 text-brand" />
+                <span>تعديل الأسعار بالجملة</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowDataQualityModal(true)}
+                className="h-9 px-3.5 bg-surface hover:bg-surface-2 border border-line text-ink rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                title="فحص جودة وصحة بيانات الكتالوج واكتشاف النواقص والمكررات فوراً"
+              >
+                <ShieldCheck className="w-4 h-4 text-paid" />
+                <span>فحص جودة البيانات</span>
               </button>
 
               <button
@@ -906,7 +1090,12 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             onToggleSelectAll={toggleSelectAll}
             onToggleSelectProduct={toggleSelectProduct}
             onOpenBulkMinStockModal={() => setShowBulkMinStockModal(true)}
+            onOpenBulkPriceAdjustment={() => setShowBulkPriceModal(true)}
             onBulkDelete={() => setShowBulkDeleteConfirm(true)}
+            onBulkPrintLabels={() => {
+              setLabelModalProduct(null);
+              setShowBarcodeLabelModal(true);
+            }}
             onClearSelection={() => setSelectedProductIds([])}
             onSelectProdForMovements={(prod) => setSelectedProdForMovements(prod)}
             onSelectProdForAdjustment={(prod) => setSelectedProdForAdjustment(prod)}
@@ -914,6 +1103,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             onOpenPriceHistory={(prod) => openPriceHistory(prod)}
             onEditProduct={(prod) => openEditModal(prod)}
             onDeleteProduct={(prod) => setProductToDelete(prod)}
+            onPrintLabel={(prod) => {
+              setLabelModalProduct(prod);
+              setShowBarcodeLabelModal(true);
+            }}
           />
 
           {/* Pagination Bar */}
@@ -1018,7 +1211,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             </div>
           )}
         </>
-      ) : (
+      ) : activeSubView === 'movements' ? (
         /* Movements & Inventory Audit SubView Subcomponent */
         <StockMovementsTab
           allMovements={allMovements}
@@ -1034,6 +1227,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           onRecalculateStock={() => void handleRecalculateStock()}
           onLoadMovements={() => void loadMovements()}
         />
+      ) : (
+        /* Batches & Expiry Dates Tab (Story 93 / Feature #60) */
+        <BatchesTab onBatchChanged={() => void loadProducts(searchQuery)} />
       )}
 
       {/* 3. Add/Edit Product Modal Subcomponent */}
@@ -1196,6 +1392,74 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           void loadMovements();
           void checkDiscrepancies();
         }}
+      />
+
+      {/* Product Variant Matrix Modal (Story 104 - Feature #114) */}
+      <ProductVariantMatrixModal
+        isOpen={showVariantMatrixModal}
+        onClose={() => setShowVariantMatrixModal(false)}
+        onSuccess={(result) => {
+          void rafiqAlert({
+            title: 'تم إنشاء مصفوفة المقاسات والألوان بنجاح!',
+            message: `تم إنشاء المنتج الأساسي "${result.parentProduct.name}" مع ${result.totalVariantsCount} تركيبة، بإجمالي رصيد ${result.totalStockMilli / 1000} قطعة.`,
+            variant: 'info'
+          });
+          void loadProducts('');
+        }}
+        categories={categories}
+      />
+
+      {/* Barcode Label Printing Modal (Story 105 - Feature #57) */}
+      <BarcodeLabelModal
+        isOpen={showBarcodeLabelModal}
+        onClose={() => {
+          setShowBarcodeLabelModal(false);
+          setLabelModalProduct(null);
+        }}
+        preselectedProduct={labelModalProduct}
+      />
+
+      {/* Bulk Price Adjustment Modal (Story 106 - Feature #116) */}
+      <BulkPriceAdjustmentModal
+        isOpen={showBulkPriceModal}
+        onClose={() => setShowBulkPriceModal(false)}
+        categories={categories}
+        selectedProductIds={selectedProductIds}
+        onSuccess={(msg) => {
+          setImportSuccessAlert(msg);
+          void loadProducts(searchQuery, currentPage, pageSize, stockStatusFilter, selectedCategoryFilter);
+        }}
+      />
+
+      {/* Data Quality Health Audit Modal (Story 107 - Feature #117) */}
+      <DataQualityAuditModal
+        isOpen={showDataQualityModal}
+        onClose={() => setShowDataQualityModal(false)}
+        onProductUpdated={() => void loadProducts(searchQuery, currentPage, pageSize)}
+        onFixProduct={(productId) => {
+          setShowDataQualityModal(false);
+          const found = products.find(p => p.id === productId);
+          if (found) {
+            openEditModal(found);
+          } else {
+            void invoke<Product>('products:getById', { id: productId }).then(p => {
+              if (p) openEditModal(p);
+            });
+          }
+        }}
+      />
+
+      {/* Confirm Bulk Barcode Generation Modal (Feature #119 / Story 108) */}
+      <ConfirmModal
+        isOpen={showBulkBarcodeConfirm}
+        title="توليد باركود داخلي قياسي للأصناف الناقصة"
+        message={`تم العثور على ${missingBarcodeCount} صنف نشط بدون باركود في الكتالوج. هل تريد توليد باركودات داخلية قياسية موحدة (EAN-13 مع بادئة 200) لها جميعاً دفعة واحدة؟`}
+        consequence="سيتم تعيين باركود فريد لكل صنف تلقائياً، ويمكنك طباعة ملصقات الباركود فور الانتهاء."
+        confirmText={`توليد الباركودات (${missingBarcodeCount} صنف)`}
+        cancelText="إلغاء وتراجع"
+        isDanger={false}
+        onConfirm={() => void handleConfirmBulkBarcodeGeneration()}
+        onCancel={() => setShowBulkBarcodeConfirm(false)}
       />
     </div>
   );

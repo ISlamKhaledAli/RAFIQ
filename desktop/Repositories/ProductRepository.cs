@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
+using RafiqPOS.Common;
 using RafiqPOS.Models;
 
 namespace RafiqPOS.Repositories
@@ -9,11 +10,13 @@ namespace RafiqPOS.Repositories
     {
         private readonly string _connectionString;
         private readonly AuditLogRepository _auditRepo;
+        private readonly CounterRepository _counters;
 
-        public ProductRepository(string connectionString, AuditLogRepository auditRepo = null)
+        public ProductRepository(string connectionString, AuditLogRepository auditRepo = null, CounterRepository counters = null)
         {
             _connectionString = connectionString;
             _auditRepo = auditRepo ?? new AuditLogRepository(connectionString);
+            _counters = counters ?? new CounterRepository(connectionString);
         }
 
         public Product GetById(string id)
@@ -506,7 +509,13 @@ namespace RafiqPOS.Repositories
                         COALESCE(s_stat.sale_count, 0) AS sale_count,
                         CASE WHEN q.id IS NOT NULL THEN 1 ELSE 0 END AS is_custom_quick_item,
                         COALESCE(q.is_open_price, 0) AS is_open_price,
-                        COALESCE(q.display_order, 9999) AS quick_display_order
+                        COALESCE(q.display_order, 9999) AS quick_display_order,
+                        CASE 
+                            WHEN p.has_variants = 1 THEN 1
+                            WHEN EXISTS(SELECT 1 FROM product_variants pv WHERE pv.parent_product_id = p.id) THEN 1
+                            ELSE 0 
+                        END AS has_variants_computed,
+                        (SELECT COUNT(*) FROM product_variants pv WHERE pv.parent_product_id = p.id) AS variants_count
                     FROM products p
                     LEFT JOIN categories c ON p.category_id = c.id
                     LEFT JOIN (
@@ -1148,6 +1157,52 @@ namespace RafiqPOS.Repositories
             int quickDisplayOrder = 9999;
             try { if (reader["quick_display_order"] != DBNull.Value) quickDisplayOrder = Convert.ToInt32(reader["quick_display_order"]); } catch { }
 
+            bool hasVariants = false;
+            try
+            {
+                if (reader["has_variants_computed"] != DBNull.Value)
+                {
+                    hasVariants = Convert.ToInt32(reader["has_variants_computed"]) == 1;
+                }
+                else if (reader["has_variants"] != DBNull.Value)
+                {
+                    hasVariants = Convert.ToInt32(reader["has_variants"]) == 1;
+                }
+            }
+            catch
+            {
+                try
+                {
+                    if (reader["has_variants"] != DBNull.Value)
+                    {
+                        hasVariants = Convert.ToInt32(reader["has_variants"]) == 1;
+                    }
+                }
+                catch { }
+            }
+
+            int variantsCount = 0;
+            try
+            {
+                if (reader["variants_count"] != DBNull.Value)
+                {
+                    variantsCount = Convert.ToInt32(reader["variants_count"]);
+                }
+            }
+            catch { }
+
+            string parentId = null;
+            try { if (reader["parent_id"] != DBNull.Value) parentId = reader["parent_id"].ToString(); } catch { }
+
+            string variantSize = null;
+            try { if (reader["variant_size"] != DBNull.Value) variantSize = reader["variant_size"].ToString(); } catch { }
+
+            string variantColor = null;
+            try { if (reader["variant_color"] != DBNull.Value) variantColor = reader["variant_color"].ToString(); } catch { }
+
+            string variantSku = null;
+            try { if (reader["variant_sku"] != DBNull.Value) variantSku = reader["variant_sku"].ToString(); } catch { }
+
             return new Product
             {
                 Id = reader["id"].ToString(),
@@ -1171,8 +1226,535 @@ namespace RafiqPOS.Repositories
                 IsActive = Convert.ToInt32(reader["is_active"]) == 1,
                 NeedsReview = needsReview,
                 CreatedAt = reader["created_at"].ToString(),
-                UpdatedAt = reader["updated_at"].ToString()
+                UpdatedAt = reader["updated_at"].ToString(),
+                HasVariants = hasVariants,
+                ParentId = parentId,
+                VariantSize = variantSize,
+                VariantColor = variantColor,
+                VariantSku = variantSku,
+                VariantsCount = variantsCount
             };
         }
+        public List<Product> GetProductsForBulkPrice(string scope, List<string> productIds, string categoryId, string searchQuery)
+        {
+            var results = new List<Product>();
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+
+                if (string.Equals(scope, "selected", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (productIds == null || productIds.Count == 0) return results;
+
+                    var paramNames = new List<string>();
+                    using (var cmd = new SQLiteCommand(conn))
+                    {
+                        for (int i = 0; i < productIds.Count; i++)
+                        {
+                            string pName = "@p" + i;
+                            paramNames.Add(pName);
+                            cmd.Parameters.AddWithValue(pName, productIds[i]);
+                        }
+
+                        cmd.CommandText = @"
+                            SELECT p.*, c.name AS category_name
+                            FROM products p
+                            LEFT JOIN categories c ON p.category_id = c.id
+                            WHERE p.is_active = 1 AND p.id IN (" + string.Join(",", paramNames.ToArray()) + @")
+                            ORDER BY p.name ASC;
+                        ";
+
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                results.Add(MapReaderToProduct(reader));
+                            }
+                        }
+                    }
+                    return results;
+                }
+                else if (string.Equals(scope, "category", StringComparison.OrdinalIgnoreCase))
+                {
+                    string catSql = @"
+                        SELECT p.*, c.name AS category_name
+                        FROM products p
+                        LEFT JOIN categories c ON p.category_id = c.id
+                        WHERE p.is_active = 1 
+                          AND (p.category_id = @catId OR (p.category_id IS NULL AND @catId = 'cat_general'))
+                        ORDER BY p.name ASC;
+                    ";
+
+                    using (var cmd = new SQLiteCommand(catSql, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@catId", categoryId ?? "cat_general");
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                results.Add(MapReaderToProduct(reader));
+                            }
+                        }
+                    }
+                    return results;
+                }
+                else if (string.Equals(scope, "search", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(searchQuery))
+                {
+                    return Search(searchQuery, 1000, 0, "all", categoryId ?? "all");
+                }
+                else
+                {
+                    // "all" scope
+                    string allSql = @"
+                        SELECT p.*, c.name AS category_name
+                        FROM products p
+                        LEFT JOIN categories c ON p.category_id = c.id
+                        WHERE p.is_active = 1
+                        ORDER BY p.name ASC;
+                    ";
+
+                    using (var cmd = new SQLiteCommand(allSql, conn))
+                    {
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                results.Add(MapReaderToProduct(reader));
+                            }
+                        }
+                    }
+                    return results;
+                }
+            }
+        }
+
+        public BulkPriceApplyResult ApplyBulkPriceAdjustment(List<BulkPriceApplyItem> items, string reason, string userId)
+        {
+            var result = new BulkPriceApplyResult();
+            if (items == null || items.Count == 0)
+            {
+                result.Success = true;
+                result.UpdatedCount = 0;
+                result.Message = "لا توجد أصناف لتعديل أسعارها";
+                return result;
+            }
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var trans = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        string now = DateTime.UtcNow.ToString("o");
+                        string updateProductSql = @"
+                            UPDATE products 
+                            SET price_piasters = @newPrice, 
+                                cost_piasters = @newCost, 
+                                updated_at = @now 
+                            WHERE id = @id AND is_active = 1;
+                        ";
+
+                        string updateBaseUnitSql = @"
+                            UPDATE product_units 
+                            SET sell_price_piasters = @newPrice, 
+                                cost_price_piasters = @newCost, 
+                                updated_at = @now 
+                            WHERE product_id = @id AND is_base_unit = 1;
+                        ";
+
+                        string insertHistorySql = @"
+                            INSERT INTO product_price_history (
+                                id, product_id, old_price_piasters, new_price_piasters, 
+                                old_cost_piasters, new_cost_piasters, change_reason, created_at
+                            ) VALUES (
+                                @histId, @productId, @oldPrice, @newPrice, 
+                                @oldCost, @newCost, @reason, @now
+                            );
+                        ";
+
+                        int updatedCount = 0;
+                        foreach (var item in items)
+                        {
+                            if (item == null || string.IsNullOrWhiteSpace(item.ProductId)) continue;
+
+                            long finalPrice = item.NewPricePiasters < 0 ? 0 : item.NewPricePiasters;
+                            long finalCost = item.NewCostPiasters < 0 ? 0 : item.NewCostPiasters;
+
+                            using (var cmd = new SQLiteCommand(updateProductSql, conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@newPrice", finalPrice);
+                                cmd.Parameters.AddWithValue("@newCost", finalCost);
+                                cmd.Parameters.AddWithValue("@now", now);
+                                cmd.Parameters.AddWithValue("@id", item.ProductId);
+                                int affected = cmd.ExecuteNonQuery();
+                                if (affected > 0)
+                                {
+                                    updatedCount++;
+
+                                    try
+                                    {
+                                        using (var unitCmd = new SQLiteCommand(updateBaseUnitSql, conn, trans))
+                                        {
+                                            unitCmd.Parameters.AddWithValue("@newPrice", finalPrice);
+                                            unitCmd.Parameters.AddWithValue("@newCost", finalCost);
+                                            unitCmd.Parameters.AddWithValue("@now", now);
+                                            unitCmd.Parameters.AddWithValue("@id", item.ProductId);
+                                            unitCmd.ExecuteNonQuery();
+                                        }
+                                    }
+                                    catch { }
+
+                                    using (var histCmd = new SQLiteCommand(insertHistorySql, conn, trans))
+                                    {
+                                        histCmd.Parameters.AddWithValue("@histId", "ph_" + Guid.NewGuid().ToString("N"));
+                                        histCmd.Parameters.AddWithValue("@productId", item.ProductId);
+                                        histCmd.Parameters.AddWithValue("@oldPrice", item.OldPricePiasters);
+                                        histCmd.Parameters.AddWithValue("@newPrice", finalPrice);
+                                        histCmd.Parameters.AddWithValue("@oldCost", item.OldCostPiasters);
+                                        histCmd.Parameters.AddWithValue("@newCost", finalCost);
+                                        histCmd.Parameters.AddWithValue("@reason", string.IsNullOrWhiteSpace(reason) ? "تعديل أسعار جماعي" : reason.Trim());
+                                        histCmd.Parameters.AddWithValue("@now", now);
+                                        histCmd.ExecuteNonQuery();
+                                    }
+                                }
+                            }
+                        }
+
+                        if (_auditRepo != null && updatedCount > 0)
+                        {
+                            try
+                            {
+                                string details = string.Format(
+                                    "{{\"updatedCount\":{0},\"reason\":\"{1}\"}}",
+                                    updatedCount,
+                                    (reason ?? "تعديل أسعار جماعي").Replace("\"", "\\\"")
+                                );
+                                _auditRepo.Log(conn, trans, new AuditLog
+                                {
+                                    Id = "aud_" + Guid.NewGuid().ToString("N"),
+                                    UserId = string.IsNullOrWhiteSpace(userId) ? "usr_admin_default" : userId,
+                                    Action = "bulk_price_adjustment",
+                                    EntityType = "products",
+                                    EntityId = "bulk",
+                                    DetailsJson = details,
+                                    CreatedAt = now
+                                });
+                            }
+                            catch { }
+                        }
+
+                        trans.Commit();
+
+                        result.Success = true;
+                        result.UpdatedCount = updatedCount;
+                        result.Message = string.Format("تم تحديث أسعار {0} صنف بنجاح", updatedCount);
+                        return result;
+                    }
+                    catch (Exception ex)
+                    {
+                        trans.Rollback();
+                        Common.Logger.Error("فشل تنفيذ التعديل الجماعي للأسعار", ex);
+                        throw;
+                    }
+                }
+            }
+        }
+
+        #region Feature #119 / Story 108: الباركود الداخلي القياسي للأصناف
+
+        /// <summary>
+        /// فحص هل الباركود مستخدم بالفعل في الأصناف أو الباركودات الإضافية أو الوحدات
+        /// </summary>
+        public bool IsBarcodeInUse(SQLiteConnection conn, SQLiteTransaction trans, string barcode, string excludeProductId = null)
+        {
+            if (string.IsNullOrWhiteSpace(barcode)) return false;
+            string clean = barcode.Trim();
+
+            string sql = @"
+                SELECT 1 FROM products WHERE is_active = 1 AND barcode = @barcode AND (@excludeId IS NULL OR id != @excludeId)
+                UNION ALL
+                SELECT 1 FROM product_barcodes WHERE barcode = @barcode AND (@excludeId IS NULL OR product_id != @excludeId)
+                UNION ALL
+                SELECT 1 FROM product_units WHERE barcode = @barcode AND (@excludeId IS NULL OR product_id != @excludeId)
+                LIMIT 1;
+            ";
+            using (var cmd = new SQLiteCommand(sql, conn, trans))
+            {
+                cmd.Parameters.AddWithValue("@barcode", clean);
+                cmd.Parameters.AddWithValue("@excludeId", (object)excludeProductId ?? DBNull.Value);
+                object res = cmd.ExecuteScalar();
+                return res != null && res != DBNull.Value;
+            }
+        }
+
+        /// <summary>
+        /// توليد باركود داخلي قياسي فريد يمنع التعارض مع أي صنف مسجل
+        /// </summary>
+        public string GenerateUniqueInternalBarcode(SQLiteConnection conn, SQLiteTransaction trans)
+        {
+            const int maxAttempts = 10000;
+            for (int attempt = 0; attempt < maxAttempts; attempt++)
+            {
+                long nextCounter = _counters.GetNextCounterNumber(conn, trans, "internal_barcode");
+                string candidate = BarcodeGenerator.FormatInternalEan13(nextCounter);
+                if (!IsBarcodeInUse(conn, trans, candidate))
+                {
+                    return candidate;
+                }
+            }
+            throw new InvalidOperationException("تعذر توليد باركود داخلي فريد بعد عدة محاولات لتفادي التعارض.");
+        }
+
+        /// <summary>
+        /// توليد الرقم المتوقع التالي للباركود الداخلي دون حفظه على منتج معين
+        /// </summary>
+        public string GenerateNextInternalBarcode()
+        {
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var trans = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        string bc = GenerateUniqueInternalBarcode(conn, trans);
+                        trans.Commit();
+                        return bc;
+                    }
+                    catch
+                    {
+                        trans.Rollback();
+                        throw;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// تعيين وتوليد باركود داخلي قياسي لصنف واحد محدد
+        /// </summary>
+        public AssignBarcodeResult AssignInternalBarcode(string productId, string userId = null)
+        {
+            if (string.IsNullOrWhiteSpace(productId))
+            {
+                return new AssignBarcodeResult
+                {
+                    Success = false,
+                    Message = "معرف الصنف غير محدد."
+                };
+            }
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var trans = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        string name = null;
+                        string existingBarcode = null;
+                        using (var cmdFind = new SQLiteCommand("SELECT name, barcode FROM products WHERE id = @id LIMIT 1;", conn, trans))
+                        {
+                            cmdFind.Parameters.AddWithValue("@id", productId);
+                            using (var r = cmdFind.ExecuteReader())
+                            {
+                                if (r.Read())
+                                {
+                                    name = r["name"].ToString();
+                                    existingBarcode = r["barcode"] != DBNull.Value ? r["barcode"].ToString() : "";
+                                }
+                            }
+                        }
+
+                        if (name == null)
+                        {
+                            trans.Rollback();
+                            return new AssignBarcodeResult
+                            {
+                                Success = false,
+                                Message = "الصنف غير موجود في قاعدة البيانات."
+                            };
+                        }
+
+                        string generatedBarcode = GenerateUniqueInternalBarcode(conn, trans);
+                        string now = DateTime.UtcNow.ToString("o");
+
+                        using (var cmdUp = new SQLiteCommand("UPDATE products SET barcode = @bc, updated_at = @now WHERE id = @id;", conn, trans))
+                        {
+                            cmdUp.Parameters.AddWithValue("@bc", generatedBarcode);
+                            cmdUp.Parameters.AddWithValue("@now", now);
+                            cmdUp.Parameters.AddWithValue("@id", productId);
+                            cmdUp.ExecuteNonQuery();
+                        }
+
+                        if (_auditRepo != null)
+                        {
+                            try
+                            {
+                                string details = string.Format("{{\"product_id\":\"{0}\",\"name\":\"{1}\",\"old_barcode\":\"{2}\",\"new_barcode\":\"{3}\"}}",
+                                    productId,
+                                    (name ?? "").Replace("\"", "\\\""),
+                                    (existingBarcode ?? "").Replace("\"", "\\\""),
+                                    generatedBarcode);
+
+                                _auditRepo.Log(conn, trans, new AuditLog
+                                {
+                                    Id = "aud_" + Guid.NewGuid().ToString("N"),
+                                    UserId = string.IsNullOrWhiteSpace(userId) ? "usr_admin_default" : userId,
+                                    Action = "assign_internal_barcode",
+                                    EntityType = "products",
+                                    EntityId = productId,
+                                    DetailsJson = details,
+                                    CreatedAt = now
+                                });
+                            }
+                            catch { }
+                        }
+
+                        trans.Commit();
+                        return new AssignBarcodeResult
+                        {
+                            Success = true,
+                            ProductId = productId,
+                            Barcode = generatedBarcode,
+                            Message = string.Format("تم تعيين الباركود الداخلي {0} للصنف '{1}' بنجاح.", generatedBarcode, name)
+                        };
+                    }
+                    catch (Exception ex)
+                    {
+                        trans.Rollback();
+                        Common.Logger.Error("فشل تعيين باركود داخلي للصنف: " + productId, ex);
+                        throw;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// توليد باركودات داخلية قياسية لجميع الأصناف النشطة التي ليس لها باركود دفعة واحدة
+        /// في معاملة ذرية واحدة (ACID Transaction)
+        /// </summary>
+        public BulkGenerateBarcodesResult BulkGenerateInternalBarcodes(string userId = null)
+        {
+            var result = new BulkGenerateBarcodesResult();
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var trans = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        // 1. استرجاع كافة الأصناف النشطة التي ليس لها باركود
+                        var missingProducts = new List<BulkBarcodeProductItem>();
+                        string selectSql = @"
+                            SELECT id, name, price_piasters
+                            FROM products
+                            WHERE is_active = 1 AND (barcode IS NULL OR TRIM(barcode) = '')
+                            ORDER BY created_at ASC;
+                        ";
+                        using (var cmdSelect = new SQLiteCommand(selectSql, conn, trans))
+                        {
+                            using (var r = cmdSelect.ExecuteReader())
+                            {
+                                while (r.Read())
+                                {
+                                    missingProducts.Add(new BulkBarcodeProductItem
+                                    {
+                                        ProductId = r["id"].ToString(),
+                                        ProductName = r["name"].ToString(),
+                                        PricePiasters = Convert.ToInt64(r["price_piasters"])
+                                    });
+                                }
+                            }
+                        }
+
+                        if (missingProducts.Count == 0)
+                        {
+                            trans.Commit();
+                            result.Success = true;
+                            result.Count = 0;
+                            result.Message = "لا توجد أصناف نشطة بدون باركود في النظام.";
+                            return result;
+                        }
+
+                        string now = DateTime.UtcNow.ToString("o");
+
+                        // 2. توليد باركود فريد وتحديث كل صنف داخل المعاملة الذرية
+                        for (int i = 0; i < missingProducts.Count; i++)
+                        {
+                            var prod = missingProducts[i];
+                            string bc = GenerateUniqueInternalBarcode(conn, trans);
+                            prod.Barcode = bc;
+
+                            using (var cmdUpdate = new SQLiteCommand("UPDATE products SET barcode = @bc, updated_at = @now WHERE id = @id;", conn, trans))
+                            {
+                                cmdUpdate.Parameters.AddWithValue("@bc", bc);
+                                cmdUpdate.Parameters.AddWithValue("@now", now);
+                                cmdUpdate.Parameters.AddWithValue("@id", prod.ProductId);
+                                cmdUpdate.ExecuteNonQuery();
+                            }
+                        }
+
+                        // 3. تسجيل حركة التدقيق الأمني
+                        if (_auditRepo != null)
+                        {
+                            try
+                            {
+                                string details = string.Format("{{\"count\":{0},\"action\":\"bulk_generate_internal_barcodes\"}}", missingProducts.Count);
+                                _auditRepo.Log(conn, trans, new AuditLog
+                                {
+                                    Id = "aud_" + Guid.NewGuid().ToString("N"),
+                                    UserId = string.IsNullOrWhiteSpace(userId) ? "usr_admin_default" : userId,
+                                    Action = "bulk_generate_internal_barcodes",
+                                    EntityType = "products",
+                                    EntityId = "bulk",
+                                    DetailsJson = details,
+                                    CreatedAt = now
+                                });
+                            }
+                            catch { }
+                        }
+
+                        trans.Commit();
+
+                        result.Success = true;
+                        result.Count = missingProducts.Count;
+                        result.Products = missingProducts;
+                        result.Message = string.Format("تم توليد وتعيين باركود داخلي قياسي (EAN-13) لـ {0} صنف بنجاح.", missingProducts.Count);
+                        return result;
+                    }
+                    catch (Exception ex)
+                    {
+                        trans.Rollback();
+                        Common.Logger.Error("فشل التوليد الجماعي للباركودات الداخلية للأصناف", ex);
+                        throw;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// حساب عدد الأصناف التي ليس لها باركود
+        /// </summary>
+        public int GetMissingBarcodeCount()
+        {
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = "SELECT COUNT(*) FROM products WHERE is_active = 1 AND (barcode IS NULL OR TRIM(barcode) = '');";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    object res = cmd.ExecuteScalar();
+                    if (res != null && res != DBNull.Value)
+                    {
+                        return Convert.ToInt32(res);
+                    }
+                }
+            }
+            return 0;
+        }
+
+        #endregion
     }
 }
