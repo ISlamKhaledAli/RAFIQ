@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { 
   FileSpreadsheet, 
   FolderDown, 
@@ -37,8 +37,8 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
       }
     } catch (err: any) {
       await rafiqAlert({
-        title: 'Ø®Ø·Ø£ ÙÙŠ Ø§Ù„ØªØ­Ø¯ÙŠØ¯',
-        message: err?.message || 'ØªØ¹Ø°Ø± ÙØªØ­ Ù†Ø§ÙØ°Ø© Ø§Ø®ØªÙŠØ§Ø± Ø§Ù„Ù…Ø¬Ù„Ø¯.',
+        title: 'خطأ في التحديد',
+        message: err?.message || 'تعذر فتح نافذة اختيار المجلد.',
         variant: 'error'
       });
     }
@@ -57,21 +57,21 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
 
       if (res.success) {
         await rafiqAlert({
-          title: 'Ø§ÙƒØªÙ…Ø§Ù„ Ø§Ù„ØªØµØ¯ÙŠØ± Ø§Ù„Ø´Ø§Ù…Ù„',
-          message: `${res.message}\nØªÙ… Ø­ÙØ¸ Ø§Ù„Ù…Ù„ÙØ§Øª ÙÙŠ:\n${res.exportFolder}`,
+          title: 'اكتمال التصدير الشامل',
+          message: `${res.message}\nتم حفظ الملفات في:\n${res.exportFolder}`,
           variant: 'success'
         });
       } else {
         await rafiqAlert({
-          title: 'ÙØ´Ù„ Ø§Ù„ØªØµØ¯ÙŠØ±',
-          message: res.message || 'ØªØ¹Ø°Ø± ØªØµØ¯ÙŠØ± Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ù…Ø­Ù„.',
+          title: 'فشل التصدير',
+          message: res.message || 'تعذر تصدير بيانات المحل.',
           variant: 'error'
         });
       }
     } catch (err: any) {
       await rafiqAlert({
-        title: 'Ø®Ø·Ø£ ØºÙŠØ± Ù…ØªÙˆÙ‚Ø¹',
-        message: err?.message || 'Ø­Ø¯Ø« Ø®Ø·Ø£ Ø£Ø«Ù†Ø§Ø¡ ØªØµØ¯ÙŠØ± Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª.',
+        title: 'خطأ غير متوقع',
+        message: err?.message || 'حدث خطأ أثناء تصدير البيانات.',
         variant: 'error'
       });
     } finally {
@@ -87,8 +87,8 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
       await invoke('excel:openExportFolder', { folderPath: folderToOpen });
     } catch (err: any) {
       await rafiqAlert({
-        title: 'ØªØ¹Ø°Ø± ÙØªØ­ Ø§Ù„Ù…Ø¬Ù„Ø¯',
-        message: err?.message || 'Ø§Ù„Ù…Ø¬Ù„Ø¯ ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯ Ø¹Ù„Ù‰ Ù‡Ø°Ø§ Ø§Ù„Ø¬Ù‡Ø§Ø².',
+        title: 'تعذر فتح المجلد',
+        message: err?.message || 'المجلد غير موجود على هذا الجهاز.',
         variant: 'error'
       });
     }
@@ -99,21 +99,21 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
       const res = await invoke<any>('excel:runExportTests');
       if (res.success) {
         await rafiqAlert({
-          title: 'ØªØ£ÙƒÙŠØ¯ Ù…Ø·Ø§Ø¨Ù‚Ø© Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª',
-          message: `${res.message}\nØªØ£ÙƒÙŠØ¯Ø§Øª Ø§Ù„Ù†Ø¬Ø§Ø­: ${res.passedAssertions}/${res.totalAssertions}`,
+          title: 'تأكيد مطابقة البيانات',
+          message: `${res.message}\nتأكيدات النجاح: ${res.passedAssertions}/${res.totalAssertions}`,
           variant: 'success'
         });
       } else {
         await rafiqAlert({
-          title: 'ÙØ­Øµ Ø§Ù„Ù…Ø·Ø§Ø¨Ù‚Ø©',
-          message: res.message || 'ØªØ¹Ø°Ø± Ù…Ø·Ø§Ø¨Ù‚Ø© Ø¨Ø¹Ø¶ Ø§Ù„ØµÙÙˆÙ Ø£Ùˆ Ø§Ù„Ù…Ø¬Ø§Ù…ÙŠØ¹.',
+          title: 'فحص المطابقة',
+          message: res.message || 'تعذر مطابقة بعض الصفوف أو المجاميع.',
           variant: 'error'
         });
       }
     } catch (err: any) {
       await rafiqAlert({
-        title: 'Ø®Ø·Ø£',
-        message: err?.message || 'ØªØ¹Ø°Ø± ØªØ´ØºÙŠÙ„ Ø§Ø®ØªØ¨Ø§Ø±Ø§Øª Ø§Ù„Ù…Ø·Ø§Ø¨Ù‚Ø©.',
+        title: 'خطأ',
+        message: err?.message || 'تعذر تشغيل اختبارات المطابقة.',
         variant: 'error'
       });
     }
@@ -132,9 +132,9 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
               <FileSpreadsheet className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-lg font-bold">ØªØµØ¯ÙŠØ± ÙƒÙ„ Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ù…Ø­Ù„ Ø¨Ø¶ØºØ·Ø© ÙˆØ§Ø­Ø¯Ø©</h2>
+              <h2 className="text-lg font-bold">تصدير كل بيانات المحل بضغطة واحدة</h2>
               <p className="text-xs text-white/70">
-                Ø¨ÙŠØ§Ù†Ø§ØªÙƒ Ù…Ù„ÙƒÙƒ Ø¨Ø§Ù„ÙƒØ§Ù…Ù„ 100% Ø¨ØªÙ†Ø³ÙŠÙ‚ Excel Ù‚ÙŠØ§Ø³ÙŠ ÙˆÙ…ÙØªÙˆØ­
+                بياناتك ملكك بالكامل 100% بتنسيق Excel قياسي ومفتوح
               </p>
             </div>
           </div>
@@ -154,58 +154,58 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
             <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5" />
             <div>
               <strong className="block text-sm font-bold text-paid mb-1">
-                Ø§Ù„ØªØ²Ø§Ù… Ø±ÙÙŠÙ‚ Ø§Ù„ØµØ§Ø±Ù… Ø¨Ø­Ø±ÙŠØ© Ø§Ù„Ù…Ù„ÙƒÙŠØ© Ø§Ù„Ø±Ù‚Ù…ÙŠØ©:
+                التزام رفيق الصارم بحرية الملكية الرقمية:
               </strong>
-              ÙŠØ­Ù‚ Ù„Ùƒ ÙÙŠ Ø£ÙŠ ÙˆÙ‚Øª Ø§Ø³ØªØ®Ø±Ø§Ø¬ ÙƒØ§ÙØ© Ø³Ø¬Ù„Ø§Øª Ù…Ø­Ù„Ùƒ (Ø§Ù„Ù…Ù†ØªØ¬Ø§ØªØŒ Ø§Ù„Ø¹Ù…Ù„Ø§Ø¡ØŒ Ø§Ù„Ø¯ÙŠÙˆÙ†ØŒ Ø§Ù„Ù…ÙˆØ±Ø¯ÙŠÙ†ØŒ ÙÙˆØ§ØªÙŠØ± Ø§Ù„Ù…Ø¨ÙŠØ¹Ø§ØªØŒ ÙˆØ­Ø±ÙƒØ§Øª Ø§Ù„Ù…Ø®Ø²ÙˆÙ†) ÙÙŠ Ù…Ù„ÙØ§Øª Ø¥ÙƒØ³Ù„ Ù…Ù†Ø³Ù‚Ø© ÙˆØ¬Ø§Ù‡Ø²Ø© Ø¨Ø¯ÙˆÙ† Ø£ÙŠ ØªØ´ÙÙŠØ± Ø£Ùˆ Ø§Ø­ØªÙƒØ§Ø± Ø£Ùˆ Ø±Ø³ÙˆÙ… Ø®Ø±ÙˆØ¬.
+              يحق لك في أي وقت استخراج كافة سجلات محلك (المنتجات، العملاء، الديون، الموردين، فواتير المبيعات، وحركات المخزون) في ملفات إكسل منسقة وجاهزة بدون أي تشفير أو احتكار أو رسوم خروج.
             </div>
           </div>
 
           {/* Files Summary Grid */}
           <div className="bg-surface-2 p-4 rounded-xl border border-line space-y-3">
             <h4 className="text-xs font-bold text-ink-muted uppercase tracking-wider">
-              Ø­Ø²Ù…Ø© Ø§Ù„Ù…Ù„ÙØ§Øª Ø§Ù„ØªÙŠ Ø³ÙŠØªÙ… Ø¥Ù†Ø´Ø§Ø¤Ù‡Ø§ ÙÙŠ Ù…Ø¬Ù„Ø¯ ÙˆØ§Ø­Ø¯:
+              حزمة الملفات التي سيتم إنشاؤها في مجلد واحد:
             </h4>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs text-ink font-medium">
               <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-line">
                 <Package className="w-4 h-4 text-brand shrink-0" />
-                <span>01. Ø§Ù„Ù…Ù†ØªØ¬Ø§Øª ÙˆØ§Ù„Ù…Ø®Ø²ÙˆÙ†</span>
+                <span>01. المنتجات والمخزون</span>
               </div>
               <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-line">
                 <Users className="w-4 h-4 text-paid shrink-0" />
-                <span>02. Ø§Ù„Ø¹Ù…Ù„Ø§Ø¡ ÙˆØ§Ù„Ø¯ÙŠÙˆÙ†</span>
+                <span>02. العملاء والديون</span>
               </div>
               <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-line">
                 <Truck className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>03. Ø§Ù„Ù…ÙˆØ±Ø¯ÙŠÙ† ÙˆØ§Ù„Ø£Ø±ØµØ¯Ø©</span>
+                <span>03. الموردين والأرصدة</span>
               </div>
               <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-line">
                 <Receipt className="w-4 h-4 text-blue-600 shrink-0" />
-                <span>04. ÙÙˆØ§ØªÙŠØ± Ø§Ù„Ù…Ø¨ÙŠØ¹Ø§Øª</span>
+                <span>04. فواتير المبيعات</span>
               </div>
               <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-line">
                 <Database className="w-4 h-4 text-indigo-600 shrink-0" />
-                <span>05. Ø­Ø±ÙƒØ§Øª Ø§Ù„Ù…Ø®Ø²ÙˆÙ†</span>
+                <span>05. حركات المخزون</span>
               </div>
               <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-line">
                 <Layers className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>06. Ø§Ù„ÙˆØ±Ø¯ÙŠØ§Øª ÙˆØ§Ù„Ø¥ØºÙ„Ø§Ù‚</span>
+                <span>06. الورديات والإغلاق</span>
               </div>
             </div>
             <p className="text-[11px] text-ink-muted font-normal pt-1">
-              Ø¨Ø§Ù„Ø¥Ø¶Ø§ÙØ© Ø¥Ù„Ù‰ Ù…Ù„Ù <strong className="font-mono">00_Ø¨ÙŠØ§Ù†Ø§Øª_Ø§Ù„Ù…Ø­Ù„_Ø§Ù„Ø´Ø§Ù…Ù„Ø©.xlsx</strong> Ø§Ù„Ø¬Ø§Ù…Ø¹ Ù„ÙƒØ§ÙØ© Ø§Ù„Ø´ÙŠØªØ§ØªØŒ ÙˆÙˆØ«ÙŠÙ‚Ø© Ù…Ù„ÙƒÙŠØ© Ø±Ø³Ù…ÙŠØ© Ø¨ØµÙŠØºØ© Ù†ØµÙŠØ©.
+              بالإضافة إلى ملف <strong className="font-mono">00_بيانات_المحل_الشاملة.xlsx</strong> الجامع لكافة الشيتات، ووثيقة ملكية رسمية بصيغة نصية.
             </p>
           </div>
 
           {/* Export Destination Folder Picker */}
           <div className="space-y-2">
             <label className="text-xs font-bold text-ink">
-              Ù…ÙƒØ§Ù† Ø­ÙØ¸ Ù…Ø¬Ù„Ø¯ Ø§Ù„ØªØµØ¯ÙŠØ± (Ø§Ù„Ù…Ø¬Ù„Ø¯ Ø£Ùˆ Ø§Ù„ÙÙ„Ø§Ø´Ø©):
+              مكان حفظ مجلد التصدير (المجلد أو الفلاشة):
             </label>
             <div className="flex items-center gap-2">
               <input
                 type="text"
                 readOnly
-                value={selectedFolder || 'Ø³Ø·Ø­ Ø§Ù„Ù…ÙƒØªØ¨ ØªÙ„Ù‚Ø§Ø¦ÙŠØ§Ù‹ (Desktop / RafiqExport)'}
+                value={selectedFolder || 'سطح المكتب تلقائياً (Desktop / RafiqExport)'}
                 className="flex-1 px-3.5 py-2.5 rounded-xl bg-surface-2 border border-line text-xs font-mono text-ink-muted select-all"
                 dir="ltr"
               />
@@ -216,7 +216,7 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
                 className="px-4 py-2.5 rounded-xl bg-surface border border-line hover:border-line-hover text-ink text-xs font-bold flex items-center gap-2 transition-all disabled:opacity-50"
               >
                 <FolderOpen className="w-4 h-4 text-brand" />
-                <span>ØªØºÙŠÙŠØ± Ø§Ù„Ù…Ø¬Ù„Ø¯</span>
+                <span>تغيير المجلد</span>
               </button>
             </div>
           </div>
@@ -227,26 +227,26 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-paid font-bold text-sm">
                   <CheckCircle2 className="w-5 h-5 shrink-0" />
-                  <span>ØªÙ… ØªØµØ¯ÙŠØ± {exportResult.generatedFiles.length} Ù…Ù„ÙØ§Øª Ø¨Ù†Ø¬Ø§Ø­ ØªØ§Ù…!</span>
+                  <span>تم تصدير {exportResult.generatedFiles.length} ملفات بنجاح تام!</span>
                 </div>
                 <button
                   onClick={handleOpenFolder}
                   className="px-3 py-1.5 rounded-lg bg-paid text-white text-xs font-bold flex items-center gap-1.5 hover:bg-paid/90 transition-all shadow-xs"
                 >
                   <FolderOpen className="w-3.5 h-3.5" />
-                  <span>ÙØªØ­ Ø§Ù„Ù…Ø¬Ù„Ø¯ Ø§Ù„Ø¢Ù†</span>
+                  <span>فتح المجلد الآن</span>
                 </button>
               </div>
 
               <div className="grid grid-cols-3 gap-2 text-xs font-medium text-ink pt-1 border-t border-paid/20">
                 <div className="p-2 bg-surface rounded-lg">
-                  Ø§Ù„Ø£ØµÙ†Ø§Ù: <strong>{exportResult.productsCount}</strong>
+                  الأصناف: <strong>{exportResult.productsCount}</strong>
                 </div>
                 <div className="p-2 bg-surface rounded-lg">
-                  Ø§Ù„Ø¹Ù…Ù„Ø§Ø¡: <strong>{exportResult.customersCount}</strong>
+                  العملاء: <strong>{exportResult.customersCount}</strong>
                 </div>
                 <div className="p-2 bg-surface rounded-lg">
-                  Ø§Ù„ÙÙˆØ§ØªÙŠØ±: <strong>{exportResult.salesCount}</strong>
+                  الفواتير: <strong>{exportResult.salesCount}</strong>
                 </div>
               </div>
 
@@ -264,10 +264,10 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
             onClick={handleRunParityTests}
             disabled={isExporting}
             className="px-3.5 py-2 rounded-xl bg-surface border border-line hover:border-line-hover text-ink-muted hover:text-ink text-xs font-medium transition-all disabled:opacity-50 flex items-center gap-1.5"
-            title="ÙØ­Øµ Ù…Ø·Ø§Ø¨Ù‚Ø© Ø¹Ø¯Ø¯ Ø§Ù„ØµÙÙˆÙ ÙˆØ§Ù„Ù…Ø¬Ø§Ù…ÙŠØ¹ Ø¨ÙŠÙ† Ø¥ÙƒØ³Ù„ ÙˆÙ‚Ø§Ø¹Ø¯Ø© Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª"
+            title="فحص مطابقة عدد الصفوف والمجاميع بين إكسل وقاعدة البيانات"
           >
             <FileCheck className="w-4 h-4 text-emerald-600" />
-            <span>ÙØ­Øµ Ù…Ø·Ø§Ø¨Ù‚Ø© Ø§Ù„Ù…Ø¬Ø§Ù…ÙŠØ¹</span>
+            <span>فحص مطابقة المجاميع</span>
           </button>
 
           <div className="flex items-center gap-2">
@@ -276,7 +276,7 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
               disabled={isExporting}
               className="px-4 py-2 rounded-xl border border-line text-ink-muted hover:text-ink text-xs font-semibold hover:bg-surface transition-all disabled:opacity-50"
             >
-              Ø¥ØºÙ„Ø§Ù‚
+              إغلاق
             </button>
 
             <button
@@ -285,7 +285,7 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
               className="px-5 py-2 rounded-xl bg-brand hover:bg-brand-dark text-white text-xs font-bold flex items-center gap-2 shadow-sm transition-all disabled:opacity-50"
             >
               <FolderDown className="w-4 h-4" />
-              <span>{isExporting ? 'Ø¬Ø§Ø±ÙŠ ØªØ¬Ù‡ÙŠØ² ÙˆØªØµØ¯ÙŠØ± Ø§Ù„Ù…Ù„ÙØ§Øª...' : 'ØªØµØ¯ÙŠØ± ÙƒÙ„ Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª Ø¨Ø¶ØºØ·Ø© ÙˆØ§Ø­Ø¯Ø©'}</span>
+              <span>{isExporting ? 'جاري تجهيز وتصدير الملفات...' : 'تصدير كل البيانات بضغطة واحدة'}</span>
             </button>
           </div>
         </div>

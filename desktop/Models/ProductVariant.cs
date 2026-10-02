@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Newtonsoft.Json;
 
 namespace RafiqPOS.Models
@@ -47,13 +47,13 @@ namespace RafiqPOS.Models
         [JsonProperty("priceFormatted")]
         public string PriceFormatted
         {
-            get { return (PricePiasters / 100.0).ToString("N2") + " Ø¬.Ù…"; }
+            get { return (PricePiasters / 100.0).ToString("N2") + " ج.م"; }
         }
 
         [JsonProperty("costFormatted")]
         public string CostFormatted
         {
-            get { return (CostPiasters / 100.0).ToString("N2") + " Ø¬.Ù…"; }
+            get { return (CostPiasters / 100.0).ToString("N2") + " ج.م"; }
         }
 
         [JsonProperty("stockFormatted")]

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -17,7 +17,7 @@ namespace RafiqPOS.Bridge
                 case "variants:createMatrix":
                     if (request.Payload == null)
                     {
-                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "Ø¨ÙŠØ§Ù†Ø§Øª Ù…ØµÙÙˆÙØ© Ø§Ù„ØªØ±ÙƒÙŠØ¨Ø§Øª Ù…ÙÙ‚ÙˆØ¯Ø©");
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات مصفوفة التركيبات مفقودة");
                         return true;
                     }
                     CreateVariantMatrixRequest matrixReq = null;
@@ -32,7 +32,7 @@ namespace RafiqPOS.Bridge
 
                     if (matrixReq == null)
                     {
-                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "ØªØ¹Ø°Ø± Ù‚Ø±Ø§Ø¡Ø© Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„ØªØ±ÙƒÙŠØ¨Ø§Øª");
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "تعذر قراءة بيانات التركيبات");
                         return true;
                     }
 
@@ -43,7 +43,7 @@ namespace RafiqPOS.Bridge
                 case "variants:getByParentId":
                     if (request.Payload == null)
                     {
-                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "Ù…Ø¹Ø±Ù Ø§Ù„Ù…Ù†ØªØ¬ Ø§Ù„Ø£Ø¨ Ù…ÙÙ‚ÙˆØ¯");
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "معرف المنتج الأب مفقود");
                         return true;
                     }
                     string parentId = null;
@@ -64,7 +64,7 @@ namespace RafiqPOS.Bridge
                 case "variants:getParentWithVariants":
                     if (request.Payload == null)
                     {
-                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "Ù…Ø¹Ø±Ù Ø§Ù„Ù…Ù†ØªØ¬ Ø§Ù„Ø£Ø¨ Ù…ÙÙ‚ÙˆØ¯");
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "معرف المنتج الأب مفقود");
                         return true;
                     }
                     string pId = null;
