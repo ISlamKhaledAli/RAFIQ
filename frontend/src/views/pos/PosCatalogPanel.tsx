@@ -41,6 +41,28 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
   onOpenQuickFastItemModal,
   onOpenQuickItemsManager,
 }) => {
+  // Progressive display to guarantee ultra-fast 60fps rendering even with 1000+ items
+  const [prevFilter, setPrevFilter] = React.useState({ tab: activeCatalogTab, query: catalogSearchQuery });
+  const [visibleCount, setVisibleCount] = React.useState(40);
+
+  if (prevFilter.tab !== activeCatalogTab || prevFilter.query !== catalogSearchQuery) {
+    setPrevFilter({ tab: activeCatalogTab, query: catalogSearchQuery });
+    setVisibleCount(40);
+  }
+
+  const itemsToRender = React.useMemo(() => {
+    return displayedCatalogItems.slice(0, visibleCount);
+  }, [displayedCatalogItems, visibleCount]);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    if (target.scrollTop + target.clientHeight >= target.scrollHeight - 100) {
+      if (visibleCount < displayedCatalogItems.length) {
+        setVisibleCount((prev) => Math.min(prev + 40, displayedCatalogItems.length));
+      }
+    }
+  };
+
   // Determine display label for the active category/tab
   const getActiveTabLabel = () => {
     if (activeCatalogTab === '__ALL__') return 'جميع الأصناف';
@@ -133,9 +155,12 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
         </div>
       </div>
 
-      {/* 2-Column Grid of Smart Catalog Items */}
-      <div className="flex-1 grid grid-cols-2 gap-2.5 overflow-y-auto pr-0.5 content-start auto-rows-fr">
-        {displayedCatalogItems.map((item) => {
+      {/* 2-Column Grid of Smart Catalog Items - Fixed: Removed auto-rows-fr to prevent collapsing cards */}
+      <div 
+        onScroll={handleScroll}
+        className="flex-1 grid grid-cols-2 gap-2.5 overflow-y-auto pr-0.5 content-start"
+      >
+        {itemsToRender.map((item) => {
           const stockMilli = typeof item.stockQuantityMilli === 'number' ? item.stockQuantityMilli : null;
           const isOutOfStock = stockMilli !== null && stockMilli <= 0;
           const isLowStock = stockMilli !== null && stockMilli > 0 && stockMilli <= 5000;
@@ -153,7 +178,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                   handleSmartItemClick(item);
                 }
               }}
-              className="group relative flex flex-col justify-between p-2.5 sm:p-3 rounded-xl bg-white border border-[#dce1dc] hover:border-[#006d41] text-right transition-all duration-150 shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-[0_6px_16px_rgba(0,55,45,0.09)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] cursor-pointer min-h-[105px] h-full"
+              className="group relative flex flex-col justify-between p-2.5 sm:p-3 rounded-xl bg-white border border-[#dce1dc] hover:border-[#006d41] text-right transition-all duration-150 shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-[0_6px_16px_rgba(0,55,45,0.09)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] cursor-pointer min-h-[112px]"
             >
               {/* Top subtle emerald gradient highlight bar on hover */}
               <div className="absolute top-0 inset-x-0 h-[2.5px] bg-gradient-to-r from-transparent via-[#006d41] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-t-xl" />
@@ -277,6 +302,18 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
             </div>
           );
         })}
+
+        {displayedCatalogItems.length > visibleCount && (
+          <div className="col-span-2 pt-1 pb-1">
+            <button
+              type="button"
+              onClick={() => setVisibleCount((prev) => Math.min(prev + 40, displayedCatalogItems.length))}
+              className="w-full py-2 bg-white hover:bg-[#eaf5ee] text-[#006d41] border border-[#c4e3d0] rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-98 flex items-center justify-center gap-1.5"
+            >
+              <span>عرض المزيد (+{displayedCatalogItems.length - visibleCount} صنف)</span>
+            </button>
+          </div>
+        )}
 
         {displayedCatalogItems.length === 0 && (
           <div className="col-span-2 flex flex-col items-center justify-center p-6 text-center text-[#5b6664] my-auto">
