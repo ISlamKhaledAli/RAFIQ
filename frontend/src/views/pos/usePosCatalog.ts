@@ -37,22 +37,14 @@ export const usePosCatalog = ({
   const [openPriceItem, setOpenPriceItem] = useState<QuickItem | null>(null);
   const [openPriceInputEgp, setOpenPriceInputEgp] = useState<string>('');
 
-  const [localPopularity, setLocalPopularity] = useState<Record<string, number>>(() => {
-    try {
-      const stored = localStorage.getItem('rafiq_pos_item_popularity');
-      return stored ? JSON.parse(stored) : {};
-    } catch {
-      return {};
-    }
-  });
-
+  // Clean up any legacy artificial popularity counter from localStorage
   useEffect(() => {
     try {
-      localStorage.setItem('rafiq_pos_item_popularity', JSON.stringify(localPopularity));
+      localStorage.removeItem('rafiq_pos_item_popularity');
     } catch {
       // ignore
     }
-  }, [localPopularity]);
+  }, []);
 
   const smartItems = useMemo<SmartCatalogItem[]>(() => {
     const list: SmartCatalogItem[] = [];
@@ -61,7 +53,7 @@ export const usePosCatalog = ({
     for (const p of catalogProducts) {
       const matchedQuick = quickItems.find((q) => q.productId === p.id);
       const isCustom = Boolean(matchedQuick) || Boolean(p.isCustomQuickItem);
-      const popScore = (p.salesCount || 0) + (localPopularity[p.id] || 0);
+      const popScore = p.salesCount || 0;
 
       list.push({
         id: p.id,
@@ -90,7 +82,8 @@ export const usePosCatalog = ({
 
     for (const q of quickItems) {
       if (q.productId && seenProductIds.has(q.productId)) continue;
-      const popScore = localPopularity[q.id] || 0;
+      const matchedProd = q.productId ? catalogProducts.find((p) => p.id === q.productId) : null;
+      const popScore = matchedProd?.salesCount || 0;
       list.push({
         id: q.id,
         productId: q.productId,
@@ -107,7 +100,7 @@ export const usePosCatalog = ({
     }
 
     return list;
-  }, [catalogProducts, quickItems, localPopularity]);
+  }, [catalogProducts, quickItems]);
 
   const categoryTabs = useMemo(() => {
     const map = new Map<string, number>();
@@ -182,7 +175,7 @@ export const usePosCatalog = ({
     }
 
     return result
-      .filter((it) => (it.categoryName || 'عام') === activeCatalogTab)
+      .filter((it) => (it.categoryName || 'عام') === activeCatalogTab || it.categoryId === activeCatalogTab)
       .sort((a, b) => {
         if (b.salesCount !== a.salesCount) return b.salesCount - a.salesCount;
         return a.name.localeCompare(b.name, 'ar');
@@ -190,11 +183,6 @@ export const usePosCatalog = ({
   }, [smartItems, catalogSearchQuery, activeCatalogTab]);
 
   const handleSmartItemClick = useCallback((item: SmartCatalogItem, specificUnit?: ProductUnit) => {
-    setLocalPopularity((prev) => ({
-      ...prev,
-      [item.id]: (prev[item.id] || 0) + 1,
-    }));
-
     if (item.isOpenPrice) {
       setOpenPriceItem({
         id: item.id,

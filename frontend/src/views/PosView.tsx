@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { FormEvent } from 'react';
 import { invoke } from '../bridge/ipc';
-import type { Product, Sale, Customer, QuickItem, SalePayment, ProductUnit, HeldSale } from '../types/models';
+import type { Product, Sale, Customer, QuickItem, SalePayment, ProductUnit, HeldSale, Category } from '../types/models';
 import { 
   formatArabicCurrency, 
   calculateLineTotal, 
@@ -14,6 +14,7 @@ import { UndoToast } from '../components/UndoToast';
 import { WeightInputModal } from '../components/WeightInputModal';
 import { QuickItemsManagerModal } from '../components/QuickItemsManagerModal';
 import { QuickFastItemModal } from '../components/QuickFastItemModal';
+import { CategoryManagerModal } from '../components/CategoryManagerModal';
 import { PaymentModal } from '../components/PaymentModal';
 import { BarcodeScannerSettingsModal } from '../components/BarcodeScannerSettingsModal';
 import { QuickAddProductModal } from '../components/QuickAddProductModal';
@@ -37,7 +38,8 @@ import type { CartItem } from './pos/types';
 import { PosBarcodeBar } from './pos/PosBarcodeBar';
 import { PosCartTable } from './pos/PosCartTable';
 import { PosCatalogPanel } from './pos/PosCatalogPanel';
-import { PosCheckoutPanel } from './pos/PosCheckoutPanel';
+import { PosCartCheckoutBar } from './pos/PosCartCheckoutBar';
+import { PosCategoriesPanel } from './pos/PosCategoriesPanel';
 import { PosFooterBar } from './pos/PosFooterBar';
 import { OpenPriceModal } from './pos/OpenPriceModal';
 import { PosQuantityModal } from './pos/PosQuantityModal';
@@ -58,6 +60,8 @@ export const PosView = () => {
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [quickItems, setQuickItems] = useState<QuickItem[]>([]);
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
 
   const [isQuickItemsManagerOpen, setIsQuickItemsManagerOpen] = useState(false);
   const [isQuickFastItemModalOpen, setIsQuickFastItemModalOpen] = useState(false);
@@ -552,6 +556,35 @@ export const PosView = () => {
     void loadCustomers();
   }, []);
 
+  // Load Categories for POS category panel
+  const loadCategories = useCallback(async () => {
+    try {
+      const data = await invoke<Category[]>('categories:getAll', { includeArchived: false });
+      if (Array.isArray(data)) {
+        setCategories(data);
+      }
+    } catch {
+      // Offline fallback
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const data = await invoke<Category[]>('categories:getAll', { includeArchived: false });
+        if (active && Array.isArray(data)) {
+          setCategories(data);
+        }
+      } catch {
+        // Offline fallback
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   // Load Quick Items & Inventory Products (Smart Catalog)
   const loadSmartCatalog = useCallback(async () => {
     try {
@@ -1040,6 +1073,39 @@ export const PosView = () => {
     setUnitPickerProduct,
   });
 
+  // Dynamic Category Product Counts & Unified Store Categories
+  const categoryProductCounts = useMemo<Record<string, number>>(() => {
+    const counts: Record<string, number> = {};
+    for (const item of smartItems) {
+      const cName = item.categoryName?.trim() || 'عام';
+      counts[cName] = (counts[cName] || 0) + 1;
+      if (item.categoryId) {
+        counts[item.categoryId] = (counts[item.categoryId] || 0) + 1;
+      }
+    }
+    return counts;
+  }, [smartItems]);
+
+  const allPosCategories = useMemo<Category[]>(() => {
+    const list = [...categories];
+    const existingNames = new Set(list.map((c) => c.name.trim().toLowerCase()));
+    for (const tab of categoryTabs) {
+      if (tab.name !== 'عام' && !existingNames.has(tab.name.trim().toLowerCase())) {
+        list.push({
+          id: `cat_${tab.name}`,
+          name: tab.name,
+          displayOrder: 999,
+          isActive: true,
+          productCount: tab.count,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+        existingNames.add(tab.name.trim().toLowerCase());
+      }
+    }
+    return list;
+  }, [categories, categoryTabs]);
+
   const updateQuantity = useCallback((index: number, deltaPieces: number) => {
     setCart((prev) => {
       const updated = [...prev];
@@ -1242,13 +1308,37 @@ export const PosView = () => {
             }}
             removeItem={removeItem}
           />
+
+          {/* Bottom Grand Total Card & Fast Checkout Action Controls */}
+          <PosCartCheckoutBar
+            cart={cart}
+            nextExpectedInvoiceNumber={nextExpectedInvoiceNumber}
+            lastInvoiceNumber={lastInvoiceNumber}
+            totalItemCount={totalItemCount}
+            subtotalPiasters={subtotalPiasters}
+            discountPiasters={discountPiasters}
+            totalTaxPiasters={totalTaxPiasters}
+            showTaxes={showTaxes}
+            selectedCustomerId={selectedCustomerId}
+            paymentMethod={paymentMethod}
+            customers={customers}
+            netTotalPiasters={netTotalPiasters}
+            loading={loading}
+            handleOpenCheckout={handleOpenCheckout}
+            requestClearCart={requestClearCart}
+            lastCompletedSale={lastCompletedSale}
+            onOpenReceipt={() => setIsReceiptOpen(true)}
+            handleHoldCurrentSale={handleHoldCurrentSale}
+            heldSalesCount={heldSalesCount}
+            onOpenHeldSales={() => setIsHeldSalesModalOpen(true)}
+            onOpenReturnModal={() => setIsReturnModalOpen(true)}
+          />
         </section>
 
         {/* ================= REGION B: SMART PRODUCTS & FAST ITEMS GRID ================= */}
         {showFastItems && (
           <PosCatalogPanel
             smartItems={smartItems}
-            categoryTabs={categoryTabs}
             customItemsCount={customItemsCount}
             popularItemsCount={popularItemsCount}
             catalogSearchQuery={catalogSearchQuery}
@@ -1262,34 +1352,19 @@ export const PosView = () => {
           />
         )}
 
-        {/* ================= REGION C: FINANCIAL TOTALS & PAYMENT PANEL ================= */}
-        <PosCheckoutPanel
-          cart={cart}
-          nextExpectedInvoiceNumber={nextExpectedInvoiceNumber}
-          lastInvoiceNumber={lastInvoiceNumber}
-          totalItemCount={totalItemCount}
-          subtotalPiasters={subtotalPiasters}
-          discountPiasters={discountPiasters}
-          setDiscountPiasters={setDiscountPiasters}
-          totalTaxPiasters={totalTaxPiasters}
-          showTaxes={showTaxes}
-          showCredit={showCredit}
-          selectedCustomerId={selectedCustomerId}
-          setSelectedCustomerId={setSelectedCustomerId}
-          paymentMethod={paymentMethod}
-          setPaymentMethod={setPaymentMethod}
-          customers={customers}
-          netTotalPiasters={netTotalPiasters}
-          loading={loading}
-          handleOpenCheckout={handleOpenCheckout}
-          requestClearCart={requestClearCart}
-          lastCompletedSale={lastCompletedSale}
-          onOpenReceipt={() => setIsReceiptOpen(true)}
-          handleHoldCurrentSale={handleHoldCurrentSale}
-          heldSalesCount={heldSalesCount}
-          onOpenHeldSales={() => setIsHeldSalesModalOpen(true)}
-          onOpenReturnModal={() => setIsReturnModalOpen(true)}
-        />
+        {/* ================= REGION C: STORE CATEGORIES PANEL ================= */}
+        {showFastItems && (
+          <PosCategoriesPanel
+            categories={allPosCategories}
+            activeCatalogTab={activeCatalogTab}
+            onSelectCategory={setActiveCatalogTab}
+            totalProductsCount={smartItems.length}
+            popularItemsCount={popularItemsCount}
+            customItemsCount={customItemsCount}
+            categoryProductCounts={categoryProductCounts}
+            onOpenCategoryManager={() => setIsCategoryManagerOpen(true)}
+          />
+        )}
       </div>
 
       {/* 2. BOTTOM KEYBOARD & TOUCH ACTION STRIP */}
@@ -1445,10 +1520,19 @@ export const PosView = () => {
           setIsPaymentModalOpen(false);
           barcodeInputRef.current?.focus();
         }}
+        invoiceNumber={nextExpectedInvoiceNumber || (lastInvoiceNumber ? lastInvoiceNumber + 1 : 1)}
+        itemCount={cart.length}
+        totalItemCount={totalItemCount}
         subtotalPiasters={subtotalPiasters}
         discountPiasters={discountPiasters}
+        onDiscountChange={setDiscountPiasters}
         netTotalPiasters={netTotalPiasters}
         selectedCustomerId={selectedCustomerId}
+        onCustomerChange={(id) => {
+          setSelectedCustomerId(id);
+          if (!id) setPaymentMethod('cash');
+        }}
+        showCredit={showCredit}
         customers={customers}
         onConfirmPayment={handleConfirmPayment}
         loading={loading}
@@ -1614,6 +1698,20 @@ export const PosView = () => {
           barcodeInputRef.current?.focus();
         }}
       />
+
+      {/* 18. CATEGORY MANAGER MODAL */}
+      {isCategoryManagerOpen && (
+        <CategoryManagerModal
+          onClose={() => {
+            setIsCategoryManagerOpen(false);
+            barcodeInputRef.current?.focus();
+          }}
+          onCategoriesChanged={() => {
+            void loadCategories();
+            void loadSmartCatalog();
+          }}
+        />
+      )}
     </div>
   );
 };
