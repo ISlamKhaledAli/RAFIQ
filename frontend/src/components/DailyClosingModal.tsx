@@ -471,7 +471,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                     onChange={(e) => setNotes(e.target.value)}
                     disabled={Boolean(savedClosing) || isSubmitting}
                     placeholder="مثال: تم سداد مصاريف نقل من الدرج بموجب إيصال، أو متبقي عهدة فكة..."
-                    className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-line bg-white text-ink focus:outline-hidden focus:border-brand focus:ring-1 focus:ring-brand disabled:bg-surface-2"
+                    className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-line bg-white text-ink focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand disabled:bg-surface-2"
                   />
                 </div>
               </div>

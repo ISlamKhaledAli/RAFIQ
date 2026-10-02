@@ -148,7 +148,7 @@ export const LowStockReportModal: React.FC<LowStockReportModalProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="بحث بالاسم أو الباركود أو القسم..."
-              className="w-full text-xs pr-9 pl-3 py-2 rounded-xl border border-line bg-canvas text-ink focus:outline-hidden focus:border-brand"
+              className="w-full text-xs pr-9 pl-3 py-2 rounded-xl border border-line bg-canvas text-ink focus:outline-none focus:border-brand"
             />
           </div>
 

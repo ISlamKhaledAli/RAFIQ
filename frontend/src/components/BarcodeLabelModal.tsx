@@ -431,7 +431,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
                   placeholder="ابحث بالاسم أو امسح الباركود..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-3 pr-9 py-2 text-xs bg-canvas border border-line rounded-lg focus:outline-hidden focus:border-brand text-ink"
+                  className="w-full pl-3 pr-9 py-2 text-xs bg-canvas border border-line rounded-lg focus:outline-none focus:border-brand text-ink"
                 />
               </div>
 

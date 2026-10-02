@@ -20,6 +20,7 @@ import {
 import { invoke } from '../bridge/ipc';
 import type { QuickItem, Product } from '../types/models';
 import { normalizeArabicNumerals } from '../utils/money';
+import { CustomSelect } from './CustomSelect';
 
 interface QuickFastItemModalProps {
   isOpen: boolean;
@@ -609,22 +610,19 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                     القسم / التبويب
                   </label>
                   {!isCustomCategory ? (
-                    <div className="flex gap-1.5 h-10">
-                      <select
-                        value={categoryName}
-                        onChange={(e) => setCategoryName(e.target.value)}
-                        className="flex-1 px-2.5 text-xs bg-surface-2 border border-line rounded-lg text-ink focus:border-[#006d41] focus:outline-none"
-                      >
-                        {existingCategories.map((cat) => (
-                          <option key={cat} value={cat}>
-                            {cat}
-                          </option>
-                        ))}
-                      </select>
+                    <div className="flex gap-1.5 items-center">
+                      <div className="flex-1">
+                        <CustomSelect
+                          value={categoryName}
+                          onChange={(val) => setCategoryName(val)}
+                          size="md"
+                          options={existingCategories}
+                        />
+                      </div>
                       <button
                         type="button"
                         onClick={() => setIsCustomCategory(true)}
-                        className="px-2 bg-surface-2 hover:bg-surface border border-line text-ink-muted hover:text-ink rounded-lg text-xs font-bold cursor-pointer"
+                        className="h-10 px-3 bg-surface-2 hover:bg-surface border border-line text-ink-muted hover:text-ink rounded-lg text-xs font-bold cursor-pointer shrink-0 transition-colors"
                         title="كتابة قسم جديد"
                       >
                         + جديد
@@ -832,23 +830,19 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                   القسم / التبويب
                 </label>
                 {!isCustomBundleCategory ? (
-                  <div className="flex gap-1.5 h-10">
-                    <select
-                      value={bundleCategoryName}
-                      onChange={(e) => setBundleCategoryName(e.target.value)}
-                      className="flex-1 px-2.5 text-xs bg-surface-2 border border-line rounded-lg text-ink focus:border-[#006d41] focus:outline-none"
-                    >
-                      <option value="عروض وتوفير">عروض وتوفير</option>
-                      {existingCategories.filter((c) => c !== 'عروض وتوفير').map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="flex gap-1.5 items-center">
+                    <div className="flex-1">
+                      <CustomSelect
+                        value={bundleCategoryName}
+                        onChange={(val) => setBundleCategoryName(val)}
+                        size="md"
+                        options={['عروض وتوفير', ...existingCategories.filter((c) => c !== 'عروض وتوفير')]}
+                      />
+                    </div>
                     <button
                       type="button"
                       onClick={() => setIsCustomBundleCategory(true)}
-                      className="px-2 bg-surface-2 hover:bg-surface border border-line text-ink-muted hover:text-ink rounded-lg text-xs font-bold cursor-pointer"
+                      className="h-10 px-3 bg-surface-2 hover:bg-surface border border-line text-ink-muted hover:text-ink rounded-lg text-xs font-bold cursor-pointer shrink-0 transition-colors"
                       title="كتابة قسم جديد"
                     >
                       + جديد
@@ -1020,22 +1014,19 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                     القسم / التبويب
                   </label>
                   {!isCustomCategory ? (
-                    <div className="flex gap-1.5 h-10">
-                      <select
-                        value={categoryName}
-                        onChange={(e) => setCategoryName(e.target.value)}
-                        className="flex-1 px-2.5 text-xs bg-surface-2 border border-line rounded-lg text-ink focus:border-[#006d41] focus:outline-none"
-                      >
-                        {existingCategories.map((cat) => (
-                          <option key={cat} value={cat}>
-                            {cat}
-                          </option>
-                        ))}
-                      </select>
+                    <div className="flex gap-1.5 items-center">
+                      <div className="flex-1">
+                        <CustomSelect
+                          value={categoryName}
+                          onChange={(val) => setCategoryName(val)}
+                          size="md"
+                          options={existingCategories}
+                        />
+                      </div>
                       <button
                         type="button"
                         onClick={() => setIsCustomCategory(true)}
-                        className="px-2 bg-surface-2 hover:bg-surface border border-line text-ink-muted hover:text-ink rounded-lg text-xs font-bold cursor-pointer"
+                        className="h-10 px-3 bg-surface-2 hover:bg-surface border border-line text-ink-muted hover:text-ink rounded-lg text-xs font-bold cursor-pointer shrink-0 transition-colors"
                         title="كتابة قسم جديد"
                       >
                         + جديد

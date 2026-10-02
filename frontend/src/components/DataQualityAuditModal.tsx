@@ -403,7 +403,7 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
                 placeholder="ابحث بالاسم أو الباركود أو التصنيف..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full h-9 pl-4 pr-9 text-xs bg-surface-2 border border-line rounded-lg focus:outline-hidden focus:border-brand text-ink"
+                className="w-full h-9 pl-4 pr-9 text-xs bg-surface-2 border border-line rounded-lg focus:outline-none focus:border-brand text-ink"
               />
               <Search className="w-4 h-4 text-ink-muted absolute right-3 top-2.5" />
             </div>

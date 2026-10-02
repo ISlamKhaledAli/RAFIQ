@@ -477,7 +477,7 @@ export const QuickStartGuideModal: React.FC<QuickStartGuideModalProps> = ({
               {/* Video Player Display Screen */}
               <div className="rounded-2xl border-2 border-line bg-black text-white overflow-hidden shadow-lg">
                 {/* Player Canvas Simulator */}
-                <div className="relative aspect-video bg-linear-to-b from-gray-900 to-black flex flex-col items-center justify-center p-8 text-center">
+                <div className="relative aspect-video bg-gradient-to-b from-gray-900 to-black flex flex-col items-center justify-center p-8 text-center">
                   {/* Step Visualizer */}
                   <div className="space-y-4 max-w-lg">
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand/80 text-white text-xs font-bold">

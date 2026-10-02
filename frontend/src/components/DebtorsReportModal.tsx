@@ -148,7 +148,7 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="بحث بالاسم أو رقم الهاتف..."
-              className="w-full text-xs pr-9 pl-3 py-2 rounded-xl border border-line bg-canvas text-ink focus:outline-hidden focus:border-brand"
+              className="w-full text-xs pr-9 pl-3 py-2 rounded-xl border border-line bg-canvas text-ink focus:outline-none focus:border-brand"
             />
           </div>
 

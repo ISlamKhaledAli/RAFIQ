@@ -430,7 +430,7 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Ø§Ø¨Ø­Ø« Ø¨Ù…ÙˆØ¯ÙŠÙ„ Ø£Ùˆ Ù…Ø§Ø±ÙƒØ© Ø§Ù„Ø¬Ù‡Ø§Ø²..."
-              className="w-full h-8.5 pr-8.5 pl-3 rounded-lg bg-white border border-[#dce1dc] focus:border-[#006d41] focus:ring-1 focus:ring-[#006d41] text-xs text-[#0f172a] placeholder-[#52605d]/60 outline-hidden transition-all"
+              className="w-full h-8.5 pr-8.5 pl-3 rounded-lg bg-white border border-[#dce1dc] focus:border-[#006d41] focus:ring-1 focus:ring-[#006d41] text-xs text-[#0f172a] placeholder-[#52605d]/60 outline-none transition-all"
             />
           </div>
         </div>

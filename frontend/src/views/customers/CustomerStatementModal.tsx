@@ -13,6 +13,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import type { Customer, CustomerLedgerEntry, CustomerBalanceVerification } from '../../types/models';
+import { CustomSelect } from '../../components/CustomSelect';
 
 export interface CustomerStatementModalProps {
   isOpen: boolean;
@@ -421,19 +422,20 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                 </div>
               </div>
 
-              <div>
+              <div className="mb-2">
                 <label className="block text-ink font-semibold mb-1">سبب إلغاء الدفعة *</label>
-                <select
+                <CustomSelect
                   value={cancelReasonPreset}
-                  onChange={(e) => setCancelReasonPreset(e.target.value)}
-                  className="w-full h-8 px-2 bg-canvas border border-line rounded focus:outline-none focus:border-brand text-ink text-xs mb-2"
-                >
-                  <option value="سجلت بالخطأ">سجلت بالخطأ</option>
-                  <option value="سجلت بمبلغ خاطئ">سجلت بمبلغ خاطئ</option>
-                  <option value="سجلت لحساب عميل آخر بالخطأ">سجلت لحساب عميل آخر بالخطأ</option>
-                  <option value="شيك أو تحويل مرتجع بدون رصيد">شيك أو تحويل مرتجع بدون رصيد</option>
-                  <option value="أخرى">سبب آخر...</option>
-                </select>
+                  onChange={(val) => setCancelReasonPreset(val)}
+                  size="sm"
+                  options={[
+                    { value: 'سجلت بالخطأ', label: 'سجلت بالخطأ' },
+                    { value: 'سجلت بمبلغ خاطئ', label: 'سجلت بمبلغ خاطئ' },
+                    { value: 'سجلت لحساب عميل آخر بالخطأ', label: 'سجلت لحساب عميل آخر بالخطأ' },
+                    { value: 'شيك أو تحويل مرتجع بدون رصيد', label: 'شيك أو تحويل مرتجع بدون رصيد' },
+                    { value: 'أخرى', label: 'سبب آخر...' },
+                  ]}
+                />
 
                 {cancelReasonPreset === 'أخرى' && (
                   <input
@@ -441,7 +443,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                     value={customCancelReason}
                     onChange={(e) => setCustomCancelReason(e.target.value)}
                     placeholder="اكتب سبب الإلغاء بالتفصيل..."
-                    className="w-full h-8 px-3 bg-canvas border border-line rounded focus:outline-none focus:border-brand text-ink text-xs"
+                    className="w-full h-8 px-3 mt-2 bg-canvas border border-line rounded focus:outline-none focus:border-brand text-ink text-xs"
                     autoFocus
                   />
                 )}

@@ -107,18 +107,21 @@ export const MultiPaymentSection = ({
         {splitRows.map((row, idx) => (
           <div key={row.id} className="flex items-center gap-2 bg-surface-2 p-2 rounded border border-line">
             <span className="text-xs font-bold text-ink-muted w-6 text-center">#{idx + 1}</span>
-            <select
-              value={row.method}
-              onChange={(e) => {
-                const newMethod = e.target.value as 'cash' | 'card' | 'credit';
-                setSplitRows((rows) => rows.map((r) => r.id === row.id ? { ...r, method: newMethod } : r));
-              }}
-              className="h-[34px] px-2 bg-surface border border-line rounded text-xs font-bold text-ink focus:border-brand focus:outline-none"
-            >
-              <option value="cash">نقدي (كاش)</option>
-              <option value="card">فيزا / كارت</option>
-              <option value="credit">آجل / على الحساب</option>
-            </select>
+            <div className="w-36 shrink-0">
+              <CustomSelect
+                value={row.method}
+                onChange={(val) => {
+                  const newMethod = val as 'cash' | 'card' | 'credit';
+                  setSplitRows((rows) => rows.map((r) => r.id === row.id ? { ...r, method: newMethod } : r));
+                }}
+                size="sm"
+                options={[
+                  { value: 'cash', label: 'نقدي (كاش)' },
+                  { value: 'card', label: 'فيزا / كارت' },
+                  { value: 'credit', label: 'آجل / على الحساب' },
+                ]}
+              />
+            </div>
 
             <input
               type="text"

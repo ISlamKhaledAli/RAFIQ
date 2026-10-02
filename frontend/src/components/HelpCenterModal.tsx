@@ -543,7 +543,7 @@ export const HelpCenterModal = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Ø§Ø¨Ø­Ø« ÙÙŠ Ù…Ø±ÙƒØ² Ø§Ù„Ù…Ø³Ø§Ø¹Ø¯Ø© (Ù…Ø«Ø§Ù„: Ø¨Ø§Ø±ÙƒÙˆØ¯ØŒ ÙˆØ²Ù†ØŒ Ù…Ø±ØªØ¬Ø¹ØŒ Ø¢Ø¬Ù„ØŒ Ø·Ø§Ø¨Ø¹Ø©ØŒ Ù†Ø³Ø®Ø© Ø§Ø­ØªÙŠØ§Ø·ÙŠØ©)..."
-              className="w-full h-10 pr-9 pl-9 rounded-xl bg-white border border-[#dce1dc] focus:border-[#006d41] focus:ring-2 focus:ring-[#006d41]/20 text-xs text-[#0f172a] placeholder-[#52605d]/60 outline-hidden transition-all"
+              className="w-full h-10 pr-9 pl-9 rounded-xl bg-white border border-[#dce1dc] focus:border-[#006d41] focus:ring-2 focus:ring-[#006d41]/20 text-xs text-[#0f172a] placeholder-[#52605d]/60 outline-none transition-all"
             />
             {searchQuery && (
               <button
