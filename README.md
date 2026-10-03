@@ -48,9 +48,11 @@
 </p>
 
 <p align="center">
-  <a href="frontend/public/videos/video1_first_sale.mp4">
+  <a href="https://github.com/ISlamKhaledAli/RAFIQ/raw/main/frontend/public/videos/video1_first_sale.mp4" target="_blank">
     <img src="docs/assets/badges/btn_watch_video1.png" width="410" alt="تشغيل فيديو دورة البيع والكاشير 1080p" />
   </a>
+  <br/>
+  <sub><a href="https://github.com/ISlamKhaledAli/RAFIQ/raw/main/frontend/public/videos/video1_first_sale.mp4" target="_blank">اضغط هنا لتشغيل الفيديو فورياً في المتصفح بدقة 1080p والصوت البشري</a></sub>
 </p>
 
 <details>
@@ -73,9 +75,11 @@
 </p>
 
 <p align="center">
-  <a href="frontend/public/videos/video2_z_report.mp4">
+  <a href="https://github.com/ISlamKhaledAli/RAFIQ/raw/main/frontend/public/videos/video2_z_report.mp4" target="_blank">
     <img src="docs/assets/badges/btn_watch_video2.png" width="410" alt="تشغيل فيديو إقفال اليومية Z-Report 1080p" />
   </a>
+  <br/>
+  <sub><a href="https://github.com/ISlamKhaledAli/RAFIQ/raw/main/frontend/public/videos/video2_z_report.mp4" target="_blank">اضغط هنا لتشغيل الفيديو فورياً في المتصفح بدقة 1080p والصوت البشري</a></sub>
 </p>
 
 <details>
@@ -96,9 +100,11 @@
 </p>
 
 <p align="center">
-  <a href="frontend/public/videos/video3_backup_migration.mp4">
+  <a href="https://github.com/ISlamKhaledAli/RAFIQ/raw/main/frontend/public/videos/video3_backup_migration.mp4" target="_blank">
     <img src="docs/assets/badges/btn_watch_video3.png" width="410" alt="تشغيل فيديو النسخ الاحتياطي ونقل المحل 1080p" />
   </a>
+  <br/>
+  <sub><a href="https://github.com/ISlamKhaledAli/RAFIQ/raw/main/frontend/public/videos/video3_backup_migration.mp4" target="_blank">اضغط هنا لتشغيل الفيديو فورياً في المتصفح بدقة 1080p والصوت البشري</a></sub>
 </p>
 
 <details>
