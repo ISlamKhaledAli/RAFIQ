@@ -21,6 +21,7 @@ import {
   TrendingUp,
   ShieldCheck,
   Barcode,
+  ChevronDown,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { openHelpCenter } from '../utils/helpService';
@@ -61,6 +62,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [isToolsDropdownOpen, setIsToolsDropdownOpen] = useState(false);
   const [prevInitialFilter, setPrevInitialFilter] = useState(initialFilter);
   const [stockStatusFilter, setStockStatusFilter] = useState<'all' | 'lowStock' | 'outOfStock'>(initialFilter);
 
@@ -761,12 +763,12 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           )}
         </div>
 
-        {/* Right Search Input & Add Button */}
-        <div className="flex items-center gap-2">
+        {/* Right Search Input & Action Toolbar */}
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
           {activeSubView === 'catalog' ? (
             <>
               <form onSubmit={handleSearch} className="flex items-center gap-1.5">
-                <div className="relative w-64 h-9 flex items-center bg-surface-2 border border-line rounded-xl px-2.5 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/20 focus-within:bg-surface transition-all">
+                <div className="relative w-48 sm:w-60 h-9 flex items-center bg-surface-2 border border-line rounded-xl px-2.5 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/20 focus-within:bg-surface transition-all">
                   <Search className="w-4 h-4 text-ink-muted ml-2 shrink-0 pointer-events-none" />
                   <input
                     type="text"
@@ -792,7 +794,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
                 <button
                   type="submit"
-                  className="h-9 px-3.5 bg-surface hover:bg-surface-2 border border-line text-ink rounded-xl text-xs font-bold transition-colors shadow-2xs cursor-pointer"
+                  className="h-9 px-3 bg-surface hover:bg-surface-2 border border-line text-ink rounded-xl text-xs font-bold transition-colors shadow-2xs cursor-pointer"
                 >
                   بحث
                 </button>
@@ -801,102 +803,144 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               <button
                 onClick={() => void loadProducts(searchQuery)}
                 disabled={loading}
-                className="h-9 w-9 flex items-center justify-center bg-surface hover:bg-surface-2 border border-line text-ink-muted hover:text-ink rounded-xl transition-colors shadow-2xs cursor-pointer"
+                className="h-9 w-9 flex items-center justify-center bg-surface hover:bg-surface-2 border border-line text-ink-muted hover:text-ink rounded-xl transition-colors shadow-2xs cursor-pointer shrink-0"
                 title="تحديث القائمة"
               >
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-brand' : ''}`} />
               </button>
 
-              <button
-                type="button"
-                onClick={() => setShowExcelImportModal(true)}
-                className="h-9 px-3.5 bg-surface hover:bg-surface-2 border border-line text-ink rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
-                title="استيراد وتحديث المنتجات من ملف إكسل أو CSV"
-              >
-                <FileSpreadsheet className="w-4 h-4 text-brand" />
-                <span>استيراد إكسل</span>
-              </button>
+              {/* Senior Tools & Operations Dropdown */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsToolsDropdownOpen((prev) => !prev)}
+                  className={`h-9 px-3 bg-surface hover:bg-surface-2 border text-ink rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer ${
+                    isToolsDropdownOpen ? 'border-brand ring-2 ring-brand/20 bg-surface-2' : 'border-line'
+                  }`}
+                  title="العمليات المتقدمة، الاستيراد والتصدير، والباركود"
+                >
+                  <Tag className="w-4 h-4 text-brand" />
+                  <span>أدوات الكتالوج</span>
+                  <ChevronDown className={`w-3.5 h-3.5 text-ink-muted transition-transform duration-150 ${isToolsDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
 
-              <button
-                type="button"
-                onClick={() => void handleExportProductsToExcel()}
-                disabled={isExportingExcel}
-                className="h-9 px-3.5 bg-surface hover:bg-surface-2 border border-line text-ink rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs disabled:opacity-60 cursor-pointer"
-                title="تصدير كامل كتالوج الأصناف إلى ملف إكسل ملون واحترافي"
-              >
-                <Download className={`w-4 h-4 text-brand ${isExportingExcel ? 'animate-bounce' : ''}`} />
-                <span>{isExportingExcel ? 'جاري التصدير...' : 'تصدير إكسل'}</span>
-              </button>
+                {isToolsDropdownOpen && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40" 
+                      onClick={() => setIsToolsDropdownOpen(false)} 
+                    />
+                    <div className="absolute left-0 top-full mt-1.5 w-64 bg-surface border border-line rounded-xl shadow-card py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100 flex flex-col">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsToolsDropdownOpen(false);
+                          setShowExcelImportModal(true);
+                        }}
+                        className="w-full px-3 py-2 text-right text-xs font-bold text-ink hover:bg-surface-2 flex items-center gap-2.5 transition-colors cursor-pointer"
+                      >
+                        <FileSpreadsheet className="w-4 h-4 text-brand" />
+                        <span>استيراد وتحديث من إكسل</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsToolsDropdownOpen(false);
+                          void handleExportProductsToExcel();
+                        }}
+                        disabled={isExportingExcel}
+                        className="w-full px-3 py-2 text-right text-xs font-bold text-ink hover:bg-surface-2 flex items-center gap-2.5 transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        <Download className="w-4 h-4 text-brand" />
+                        <span>تصدير الكتالوج إلى إكسل</span>
+                      </button>
+
+                      <div className="h-px bg-line my-1" />
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsToolsDropdownOpen(false);
+                          setLabelModalProduct(null);
+                          setShowBarcodeLabelModal(true);
+                        }}
+                        className="w-full px-3 py-2 text-right text-xs font-bold text-ink hover:bg-surface-2 flex items-center gap-2.5 transition-colors cursor-pointer"
+                      >
+                        <Tag className="w-4 h-4 text-brand" />
+                        <span>طباعة ملصقات الباركود والأسعار (F8)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsToolsDropdownOpen(false);
+                          void handleStartBulkBarcodeGeneration();
+                        }}
+                        disabled={isGeneratingBarcodes || loading}
+                        className="w-full px-3 py-2 text-right text-xs font-bold text-ink hover:bg-surface-2 flex items-center gap-2.5 transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        <Barcode className="w-4 h-4 text-brand" />
+                        <span>توليد باركود تلقائي للنواقص</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsToolsDropdownOpen(false);
+                          setShowBulkPriceModal(true);
+                        }}
+                        className="w-full px-3 py-2 text-right text-xs font-bold text-ink hover:bg-surface-2 flex items-center gap-2.5 transition-colors cursor-pointer"
+                      >
+                        <TrendingUp className="w-4 h-4 text-brand" />
+                        <span>تعديل الأسعار والتكاليف بالجملة</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsToolsDropdownOpen(false);
+                          setShowVariantMatrixModal(true);
+                        }}
+                        className="w-full px-3 py-2 text-right text-xs font-bold text-ink hover:bg-surface-2 flex items-center gap-2.5 transition-colors cursor-pointer"
+                      >
+                        <Layers className="w-4 h-4 text-brand" />
+                        <span>جدول المقاسات والألوان (Matrix)</span>
+                      </button>
+
+                      <div className="h-px bg-line my-1" />
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsToolsDropdownOpen(false);
+                          setShowDataQualityModal(true);
+                        }}
+                        className="w-full px-3 py-2 text-right text-xs font-bold text-paid hover:bg-paid-soft flex items-center gap-2.5 transition-colors cursor-pointer"
+                      >
+                        <ShieldCheck className="w-4 h-4 text-paid" />
+                        <span>فحص وتدقيق جودة البيانات</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
 
               <button
                 type="button"
                 onClick={() => openHelpCenter('products')}
-                className="h-9 w-9 flex items-center justify-center bg-surface hover:bg-surface-2 border border-line text-[#006d41] rounded-xl transition-colors shadow-2xs cursor-pointer"
+                className="h-9 w-9 flex items-center justify-center bg-surface hover:bg-surface-2 border border-line text-paid rounded-xl transition-colors shadow-2xs cursor-pointer shrink-0"
                 title="شرح ودليل إدارة الأصناف والمخزون والباركود (F1)"
               >
                 <HelpCircle className="w-4 h-4" />
               </button>
 
               <button
-                type="button"
-                onClick={() => setShowVariantMatrixModal(true)}
-                className="h-9 px-3.5 bg-brand-soft hover:bg-brand-soft/80 border border-brand/30 text-brand rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
-                title="إضافة منتج بمقاسات وألوان متعددة بجدول تفاعلي (Matrix)"
-              >
-                <Layers className="w-4 h-4" />
-                <span>مقاسات وألوان (Matrix)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setLabelModalProduct(null);
-                  setShowBarcodeLabelModal(true);
-                }}
-                className="h-9 px-3.5 bg-surface hover:bg-surface-2 border border-line text-ink rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
-                title="طباعة ملصقات الباركود والأسعار للطابعات الحرارية وورق A4 (F8)"
-              >
-                <Tag className="w-4 h-4 text-brand" />
-                <span>طباعة الملصقات (F8)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => void handleStartBulkBarcodeGeneration()}
-                disabled={isGeneratingBarcodes || loading}
-                className="h-9 px-3.5 bg-surface hover:bg-surface-2 border border-line text-ink rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer disabled:opacity-50"
-                title="توليد باركود داخلي قياسي (EAN-13 مع بادئة 200) لجميع الأصناف التي بلا باركود بضغطة واحدة"
-              >
-                <Barcode className={`w-4 h-4 text-brand ${isGeneratingBarcodes ? 'animate-pulse' : ''}`} />
-                <span>{isGeneratingBarcodes ? 'جاري التوليد...' : 'توليد باركود للنواقص'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowBulkPriceModal(true)}
-                className="h-9 px-3.5 bg-surface hover:bg-surface-2 border border-line text-ink rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
-                title="تعديل أسعار وتكلفة الأصناف بالجملة بنسبة مئوية أو مبلغ ثابت أو ملف إكسل"
-              >
-                <TrendingUp className="w-4 h-4 text-brand" />
-                <span>تعديل الأسعار بالجملة</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowDataQualityModal(true)}
-                className="h-9 px-3.5 bg-surface hover:bg-surface-2 border border-line text-ink rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
-                title="فحص جودة وصحة بيانات الكتالوج واكتشاف النواقص والمكررات فوراً"
-              >
-                <ShieldCheck className="w-4 h-4 text-paid" />
-                <span>فحص جودة البيانات</span>
-              </button>
-
-              <button
                 onClick={openAddModal}
-                className="h-9 px-4 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-[0.98]"
+                className="h-9 px-3.5 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-[0.98] shrink-0"
               >
                 <Plus className="w-4 h-4" />
-                <span>إضافة صنف جديد</span>
+                <span>إضافة صنف</span>
               </button>
             </>
           ) : (

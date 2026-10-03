@@ -493,14 +493,14 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
       )}
 
       {/* Top Header (View Switcher is now purely in the sidebar tree) */}
-      <header className="h-[64px] bg-surface border-b border-line px-6 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-brand-soft border border-brand/20 flex items-center justify-center text-brand shadow-2xs">
-            <ShoppingCart className="w-5 h-5" />
+      <header className="h-[52px] bg-surface border-b border-line px-4 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-brand-soft border border-brand/20 flex items-center justify-center text-brand shadow-2xs">
+            <ShoppingCart className="w-4 h-4" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-ink leading-tight">إدارة المشتريات والموردين</h1>
-            <p className="text-xs text-ink-muted">
+            <h1 className="text-sm sm:text-base font-bold text-ink leading-tight">إدارة المشتريات والموردين</h1>
+            <p className="text-[11px] text-ink-muted hidden sm:block">
               {activeTab === 'invoices' && 'سجل واستعراض فواتير الشراء، متابعة التكاليف، وحالات السداد'}
               {activeTab === 'new_invoice' && 'تسجيل استلام بضائع وتحديث تكلفة الشراء والمخزون الفوري'}
               {activeTab === 'suppliers' && 'دليل الموردين، حسابات المديونية الآجلة، وكشوف الحساب'}
@@ -510,27 +510,27 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
 
         {/* Current Sub-View Badge (Informative badge - No duplicate tab buttons) */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-surface-2 border border-line text-xs font-bold text-ink shadow-2xs">
+          <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-surface-2 border border-line text-xs font-bold text-ink shadow-2xs">
             {activeTab === 'invoices' && (
               <>
-                <Receipt className="w-4 h-4 text-brand" />
+                <Receipt className="w-3.5 h-3.5 text-brand" />
                 <span>فواتير المشتريات</span>
-                <span className="bg-brand-soft text-brand-dark px-2 py-0.5 rounded-full text-[11px] font-mono">
+                <span className="bg-brand-soft text-brand-dark px-1.5 py-0.2 rounded-full text-[11px] font-mono">
                   {purchases.length}
                 </span>
               </>
             )}
             {activeTab === 'new_invoice' && (
               <>
-                <Plus className="w-4 h-4 text-brand" />
+                <Plus className="w-3.5 h-3.5 text-brand" />
                 <span>تسجيل فاتورة شراء جديدة</span>
               </>
             )}
             {activeTab === 'suppliers' && (
               <>
-                <Building2 className="w-4 h-4 text-brand" />
+                <Building2 className="w-3.5 h-3.5 text-brand" />
                 <span>دليل الموردين</span>
-                <span className="bg-brand-soft text-brand-dark px-2 py-0.5 rounded-full text-[11px] font-mono">
+                <span className="bg-brand-soft text-brand-dark px-1.5 py-0.2 rounded-full text-[11px] font-mono">
                   {suppliers.length}
                 </span>
               </>
@@ -540,53 +540,53 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
       </header>
 
       {/* Main Workspace Body */}
-      <main className="flex-1 overflow-hidden p-6 flex flex-col">
+      <main className="flex-1 overflow-hidden p-3 sm:p-3.5 flex flex-col">
         {/* ========================================================================= */}
         {/* TAB 1: PURCHASES INVOICES LIST                                           */}
         {/* ========================================================================= */}
         {activeTab === 'invoices' && (
-          <div className="flex-1 flex flex-col gap-4 overflow-hidden">
+          <div className="flex-1 flex flex-col gap-2.5 sm:gap-3 overflow-hidden">
             {/* KPI Cards Strip */}
-            <div className="grid grid-cols-3 gap-4 shrink-0">
-              <div className="bg-surface border border-line rounded-xl p-4 flex items-center justify-between shadow-2xs">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 shrink-0">
+              <div className="bg-surface border border-line rounded-xl p-3 sm:p-3.5 flex items-center justify-between shadow-2xs">
                 <div>
-                  <span className="text-xs text-ink-muted font-medium block">إجمالي المشتريات المسجلة</span>
-                  <span className="text-xl font-bold font-mono text-ink mt-1 block">
+                  <span className="text-[11px] text-ink-muted font-bold block">إجمالي المشتريات المسجلة</span>
+                  <span className="text-lg sm:text-xl font-bold font-mono text-ink mt-0.5 block">
                     {formatMoney(totalPurchasesAmount)}
                   </span>
                 </div>
-                <div className="w-10 h-10 rounded-xl bg-brand-soft flex items-center justify-center text-brand-dark border border-brand/20 shadow-2xs">
-                  <TrendingUp className="w-5 h-5 text-brand" />
+                <div className="w-9 h-9 rounded-xl bg-brand-soft flex items-center justify-center text-brand-dark border border-brand/20 shadow-2xs">
+                  <TrendingUp className="w-4 h-4 text-brand" />
                 </div>
               </div>
 
-              <div className="bg-surface border border-line rounded-xl p-4 flex items-center justify-between shadow-2xs">
+              <div className="bg-surface border border-line rounded-xl p-3 sm:p-3.5 flex items-center justify-between shadow-2xs">
                 <div>
-                  <span className="text-xs text-ink-muted font-medium block">فواتير آجلة / غير مسددة بالكامل</span>
-                  <span className="text-xl font-bold font-mono text-danger mt-1 block">
+                  <span className="text-[11px] text-ink-muted font-bold block">فواتير غير مسددة بالكامل</span>
+                  <span className="text-lg sm:text-xl font-bold font-mono text-danger mt-0.5 block">
                     {totalUnpaidPurchasesCount} فاتورة
                   </span>
                 </div>
-                <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-danger border border-rose-200/60 shadow-2xs">
-                  <CreditCard className="w-5 h-5" />
+                <div className="w-9 h-9 rounded-xl bg-rose-50 flex items-center justify-center text-danger border border-rose-200/60 shadow-2xs">
+                  <CreditCard className="w-4 h-4" />
                 </div>
               </div>
 
-              <div className="bg-surface border border-line rounded-xl p-4 flex items-center justify-between shadow-2xs">
+              <div className="bg-surface border border-line rounded-xl p-3 sm:p-3.5 flex items-center justify-between shadow-2xs">
                 <div>
-                  <span className="text-xs text-ink-muted font-medium block">إجمالي مديونية الموردين الحالية</span>
-                  <span className="text-xl font-bold font-mono text-warn mt-1 block">
+                  <span className="text-[11px] text-ink-muted font-bold block">إجمالي مديونية الموردين</span>
+                  <span className="text-lg sm:text-xl font-bold font-mono text-warn mt-0.5 block">
                     {formatMoney(totalSupplierDebtsAmount)}
                   </span>
                 </div>
-                <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-warn border border-amber-200/60 shadow-2xs">
-                  <Building2 className="w-5 h-5" />
+                <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-warn border border-amber-200/60 shadow-2xs">
+                  <Building2 className="w-4 h-4" />
                 </div>
               </div>
             </div>
 
             {/* Filter and Actions Bar */}
-            <div className="bg-surface border border-line rounded-xl p-3 flex items-center justify-between gap-4 shrink-0 shadow-2xs">
+            <div className="bg-surface border border-line rounded-xl p-2.5 sm:p-3 flex items-center justify-between gap-3 shrink-0 shadow-2xs">
               <div className="flex-1 flex items-center gap-3">
                 <div className="relative flex-1 max-w-md">
                   <Search className="w-4 h-4 text-ink-muted absolute right-3 top-1/2 -translate-y-1/2" />
@@ -737,11 +737,11 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
         {/* TAB 2: RECORD NEW PURCHASE INVOICE                                        */}
         {/* ========================================================================= */}
         {activeTab === 'new_invoice' && (
-          <div className="flex-1 flex gap-6 overflow-hidden">
+          <div className="flex-1 flex gap-3 sm:gap-4 overflow-hidden">
             {/* Left: Line Items & Search (Canvas) */}
-            <div className="flex-1 flex flex-col gap-4 overflow-hidden">
+            <div className="flex-1 flex flex-col gap-3 overflow-hidden">
               {/* Invoice Master Header Inputs */}
-              <div className="bg-surface border border-line rounded-xl p-4 grid grid-cols-12 gap-3 items-center shrink-0 shadow-2xs">
+              <div className="bg-surface border border-line rounded-xl p-3 sm:p-3.5 grid grid-cols-12 gap-2.5 sm:gap-3 items-center shrink-0 shadow-2xs">
                 <div className="col-span-4">
                   <label className="text-[11px] font-bold text-ink-muted block mb-1">
                     المورد <span className="text-danger">*</span>
@@ -1041,8 +1041,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
               </div>
             </div>
 
-            {/* Right: Settlement & Totals Dock (360px) */}
-            <div className="w-[360px] bg-surface border border-line rounded-xl p-5 flex flex-col justify-between shrink-0 shadow-2xs">
+            {/* Right: Settlement & Totals Dock */}
+            <div className="w-[290px] sm:w-[320px] xl:w-[350px] bg-surface border border-line rounded-xl p-3.5 sm:p-4 flex flex-col justify-between shrink-0 shadow-2xs">
               <div className="space-y-4">
                 <div className="pb-3 border-b border-line">
                   <h2 className="text-sm font-bold text-ink">ملخص واعتماد فاتورة الشراء</h2>

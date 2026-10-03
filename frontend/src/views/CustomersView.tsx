@@ -565,144 +565,144 @@ export function CustomersView() {
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-[#F8FAFC] p-3.5 gap-3 select-none overflow-hidden">
+    <div className="flex flex-col h-full w-full bg-canvas p-3 sm:p-3.5 gap-2.5 sm:gap-3 select-none overflow-hidden">
       
-      {/* 1. TOP SUMMARY 4-KPI CARDS (Modern Rounded-2xl Floating Grid) */}
-      <section className="grid grid-cols-4 gap-3 shrink-0">
+      {/* 1. TOP SUMMARY 4-KPI CARDS (Responsive 2x2 to 4x1 Floating Grid) */}
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 shrink-0">
         {/* Card 1: Total Debts */}
-        <div className="bg-white rounded-2xl border border-[#E2E8F0] p-3.5 flex items-center justify-between shadow-xs">
-          <div>
-            <span className="text-[11px] text-[#52605D] font-bold block mb-1">إجمالي الديون المستحقة</span>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-[22px] font-black font-mono text-[#B91C1C] tabular-nums tracking-tight">
+        <div className="bg-surface rounded-xl border border-line p-3 flex items-center justify-between shadow-2xs hover:border-danger/40 transition-colors">
+          <div className="min-w-0">
+            <span className="text-[11px] text-ink-muted font-bold block mb-0.5 truncate">إجمالي الديون المستحقة</span>
+            <div className="flex items-baseline gap-1">
+              <span className="text-xl sm:text-2xl font-black font-mono text-danger tabular-nums tracking-tight">
                 {(totalDebtsPiasters / 100).toFixed(2)}
               </span>
-              <span className="text-xs font-bold text-[#52605D]">ج.م</span>
+              <span className="text-xs font-bold text-ink-muted">ج.م</span>
             </div>
-            <span className="text-[10px] text-[#52605D] block mt-0.5">آجل مستحق للتحصيل</span>
+            <span className="text-[10px] text-danger font-medium block mt-0.5">آجل مستحق للتحصيل</span>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-200/60 flex items-center justify-center text-rose-600 shadow-2xs">
-            <CreditCard className="w-5 h-5" />
+          <div className="w-9 h-9 rounded-xl bg-danger-soft border border-danger-border flex items-center justify-center text-danger shadow-2xs shrink-0">
+            <CreditCard className="w-4.5 h-4.5" />
           </div>
         </div>
 
         {/* Card 2: Debtor count */}
-        <div className="bg-white rounded-2xl border border-[#E2E8F0] p-3.5 flex items-center justify-between shadow-xs">
-          <div>
-            <span className="text-[11px] text-[#52605D] font-bold block mb-1">العملاء المدينون</span>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-[22px] font-black font-mono text-[#0F172A] tabular-nums tracking-tight">
+        <div className="bg-surface rounded-xl border border-line p-3 flex items-center justify-between shadow-2xs hover:border-warn/40 transition-colors">
+          <div className="min-w-0">
+            <span className="text-[11px] text-ink-muted font-bold block mb-0.5 truncate">العملاء المدينون</span>
+            <div className="flex items-baseline gap-1">
+              <span className="text-xl sm:text-2xl font-black font-mono text-ink tabular-nums tracking-tight">
                 {debtorsCount}
               </span>
-              <span className="text-xs font-bold text-[#52605D]">عميل</span>
+              <span className="text-xs font-bold text-ink-muted">عميل</span>
             </div>
-            <span className="text-[10px] text-rose-600 font-bold block mt-0.5">عليهم حسابات آجلة</span>
+            <span className="text-[10px] text-warn font-bold block mt-0.5">عليهم حسابات آجلة</span>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200/60 flex items-center justify-center text-amber-600 shadow-2xs">
-            <AlertTriangle className="w-5 h-5" />
+          <div className="w-9 h-9 rounded-xl bg-warn-soft border border-warn-border flex items-center justify-center text-warn shadow-2xs shrink-0">
+            <AlertTriangle className="w-4.5 h-4.5" />
           </div>
         </div>
 
         {/* Card 3: Total Credit Limit */}
-        <div className="bg-white rounded-2xl border border-[#E2E8F0] p-3.5 flex items-center justify-between shadow-xs">
-          <div>
-            <span className="text-[11px] text-[#52605D] font-bold block mb-1">سقف الائتمان الإجمالي</span>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-[22px] font-black font-mono text-[#0F172A] tabular-nums tracking-tight">
+        <div className="bg-surface rounded-xl border border-line p-3 flex items-center justify-between shadow-2xs hover:border-line-hover transition-colors">
+          <div className="min-w-0">
+            <span className="text-[11px] text-ink-muted font-bold block mb-0.5 truncate">سقف الائتمان الإجمالي</span>
+            <div className="flex items-baseline gap-1">
+              <span className="text-xl sm:text-2xl font-black font-mono text-ink tabular-nums tracking-tight">
                 {(totalCreditLimitPiasters / 100).toFixed(2)}
               </span>
-              <span className="text-xs font-bold text-[#52605D]">ج.م</span>
+              <span className="text-xs font-bold text-ink-muted">ج.م</span>
             </div>
-            <span className="text-[10px] text-[#52605D] block mt-0.5">الحد الأقصى المسموح للديون</span>
+            <span className="text-[10px] text-ink-muted block mt-0.5">الحد الأقصى المسموح</span>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-[#52605D] shadow-2xs">
-            <FileText className="w-5 h-5" />
+          <div className="w-9 h-9 rounded-xl bg-surface-2 border border-line flex items-center justify-center text-ink-muted shadow-2xs shrink-0">
+            <FileText className="w-4.5 h-4.5" />
           </div>
         </div>
 
         {/* Card 4: Total customers count */}
-        <div className="bg-white rounded-2xl border border-[#E2E8F0] p-3.5 flex items-center justify-between shadow-xs">
-          <div>
-            <span className="text-[11px] text-[#52605D] font-bold block mb-1">إجمالي عملاء الدفتر</span>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-[22px] font-black font-mono text-[#006D41] tabular-nums tracking-tight">
+        <div className="bg-surface rounded-xl border border-line p-3 flex items-center justify-between shadow-2xs hover:border-paid/40 transition-colors">
+          <div className="min-w-0">
+            <span className="text-[11px] text-ink-muted font-bold block mb-0.5 truncate">إجمالي عملاء الدفتر</span>
+            <div className="flex items-baseline gap-1">
+              <span className="text-xl sm:text-2xl font-black font-mono text-paid tabular-nums tracking-tight">
                 {customers.length}
               </span>
-              <span className="text-xs font-bold text-[#52605D]">عميل</span>
+              <span className="text-xs font-bold text-ink-muted">عميل</span>
             </div>
-            <span className="text-[10px] text-[#006D41] font-bold block mt-0.5">مسجلون في النظام</span>
+            <span className="text-[10px] text-paid font-bold block mt-0.5">مسجلون في النظام</span>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200/60 flex items-center justify-center text-[#006D41] shadow-2xs">
-            <Users className="w-5 h-5" />
+          <div className="w-9 h-9 rounded-xl bg-paid-soft border border-paid-border flex items-center justify-center text-paid shadow-2xs shrink-0">
+            <Users className="w-4.5 h-4.5" />
           </div>
         </div>
       </section>
 
       {/* 2. TOOLBAR (Search, filter tabs, new customer button) */}
-      <div className="h-[54px] bg-white border border-[#E2E8F0] rounded-2xl px-4 flex items-center justify-between shrink-0 shadow-xs">
-        <form onSubmit={handleSearch} className="flex items-center gap-2 max-w-[360px] w-full">
+      <div className="min-h-[50px] py-1.5 bg-surface border border-line rounded-xl px-3 sm:px-4 flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap shrink-0 shadow-2xs">
+        <form onSubmit={handleSearch} className="flex items-center gap-1.5 flex-1 max-w-sm">
           <div className="relative flex-1">
             <input 
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(normalizeArabicNumerals(e.target.value))}
-              placeholder="ابحث باسم العميل أو رقم الهاتف..."
-              className="w-full h-9 pl-9 pr-3 text-xs bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#006D41]/20 focus:border-[#006D41] text-[#0F172A] transition-all"
+              placeholder="ابحث بالاسم أو الهاتف..."
+              className="w-full h-8.5 pl-8 pr-3 text-xs bg-surface-2 border border-line rounded-lg focus:outline-none focus:ring-1 focus:ring-brand/30 focus:border-brand text-ink transition-all placeholder:text-ink-muted/70"
             />
-            <Search className="w-4 h-4 text-[#52605D] absolute left-3 top-2.5 pointer-events-none" />
+            <Search className="w-4 h-4 text-ink-muted absolute left-2.5 top-2 pointer-events-none" />
           </div>
           <button 
             type="submit" 
-            className="h-9 px-3.5 bg-white border border-[#E2E8F0] hover:bg-[#F8FAFC] rounded-xl text-xs font-bold text-[#0F172A] cursor-pointer transition-colors shadow-2xs"
+            className="h-8.5 px-3 bg-surface border border-line hover:bg-surface-2 rounded-lg text-xs font-bold text-ink cursor-pointer transition-colors shadow-2xs"
           >
             بحث
           </button>
         </form>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
           {/* Filters */}
-          <div className="flex items-center gap-1 bg-[#F1F5F4] p-1 rounded-xl border border-[#E2E8F0] text-xs">
+          <div className="flex items-center gap-1 bg-surface-2 p-1 rounded-lg border border-line text-xs">
             <button
               onClick={() => setFilterType('all')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
                 filterType === 'all' 
-                  ? 'bg-[#00372D] text-white shadow-xs' 
-                  : 'text-[#52605D] hover:text-[#004D3F] hover:bg-white/60'
+                  ? 'bg-brand-dark text-white shadow-xs' 
+                  : 'text-ink-muted hover:text-brand hover:bg-surface'
               }`}
             >
               الكل ({customers.length})
             </button>
             <button
               onClick={() => setFilterType('debtors')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
                 filterType === 'debtors' 
-                  ? 'bg-rose-700 text-white shadow-xs' 
-                  : 'text-[#52605D] hover:text-rose-700 hover:bg-white/60'
+                  ? 'bg-danger text-white shadow-xs' 
+                  : 'text-ink-muted hover:text-danger hover:bg-surface'
               }`}
             >
               عليهم دين ({debtorsCount})
             </button>
             <button
               onClick={() => setFilterType('settled')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
                 filterType === 'settled' 
-                  ? 'bg-[#006D41] text-white shadow-xs' 
-                  : 'text-[#52605D] hover:text-[#006D41] hover:bg-white/60'
+                  ? 'bg-paid text-white shadow-xs' 
+                  : 'text-ink-muted hover:text-paid hover:bg-surface'
               }`}
             >
               مسددون ({customers.length - debtorsCount})
             </button>
           </div>
 
-          {/* Import from Excel Button (Story 71 / Feature #109) */}
+          {/* Import from Excel Button */}
           <button
             type="button"
             onClick={() => { setIsImportModalOpen(true); setImportError(null); setImportResult(null); }}
-            className="flex items-center gap-1.5 h-9 px-3.5 bg-white hover:bg-[#F8FAFC] border border-[#E2E8F0] text-[#0F172A] rounded-xl text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 h-8.5 px-2.5 bg-surface hover:bg-surface-2 border border-line text-ink rounded-lg text-xs font-bold shadow-2xs transition-colors cursor-pointer"
             title="استيراد عملاء وديونهم الافتتاحية من ملف إكسل"
           >
-            <FileSpreadsheet className="w-4 h-4 text-[#006D41]" />
-            <span>استيراد إكسل</span>
+            <FileSpreadsheet className="w-3.5 h-3.5 text-paid shrink-0" />
+            <span className="hidden md:inline">استيراد إكسل</span>
           </button>
 
           {/* Export to Excel Button */}
@@ -710,18 +710,17 @@ export function CustomersView() {
             type="button"
             onClick={() => void handleExportCustomersToExcel()}
             disabled={isExportingExcel || customers.length === 0}
-            className="flex items-center gap-1.5 h-9 px-3.5 bg-white hover:bg-[#F8FAFC] border border-[#E2E8F0] text-[#0F172A] rounded-xl text-xs font-bold shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+            className="flex items-center gap-1.5 h-8.5 px-2.5 bg-surface hover:bg-surface-2 border border-line text-ink rounded-lg text-xs font-bold shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
             title="تصدير كشف حسابات وأرصدة العملاء والديون إلى ملف إكسل"
           >
-            <Download className={`w-4 h-4 text-[#006D41] ${isExportingExcel ? 'animate-bounce' : ''}`} />
-            <span>{isExportingExcel ? 'جاري التصدير...' : 'تصدير إكسل'}</span>
+            <Download className={`w-3.5 h-3.5 text-paid shrink-0 ${isExportingExcel ? 'animate-bounce' : ''}`} />
+            <span className="hidden md:inline">{isExportingExcel ? 'تصدير...' : 'تصدير إكسل'}</span>
           </button>
-
 
           {/* Add Customer Button */}
           <button
             onClick={openAddModal}
-            className="flex items-center gap-1.5 h-9 px-4 bg-[#004D3F] hover:bg-[#00372D] active:scale-[0.98] text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer"
+            className="flex items-center gap-1.5 h-8.5 px-3 bg-brand hover:bg-brand-dark active:scale-[0.98] text-white rounded-lg text-xs font-bold shadow-xs transition-all cursor-pointer shrink-0"
           >
             <Plus className="w-4 h-4" />
             <span>عميل جديد</span>
@@ -729,8 +728,8 @@ export function CustomersView() {
         </div>
       </div>
 
-      {/* 3. CUSTOMERS TABLE (Modern Rounded-2xl Card) */}
-      <div className="flex-1 overflow-hidden bg-white rounded-2xl border border-[#E2E8F0] shadow-xs flex flex-col">
+      {/* 3. CUSTOMERS TABLE */}
+      <div className="flex-1 overflow-hidden bg-surface rounded-xl border border-line shadow-2xs flex flex-col">
         <div className="flex-1 overflow-auto">
           <table className="w-full text-right text-xs">
             <thead>

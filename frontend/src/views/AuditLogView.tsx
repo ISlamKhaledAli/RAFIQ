@@ -207,18 +207,18 @@ export const AuditLogView = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-canvas p-4 gap-3 overflow-hidden select-none">
+    <div className="flex flex-col h-full bg-canvas p-3 sm:p-3.5 gap-2.5 sm:gap-3 overflow-hidden select-none">
       {/* 1. Top Header Toolbar */}
-      <div className="h-[56px] bg-surface hairline-all rounded-[6px] px-4 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-danger-soft text-danger flex items-center justify-center font-bold">
+      <div className="h-[52px] bg-surface border border-line rounded-xl px-4 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-danger-soft text-danger flex items-center justify-center font-bold">
             <ShieldAlert className="w-4 h-4" />
           </div>
           <div>
-            <h2 className="text-[15px] font-bold text-ink leading-tight m-0">
+            <h2 className="text-sm sm:text-base font-bold text-ink leading-tight m-0">
               سجل العمليات الحساسة والأمان (Audit Log)
             </h2>
-            <p className="text-[11px] text-ink-muted m-0">
+            <p className="text-[11px] text-ink-muted m-0 hidden sm:block">
               توثيق لحظي غير قابل للحذف لتعديل الأسعار والخصومات وحركات البيع
             </p>
           </div>
@@ -232,7 +232,7 @@ export const AuditLogView = () => {
               value={selectedAction}
               onChange={(val) => setSelectedAction(val)}
               options={ACTION_FILTERS.map((f) => ({ value: f.id, label: f.label }))}
-              className="w-52"
+              className="w-40 sm:w-52"
               size="sm"
             />
           </div>
@@ -240,17 +240,17 @@ export const AuditLogView = () => {
           <button
             onClick={() => void handleVerifyChain()}
             disabled={verifying}
-            className="h-[36px] px-3 flex items-center gap-1.5 bg-brand-soft hover:bg-brand/20 border border-brand/30 text-brand text-xs font-bold rounded transition-colors"
+            className="h-8 px-2.5 sm:px-3 flex items-center gap-1.5 bg-brand-soft hover:bg-brand/20 border border-brand/30 text-brand text-xs font-bold rounded-lg transition-colors cursor-pointer"
             title="فحص السلسلة المشفرة للتأكد من عدم التلاعب اليدوي بقاعدة البيانات"
           >
             <ShieldCheck className={`w-4 h-4 ${verifying ? 'animate-spin' : ''}`} />
-            <span>{verifying ? 'جارِ التحقق...' : 'فحص سلامة السجل'}</span>
+            <span className="hidden sm:inline">{verifying ? 'جارِ التحقق...' : 'فحص سلامة السجل'}</span>
           </button>
 
           <button
             onClick={() => void loadAuditLogs()}
             disabled={loading}
-            className="h-[36px] w-[36px] flex items-center justify-center bg-surface-2 hover:bg-surface border border-line text-ink-muted hover:text-ink rounded transition-colors"
+            className="h-8 w-8 flex items-center justify-center bg-surface-2 hover:bg-surface border border-line text-ink-muted hover:text-ink rounded-lg transition-colors cursor-pointer"
             title="تحديث السجل"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -260,10 +260,10 @@ export const AuditLogView = () => {
 
       {/* Verification Status Banner (Feature #169 / Task 169-4) */}
       {verification && (
-        <div className={`p-3 rounded-[6px] border flex items-center justify-between text-xs transition-all ${
+        <div className={`p-3 rounded-xl border flex items-center justify-between text-xs transition-all ${
           verification.isTampered 
-            ? 'bg-danger-soft border-danger-border text-danger' 
-            : 'bg-paid-soft border-paid-border text-paid'
+            ? 'bg-rose-50 border-rose-200 text-danger' 
+            : 'bg-paid-soft border-paid/20 text-paid'
         }`}>
           <div className="flex items-center gap-2.5">
             {verification.isTampered ? (
@@ -272,12 +272,12 @@ export const AuditLogView = () => {
               <CheckCircle2 className="w-5 h-5 shrink-0 text-paid" />
             )}
             <div>
-              <p className="font-bold m-0 text-[13px]">
+              <p className="font-bold m-0 text-xs sm:text-[13px]">
                 {verification.isTampered 
                   ? 'تحذير أمني حرج: تم اكتشاف تلاعب مباشر بسجل العمليات!' 
                   : 'سلسلة العمليات سليمة ومحمية بالتوقيع الرقمي المتسلسل'}
               </p>
-              <p className="m-0 text-xs opacity-90">
+              <p className="m-0 text-[11px] opacity-90">
                 {verification.isTampered 
                   ? verification.errorMessage 
                   : `تم فحص وتأكيد سلامة جميع السجلات (${verification.totalRecordsVerified} سجل) ومطابقة بصمات SHA-256 بنجاح، مما يثبت عدم تعديل أو حذف أي سجل من خارج النظام.`}
@@ -290,14 +290,14 @@ export const AuditLogView = () => {
                 type="button"
                 onClick={() => void handleResealChain()}
                 disabled={resealing}
-                className="px-3 py-1.5 bg-danger hover:bg-danger/90 active:scale-95 text-white text-xs font-bold rounded shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                className="px-3 py-1.5 bg-danger hover:bg-danger/90 active:scale-95 text-white text-xs font-bold rounded-lg shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
                 title="إعادة احتساب وتأمين أختام السلسلة الرقمية لجميع السجلات المسجلة"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${resealing ? 'animate-spin' : ''}`} />
                 <span>{resealing ? 'جارِ التأمين...' : 'إعادة ختم وتأمين السلسلة'}</span>
               </button>
             )}
-            <div className="flex items-center gap-1 font-mono text-[11px] bg-surface/80 px-2.5 py-1 rounded border border-line text-ink">
+            <div className="flex items-center gap-1 font-mono text-[11px] bg-surface/80 px-2.5 py-1 rounded-lg border border-line text-ink">
               <Lock className="w-3 h-3 text-paid" />
               <span>SHA-256 Tamper-Proof</span>
             </div>
@@ -306,9 +306,9 @@ export const AuditLogView = () => {
       )}
 
       {/* 2. Audit Log Data Table */}
-      <div className="flex-1 bg-surface hairline-all rounded-[6px] flex flex-col overflow-hidden">
+      <div className="flex-1 bg-surface border border-line rounded-xl flex flex-col overflow-hidden">
         {/* Table Header */}
-        <div className="h-[38px] bg-surface-2 hairline-b px-4 grid grid-cols-12 items-center text-[12px] font-bold text-ink-muted shrink-0 select-none">
+        <div className="h-10 bg-surface-2 border-b border-line px-4 grid grid-cols-12 items-center text-xs font-bold text-ink-muted shrink-0 select-none">
           <span className="col-span-1 text-center">#</span>
           <span className="col-span-2">الوقت والتاريخ</span>
           <span className="col-span-2">المستخدم المسؤول</span>
@@ -341,7 +341,7 @@ export const AuditLogView = () => {
               return (
                 <div
                   key={log.id}
-                  className="h-[46px] hairline-b px-4 grid grid-cols-12 items-center text-[13px] hover:bg-surface-2 transition-colors"
+                  className="h-11 sm:h-12 border-b border-line px-4 grid grid-cols-12 items-center text-xs hover:bg-surface-2 transition-colors"
                 >
                   <span className="col-span-1 text-center font-mono text-xs text-ink-muted">
                     {index + 1}
@@ -379,7 +379,7 @@ export const AuditLogView = () => {
         </div>
 
         {/* Table Footer */}
-        <div className="h-[36px] bg-surface-2 hairline-t px-4 flex items-center justify-between text-xs text-ink-muted shrink-0">
+        <div className="h-9 bg-surface-2 border-t border-line px-4 flex items-center justify-between text-xs text-ink-muted shrink-0">
           <span>إجمالي العمليات المسجلة في السجل: {logs.length} عملية</span>
           <span className="font-mono text-[11px] text-paid flex items-center gap-1">
             <Lock className="w-3 h-3 text-paid" />

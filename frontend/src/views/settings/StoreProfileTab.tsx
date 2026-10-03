@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { Store, Save, Sparkles } from 'lucide-react';
+import { Store, Save, Sparkles, CheckCircle2, Image as ImageIcon } from 'lucide-react';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 
 interface StoreProfileTabProps {
@@ -22,6 +22,8 @@ interface StoreProfileTabProps {
   onToggleNegativeStock?: (val: boolean) => void;
   defaultCustomerCreditLimitEgp: number;
   setDefaultCustomerCreditLimitEgp: (val: number) => void;
+  logoVariant?: 'classic' | 'modern';
+  setLogoVariant?: (val: 'classic' | 'modern') => void;
   saveLoading: boolean;
   handleSave: (e: FormEvent) => void;
   onOpenWizard: () => void;
@@ -47,6 +49,8 @@ export const StoreProfileTab = ({
   onToggleNegativeStock,
   defaultCustomerCreditLimitEgp,
   setDefaultCustomerCreditLimitEgp,
+  logoVariant = 'classic',
+  setLogoVariant,
   saveLoading,
   handleSave,
   onOpenWizard,
@@ -205,6 +209,69 @@ export const StoreProfileTab = ({
                 className="w-full bg-white border border-[#dce1dc] rounded h-9 px-2 text-xs text-[#14181a] focus:outline-none focus:border-[#0b4f42] text-center font-bold tabular-nums font-mono"
               />
               <span className="text-xs text-[#5b6664] font-semibold shrink-0">ج.م</span>
+            </div>
+          </div>
+
+          {/* Feature: Dual Logo Branding Selector (Classic & Modern) */}
+          <div className="bg-[#f7f8f6] p-3.5 rounded-lg border border-[#dce1dc] flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-[#006D41]" />
+                <span className="font-bold text-[#14181a] text-xs">شعار وهوية النظام في الشريط العلوي (نسختان متاحتان)</span>
+              </div>
+              <span className="text-[10px] text-[#5b6664] bg-white border border-[#dce1dc] px-2 py-0.5 rounded font-medium">
+                تنعكس فوراً على واجهة البرنامج
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Option 1: Classic High-Contrast (The Old / High Contrast Sharp Version) */}
+              <button
+                type="button"
+                onClick={() => setLogoVariant?.('classic')}
+                className={`flex items-center gap-3 p-3 rounded-lg border transition-all text-right cursor-pointer ${
+                  logoVariant === 'classic'
+                    ? 'bg-white border-[#006D41] shadow-xs ring-2 ring-[#006D41]/30'
+                    : 'bg-white/60 hover:bg-white border-[#dce1dc]'
+                }`}
+              >
+                <div className="w-12 h-12 rounded-xl bg-white border border-[#dce1dc] p-1.5 flex items-center justify-center shrink-0 shadow-2xs">
+                  <img src="/logo_classic.png" alt="الشعار الكلاسيكي" className="w-full h-full object-contain" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-xs font-bold text-[#14181a]">الشعار الكلاسيكي الأصلي</span>
+                    {logoVariant === 'classic' && <CheckCircle2 className="w-4 h-4 text-[#006D41] shrink-0" />}
+                  </div>
+                  <p className="text-[10.5px] text-[#5b6664] m-0 mt-0.5 leading-snug">
+                    تباين كحلي وزمردي عالي الوضوح. الأفضل للشاشات الفاتحة والخلفيات البيضاء.
+                  </p>
+                </div>
+              </button>
+
+              {/* Option 2: Modern Light */}
+              <button
+                type="button"
+                onClick={() => setLogoVariant?.('modern')}
+                className={`flex items-center gap-3 p-3 rounded-lg border transition-all text-right cursor-pointer ${
+                  logoVariant === 'modern'
+                    ? 'bg-white border-[#006D41] shadow-xs ring-2 ring-[#006D41]/30'
+                    : 'bg-white/60 hover:bg-white border-[#dce1dc]'
+                }`}
+              >
+                <div className="w-12 h-12 rounded-xl bg-[#00372D] border border-[#00372D] p-1.5 flex items-center justify-center shrink-0 shadow-2xs">
+                  <img src="/logo_modern.png" alt="الشعار المودرن" className="w-full h-full object-contain" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-xs font-bold text-[#14181a]">الشعار المودرن الفاتح</span>
+                    {logoVariant === 'modern' && <CheckCircle2 className="w-4 h-4 text-[#006D41] shrink-0" />}
+                  </div>
+                  <p className="text-[10.5px] text-[#5b6664] m-0 mt-0.5 leading-snug">
+                    إطار أبيض ناعم مع سهم زمردي، مناسب للشاشات والواجهات الداكنة.
+                  </p>
+                </div>
+              </button>
             </div>
           </div>
 

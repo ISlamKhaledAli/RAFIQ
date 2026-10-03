@@ -233,67 +233,67 @@ export const SalesHistoryView = () => {
   const averageInvoicePiasters = invoiceCount > 0 ? Math.round(totalSalesPiasters / invoiceCount) : 0;
 
   return (
-    <div className="flex flex-col h-full bg-[#F8FAFC] p-3.5 gap-3 overflow-hidden select-none">
+    <div className="flex flex-col h-full bg-canvas p-3 sm:p-3.5 gap-2.5 sm:gap-3 overflow-hidden select-none">
       {/* 1. Stat Summary Cards Strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 shrink-0">
         {/* Card 1: Total Sales */}
-        <div className="bg-white rounded-2xl border border-[#E2E8F0] p-3.5 flex items-center justify-between shadow-xs">
+        <div className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 flex items-center justify-between shadow-xs">
           <div>
-            <span className="text-[11px] font-bold text-[#52605D] block mb-1">إجمالي المبيعات النشطة</span>
-            <div className="text-[22px] font-black font-mono text-[#006D41] tabular-nums tracking-tight">
+            <span className="text-[11px] font-bold text-ink-muted block mb-1">إجمالي المبيعات النشطة</span>
+            <div className="text-xl sm:text-2xl font-black font-mono text-paid tabular-nums tracking-tight">
               {formatArabicCurrency(totalSalesPiasters)}
             </div>
-            <span className="text-[10px] text-[#52605D] block mt-0.5">الفواتير غير الملغاة</span>
+            <span className="text-[10px] text-ink-muted block mt-0.5">الفواتير غير الملغاة</span>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#006D41] border border-emerald-200/80 flex items-center justify-center shadow-2xs">
+          <div className="w-10 h-10 rounded-xl bg-paid-soft text-paid border border-paid/20 flex items-center justify-center shadow-2xs">
             <TrendingUp className="w-5 h-5" />
           </div>
         </div>
 
         {/* Card 2: Invoice Count */}
-        <div className="bg-white rounded-2xl border border-[#E2E8F0] p-3.5 flex items-center justify-between shadow-xs">
+        <div className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 flex items-center justify-between shadow-xs">
           <div>
-            <span className="text-[11px] font-bold text-[#52605D] block mb-1">عدد الفواتير المعروضة</span>
-            <div className="text-[22px] font-black font-mono text-[#0F172A] tabular-nums tracking-tight">
+            <span className="text-[11px] font-bold text-ink-muted block mb-1">عدد الفواتير المعروضة</span>
+            <div className="text-xl sm:text-2xl font-black font-mono text-ink tabular-nums tracking-tight">
               {invoiceCount}
-              <span className="text-xs font-bold text-[#52605D] mr-1">فاتورة</span>
+              <span className="text-xs font-bold text-ink-muted mr-1">فاتورة</span>
             </div>
-            <span className="text-[10px] text-[#52605D] block mt-0.5">وفق معايير التصفية</span>
+            <span className="text-[10px] text-ink-muted block mt-0.5">وفق معايير التصفية</span>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-slate-50 text-[#52605D] border border-slate-200 flex items-center justify-center shadow-2xs">
+          <div className="w-10 h-10 rounded-xl bg-surface-2 text-ink-muted border border-line flex items-center justify-center shadow-2xs">
             <Receipt className="w-5 h-5" />
           </div>
         </div>
 
         {/* Card 3: Average Ticket */}
-        <div className="bg-white rounded-2xl border border-[#E2E8F0] p-3.5 flex items-center justify-between shadow-xs">
+        <div className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 flex items-center justify-between shadow-xs">
           <div>
-            <span className="text-[11px] font-bold text-[#52605D] block mb-1">متوسط قيمة الفاتورة</span>
-            <div className="text-[22px] font-black font-mono text-[#004D3F] tabular-nums tracking-tight">
+            <span className="text-[11px] font-bold text-ink-muted block mb-1">متوسط قيمة الفاتورة</span>
+            <div className="text-xl sm:text-2xl font-black font-mono text-brand-dark tabular-nums tracking-tight">
               {formatArabicCurrency(averageInvoicePiasters)}
             </div>
-            <span className="text-[10px] text-[#52605D] block mt-0.5">لكل عملية بيع</span>
+            <span className="text-[10px] text-ink-muted block mt-0.5">لكل عملية بيع</span>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#004D3F] border border-emerald-200 flex items-center justify-center shadow-2xs">
+          <div className="w-10 h-10 rounded-xl bg-brand-soft text-brand-dark border border-brand/20 flex items-center justify-center shadow-2xs">
             <FileText className="w-5 h-5" />
           </div>
         </div>
 
         {/* Card 4: Actions & Refresh */}
-        <div className="bg-white rounded-2xl border border-[#E2E8F0] p-3.5 flex items-center justify-between shadow-xs">
+        <div className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 flex items-center justify-between shadow-xs">
           <div>
-            <span className="text-[11px] font-bold text-[#52605D] block mb-1">سجل الفواتير وقاعدة البيانات</span>
-            <div className="text-[12px] font-bold text-[#0F172A] mt-1 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span className="text-[11px] font-bold text-ink-muted block mb-1">سجل الفواتير وقاعدة البيانات</span>
+            <div className="text-xs font-bold text-ink mt-1 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-paid animate-pulse"></span>
               <span>سجل محمي بوضع WAL</span>
             </div>
-            <span className="text-[10px] text-[#52605D] block mt-0.5">معاملات ذرية فورية</span>
+            <span className="text-[10px] text-ink-muted block mt-0.5">معاملات ذرية فورية</span>
           </div>
           <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={() => openHelpCenter('sales')}
-              className="w-10 h-10 rounded-xl bg-[#F8FAFC] hover:bg-[#F1F5F4] border border-[#E2E8F0] text-[#006D41] flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-surface-2 hover:bg-surface border border-line text-paid flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
               title="دليل وشروحات المبيعات والورديات والإغلاق اليومي (F1)"
             >
               <HelpCircle className="w-4 h-4" />
@@ -301,20 +301,20 @@ export const SalesHistoryView = () => {
             <button
               onClick={() => void loadSales()}
               disabled={loading}
-              className="w-10 h-10 rounded-xl bg-[#F8FAFC] hover:bg-[#F1F5F4] border border-[#E2E8F0] text-[#52605D] hover:text-[#0F172A] flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-surface-2 hover:bg-surface border border-line text-ink-muted hover:text-ink flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
               title="تحديث البيانات"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#006D41]' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-paid' : ''}`} />
             </button>
           </div>
         </div>
       </div>
 
       {/* 2. Comprehensive Search & Filter Toolbar */}
-      <div className="bg-white rounded-2xl border border-[#E2E8F0] p-3 flex flex-wrap items-center justify-between gap-2.5 shrink-0 shadow-xs">
+      <div className="bg-surface rounded-xl border border-line p-2.5 sm:p-3 flex flex-wrap items-center justify-between gap-2 sm:gap-2.5 shrink-0 shadow-xs">
         {/* Search input with Enter key trigger */}
-        <div className="flex items-center gap-2 flex-1 min-w-[280px] max-w-lg relative">
-          <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-[#52605D]" />
+        <div className="flex items-center gap-2 flex-1 min-w-[240px] max-w-lg relative">
+          <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted" />
           <input
             type="text"
             value={searchQuery}
@@ -325,7 +325,7 @@ export const SalesHistoryView = () => {
               }
             }}
             placeholder="بحث برقم الفاتورة، اسم العميل، ملاحظات، أو المبلغ..."
-            className="w-full h-9 pr-9 pl-8 text-xs bg-[#F8FAFC] rounded-xl border border-[#E2E8F0] text-[#0F172A] placeholder:text-[#52605D] focus:outline-none focus:ring-2 focus:ring-[#006D41]/20 focus:border-[#006D41] transition-all"
+            className="w-full h-9 pr-9 pl-8 text-xs bg-surface-2 rounded-xl border border-line text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-paid/20 focus:border-paid transition-all"
           />
           {searchQuery && (
             <button
@@ -333,7 +333,7 @@ export const SalesHistoryView = () => {
                 setSearchQuery('');
                 setSearchError(null);
               }}
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#52605D] hover:text-[#0F172A] cursor-pointer"
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink cursor-pointer"
               title="مسح البحث"
             >
               <X className="w-3.5 h-3.5" />
@@ -342,53 +342,53 @@ export const SalesHistoryView = () => {
         </div>
 
         {/* Date Filter Pills */}
-        <div className="flex items-center gap-1 bg-[#F1F5F4] p-1 rounded-xl border border-[#E2E8F0] text-xs">
+        <div className="flex items-center gap-1 bg-surface-2 p-1 rounded-xl border border-line text-xs">
           <button
             onClick={() => setDateFilter('all')}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               dateFilter === 'all' 
-                ? 'bg-[#00372D] text-white shadow-xs' 
-                : 'text-[#52605D] hover:text-[#004D3F] hover:bg-white/60'
+                ? 'bg-brand-dark text-white shadow-xs' 
+                : 'text-ink-muted hover:text-brand-dark hover:bg-surface/60'
             }`}
           >
             الكل
           </button>
           <button
             onClick={() => setDateFilter('today')}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               dateFilter === 'today' 
-                ? 'bg-[#00372D] text-white shadow-xs' 
-                : 'text-[#52605D] hover:text-[#004D3F] hover:bg-white/60'
+                ? 'bg-brand-dark text-white shadow-xs' 
+                : 'text-ink-muted hover:text-brand-dark hover:bg-surface/60'
             }`}
           >
             اليوم
           </button>
           <button
             onClick={() => setDateFilter('yesterday')}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               dateFilter === 'yesterday' 
-                ? 'bg-[#00372D] text-white shadow-xs' 
-                : 'text-[#52605D] hover:text-[#004D3F] hover:bg-white/60'
+                ? 'bg-brand-dark text-white shadow-xs' 
+                : 'text-ink-muted hover:text-brand-dark hover:bg-surface/60'
             }`}
           >
             الأمس
           </button>
           <button
             onClick={() => setDateFilter('week')}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               dateFilter === 'week' 
-                ? 'bg-[#00372D] text-white shadow-xs' 
-                : 'text-[#52605D] hover:text-[#004D3F] hover:bg-white/60'
+                ? 'bg-brand-dark text-white shadow-xs' 
+                : 'text-ink-muted hover:text-brand-dark hover:bg-surface/60'
             }`}
           >
             آخر 7 أيام
           </button>
           <button
             onClick={() => setDateFilter('custom')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+            className={`px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
               dateFilter === 'custom' 
-                ? 'bg-[#00372D] text-white shadow-xs' 
-                : 'text-[#52605D] hover:text-[#004D3F] hover:bg-white/60'
+                ? 'bg-brand-dark text-white shadow-xs' 
+                : 'text-ink-muted hover:text-brand-dark hover:bg-surface/60'
             }`}
             title="تحديد تاريخ معين"
           >
@@ -403,48 +403,48 @@ export const SalesHistoryView = () => {
             type="date"
             value={customDate}
             onChange={(e) => setCustomDate(e.target.value)}
-            className="h-9 px-3 text-xs bg-white rounded-xl border border-[#006D41] text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#006D41]/20 font-mono shadow-xs"
+            className="h-9 px-3 text-xs bg-surface rounded-xl border border-paid text-ink focus:outline-none focus:ring-2 focus:ring-paid/20 font-mono shadow-xs"
           />
         )}
 
         {/* Status Filter Pills */}
-        <div className="flex items-center gap-1 bg-[#F1F5F4] p-1 rounded-xl border border-[#E2E8F0] text-xs">
+        <div className="flex items-center gap-1 bg-surface-2 p-1 rounded-xl border border-line text-xs">
           <button
             onClick={() => setStatusFilter('all')}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               statusFilter === 'all' 
-                ? 'bg-[#00372D] text-white shadow-xs' 
-                : 'text-[#52605D] hover:text-[#004D3F] hover:bg-white/60'
+                ? 'bg-brand-dark text-white shadow-xs' 
+                : 'text-ink-muted hover:text-brand-dark hover:bg-surface/60'
             }`}
           >
-            كافة الحالات
+            الكل
           </button>
           <button
             onClick={() => setStatusFilter('completed')}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               statusFilter === 'completed' 
-                ? 'bg-[#006D41] text-white shadow-xs' 
-                : 'text-[#52605D] hover:text-[#006D41] hover:bg-white/60'
+                ? 'bg-paid text-white shadow-xs' 
+                : 'text-ink-muted hover:text-paid hover:bg-surface/60'
             }`}
           >
             سليمة
           </button>
           <button
             onClick={() => setStatusFilter('cancelled')}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               statusFilter === 'cancelled' 
-                ? 'bg-rose-700 text-white shadow-xs' 
-                : 'text-[#52605D] hover:text-rose-700 hover:bg-white/60'
+                ? 'bg-danger text-white shadow-xs' 
+                : 'text-ink-muted hover:text-danger hover:bg-surface/60'
             }`}
           >
             ملغاة
           </button>
           <button
             onClick={() => setStatusFilter('refunded')}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               statusFilter === 'refunded' 
-                ? 'bg-amber-600 text-white shadow-xs' 
-                : 'text-[#52605D] hover:text-amber-600 hover:bg-white/60'
+                ? 'bg-warn text-white shadow-xs' 
+                : 'text-ink-muted hover:text-warn hover:bg-surface/60'
             }`}
           >
             مرتجع
@@ -452,7 +452,7 @@ export const SalesHistoryView = () => {
         </div>
 
         {searchError && (
-          <div className="w-full flex items-center gap-1.5 text-xs text-rose-700 font-semibold bg-rose-50 p-2 rounded-xl border border-rose-200">
+          <div className="w-full flex items-center gap-1.5 text-xs text-danger font-semibold bg-rose-50 p-2 rounded-xl border border-rose-200">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{searchError}</span>
           </div>
@@ -460,9 +460,9 @@ export const SalesHistoryView = () => {
       </div>
 
       {/* 3. Invoices Ledger Table */}
-      <div className="flex-1 bg-white border border-[#E2E8F0] rounded-2xl flex flex-col overflow-hidden shadow-xs">
+      <div className="flex-1 bg-surface border border-line rounded-xl flex flex-col overflow-hidden shadow-xs">
         {/* Table Header */}
-        <div className="h-10 bg-[#F8FAFC] border-b border-[#E2E8F0] px-4 grid grid-cols-12 items-center text-xs font-bold text-[#52605D] shrink-0 select-none">
+        <div className="h-10 bg-surface-2 border-b border-line px-4 grid grid-cols-12 items-center text-xs font-bold text-ink-muted shrink-0 select-none">
           <span className="col-span-2">رقم الفاتورة</span>
           <span className="col-span-2">تاريخ ووقت البيع</span>
           <span className="col-span-2">العميل</span>
@@ -493,62 +493,62 @@ export const SalesHistoryView = () => {
               return (
                 <div 
                   key={sale.id || sale.invoiceNumber} 
-                  className={`h-12 border-b border-[#E2E8F0] px-4 grid grid-cols-12 items-center text-xs hover:bg-[#F1F5F4]/60 transition-colors cursor-pointer ${
+                  className={`h-11 sm:h-12 border-b border-line px-4 grid grid-cols-12 items-center text-xs hover:bg-surface-2 transition-colors cursor-pointer ${
                     isCancelled ? 'bg-rose-50/50 hover:bg-rose-50/80 opacity-80' : ''
                   }`}
                   onClick={() => void handleOpenDetails(sale)}
                 >
                   {/* Invoice Number */}
                   <span className={`col-span-2 font-mono font-bold text-xs flex items-center gap-1.5 ${
-                    isCancelled ? 'text-rose-700 line-through' : 'text-[#004D3F]'
+                    isCancelled ? 'text-danger line-through' : 'text-brand-dark'
                   }`}>
                     <span>#{sale.invoiceNumber}</span>
-                    {isCancelled && <span className="text-[10px] text-rose-700 no-underline font-normal">(ملغاة)</span>}
+                    {isCancelled && <span className="text-[10px] text-danger no-underline font-normal">(ملغاة)</span>}
                   </span>
 
                   {/* Date / Time */}
-                  <span className="col-span-2 font-mono text-[#0F172A] text-xs tabular-nums">
+                  <span className="col-span-2 font-mono text-ink text-xs tabular-nums">
                     {sale.createdAt ? new Date(sale.createdAt).toLocaleString('ar-EG-u-nu-latn', { dateStyle: 'short', timeStyle: 'short' }) : '—'}
                   </span>
 
                   {/* Customer */}
-                  <span className="col-span-2 text-[#0F172A] text-xs truncate" title={sale.customerName || 'عميل نقدي'}>
+                  <span className="col-span-2 text-ink text-xs truncate" title={sale.customerName || 'عميل نقدي'}>
                     {sale.customerName ? (
-                      <span className="flex items-center gap-1 font-bold text-[#0F172A]">
-                        <User className="w-3.5 h-3.5 text-[#006D41] shrink-0" />
+                      <span className="flex items-center gap-1 font-bold text-ink">
+                        <User className="w-3.5 h-3.5 text-paid shrink-0" />
                         <span className="truncate">{sale.customerName}</span>
                       </span>
                     ) : (
-                      <span className="text-[#52605D]/70">عميل نقدي عام</span>
+                      <span className="text-ink-muted/70">عميل نقدي عام</span>
                     )}
                   </span>
 
                   {/* Status & Payment Method Badges */}
                   <div className="col-span-2 flex items-center justify-center gap-1.5">
                     {isCancelled ? (
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-danger border border-rose-200 flex items-center gap-1">
                         <Ban className="w-3 h-3" />
                         <span>ملغاة</span>
                       </span>
                     ) : isRefunded ? (
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-warn border border-amber-200">
                         مرتجع
                       </span>
                     ) : (
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-[#006D41] border border-emerald-200">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-paid-soft text-paid border border-paid/20">
                         {sale.paymentMethod === 'cash' ? 'نقدي' : sale.paymentMethod === 'credit' ? 'آجل' : 'بطاقة'}
                       </span>
                     )}
                   </div>
 
                   {/* Discount */}
-                  <span className="col-span-2 text-center font-mono text-[#52605D] text-xs tabular-nums">
+                  <span className="col-span-2 text-center font-mono text-ink-muted text-xs tabular-nums">
                     {sale.discountPiasters > 0 ? formatArabicCurrency(sale.discountPiasters) : '—'}
                   </span>
 
                   {/* Total Piasters */}
                   <span className={`col-span-1 text-left pl-2 font-mono font-bold text-xs tabular-nums ${
-                    isCancelled ? 'text-[#52605D] line-through' : 'text-[#006D41]'
+                    isCancelled ? 'text-ink-muted line-through' : 'text-paid'
                   }`}>
                     {formatArabicCurrency(sale.totalPiasters)}
                   </span>
@@ -560,7 +560,7 @@ export const SalesHistoryView = () => {
                         e.stopPropagation();
                         void handleOpenDetails(sale);
                       }}
-                      className="w-7 h-7 rounded-lg bg-white hover:bg-emerald-50 text-[#52605D] hover:text-[#006D41] border border-[#E2E8F0] flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+                      className="w-7 h-7 rounded-lg bg-surface hover:bg-paid-soft text-ink-muted hover:text-paid border border-line flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
                       title="عرض بنود وتفاصيل الفاتورة"
                     >
                       <Receipt className="w-3.5 h-3.5" />
@@ -573,7 +573,7 @@ export const SalesHistoryView = () => {
         </div>
 
         {/* Footer info */}
-        <div className="h-8 bg-[#F8FAFC] border-t border-[#E2E8F0] px-4 flex items-center justify-between text-[11px] text-[#52605D] shrink-0 font-mono">
+        <div className="h-8 bg-surface-2 border-t border-line px-4 flex items-center justify-between text-[11px] text-ink-muted shrink-0 font-mono">
           <span>قاعدة بيانات SQLite - محرك المعاملات الذرية نشط</span>
           <span className="tabular-nums font-bold">
             المعروض: {filteredSales.length} من أصل {sales.length} فاتورة

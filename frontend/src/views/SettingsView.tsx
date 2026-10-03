@@ -73,6 +73,25 @@ export const SettingsView = ({
   const [receiptFooter, setReceiptFooter] = useState('شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل خلال 14 يوماً بموجب الفاتورة.');
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
   const [defaultCustomerCreditLimitEgp, setDefaultCustomerCreditLimitEgp] = useState(1000);
+  const [logoVariant, setLogoVariant] = useState<'classic' | 'modern'>(() => {
+    try {
+      const saved = localStorage.getItem('rafiq_logo_variant');
+      return saved === 'modern' ? 'modern' : 'classic';
+    } catch {
+      return 'classic';
+    }
+  });
+
+  const handleLogoVariantChange = (val: 'classic' | 'modern') => {
+    setLogoVariant(val);
+    try {
+      localStorage.setItem('rafiq_logo_variant', val);
+      window.dispatchEvent(new Event('rafiq_logo_variant_changed'));
+    } catch {
+      // ignore
+    }
+  };
+
   const [saved, setSaved] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
 
@@ -135,6 +154,14 @@ export const SettingsView = ({
           if (settings.receipt_paper_width) setPaperWidth(settings.receipt_paper_width as '80mm' | '57mm' | 'a4');
           if (settings.printer_auto_print !== undefined) setAutoPrintOnSale(settings.printer_auto_print === '1');
           if (settings.printer_open_drawer !== undefined) setOpenDrawerOnSale(settings.printer_open_drawer === '1');
+          if (settings.logo_variant === 'modern' || settings.logo_variant === 'classic') {
+            setLogoVariant(settings.logo_variant);
+            try {
+              localStorage.setItem('rafiq_logo_variant', settings.logo_variant);
+            } catch {
+              // ignore
+            }
+          }
         }
         if (Array.isArray(list)) {
           setPrintersList(list);
@@ -218,6 +245,7 @@ export const SettingsView = ({
         receipt_footer: receiptFooter.trim(),
         allow_negative_stock: allowNegativeStock ? '1' : '0',
         default_customer_credit_limit_egp: String(defaultCustomerCreditLimitEgp),
+        logo_variant: logoVariant,
       };
       await invoke('settings:save', payload);
       setSaved(true);
@@ -543,6 +571,8 @@ export const SettingsView = ({
           onToggleNegativeStock={handleToggleNegativeStock}
           defaultCustomerCreditLimitEgp={defaultCustomerCreditLimitEgp}
           setDefaultCustomerCreditLimitEgp={setDefaultCustomerCreditLimitEgp}
+          logoVariant={logoVariant}
+          setLogoVariant={handleLogoVariantChange}
           saveLoading={saveLoading}
           handleSave={handleSave}
           onOpenWizard={() => setIsWizardOpen(true)}

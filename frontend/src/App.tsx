@@ -104,11 +104,11 @@ const HeaderClock: FC = memo(() => {
   }, []);
 
   return (
-    <div className="flex items-center gap-2 bg-white border border-[#dce1dc] px-3 py-1.5 rounded-xl tabular-nums text-[12px] font-semibold text-[#0f172a] shadow-2xs">
-      <Clock className="w-3.5 h-3.5 text-[#52605d]" />
-      <span className="text-[#52605d] font-normal text-[11px]">{date}</span>
-      <span className="text-[#dce1dc]">|</span>
-      <span className="font-mono text-[#006d41] font-bold tracking-wide">{time || '00:00:00'}</span>
+    <div className="flex items-center gap-1.5 sm:gap-2 bg-white border border-line px-2.5 py-1 rounded-lg tabular-nums text-xs font-semibold text-ink shadow-2xs shrink-0">
+      <Clock className="w-3.5 h-3.5 text-ink-muted shrink-0" />
+      <span className="text-ink-muted font-normal text-[11px] hidden xl:inline">{date}</span>
+      <span className="text-line hidden xl:inline">|</span>
+      <span className="font-mono text-paid font-bold tracking-wide text-xs">{time || '00:00:00'}</span>
     </div>
   );
 });
@@ -155,6 +155,46 @@ export default function App() {
   const [isFullscreen, setIsFullscreen] = useState(true);
   const [storeName, setStoreName] = useState('رفيق POS');
   const [cashierName, setCashierName] = useState('كاشير (1)');
+  const [logoVariant, setLogoVariant] = useState<'classic' | 'modern'>(() => {
+    try {
+      const saved = localStorage.getItem('rafiq_logo_variant');
+      return saved === 'modern' ? 'modern' : 'classic';
+    } catch {
+      return 'classic';
+    }
+  });
+
+  useEffect(() => {
+    const handleVariantChange = () => {
+      try {
+        const saved = localStorage.getItem('rafiq_logo_variant');
+        if (saved === 'modern' || saved === 'classic') {
+          setLogoVariant(saved);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    window.addEventListener('rafiq_logo_variant_changed', handleVariantChange);
+    window.addEventListener('storage', handleVariantChange);
+    return () => {
+      window.removeEventListener('rafiq_logo_variant_changed', handleVariantChange);
+      window.removeEventListener('storage', handleVariantChange);
+    };
+  }, []);
+
+  const toggleLogoVariant = useCallback(() => {
+    setLogoVariant((prev) => {
+      const next = prev === 'classic' ? 'modern' : 'classic';
+      try {
+        localStorage.setItem('rafiq_logo_variant', next);
+        window.dispatchEvent(new Event('rafiq_logo_variant_changed'));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, []);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isUserManagerOpen, setIsUserManagerOpen] = useState(false);
   const [idleTimeoutMinutes, setIdleTimeoutMinutes] = useState(15);
@@ -438,6 +478,14 @@ export default function App() {
         if (s && isMounted) {
           if (s.store_name) setStoreName(s.store_name);
           if (s.cashier_name) setCashierName((prev) => prev || s.cashier_name);
+          if (s.logo_variant === 'modern' || s.logo_variant === 'classic') {
+            setLogoVariant(s.logo_variant);
+            try {
+              localStorage.setItem('rafiq_logo_variant', s.logo_variant);
+            } catch {
+              // ignore
+            }
+          }
         }
         const u: UserDto = await invoke('auth:getCurrentUser');
         if (u && isMounted) {
@@ -608,51 +656,62 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-canvas text-ink select-none overflow-hidden">
-      {/* 1. TOP BAR (60px high, hairline-b, Spans across top) */}
-      <header className="h-[60px] w-full bg-white hairline-b flex items-center justify-between px-5 shrink-0 z-20 shadow-[0_1px_4px_rgba(0,0,0,0.02)]">
+      {/* 1. TOP BAR (52px professional high, hairline-b, Spans across top) */}
+      <header className="h-[52px] w-full bg-surface hairline-b flex items-center justify-between px-3 sm:px-4 shrink-0 z-20 shadow-2xs">
         {/* Right Side: Store Title & Status Badges */}
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-[#eaf5ee] border border-[#c4e3d0] flex items-center justify-center p-1.5 shadow-2xs">
+        <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+          <button
+            type="button"
+            onClick={toggleLogoVariant}
+            title={logoVariant === 'classic' 
+              ? 'الشعار الكلاسيكي عالي التباين (مفعّل) — انقر للتبديل للشعار المودرن الفاتح' 
+              : 'الشعار المودرن الفاتح (مفعّل) — انقر للتبديل للشعار الكلاسيكي عالي التباين'}
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white border border-[#DCE1DC] hover:border-paid/60 flex items-center justify-center p-1 shadow-2xs shrink-0 cursor-pointer transition-all hover:scale-105 active:scale-95 group relative"
+          >
             <img 
-              src="/logo.png" 
-              alt="رفيق" 
-              className="w-full h-full object-contain drop-shadow-xs" 
+              src={logoVariant === 'classic' ? '/logo_classic.png' : '/logo_modern.png'} 
+              alt="شعار رفيق" 
+              className="w-full h-full object-contain" 
             />
-          </div>
-          <div>
-            <h1 className="text-[16px] font-extrabold text-[#0f172a] leading-tight m-0">{storeName || 'رفيق POS'}</h1>
-            <p className="text-[10.5px] font-medium text-[#52605d] m-0 mt-0.5">نظام نقاط البيع وإدارة السوبرماركت</p>
+            <span className="absolute -bottom-1 -left-1 px-1 py-0.2 rounded text-[7.5px] font-bold bg-[#004D3F] text-white opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-2xs whitespace-nowrap">
+              {logoVariant === 'classic' ? 'كلاسيك' : 'مودرن'}
+            </span>
+          </button>
+          <div className="min-w-0">
+            <h1 className="text-sm sm:text-base font-extrabold text-ink leading-tight m-0 truncate">{storeName || 'رفيق POS'}</h1>
+            <p className="text-[10px] sm:text-[11px] font-medium text-ink-muted m-0 truncate">نظام نقاط البيع وإدارة السوبرماركت</p>
           </div>
         </div>
 
         {/* Left Side: Offline status, Cashier Badge, Action Buttons, Date, Time */}
-        <div className="flex items-center gap-2.5 text-xs">
-          {/* Offline Status Pill (Informational - Distinct from interactive buttons) */}
-          <div className="flex items-center gap-1.5 bg-[#eaf5ee] border border-[#c4e3d0] px-2.5 py-1 rounded-xl text-[#006d41] font-bold text-[11px] select-none shadow-2xs">
-            <span className="w-2 h-2 rounded-full bg-[#006d41] animate-pulse"></span>
-            <span>أوفلاين • محلي</span>
-            <WifiOff className="w-3.5 h-3.5 text-[#006d41] opacity-80 mr-0.5" />
+        <div className="flex items-center gap-1.5 sm:gap-2 text-xs shrink-0">
+          {/* Offline Status Pill */}
+          <div className="flex items-center gap-1.5 bg-paid-soft border border-paid-border px-2 py-1 rounded-lg text-paid font-bold text-[11px] select-none shadow-2xs shrink-0">
+            <span className="w-2 h-2 rounded-full bg-paid animate-pulse"></span>
+            <span className="hidden sm:inline">أوفلاين • محلي</span>
+            <span className="sm:hidden">أوفلاين</span>
+            <WifiOff className="w-3.5 h-3.5 text-paid opacity-85 mr-0.5 shrink-0" />
           </div>
 
-          {/* Cashier / Employee Identity Badge (Clickable to switch user or lock screen) */}
+          {/* Cashier / Employee Identity Badge */}
           <button
             type="button"
             onClick={() => setIsLoginModalOpen(true)}
-            className="flex items-center gap-1.5 bg-white hover:bg-slate-50 border border-[#dce1dc] hover:border-[#006d41]/50 px-2.5 py-1 rounded-xl text-[#0f172a] text-[11px] font-medium shadow-2xs transition-all cursor-pointer group active:scale-[0.98]"
+            className="flex items-center gap-1.5 bg-surface hover:bg-surface-2 border border-line hover:border-paid/50 px-2 py-1 rounded-lg text-ink text-xs font-medium shadow-2xs transition-all cursor-pointer group active:scale-[0.98] shrink-0"
             title="انقر لتبديل الموظف أو قفل الشاشة"
           >
-            <div className={`w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-extrabold ${
-              currentUser?.role === 'admin' ? 'bg-[#b3720e] text-white shadow-2xs' : 'bg-[#006d41] text-white shadow-2xs'
+            <div className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-extrabold shrink-0 ${
+              currentUser?.role === 'admin' ? 'bg-warn text-white shadow-2xs' : 'bg-paid text-white shadow-2xs'
             }`}>
               {currentUser?.displayName ? currentUser.displayName.slice(0, 1) : 'ك'}
             </div>
-            <span className="font-bold text-[#0f172a]">{currentUser?.displayName || cashierName || 'كاشير (1)'}</span>
-            <span className={`text-[9.5px] px-1.5 py-0.2 rounded-md font-bold ${
+            <span className="font-bold text-ink text-xs max-w-[90px] sm:max-w-[120px] truncate">{currentUser?.displayName || cashierName || 'كاشير (1)'}</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold shrink-0 ${
               currentUser?.role === 'admin' ? 'bg-amber-100 text-amber-900 border border-amber-200' : 'bg-emerald-100 text-emerald-900 border border-emerald-200'
             }`}>
               {currentUser?.role === 'admin' ? 'مدير' : 'كاشير'}
             </span>
-            <KeyRound className="w-3 h-3 text-[#52605d] group-hover:text-[#006d41] transition-colors" />
+            <KeyRound className="w-3 h-3 text-ink-muted group-hover:text-paid transition-colors shrink-0" />
           </button>
 
           {/* Manage Users Button for Admin (Task 166-4) */}
@@ -660,54 +719,51 @@ export default function App() {
             <button
               type="button"
               onClick={() => setIsUserManagerOpen(true)}
-              className="flex items-center gap-1.5 h-8.5 px-3 rounded-xl bg-white hover:bg-amber-50/70 border border-amber-200 hover:border-amber-300 text-amber-900 font-bold text-xs shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer"
+              className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-surface hover:bg-amber-50/70 border border-amber-200 hover:border-amber-300 text-amber-900 font-bold text-xs shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer shrink-0"
               title="إدارة حسابات الموظفين والصلاحيات"
             >
               <Users className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-              <span className="hidden lg:inline">الموظفون</span>
+              <span className="hidden xl:inline">الموظفون</span>
             </button>
           )}
-
-          {/* Vertical subtle divider */}
-          <div className="h-5 w-[1px] bg-[#dce1dc] mx-0.5 hidden sm:block" />
 
           {/* Readiness Checklist Button (Feature #137) - Admin Only */}
           {currentUser?.role === 'admin' && (
             <button
               type="button"
               onClick={() => setIsReadinessOpen(true)}
-              className="flex items-center gap-1.5 h-8.5 px-3 rounded-xl bg-white hover:bg-[#eaf5ee] border border-[#c4e3d0] hover:border-[#006d41] text-[#006d41] font-bold text-xs shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer"
+              className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-surface hover:bg-paid-soft border border-paid-border hover:border-paid text-paid font-bold text-xs shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer shrink-0"
               title="فحص جاهزية النظام والعتاد قبل أول بيع"
             >
-              <CheckCircle2 className="w-3.5 h-3.5 text-[#006d41] shrink-0" />
-              <span>جاهزية التشغيل</span>
+              <CheckCircle2 className="w-3.5 h-3.5 text-paid shrink-0" />
+              <span className="hidden xl:inline">جاهزية التشغيل</span>
             </button>
           )}
 
-          {/* Fullscreen Kiosk Mode Toggle - Tactile Interactive Button */}
+          {/* Fullscreen Kiosk Mode Toggle */}
           <button
             type="button"
             onClick={handleToggleFullscreen}
-            className="flex items-center gap-1.5 h-8.5 px-3 rounded-xl bg-white hover:bg-slate-50 border border-[#dce1dc] hover:border-slate-400 text-[#0f172a] font-bold text-xs shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer"
+            className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-surface hover:bg-surface-2 border border-line hover:border-ink-muted text-ink font-bold text-xs shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer shrink-0"
             title={isFullscreen ? 'الخروج من ملء الشاشة (F11)' : 'ملء الشاشة بالكامل وإخفاء شريط ويندوز (F11)'}
           >
             {isFullscreen ? (
               <>
-                <Minimize2 className="w-3.5 h-3.5 text-slate-600 shrink-0" />
-                <span className="hidden sm:inline">نافذة عادية</span>
+                <Minimize2 className="w-3.5 h-3.5 text-ink-muted shrink-0" />
+                <span className="hidden lg:inline">نافذة</span>
               </>
             ) : (
               <>
-                <Maximize2 className="w-3.5 h-3.5 text-[#006d41] shrink-0" />
-                <span className="hidden sm:inline">ملء الشاشة</span>
+                <Maximize2 className="w-3.5 h-3.5 text-paid shrink-0" />
+                <span className="hidden lg:inline">ملء الشاشة</span>
               </>
             )}
-            <kbd className="hidden md:inline-flex items-center justify-center px-1.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-600 font-mono text-[10px] font-bold">
+            <kbd className="hidden 2xl:inline-flex items-center justify-center px-1 py-0.2 rounded bg-surface-2 border border-line text-ink-muted font-mono text-[9px] font-bold">
               F11
             </kbd>
           </button>
 
-          {/* Feature #176: Notification Center Bell Button with live Badge */}
+          {/* Notification Bell Button with live Badge */}
           <NotificationBellButton
             count={systemNotifications.length}
             hasCritical={systemNotifications.some((n) => n.type === 'critical')}
@@ -715,7 +771,7 @@ export default function App() {
             onClick={() => setIsNotificationDrawerOpen((prev) => !prev)}
           />
 
-          {/* Date & Time (Isolated Component) */}
+          {/* Date & Time */}
           <HeaderClock />
         </div>
       </header>
@@ -738,18 +794,18 @@ export default function App() {
 
       {/* 2. MAIN APP SHELL (Sidebar Navigation + Dynamic Content Canvas) */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Navigation Sidebar (RTL Right side, Responsive Collapsible: 68px collapsed / 230px expanded) */}
+        {/* Navigation Sidebar (RTL Right side, Responsive Collapsible: 64px collapsed / 215px expanded) */}
         <aside 
           className={`${
-            isSidebarCollapsed ? 'w-[68px] px-2 py-3 items-center' : 'w-[230px] p-3'
-          } bg-white hairline-l flex flex-col shrink-0 select-none transition-all duration-150 h-full min-h-0 overflow-hidden shadow-[2px_0_6px_rgba(0,0,0,0.02)]`}
+            isSidebarCollapsed ? 'w-[64px] px-1.5 py-2.5 items-center' : 'w-[215px] p-2.5'
+          } bg-surface hairline-l flex flex-col shrink-0 select-none transition-all duration-150 h-full min-h-0 overflow-hidden shadow-2xs`}
         >
           {/* Top Header of Sidebar: Title + Toggle Icon Button */}
-          <div className={`w-full flex items-center mb-2 pb-2 border-b border-[#dce1dc] shrink-0 ${
+          <div className={`w-full flex items-center mb-1.5 pb-1.5 border-b border-line shrink-0 ${
             isSidebarCollapsed ? 'justify-center' : 'justify-between px-1'
           }`}>
             {!isSidebarCollapsed && (
-              <span className="text-[11px] font-bold text-[#52605d] uppercase tracking-wider">
+              <span className="text-[11px] font-bold text-ink-muted uppercase tracking-wider">
                 القوائم الرئيسية
               </span>
             )}
@@ -767,17 +823,17 @@ export default function App() {
                 });
               }}
               title={isSidebarCollapsed ? 'توسيع القائمة الجانبية' : 'تصغير القائمة الجانبية'}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-[#52605d] hover:text-[#00372d] hover:bg-[#eaf5ee] transition-colors cursor-pointer"
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-muted hover:text-brand-dark hover:bg-brand-soft transition-colors cursor-pointer"
             >
               {isSidebarCollapsed ? (
-                <PanelRightOpen className="w-4 h-4 text-[#00372d]" />
+                <PanelRightOpen className="w-4 h-4 text-brand-dark" />
               ) : (
-                <PanelRightClose className="w-4 h-4 text-[#52605d] hover:text-[#00372d]" />
+                <PanelRightClose className="w-4 h-4 text-ink-muted hover:text-brand-dark" />
               )}
             </button>
           </div>
 
-          <nav className="flex-1 flex flex-col gap-1.5 w-full overflow-y-auto overflow-x-hidden min-h-0 py-0.5">
+          <nav className="flex-1 flex flex-col gap-1 w-full overflow-y-auto overflow-x-hidden min-h-0 py-0.5">
 
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -799,15 +855,15 @@ export default function App() {
                       });
                     }}
                     title={`${item.label} (${item.shortcut})`}
-                    className={`relative w-full h-[46px] rounded-xl flex items-center justify-center transition-all duration-150 group cursor-pointer ${
+                    className={`relative w-full h-[42px] rounded-xl flex items-center justify-center transition-all duration-150 group cursor-pointer ${
                       isActive
-                        ? 'bg-[#00372d] text-white shadow-xs'
-                        : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a]'
+                        ? 'bg-brand-dark text-white shadow-xs'
+                        : 'text-ink-muted hover:bg-surface-2 hover:text-ink'
                     }`}
                   >
-                    <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-[#52605d] group-hover:text-[#0f172a]'}`} />
+                    <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-ink-muted group-hover:text-ink'}`} />
                     {isProductsItem && lowStockCount > 0 && (
-                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-600 text-white text-[9px] font-bold flex items-center justify-center animate-pulse border-2 border-white shadow-2xs">
+                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-danger text-white text-[9px] font-bold flex items-center justify-center animate-pulse border-2 border-surface shadow-2xs">
                         {lowStockCount > 9 ? '+9' : lowStockCount}
                       </span>
                     )}
@@ -843,18 +899,18 @@ export default function App() {
                         handleNavClick(item.id);
                       }
                     }}
-                    className={`w-full relative flex items-center justify-between px-3 h-[44px] rounded-xl text-[13px] transition-all duration-150 cursor-pointer ${
+                    className={`w-full relative flex items-center justify-between px-2.5 h-[40px] rounded-xl text-xs transition-all duration-150 cursor-pointer ${
                       isActive
-                        ? 'bg-[#00372d] text-white font-bold shadow-xs'
-                        : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
+                        ? 'bg-brand-dark text-white font-bold shadow-xs'
+                        : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
                     }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <Icon className={`w-4.5 h-4.5 ${isActive ? 'text-white' : 'text-[#52605d]'}`} />
-                      <span>{item.label}</span>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-ink-muted'}`} />
+                      <span className="truncate">{item.label}</span>
                       {isProductsItem && lowStockCount > 0 && (
-                        <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full flex items-center gap-0.5 ${
-                          isActive ? 'bg-rose-500 text-white' : 'bg-rose-100 text-rose-800 border border-rose-200'
+                        <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full flex items-center gap-0.5 shrink-0 ${
+                          isActive ? 'bg-danger text-white' : 'bg-danger-soft text-danger border border-danger-border'
                         }`}>
                           {lowStockCount}
                         </span>
@@ -1046,17 +1102,17 @@ export default function App() {
               type="button"
               onClick={() => openHelpCenterModal(effectiveActiveTab)}
               title="مركز المساعدة والشروحات والدعم الفني (F1)"
-              className={`w-full rounded-xl transition-all duration-150 flex items-center gap-2.5 font-bold cursor-pointer ${
+              className={`w-full rounded-xl transition-all duration-150 flex items-center gap-2 font-bold cursor-pointer ${
                 isSidebarCollapsed
-                  ? 'h-[44px] justify-center text-[#006d41] hover:bg-[#edf5f0] border border-transparent hover:border-emerald-200'
-                  : 'px-3 py-2 text-xs text-[#006d41] hover:text-[#00372d] bg-[#edf5f0] hover:bg-[#e0eee5] border border-emerald-200/80 shadow-2xs'
+                  ? 'h-[40px] justify-center text-paid hover:bg-paid-soft border border-transparent hover:border-paid/30'
+                  : 'px-2.5 py-1.5 text-xs text-paid hover:text-brand-dark bg-paid-soft hover:bg-paid-soft/80 border border-paid-border shadow-2xs'
               }`}
             >
-              <HelpCircle className="w-4 h-4 text-[#006d41] shrink-0" />
+              <HelpCircle className="w-4 h-4 text-paid shrink-0" />
               {!isSidebarCollapsed && (
                 <div className="flex items-center justify-between flex-1 min-w-0">
                   <span className="truncate">مركز المساعدة والدعم</span>
-                  <span className="font-mono text-[10px] text-emerald-800 bg-white/80 px-1.5 py-0.5 rounded border border-emerald-300">
+                  <span className="font-mono text-[10px] text-paid bg-surface px-1.5 py-0.2 rounded border border-paid-border">
                     F1
                   </span>
                 </div>
@@ -1068,17 +1124,17 @@ export default function App() {
               type="button"
               onClick={() => void handleExitApp()}
               title="إغلاق البرنامج والخروج بأمان"
-              className={`w-full rounded-xl transition-all duration-150 flex items-center gap-2.5 font-bold ${
+              className={`w-full rounded-xl transition-all duration-150 flex items-center gap-2 font-bold cursor-pointer ${
                 isSidebarCollapsed
-                  ? 'h-[44px] justify-center text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-transparent hover:border-rose-200'
-                  : 'px-3 py-2 text-xs text-rose-600 hover:text-rose-700 bg-rose-50/60 hover:bg-rose-100/80 dark:bg-rose-950/30 dark:hover:bg-rose-950/60 border border-rose-200/80 dark:border-rose-900/50 shadow-xs'
+                  ? 'h-[40px] justify-center text-danger hover:bg-danger-soft border border-transparent hover:border-danger/30'
+                  : 'px-2.5 py-1.5 text-xs text-danger hover:text-danger-ink bg-danger-soft hover:bg-danger-soft/80 border border-danger-border shadow-2xs'
               }`}
             >
-              <Power className="w-4 h-4 text-rose-600 shrink-0" />
+              <Power className="w-4 h-4 text-danger shrink-0" />
               {!isSidebarCollapsed && (
                 <div className="flex items-center justify-between flex-1 min-w-0">
                   <span className="truncate">إغلاق البرنامج</span>
-                  <span className="font-mono text-[10px] text-rose-400 bg-rose-100/80 dark:bg-rose-900/40 px-1.5 py-0.5 rounded">خروج</span>
+                  <span className="font-mono text-[10px] text-danger bg-surface px-1.5 py-0.2 rounded border border-danger-border">خروج</span>
                 </div>
               )}
             </button>
