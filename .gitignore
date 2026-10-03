@@ -60,3 +60,9 @@ stitch_rafeeq_pos_system_ui_design/
 .vscode/
 .agents/
 skills-lock.json
+
+# Video Generator Renders & Temporary Audio Cache
+video_generator/renders/
+video_generator/voiceovers/
+video_generator/temp_recording/
+video_generator/**/temp_recording/

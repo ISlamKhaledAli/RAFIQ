@@ -595,7 +595,7 @@ export const BackupManager = () => {
             <h3 className="text-[13px] font-bold text-ink m-0">سجل النسخ الاحتياطية المتوفرة في المجلد</h3>
           </div>
           <span className="text-[11px] text-ink-muted">
-            إجمالي النسخ: {status?.recentBackups.length || 0}
+            إجمالي النسخ: {status?.recentBackups?.length ?? 0}
           </span>
         </div>
 

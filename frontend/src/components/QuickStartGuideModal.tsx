@@ -2,9 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   BookOpen,
   Printer,
-  Play,
-  Pause,
-  RotateCcw,
   CheckSquare,
   Square,
   AlertTriangle,
@@ -113,11 +110,12 @@ export const QuickStartGuideModal: React.FC<QuickStartGuideModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'sheet' | 'videos' | 'checklist'>(initialTab);
 
-  // Video Player Simulation State
+  // Video Selection State
   const [selectedVideo, setSelectedVideo] = useState<number>(0);
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [playbackProgress, setPlaybackProgress] = useState<number>(0);
-  const [playbackStep, setPlaybackStep] = useState<number>(0);
+
+  const handleSelectVideo = (idx: number) => {
+    setSelectedVideo(idx);
+  };
 
   // Checklist State
   const [checklist, setChecklist] = useState<ChecklistItem[]>(() => {
@@ -133,32 +131,6 @@ export const QuickStartGuideModal: React.FC<QuickStartGuideModalProps> = ({
       localStorage.setItem('rafiq_training_checklist_v1', JSON.stringify(checklist));
     } catch { }
   }, [checklist]);
-
-  // Handle Video Simulation Timer
-  useEffect(() => {
-    let timer: any;
-    if (isPlaying) {
-      timer = setInterval(() => {
-        setPlaybackProgress((prev) => {
-          if (prev >= 100) {
-            setIsPlaying(false);
-            return 100;
-          }
-          const next = prev + 5;
-          setPlaybackStep(Math.floor((next / 100) * 4));
-          return next;
-        });
-      }, 500);
-    }
-    return () => clearInterval(timer);
-  }, [isPlaying]);
-
-  const handleSelectVideo = (idx: number) => {
-    setSelectedVideo(idx);
-    setIsPlaying(false);
-    setPlaybackProgress(0);
-    setPlaybackStep(0);
-  };
 
   const handleToggleCheck = (id: string) => {
     setChecklist((prev) =>
@@ -178,20 +150,23 @@ export const QuickStartGuideModal: React.FC<QuickStartGuideModalProps> = ({
   const VIDEOS = [
     {
       id: 1,
-      title: 'فيديو 1: أول عملية بيع واستخدام الكيبورد والطباعة',
-      duration: '1:45 دقيقة',
-      description: 'تعلم كيف تبيع منتجاً بالباركود، تعدل الكمية، وتطبع الإيصال في 3 ثوانٍ.',
+      title: 'فيديو 1: دورة البيع الكاملة وشاشة الكاشير الشاملة',
+      duration: '47 ثانية',
+      videoSrc: '/videos/video1_first_sale.mp4',
+      description: 'دليل احترافي شامل لشاشة البيع: الباركود الذكي، البحث السريع، الميزان الإلكتروني، الأصناف المتعددة، تعليق الفواتير، وحسابات العملاء وطباعة الإيصال.',
       steps: [
-        '1. مرر قارئ الباركود على المنتج أو اضغط F2 للبحث بالاسم.',
-        '2. اضغط F4 لتعديل الكمية إذا اشترى العميل أكثر من قطعة.',
-        '3. اضغط F9 لفتح شاشة الدفع السريع وأدخل المبلغ المستلم من العميل.',
-        '4. اضغط Enter لتأكيد البيع وطباعة الفاتورة وفتح درج النقدية فوراً.',
+        '1. مسح باركود الأصناف السريع مع المعالجة التلقائية للغة العربية.',
+        '2. البحث الذكي (F2) بالأحرف الأولى واختيار الصنف فوراً من الكيبورد.',
+        '3. وزن الأصناف عبر نافذة الميزان الإلكتروني واختيار الأحجام والنكهات من نافذة الأصناف المتعددة.',
+        '4. تعديل الكميات والخصومات وتعليق الفاتورة (F6) واسترجاعها فوراً لخدمة عميل آخر.',
+        '5. اختيار حساب العميل ومراجعة حد الائتمان، ثم الدفع السريع وفتح الدرج وطباعة الفاتورة 80mm.',
       ],
     },
     {
       id: 2,
       title: 'فيديو 2: إقفال اليومية ومطابقة درج النقدية بالمليم',
-      duration: '2:10 دقيقة',
+      duration: '38 ثانية',
+      videoSrc: '/videos/video2_z_report.mp4',
       description: 'شرح خطوات قفل الوردية، عد النقدية في الدرج، وفحص الفارق مع طباعة Z-Report.',
       steps: [
         '1. اضغط F11 أو توجه إلى قائمة التقارير واختر «قفل اليومية».',
@@ -202,17 +177,19 @@ export const QuickStartGuideModal: React.FC<QuickStartGuideModalProps> = ({
     },
     {
       id: 3,
-      title: 'فيديو 3: النسخ الاحتياطي واسترجاع البيانات عند الطوارئ',
-      duration: '2:00 دقيقة',
+      title: 'فيديو 3: النسخ الاحتياطي وحزمة نقل المحل لجهاز جديد',
+      duration: '41 ثانية',
+      videoSrc: '/videos/video3_backup_migration.mp4',
       description: 'كيف تحمي متجرك بفلاشة USB، وكيف تنقل المحل لجهاز جديد بدون أي مبرمج.',
       steps: [
         '1. ضع فلاشة USB في الكمبيوتر وتوجه إلى الإعدادات ثم «النسخ الاحتياطي».',
         '2. اختر الفلاشة بضغطة زر واحدة واضغط «خذ نسخة الآن».',
         '3. تأكد من ظهور علامة الصح الخضراء الدالة على سلامة ملف الـ SQLite.',
-        '4. لاسترجاع البيانات على كمبيوتر جديد، استخدم زر «نقل لجهاز جديد» بضغطة واحدة.',
+        '4. لاسترجاع البيانات على كمبيوتر جديد، استخدم حزمة .rafiqpkg ومطابقة الأرقام.',
       ],
     },
   ];
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
@@ -476,70 +453,15 @@ export const QuickStartGuideModal: React.FC<QuickStartGuideModalProps> = ({
 
               {/* Video Player Display Screen */}
               <div className="rounded-2xl border-2 border-line bg-black text-white overflow-hidden shadow-lg">
-                {/* Player Canvas Simulator */}
-                <div className="relative aspect-video bg-gradient-to-b from-gray-900 to-black flex flex-col items-center justify-center p-8 text-center">
-                  {/* Step Visualizer */}
-                  <div className="space-y-4 max-w-lg">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand/80 text-white text-xs font-bold">
-                      <span>الخطوة {playbackStep + 1} من 4</span>
-                    </div>
-                    <h3 className="text-base md:text-lg font-bold text-emerald-300">
-                      {VIDEOS[selectedVideo].steps[playbackStep] || VIDEOS[selectedVideo].steps[0]}
-                    </h3>
-                    <p className="text-xs text-gray-300 leading-relaxed">
-                      {VIDEOS[selectedVideo].description}
-                    </p>
-                  </div>
-
-                  {/* Play / Pause Overlay Button */}
-                  <button
-                    type="button"
-                    onClick={() => setIsPlaying(!isPlaying)}
-                    className="absolute inset-0 m-auto w-16 h-16 rounded-full bg-brand/90 hover:bg-brand text-white flex items-center justify-center shadow-2xl transition-transform hover:scale-105 cursor-pointer"
+                <div className="relative aspect-video bg-black flex items-center justify-center">
+                  <video
+                    key={VIDEOS[selectedVideo].videoSrc}
+                    src={VIDEOS[selectedVideo].videoSrc}
+                    controls
+                    className="w-full h-full object-contain"
                   >
-                    {isPlaying ? <Pause className="w-7 h-7" /> : <Play className="w-7 h-7 ml-0.5" />}
-                  </button>
-
-                  {/* Step indicators */}
-                  <div className="absolute bottom-4 left-6 right-6 flex items-center justify-between text-[11px] text-gray-400">
-                    <span>{VIDEOS[selectedVideo].title}</span>
-                    <span className="font-mono">{playbackProgress}%</span>
-                  </div>
-                </div>
-
-                {/* Progress Bar & Controls */}
-                <div className="bg-gray-950 p-3 flex items-center gap-3 border-t border-gray-800">
-                  <button
-                    type="button"
-                    onClick={() => setIsPlaying(!isPlaying)}
-                    className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-white flex items-center justify-center transition-colors cursor-pointer"
-                  >
-                    {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsPlaying(false);
-                      setPlaybackProgress(0);
-                      setPlaybackStep(0);
-                    }}
-                    className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-white flex items-center justify-center transition-colors cursor-pointer"
-                    title="إعادة التشغيل من البداية"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                  </button>
-
-                  {/* Track */}
-                  <div className="flex-1 bg-gray-800 h-2 rounded-full overflow-hidden">
-                    <div
-                      className="bg-brand h-full transition-all duration-300"
-                      style={{ width: `${playbackProgress}%` }}
-                    />
-                  </div>
-
-                  <span className="text-[11px] font-mono text-gray-400">
-                    {VIDEOS[selectedVideo].duration}
-                  </span>
+                    عذراً، لا يدعم متصفحك تشغيل هذا الفيديو مباشرة.
+                  </video>
                 </div>
               </div>
 
@@ -550,11 +472,7 @@ export const QuickStartGuideModal: React.FC<QuickStartGuideModalProps> = ({
                   {VIDEOS[selectedVideo].steps.map((st, i) => (
                     <div
                       key={i}
-                      className={`p-2.5 rounded-lg border transition-colors ${
-                        playbackStep === i
-                          ? 'bg-brand-soft border-brand text-brand font-bold'
-                          : 'bg-surface border-line text-ink'
-                      }`}
+                      className="p-2.5 rounded-lg border bg-surface border-line text-ink font-semibold"
                     >
                       {st}
                     </div>
