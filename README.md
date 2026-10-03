@@ -1,4 +1,4 @@
-# <p align="center"><img src="branding/logo_full.png" width="380" alt="رفيق — نظام إدارة نقاط البيع والسوبرماركت" /><br/><b>نظام رفيق لإدارة نقاط البيع والسوبرماركت (Rafiq POS)</b><br/><sub>Enterprise-Grade, Offline-First Supermarket & Retail Management System</sub></p>
+# <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="branding/logo_full_dark.png"><source media="(prefers-color-scheme: light)" srcset="branding/logo_full.png"><img src="branding/logo_full.png" width="460" alt="رفيق — نظام إدارة نقاط البيع والسوبرماركت" /></picture><br/><b>نظام رفيق لإدارة نقاط البيع والسوبرماركت (Rafiq POS)</b><br/><sub>Enterprise-Grade, Offline-First Supermarket &amp; Retail Management System</sub></p>
 
 <p align="center">
   <a href="https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48"><img src="https://img.shields.io/badge/.NET_Framework-4.8_C%23-blueviolet?style=for-the-badge&logo=dotnet" alt=".NET 4.8"/></a>
@@ -12,7 +12,7 @@
 
 ---
 
-## 📖 نظرة عامة (Overview)
+## نظرة عامة (Overview)
 
 **رفيق (Rafiq POS)** هو نظام برمجي متكامل فائق السرعة لنقاط البيع وإدارة السوبرماركت ومحلات التجزئة، مصمم هندسياً للعمل المستقل **بدون إنترنت نهائياً (Offline-First)** مع أمان مالي صارم ومناعة كاملة ضد أخطاء التقريب العشري وانقطاع الكهرباء المفاجئ.
 
@@ -20,28 +20,28 @@
 
 ---
 
-## 📑 فهرس المحتويات (Table of Contents)
+## فهرس المحتويات (Table of Contents)
 
-1. [🎬 العروض المرئية والفيديوهات التدريبية (Live Demos & Video Tutorials)](#-العروض-المرئية-والفيديوهات-التدريبية-live-demos--video-tutorials)
-2. [✨ الميزات الجوهرية للنظام (Key Features)](#-الميزات-الجوهرية-للنظام-key-features)
-3. [🏛️ المعمارية الهندسية والقواعد الصارمة (Architecture & Senior Invariants)](#-المعمارية-الهندسية-والقواعد-الصارمة-architecture--senior-invariants)
-4. [⌨️ اختصارات الكاشير السريعة (Keyboard Speed Shortcuts F1-F12)](#-اختصارات-الكاشير-السريعة-keyboard-speed-shortcuts-f1-f12)
-5. [🔌 مصفوفة الأجهزة والطرفيات المعتمدة (Certified Hardware Compatibility)](#-مصفوفة-الأجهزة-والطرفيات-المعتمدة-certified-hardware-compatibility)
-6. [🛡️ الأمان المالي ومقاومة انقطاع الكهرباء (Financial Integrity & Disaster Recovery)](#-الأمان-المالي-ومقاومة-انقطاع-الكهرباء-financial-integrity--disaster-recovery)
-7. [📂 هيكل المشروع (Project Directory Layout)](#-هيكل-المشروع-project-directory-layout)
-8. [🚀 التشغيل السريع للمستخدم والمطور (Quick Start Guide)](#-التشغيل-السريع-للمستخدم-والمطور-quick-start-guide)
-9. [📦 بناء ملف التثبيت المستقل (Production Installer Build)](#-بناء-ملف-التثبيت-المستقل-production-installer-build)
-10. [🗺️ خارطة الطريق والتقدم (Roadmap & Status)](#-خارطة-الطريق-والتقدم-roadmap--status)
+1. [العروض المرئية والتفاعلية (Interactive Video Showcases)](#العروض-المرئية-والتفاعلية-interactive-video-showcases)
+2. [الميزات الجوهرية للنظام (Key Features)](#الميزات-الجوهرية-للنظام-key-features)
+3. [المعمارية الهندسية والقواعد الصارمة (Architecture & Senior Invariants)](#المعمارية-الهندسية-والقواعد-الصارمة-architecture--senior-invariants)
+4. [اختصارات الكاشير ولوحة المفاتيح (Keyboard Shortcuts F1-F12)](#اختصارات-الكاشير-ولوحة-المفاتيح-keyboard-shortcuts-f1-f12)
+5. [مصفوفة الأجهزة والطرفيات المعتمدة (Certified Hardware Compatibility)](#مصفوفة-الأجهزة-والطرفيات-المعتمدة-certified-hardware-compatibility)
+6. [الأمان المالي ومقاومة انقطاع الكهرباء (Financial Integrity & Disaster Recovery)](#الأمان-المالي-ومقاومة-انقطاع-الكهرباء-financial-integrity--disaster-recovery)
+7. [هيكل المشروع (Project Directory Layout)](#هيكل-المشروع-project-directory-layout)
+8. [دليل التشغيل السريع (Quick Start Guide)](#دليل-التشغيل-السريع-quick-start-guide)
+9. [بناء ملف التثبيت المستقل (Production Packaging)](#بناء-ملف-التثبيت-المستقل-production-packaging)
+10. [خارطة الطريق والتقدم (Roadmap & Status)](#خارطة-الطريق-والتقدم-roadmap--status)
 
 ---
 
-## 🎬 العروض المرئية والفيديوهات التدريبية (Live Demos & Video Tutorials)
+## العروض المرئية والتفاعلية (Interactive Video Showcases)
 
 يحتوي النظام على مكتبة مرئية شاملة وتفاعلية تشرح أهم دورات العمل في السوبرماركت ومحلات التجزئة، بصوت بشري استوديو واضح وعالي النقاء وجودة **1080p Full HD**:
 
 ---
 
-### 1️⃣ دورة البيع الكاملة وشاشة الكاشير الشاملة (POS Cashier Master Workflow)
+### 1. دورة البيع الكاملة وشاشة الكاشير (POS Cashier Master Workflow)
 
 <p align="center">
   <img src="docs/assets/demos/demo1_cashier_sale.gif" alt="دورة البيع السريع في رفيق" width="850" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);" />
@@ -49,12 +49,12 @@
 
 <p align="center">
   <a href="frontend/public/videos/video1_first_sale.mp4">
-    <img src="https://img.shields.io/badge/▶️_مشاهدة_الفيديو_الكامل_1080p_(47s)-صوت_استوديو_احترافي-006D41?style=for-the-badge&logo=youtube" alt="Play Video 1" />
+    <img src="docs/assets/badges/btn_watch_video1.png" width="410" alt="تشغيل فيديو دورة البيع والكاشير 1080p" />
   </a>
 </p>
 
 <details>
-<summary><b>🔍 تفاصيل سيناريو دورة البيع الكاملة (اضغط للتفاصيل)</b></summary>
+<summary><b>تفاصيل سيناريو دورة البيع الكاملة (اضغط للتفاصيل)</b></summary>
 
 * **مسح الباركود الذكي:** قراءة فورية مع معالجة وتصحيح تلقائي لحروف لوحة المفاتيح عند الكتابة باللغة العربية بالخطأ دون الحاجة لتحويل لغة الويندوز.
 * **البحث السريع بالكيبورد (`F2`):** كتابة الحروف الأولى، التنقل بالأسهم، والإنزال في السلة بـ `Enter` بدون لمس الفأرة نهائياً.
@@ -66,7 +66,7 @@
 
 ---
 
-### 2️⃣ إقفال الوردية واليومية ومطابقة الخزينة بالمليم (Shift Closing & Z-Report)
+### 2. إقفال الوردية ومطابقة الخزينة بالمليم (Shift Closing & Z-Report)
 
 <p align="center">
   <img src="docs/assets/demos/demo2_z_report.gif" alt="إقفال اليومية ومطابقة الخزينة Z-Report" width="850" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);" />
@@ -74,12 +74,12 @@
 
 <p align="center">
   <a href="frontend/public/videos/video2_z_report.mp4">
-    <img src="https://img.shields.io/badge/▶️_مشاهدة_فيديو_إقفال_اليومية_1080p_(37s)-صوت_استوديو_احترافي-006D41?style=for-the-badge&logo=youtube" alt="Play Video 2" />
+    <img src="docs/assets/badges/btn_watch_video2.png" width="410" alt="تشغيل فيديو إقفال اليومية Z-Report 1080p" />
   </a>
 </p>
 
 <details>
-<summary><b>🔍 تفاصيل سيناريو قفل الوردية والـ Z-Report (اضغط للتفاصيل)</b></summary>
+<summary><b>تفاصيل سيناريو قفل الوردية والـ Z-Report (اضغط للتفاصيل)</b></summary>
 
 * **الحساب التلقائي للعهد:** حساب إجمالي مبيعات الكاش، ومبيعات الآجل، والمرتجعات، والمصروفات، والمبلغ الفعلي المفترض وجوده في الخزينة.
 * **مطابقة النقد المعدود:** إدخال النقد الفعلي؛ وفي حال وجود أي عجز أو زيادة يقوم النظام بتوضيح الفارق بالمليم، وعند المطابقة التامة تظهر شارة الاعتماد الخضراء (100% تطابق تام).
@@ -89,7 +89,7 @@
 
 ---
 
-### 3️⃣ النسخ الاحتياطي وحزمة نقل المحل المستقلة (.rafiqpkg)
+### 3. النسخ الاحتياطي وحزمة نقل المحل المستقلة (.rafiqpkg Migration)
 
 <p align="center">
   <img src="docs/assets/demos/demo3_backup_restore.gif" alt="النسخ الاحتياطي ونقل المحل" width="850" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);" />
@@ -97,12 +97,12 @@
 
 <p align="center">
   <a href="frontend/public/videos/video3_backup_migration.mp4">
-    <img src="https://img.shields.io/badge/▶️_مشاهدة_فيديو_النسخ_الاحتياطي_1080p_(41s)-صوت_استوديو_احترافي-006D41?style=for-the-badge&logo=youtube" alt="Play Video 3" />
+    <img src="docs/assets/badges/btn_watch_video3.png" width="410" alt="تشغيل فيديو النسخ الاحتياطي ونقل المحل 1080p" />
   </a>
 </p>
 
 <details>
-<summary><b>🔍 تفاصيل سيناريو النسخ الاحتياطي والترحيل الشامل (اضغط للتفاصيل)</b></summary>
+<summary><b>تفاصيل سيناريو النسخ الاحتياطي والترحيل الشامل (اضغط للتفاصيل)</b></summary>
 
 * **النسخ الحي بضغطة زر (Zero-Downtime Backup):** أخذ نسخة احتياطية فورية دون إيقاف البيع باستخدام تقنية SQLite Backup API مع التحقق الآلي من سلامة الجداول عبر `PRAGMA integrity_check`.
 * **الحفظ المباشر على فلاشات USB الخارجية:** كشف تلقائي لأقراص التخزين الخارجية وحفظ النسخ بأسماء مؤرخة تلقائياً.
@@ -111,33 +111,33 @@
 
 ---
 
-## ✨ الميزات الجوهرية للنظام (Key Features)
+## الميزات الجوهرية للنظام (Key Features)
 
 | التصنيف | الميزة التقنية | الوصف التجاري والتطبيقي |
 | :--- | :--- | :--- |
-| **🚀 سرعة الكاشير** | **Zero-Mouse POS** | تنفيذ دورة البيع الكاملة عبر لوحة المفاتيح بنسبة 100% دون الحاجة لاستخدام الماوس. |
-| **🔍 البحث الذكي** | **Arabic Auto-Fix** | معالجة فورية عند كتابة الباركود أو اسم الصنف باللغة العربية خطأً وتحويله آلياً. |
-| **⚖️ الموازين الإلكترونية** | **Scale Integration** | دعم الموازين الإلكترونية عبر بروتوكولات الوزن القياسية لحساب الأسعار بالقروش فورياً. |
-| **📑 إدارة الديون والعملاء** | **Credit & Aging Ledger** | كشوف حسابات تفصيلية للعملاء، وتنبيهات فورية بحدود الائتمان وسجل فواتير الآجل. |
-| **🧾 الفواتير الحرارية** | **Raw ESC/POS Driver** | دعم مباشر لطابعات الفواتير 80mm و 57mm بدون الحاجة لتثبيت تعريفات ويندوز المعقدة. |
-| **🔒 الخزينة والورديات** | **Z-Report Reconciliation** | تقفيل اليومية ومطابقة العهدة النقدية ومنع التلاعب مع طباعة تقارير Z-Report الدقيقة. |
-| **🛡️ مناعة انقطاع الكهرباء** | **ACID WAL Protection** | استقرار كامل لقاعدة البيانات حتى عند سحب كابل الكهرباء أثناء طباعة الفاتورة. |
-| **📦 نقل المحل المتكامل** | **Portable .rafiqpkg** | حزم بيانات ذاتية النقل بضغطة زر واحدة للتنقل بين الأجهزة بدون استدعاء فني. |
+| **سرعة الكاشير** | **Zero-Mouse POS** | تنفيذ دورة البيع الكاملة عبر لوحة المفاتيح بنسبة 100% دون الحاجة لاستخدام الماوس. |
+| **البحث الذكي** | **Arabic Auto-Fix** | معالجة فورية عند كتابة الباركود أو اسم الصنف باللغة العربية خطأً وتحويله آلياً. |
+| **الموازين الإلكترونية** | **Scale Integration** | دعم الموازين الإلكترونية عبر بروتوكولات الوزن القياسية لحساب الأسعار بالقروش فورياً. |
+| **إدارة الديون والعملاء** | **Credit & Aging Ledger** | كشوف حسابات تفصيلية للعملاء، وتنبيهات فورية بحدود الائتمان وسجل فواتير الآجل. |
+| **الفواتير الحرارية** | **Raw ESC/POS Driver** | دعم مباشر لطابعات الفواتير 80mm و 57mm بدون الحاجة لتثبيت تعريفات ويندوز المعقدة. |
+| **الخزينة والورديات** | **Z-Report Reconciliation** | تقفيل اليومية ومطابقة العهدة النقدية ومنع التلاعب مع طباعة تقارير Z-Report الدقيقة. |
+| **مناعة انقطاع الكهرباء** | **ACID WAL Protection** | استقرار كامل لقاعدة البيانات حتى عند سحب كابل الكهرباء أثناء طباعة الفاتورة. |
+| **نقل المحل المتكامل** | **Portable .rafiqpkg** | حزم بيانات ذاتية النقل بضغطة زر واحدة للتنقل بين الأجهزة بدون استدعاء فني. |
 
 ---
 
-## 🏛️ المعمارية الهندسية والقواعد الصارمة (Architecture & Senior Invariants)
+## المعمارية الهندسية والقواعد الصارمة (Architecture & Senior Invariants)
 
 تم بناء نظام رفيق وفق معمارية فصل الطبقات الصارمة (Clean Architecture) لضمان الاستقرار التام وسرعة التنفيذ:
 
 ```mermaid
 graph TD
-    UI["🖥️ React 18 UI (RTL, Chromium 109 Optimized)"]
-    Bridge["🔌 Typed IPC Bridge (JSON-RPC + Request ID)"]
-    Host["⚙️ C# .NET Framework 4.8 Host Process"]
-    Services["📦 Application Core Services & State"]
-    DB[("💾 SQLite 3 WAL Mode Database")]
-    Hardware["🖨️ Hardware Layer (ESC/POS Printer, USB Scanner, Scale)"]
+    UI["React 18 UI (RTL, Chromium 109 Optimized)"]
+    Bridge["Typed IPC Bridge (JSON-RPC + Request ID)"]
+    Host["C# .NET Framework 4.8 Host Process"]
+    Services["Application Core Services & State"]
+    DB[("SQLite 3 WAL Mode Database")]
+    Hardware["Hardware Layer (ESC/POS Printer, USB Scanner, Scale)"]
 
     UI <-->|JSON IPC| Bridge
     Bridge <-->|WebView2 Native Core| Host
@@ -146,7 +146,7 @@ graph TD
     Services <--> Hardware
 ```
 
-### 🔴 القواعد البرمجية الست الصارمة (The 6 Invariants):
+### القواعد الهندسية الست الصارمة (Senior Engineering Invariants)
 
 1. **الأمان المالي المطلق (Integer Financial Arithmetic):**
    * ممنوع منعاً باتاً استخدام `float` أو `double` في أي عملية حسابية مالية أو تخزين للمبالغ.
@@ -168,7 +168,7 @@ graph TD
 
 ---
 
-## ⌨️ اختصارات الكاشير السريعة (Keyboard Speed Shortcuts F1-F12)
+## اختصارات الكاشير ولوحة المفاتيح (Keyboard Shortcuts F1-F12)
 
 | الاختصار | الوظيفة | الوصف العملي في بيئة السوبرماركت |
 | :---: | :--- | :--- |
@@ -183,31 +183,31 @@ graph TD
 | `F9` | **السداد النقدي السريع** | فتح نافذة الدفع النقدي وحساب الباقي بضغطة واحدة. |
 | `F10` | **الدفع الإلكتروني / فيزا** | السداد عبر نقاط البيع الإلكترونية (POS Card Terminal). |
 | `F11` | **إقفال اليومية (Z-Report)** | الانتقال المباشر لشاشة تقفيل الوردية وعد النقدية في الدرج. |
-| `F12` | **فتح درج النقدية يدparam** | إرسال نبضة كهربائية لفتح درج النقدية فوراً لحالات الصرف الطارئ. |
+| `F12` | **فتح درج النقدية يدوياً** | إرسال نبضة كهربائية لفتح درج النقدية فوراً لحالات الصرف الطارئ. |
 | `Esc` | **إلغاء / رجوع** | إغلاق أي نافذة منبثقة أو إلغاء السطر المحدد بالسلة. |
 
 ---
 
-## 🔌 مصفوفة الأجهزة والطرفيات المعتمدة (Certified Hardware Compatibility)
+## مصفوفة الأجهزة والطرفيات المعتمدة (Certified Hardware Compatibility)
 
 | نوع الجهاز | البروتوكول المدعوم | الموديلات والماركات المختبرة والمعتمدة |
 | :--- | :--- | :--- |
-| **🖨️ طابعات الفواتير الحرارية** | Direct USB / Virtual COM (ESC/POS) | Xprinter (XP-N160M, XP-Q800), Epson (TM-T20, TM-T88), Bixolon, Rongta, Sunmi (80mm & 57mm). |
-| **🔍 قارئات الباركود** | USB HID Keyboard Emulation / 1D & 2D | Honeywell Voyager, Zebra (Symbol LS2208), Datalogic QuickScan, Netum Wireless, Generic CCD Scanners. |
-| **⚖️ الموازين الإلكترونية** | RS-232 Serial COM / USB-to-Serial | CAS (PD-II, ER Plus), Rongta RLS1000, Mettler Toledo (Continuous Protocol: `ST,GS,+00.500kg`). |
-| **💵 أدراج النقدية** | RJ11 / RJ12 Kicker Pin (24V / 12V) | Standard Posiflex, Rongta, Xprinter Kick-out drawers (Drawer Pin 2/5). |
-| **🖥️ شاشات العرض للعميل** | VFD / Line Display (COM ESC/POS) | 2x20 Characters Customer Pole Displays. |
+| **طابعات الفواتير الحرارية** | Direct USB / Virtual COM (ESC/POS) | Xprinter (XP-N160M, XP-Q800), Epson (TM-T20, TM-T88), Bixolon, Rongta, Sunmi (80mm & 57mm). |
+| **قارئات الباركود** | USB HID Keyboard Emulation / 1D & 2D | Honeywell Voyager, Zebra (Symbol LS2208), Datalogic QuickScan, Netum Wireless, Generic CCD Scanners. |
+| **الموازين الإلكترونية** | RS-232 Serial COM / USB-to-Serial | CAS (PD-II, ER Plus), Rongta RLS1000, Mettler Toledo (Continuous Protocol: `ST,GS,+00.500kg`). |
+| **أدراج النقدية** | RJ11 / RJ12 Kicker Pin (24V / 12V) | Standard Posiflex, Rongta, Xprinter Kick-out drawers (Drawer Pin 2/5). |
+| **شاشات العرض للعميل** | VFD / Line Display (COM ESC/POS) | 2x20 Characters Customer Pole Displays. |
 
 ---
 
-## 🛡️ الأمان المالي ومقاومة انقطاع الكهرباء (Financial Integrity & Disaster Recovery)
+## الأمان المالي ومقاومة انقطاع الكهرباء (Financial Integrity & Disaster Recovery)
 
 ```
 [انقطاع كهرباء مفاجئ] 
-       ⚡
-[سجل الكتابة المسبق WAL مفعّل] ───► [استرجاع فوري لآخر معاملة ناجحة عند الإقلاع]
-       │
-       └──► [حظر الحذف المادي: أي تسوية تتم بقيد محاسبي معاكس (Contra Entry)]
+       |
+[سجل الكتابة المسبق WAL مفعّل] ---> [استرجاع فوري لآخر معاملة ناجحة عند الإقلاع]
+       |
+       +---> [حظر الحذف المادي: أي تسوية تتم بقيد محاسبي معاكس (Contra Entry)]
 ```
 
 * **بيانات نقدية محمية:** حفظ مستمر لكل سطر في الفاتورة داخل سجل الـ WAL؛ لا تفقد أي فاتورة حتى وإن أُغلق الجهاز بنزع القابس مباشرة.
@@ -216,7 +216,7 @@ graph TD
 
 ---
 
-## 📂 هيكل المشروع (Project Directory Layout)
+## هيكل المشروع (Project Directory Layout)
 
 ```
 RAFIQ/
@@ -225,7 +225,8 @@ RAFIQ/
 ├── CERTIFIED_HARDWARE_GUIDE.md   # دليل توصيل وضبط الطابعات والموازين وقارئات الباركود
 ├── UI_DESIGN_CATALOG.md          # كتالوج ومراجع واجهات وتصاميم النظام
 ├── branding/                     # الهوية البصرية الرسمية والأيقونات عالية الدقة
-│   ├── logo_full.png             # شعار النظام الرسمي
+│   ├── logo_full.png             # شعار النظام الرسمي للوضع الفاتح
+│   ├── logo_full_dark.png        # شعار النظام عالي التباين للوضع الداكن
 │   └── app_icon_512.png          # أيقونة التطبيق بدقة 512x512
 ├── docs/                         # التوثيق والعروض التوضيحية
 │   └── assets/demos/             # العروض المتحركة المصغرة (GIFs & Posters)
@@ -245,7 +246,7 @@ RAFIQ/
 
 ---
 
-## 🚀 التشغيل السريع للمستخدم والمطور (Quick Start Guide)
+## دليل التشغيل السريع (Quick Start Guide)
 
 ### أولاً: للمستخدم وصاحب السوبرماركت (Store Run)
 
@@ -289,7 +290,7 @@ MSBuild desktop\RafiqPOS.csproj /p:Configuration=Release /p:Platform="Any CPU"
 
 ---
 
-## 📦 بناء ملف التثبيت المستقل (Production Installer Build)
+## بناء ملف التثبيت المستقل (Production Packaging)
 
 يتم إنتاج ملف تثبيت تنفيذي واحد مستقل تماماً بحجم مضغوط يحتوي على كافة مكونات النظام ومحرك الويب المدمج ليعمل على أي كمبيوتر ويندوز 7 أو 10 أو 11 بدون إنترنت:
 
@@ -307,7 +308,7 @@ MSBuild desktop\RafiqPOS.csproj /p:Configuration=Release /p:Platform="Any CPU"
 
 ---
 
-## 🗺️ خارطة الطريق والتقدم (Roadmap & Status)
+## خارطة الطريق والتقدم (Roadmap & Status)
 
 النظام يتم تطويره وفق منهجية المحطات الصارمة (12 محطة و 413 مهمة معمارية موثقة في [PROJECT_BACKLOG.md](./PROJECT_BACKLOG.md)):
 
