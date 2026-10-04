@@ -52,6 +52,8 @@ const PAPER_SIZES = [
   { value: 'a4_40', label: 'ورق A4 ملصقات (40 ملصق: 4 أعمدة × 10 صفوف - 52×30 مم)', widthMm: 52, heightMm: 30 },
 ];
 
+const DEFAULT_EXPIRY_FALLBACK = new Date(Date.now() + 180 * 86400000).toISOString().split('T')[0];
+
 /**
  * مكوّن رسم الباركود الدقيق كـ SVG باستخدام خوارزمية Code 128
  */
@@ -279,10 +281,6 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
 
   const currentPreviewItem = queue[previewIndex] || queue[0] || null;
 
-  // Memoize default expiry date for render purity
-  const defaultExpiryStr = useMemo(() => {
-    return new Date(Date.now() + 180 * 86400000).toISOString().split('T')[0];
-  }, []);
 
   // Selected paper specs
   const selectedPaper = useMemo(() => {
@@ -647,7 +645,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
                     {/* Expiry Date */}
                     {config.showExpiryDate && (
                       <div className="text-[8px] text-ink-muted mt-0.5 font-mono">
-                        صلاحية: {currentPreviewItem.expiryDate || defaultExpiryStr}
+                        صلاحية: {currentPreviewItem.expiryDate || DEFAULT_EXPIRY_FALLBACK}
                       </div>
                     )}
                   </div>

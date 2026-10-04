@@ -89,8 +89,11 @@ emblem_arr[:, :16, 3] = 0
 emblem_arr[:, -16:, 3] = 0
 
 emblem_clean = Image.fromarray(emblem_arr.astype(np.uint8), 'RGBA')
-ebbox = emblem_clean.getbbox()
-emblem_exact = emblem_clean.crop(ebbox)
+solid_mask = emblem_arr[:, :, 3] > 60
+coords = np.argwhere(solid_mask)
+y0, x0 = coords.min(axis=0)
+y1, x1 = coords.max(axis=0)
+emblem_exact = emblem_clean.crop((x0, y0, x1 + 1, y1 + 1))
 
 # تصدير logo.png بدقة فائقة 1024x1024 مع ظل ناعم
 ew, eh = emblem_exact.size
@@ -129,7 +132,7 @@ print("✔ [2/6] تم حفظ الشعار الأبيض النقي بدقة فا�
 # -------------------------------------------------------------
 # د) بناء كارت أيقونة التطبيق بدقة فائقة (Squircle App Icon - 512x512)
 # -------------------------------------------------------------
-# تصميم كارت أيقونة عصري فخم بتدرج زمردي غامق وشعار عالي التباين
+# تصميم كارت أيقونة عصري فخم بتدرج زمردي غامق وشعار عالي التباين متمركز تماماً
 app_icon = Image.new('RGBA', (512, 512), (0, 0, 0, 0))
 
 # 1. ظل خفيف ناعم للأيقونة
@@ -160,8 +163,7 @@ bdraw_top = ImageDraw.Draw(base)
 bdraw_top.rounded_rectangle([20, 20, 492, 492], radius=110, outline=(30, 190, 140, 180), width=3)
 app_icon = Image.alpha_composite(app_icon, base)
 
-# 3. وضع الشعار عالي التباين في المنتصف (يشغل 74% من مساحة الكارت)
-# إبراز خطوط الباركود والسهم باللون الأبيض والنعناعي لتباين فائق على الخلفية الداكنة
+# 3. وضع الشعار عالي التباين في المنتصف بدقة متناظرة تامة
 arr_emb = np.array(emblem_exact, dtype=float).copy()
 is_barcode = (arr_emb[:, :, 3] > 60) & (arr_emb[:, :, 0] < 70) & (arr_emb[:, :, 1] < 70) & (arr_emb[:, :, 2] < 70)
 arr_emb[is_barcode, :3] = 255
@@ -171,9 +173,10 @@ ebbox_hc = high_contrast_emblem.getbbox()
 if ebbox_hc:
     high_contrast_emblem = high_contrast_emblem.crop(ebbox_hc)
 
-target_icon_h = 360
-scale_icon = target_icon_h / float(high_contrast_emblem.height)
+target_icon_size = 368
+scale_icon = target_icon_size / float(max(high_contrast_emblem.width, high_contrast_emblem.height))
 target_icon_w = int(high_contrast_emblem.width * scale_icon)
+target_icon_h = int(high_contrast_emblem.height * scale_icon)
 scaled_icon_emblem = high_contrast_emblem.resize((target_icon_w, target_icon_h), Image.Resampling.LANCZOS)
 
 ix = (512 - target_icon_w) // 2
@@ -182,7 +185,7 @@ app_icon.paste(scaled_icon_emblem, (ix, iy), scaled_icon_emblem)
 
 app_icon_512_path = os.path.join(BRANDING_DIR, 'app_icon_512.png')
 app_icon.save(app_icon_512_path, optimize=True)
-print("✔ [3/6] تم حفظ كارت الأيقونة فائق الحدة: branding/app_icon_512.png")
+print(f"✔ [3/6] تم حفظ كارت الأيقونة المتمركز تماماً 512x512 (الهوامش: {ix-20}px متطابقة)")
 
 # -------------------------------------------------------------
 # هـ) توليد ملف الأيقونة لويندوز فائق النقاء (Pure Multi-Layer PNG ICO)

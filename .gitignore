@@ -66,3 +66,10 @@ video_generator/renders/
 video_generator/voiceovers/
 video_generator/temp_recording/
 video_generator/**/temp_recording/
+
+# Python Cache & Temp Files
+__pycache__/
+*.py[cod]
+*$py.class
+*.bak
+
