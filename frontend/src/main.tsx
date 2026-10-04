@@ -1,3 +1,4 @@
+import './utils/numberEnforcer.ts'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import '@fontsource/ibm-plex-sans-arabic/400.css'

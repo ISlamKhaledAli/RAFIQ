@@ -19,16 +19,24 @@
     --danger: #B23A2E;
   }
 
-  * {
+  *,
+  *::before,
+  *::after {
     box-sizing: border-box;
     user-select: none;
     -webkit-user-select: none;
+    font-variant-numeric: lining-nums tabular-nums;
+    -webkit-font-feature-settings: "lnum" 1, "tnum" 1, "locl" 0, "anum" 0;
+    font-feature-settings: "lnum" 1, "tnum" 1, "locl" 0, "anum" 0;
   }
   
   input, textarea, select {
     user-select: text;
     -webkit-user-select: text;
     font-family: 'IBM Plex Sans Arabic', 'Cairo', 'Tajawal', 'Segoe UI', Tahoma, sans-serif;
+    font-variant-numeric: lining-nums tabular-nums;
+    -webkit-font-feature-settings: "lnum" 1, "tnum" 1, "locl" 0, "anum" 0;
+    font-feature-settings: "lnum" 1, "tnum" 1, "locl" 0, "anum" 0;
   }
 
   /* High-clarity Arabic placeholder font & letter-spacing fix */
@@ -177,8 +185,8 @@
 .tabular-nums,
 .font-mono {
   font-variant-numeric: tabular-nums lining-nums;
-  -webkit-font-feature-settings: "tnum" 1, "lnum" 1;
-  font-feature-settings: "tnum" 1, "lnum" 1;
+  -webkit-font-feature-settings: "tnum" 1, "lnum" 1, "locl" 0, "anum" 0;
+  font-feature-settings: "tnum" 1, "lnum" 1, "locl" 0, "anum" 0;
 }
 
 /* Hairline Grid Borders */

@@ -14,6 +14,12 @@ namespace RafiqPOS
         [STAThread]
         static void Main(string[] args)
         {
+            // Enforce Invariant Culture across all threads to prevent any Eastern Arabic numeral formatting on Arabic Windows
+            System.Globalization.CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
+            System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = System.Globalization.CultureInfo.InvariantCulture;
+            Thread.CurrentThread.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
+            Thread.CurrentThread.CurrentUICulture = System.Globalization.CultureInfo.InvariantCulture;
+
             bool isDemoError = false;
             if (args != null)
             {

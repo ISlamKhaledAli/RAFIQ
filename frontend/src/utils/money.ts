@@ -4,17 +4,17 @@
  * تمنع أي تراكم لأخطاء الفاصلة العشرية في العمليات الحسابية
  */
 
+import { normalizeArabicDigits, normalizeNumericInput } from './numberEnforcer.ts';
+
+export { normalizeArabicDigits, normalizeNumericInput };
+
 /**
  * تحويل الأرقام العربية المشرقية والفارسية والفاصلة العربية إلى أرقام قياسية (Feature #130 / Task 130-1)
  * @param str النص الذي قد يحتوي على أرقام ٠-٩ أو ۰-۹ أو فواصل ،
  * @returns النص بأرقام لاتينية 0-9 مع نقطة عشرية .
  */
-export function normalizeArabicNumerals(str: string): string {
-  if (!str) return '';
-  return str
-    .replace(/[٠-٩]/g, (d) => (d.charCodeAt(0) - 1632).toString())
-    .replace(/[۰-۹]/g, (d) => (d.charCodeAt(0) - 1776).toString())
-    .replace(/[،٫]/g, '.');
+export function normalizeArabicNumerals(str: string | number | null | undefined): string {
+  return normalizeNumericInput(str);
 }
 
 /**
@@ -170,5 +170,65 @@ export function distributeInvoiceDiscount(
   }
 
   return shares;
+}
+
+/**
+ * تنسيق رقم قياسي مع فواصل آلاف ونظام أرقام لاتيني موحد
+ */
+export function formatNumber(
+  val: number | string | null | undefined,
+  minDecimals = 0,
+  maxDecimals = 2
+): string {
+  if (val === null || val === undefined || val === '') return '0';
+  const num = typeof val === 'number' ? val : parseFloat(normalizeArabicDigits(val));
+  if (isNaN(num)) return '0';
+  return num.toLocaleString('en-US', {
+    minimumFractionDigits: minDecimals,
+    maximumFractionDigits: maxDecimals,
+  });
+}
+
+/**
+ * تنسيق التاريخ بنظام أرقام لاتيني موحد مع أسماء الشهور/الأيام العربية
+ */
+export function formatDateOnly(date: string | Date | number | null | undefined): string {
+  if (!date) return '—';
+  const d = typeof date === 'object' && date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return String(date);
+  return d.toLocaleDateString('ar-EG-u-nu-latn', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+}
+
+/**
+ * تنسيق الوقت بنظام أرقام لاتيني موحد
+ */
+export function formatTimeOnly(date: string | Date | number | null | undefined): string {
+  if (!date) return '—';
+  const d = typeof date === 'object' && date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return String(date);
+  return d.toLocaleTimeString('ar-EG-u-nu-latn', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+/**
+ * تنسيق التاريخ والوقت معاً بنظام أرقام لاتيني موحد
+ */
+export function formatDateTime(date: string | Date | number | null | undefined): string {
+  if (!date) return '—';
+  const d = typeof date === 'object' && date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return String(date);
+  return d.toLocaleString('ar-EG-u-nu-latn', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
