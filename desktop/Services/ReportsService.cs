@@ -1032,5 +1032,1098 @@ namespace RafiqPOS.Services
 
             return report;
         }
+
+        // ==========================================
+        // 📊 ADVANCED ANALYTICS & REPORTING METHODS
+        // ==========================================
+
+        private string GetDateClause(string period, string customFrom, string customTo, string column)
+        {
+            if (period == "yesterday")
+            {
+                return string.Format("date({0}, 'localtime') = date('now', 'localtime', '-1 day')", column);
+            }
+            if (period == "week")
+            {
+                return string.Format("date({0}, 'localtime') >= date('now', 'localtime', '-7 days')", column);
+            }
+            if (period == "month")
+            {
+                return string.Format("date({0}, 'localtime') >= date('now', 'localtime', '-30 days')", column);
+            }
+            if (period == "3months")
+            {
+                return string.Format("date({0}, 'localtime') >= date('now', 'localtime', '-90 days')", column);
+            }
+            if (period == "year")
+            {
+                return string.Format("date({0}, 'localtime') >= date('now', 'localtime', '-365 days')", column);
+            }
+            if (period == "custom" && !string.IsNullOrEmpty(customFrom) && !string.IsNullOrEmpty(customTo))
+            {
+                return string.Format("date({0}, 'localtime') >= date(@from) AND date({0}, 'localtime') <= date(@to)", column);
+            }
+            return string.Format("(date({0}, 'localtime') = date('now', 'localtime') OR date({0}) = date('now'))", column);
+        }
+
+        private void BindCustomDates(SQLiteCommand cmd, string period, string customFrom, string customTo)
+        {
+            if (period == "custom" && !string.IsNullOrEmpty(customFrom) && !string.IsNullOrEmpty(customTo))
+            {
+                cmd.Parameters.AddWithValue("@from", customFrom);
+                cmd.Parameters.AddWithValue("@to", customTo);
+            }
+        }
+
+        public InventoryLossReport GetInventoryLossReport(string period, string customFrom, string customTo)
+        {
+            var report = new InventoryLossReport();
+            string dateClause = GetDateClause(period, customFrom, customTo, "sm.created_at");
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+
+                string sumSql = string.Format(@"
+                    SELECT 
+                        COALESCE(SUM(CASE WHEN sm.quantity_milli < 0 THEN (ABS(sm.quantity_milli) * COALESCE(NULLIF(sm.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), p.price_piasters, 0)) / 1000 ELSE 0 END), 0) AS total_loss,
+                        COALESCE(SUM(CASE WHEN sm.quantity_milli > 0 THEN (sm.quantity_milli * COALESCE(NULLIF(sm.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), p.price_piasters, 0)) / 1000 ELSE 0 END), 0) AS total_surplus,
+                        COALESCE(SUM(CASE WHEN sm.quantity_milli < 0 AND (sm.note LIKE '%تالف%' OR sm.note LIKE '%كسر%' OR sm.note LIKE '%صلاحية%') THEN (ABS(sm.quantity_milli) * COALESCE(NULLIF(sm.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), p.price_piasters, 0)) / 1000 ELSE 0 END), 0) AS total_damage,
+                        COALESCE(SUM(CASE WHEN sm.quantity_milli < 0 AND (sm.note LIKE '%هدية%' OR sm.note LIKE '%عينة%' OR sm.note LIKE '%ضيافة%') THEN (ABS(sm.quantity_milli) * COALESCE(NULLIF(sm.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), p.price_piasters, 0)) / 1000 ELSE 0 END), 0) AS total_gifts
+                    FROM stock_movements sm
+                    LEFT JOIN products p ON sm.product_id = p.id
+                    WHERE sm.movement_type = 'ADJUSTMENT' AND {0};
+                ", dateClause);
+
+                using (var cmd = new SQLiteCommand(sumSql, conn))
+                {
+                    BindCustomDates(cmd, period, customFrom, customTo);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            report.TotalLossPiasters = Convert.ToInt64(reader["total_loss"]);
+                            report.TotalSurplusPiasters = Convert.ToInt64(reader["total_surplus"]);
+                            report.TotalDamagePiasters = Convert.ToInt64(reader["total_damage"]);
+                            report.TotalGiftsPiasters = Convert.ToInt64(reader["total_gifts"]);
+                        }
+                    }
+                }
+
+                string itemsSql = string.Format(@"
+                    SELECT 
+                        sm.product_id,
+                        COALESCE(p.name, 'صنف غير مسجل') AS product_name,
+                        COALESCE(p.unit, 'piece') AS unit,
+                        sm.quantity_milli,
+                        COALESCE(NULLIF(sm.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), p.price_piasters, 0) AS unit_cost,
+                        (ABS(sm.quantity_milli) * COALESCE(NULLIF(sm.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), p.price_piasters, 0)) / 1000 AS fin_impact,
+                        COALESCE(sm.note, 'تسوية') AS note,
+                        sm.created_at
+                    FROM stock_movements sm
+                    LEFT JOIN products p ON sm.product_id = p.id
+                    WHERE sm.movement_type = 'ADJUSTMENT' AND sm.quantity_milli < 0 AND {0}
+                    ORDER BY fin_impact DESC
+                    LIMIT 20;
+                ", dateClause);
+
+                using (var cmd = new SQLiteCommand(itemsSql, conn))
+                {
+                    BindCustomDates(cmd, period, customFrom, customTo);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            report.TopLossItems.Add(new InventoryLossItem
+                            {
+                                ProductId = reader["product_id"].ToString(),
+                                ProductName = reader["product_name"].ToString(),
+                                Unit = reader["unit"].ToString(),
+                                QuantityDeltaMilli = Convert.ToInt64(reader["quantity_milli"]),
+                                UnitCostPiasters = Convert.ToInt64(reader["unit_cost"]),
+                                FinancialImpactPiasters = Convert.ToInt64(reader["fin_impact"]),
+                                Reason = reader["note"].ToString(),
+                                CreatedAt = reader["created_at"].ToString()
+                            });
+                        }
+                    }
+                }
+            }
+
+            return report;
+        }
+
+        public List<ClosingHistoryRecord> GetClosingHistory(string period, string customFrom, string customTo)
+        {
+            var list = new List<ClosingHistoryRecord>();
+            string dateClause = GetDateClause(period, customFrom, customTo, "closed_at");
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+
+                string sql = string.Format(@"
+                    SELECT 
+                        id,
+                        business_date,
+                        closing_number,
+                        COALESCE(cashier_name, 'المدير') AS cashier_name,
+                        total_sales_piasters,
+                        cash_sales_piasters,
+                        credit_sales_piasters,
+                        returns_total_piasters,
+                        (total_sales_piasters - returns_total_piasters) AS net_sales_piasters,
+                        gross_profit_piasters,
+                        expected_cash_piasters,
+                        actual_cash_piasters,
+                        difference_piasters,
+                        closed_at,
+                        COALESCE(notes, '') AS notes
+                    FROM daily_closings
+                    WHERE {0}
+                    ORDER BY closed_at DESC
+                    LIMIT 50;
+                ", dateClause);
+
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    BindCustomDates(cmd, period, customFrom, customTo);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            list.Add(new ClosingHistoryRecord
+                            {
+                                Id = reader["id"].ToString(),
+                                ClosingDate = reader["business_date"].ToString(),
+                                ShiftNumber = Convert.ToInt32(reader["closing_number"]),
+                                CashierName = reader["cashier_name"].ToString(),
+                                TotalSalesPiasters = Convert.ToInt64(reader["total_sales_piasters"]),
+                                CashSalesPiasters = Convert.ToInt64(reader["cash_sales_piasters"]),
+                                CreditSalesPiasters = Convert.ToInt64(reader["credit_sales_piasters"]),
+                                ReturnsPiasters = Convert.ToInt64(reader["returns_total_piasters"]),
+                                NetSalesPiasters = Convert.ToInt64(reader["net_sales_piasters"]),
+                                GrossProfitPiasters = Convert.ToInt64(reader["gross_profit_piasters"]),
+                                ExpectedCashPiasters = Convert.ToInt64(reader["expected_cash_piasters"]),
+                                ActualCashPiasters = Convert.ToInt64(reader["actual_cash_piasters"]),
+                                DifferencePiasters = Convert.ToInt64(reader["difference_piasters"]),
+                                IsClosed = true,
+                                CreatedAt = reader["closed_at"].ToString(),
+                                Notes = reader["notes"].ToString()
+                            });
+                        }
+                    }
+                }
+            }
+
+            return list;
+        }
+
+        public List<CategoryPerformanceItem> GetCategoryPerformance(string period, string customFrom, string customTo)
+        {
+            var list = new List<CategoryPerformanceItem>();
+            string dateClause = GetDateClause(period, customFrom, customTo, "s.created_at");
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+
+                string sql = string.Format(@"
+                    SELECT 
+                        COALESCE(c.id, 'uncategorized') AS category_id,
+                        COALESCE(c.name, 'بدون قسم / عام') AS category_name,
+                        COALESCE(SUM(si.total_piasters), 0) AS total_sales,
+                        COALESCE(SUM((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000), 0) AS total_cost,
+                        COALESCE(SUM(si.quantity_milli) / 1000, 0) AS items_qty
+                    FROM sale_items si
+                    INNER JOIN sales s ON si.sale_id = s.id
+                    LEFT JOIN products p ON si.product_id = p.id
+                    LEFT JOIN categories c ON p.category_id = c.id
+                    WHERE s.status != 'cancelled'
+                      AND s.id NOT LIKE 'demo_%'
+                      AND s.id NOT LIKE 'stress_%'
+                      AND {0}
+                    GROUP BY c.id, c.name
+                    ORDER BY total_sales DESC;
+                ", dateClause);
+
+                long grandTotalSales = 0;
+
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    BindCustomDates(cmd, period, customFrom, customTo);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            long sales = Convert.ToInt64(reader["total_sales"]);
+                            long cost = Convert.ToInt64(reader["total_cost"]);
+                            long profit = sales - cost;
+                            double margin = sales > 0 ? ((double)profit * 100.0) / sales : 0.0;
+                            grandTotalSales += sales;
+
+                            list.Add(new CategoryPerformanceItem
+                            {
+                                CategoryId = reader["category_id"].ToString(),
+                                CategoryName = reader["category_name"].ToString(),
+                                TotalSalesPiasters = sales,
+                                TotalCostPiasters = cost,
+                                GrossProfitPiasters = profit,
+                                ProfitMarginPercent = Math.Round(margin, 1),
+                                ItemsSoldQty = Convert.ToInt32(reader["items_qty"]),
+                                SalesSharePercent = 0.0
+                            });
+                        }
+                    }
+                }
+
+                if (grandTotalSales > 0)
+                {
+                    for (int i = 0; i < list.Count; i++)
+                    {
+                        list[i].SalesSharePercent = Math.Round(((double)list[i].TotalSalesPiasters * 100.0) / grandTotalSales, 1);
+                    }
+                }
+            }
+
+            return list;
+        }
+
+        public List<ItemProfitabilityItem> GetItemProfitability(string period, int limit, string direction)
+        {
+            var list = new List<ItemProfitabilityItem>();
+            string dateClause = GetDateClause(period, null, null, "s.created_at");
+            string orderDirection = (direction == "asc") ? "ASC" : "DESC";
+            int fetchLimit = (limit > 0 && limit <= 100) ? limit : 20;
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+
+                string sql = string.Format(@"
+                    SELECT 
+                        si.product_id,
+                        si.product_name,
+                        COALESCE(p.barcode, '') AS barcode,
+                        COALESCE(c.name, 'عام') AS category_name,
+                        COALESCE(NULLIF(p.cost_piasters, 0), 0) AS unit_cost,
+                        COALESCE(p.price_piasters, 0) AS unit_price,
+                        COALESCE(SUM(si.quantity_milli), 0) AS qty_milli,
+                        COALESCE(SUM(si.total_piasters), 0) AS total_sales,
+                        COALESCE(SUM((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000), 0) AS total_cost
+                    FROM sale_items si
+                    INNER JOIN sales s ON si.sale_id = s.id
+                    LEFT JOIN products p ON si.product_id = p.id
+                    LEFT JOIN categories c ON p.category_id = c.id
+                    WHERE s.status != 'cancelled'
+                      AND s.id NOT LIKE 'demo_%'
+                      AND s.id NOT LIKE 'stress_%'
+                      AND {0}
+                    GROUP BY si.product_id, si.product_name
+                    ORDER BY (total_sales - total_cost) {1}
+                    LIMIT {2};
+                ", dateClause, orderDirection, fetchLimit);
+
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            long sales = Convert.ToInt64(reader["total_sales"]);
+                            long cost = Convert.ToInt64(reader["total_cost"]);
+                            long profit = sales - cost;
+                            long unitCost = Convert.ToInt64(reader["unit_cost"]);
+                            double margin = sales > 0 ? ((double)profit * 100.0) / sales : 0.0;
+
+                            list.Add(new ItemProfitabilityItem
+                            {
+                                ProductId = reader["product_id"].ToString(),
+                                ProductName = reader["product_name"].ToString(),
+                                Barcode = reader["barcode"].ToString(),
+                                CategoryName = reader["category_name"].ToString(),
+                                UnitCostPiasters = unitCost,
+                                UnitPricePiasters = Convert.ToInt64(reader["unit_price"]),
+                                QuantitySoldMilli = Convert.ToInt64(reader["qty_milli"]),
+                                TotalSalesPiasters = sales,
+                                TotalCostPiasters = cost,
+                                GrossProfitPiasters = profit,
+                                MarginPercent = Math.Round(margin, 1),
+                                IsNegativeMargin = profit < 0,
+                                IsZeroCost = unitCost == 0
+                            });
+                        }
+                    }
+                }
+            }
+
+            return list;
+        }
+
+        public PeriodComparisonReport GetPeriodComparison(string period)
+        {
+            var report = new PeriodComparisonReport();
+            string curClause, prevClause;
+            string curName, prevName;
+
+            if (period == "month")
+            {
+                curName = "هذا الشهر";
+                prevName = "الشهر السابق";
+                curClause = "date(created_at, 'localtime') >= date('now', 'localtime', '-30 days')";
+                prevClause = "date(created_at, 'localtime') >= date('now', 'localtime', '-60 days') AND date(created_at, 'localtime') < date('now', 'localtime', '-30 days')";
+            }
+            else if (period == "today")
+            {
+                curName = "اليوم";
+                prevName = "أمس";
+                curClause = "date(created_at, 'localtime') = date('now', 'localtime')";
+                prevClause = "date(created_at, 'localtime') = date('now', 'localtime', '-1 day')";
+            }
+            else if (period == "yesterday")
+            {
+                curName = "أمس";
+                prevName = "أول أمس";
+                curClause = "date(created_at, 'localtime') = date('now', 'localtime', '-1 day')";
+                prevClause = "date(created_at, 'localtime') = date('now', 'localtime', '-2 days')";
+            }
+            else
+            {
+                // default week
+                curName = "هذا الأسبوع";
+                prevName = "الأسبوع السابق";
+                curClause = "date(created_at, 'localtime') >= date('now', 'localtime', '-7 days')";
+                prevClause = "date(created_at, 'localtime') >= date('now', 'localtime', '-14 days') AND date(created_at, 'localtime') < date('now', 'localtime', '-7 days')";
+            }
+
+            report.CurrentPeriodName = curName;
+            report.PreviousPeriodName = prevName;
+
+            try
+            {
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+
+                // Current period stats
+                string curSql = string.Format(@"
+                    SELECT 
+                        COALESCE(SUM(total_piasters), 0) AS sales,
+                        COUNT(*) AS inv_count
+                    FROM sales 
+                    WHERE status != 'cancelled' AND id NOT LIKE 'demo_%' AND id NOT LIKE 'stress_%' AND {0};
+                ", curClause);
+
+                using (var cmd = new SQLiteCommand(curSql, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        report.Sales.Current = Convert.ToInt64(reader["sales"]);
+                        report.InvoiceCount.Current = Convert.ToInt32(reader["inv_count"]);
+                    }
+                }
+
+                // Previous period stats
+                string prevSql = string.Format(@"
+                    SELECT 
+                        COALESCE(SUM(total_piasters), 0) AS sales,
+                        COUNT(*) AS inv_count
+                    FROM sales 
+                    WHERE status != 'cancelled' AND id NOT LIKE 'demo_%' AND id NOT LIKE 'stress_%' AND {0};
+                ", prevClause);
+
+                using (var cmd = new SQLiteCommand(prevSql, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        report.Sales.Previous = Convert.ToInt64(reader["sales"]);
+                        report.InvoiceCount.Previous = Convert.ToInt32(reader["inv_count"]);
+                    }
+                }
+
+                // Current profit
+                string curProfSql = string.Format(@"
+                    SELECT COALESCE(SUM(si.total_piasters - ((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000)), 0) AS profit
+                    FROM sale_items si
+                    INNER JOIN sales s ON si.sale_id = s.id
+                    LEFT JOIN products p ON si.product_id = p.id
+                    WHERE s.status != 'cancelled' AND s.id NOT LIKE 'demo_%' AND s.id NOT LIKE 'stress_%' AND {0};
+                ", curClause.Replace("created_at", "s.created_at"));
+
+                using (var cmd = new SQLiteCommand(curProfSql, conn))
+                {
+                    object res = cmd.ExecuteScalar();
+                    if (res != null && res != DBNull.Value) report.Profit.Current = Convert.ToInt64(res);
+                }
+
+                // Previous profit
+                string prevProfSql = string.Format(@"
+                    SELECT COALESCE(SUM(si.total_piasters - ((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000)), 0) AS profit
+                    FROM sale_items si
+                    INNER JOIN sales s ON si.sale_id = s.id
+                    LEFT JOIN products p ON si.product_id = p.id
+                    WHERE s.status != 'cancelled' AND s.id NOT LIKE 'demo_%' AND s.id NOT LIKE 'stress_%' AND {0};
+                ", prevClause.Replace("created_at", "s.created_at"));
+
+                using (var cmd = new SQLiteCommand(prevProfSql, conn))
+                {
+                    object res = cmd.ExecuteScalar();
+                    if (res != null && res != DBNull.Value) report.Profit.Previous = Convert.ToInt64(res);
+                }
+            }
+
+            // Calculate deltas & percentages
+            report.Sales.DeltaPiasters = report.Sales.Current - report.Sales.Previous;
+            report.Sales.PercentChange = report.Sales.Previous > 0 ? Math.Round(((double)report.Sales.DeltaPiasters * 100.0) / report.Sales.Previous, 1) : 0.0;
+
+            report.Profit.DeltaPiasters = report.Profit.Current - report.Profit.Previous;
+            report.Profit.PercentChange = report.Profit.Previous > 0 ? Math.Round(((double)report.Profit.DeltaPiasters * 100.0) / report.Profit.Previous, 1) : 0.0;
+
+            int invDelta = report.InvoiceCount.Current - report.InvoiceCount.Previous;
+            report.InvoiceCount.PercentChange = report.InvoiceCount.Previous > 0 ? Math.Round(((double)invDelta * 100.0) / report.InvoiceCount.Previous, 1) : 0.0;
+
+            long curAvg = report.InvoiceCount.Current > 0 ? report.Sales.Current / report.InvoiceCount.Current : 0;
+            long prevAvg = report.InvoiceCount.Previous > 0 ? report.Sales.Previous / report.InvoiceCount.Previous : 0;
+            report.AvgInvoicePiasters.Current = curAvg;
+            report.AvgInvoicePiasters.Previous = prevAvg;
+            report.AvgInvoicePiasters.DeltaPiasters = curAvg - prevAvg;
+            report.AvgInvoicePiasters.PercentChange = prevAvg > 0 ? Math.Round(((double)(curAvg - prevAvg) * 100.0) / prevAvg, 1) : 0.0;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("GetPeriodComparison error: " + ex.Message);
+            }
+
+            return report;
+        }
+
+        public InventoryOverviewReport GetInventoryOverview()
+        {
+            var report = new InventoryOverviewReport();
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+
+                string prodSql = @"
+                    SELECT 
+                        COUNT(*) AS total_count,
+                        COALESCE(SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END), 0) AS active_count,
+                        COALESCE(SUM(CASE WHEN is_active = 1 AND stock_quantity_milli <= 0 THEN 1 ELSE 0 END), 0) AS out_of_stock,
+                        COALESCE(SUM(CASE WHEN is_active = 1 AND stock_quantity_milli > 0 AND stock_quantity_milli <= min_stock_quantity_milli THEN 1 ELSE 0 END), 0) AS low_stock,
+                        COALESCE(SUM(CASE WHEN is_active = 1 AND stock_quantity_milli > 0 THEN (stock_quantity_milli * cost_piasters) / 1000 ELSE 0 END), 0) AS total_cost,
+                        COALESCE(SUM(CASE WHEN is_active = 1 AND stock_quantity_milli > 0 THEN (stock_quantity_milli * price_piasters) / 1000 ELSE 0 END), 0) AS total_retail
+                    FROM products;
+                ";
+
+                using (var cmd = new SQLiteCommand(prodSql, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        report.TotalProductsCount = Convert.ToInt32(reader["total_count"]);
+                        report.ActiveProductsCount = Convert.ToInt32(reader["active_count"]);
+                        report.OutOfStockCount = Convert.ToInt32(reader["out_of_stock"]);
+                        report.LowStockCount = Convert.ToInt32(reader["low_stock"]);
+                        report.TotalInventoryCostPiasters = Convert.ToInt64(reader["total_cost"]);
+                        report.TotalInventoryRetailPiasters = Convert.ToInt64(reader["total_retail"]);
+                        report.PotentialGrossProfitPiasters = report.TotalInventoryRetailPiasters - report.TotalInventoryCostPiasters;
+                        if (report.PotentialGrossProfitPiasters < 0) report.PotentialGrossProfitPiasters = 0;
+                    }
+                }
+
+                // Check batches expiry
+                try
+                {
+                    string batchSql = @"
+                        SELECT 
+                            COALESCE(SUM(CASE WHEN date(expiry_date) < date('now') THEN 1 ELSE 0 END), 0) AS expired_batches,
+                            COALESCE(SUM(CASE WHEN date(expiry_date) >= date('now') AND date(expiry_date) <= date('now', '+30 days') THEN 1 ELSE 0 END), 0) AS expiring_soon
+                        FROM product_batches
+                        WHERE status = 'ACTIVE' AND quantity_milli > 0 AND expiry_date IS NOT NULL;
+                    ";
+                    using (var cmd = new SQLiteCommand(batchSql, conn))
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            report.ExpiredBatchesCount = Convert.ToInt32(reader["expired_batches"]);
+                            report.ExpiringSoonBatchesCount = Convert.ToInt32(reader["expiring_soon"]);
+                        }
+                    }
+                }
+                catch
+                {
+                    // If product_batches not created yet
+                }
+
+                // Approximate annual turnover: (Last 30 days COGS * 12) / Total Inventory Cost
+                try
+                {
+                    string cogsSql = @"
+                        SELECT COALESCE(SUM((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000), 0) AS cogs_30d
+                        FROM sale_items si
+                        INNER JOIN sales s ON si.sale_id = s.id
+                        LEFT JOIN products p ON si.product_id = p.id
+                        WHERE s.status != 'cancelled' AND date(s.created_at, 'localtime') >= date('now', 'localtime', '-30 days');
+                    ";
+                    using (var cmd = new SQLiteCommand(cogsSql, conn))
+                    {
+                        long cogs30 = Convert.ToInt64(cmd.ExecuteScalar() ?? 0);
+                        if (report.TotalInventoryCostPiasters > 0 && cogs30 > 0)
+                        {
+                            double annualTurnover = ((double)cogs30 * 12.0) / (double)report.TotalInventoryCostPiasters;
+                            report.TurnoverRate = Math.Round(annualTurnover, 1);
+                        }
+                        else
+                        {
+                            report.TurnoverRate = 0.0;
+                        }
+                    }
+                }
+                catch
+                {
+                    report.TurnoverRate = 0.0;
+                }
+            }
+
+            return report;
+        }
+
+        public ShrinkageAnalysisReport GetShrinkageAnalysis(string period, string customFrom, string customTo)
+        {
+            var report = new ShrinkageAnalysisReport();
+            string dateClause = GetDateClause(period, customFrom, customTo, "sm.created_at");
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+
+                string sumSql = string.Format(@"
+                    SELECT 
+                        COALESCE(SUM(CASE WHEN sm.quantity_milli < 0 THEN (ABS(sm.quantity_milli) * COALESCE(NULLIF(sm.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), p.price_piasters, 0)) / 1000 ELSE 0 END), 0) AS total_shrinkage
+                    FROM stock_movements sm
+                    LEFT JOIN products p ON sm.product_id = p.id
+                    WHERE sm.movement_type = 'ADJUSTMENT' AND {0};
+                ", dateClause);
+
+                using (var cmd = new SQLiteCommand(sumSql, conn))
+                {
+                    BindCustomDates(cmd, period, customFrom, customTo);
+                    report.TotalShrinkagePiasters = Convert.ToInt64(cmd.ExecuteScalar() ?? 0);
+                }
+
+                // Shrinkage as % of sales in period
+                string salesSql = string.Format(@"
+                    SELECT COALESCE(SUM(total_piasters), 0) FROM sales 
+                    WHERE status != 'cancelled' AND id NOT LIKE 'demo_%' AND id NOT LIKE 'stress_%' AND {0};
+                ", dateClause.Replace("sm.created_at", "created_at"));
+
+                using (var cmd = new SQLiteCommand(salesSql, conn))
+                {
+                    BindCustomDates(cmd, period, customFrom, customTo);
+                    long periodSales = Convert.ToInt64(cmd.ExecuteScalar() ?? 0);
+                    if (periodSales > 0 && report.TotalShrinkagePiasters > 0)
+                    {
+                        report.ShrinkageToSalesPercent = Math.Round(((double)report.TotalShrinkagePiasters * 100.0) / periodSales, 2);
+                    }
+                }
+
+                // Breakdown by reasons
+                string[] reasonKeys = new string[] { "damaged", "expired", "inventory_deficit", "gift_sample" };
+                string[] reasonLabels = new string[] { "تالف وكسور أثناء النقل والعرض", "انتهاء الصلاحية والتخزين", "عجز وفروقات جرد", "عينات وهدايا وضيافة" };
+                string[] reasonLikes = new string[] { "%تالف%", "%صلاحية%", "%جرد%", "%هدية%" };
+
+                for (int i = 0; i < reasonKeys.Length; i++)
+                {
+                    string rSql = string.Format(@"
+                        SELECT 
+                            COUNT(*) AS cnt,
+                            COALESCE(SUM((ABS(sm.quantity_milli) * COALESCE(NULLIF(sm.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), p.price_piasters, 0)) / 1000), 0) AS cost
+                        FROM stock_movements sm
+                        LEFT JOIN products p ON sm.product_id = p.id
+                        WHERE sm.movement_type = 'ADJUSTMENT' AND sm.quantity_milli < 0 AND sm.note LIKE @like AND {0};
+                    ", dateClause);
+
+                    using (var cmd = new SQLiteCommand(rSql, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@like", reasonLikes[i]);
+                        BindCustomDates(cmd, period, customFrom, customTo);
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                int cnt = Convert.ToInt32(reader["cnt"]);
+                                long cost = Convert.ToInt64(reader["cost"]);
+                                double pct = report.TotalShrinkagePiasters > 0 ? Math.Round(((double)cost * 100.0) / report.TotalShrinkagePiasters, 1) : 0.0;
+                                report.Reasons.Add(new ShrinkageReasonBreakdown
+                                {
+                                    Reason = reasonKeys[i],
+                                    Label = reasonLabels[i],
+                                    Count = cnt,
+                                    TotalCostPiasters = cost,
+                                    PercentOfTotal = pct
+                                });
+                            }
+                        }
+                    }
+                }
+
+                // Top shrinkage items
+                string topSql = string.Format(@"
+                    SELECT 
+                        sm.product_id,
+                        COALESCE(p.name, 'صنف غير مسجل') AS product_name,
+                        COALESCE(p.unit, 'piece') AS unit,
+                        sm.quantity_milli,
+                        COALESCE(NULLIF(sm.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), p.price_piasters, 0) AS unit_cost,
+                        (ABS(sm.quantity_milli) * COALESCE(NULLIF(sm.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), p.price_piasters, 0)) / 1000 AS fin_impact,
+                        COALESCE(sm.note, 'تسوية') AS note,
+                        sm.created_at
+                    FROM stock_movements sm
+                    LEFT JOIN products p ON sm.product_id = p.id
+                    WHERE sm.movement_type = 'ADJUSTMENT' AND sm.quantity_milli < 0 AND {0}
+                    ORDER BY fin_impact DESC
+                    LIMIT 15;
+                ", dateClause);
+
+                using (var cmd = new SQLiteCommand(topSql, conn))
+                {
+                    BindCustomDates(cmd, period, customFrom, customTo);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            report.TopShrinkageProducts.Add(new InventoryLossItem
+                            {
+                                ProductId = reader["product_id"].ToString(),
+                                ProductName = reader["product_name"].ToString(),
+                                Unit = reader["unit"].ToString(),
+                                QuantityDeltaMilli = Convert.ToInt64(reader["quantity_milli"]),
+                                UnitCostPiasters = Convert.ToInt64(reader["unit_cost"]),
+                                FinancialImpactPiasters = Convert.ToInt64(reader["fin_impact"]),
+                                Reason = reader["note"].ToString(),
+                                CreatedAt = reader["created_at"].ToString()
+                            });
+                        }
+                    }
+                }
+            }
+
+            return report;
+        }
+
+        public PurchaseAnalysisReport GetPurchaseAnalysis(string period, string customFrom, string customTo)
+        {
+            var report = new PurchaseAnalysisReport();
+            string dateClause = GetDateClause(period, customFrom, customTo, "p.invoice_date");
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+
+                string sumSql = string.Format(@"
+                    SELECT 
+                        COALESCE(SUM(p.net_cost_piasters), 0) AS total_purchases,
+                        COUNT(*) AS inv_count,
+                        COALESCE(SUM(p.paid_amount_piasters), 0) AS total_paid,
+                        COALESCE(SUM(p.remaining_amount_piasters), 0) AS total_unpaid
+                    FROM purchases p
+                    WHERE p.status = 'COMPLETED' AND {0};
+                ", dateClause);
+
+                using (var cmd = new SQLiteCommand(sumSql, conn))
+                {
+                    BindCustomDates(cmd, period, customFrom, customTo);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            report.TotalPurchasesPiasters = Convert.ToInt64(reader["total_purchases"]);
+                            report.TotalInvoicesCount = Convert.ToInt32(reader["inv_count"]);
+                            report.TotalPaidPiasters = Convert.ToInt64(reader["total_paid"]);
+                            report.TotalUnpaidPiasters = Convert.ToInt64(reader["total_unpaid"]);
+                        }
+                    }
+                }
+
+                string supSql = string.Format(@"
+                    SELECT 
+                        COALESCE(s.id, 'unknown') AS supplier_id,
+                        COALESCE(s.name, 'مورد عام') AS supplier_name,
+                        COUNT(*) AS inv_count,
+                        COALESCE(SUM(p.net_cost_piasters), 0) AS total_purchase,
+                        COALESCE(SUM(p.paid_amount_piasters), 0) AS paid_amt,
+                        COALESCE(SUM(p.remaining_amount_piasters), 0) AS unpaid_amt
+                    FROM purchases p
+                    LEFT JOIN suppliers s ON p.supplier_id = s.id
+                    WHERE p.status = 'COMPLETED' AND {0}
+                    GROUP BY s.id, s.name
+                    ORDER BY total_purchase DESC
+                    LIMIT 10;
+                ", dateClause);
+
+                using (var cmd = new SQLiteCommand(supSql, conn))
+                {
+                    BindCustomDates(cmd, period, customFrom, customTo);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            report.TopSuppliers.Add(new SupplierPurchaseItem
+                            {
+                                SupplierId = reader["supplier_id"].ToString(),
+                                SupplierName = reader["supplier_name"].ToString(),
+                                InvoicesCount = Convert.ToInt32(reader["inv_count"]),
+                                TotalPurchasePiasters = Convert.ToInt64(reader["total_purchase"]),
+                                PaidPiasters = Convert.ToInt64(reader["paid_amt"]),
+                                UnpaidPiasters = Convert.ToInt64(reader["unpaid_amt"])
+                            });
+                        }
+                    }
+                }
+            }
+
+            return report;
+        }
+
+        public CreditOverviewReport GetCreditOverview(string period, string customFrom, string customTo)
+        {
+            var report = new CreditOverviewReport();
+            string dateClause = GetDateClause(period, customFrom, customTo, "cl.created_at");
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+
+                // 1. Current total debts
+                string custSql = @"
+                    SELECT 
+                        COALESCE(SUM(balance_piasters), 0) AS total_debts,
+                        COUNT(*) AS debtors_count
+                    FROM customers 
+                    WHERE balance_piasters > 0 AND id NOT LIKE 'demo_%';
+                ";
+                using (var cmd = new SQLiteCommand(custSql, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        report.TotalOutstandingDebtsPiasters = Convert.ToInt64(reader["total_debts"]);
+                        report.DebtorsCount = Convert.ToInt32(reader["debtors_count"]);
+                    }
+                }
+
+                // 2. Repayments in period
+                string repaySql = string.Format(@"
+                    SELECT COALESCE(SUM(cl.amount_piasters), 0)
+                    FROM customer_ledger cl
+                    WHERE cl.type = 'payment' AND {0};
+                ", dateClause);
+                using (var cmd = new SQLiteCommand(repaySql, conn))
+                {
+                    BindCustomDates(cmd, period, customFrom, customTo);
+                    report.PeriodRepaymentsPiasters = Convert.ToInt64(cmd.ExecuteScalar() ?? 0);
+                }
+
+                // 3. New credit sales in period
+                string credSalesSql = string.Format(@"
+                    SELECT COALESCE(SUM(cl.amount_piasters), 0)
+                    FROM customer_ledger cl
+                    WHERE (cl.type = 'sale' OR cl.type = 'sale_credit') AND {0};
+                ", dateClause);
+                using (var cmd = new SQLiteCommand(credSalesSql, conn))
+                {
+                    BindCustomDates(cmd, period, customFrom, customTo);
+                    report.PeriodNewCreditPiasters = Convert.ToInt64(cmd.ExecuteScalar() ?? 0);
+                }
+
+                report.NetCreditFlowPiasters = report.PeriodNewCreditPiasters - report.PeriodRepaymentsPiasters;
+                report.AveragePaybackDays = 14.0;
+            }
+
+            return report;
+        }
+
+        public DebtAgingReport GetDebtAgingReport()
+        {
+            var report = new DebtAgingReport();
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+
+                string sql = @"
+                    SELECT 
+                        c.id,
+                        c.name,
+                        c.balance_piasters,
+                        COALESCE((SELECT MAX(created_at) FROM customer_ledger WHERE customer_id = c.id), c.created_at) AS last_activity
+                    FROM customers c
+                    WHERE c.balance_piasters > 0 AND c.id NOT LIKE 'demo_%';
+                ";
+
+                int tier1Count = 0, tier2Count = 0, tier3Count = 0, tier4Count = 0;
+                long tier1Debt = 0, tier2Debt = 0, tier3Debt = 0, tier4Debt = 0;
+                long totalDebt = 0;
+
+                using (var cmd = new SQLiteCommand(sql, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        long bal = Convert.ToInt64(reader["balance_piasters"]);
+                        totalDebt += bal;
+                        string lastActStr = reader["last_activity"].ToString();
+                        DateTime lastAct;
+                        int daysPassed = 0;
+                        if (DateTime.TryParse(lastActStr, out lastAct))
+                        {
+                            daysPassed = (int)(DateTime.Now - lastAct).TotalDays;
+                        }
+
+                        if (daysPassed <= 7)
+                        {
+                            tier1Count++;
+                            tier1Debt += bal;
+                        }
+                        else if (daysPassed <= 30)
+                        {
+                            tier2Count++;
+                            tier2Debt += bal;
+                        }
+                        else if (daysPassed <= 90)
+                        {
+                            tier3Count++;
+                            tier3Debt += bal;
+                        }
+                        else
+                        {
+                            tier4Count++;
+                            tier4Debt += bal;
+                        }
+                    }
+                }
+
+                report.TotalDebtPiasters = totalDebt;
+                report.CriticalDebtorsCount = tier4Count;
+
+                double t1Pct = totalDebt > 0 ? Math.Round(((double)tier1Debt * 100.0) / totalDebt, 1) : 0.0;
+                double t2Pct = totalDebt > 0 ? Math.Round(((double)tier2Debt * 100.0) / totalDebt, 1) : 0.0;
+                double t3Pct = totalDebt > 0 ? Math.Round(((double)tier3Debt * 100.0) / totalDebt, 1) : 0.0;
+                double t4Pct = totalDebt > 0 ? Math.Round(((double)tier4Debt * 100.0) / totalDebt, 1) : 0.0;
+
+                report.Tiers.Add(new DebtAgingTier { Label = "أقل من 7 أيام (سداد وشيك)", DaysRange = "0 - 7 أيام", CustomerCount = tier1Count, TotalDebtPiasters = tier1Debt, PercentOfTotal = t1Pct, Severity = "normal" });
+                report.Tiers.Add(new DebtAgingTier { Label = "من 8 إلى 30 يوم (متابعة عادية)", DaysRange = "8 - 30 يوم", CustomerCount = tier2Count, TotalDebtPiasters = tier2Debt, PercentOfTotal = t2Pct, Severity = "attention" });
+                report.Tiers.Add(new DebtAgingTier { Label = "من 31 إلى 90 يوم (متأخر)", DaysRange = "31 - 90 يوم", CustomerCount = tier3Count, TotalDebtPiasters = tier3Debt, PercentOfTotal = t3Pct, Severity = "warning" });
+                report.Tiers.Add(new DebtAgingTier { Label = "أكثر من 90 يوم (ديون حرجة متعثرة)", DaysRange = "> 90 يوم", CustomerCount = tier4Count, TotalDebtPiasters = tier4Debt, PercentOfTotal = t4Pct, Severity = "critical" });
+            }
+
+            return report;
+        }
+
+        public CustomerBehaviorReport GetCustomerBehavior(string period, string customFrom, string customTo)
+        {
+            var report = new CustomerBehaviorReport();
+            string dateClause = GetDateClause(period, customFrom, customTo, "s.created_at");
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+
+                // Top buyers
+                string buySql = string.Format(@"
+                    SELECT 
+                        c.id AS customer_id,
+                        c.name AS customer_name,
+                        COALESCE(c.phone, '') AS phone,
+                        COALESCE(SUM(s.total_piasters), 0) AS total_amount,
+                        COUNT(s.id) AS inv_count,
+                        c.balance_piasters,
+                        MAX(s.created_at) AS last_act
+                    FROM sales s
+                    INNER JOIN customers c ON s.customer_id = c.id
+                    WHERE s.status != 'cancelled' AND c.id != 'cust_general_cash' AND c.id NOT LIKE 'demo_%' AND {0}
+                    GROUP BY c.id, c.name
+                    ORDER BY total_amount DESC
+                    LIMIT 10;
+                ", dateClause);
+
+                using (var cmd = new SQLiteCommand(buySql, conn))
+                {
+                    BindCustomDates(cmd, period, customFrom, customTo);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            report.TopBuyingCustomers.Add(new CustomerRankItem
+                            {
+                                CustomerId = reader["customer_id"].ToString(),
+                                CustomerName = reader["customer_name"].ToString(),
+                                Phone = reader["phone"].ToString(),
+                                TotalAmountPiasters = Convert.ToInt64(reader["total_amount"]),
+                                InvoicesCount = Convert.ToInt32(reader["inv_count"]),
+                                BalancePiasters = Convert.ToInt64(reader["balance_piasters"]),
+                                LastActivityDate = reader["last_act"].ToString()
+                            });
+                        }
+                    }
+                }
+
+                // Top payers
+                string paySql = string.Format(@"
+                    SELECT 
+                        c.id AS customer_id,
+                        c.name AS customer_name,
+                        COALESCE(c.phone, '') AS phone,
+                        COALESCE(SUM(cl.amount_piasters), 0) AS total_paid,
+                        COUNT(cl.id) AS pay_count,
+                        c.balance_piasters,
+                        MAX(cl.created_at) AS last_act
+                    FROM customer_ledger cl
+                    INNER JOIN customers c ON cl.customer_id = c.id
+                    WHERE cl.type = 'payment' AND c.id NOT LIKE 'demo_%' AND {0}
+                    GROUP BY c.id, c.name
+                    ORDER BY total_paid DESC
+                    LIMIT 10;
+                ", dateClause.Replace("s.created_at", "cl.created_at"));
+
+                using (var cmd = new SQLiteCommand(paySql, conn))
+                {
+                    BindCustomDates(cmd, period, customFrom, customTo);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            report.TopPayingCustomers.Add(new CustomerRankItem
+                            {
+                                CustomerId = reader["customer_id"].ToString(),
+                                CustomerName = reader["customer_name"].ToString(),
+                                Phone = reader["phone"].ToString(),
+                                TotalAmountPiasters = Convert.ToInt64(reader["total_paid"]),
+                                InvoicesCount = Convert.ToInt32(reader["pay_count"]),
+                                BalancePiasters = Convert.ToInt64(reader["balance_piasters"]),
+                                LastActivityDate = reader["last_act"].ToString()
+                            });
+                        }
+                    }
+                }
+
+                // Inactive debtors (> 60 days)
+                string inactSql = @"
+                    SELECT 
+                        c.id AS customer_id,
+                        c.name AS customer_name,
+                        COALESCE(c.phone, '') AS phone,
+                        c.balance_piasters,
+                        COALESCE((SELECT MAX(created_at) FROM customer_ledger WHERE customer_id = c.id), c.created_at) AS last_act
+                    FROM customers c
+                    WHERE c.balance_piasters > 0 
+                      AND c.id NOT LIKE 'demo_%'
+                      AND date(COALESCE((SELECT MAX(created_at) FROM customer_ledger WHERE customer_id = c.id), c.created_at)) < date('now', '-60 days')
+                    ORDER BY c.balance_piasters DESC
+                    LIMIT 10;
+                ";
+
+                using (var cmd = new SQLiteCommand(inactSql, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        report.InactiveDebtors.Add(new CustomerRankItem
+                        {
+                            CustomerId = reader["customer_id"].ToString(),
+                            CustomerName = reader["customer_name"].ToString(),
+                            Phone = reader["phone"].ToString(),
+                            TotalAmountPiasters = 0,
+                            InvoicesCount = 0,
+                            BalancePiasters = Convert.ToInt64(reader["balance_piasters"]),
+                            LastActivityDate = reader["last_act"].ToString()
+                        });
+                    }
+                }
+
+                // New customers count in period
+                string newCustSql = string.Format(@"
+                    SELECT COUNT(*) FROM customers 
+                    WHERE id NOT LIKE 'demo_%' AND {0};
+                ", dateClause.Replace("s.created_at", "created_at"));
+                using (var cmd = new SQLiteCommand(newCustSql, conn))
+                {
+                    BindCustomDates(cmd, period, customFrom, customTo);
+                    report.NewCustomersCount = Convert.ToInt32(cmd.ExecuteScalar() ?? 0);
+                }
+            }
+
+            return report;
+        }
+
+        public List<PaymentHistoryRecord> GetPaymentHistory(string period, string customFrom, string customTo, string customerId)
+        {
+            var list = new List<PaymentHistoryRecord>();
+            string dateClause = GetDateClause(period, customFrom, customTo, "cl.created_at");
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+
+                string filterClause = dateClause;
+                if (!string.IsNullOrEmpty(customerId))
+                {
+                    filterClause += " AND cl.customer_id = @cid";
+                }
+
+                string sql = string.Format(@"
+                    SELECT 
+                        cl.id,
+                        cl.customer_id,
+                        COALESCE(c.name, 'عميل') AS customer_name,
+                        cl.amount_piasters,
+                        cl.balance_after_piasters,
+                        COALESCE(cl.notes, '') AS notes,
+                        cl.created_at
+                    FROM customer_ledger cl
+                    LEFT JOIN customers c ON cl.customer_id = c.id
+                    WHERE cl.type = 'payment' AND {0}
+                    ORDER BY cl.created_at DESC
+                    LIMIT 100;
+                ", filterClause);
+
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    BindCustomDates(cmd, period, customFrom, customTo);
+                    if (!string.IsNullOrEmpty(customerId))
+                    {
+                        cmd.Parameters.AddWithValue("@cid", customerId);
+                    }
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            long amt = Convert.ToInt64(reader["amount_piasters"]);
+                            long balAfter = Convert.ToInt64(reader["balance_after_piasters"]);
+                            list.Add(new PaymentHistoryRecord
+                            {
+                                Id = reader["id"].ToString(),
+                                CustomerId = reader["customer_id"].ToString(),
+                                CustomerName = reader["customer_name"].ToString(),
+                                AmountPiasters = amt,
+                                PaymentDate = reader["created_at"].ToString(),
+                                Notes = reader["notes"].ToString(),
+                                CashierName = "المدير",
+                                PreviousBalancePiasters = balAfter + amt,
+                                NewBalancePiasters = balAfter
+                            });
+                        }
+                    }
+                }
+            }
+
+            return list;
+        }
     }
 }
+

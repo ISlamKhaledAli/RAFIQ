@@ -10,6 +10,7 @@ import {
 import { invoke } from '../bridge/ipc';
 import type { PeriodSalesReport } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
+import { CustomDateRangePicker } from './CustomDatePicker';
 
 interface PeriodSalesReportModalProps {
   isOpen: boolean;
@@ -139,23 +140,18 @@ export const PeriodSalesReportModal: React.FC<PeriodSalesReportModalProps> = ({
 
           {period === 'custom' && (
             <div className="flex items-center gap-2 text-xs">
-              <span className="text-ink-muted">من:</span>
-              <input
-                type="date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                className="px-2.5 py-1.5 rounded-lg border border-line bg-canvas text-ink text-xs"
-              />
-              <span className="text-ink-muted">إلى:</span>
-              <input
-                type="date"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-                className="px-2.5 py-1.5 rounded-lg border border-line bg-canvas text-ink text-xs"
+              <CustomDateRangePicker
+                startDate={fromDate}
+                endDate={toDate}
+                onChange={(start, end) => {
+                  setFromDate(start);
+                  setToDate(end);
+                }}
               />
               <button
+                type="button"
                 onClick={() => void loadReport()}
-                className="px-3 py-1.5 rounded-lg bg-brand text-white font-bold text-xs hover:bg-brand-dark"
+                className="px-3 py-1.5 rounded-lg bg-brand text-white font-bold text-xs hover:bg-brand-dark cursor-pointer transition-colors shadow-2xs"
               >
                 تطبيق
               </button>

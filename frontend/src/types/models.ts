@@ -819,3 +819,193 @@ export interface AssignBarcodeResult {
   message: string;
 }
 
+// ==========================================
+// 📊 ANALYTICS & ADVANCED REPORTING MODELS
+// ==========================================
+
+export type DashboardSubTab = 'today' | 'revenue' | 'inventory' | 'customers';
+
+export interface InventoryLossItem {
+  productId: string;
+  productName: string;
+  unit: string;
+  quantityDeltaMilli: number;
+  unitCostPiasters: number;
+  financialImpactPiasters: number;
+  reason: string;
+  createdAt: string;
+}
+
+export interface InventoryLossReport {
+  totalLossPiasters: number;
+  totalDamagePiasters: number;
+  totalGiftsPiasters: number;
+  totalSurplusPiasters: number;
+  topLossItems: InventoryLossItem[];
+}
+
+export interface ClosingHistoryRecord {
+  id: string;
+  closingDate: string;
+  shiftNumber: number;
+  cashierName: string;
+  totalSalesPiasters: number;
+  cashSalesPiasters: number;
+  creditSalesPiasters: number;
+  returnsPiasters: number;
+  netSalesPiasters: number;
+  grossProfitPiasters: number;
+  expectedCashPiasters: number;
+  actualCashPiasters: number;
+  differencePiasters: number;
+  isClosed: boolean;
+  createdAt: string;
+  notes?: string;
+}
+
+export interface CategoryPerformanceItem {
+  categoryId: string;
+  categoryName: string;
+  totalSalesPiasters: number;
+  totalCostPiasters: number;
+  grossProfitPiasters: number;
+  profitMarginPercent: number;
+  itemsSoldQty: number;
+  salesSharePercent: number;
+}
+
+export interface ItemProfitabilityItem {
+  productId: string;
+  productName: string;
+  barcode: string;
+  categoryName: string;
+  unitCostPiasters: number;
+  unitPricePiasters: number;
+  quantitySoldMilli: number;
+  totalSalesPiasters: number;
+  totalCostPiasters: number;
+  grossProfitPiasters: number;
+  marginPercent: number;
+  isNegativeMargin: boolean;
+  isZeroCost: boolean;
+}
+
+export interface PeriodMetricComparison {
+  current: number;
+  previous: number;
+  deltaPiasters: number;
+  percentChange: number;
+}
+
+export interface PeriodComparisonReport {
+  currentPeriodName: string;
+  previousPeriodName: string;
+  sales: PeriodMetricComparison;
+  profit: PeriodMetricComparison;
+  invoiceCount: {
+    current: number;
+    previous: number;
+    percentChange: number;
+  };
+  avgInvoicePiasters: PeriodMetricComparison;
+}
+
+export interface InventoryOverviewReport {
+  totalProductsCount: number;
+  activeProductsCount: number;
+  totalInventoryCostPiasters: number;
+  totalInventoryRetailPiasters: number;
+  potentialGrossProfitPiasters: number;
+  outOfStockCount: number;
+  lowStockCount: number;
+  expiredBatchesCount: number;
+  expiringSoonBatchesCount: number;
+  turnoverRate: number;
+}
+
+export interface ShrinkageReasonBreakdown {
+  reason: string;
+  label: string;
+  count: number;
+  totalCostPiasters: number;
+  percentOfTotal: number;
+}
+
+export interface ShrinkageAnalysisReport {
+  totalShrinkagePiasters: number;
+  shrinkageToSalesPercent: number;
+  reasons: ShrinkageReasonBreakdown[];
+  topShrinkageProducts: InventoryLossItem[];
+}
+
+export interface SupplierPurchaseItem {
+  supplierId: string;
+  supplierName: string;
+  invoicesCount: number;
+  totalPurchasePiasters: number;
+  paidPiasters: number;
+  unpaidPiasters: number;
+}
+
+export interface PurchaseAnalysisReport {
+  totalPurchasesPiasters: number;
+  totalInvoicesCount: number;
+  totalPaidPiasters: number;
+  totalUnpaidPiasters: number;
+  topSuppliers: SupplierPurchaseItem[];
+}
+
+export interface CreditOverviewReport {
+  totalOutstandingDebtsPiasters: number;
+  debtorsCount: number;
+  periodNewCreditPiasters: number;
+  periodRepaymentsPiasters: number;
+  netCreditFlowPiasters: number;
+  averagePaybackDays: number;
+}
+
+export interface DebtAgingTier {
+  label: string;
+  daysRange: string;
+  customerCount: number;
+  totalDebtPiasters: number;
+  percentOfTotal: number;
+  severity: 'normal' | 'attention' | 'warning' | 'critical';
+}
+
+export interface DebtAgingReport {
+  totalDebtPiasters: number;
+  tiers: DebtAgingTier[];
+  criticalDebtorsCount: number;
+}
+
+export interface CustomerRankItem {
+  customerId: string;
+  customerName: string;
+  phone: string;
+  totalAmountPiasters: number;
+  invoicesCount: number;
+  balancePiasters: number;
+  lastActivityDate: string;
+}
+
+export interface CustomerBehaviorReport {
+  topBuyingCustomers: CustomerRankItem[];
+  topPayingCustomers: CustomerRankItem[];
+  inactiveDebtors: CustomerRankItem[];
+  newCustomersCount: number;
+}
+
+export interface PaymentHistoryRecord {
+  id: string;
+  customerId: string;
+  customerName: string;
+  amountPiasters: number;
+  paymentDate: string;
+  notes?: string;
+  cashierName?: string;
+  previousBalancePiasters: number;
+  newBalancePiasters: number;
+}
+
+

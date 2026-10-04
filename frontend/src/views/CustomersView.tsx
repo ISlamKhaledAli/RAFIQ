@@ -733,7 +733,7 @@ export function CustomersView() {
         <div className="flex-1 overflow-auto">
           <table className="w-full text-right text-xs">
             <thead>
-              <tr className="h-10 bg-[#F8FAFC] border-b border-[#E2E8F0] text-[#52605D] font-bold text-[11px] sticky top-0 z-10">
+              <tr className="h-10 bg-surface-2 border-b border-line text-ink-muted font-bold text-[11px] sticky top-0 z-10">
                 <th className="px-4">اسم العميل</th>
                 <th className="px-3">رقم الهاتف</th>
                 <th className="px-3">الرصيد الحالي</th>
@@ -742,7 +742,7 @@ export function CustomersView() {
                 <th className="px-4 text-center">إجراءات الحساب</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E2E8F0]">
+            <tbody className="divide-y divide-line">
               {isLoading ? (
                 <tr>
                   <td colSpan={6} className="py-16 text-center text-[#52605D]">
@@ -837,9 +837,9 @@ export function CustomersView() {
                           <button
                             onClick={() => void openStatementModal(cust)}
                             title="كشف حساب العميل"
-                            className="flex items-center gap-1 h-7.5 px-3 rounded-xl bg-white border border-[#E2E8F0] text-[#004D3F] hover:bg-[#F8FAFC] text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                            className="flex items-center gap-1 h-7.5 px-3 rounded-xl bg-surface border border-line text-brand hover:bg-surface-2 text-xs font-bold transition-all shadow-2xs cursor-pointer"
                           >
-                            <FileText className="w-3.5 h-3.5 text-[#004D3F]" />
+                            <FileText className="w-3.5 h-3.5 text-brand" />
                             <span>كشف حساب</span>
                           </button>
 
@@ -847,7 +847,7 @@ export function CustomersView() {
                           <button
                             onClick={() => openEditModal(cust)}
                             title="تعديل بيانات العميل"
-                            className="w-7.5 h-7.5 flex items-center justify-center rounded-xl bg-white border border-[#E2E8F0] text-[#52605D] hover:text-[#0F172A] hover:bg-[#F8FAFC] transition-colors shadow-2xs cursor-pointer"
+                            className="w-7.5 h-7.5 flex items-center justify-center rounded-xl bg-surface border border-line text-ink-muted hover:text-ink hover:bg-surface-2 transition-colors shadow-2xs cursor-pointer"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>

@@ -13,6 +13,7 @@ import {
   Upload,
   FolderOpen,
   ShieldCheck,
+  Info,
   X
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
@@ -516,8 +517,9 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                       </span>
                     </div>
                   </div>
-                  <div className="p-2.5 rounded bg-paid/10 text-paid text-[11.5px] leading-relaxed">
-                    💡 <strong>الخطوة التالية:</strong> انسخ هذا الملف إلى فلاشة USB، ثم ضعه على الجهاز الجديد وافتح نفس الشاشة واختر «على الجهاز الجديد (استيراد وفحص)».
+                  <div className="p-2.5 rounded bg-paid/10 text-paid text-[11.5px] leading-relaxed flex items-center gap-2">
+                    <Info className="w-4 h-4 text-paid shrink-0" />
+                    <span><strong>الخطوة التالية:</strong> انسخ هذا الملف إلى فلاشة USB، ثم ضعه على الجهاز الجديد وافتح نفس الشاشة واختر «على الجهاز الجديد (استيراد وفحص)».</span>
                   </div>
                 </div>
               )}
@@ -620,9 +622,10 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                   </div>
 
                   {/* Safety note */}
-                  <div className="p-2.5 rounded bg-brand-soft/50 border border-brand/20 text-ink text-[11px] flex items-center justify-between">
-                    <span>
-                      🛡️ <strong>حماية أوتوماتيكية:</strong> سيتم أخذ نسخة أمان احتياطية من قاعدة البيانات الحالية قبل الاستبدال لتفادي أي فقد بيانات.
+                  <div className="p-2.5 rounded bg-brand-soft/50 border border-brand/20 text-ink text-[11px] flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-brand shrink-0" />
+                      <span><strong>حماية أوتوماتيكية:</strong> سيتم أخذ نسخة أمان احتياطية من قاعدة البيانات الحالية قبل الاستبدال لتفادي أي فقد بيانات.</span>
                     </span>
                     <button
                       type="button"

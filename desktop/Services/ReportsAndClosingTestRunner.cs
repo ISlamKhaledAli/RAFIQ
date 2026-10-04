@@ -391,7 +391,47 @@ namespace RafiqPOS.Services
                 }
                 Assert(dupBlocked, "منع تكرار إقفال نفس يوم العمل بنجاح", result);
 
-                result.Message = string.Format("نجحت جميع اختبارات المحطة 9 بنسبة 100% ({0}/{1} تأكيد ناجح)", result.PassedAssertions, result.TotalAssertions);
+                // 11. Test Analytics Queries (Senior Level Verification)
+                var periodSales = reportsService.GetPeriodSalesReport("today", null, null);
+                Assert(periodSales != null, "استعلام تقرير مبيعات اليومية يعمل بنجاح بدون أخطاء", result);
+
+                var invLoss = reportsService.GetInventoryLossReport("today", null, null);
+                Assert(invLoss != null, "استعلام خسائر وعجز المخزون يعمل بنجاح بدون أخطاء", result);
+
+                var closingsHistory = reportsService.GetClosingHistory("month", null, null);
+                Assert(closingsHistory != null, "استعلام سجل إقفالات اليوميات السابقة يعمل بنجاح", result);
+
+                var catPerf = reportsService.GetCategoryPerformance("month", null, null);
+                Assert(catPerf != null, "استعلام تصنيف أداء الفئات والأقسام يعمل بنجاح", result);
+
+                var itemProf = reportsService.GetItemProfitability("month", 10, "desc");
+                Assert(itemProf != null, "استعلام هوامش ربحية الأصناف يعمل بنجاح", result);
+
+                var periodComp = reportsService.GetPeriodComparison("week");
+                Assert(periodComp != null, "استعلام مقارنة الأداء بين الفترات يعمل بنجاح", result);
+
+                var invOverview = reportsService.GetInventoryOverview();
+                Assert(invOverview != null, "استعلام القيمة التقديرية للمخزون يعمل بنجاح", result);
+
+                var shrinkage = reportsService.GetShrinkageAnalysis("month", null, null);
+                Assert(shrinkage != null, "استعلام تفكيك أسباب الهوالك والعجز يعمل بنجاح", result);
+
+                var purAnalysis = reportsService.GetPurchaseAnalysis("month", null, null);
+                Assert(purAnalysis != null, "استعلام تحليل المشتريات والموردين يعمل بنجاح", result);
+
+                var creditOverview = reportsService.GetCreditOverview("month", null, null);
+                Assert(creditOverview != null, "استعلام أرصدة الذمم والتدفق الائتماني يعمل بنجاح", result);
+
+                var debtAging = reportsService.GetDebtAgingReport();
+                Assert(debtAging != null && debtAging.Tiers.Count == 4, "استعلام شرائح أعمار الديون (4 شرائح) يعمل بنجاح وبدقة", result);
+
+                var custBehavior = reportsService.GetCustomerBehavior("month", null, null);
+                Assert(custBehavior != null, "استعلام سلوكيات وأفضل الزبائن يعمل بنجاح", result);
+
+                var payHistory = reportsService.GetPaymentHistory("month", null, null, null);
+                Assert(payHistory != null, "استعلام سجل تحصيلات وسدادات العملاء يعمل بنجاح", result);
+
+                result.Message = string.Format("نجحت جميع اختبارات المحطة 9 والتحليلات التنفيذية بنسبة 100% ({0}/{1} تأكيد ناجح)", result.PassedAssertions, result.TotalAssertions);
             }
             catch (Exception ex)
             {

@@ -22,6 +22,7 @@ import type { Sale } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
 import { VoidInvoiceModal } from '../components/VoidInvoiceModal';
 import { ReturnModal } from '../components/ReturnModal';
+import { CustomDatePicker } from '../components/CustomDatePicker';
 
 export const SalesHistoryView = () => {
   const [sales, setSales] = useState<Sale[]>([]);
@@ -399,11 +400,11 @@ export const SalesHistoryView = () => {
 
         {/* Custom date input if active */}
         {dateFilter === 'custom' && (
-          <input
-            type="date"
+          <CustomDatePicker
             value={customDate}
-            onChange={(e) => setCustomDate(e.target.value)}
-            className="h-9 px-3 text-xs bg-surface rounded-xl border border-paid text-ink focus:outline-none focus:ring-2 focus:ring-paid/20 font-mono shadow-xs"
+            onChange={(d) => setCustomDate(d)}
+            placeholder="اختر التاريخ..."
+            className="w-40"
           />
         )}
 
@@ -586,7 +587,7 @@ export const SalesHistoryView = () => {
         <div className="fixed inset-0 bg-[#0F172A]/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="w-full max-w-3xl bg-white rounded-2xl border border-[#006D41]/30 shadow-2xl overflow-hidden flex flex-col select-none max-h-[90vh] animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
-            <div className="h-12 bg-[#F8FAFC] border-b border-[#E2E8F0] px-4 flex items-center justify-between shrink-0">
+            <div className="h-12 bg-surface-2 border-b border-line px-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <Receipt className="w-4 h-4 text-[#004D3F]" />
                 <h3 className="text-sm font-bold text-[#0F172A] m-0">

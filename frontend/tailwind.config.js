@@ -8,14 +8,14 @@ export default {
   theme: {
     extend: {
       colors: {
-        canvas: "#F8FAFC",
+        canvas: "#F3F5F2",
         surface: {
           DEFAULT: "#FFFFFF",
           pure: "#FFFFFF",
           2: "#F1F5F4",
           3: "#EBF0EE",
           dim: "#D7DADD",
-          bright: "#F8FAFC",
+          bright: "#F3F5F2",
         },
         line: {
           DEFAULT: "#DCE1DC",

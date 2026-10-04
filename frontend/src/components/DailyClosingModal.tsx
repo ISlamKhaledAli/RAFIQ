@@ -517,7 +517,10 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
         <div className="px-6 py-4 bg-surface border-t border-line flex items-center justify-between">
           <div className="text-xs text-ink-muted">
             {!savedClosing && (
-              <span>⚠️ بمجرد اعتماد الإقفال لا يمكن حذفه أو تعديله في قاعدة البيانات نهائياً.</span>
+              <span className="flex items-center gap-1.5 text-danger font-medium">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                <span>بمجرد اعتماد الإقفال لا يمكن حذفه أو تعديله في قاعدة البيانات نهائياً.</span>
+              </span>
             )}
           </div>
 

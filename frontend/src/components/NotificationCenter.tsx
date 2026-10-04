@@ -130,7 +130,7 @@ export const NotificationCenterDrawer: React.FC<NotificationCenterProps> = memo(
           </div>
 
           {/* List of Notifications */}
-          <div className="p-3 max-h-[70vh] overflow-y-auto flex flex-col gap-2.5 bg-[#f8fafc]">
+          <div className="p-3 max-h-[70vh] overflow-y-auto flex flex-col gap-2.5 bg-surface-2">
             {notifications.length === 0 ? (
               <div className="py-8 text-center flex flex-col items-center justify-center text-[#52605d]">
                 <CheckCircle2 className="w-10 h-10 text-emerald-500 mb-2 opacity-80" />

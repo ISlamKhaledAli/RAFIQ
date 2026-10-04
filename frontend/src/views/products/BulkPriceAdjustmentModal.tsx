@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Sliders,
   CheckCircle2,
+  ArrowLeft,
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
@@ -595,9 +596,17 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
               </div>
               <span className="col-span-2">الباركود</span>
               <span className="col-span-3">اسم الصنف والقسم</span>
-              <span className="col-span-2 text-center">السعر الحالي ➔ الجديد</span>
+              <span className="col-span-2 text-center flex items-center justify-center gap-1">
+                <span>السعر الحالي</span>
+                <ArrowLeft className="w-3 h-3 text-ink-muted" />
+                <span>الجديد</span>
+              </span>
               <span className="col-span-1 text-center">التغير</span>
-              <span className="col-span-2 text-center">التكلفة الحالية ➔ الجديدة</span>
+              <span className="col-span-2 text-center flex items-center justify-center gap-1">
+                <span>التكلفة الحالية</span>
+                <ArrowLeft className="w-3 h-3 text-ink-muted" />
+                <span>الجديدة</span>
+              </span>
               <span className="col-span-1 text-center">الحالة</span>
             </div>
 
@@ -657,7 +666,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                         <span className="text-ink-muted line-through text-[11px]">
                           {formatArabicCurrency(item.currentPricePiasters)}
                         </span>
-                        <span className="text-ink-muted">➔</span>
+                        <ArrowLeft className="w-3 h-3 text-ink-muted shrink-0" />
                         <span className={`font-bold ${hasPriceChange ? 'text-paid text-[12.5px]' : 'text-ink'}`}>
                           {formatArabicCurrency(item.newPricePiasters)}
                         </span>
@@ -687,7 +696,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                         </span>
                         {hasCostChange && (
                           <>
-                            <span className="text-ink-muted">➔</span>
+                            <ArrowLeft className="w-3 h-3 text-ink-muted shrink-0" />
                             <span className="font-bold text-ink text-[12px]">
                               {formatArabicCurrency(item.newCostPiasters)}
                             </span>

@@ -9,12 +9,8 @@ import {
   Barcode, 
   KeyRound, 
   FlaskConical,
-  Laptop,
-  BookOpen,
-  HelpCircle,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
-import { openHelpCenter } from '../utils/helpService';
 import { useFeatures } from '../context/useFeatures';
 import type { SystemInfo } from '../App';
 import { BackupManager } from '../components/BackupManager';
@@ -26,9 +22,6 @@ import { DemoDataModal } from '../components/DemoDataModal';
 import { GuidedTourModal } from '../components/GuidedTourModal';
 import { SearchBenchmarkModal } from '../components/SearchBenchmarkModal';
 import { UserManagerModal } from '../components/UserManagerModal';
-import { LicenseModal } from '../components/LicenseModal';
-import { MigrationWizardModal } from '../components/MigrationWizardModal';
-import { QuickStartGuideModal } from '../components/QuickStartGuideModal';
 
 import { StoreProfileTab } from './settings/StoreProfileTab';
 import { PrinterSettingsTab } from './settings/PrinterSettingsTab';
@@ -56,12 +49,9 @@ export const SettingsView = ({
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [isUserManagerModalOpen, setIsUserManagerModalOpen] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
-  const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
   const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
   const [isTourModalOpen, setIsTourModalOpen] = useState(false);
   const [isBenchmarkModalOpen, setIsBenchmarkModalOpen] = useState(false);
-  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
-  const [isQuickGuideModalOpen, setIsQuickGuideModalOpen] = useState(false);
   const [pinStatus, setPinStatus] = useState<any>(null);
   const [demoStatus, setDemoStatus] = useState<any>(null);
   const [storeName, setStoreName] = useState('متجر رفيق');
@@ -448,9 +438,9 @@ export const SettingsView = ({
   const TabIcon = currentTabConfig.icon;
 
   return (
-    <div className="flex flex-col h-full bg-[#F8FAFC] p-4 gap-3.5 overflow-y-auto select-none">
+    <div className="flex flex-col h-full bg-canvas p-4 gap-3.5 overflow-y-auto select-none">
       {/* 1. Top Header */}
-      <div className="h-16 bg-white border border-[#E2E8F0] shadow-xs rounded-2xl px-5 flex items-center justify-between shrink-0">
+      <div className="h-16 bg-surface border border-line shadow-xs rounded-2xl px-5 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3.5">
           <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#006D41] border border-emerald-200/80 flex items-center justify-center font-bold shrink-0 shadow-2xs">
             <TabIcon className="w-5 h-5 text-[#006D41]" />
@@ -470,46 +460,6 @@ export const SettingsView = ({
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setIsMigrationModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-soft border border-brand/20 text-brand hover:bg-brand-soft/80 text-xs font-bold transition-all cursor-pointer shadow-2xs"
-            title="نقل البرنامج والبيانات إلى جهاز جديد مع مقارنة الأرقام (فيتشر #139)"
-          >
-            <Laptop className="w-3.5 h-3.5 text-brand" />
-            <span>نقل لجهاز جديد</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsQuickGuideModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-2 border border-line hover:border-line-hover text-ink text-xs font-bold transition-all cursor-pointer shadow-2xs"
-            title="دليل التشغيل السريع وفيديوهات التدريب (فيتشر #140)"
-          >
-            <BookOpen className="w-3.5 h-3.5 text-brand" />
-            <span>دليل التشغيل والتدريب</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsLicenseModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-[#006D41] hover:bg-emerald-100/80 text-xs font-bold transition-all cursor-pointer shadow-2xs"
-            title="إدارة وتفعيل ترخيص رفيق POS"
-          >
-            <KeyRound className="w-3.5 h-3.5 text-[#006D41]" />
-            <span>ترخيص البرنامج</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => openHelpCenter('backup_security')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-2 border border-line hover:border-line-hover text-[#006D41] text-xs font-bold transition-all cursor-pointer shadow-2xs"
-            title="مركز المساعدة والشروحات والدعم الفني (F1)"
-          >
-            <HelpCircle className="w-3.5 h-3.5 text-[#006D41]" />
-            <span>مركز المساعدة والدعم</span>
-          </button>
-
           {saved && (
             <div className="flex items-center gap-1.5 text-xs text-[#006D41] font-bold bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 rounded-xl animate-in fade-in shadow-2xs">
               <CheckCircle className="w-4 h-4 text-[#006D41]" />
@@ -661,20 +611,6 @@ export const SettingsView = ({
         onClose={() => setIsUserManagerModalOpen(false)}
       />
 
-      <LicenseModal
-        isOpen={isLicenseModalOpen}
-        onClose={() => setIsLicenseModalOpen(false)}
-      />
-
-      <MigrationWizardModal
-        isOpen={isMigrationModalOpen}
-        onClose={() => setIsMigrationModalOpen(false)}
-      />
-
-      <QuickStartGuideModal
-        isOpen={isQuickGuideModalOpen}
-        onClose={() => setIsQuickGuideModalOpen(false)}
-      />
     </div>
   );
 };

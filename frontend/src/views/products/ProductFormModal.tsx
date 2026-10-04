@@ -329,7 +329,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             </div>
 
             {/* Integrated Dynamic Packaging & Stock Quantity Engine */}
-            <div className="p-3 bg-[#f8fafc] border-2 border-[#006d41]/30 rounded-lg flex flex-col gap-3 shadow-2xs">
+            <div className="p-3 bg-surface-2 border-2 border-[#006d41]/30 rounded-lg flex flex-col gap-3 shadow-2xs">
               {/* Header */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
@@ -362,7 +362,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         value={wholeCartons > 0 ? String(wholeCartons) : ''}
                         onChange={(e) => handleCartonsChange(e.target.value)}
                         placeholder="مثلاً: 1000"
-                        className="w-full bg-[#f8fafc] border border-line rounded h-[36px] px-2 text-[13px] font-mono text-center font-bold text-[#006d41] focus:outline-none focus:border-brand"
+                        className="w-full bg-surface-2 border border-line rounded h-[36px] px-2 text-[13px] font-mono text-center font-bold text-[#006d41] focus:outline-none focus:border-brand"
                       />
                     </div>
 
@@ -378,7 +378,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                           value={effectivePackSize}
                           onChange={(e) => handlePackSizeChange(parseInt(normalizeArabicNumerals(e.target.value), 10) || 0)}
                           placeholder="24"
-                          className="w-full bg-[#f8fafc] border border-line rounded h-[36px] pr-5 pl-2 text-[13px] font-mono text-center font-bold text-ink focus:outline-none focus:border-brand"
+                          className="w-full bg-surface-2 border border-line rounded h-[36px] pr-5 pl-2 text-[13px] font-mono text-center font-bold text-ink focus:outline-none focus:border-brand"
                         />
                       </div>
                     </div>
@@ -395,7 +395,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                           value={remainderPieces > 0 ? String(remainderPieces) : ''}
                           onChange={(e) => handleLoosePiecesChange(e.target.value)}
                           placeholder="0"
-                          className="w-full bg-[#f8fafc] border border-line rounded h-[36px] pr-5 pl-2 text-[13px] font-mono text-center font-bold text-ink focus:outline-none focus:border-brand"
+                          className="w-full bg-surface-2 border border-line rounded h-[36px] pr-5 pl-2 text-[13px] font-mono text-center font-bold text-ink focus:outline-none focus:border-brand"
                         />
                       </div>
                     </div>
@@ -428,7 +428,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       value={minStockInput}
                       onChange={(e) => setMinStockInput(normalizeArabicNumerals(e.target.value))}
                       placeholder="تنبيه عند: 5 قطع"
-                      className="w-32 bg-[#f8fafc] border border-line rounded h-[30px] px-2 text-[12px] font-mono text-center text-ink focus:outline-none focus:border-brand"
+                      className="w-32 bg-surface-2 border border-line rounded h-[30px] px-2 text-[12px] font-mono text-center text-ink focus:outline-none focus:border-brand"
                     />
                     <span className="text-[10.5px] text-ink-muted">ينبهك النظام تلقائياً عند هبوط الرصيد الفعلي لشراء بضاعة جديدة</span>
                   </div>

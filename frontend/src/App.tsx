@@ -32,6 +32,7 @@ import {
   Plus,
   Building2,
   HelpCircle,
+  TrendingUp,
 } from 'lucide-react';
 import { 
   NotificationBellButton, 
@@ -42,6 +43,10 @@ import { useSystemNotifications } from './utils/useSystemNotifications';
 import { invoke } from './bridge/ipc';
 import { PosView } from './views/PosView';
 import { DashboardView } from './views/DashboardView';
+import { RevenueAnalyticsView } from './views/analytics/RevenueAnalyticsView';
+import { InventoryAnalyticsView } from './views/analytics/InventoryAnalyticsView';
+import { CustomerAnalyticsView } from './views/analytics/CustomerAnalyticsView';
+import type { DashboardSubTab } from './types/models';
 import { CustomersView } from './views/CustomersView';
 import { ProductsView } from './views/ProductsView';
 import { PurchasesView } from './views/PurchasesView';
@@ -123,6 +128,8 @@ export default function App() {
   const effectiveActiveTab: TabType = isCashier && !CASHIER_ALLOWED_TABS.includes(activeTab) ? 'pos' : activeTab;
   const [productsSubView, setProductsSubView] = useState<'catalog' | 'movements' | 'batches'>('catalog');
   const [isProductsMenuExpanded, setIsProductsMenuExpanded] = useState(false);
+  const [dashboardSubTab, setDashboardSubTab] = useState<DashboardSubTab>('today');
+  const [isDashboardMenuExpanded, setIsDashboardMenuExpanded] = useState(false);
   const [purchasesSubView, setPurchasesSubView] = useState<PurchasesSubView>('invoices');
   const [isPurchasesMenuExpanded, setIsPurchasesMenuExpanded] = useState(false);
   const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('profile');
@@ -611,6 +618,13 @@ export default function App() {
     if (subAction) subAction();
   };
 
+  const dashboardTreeItems = [
+    { id: 'today' as DashboardSubTab, label: 'لوحة اليوم والتشغيل', icon: LayoutDashboard },
+    { id: 'revenue' as DashboardSubTab, label: 'تحليل الإيرادات والأرباح', icon: TrendingUp },
+    { id: 'inventory' as DashboardSubTab, label: 'حركة المخزون والفاقد', icon: Boxes },
+    { id: 'customers' as DashboardSubTab, label: 'العملاء والآجل والديون', icon: Users },
+  ];
+
   const settingsTreeItems = [
     { id: 'profile' as SettingsSubTab, label: 'بيانات المتجر والفاتورة', icon: Store },
     { id: 'backup' as SettingsSubTab, label: 'النسخ الاحتياطي وحماية البيانات', icon: HardDrive },
@@ -638,7 +652,7 @@ export default function App() {
 
   if (isFirstRunWizardOpen) {
     return (
-      <div className="fixed inset-0 z-[9999] w-screen h-screen overflow-hidden select-none bg-[#f8fafc] dark:bg-slate-950" dir="rtl">
+      <div className="fixed inset-0 z-[9999] w-screen h-screen overflow-hidden select-none bg-canvas" dir="rtl">
         <FirstRunWizardModal
           isOpen={true}
           isFirstRun={true}
@@ -838,6 +852,7 @@ export default function App() {
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = effectiveActiveTab === item.id;
+              const isDashboardItem = item.id === 'dashboard';
               const isProductsItem = item.id === 'products';
               const isPurchasesItem = item.id === 'purchases';
               const isSettingsItem = item.id === 'settings';
@@ -849,6 +864,7 @@ export default function App() {
                     type="button"
                     onClick={() => {
                       handleNavClick(item.id, () => {
+                        if (isDashboardItem) setDashboardSubTab('today');
                         if (isProductsItem) setProductsSubView('catalog');
                         if (isPurchasesItem) setPurchasesSubView('invoices');
                         if (isSettingsItem) setSettingsSubTab('profile');
@@ -877,7 +893,13 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => {
-                      if (isProductsItem) {
+                      if (isDashboardItem) {
+                        if (effectiveActiveTab !== 'dashboard') {
+                          handleNavClick('dashboard', () => setIsDashboardMenuExpanded(true));
+                        } else {
+                          setIsDashboardMenuExpanded(!isDashboardMenuExpanded);
+                        }
+                      } else if (isProductsItem) {
                         if (effectiveActiveTab !== 'products') {
                           handleNavClick('products', () => setIsProductsMenuExpanded(true));
                         } else {
@@ -927,9 +949,9 @@ export default function App() {
                           {item.shortcut}
                         </span>
                       )}
-                      {(isProductsItem || isPurchasesItem || isSettingsItem) && (
+                      {(isDashboardItem || isProductsItem || isPurchasesItem || isSettingsItem) && (
                         <span className={isActive ? 'text-white/80' : 'text-[#52605d]'}>
-                          {(isProductsItem ? isProductsMenuExpanded : isPurchasesItem ? isPurchasesMenuExpanded : isSettingsMenuExpanded) ? (
+                          {(isDashboardItem ? isDashboardMenuExpanded : isProductsItem ? isProductsMenuExpanded : isPurchasesItem ? isPurchasesMenuExpanded : isSettingsMenuExpanded) ? (
                             <ChevronDown className="w-3.5 h-3.5" />
                           ) : (
                             <ChevronLeft className="w-3.5 h-3.5" />
@@ -938,6 +960,37 @@ export default function App() {
                       )}
                     </div>
                   </button>
+
+                  {/* Sub-tree for Dashboard & Executive Analytics */}
+                  {isDashboardItem && isDashboardMenuExpanded && (
+                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-[#00372d]/25 animate-in slide-in-from-top-1 duration-150">
+                      {dashboardTreeItems.map((sub) => {
+                        const SubIcon = sub.icon;
+                        const isSubActive = effectiveActiveTab === 'dashboard' && dashboardSubTab === sub.id;
+                        return (
+                          <button
+                            key={sub.id}
+                            type="button"
+                            title={sub.label}
+                            onClick={() => {
+                              setActiveTab('dashboard');
+                              setDashboardSubTab(sub.id);
+                            }}
+                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
+                              isSubActive
+                                ? 'bg-[#006d41] text-white font-bold shadow-2xs'
+                                : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white' : 'text-[#52605d]'}`} />
+                              <span className="truncate">{sub.label}</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   {/* Sub-tree for Products & Inventory */}
                   {isProductsItem && isProductsMenuExpanded && (
@@ -1145,22 +1198,36 @@ export default function App() {
         <main className="flex-1 h-full overflow-hidden bg-canvas">
           {effectiveActiveTab === 'pos' && <PosView />}
           {!isCashier && effectiveActiveTab === 'dashboard' && (
-            <DashboardView 
-              onNavigateToPos={() => setActiveTab('pos')} 
-              onNavigateToProducts={(sub?: 'catalog' | 'movements' | 'batches', filter?: 'all' | 'lowStock' | 'outOfStock') => {
-                setActiveTab('products');
-                setProductsSubView(sub || 'catalog');
-                if (filter) setInitialProductFilter(filter);
-                setIsProductsMenuExpanded(true);
-              }} 
-              onNavigateToCustomers={() => setActiveTab('customers')}
-              onNavigateToSales={() => setActiveTab('sales')}
-              onNavigateToAudit={() => setActiveTab('audit')}
-              onNavigateToSettings={(target) => {
-                setActiveTab('settings');
-                if (target?.includes('backup')) setSettingsSubTab('backup');
-              }}
-            />
+            <div className="h-full overflow-hidden">
+              {dashboardSubTab === 'today' && (
+                <DashboardView 
+                  onNavigateToPos={() => setActiveTab('pos')} 
+                  onNavigateToProducts={(sub?: 'catalog' | 'movements' | 'batches', filter?: 'all' | 'lowStock' | 'outOfStock') => {
+                    setActiveTab('products');
+                    setProductsSubView(sub || 'catalog');
+                    if (filter) setInitialProductFilter(filter);
+                    setIsProductsMenuExpanded(true);
+                  }} 
+                  onNavigateToCustomers={() => setActiveTab('customers')}
+                  onNavigateToSales={() => setActiveTab('sales')}
+                  onNavigateToAudit={() => setActiveTab('audit')}
+                  onNavigateToSettings={(target) => {
+                    setActiveTab('settings');
+                    if (target?.includes('backup')) setSettingsSubTab('backup');
+                  }}
+                  onNavigateSubTab={(sub) => setDashboardSubTab(sub)}
+                />
+              )}
+              {dashboardSubTab === 'revenue' && (
+                <RevenueAnalyticsView />
+              )}
+              {dashboardSubTab === 'inventory' && (
+                <InventoryAnalyticsView />
+              )}
+              {dashboardSubTab === 'customers' && (
+                <CustomerAnalyticsView onNavigateToCustomers={() => setActiveTab('customers')} />
+              )}
+            </div>
           )}
           {effectiveActiveTab === 'customers' && <CustomersView />}
           {!isCashier && effectiveActiveTab === 'products' && (

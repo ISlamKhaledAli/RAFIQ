@@ -4,7 +4,6 @@ import {
   X,
   ShieldCheck,
   CheckCircle2,
-  Calendar,
   AlertCircle,
   Clock,
   RotateCcw,
@@ -14,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { Customer, CustomerLedgerEntry, CustomerBalanceVerification } from '../../types/models';
 import { CustomSelect } from '../../components/CustomSelect';
+import { CustomDateRangePicker } from '../../components/CustomDatePicker';
 
 export interface CustomerStatementModalProps {
   isOpen: boolean;
@@ -149,20 +149,15 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
           {/* Filter Bar & Quick Dates (Story 69 / Feature #43) */}
           <div className="bg-surface-2 hairline-b px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0">
             <div className="flex items-center gap-2">
-              <Calendar className="w-3.5 h-3.5 text-ink-muted" />
               <span className="text-ink-muted text-[11px] font-semibold">تصفية التاريخ:</span>
-              <input
-                type="date"
-                value={statementStartDate}
-                onChange={(e) => setStatementStartDate(e.target.value)}
-                className="h-7 px-2 bg-canvas border border-line rounded text-[11px] font-mono text-ink focus:outline-none focus:border-brand"
-              />
-              <span className="text-ink-muted text-[11px]">إلى</span>
-              <input
-                type="date"
-                value={statementEndDate}
-                onChange={(e) => setStatementEndDate(e.target.value)}
-                className="h-7 px-2 bg-canvas border border-line rounded text-[11px] font-mono text-ink focus:outline-none focus:border-brand"
+              <CustomDateRangePicker
+                startDate={statementStartDate}
+                endDate={statementEndDate}
+                onChange={(start, end) => {
+                  setStatementStartDate(start);
+                  setStatementEndDate(end);
+                }}
+                size="sm"
               />
             </div>
 

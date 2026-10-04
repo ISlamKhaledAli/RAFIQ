@@ -616,6 +616,165 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, m9TestResult);
                     return true;
 
+                case "reports:getInventoryLoss":
+                    string lossPeriod = "today";
+                    string lossFrom = null;
+                    string lossTo = null;
+                    JObject lossObj = request.Payload as JObject;
+                    if (lossObj != null)
+                    {
+                        if (lossObj["period"] != null) lossPeriod = lossObj["period"].ToString();
+                        if (lossObj["fromDate"] != null) lossFrom = lossObj["fromDate"].ToString();
+                        if (lossObj["toDate"] != null) lossTo = lossObj["toDate"].ToString();
+                    }
+                    var lossReport = DatabaseService.Reports.GetInventoryLossReport(lossPeriod, lossFrom, lossTo);
+                    response = BridgeResponse.Ok(request.Id, lossReport);
+                    return true;
+
+                case "reports:getClosingHistory":
+                    string chPeriod = "month";
+                    string chFrom = null;
+                    string chTo = null;
+                    JObject chObj = request.Payload as JObject;
+                    if (chObj != null)
+                    {
+                        if (chObj["period"] != null) chPeriod = chObj["period"].ToString();
+                        if (chObj["fromDate"] != null) chFrom = chObj["fromDate"].ToString();
+                        if (chObj["toDate"] != null) chTo = chObj["toDate"].ToString();
+                    }
+                    var closings = DatabaseService.Reports.GetClosingHistory(chPeriod, chFrom, chTo);
+                    response = BridgeResponse.Ok(request.Id, closings);
+                    return true;
+
+                case "reports:getCategoryPerformance":
+                    string catPeriod = "month";
+                    string catFrom = null;
+                    string catTo = null;
+                    JObject catObj = request.Payload as JObject;
+                    if (catObj != null)
+                    {
+                        if (catObj["period"] != null) catPeriod = catObj["period"].ToString();
+                        if (catObj["fromDate"] != null) catFrom = catObj["fromDate"].ToString();
+                        if (catObj["toDate"] != null) catTo = catObj["toDate"].ToString();
+                    }
+                    var catPerf = DatabaseService.Reports.GetCategoryPerformance(catPeriod, catFrom, catTo);
+                    response = BridgeResponse.Ok(request.Id, catPerf);
+                    return true;
+
+                case "reports:getItemProfitability":
+                    string itemPeriod = "month";
+                    int itemLimit = 20;
+                    string itemDir = "desc";
+                    JObject itemObj = request.Payload as JObject;
+                    if (itemObj != null)
+                    {
+                        if (itemObj["period"] != null) itemPeriod = itemObj["period"].ToString();
+                        if (itemObj["limit"] != null) int.TryParse(itemObj["limit"].ToString(), out itemLimit);
+                        if (itemObj["direction"] != null) itemDir = itemObj["direction"].ToString();
+                    }
+                    var itemProf = DatabaseService.Reports.GetItemProfitability(itemPeriod, itemLimit, itemDir);
+                    response = BridgeResponse.Ok(request.Id, itemProf);
+                    return true;
+
+                case "reports:getPeriodComparison":
+                    string compPeriod = "week";
+                    JObject compObj = request.Payload as JObject;
+                    if (compObj != null && compObj["period"] != null)
+                    {
+                        compPeriod = compObj["period"].ToString();
+                    }
+                    var compReport = DatabaseService.Reports.GetPeriodComparison(compPeriod);
+                    response = BridgeResponse.Ok(request.Id, compReport);
+                    return true;
+
+                case "reports:getInventoryOverview":
+                    var invOverview = DatabaseService.Reports.GetInventoryOverview();
+                    response = BridgeResponse.Ok(request.Id, invOverview);
+                    return true;
+
+                case "reports:getShrinkageAnalysis":
+                    string shPeriod = "month";
+                    string shFrom = null;
+                    string shTo = null;
+                    JObject shObj = request.Payload as JObject;
+                    if (shObj != null)
+                    {
+                        if (shObj["period"] != null) shPeriod = shObj["period"].ToString();
+                        if (shObj["fromDate"] != null) shFrom = shObj["fromDate"].ToString();
+                        if (shObj["toDate"] != null) shTo = shObj["toDate"].ToString();
+                    }
+                    var shrinkage = DatabaseService.Reports.GetShrinkageAnalysis(shPeriod, shFrom, shTo);
+                    response = BridgeResponse.Ok(request.Id, shrinkage);
+                    return true;
+
+                case "reports:getPurchaseAnalysis":
+                    string purPeriod = "month";
+                    string purFrom = null;
+                    string purTo = null;
+                    JObject purObj = request.Payload as JObject;
+                    if (purObj != null)
+                    {
+                        if (purObj["period"] != null) purPeriod = purObj["period"].ToString();
+                        if (purObj["fromDate"] != null) purFrom = purObj["fromDate"].ToString();
+                        if (purObj["toDate"] != null) purTo = purObj["toDate"].ToString();
+                    }
+                    var purAnalysis = DatabaseService.Reports.GetPurchaseAnalysis(purPeriod, purFrom, purTo);
+                    response = BridgeResponse.Ok(request.Id, purAnalysis);
+                    return true;
+
+                case "reports:getCreditOverview":
+                    string crPeriod = "month";
+                    string crFrom = null;
+                    string crTo = null;
+                    JObject crObj = request.Payload as JObject;
+                    if (crObj != null)
+                    {
+                        if (crObj["period"] != null) crPeriod = crObj["period"].ToString();
+                        if (crObj["fromDate"] != null) crFrom = crObj["fromDate"].ToString();
+                        if (crObj["toDate"] != null) crTo = crObj["toDate"].ToString();
+                    }
+                    var creditOverview = DatabaseService.Reports.GetCreditOverview(crPeriod, crFrom, crTo);
+                    response = BridgeResponse.Ok(request.Id, creditOverview);
+                    return true;
+
+                case "reports:getDebtAging":
+                    var debtAging = DatabaseService.Reports.GetDebtAgingReport();
+                    response = BridgeResponse.Ok(request.Id, debtAging);
+                    return true;
+
+                case "reports:getCustomerBehavior":
+                    string cbPeriod = "month";
+                    string cbFrom = null;
+                    string cbTo = null;
+                    JObject cbObj = request.Payload as JObject;
+                    if (cbObj != null)
+                    {
+                        if (cbObj["period"] != null) cbPeriod = cbObj["period"].ToString();
+                        if (cbObj["fromDate"] != null) cbFrom = cbObj["fromDate"].ToString();
+                        if (cbObj["toDate"] != null) cbTo = cbObj["toDate"].ToString();
+                    }
+                    var custBehavior = DatabaseService.Reports.GetCustomerBehavior(cbPeriod, cbFrom, cbTo);
+                    response = BridgeResponse.Ok(request.Id, custBehavior);
+                    return true;
+
+                case "reports:getPaymentHistory":
+                    string payPeriod = "month";
+                    string payFrom = null;
+                    string payTo = null;
+                    string payCustId = null;
+                    JObject payObj = request.Payload as JObject;
+                    if (payObj != null)
+                    {
+                        if (payObj["period"] != null) payPeriod = payObj["period"].ToString();
+                        if (payObj["fromDate"] != null) payFrom = payObj["fromDate"].ToString();
+                        if (payObj["toDate"] != null) payTo = payObj["toDate"].ToString();
+                        if (payObj["customerId"] != null) payCustId = payObj["customerId"].ToString();
+                    }
+                    var payHistory = DatabaseService.Reports.GetPaymentHistory(payPeriod, payFrom, payTo, payCustId);
+                    response = BridgeResponse.Ok(request.Id, payHistory);
+                    return true;
+
+
                 case "closing:getPreview":
                     string bDate = null;
                     JObject prevObj = request.Payload as JObject;

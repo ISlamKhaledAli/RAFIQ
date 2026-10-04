@@ -4,31 +4,20 @@ import {
   TrendingDown,
   ShoppingCart, 
   DollarSign, 
-  Package, 
   AlertTriangle, 
   Clock, 
   RefreshCw, 
   Wallet, 
   CheckCircle2, 
-  ClipboardCheck,
-  ShieldCheck,
-  ShieldAlert,
-  HardDrive,
-  Printer,
-  Database,
-  KeyRound,
   Users,
   ChevronLeft,
   Flame,
   Lock,
   Scale,
-  Boxes,
-  FileText
+  Boxes
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { DashboardSummary, UnclosedDayAlert, BatchSummary } from '../types/models';
-import { ReadinessCheckModal } from '../components/ReadinessCheckModal';
-import { LicenseModal } from '../components/LicenseModal';
 import { DailyClosingModal } from '../components/DailyClosingModal';
 import { LowStockReportModal } from '../components/LowStockReportModal';
 import { DebtorsReportModal } from '../components/DebtorsReportModal';
@@ -36,91 +25,27 @@ import { PeriodSalesReportModal } from '../components/PeriodSalesReportModal';
 import { DataQualityAuditModal } from '../components/DataQualityAuditModal';
 import { formatArabicCurrency } from '../utils/money';
 
-interface SystemAlert {
-  id: string;
-  level: 'critical' | 'warning' | 'info';
-  title: string;
-  message: string;
-  fixAction: string;
-  fixTarget: string;
-}
 
-interface SystemHealthMetrics {
-  diskFreeFormatted: string;
-  diskFreeBytes: number;
-  lastBackupFormatted: string;
-  isBackupOverdue: boolean;
-  printerName: string;
-  isPrinterReady: boolean;
-  licenseStatus: string;
-  appVersion: string;
-  databaseStatus: string;
-  productsCount: number;
-  isAuditLogTampered?: boolean;
-  auditLogStatus?: string;
-  encryptionStatus?: string;
-  deviceFingerprint?: string;
-}
 
-interface SystemHealthData {
-  overallStatus: 'HEALTHY' | 'ATTENTION_NEEDED' | 'CRITICAL';
-  oneSentenceSummary: string;
-  healthScore: number;
-  primaryIssueFixAction?: string | null;
-  primaryIssueFixTarget?: string | null;
-  alerts: SystemAlert[];
-  metrics: SystemHealthMetrics;
-}
-
-interface DashboardViewProps {
-  onNavigateToPos: () => void;
+export interface DashboardViewProps {
+  onNavigateToPos?: () => void;
   onNavigateToProducts: (subView?: 'catalog' | 'movements' | 'batches', filter?: 'all' | 'lowStock' | 'outOfStock') => void;
   onNavigateToSales?: () => void;
   onNavigateToSettings?: (target?: string) => void;
   onNavigateToCustomers?: () => void;
   onNavigateToAudit?: () => void;
-}
-
-// Clean helper to parse and format raw ISO backup dates into friendly Arabic
-function formatFriendlyBackupDate(raw: string | undefined): string {
-  if (!raw || raw === 'لم تؤخذ بعد' || raw === 'لم تؤخذ') return 'لم تؤخذ بعد';
-  try {
-    const d = new Date(raw);
-    if (isNaN(d.getTime())) return raw;
-    const now = new Date();
-    const isToday = d.toDateString() === now.toDateString();
-    const timeStr = d.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' });
-    if (isToday) {
-      return `اليوم ${timeStr}`;
-    }
-    const dateStr = d.toLocaleDateString('ar-EG-u-nu-latn', { day: 'numeric', month: 'short' });
-    return `${dateStr}، ${timeStr}`;
-  } catch {
-    return raw;
-  }
-}
-
-// Clean printer name display without awkward truncation
-function formatCleanPrinterName(name: string | undefined): string {
-  if (!name || name === 'لا توجد' || name.trim() === '') return 'غير محددة';
-  return name.trim();
+  onNavigateSubTab?: (subTab: 'today' | 'revenue' | 'inventory' | 'customers') => void;
 }
 
 export function DashboardView({ 
-  onNavigateToPos, 
   onNavigateToProducts,
-  onNavigateToSales,
-  onNavigateToSettings,
   onNavigateToCustomers,
-  onNavigateToAudit
+  onNavigateSubTab
 }: DashboardViewProps) {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
-  const [health, setHealth] = useState<SystemHealthData | null>(null);
   const [unclosedAlert, setUnclosedAlert] = useState<UnclosedDayAlert | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<string>('');
-  const [isReadinessModalOpen, setIsReadinessModalOpen] = useState(false);
-  const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
   const [batchSummary, setBatchSummary] = useState<BatchSummary | null>(null);
 
   // Milestone 9 Modals State
@@ -134,14 +59,12 @@ export function DashboardView({
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [sumData, healthData, unclosedData, batchData] = await Promise.all([
+      const [sumData, unclosedData, batchData] = await Promise.all([
         invoke<DashboardSummary>('reports:getTodaySummary'),
-        invoke<SystemHealthData>('health:getStatus'),
         invoke<UnclosedDayAlert>('closing:checkPreviousDay'),
         invoke<BatchSummary>('batch:summary').catch(() => null)
       ]);
       if (sumData) setSummary(sumData);
-      if (healthData) setHealth(healthData);
       if (unclosedData) setUnclosedAlert(unclosedData);
       if (batchData) setBatchSummary(batchData);
       const now = new Date();
@@ -157,15 +80,13 @@ export function DashboardView({
     let active = true;
     void (async () => {
       try {
-        const [sumData, healthData, unclosedData, batchData] = await Promise.all([
+        const [sumData, unclosedData, batchData] = await Promise.all([
           invoke<DashboardSummary>('reports:getTodaySummary'),
-          invoke<SystemHealthData>('health:getStatus'),
           invoke<UnclosedDayAlert>('closing:checkPreviousDay'),
           invoke<BatchSummary>('batch:summary').catch(() => null)
         ]);
         if (active) {
           if (sumData) setSummary(sumData);
-          if (healthData) setHealth(healthData);
           if (unclosedData) setUnclosedAlert(unclosedData);
           if (batchData) setBatchSummary(batchData);
           const now = new Date();
@@ -178,41 +99,19 @@ export function DashboardView({
     return () => { active = false; };
   }, []);
 
-  const handleFixAction = (target?: string | null) => {
-    if (!target) return;
-    if (target === 'audit' && onNavigateToAudit) {
-      onNavigateToAudit();
-    } else if (target.startsWith('settings') && onNavigateToSettings) {
-      onNavigateToSettings(target);
-    } else if (target === 'products') {
-      onNavigateToProducts();
-    } else if (target === 'sales' && onNavigateToSales) {
-      onNavigateToSales();
-    }
-  };
-
-  const isHealthy = !health || health.overallStatus === 'HEALTHY';
-  const isCritical = health?.overallStatus === 'CRITICAL';
-
   return (
-    <div className="flex flex-col h-full w-full bg-[#F3F5F2] select-none overflow-y-auto p-5 gap-4 font-sans text-[#14181A]" dir="rtl">
+    <div className="flex flex-col h-full w-full bg-canvas select-none overflow-y-auto p-5 gap-4 font-sans text-ink" dir="rtl">
       
       {/* 1. TOP HEADER & COMMAND CENTER CONTROLS */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0 bg-surface p-3 sm:p-3.5 rounded-xl border border-line shadow-2xs">
         <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg sm:text-xl font-black text-ink">لوحة اليوم</h2>
-            <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-surface-2 border border-line text-[11px] font-medium text-ink">
-              <span className="w-2 h-2 rounded-full bg-paid animate-pulse" />
-              <span>يعمل بدون إنترنت (محلي)</span>
-            </div>
-          </div>
+          <h2 className="text-lg sm:text-xl font-black text-ink">لوحة اليوم والتشغيل</h2>
           <p className="text-xs text-ink-muted mt-0.5">
-            موجز العمليات والنشاط التشغيلي، المبيعات اللحظية، ومؤشرات سلامة النظام
+            موجز وردية اليوم، حركة الدرج، والتنبيهات التشغيلية الحية
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+        <div className="flex items-center gap-2 shrink-0">
           <div className="hidden md:flex items-center gap-1.5 text-xs text-ink-muted bg-surface-2 px-2.5 py-1.5 rounded-lg border border-line">
             <Clock className="w-3.5 h-3.5 text-ink-muted" />
             <span className="text-[11px]">آخر تحديث:</span>
@@ -220,13 +119,12 @@ export function DashboardView({
           </div>
 
           <button
-            type="button"
-            onClick={() => setIsReadinessModalOpen(true)}
-            className="flex items-center gap-1.5 h-9 px-2.5 sm:px-3 bg-surface hover:bg-surface-2 text-brand-dark border border-line rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer active:translate-y-0.5"
-            title="فحص الجاهزية التشغيلية"
+            onClick={() => void loadData()}
+            disabled={isLoading}
+            className="flex items-center justify-center h-9 w-9 bg-surface border border-line hover:bg-surface-2 rounded-lg text-xs font-bold text-ink transition-colors shadow-2xs disabled:opacity-50 cursor-pointer active:translate-y-0.5"
+            title="تحديث البيانات اللحظية"
           >
-            <ClipboardCheck className="w-4 h-4 text-paid" />
-            <span className="hidden sm:inline">فحص الجاهزية</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-paid' : 'text-ink-muted'}`} />
           </button>
 
           <button
@@ -235,50 +133,11 @@ export function DashboardView({
               setClosingTargetDate(undefined);
               setIsClosingModalOpen(true);
             }}
-            className="flex items-center gap-1.5 h-9 px-2.5 sm:px-3 bg-surface hover:bg-surface-2 text-brand-dark border border-line rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer active:translate-y-0.5"
+            className="flex items-center gap-1.5 h-9 px-3.5 bg-brand hover:bg-brand-dark active:bg-brand-dark text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer active:translate-y-0.5"
             title="إقفال اليومية ومطابقة النقدية (Z-Report)"
           >
-            <Lock className="w-4 h-4 text-paid" />
+            <Lock className="w-4 h-4 text-emerald-300" />
             <span>قفل اليومية (Z)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsPeriodSalesModalOpen(true)}
-            className="flex items-center gap-1.5 h-9 px-2.5 sm:px-3 bg-surface hover:bg-surface-2 text-brand-dark border border-line rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer active:translate-y-0.5"
-            title="تقرير المبيعات والربح الدوري"
-          >
-            <FileText className="w-4 h-4 text-paid" />
-            <span className="hidden sm:inline">التقارير والأرباح</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsDataQualityModalOpen(true)}
-            className="flex items-center gap-1.5 h-9 px-2.5 sm:px-3 bg-surface hover:bg-surface-2 text-brand-dark border border-line rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer active:translate-y-0.5"
-            title="فحص جودة وصحة بيانات المخزون والأصناف"
-          >
-            <ShieldCheck className="w-4 h-4 text-paid" />
-            <span className="hidden md:inline">جودة البيانات</span>
-          </button>
-
-          <button
-            onClick={() => void loadData()}
-            disabled={isLoading}
-            className="flex items-center justify-center h-9 w-9 bg-surface border border-line hover:bg-surface-2 rounded-lg text-xs font-bold text-ink transition-colors shadow-2xs disabled:opacity-50 cursor-pointer active:translate-y-0.5"
-            title="تحديث البيانات"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-paid' : 'text-ink-muted'}`} />
-          </button>
-
-          <button
-            type="button"
-            onClick={onNavigateToPos}
-            className="flex items-center gap-2 h-9 px-3.5 sm:px-4 bg-brand hover:bg-brand-dark active:bg-brand-dark text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer active:translate-y-0.5"
-          >
-            <ShoppingCart className="w-4 h-4" />
-            <span>شاشة البيع</span>
-            <span className="text-[10px] font-mono bg-brand-dark text-brand-soft px-1.5 py-0.5 rounded border border-white/20">F2</span>
           </button>
         </div>
       </div>
@@ -366,178 +225,21 @@ export function DashboardView({
         </div>
       )}
 
-      {/* 2. EXECUTIVE SYSTEM HEALTH & HARDWARE STATUS STRIP */}
-      <div className="bg-surface rounded-xl border border-line shadow-2xs overflow-hidden transition-all shrink-0">
-        {/* Top Status Header */}
-        <div
-          className={`px-4 py-2.5 sm:py-3 border-b flex flex-col md:flex-row md:items-center justify-between gap-3 transition-colors ${
-            isHealthy
-              ? 'bg-surface-2 border-line'
-              : isCritical
-              ? 'bg-rose-50 border-rose-200'
-              : 'bg-amber-50 border-amber-200'
-          }`}
-        >
-          <div className="flex items-center gap-3">
-            <div
-              className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 shadow-2xs ${
-                isHealthy
-                  ? 'bg-brand-dark text-white'
-                  : isCritical
-                  ? 'bg-danger text-white'
-                  : 'bg-warn text-white'
-              }`}
-            >
-              {isHealthy ? (
-                <ShieldCheck className="w-5 h-5 text-emerald-300" />
-              ) : isCritical ? (
-                <ShieldAlert className="w-5 h-5 animate-pulse" />
-              ) : (
-                <AlertTriangle className="w-5 h-5" />
-              )}
-            </div>
-
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold text-ink-muted">
-                  مؤشر سلامة وتشغيل النظام
-                </span>
-                <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1 border ${
-                    isHealthy
-                      ? 'bg-brand-soft text-brand-dark border-brand/20'
-                      : isCritical
-                      ? 'bg-rose-100 text-danger border-rose-200'
-                      : 'bg-amber-100 text-warn border-amber-200'
-                  }`}
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full ${isHealthy ? 'bg-paid animate-pulse' : 'bg-danger'}`} />
-                  {isHealthy ? 'سليم وجاهز 100%' : isCritical ? 'تنبيه حرج' : 'يحتاج انتباهك'}
-                </span>
-              </div>
-              <h3 className="text-xs font-bold text-ink leading-snug">
-                {health?.oneSentenceSummary || 'النظام جاهز تماماً لتسجيل المبيعات • قاعدة البيانات مؤمنة ومستقرة بنسبة 100%'}
-              </h3>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            {health?.primaryIssueFixAction && health.primaryIssueFixTarget && (
-              <button
-                type="button"
-                onClick={() => handleFixAction(health.primaryIssueFixTarget)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-xs transition-all cursor-pointer ${
-                  isCritical
-                    ? 'bg-danger hover:bg-danger/90'
-                    : 'bg-warn hover:bg-warn/90'
-                }`}
-              >
-                {health.primaryIssueFixAction}
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setIsReadinessModalOpen(true)}
-              className="px-3 py-1.5 bg-surface hover:bg-surface-2 border border-line rounded-lg text-xs font-bold text-ink transition-all shadow-2xs cursor-pointer active:translate-y-0.5"
-            >
-              فحص التفاصيل
-            </button>
-          </div>
-        </div>
-
-        {/* 6 Clean Hardware & Security Pulse Cards */}
-        <div className="p-2.5 sm:p-3 bg-surface-2">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
-            {/* Storage Free Space */}
-            <div className="flex items-center gap-2.5 bg-surface p-2.5 rounded-lg border border-line shadow-2xs hover:border-brand/40 transition-all">
-              <div className="w-7 h-7 rounded bg-surface-2 text-ink-muted flex items-center justify-center shrink-0">
-                <HardDrive className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0">
-                <span className="text-[10px] font-semibold text-ink-muted block leading-tight">مساحة القرص</span>
-                <span className="font-mono font-bold text-ink text-xs truncate block tabular-nums">{health?.metrics?.diskFreeFormatted || '---'}</span>
-              </div>
-            </div>
-
-            {/* Backup Status */}
-            <div className="flex items-center gap-2.5 bg-surface p-2.5 rounded-lg border border-line shadow-2xs hover:border-brand/40 transition-all">
-              <div className="w-7 h-7 rounded bg-brand-soft text-brand-dark flex items-center justify-center shrink-0">
-                <Database className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0">
-                <span className="text-[10px] font-semibold text-ink-muted block leading-tight">النسخ الاحتياطي</span>
-                <span className="font-bold text-ink text-xs truncate block" title={health?.metrics?.lastBackupFormatted}>
-                  {formatFriendlyBackupDate(health?.metrics?.lastBackupFormatted)}
-                </span>
-              </div>
-            </div>
-
-            {/* Printer Detection */}
-            <div className="flex items-center gap-2.5 bg-surface p-2.5 rounded-lg border border-line shadow-2xs hover:border-brand/40 transition-all">
-              <div className="w-7 h-7 rounded bg-brand-soft text-brand-dark flex items-center justify-center shrink-0">
-                <Printer className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0">
-                <span className="text-[10px] font-semibold text-ink-muted block leading-tight">طابعة الفواتير</span>
-                <span className="font-bold text-ink text-xs truncate block" title={health?.metrics?.printerName}>
-                  {formatCleanPrinterName(health?.metrics?.printerName)}
-                </span>
-              </div>
-            </div>
-
-            {/* Offline Lifetime License */}
-            <div 
-              onClick={() => setIsLicenseModalOpen(true)}
-              className="flex items-center gap-2.5 bg-surface p-2.5 rounded-lg border border-line shadow-2xs hover:border-brand cursor-pointer transition-all group"
-              title="انقر لإدارة وتفعيل الترخيص السحابي"
-            >
-              <div className="w-7 h-7 rounded bg-brand-soft text-brand-dark flex items-center justify-center shrink-0 group-hover:bg-brand-dark group-hover:text-white transition-colors">
-                <KeyRound className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0">
-                <span className="text-[10px] font-semibold text-ink-muted block leading-tight">حالة الترخيص (انقر)</span>
-                <span className="font-bold text-ink text-xs truncate block">
-                  {health?.metrics?.licenseStatus || 'ترخيص دائم نشط'}
-                </span>
-              </div>
-            </div>
-
-            {/* Catalog Products Count */}
-            <div className="flex items-center gap-2.5 bg-surface p-2.5 rounded-lg border border-line shadow-2xs hover:border-brand/40 transition-all">
-              <div className="w-7 h-7 rounded bg-paid-soft text-paid flex items-center justify-center shrink-0">
-                <Package className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0">
-                <span className="text-[10px] font-semibold text-ink-muted block leading-tight">كتالوج الأصناف</span>
-                <span className="font-mono font-bold text-ink text-xs tabular-nums">{health?.metrics?.productsCount || 0} صنف</span>
-              </div>
-            </div>
-
-            {/* Cryptographic Protection & Anti-Tamper */}
-            <div className="flex items-center gap-2.5 bg-surface p-2.5 rounded-lg border border-line shadow-2xs hover:border-brand/40 transition-all">
-              <div className={`w-7 h-7 rounded flex items-center justify-center shrink-0 ${health?.metrics?.isAuditLogTampered ? 'bg-rose-50 text-danger' : 'bg-brand-soft text-brand-dark'}`}>
-                <Lock className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0">
-                <span className="text-[10px] font-semibold text-ink-muted block leading-tight">حماية البيانات</span>
-                <span className={`font-bold text-xs truncate block ${health?.metrics?.isAuditLogTampered ? 'text-danger' : 'text-ink'}`} title={health?.metrics?.auditLogStatus || 'مشفر وموثق رقمياً'}>
-                  {health?.metrics?.isAuditLogTampered ? 'تنبيه تلاعب!' : 'مشفر وموثق'}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 3. FINANCIAL & OPERATIONAL KPI METRICS (6 clean cards with no clipping) */}
+      {/* 2. FINANCIAL & OPERATIONAL KPI METRICS (6 clean cards with no clipping) */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5 sm:gap-3 shrink-0">
         {/* KPI 1: Today Sales */}
-        <div className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 shadow-2xs hover:border-brand hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[120px]">
+        <div 
+          onClick={() => {
+            if (onNavigateSubTab) onNavigateSubTab('revenue');
+            else setIsPeriodSalesModalOpen(true);
+          }}
+          className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 shadow-2xs hover:border-paid hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[120px] cursor-pointer group"
+          title="عرض تحليلات الإيرادات التفصيلية"
+        >
           <div>
             <div className="flex items-center justify-between text-xs text-ink-muted mb-1.5">
               <span className="font-bold text-ink text-xs">مبيعات اليوم</span>
-              <div className="w-7 h-7 rounded-lg bg-paid-soft text-paid border border-paid/20 flex items-center justify-center shadow-2xs">
+              <div className="w-7 h-7 rounded-lg bg-paid-soft text-paid border border-paid/20 flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
                 <ShoppingCart className="w-3.5 h-3.5 stroke-[2.5]" />
               </div>
             </div>
@@ -550,7 +252,10 @@ export function DashboardView({
           </div>
           <div className="pt-2 mt-2 border-t border-line/60 flex items-center justify-between text-[11px] text-ink-muted">
             <span>نقدي: <strong className="text-ink font-mono tabular-nums">{summary ? (summary.todayCashPiasters / 100).toFixed(0) : '0'}</strong></span>
-            <span>آجل: <strong className="text-ink font-mono tabular-nums">{summary ? (summary.todayCreditPiasters / 100).toFixed(0) : '0'}</strong></span>
+            <span className="text-paid font-bold text-[11px] flex items-center gap-0.5 group-hover:underline">
+              التحليلات
+              <ChevronLeft className="w-3 h-3" />
+            </span>
           </div>
         </div>
 
@@ -561,9 +266,16 @@ export function DashboardView({
           const absNetProfit = Math.abs(netProfit);
 
           return (
-            <div className={`bg-surface rounded-xl border ${
-              isLoss ? 'border-rose-300 hover:border-danger' : 'border-line hover:border-paid'
-            } p-3 sm:p-3.5 shadow-2xs hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[120px]`}>
+            <div 
+              onClick={() => {
+                if (onNavigateSubTab) onNavigateSubTab('revenue');
+                else setIsPeriodSalesModalOpen(true);
+              }}
+              className={`bg-surface rounded-xl border ${
+                isLoss ? 'border-rose-300 hover:border-danger' : 'border-line hover:border-paid'
+              } p-3 sm:p-3.5 shadow-2xs hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[120px] cursor-pointer group`}
+              title="عرض تقرير أرباح ومبيعات الفترة"
+            >
               <div>
                 <div className="flex items-center justify-between text-xs text-ink-muted mb-1.5">
                   <span className={`font-bold text-xs ${isLoss ? 'text-danger' : 'text-ink'}`}>
@@ -602,7 +314,10 @@ export function DashboardView({
 
         {/* KPI 3: Inventory Loss / Shrinkage */}
         <div 
-          onClick={() => onNavigateToProducts('movements')}
+          onClick={() => {
+            if (onNavigateSubTab) onNavigateSubTab('inventory');
+            else onNavigateToProducts('movements');
+          }}
           className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 shadow-2xs hover:border-amber-400 hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[120px] cursor-pointer group"
         >
           <div>
@@ -626,7 +341,7 @@ export function DashboardView({
           <div className="pt-2 mt-2 border-t border-line/60 flex items-center justify-between text-[11px] text-ink-muted">
             <span>التسويات: <strong className="text-ink font-mono tabular-nums">{summary?.todayAdjustmentsCount || 0}</strong></span>
             <span className="text-paid font-bold text-[11px] flex items-center gap-0.5 group-hover:underline">
-              عرض الحركات
+              تحليل الفاقد
               <ChevronLeft className="w-3 h-3" />
             </span>
           </div>
@@ -698,8 +413,11 @@ export function DashboardView({
 
         {/* KPI 6: Customer Debts */}
         <div 
-          onClick={onNavigateToCustomers}
-          className={`bg-surface rounded-xl border border-line p-3 sm:p-3.5 shadow-2xs hover:border-rose-400 hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[120px] ${onNavigateToCustomers ? 'cursor-pointer' : ''}`}
+          onClick={() => {
+            if (onNavigateSubTab) onNavigateSubTab('customers');
+            else if (onNavigateToCustomers) onNavigateToCustomers();
+          }}
+          className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 shadow-2xs hover:border-rose-400 hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[120px] cursor-pointer"
         >
           <div>
             <div className="flex items-center justify-between text-xs text-ink-muted mb-1.5">
@@ -719,12 +437,10 @@ export function DashboardView({
           </div>
           <div className="pt-2 mt-2 border-t border-line/60 flex items-center justify-between text-[11px] text-ink-muted">
             <span>المدينون: <strong className="text-danger font-mono tabular-nums">{summary?.debtorsCount || 0}</strong></span>
-            {onNavigateToCustomers && (
-              <span className="text-paid font-bold text-[11px] flex items-center gap-0.5 hover:underline">
-                عرض الدفتر
-                <ChevronLeft className="w-3 h-3" />
-              </span>
-            )}
+            <span className="text-paid font-bold text-[11px] flex items-center gap-0.5 hover:underline">
+              تحليل الآجل
+              <ChevronLeft className="w-3 h-3" />
+            </span>
           </div>
         </div>
       </div>
@@ -876,43 +592,7 @@ export function DashboardView({
         {/* LEFT COLUMN (1/3 width): System Alerts & Stock Thresholds */}
         <div className="flex flex-col gap-4">
           
-          {/* Prioritized System Alerts */}
-          {health && health.alerts && health.alerts.length > 0 && (
-            <div className="bg-surface rounded-xl border border-line flex flex-col overflow-hidden shadow-2xs">
-              <div className="h-10 bg-surface-2 border-b border-line px-4 flex items-center justify-between text-xs font-bold text-ink shrink-0">
-                <span>تنبيهات النظام ({health.alerts.length})</span>
-                <span className="text-[10px] text-ink-muted font-normal">مرتبة حسب الأهمية</span>
-              </div>
-              <div className="p-3 space-y-2 max-h-[170px] overflow-y-auto">
-                {health.alerts.map((al) => (
-                  <div
-                    key={al.id}
-                    className={`p-2.5 rounded-lg text-xs border flex items-start justify-between gap-2 ${
-                      al.level === 'critical'
-                        ? 'bg-rose-50 text-danger border-rose-200'
-                        : al.level === 'warning'
-                        ? 'bg-amber-50 text-warn border-amber-200'
-                        : 'bg-surface-2 text-ink border-line'
-                    }`}
-                  >
-                    <div>
-                      <span className="font-bold block leading-tight">{al.title}</span>
-                      <span className="text-[11px] opacity-85 leading-normal block mt-0.5">{al.message}</span>
-                    </div>
-                    {al.fixAction && al.fixTarget && (
-                      <button
-                        type="button"
-                        onClick={() => handleFixAction(al.fixTarget)}
-                        className="px-2 py-1 rounded text-[10px] font-bold bg-surface text-ink border border-line shadow-2xs shrink-0 hover:bg-surface-2 transition-colors cursor-pointer"
-                      >
-                        {al.fixAction}
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+
 
           {/* Low Stock Alerts (Story 79 / Task 36-2) */}
           <div className="bg-surface rounded-xl border border-line flex flex-col overflow-hidden shadow-2xs">
@@ -928,9 +608,9 @@ export function DashboardView({
               </div>
               <div className="flex items-center gap-1.5">
                 <button 
-                  onClick={() => setIsLowStockModalOpen(true)}
+                  onClick={() => onNavigateSubTab ? onNavigateSubTab('inventory') : setIsLowStockModalOpen(true)}
                   className="px-2 py-0.5 rounded bg-brand text-white hover:bg-brand-dark text-[11px] font-bold transition-all shadow-2xs cursor-pointer"
-                  title="أمر شراء النواقص"
+                  title="تحليل النواقص وأمر الشراء"
                 >
                   أمر الشراء
                 </button>
@@ -987,20 +667,12 @@ export function DashboardView({
               </div>
               <div className="flex items-center gap-1.5">
                 <button 
-                  onClick={() => setIsDebtorsModalOpen(true)}
+                  onClick={() => onNavigateSubTab ? onNavigateSubTab('customers') : setIsDebtorsModalOpen(true)}
                   className="px-2 py-0.5 rounded bg-brand text-white hover:bg-brand-dark text-[11px] font-bold transition-all shadow-2xs cursor-pointer"
-                  title="طباعة كشف ديون العملاء"
+                  title="تحليل ديون العملاء الكامل"
                 >
-                  كشف للطباعة
+                  كشف التحليلات
                 </button>
-                {onNavigateToCustomers && (
-                  <button 
-                    onClick={onNavigateToCustomers}
-                    className="px-2 py-0.5 rounded bg-surface hover:bg-surface-2 text-brand-dark text-[11px] font-bold transition-all shadow-2xs border border-line cursor-pointer"
-                  >
-                    كافة العملاء
-                  </button>
-                )}
               </div>
             </div>
 
@@ -1032,24 +704,7 @@ export function DashboardView({
 
       </div>
 
-      {/* Pilot Readiness Check Modal */}
-      <ReadinessCheckModal
-        isOpen={isReadinessModalOpen}
-        onClose={() => setIsReadinessModalOpen(false)}
-        onNavigateToTab={(tab) => {
-          if (tab === 'pos') onNavigateToPos();
-          else if (tab === 'products') onNavigateToProducts();
-          else if (tab === 'sales' && onNavigateToSales) onNavigateToSales();
-          else if (tab.startsWith('settings') && onNavigateToSettings) onNavigateToSettings(tab);
-        }}
-      />
 
-      {/* Cloudflare License Management Modal */}
-      <LicenseModal
-        isOpen={isLicenseModalOpen}
-        onClose={() => setIsLicenseModalOpen(false)}
-        onLicenseUpdated={loadData}
-      />
 
       {/* Daily Closing & Z-Report Modal (Story 87 / Feature #49) */}
       <DailyClosingModal

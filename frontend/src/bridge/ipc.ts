@@ -1316,6 +1316,581 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       };
     }
 
+    case 'reports:getPeriodSales': {
+      const period = payload?.period || 'today';
+      let multiplier = 1;
+      let invoices = 24;
+      if (period === 'yesterday') { multiplier = 0.9; invoices = 21; }
+      else if (period === 'week') { multiplier = 6.8; invoices = 158; }
+      else if (period === 'month') { multiplier = 28.5; invoices = 680; }
+      else if (period === '3months') { multiplier = 82; invoices = 1950; }
+      else if (period === 'year') { multiplier = 340; invoices = 8200; }
+
+      const totalSales = Math.round(125000 * multiplier);
+      const cashSales = Math.round(totalSales * 0.76);
+      const creditSales = Math.round(totalSales * 0.20);
+      const cardSales = totalSales - cashSales - creditSales;
+      const returns = Math.round(totalSales * 0.025);
+      const cancelled = Math.round(totalSales * 0.015);
+      const netSales = totalSales - returns;
+      const grossProfit = Math.round(netSales * 0.228);
+
+      return {
+        period,
+        startDate: payload?.fromDate || '2026-10-01',
+        endDate: payload?.toDate || '2026-10-04',
+        totalSalesPiasters: totalSales,
+        cashSalesPiasters: cashSales,
+        creditSalesPiasters: creditSales,
+        cardSalesPiasters: cardSales,
+        returnsTotalPiasters: returns,
+        cancelledTotalPiasters: cancelled,
+        netSalesPiasters: netSales,
+        grossProfitPiasters: grossProfit,
+        invoicesCount: invoices,
+        returnsCount: Math.max(1, Math.round(invoices * 0.03)),
+        cancelledCount: Math.max(1, Math.round(invoices * 0.015)),
+        zeroCostItemsCount: 0,
+        topSellingProducts: [
+          { productId: 'p_1', productName: 'لبن جهينة كامل الدسم 1 لتر', totalQuantity: Math.round(18 * multiplier), totalSalesPiasters: Math.round(75600 * multiplier) },
+          { productId: 'p_2', productName: 'أرز مصري فاخر 1 كجم', totalQuantity: Math.round(12 * multiplier), totalSalesPiasters: Math.round(42000 * multiplier) },
+          { productId: 'p_3', productName: 'سكر أبيض نقي 1 كجم', totalQuantity: Math.round(25 * multiplier), totalSalesPiasters: Math.round(75000 * multiplier) },
+          { productId: 'p_4', productName: 'زيت عباد الشمس 800 مل', totalQuantity: Math.round(15 * multiplier), totalSalesPiasters: Math.round(97500 * multiplier) },
+          { productId: 'p_5', productName: 'شاي العروسة 250 جم', totalQuantity: Math.round(30 * multiplier), totalSalesPiasters: Math.round(90000 * multiplier) },
+        ],
+      };
+    }
+
+    case 'reports:getInventoryLoss': {
+      const p = payload?.period || 'today';
+      const m = p === 'month' ? 12 : p === 'week' ? 3.5 : 1;
+      return {
+        totalLossPiasters: Math.round(4500 * m),
+        totalDamagePiasters: Math.round(2500 * m),
+        totalGiftsPiasters: Math.round(1200 * m),
+        totalSurplusPiasters: Math.round(800 * m),
+        topLossItems: [
+          {
+            productId: 'p_1',
+            productName: 'لبن جهينة كامل الدسم 1 لتر',
+            unit: 'piece',
+            quantityDeltaMilli: -3000,
+            unitCostPiasters: 3400,
+            financialImpactPiasters: 10200,
+            reason: 'تالف (عبوة ممزقة أثناء النقل)',
+            createdAt: '2026-10-04 11:30',
+          },
+          {
+            productId: 'p_6',
+            productName: 'زبادي طبيعي المراعي 105 جم',
+            unit: 'piece',
+            quantityDeltaMilli: -5000,
+            unitCostPiasters: 750,
+            financialImpactPiasters: 3750,
+            reason: 'انتهاء الصلاحية',
+            createdAt: '2026-10-04 09:15',
+          },
+          {
+            productId: 'p_3',
+            productName: 'سكر أبيض نقي 1 كجم',
+            unit: 'piece',
+            quantityDeltaMilli: -2000,
+            unitCostPiasters: 2600,
+            financialImpactPiasters: 5200,
+            reason: 'عجز جرد أسبوعي',
+            createdAt: '2026-10-03 22:00',
+          },
+        ],
+      };
+    }
+
+    case 'reports:getClosingHistory': {
+      return [
+        {
+          id: 'close_1',
+          closingDate: '2026-10-03',
+          shiftNumber: 1,
+          cashierName: 'محمد أحمد (المدير)',
+          totalSalesPiasters: 142000,
+          cashSalesPiasters: 110000,
+          creditSalesPiasters: 32000,
+          returnsPiasters: 3500,
+          netSalesPiasters: 138500,
+          grossProfitPiasters: 31200,
+          expectedCashPiasters: 106500,
+          actualCashPiasters: 106500,
+          differencePiasters: 0,
+          isClosed: true,
+          createdAt: '2026-10-03 23:45',
+          notes: 'إقفال سليم بدون فروقات',
+        },
+        {
+          id: 'close_2',
+          closingDate: '2026-10-02',
+          shiftNumber: 1,
+          cashierName: 'أحمد محمود (كاشير)',
+          totalSalesPiasters: 118500,
+          cashSalesPiasters: 92000,
+          creditSalesPiasters: 26500,
+          returnsPiasters: 1200,
+          netSalesPiasters: 117300,
+          grossProfitPiasters: 26400,
+          expectedCashPiasters: 90800,
+          actualCashPiasters: 90500,
+          differencePiasters: -300,
+          isClosed: true,
+          createdAt: '2026-10-02 23:30',
+          notes: 'عجز طفيف 3 جنيهات فكة تم قبولها',
+        },
+        {
+          id: 'close_3',
+          closingDate: '2026-10-01',
+          shiftNumber: 1,
+          cashierName: 'محمد أحمد (المدير)',
+          totalSalesPiasters: 135000,
+          cashSalesPiasters: 105000,
+          creditSalesPiasters: 30000,
+          returnsPiasters: 2000,
+          netSalesPiasters: 133000,
+          grossProfitPiasters: 30100,
+          expectedCashPiasters: 103000,
+          actualCashPiasters: 103250,
+          differencePiasters: 250,
+          isClosed: true,
+          createdAt: '2026-10-01 23:50',
+          notes: 'زيادة نقدية طفيفة 2.50 ج.م',
+        },
+        {
+          id: 'close_4',
+          closingDate: '2026-09-30',
+          shiftNumber: 1,
+          cashierName: 'محمد أحمد (المدير)',
+          totalSalesPiasters: 164000,
+          cashSalesPiasters: 128000,
+          creditSalesPiasters: 36000,
+          returnsPiasters: 4000,
+          netSalesPiasters: 160000,
+          grossProfitPiasters: 36800,
+          expectedCashPiasters: 124000,
+          actualCashPiasters: 124000,
+          differencePiasters: 0,
+          isClosed: true,
+          createdAt: '2026-09-30 23:55',
+          notes: 'إقفال نهاية الشهر - مطابق تماماً',
+        },
+      ];
+    }
+
+    case 'reports:getCategoryPerformance': {
+      return [
+        {
+          categoryId: 'cat_dairy',
+          categoryName: 'الألبان ومنتجات الحليب',
+          totalSalesPiasters: 425000,
+          totalCostPiasters: 335000,
+          grossProfitPiasters: 90000,
+          profitMarginPercent: 21.2,
+          itemsSoldQty: 184,
+          salesSharePercent: 34.0,
+        },
+        {
+          categoryId: 'cat_grocery',
+          categoryName: 'البقالة والسلع التموينية',
+          totalSalesPiasters: 380000,
+          totalCostPiasters: 310000,
+          grossProfitPiasters: 70000,
+          profitMarginPercent: 18.4,
+          itemsSoldQty: 245,
+          salesSharePercent: 30.4,
+        },
+        {
+          categoryId: 'cat_beverages',
+          categoryName: 'المشروبات والعصائر',
+          totalSalesPiasters: 210000,
+          totalCostPiasters: 155000,
+          grossProfitPiasters: 55000,
+          profitMarginPercent: 26.2,
+          itemsSoldQty: 140,
+          salesSharePercent: 16.8,
+        },
+        {
+          categoryId: 'cat_sweets',
+          categoryName: 'الحلويات والشوكولاتة والمسليات',
+          totalSalesPiasters: 145000,
+          totalCostPiasters: 98000,
+          grossProfitPiasters: 47000,
+          profitMarginPercent: 32.4,
+          itemsSoldQty: 95,
+          salesSharePercent: 11.6,
+        },
+        {
+          categoryId: 'cat_cleaners',
+          categoryName: 'المنظفات والعناية المنزلية',
+          totalSalesPiasters: 90000,
+          totalCostPiasters: 68000,
+          grossProfitPiasters: 22000,
+          profitMarginPercent: 24.4,
+          itemsSoldQty: 42,
+          salesSharePercent: 7.2,
+        },
+      ];
+    }
+
+    case 'reports:getItemProfitability': {
+      const direction = payload?.direction || 'desc';
+      const items = [
+        {
+          productId: 'p_1',
+          productName: 'لبن جهينة كامل الدسم 1 لتر',
+          barcode: '622100100101',
+          categoryName: 'الألبان',
+          unitCostPiasters: 3400,
+          unitPricePiasters: 4200,
+          quantitySoldMilli: 45000,
+          totalSalesPiasters: 189000,
+          totalCostPiasters: 153000,
+          grossProfitPiasters: 36000,
+          marginPercent: 19.05,
+          isNegativeMargin: false,
+          isZeroCost: false,
+        },
+        {
+          productId: 'p_5',
+          productName: 'شاي العروسة 250 جم',
+          barcode: '622100100105',
+          categoryName: 'البقالة',
+          unitCostPiasters: 2300,
+          unitPricePiasters: 3000,
+          quantitySoldMilli: 35000,
+          totalSalesPiasters: 105000,
+          totalCostPiasters: 80500,
+          grossProfitPiasters: 24500,
+          marginPercent: 23.33,
+          isNegativeMargin: false,
+          isZeroCost: false,
+        },
+        {
+          productId: 'p_4',
+          productName: 'زيت عباد الشمس 800 مل',
+          barcode: '622100100104',
+          categoryName: 'البقالة',
+          unitCostPiasters: 5300,
+          unitPricePiasters: 6500,
+          quantitySoldMilli: 20000,
+          totalSalesPiasters: 130000,
+          totalCostPiasters: 106000,
+          grossProfitPiasters: 24000,
+          marginPercent: 18.46,
+          isNegativeMargin: false,
+          isZeroCost: false,
+        },
+        {
+          productId: 'p_2',
+          productName: 'أرز مصري فاخر 1 كجم',
+          barcode: '622100100102',
+          categoryName: 'البقالة',
+          unitCostPiasters: 2900,
+          unitPricePiasters: 3500,
+          quantitySoldMilli: 28000,
+          totalSalesPiasters: 98000,
+          totalCostPiasters: 81200,
+          grossProfitPiasters: 16800,
+          marginPercent: 17.14,
+          isNegativeMargin: false,
+          isZeroCost: false,
+        },
+        {
+          productId: 'p_7',
+          productName: 'بسكويت شوكولاتة بوريو 6 قطع',
+          barcode: '622100100107',
+          categoryName: 'الحلويات',
+          unitCostPiasters: 500,
+          unitPricePiasters: 800,
+          quantitySoldMilli: 50000,
+          totalSalesPiasters: 40000,
+          totalCostPiasters: 25000,
+          grossProfitPiasters: 15000,
+          marginPercent: 37.5,
+          isNegativeMargin: false,
+          isZeroCost: false,
+        },
+      ];
+
+      if (direction === 'asc') {
+        return items.reverse();
+      }
+      return items;
+    }
+
+    case 'reports:getPeriodComparison': {
+      return {
+        currentPeriodName: 'هذا الأسبوع',
+        previousPeriodName: 'الأسبوع السابق',
+        sales: {
+          current: 875000,
+          previous: 790000,
+          deltaPiasters: 85000,
+          percentChange: 10.76,
+        },
+        profit: {
+          current: 198000,
+          previous: 175000,
+          deltaPiasters: 23000,
+          percentChange: 13.14,
+        },
+        invoiceCount: {
+          current: 186,
+          previous: 172,
+          percentChange: 8.14,
+        },
+        avgInvoicePiasters: {
+          current: 4704,
+          previous: 4593,
+          deltaPiasters: 111,
+          percentChange: 2.42,
+        },
+      };
+    }
+
+    case 'reports:getInventoryOverview': {
+      return {
+        totalProductsCount: 142,
+        activeProductsCount: 138,
+        totalInventoryCostPiasters: 4850000,
+        totalInventoryRetailPiasters: 6150000,
+        potentialGrossProfitPiasters: 1300000,
+        outOfStockCount: 4,
+        lowStockCount: 9,
+        expiredBatchesCount: 1,
+        expiringSoonBatchesCount: 3,
+        turnoverRate: 4.2,
+      };
+    }
+
+    case 'reports:getShrinkageAnalysis': {
+      return {
+        totalShrinkagePiasters: 34500,
+        shrinkageToSalesPercent: 0.78,
+        reasons: [
+          { reason: 'damaged', label: 'تالف وكسور أثناء النقل والعرض', count: 8, totalCostPiasters: 18200, percentOfTotal: 52.75 },
+          { reason: 'expired', label: 'انتهاء الصلاحية والتخزين', count: 4, totalCostPiasters: 9500, percentOfTotal: 27.54 },
+          { reason: 'inventory_deficit', label: 'عجز وفروقات جرد', count: 3, totalCostPiasters: 4800, percentOfTotal: 13.91 },
+          { reason: 'gift_sample', label: 'عينات وهدايا وضيافة', count: 2, totalCostPiasters: 2000, percentOfTotal: 5.80 },
+        ],
+        topShrinkageProducts: [
+          {
+            productId: 'p_1',
+            productName: 'لبن جهينة كامل الدسم 1 لتر',
+            unit: 'piece',
+            quantityDeltaMilli: -4000,
+            unitCostPiasters: 3400,
+            financialImpactPiasters: 13600,
+            reason: 'تالف عبوة وسوء تبريد',
+            createdAt: '2026-10-02',
+          },
+          {
+            productId: 'p_6',
+            productName: 'زبادي طبيعي المراعي 105 جم',
+            unit: 'piece',
+            quantityDeltaMilli: -12000,
+            unitCostPiasters: 750,
+            financialImpactPiasters: 9000,
+            reason: 'انتهاء صلاحية الدفعة',
+            createdAt: '2026-10-01',
+          },
+          {
+            productId: 'p_3',
+            productName: 'سكر أبيض نقي 1 كجم',
+            unit: 'piece',
+            quantityDeltaMilli: -2000,
+            unitCostPiasters: 2600,
+            financialImpactPiasters: 5200,
+            reason: 'عجز جرد أسبوعي',
+            createdAt: '2026-09-30',
+          },
+        ],
+      };
+    }
+
+    case 'reports:getPurchaseAnalysis': {
+      return {
+        totalPurchasesPiasters: 1250000,
+        totalInvoicesCount: 14,
+        totalPaidPiasters: 1050000,
+        totalUnpaidPiasters: 200000,
+        topSuppliers: [
+          { supplierId: 'sup_1', supplierName: 'شركة جهينة للصناعات الغذائية', invoicesCount: 5, totalPurchasePiasters: 540000, paidPiasters: 480000, unpaidPiasters: 60000 },
+          { supplierId: 'sup_2', supplierName: 'شركة العروسة لتجارة الشاي', invoicesCount: 3, totalPurchasePiasters: 310000, paidPiasters: 310000, unpaidPiasters: 0 },
+          { supplierId: 'sup_3', supplierName: 'مؤسسة الدلتا لتوزيع السكر والأرز', invoicesCount: 4, totalPurchasePiasters: 280000, paidPiasters: 200000, unpaidPiasters: 80000 },
+          { supplierId: 'sup_4', supplierName: 'المتحدة للمنظفات والكيماويات', invoicesCount: 2, totalPurchasePiasters: 120000, paidPiasters: 60000, unpaidPiasters: 60000 },
+        ],
+      };
+    }
+
+    case 'reports:getCreditOverview': {
+      return {
+        totalOutstandingDebtsPiasters: 185000,
+        debtorsCount: 6,
+        periodNewCreditPiasters: 45000,
+        periodRepaymentsPiasters: 52000,
+        netCreditFlowPiasters: -7000, // Debts decreased by 70 EGP (good)
+        averagePaybackDays: 14.5,
+      };
+    }
+
+    case 'reports:getDebtAging': {
+      return {
+        totalDebtPiasters: 185000,
+        criticalDebtorsCount: 1,
+        tiers: [
+          { label: 'أقل من 7 أيام (سداد وشيك)', daysRange: '0 - 7 أيام', customerCount: 3, totalDebtPiasters: 65000, percentOfTotal: 35.14, severity: 'normal' },
+          { label: 'من 8 إلى 30 يوم (متابعة عادية)', daysRange: '8 - 30 يوم', customerCount: 2, totalDebtPiasters: 72000, percentOfTotal: 38.92, severity: 'attention' },
+          { label: 'من 31 إلى 90 يوم (متأخر)', daysRange: '31 - 90 يوم', customerCount: 1, totalDebtPiasters: 33000, percentOfTotal: 17.84, severity: 'warning' },
+          { label: 'أكثر من 90 يوم (ديون حرجة متعثرة)', daysRange: '> 90 يوم', customerCount: 1, totalDebtPiasters: 15000, percentOfTotal: 8.10, severity: 'critical' },
+        ],
+      };
+    }
+
+    case 'reports:getCustomerBehavior': {
+      return {
+        newCustomersCount: 4,
+        topBuyingCustomers: [
+          { customerId: 'c_1', customerName: 'أحمد محمود إسماعيل', phone: '01012345678', totalAmountPiasters: 320000, invoicesCount: 18, balancePiasters: 45000, lastActivityDate: '2026-10-04 12:30' },
+          { customerId: 'c_2', customerName: 'محمود عبد الرحيم الشريف', phone: '01123456789', totalAmountPiasters: 245000, invoicesCount: 12, balancePiasters: 38000, lastActivityDate: '2026-10-03 18:20' },
+          { customerId: 'c_3', customerName: 'سارة عبد الفتاح خليل', phone: '01234567890', totalAmountPiasters: 180000, invoicesCount: 9, balancePiasters: 0, lastActivityDate: '2026-10-04 10:15' },
+        ],
+        topPayingCustomers: [
+          { customerId: 'c_1', customerName: 'أحمد محمود إسماعيل', phone: '01012345678', totalAmountPiasters: 275000, invoicesCount: 14, balancePiasters: 45000, lastActivityDate: '2026-10-04' },
+          { customerId: 'c_2', customerName: 'محمود عبد الرحيم الشريف', phone: '01123456789', totalAmountPiasters: 207000, invoicesCount: 10, balancePiasters: 38000, lastActivityDate: '2026-10-03' },
+          { customerId: 'c_4', customerName: 'إبراهيم حسن النجار', phone: '01555555555', totalAmountPiasters: 120000, invoicesCount: 6, balancePiasters: 12000, lastActivityDate: '2026-10-01' },
+        ],
+        inactiveDebtors: [
+          { customerId: 'c_5', customerName: 'طارق علي بدوي', phone: '01099887766', totalAmountPiasters: 15000, invoicesCount: 1, balancePiasters: 15000, lastActivityDate: '2026-06-15' },
+        ],
+      };
+    }
+
+    case 'reports:getPaymentHistory': {
+      return [
+        {
+          id: 'pay_1',
+          customerId: 'c_1',
+          customerName: 'أحمد محمود إسماعيل',
+          amountPiasters: 20000,
+          paymentDate: '2026-10-04 11:45',
+          notes: 'سداد نقدي جزء من الحساب',
+          cashierName: 'محمد أحمد (المدير)',
+          previousBalancePiasters: 65000,
+          newBalancePiasters: 45000,
+        },
+        {
+          id: 'pay_2',
+          customerId: 'c_2',
+          customerName: 'محمود عبد الرحيم الشريف',
+          amountPiasters: 15000,
+          paymentDate: '2026-10-03 17:30',
+          notes: 'دفعة سداد حساب أسبوعي',
+          cashierName: 'محمد أحمد (المدير)',
+          previousBalancePiasters: 53000,
+          newBalancePiasters: 38000,
+        },
+        {
+          id: 'pay_3',
+          customerId: 'c_4',
+          customerName: 'إبراهيم حسن النجار',
+          amountPiasters: 17000,
+          paymentDate: '2026-10-01 19:15',
+          notes: 'تسوية حساب شهر سبتمبر',
+          cashierName: 'محمد أحمد (المدير)',
+          previousBalancePiasters: 29000,
+          newBalancePiasters: 12000,
+        },
+      ];
+    }
+
+    case 'reports:getLowStock': {
+      return [
+        {
+          productId: 'p_3',
+          name: 'سكر أبيض نقي 1 كجم',
+          barcode: '622100100103',
+          stockMilli: 3000,
+          minStockMilli: 10000,
+          suggestedOrderMilli: 15000,
+          unitCostPiasters: 2600,
+          estimatedCostPiasters: 39000,
+          unit: 'piece',
+          categoryName: 'البقالة',
+        },
+        {
+          productId: 'p_8',
+          name: 'ملح طعام يودي ناعم 300 جم',
+          barcode: '622100100108',
+          stockMilli: 2000,
+          minStockMilli: 8000,
+          suggestedOrderMilli: 12000,
+          unitCostPiasters: 450,
+          estimatedCostPiasters: 5400,
+          unit: 'piece',
+          categoryName: 'البقالة',
+        },
+        {
+          productId: 'p_6',
+          name: 'زبادي طبيعي المراعي 105 جم',
+          barcode: '622100100106',
+          stockMilli: 4000,
+          minStockMilli: 15000,
+          suggestedOrderMilli: 20000,
+          unitCostPiasters: 750,
+          estimatedCostPiasters: 15000,
+          unit: 'piece',
+          categoryName: 'الألبان',
+        },
+      ];
+    }
+
+    case 'reports:getDebtors': {
+      return [
+        {
+          customerId: 'c_1',
+          name: 'أحمد محمود إسماعيل',
+          phone: '01012345678',
+          balancePiasters: 45000,
+          creditLimitPiasters: 100000,
+          notes: 'عميل منتظم بالسداد الأسبوعي',
+          lastTransactionDate: '2026-10-04 11:45',
+        },
+        {
+          customerId: 'c_2',
+          name: 'محمود عبد الرحيم الشريف',
+          phone: '01123456789',
+          balancePiasters: 38000,
+          creditLimitPiasters: 50000,
+          notes: 'حساب شهري',
+          lastTransactionDate: '2026-10-03 17:30',
+        },
+        {
+          customerId: 'c_4',
+          name: 'إبراهيم حسن النجار',
+          phone: '01555555555',
+          balancePiasters: 12000,
+          creditLimitPiasters: 30000,
+          notes: '',
+          lastTransactionDate: '2026-10-01 19:15',
+        },
+        {
+          customerId: 'c_5',
+          name: 'طارق علي بدوي',
+          phone: '01099887766',
+          balancePiasters: 15000,
+          creditLimitPiasters: 15000,
+          notes: 'متعثر لأكثر من شهرين — يجب الاتصال به',
+          lastTransactionDate: '2026-06-15',
+        },
+      ];
+    }
+
+
     case 'customers:getAll':
       return mockCustomers.filter((c: any) => !c.isArchived);
 

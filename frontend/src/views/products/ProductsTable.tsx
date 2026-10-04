@@ -148,7 +148,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                   <span className="truncate">{prod.barcode || <span className="text-ink-muted/50">—</span>}</span>
                   {prod.barcodes && prod.barcodes.length > 1 && (
                     <span 
-                      className="px-1.5 py-0.5 rounded-full bg-[#F8FAFC] border border-[#E2E8F0] text-[10px] text-[#52605D] shrink-0 font-bold"
+                      className="px-1.5 py-0.5 rounded-full bg-surface-2 border border-line text-[10px] text-ink-muted shrink-0 font-bold"
                       title={`باركودات إضافية مسجلة للصنف:\n${prod.barcodes.join('\n')}`}
                     >
                       +{prod.barcodes.length - 1}
@@ -222,7 +222,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
                 <div 
                   onClick={() => onSelectProdForMovements(prod)}
-                  className="col-span-1 flex flex-col items-center justify-center font-mono tabular-nums leading-tight cursor-pointer hover:bg-[#F8FAFC] rounded-lg py-1 group transition-colors"
+                  className="col-span-1 flex flex-col items-center justify-center font-mono tabular-nums leading-tight cursor-pointer hover:bg-surface-2 rounded-lg py-1 group transition-colors"
                   title="انقر لعرض كارت حركات الصنف"
                 >
                   <span className="font-bold text-[#0F172A] text-xs group-hover:text-[#006D41] underline decoration-dotted underline-offset-2">{stockDisplay}</span>

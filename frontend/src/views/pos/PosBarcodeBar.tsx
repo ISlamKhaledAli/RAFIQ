@@ -100,23 +100,23 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
         <div 
           className="absolute left-3 right-3 top-[64px] z-50 bg-white rounded-xl border border-[#dce1dc] shadow-2xl overflow-hidden max-h-[360px] flex flex-col animate-in fade-in zoom-in-95 duration-100"
         >
-          <div className="px-3 py-2 bg-[#f8fafc] border-b border-[#dce1dc] flex items-center justify-between text-xs font-semibold text-[#52605d] select-none">
+          <div className="px-3 py-2 bg-surface-2 border-b border-line flex items-center justify-between text-xs font-semibold text-ink-muted select-none">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-[#0f172a]">نتائج البحث الفورية ({liveSearchResults.length})</span>
-              <span className="text-[10px] bg-white px-2 py-0.5 rounded border border-[#dce1dc]">
+              <span className="font-bold text-ink">نتائج البحث الفورية ({liveSearchResults.length})</span>
+              <span className="text-[10px] bg-white px-2 py-0.5 rounded border border-line">
                 استخدم الأسهم ↑ ↓ ثم اضغط Enter للإضافة
               </span>
             </div>
             <button
               type="button"
               onClick={() => setIsSearchDropdownOpen(false)}
-              className="hover:text-[#0f172a] text-xs font-bold cursor-pointer"
+              className="hover:text-ink text-xs font-bold cursor-pointer"
             >
               إغلاق (Esc)
             </button>
           </div>
 
-          <div className="overflow-y-auto divide-y divide-[#dce1dc]/40">
+          <div className="overflow-y-auto divide-y divide-line/40">
             {liveSearchResults.map((prod, idx) => {
               const isSelected = idx === selectedDropdownIndex;
               const stock = prod.stockQuantityMilli / 1000;
@@ -135,7 +135,7 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
                   onClick={() => onSelectProduct(prod)}
                   onMouseEnter={() => setSelectedDropdownIndex(idx)}
                   className={`px-3.5 py-2.5 flex items-center justify-between cursor-pointer transition-colors ${
-                    isSelected ? 'bg-[#eaf5ee] border-r-4 border-r-[#006d41] pl-2' : 'hover:bg-[#f8fafc]'
+                    isSelected ? 'bg-[#eaf5ee] border-r-4 border-r-[#006d41] pl-2' : 'hover:bg-surface-2'
                   }`}
                 >
                   {/* Right: Product Info & Package Buttons */}

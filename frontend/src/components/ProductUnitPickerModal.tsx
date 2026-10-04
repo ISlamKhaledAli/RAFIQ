@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useMemo } from 'react';
 import { Package, X, Check } from 'lucide-react';
 import type { Product, ProductUnit } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
@@ -16,7 +16,7 @@ export const ProductUnitPickerModal: React.FC<ProductUnitPickerModalProps> = ({
   product,
   onSelectUnit,
 }) => {
-  const units = product?.units || [];
+  const units = useMemo(() => product?.units || [], [product?.units]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
