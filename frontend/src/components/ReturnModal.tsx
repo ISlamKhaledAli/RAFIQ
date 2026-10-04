@@ -410,7 +410,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                         )}
                       </div>
                       <span className="text-[11px] font-mono text-slate-400">
-                        {loadedSale.createdAt ? new Date(loadedSale.createdAt).toLocaleDateString('ar-EG') : ''}
+                        {loadedSale.createdAt ? new Date(loadedSale.createdAt).toLocaleDateString('ar-EG-u-nu-latn') : ''}
                       </span>
                     </div>
                   )}

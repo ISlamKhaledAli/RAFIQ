@@ -21,8 +21,6 @@ import type { DashboardSummary, UnclosedDayAlert, BatchSummary } from '../types/
 import { DailyClosingModal } from '../components/DailyClosingModal';
 import { LowStockReportModal } from '../components/LowStockReportModal';
 import { DebtorsReportModal } from '../components/DebtorsReportModal';
-import { PeriodSalesReportModal } from '../components/PeriodSalesReportModal';
-import { DataQualityAuditModal } from '../components/DataQualityAuditModal';
 import { formatArabicCurrency } from '../utils/money';
 
 
@@ -53,8 +51,6 @@ export function DashboardView({
   const [closingTargetDate, setClosingTargetDate] = useState<string | undefined>(undefined);
   const [isLowStockModalOpen, setIsLowStockModalOpen] = useState(false);
   const [isDebtorsModalOpen, setIsDebtorsModalOpen] = useState(false);
-  const [isPeriodSalesModalOpen, setIsPeriodSalesModalOpen] = useState(false);
-  const [isDataQualityModalOpen, setIsDataQualityModalOpen] = useState(false);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -231,7 +227,6 @@ export function DashboardView({
         <div 
           onClick={() => {
             if (onNavigateSubTab) onNavigateSubTab('revenue');
-            else setIsPeriodSalesModalOpen(true);
           }}
           className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 shadow-2xs hover:border-paid hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[120px] cursor-pointer group"
           title="عرض تحليلات الإيرادات التفصيلية"
@@ -269,7 +264,6 @@ export function DashboardView({
             <div 
               onClick={() => {
                 if (onNavigateSubTab) onNavigateSubTab('revenue');
-                else setIsPeriodSalesModalOpen(true);
               }}
               className={`bg-surface rounded-xl border ${
                 isLoss ? 'border-rose-300 hover:border-danger' : 'border-line hover:border-paid'
@@ -731,21 +725,7 @@ export function DashboardView({
         onClose={() => setIsDebtorsModalOpen(false)}
       />
 
-      {/* Period Sales & Profits Modal (Story 83 / Feature #45) */}
-      <PeriodSalesReportModal
-        isOpen={isPeriodSalesModalOpen}
-        onClose={() => setIsPeriodSalesModalOpen(false)}
-      />
 
-      {/* Data Quality Health Audit Modal (Story 107 - Feature #117) */}
-      <DataQualityAuditModal
-        isOpen={isDataQualityModalOpen}
-        onClose={() => setIsDataQualityModalOpen(false)}
-        onFixProduct={() => {
-          setIsDataQualityModalOpen(false);
-          if (onNavigateToProducts) onNavigateToProducts('catalog');
-        }}
-      />
     </div>
   );
 }

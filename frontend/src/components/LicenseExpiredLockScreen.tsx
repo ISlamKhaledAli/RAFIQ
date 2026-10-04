@@ -103,7 +103,7 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
     try {
       const d = new Date(dateStr);
       if (!isNaN(d.getTime())) {
-        return d.toLocaleDateString('ar-EG', {
+        return d.toLocaleDateString('ar-EG-u-nu-latn', {
           year: 'numeric',
           month: 'long',
           day: 'numeric',

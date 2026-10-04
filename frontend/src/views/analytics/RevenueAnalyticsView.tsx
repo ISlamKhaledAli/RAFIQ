@@ -285,52 +285,52 @@ export const RevenueAnalyticsView: FC = () => {
         <button
           type="button"
           onClick={() => setActiveSection('overview')}
-          className={`h-9 px-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-2xs active:translate-y-0.5 ${
+          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
             activeSection === 'overview'
               ? 'bg-brand-dark text-white border border-brand-dark shadow-xs'
               : 'bg-surface text-ink-muted hover:text-ink hover:bg-surface-2 border border-line hover:border-line-hover'
           }`}
         >
-          <PieIcon className="w-4 h-4" />
+          <PieIcon className="w-4 h-4 shrink-0" />
           <span>ملخص التدفق ومصادر الدخل</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveSection('categories')}
-          className={`h-9 px-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-2xs active:translate-y-0.5 ${
+          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
             activeSection === 'categories'
               ? 'bg-brand-dark text-white border border-brand-dark shadow-xs'
               : 'bg-surface text-ink-muted hover:text-ink hover:bg-surface-2 border border-line hover:border-line-hover'
           }`}
         >
-          <BarChart3 className="w-4 h-4" />
+          <BarChart3 className="w-4 h-4 shrink-0" />
           <span>أداء الأقسام والتصنيفات</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveSection('items')}
-          className={`h-9 px-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-2xs active:translate-y-0.5 ${
+          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
             activeSection === 'items'
               ? 'bg-brand-dark text-white border border-brand-dark shadow-xs'
               : 'bg-surface text-ink-muted hover:text-ink hover:bg-surface-2 border border-line hover:border-line-hover'
           }`}
         >
-          <Award className="w-4 h-4" />
+          <Award className="w-4 h-4 shrink-0" />
           <span>ربحية الأصناف والهوامش</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveSection('closings')}
-          className={`h-9 px-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-2xs active:translate-y-0.5 ${
+          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
             activeSection === 'closings'
               ? 'bg-brand-dark text-white border border-brand-dark shadow-xs'
               : 'bg-surface text-ink-muted hover:text-ink hover:bg-surface-2 border border-line hover:border-line-hover'
           }`}
         >
-          <CheckCircle2 className="w-4 h-4" />
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>سجل إقفالات الوردية (Z-Reports)</span>
         </button>
       </div>
@@ -764,7 +764,7 @@ export const RevenueAnalyticsView: FC = () => {
                           )}
                         </td>
                         <td className="py-2.5 px-3 font-mono text-ink">
-                          {(item.quantitySoldMilli / 1000).toLocaleString('ar-EG-u-nu-latn')}
+                          {(item.quantitySoldMilli / 1000).toLocaleString('en-US')}
                         </td>
                         <td className="py-2.5 px-3 font-mono font-bold text-ink">
                           {formatArabicCurrency(item.totalSalesPiasters)}

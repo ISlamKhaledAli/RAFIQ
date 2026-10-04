@@ -270,55 +270,55 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
         <button
           type="button"
           onClick={() => setActiveSection('shrinkage')}
-          className={`h-9 px-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-2xs active:translate-y-0.5 ${
+          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
             activeSection === 'shrinkage'
               ? 'bg-brand-dark text-white border border-brand-dark shadow-xs'
               : 'bg-surface text-ink-muted hover:text-ink hover:bg-surface-2 border border-line hover:border-line-hover'
           }`}
         >
-          <TrendingDown className="w-4 h-4" />
+          <TrendingDown className="w-4 h-4 shrink-0" />
           <span>تحليل العجز والتوالف والفاقد</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveSection('lowstock')}
-          className={`h-9 px-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-2xs active:translate-y-0.5 ${
+          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
             activeSection === 'lowstock'
               ? 'bg-brand-dark text-white border border-brand-dark shadow-xs'
               : 'bg-surface text-ink-muted hover:text-ink hover:bg-surface-2 border border-line hover:border-line-hover'
           }`}
         >
-          <Package className="w-4 h-4" />
+          <Package className="w-4 h-4 shrink-0" />
           <span>النواقص وأمر الشراء المقترح ({lowStockItems.length})</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveSection('purchases')}
-          className={`h-9 px-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-2xs active:translate-y-0.5 ${
+          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
             activeSection === 'purchases'
               ? 'bg-brand-dark text-white border border-brand-dark shadow-xs'
               : 'bg-surface text-ink-muted hover:text-ink hover:bg-surface-2 border border-line hover:border-line-hover'
           }`}
         >
-          <Truck className="w-4 h-4" />
+          <Truck className="w-4 h-4 shrink-0" />
           <span>تحليل المشتريات والموردين</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveSection('expiry')}
-          className={`h-9 px-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-2xs active:translate-y-0.5 ${
+          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
             activeSection === 'expiry'
               ? 'bg-brand-dark text-white border border-brand-dark shadow-xs'
               : 'bg-surface text-ink-muted hover:text-ink hover:bg-surface-2 border border-line hover:border-line-hover'
           }`}
         >
-          <ShieldAlert className="w-4 h-4" />
+          <ShieldAlert className="w-4 h-4 shrink-0" />
           <span>تواريخ الصلاحية والدفعات</span>
           {(batchSummary?.expiredCount || 0) > 0 && (
-            <span className="w-2 h-2 rounded-full bg-danger animate-pulse" />
+            <span className="w-2 h-2 rounded-full bg-danger animate-pulse shrink-0" />
           )}
         </button>
       </div>
@@ -425,7 +425,7 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
                         <tr key={`${it.productId}-${idx}`} className="hover:bg-surface-2/60 transition-colors">
                           <td className="py-2.5 px-3 font-bold text-ink">{it.productName}</td>
                           <td className="py-2.5 px-3 font-mono text-danger">
-                            {(Math.abs(it.quantityDeltaMilli) / 1000).toLocaleString('ar-EG-u-nu-latn')} {it.unit}
+                            {(Math.abs(it.quantityDeltaMilli) / 1000).toLocaleString('en-US')} {it.unit}
                           </td>
                           <td className="py-2.5 px-3 font-mono text-ink-muted">
                             {formatArabicCurrency(it.unitCostPiasters)}
@@ -496,13 +496,13 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
                         </td>
                         <td className="py-2.5 px-3 text-ink-muted">{item.categoryName}</td>
                         <td className="py-2.5 px-3 font-mono font-bold text-danger">
-                          {(item.stockMilli / 1000).toLocaleString('ar-EG-u-nu-latn')} {item.unit}
+                          {(item.stockMilli / 1000).toLocaleString('en-US')} {item.unit}
                         </td>
                         <td className="py-2.5 px-3 font-mono text-ink-muted">
-                          {(item.minStockMilli / 1000).toLocaleString('ar-EG-u-nu-latn')} {item.unit}
+                          {(item.minStockMilli / 1000).toLocaleString('en-US')} {item.unit}
                         </td>
                         <td className="py-2.5 px-3 font-mono font-bold text-paid">
-                          +{(item.suggestedOrderMilli / 1000).toLocaleString('ar-EG-u-nu-latn')} {item.unit}
+                          +{(item.suggestedOrderMilli / 1000).toLocaleString('en-US')} {item.unit}
                         </td>
                         <td className="py-2.5 px-3 font-mono text-ink-muted">
                           {formatArabicCurrency(item.unitCostPiasters)}

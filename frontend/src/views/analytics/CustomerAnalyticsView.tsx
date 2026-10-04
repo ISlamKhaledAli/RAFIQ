@@ -283,52 +283,52 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
         <button
           type="button"
           onClick={() => setActiveSection('aging')}
-          className={`h-9 px-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-2xs active:translate-y-0.5 ${
+          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
             activeSection === 'aging'
               ? 'bg-brand-dark text-white border border-brand-dark shadow-xs'
               : 'bg-surface text-ink-muted hover:text-ink hover:bg-surface-2 border border-line hover:border-line-hover'
           }`}
         >
-          <Clock className="w-4 h-4" />
+          <Clock className="w-4 h-4 shrink-0" />
           <span>كشف أعمار الديون (Aging Report)</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveSection('debtors')}
-          className={`h-9 px-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-2xs active:translate-y-0.5 ${
+          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
             activeSection === 'debtors'
               ? 'bg-brand-dark text-white border border-brand-dark shadow-xs'
               : 'bg-surface text-ink-muted hover:text-ink hover:bg-surface-2 border border-line hover:border-line-hover'
           }`}
         >
-          <Users className="w-4 h-4" />
+          <Users className="w-4 h-4 shrink-0" />
           <span>كشف حسابات المدينين ({debtors.length})</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveSection('behavior')}
-          className={`h-9 px-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-2xs active:translate-y-0.5 ${
+          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
             activeSection === 'behavior'
               ? 'bg-brand-dark text-white border border-brand-dark shadow-xs'
               : 'bg-surface text-ink-muted hover:text-ink hover:bg-surface-2 border border-line hover:border-line-hover'
           }`}
         >
-          <Award className="w-4 h-4" />
+          <Award className="w-4 h-4 shrink-0" />
           <span>سلوك العملاء وأفضل الزبائن</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveSection('payments')}
-          className={`h-9 px-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-2xs active:translate-y-0.5 ${
+          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
             activeSection === 'payments'
               ? 'bg-brand-dark text-white border border-brand-dark shadow-xs'
               : 'bg-surface text-ink-muted hover:text-ink hover:bg-surface-2 border border-line hover:border-line-hover'
           }`}
         >
-          <Wallet className="w-4 h-4" />
+          <Wallet className="w-4 h-4 shrink-0" />
           <span>سجل حركة السدادات اليومية</span>
         </button>
       </div>

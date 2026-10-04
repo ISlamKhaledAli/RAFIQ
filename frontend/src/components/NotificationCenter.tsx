@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, memo, useMemo } from 'react';
 import {
   Bell,
   AlertTriangle,
@@ -24,6 +24,7 @@ interface NotificationCenterProps {
 
 /**
  * Top Header Bell Button with active alert badge counter
+ * Harmonized with light top header bar and design tokens
  */
 export const NotificationBellButton: React.FC<{
   count: number;
@@ -31,31 +32,43 @@ export const NotificationBellButton: React.FC<{
   isOpen: boolean;
   onClick: () => void;
 }> = memo(({ count, hasCritical, isOpen, onClick }) => {
+  const buttonStyle = useMemo(() => {
+    if (hasCritical) {
+      return isOpen
+        ? 'bg-danger-soft text-danger border-danger ring-2 ring-danger/30 shadow-xs'
+        : 'bg-danger-soft/70 text-danger border-danger-border hover:bg-danger-soft hover:border-danger shadow-2xs';
+    }
+    if (count > 0) {
+      return isOpen
+        ? 'bg-warn-soft text-warn border-warn ring-2 ring-warn/30 shadow-xs'
+        : 'bg-warn-soft/70 text-warn border-warn-border hover:bg-warn-soft hover:border-warn shadow-2xs';
+    }
+    return isOpen
+      ? 'bg-brand-soft text-brand border-brand ring-2 ring-brand/25 shadow-xs'
+      : 'bg-surface text-ink-muted border-line hover:border-paid hover:text-paid hover:bg-paid-soft/50 shadow-2xs';
+  }, [count, hasCritical, isOpen]);
+
+  const iconColor = hasCritical
+    ? 'text-danger'
+    : count > 0
+    ? 'text-warn'
+    : isOpen
+    ? 'text-brand'
+    : 'text-ink-muted group-hover:text-paid';
+
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`relative flex items-center justify-center w-8.5 h-8.5 min-w-[34px] min-h-[34px] rounded-xl border transition-all cursor-pointer shadow-2xs hover:shadow-xs active:scale-95 ${
-        isOpen
-          ? 'bg-[#00372d] text-white border-[#00372d] shadow-xs'
-          : count > 0
-          ? hasCritical
-            ? 'bg-rose-50 text-rose-800 border-rose-300 hover:border-rose-400 hover:bg-rose-100/60'
-            : 'bg-amber-50 text-amber-900 border-amber-300 hover:border-amber-400 hover:bg-amber-100/60'
-          : 'bg-white text-[#52605d] border-[#dce1dc] hover:border-[#006d41] hover:text-[#006d41] hover:bg-[#eaf5ee]/50'
-      }`}
+      className={`relative group flex items-center justify-center w-8.5 h-8.5 min-w-[34px] min-h-[34px] rounded-xl border transition-all cursor-pointer active:scale-95 ${buttonStyle}`}
       title={count > 0 ? `مركز الإشعارات والتنبيهات (${count} تنبيه نشط)` : 'مركز الإشعارات (لا توجد تنبيهات)'}
       aria-label="مركز الإشعارات"
     >
-      <Bell
-        className={`w-4 h-4 shrink-0 transition-transform ${
-          hasCritical ? 'text-[#b23a2e]' : count > 0 ? 'text-[#b3720e]' : 'text-[#52605d]'
-        }`}
-      />
+      <Bell className={`w-4 h-4 shrink-0 transition-transform ${iconColor}`} />
       {count > 0 && (
         <span
-          className={`absolute -top-1.5 -end-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black font-mono flex items-center justify-center text-white border-2 border-white shadow-xs pointer-events-none select-none ${
-            hasCritical ? 'bg-[#b23a2e]' : 'bg-[#b3720e]'
+          className={`absolute -top-1.5 -end-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black font-mono flex items-center justify-center text-white border-2 border-surface shadow-xs pointer-events-none select-none ${
+            hasCritical ? 'bg-danger' : 'bg-warn'
           }`}
         >
           {count > 99 ? '99+' : count}
@@ -103,18 +116,18 @@ export const NotificationCenterDrawer: React.FC<NotificationCenterProps> = memo(
 
         {/* Popover Card positioned nicely below the header on the left side (RTL direction) */}
         <div
-          className="absolute top-16 left-6 w-[420px] max-w-[calc(100vw-32px)] bg-white rounded-2xl border border-[#dce1dc] shadow-2xl overflow-hidden flex flex-col z-50 animate-in slide-in-from-top-2 duration-150"
+          className="absolute top-16 left-6 w-[420px] max-w-[calc(100vw-32px)] bg-surface rounded-2xl border border-line shadow-2xl overflow-hidden flex flex-col z-50 animate-in slide-in-from-top-2 duration-150"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="bg-[#00372d] text-white px-4 py-3 flex items-center justify-between">
+          <div className="bg-brand-dark text-white px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center text-emerald-300">
+              <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center text-paid-soft">
                 <Bell className="w-4 h-4" />
               </div>
               <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
                 <span>مركز التنبيهات والإشعارات</span>
-                <span className="text-[10px] bg-white/20 text-emerald-200 font-mono px-2 py-0.5 rounded-full font-bold">
+                <span className="text-[10px] bg-white/20 text-paid-soft font-mono px-2 py-0.5 rounded-full font-bold">
                   {notifications.length}
                 </span>
               </h3>
@@ -132,10 +145,10 @@ export const NotificationCenterDrawer: React.FC<NotificationCenterProps> = memo(
           {/* List of Notifications */}
           <div className="p-3 max-h-[70vh] overflow-y-auto flex flex-col gap-2.5 bg-surface-2">
             {notifications.length === 0 ? (
-              <div className="py-8 text-center flex flex-col items-center justify-center text-[#52605d]">
-                <CheckCircle2 className="w-10 h-10 text-emerald-500 mb-2 opacity-80" />
-                <p className="text-sm font-bold text-[#0f172a]">كافة الأنظمة تعمل بشكل سليم</p>
-                <p className="text-xs mt-1 text-[#52605d]">لا توجد أي تنبيهات أو متطلبات صيانة معلقة حالياً.</p>
+              <div className="py-8 text-center flex flex-col items-center justify-center text-ink-muted">
+                <CheckCircle2 className="w-10 h-10 text-paid mb-2 opacity-80" />
+                <p className="text-sm font-bold text-ink">كافة الأنظمة تعمل بشكل سليم</p>
+                <p className="text-xs mt-1 text-ink-muted">لا توجد أي تنبيهات أو متطلبات صيانة معلقة حالياً.</p>
               </div>
             ) : (
               notifications.map((item) => (
@@ -143,29 +156,29 @@ export const NotificationCenterDrawer: React.FC<NotificationCenterProps> = memo(
                   key={item.id}
                   className={`p-3 rounded-xl border text-right transition-all shadow-2xs relative flex flex-col gap-2 ${
                     item.type === 'critical'
-                      ? 'bg-rose-50/80 border-rose-200 text-rose-950'
+                      ? 'bg-danger-soft/90 border-danger-border text-danger-ink'
                       : item.type === 'warning'
-                      ? 'bg-amber-50/80 border-amber-200 text-amber-950'
+                      ? 'bg-warn-soft/90 border-warn-border text-ink'
                       : item.type === 'info'
                       ? 'bg-blue-50/80 border-blue-200 text-blue-950'
-                      : 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
+                      : 'bg-paid-soft/80 border-paid-border text-paid'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-start gap-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-white border border-black/5 flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
+                      <div className="w-7 h-7 rounded-lg bg-surface border border-line flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
                         {renderIcon(item.iconType, item.type)}
                       </div>
                       <div>
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-xs font-bold text-[#0f172a]">{item.title}</span>
+                          <span className="text-xs font-bold text-ink">{item.title}</span>
                           {item.badge && (
                             <span
                               className={`text-[9.5px] font-bold px-1.5 py-0.2 rounded-md ${
                                 item.type === 'critical'
-                                  ? 'bg-rose-600 text-white'
+                                  ? 'bg-danger text-white'
                                   : item.type === 'warning'
-                                  ? 'bg-amber-600 text-white'
+                                  ? 'bg-warn text-white'
                                   : 'bg-blue-600 text-white'
                               }`}
                             >
@@ -173,7 +186,7 @@ export const NotificationCenterDrawer: React.FC<NotificationCenterProps> = memo(
                             </span>
                           )}
                         </div>
-                        <p className="text-[11.5px] text-[#52605d] leading-relaxed mt-1 font-medium whitespace-pre-line">
+                        <p className="text-[11.5px] text-ink-muted leading-relaxed mt-1 font-medium whitespace-pre-line">
                           {item.message}
                         </p>
                       </div>
@@ -183,7 +196,7 @@ export const NotificationCenterDrawer: React.FC<NotificationCenterProps> = memo(
                       <button
                         type="button"
                         onClick={item.onDismiss}
-                        className="text-[#52605d] hover:text-[#0f172a] p-1 rounded hover:bg-black/5 transition-colors cursor-pointer shrink-0"
+                        className="text-ink-muted hover:text-ink p-1 rounded hover:bg-black/5 transition-colors cursor-pointer shrink-0"
                         title="إخفاء"
                       >
                         <X className="w-3.5 h-3.5" />
@@ -194,12 +207,12 @@ export const NotificationCenterDrawer: React.FC<NotificationCenterProps> = memo(
                   {/* Actions / Live Counter footer */}
                   <div className="flex items-center justify-between pt-1 border-t border-black/5 mt-1 text-xs">
                     {item.countdown ? (
-                      <div className="flex items-center gap-1 font-mono text-[11px] font-bold text-rose-700">
+                      <div className="flex items-center gap-1 font-mono text-[11px] font-bold text-danger">
                         <Clock className="w-3.5 h-3.5" />
                         <span>متبقي: {item.countdown}</span>
                       </div>
                     ) : (
-                      <span className="text-[10.5px] text-[#52605d]">تنبيه نظام معتمد</span>
+                      <span className="text-[10.5px] text-ink-muted">تنبيه نظام معتمد</span>
                     )}
 
                     {item.actionLabel && item.onAction && (
@@ -209,7 +222,7 @@ export const NotificationCenterDrawer: React.FC<NotificationCenterProps> = memo(
                           item.onAction?.();
                           onCloseDrawer();
                         }}
-                        className="bg-[#00372d] hover:bg-[#002820] text-white text-[11px] font-bold px-3 py-1 rounded-lg shadow-2xs transition-all active:scale-95 cursor-pointer"
+                        className="bg-brand-dark hover:bg-brand text-white text-[11px] font-bold px-3 py-1 rounded-lg shadow-2xs transition-all active:scale-95 cursor-pointer"
                       >
                         {item.actionLabel}
                       </button>
@@ -237,16 +250,11 @@ export const CompactAlertTickerBar: React.FC<{
 }> = memo(({ notifications, onOpenDrawer, isDismissed, onDismissTicker }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  // Keep index within bounds if notifications change
-  useEffect(() => {
-    if (currentIndex >= notifications.length && notifications.length > 0) {
-      setCurrentIndex(0);
-    }
-  }, [notifications.length, currentIndex]);
+  const safeIndex = notifications.length > 0 && currentIndex >= notifications.length ? 0 : currentIndex;
 
   if (notifications.length === 0 || isDismissed) return null;
 
-  const current = notifications[currentIndex] || notifications[0];
+  const current = notifications[safeIndex] || notifications[0];
 
   const handleNext = () => {
     setCurrentIndex((prev) => (prev + 1) % notifications.length);
@@ -261,12 +269,12 @@ export const CompactAlertTickerBar: React.FC<{
   const isInfo = current.type === 'info';
 
   const barBg = isCritical
-    ? 'bg-[#fff1f2] border-b border-[#fecdd3] text-[#881337]'
+    ? 'bg-danger-soft border-b border-danger-border text-danger-ink'
     : isWarning
-    ? 'bg-[#fffbeb] border-b border-[#fde68a] text-[#78350f]'
+    ? 'bg-warn-soft border-b border-warn-border text-warn'
     : isInfo
-    ? 'bg-[#eff6ff] border-b border-[#bfdbfe] text-[#1e3a8a]'
-    : 'bg-[#f0fdf4] border-b border-[#bbf7d0] text-[#14532d]';
+    ? 'bg-blue-50 border-b border-blue-200 text-blue-900'
+    : 'bg-paid-soft border-b border-paid-border text-paid';
 
   return (
     <div
@@ -279,12 +287,12 @@ export const CompactAlertTickerBar: React.FC<{
           <span
             className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 shadow-2xs ${
               isCritical
-                ? 'bg-rose-600 text-white'
+                ? 'bg-danger text-white'
                 : isWarning
-                ? 'bg-amber-600 text-white'
+                ? 'bg-warn text-white'
                 : isInfo
                 ? 'bg-blue-600 text-white'
-                : 'bg-emerald-600 text-white'
+                : 'bg-paid text-white'
             }`}
           >
             {current.badge}
@@ -296,7 +304,7 @@ export const CompactAlertTickerBar: React.FC<{
 
         {/* Live Countdown if present */}
         {current.countdown && (
-          <span className="font-mono font-bold bg-white/70 px-2 py-0.5 rounded border border-rose-300 text-rose-800 text-[11px] shrink-0">
+          <span className="font-mono font-bold bg-surface/80 px-2 py-0.5 rounded border border-danger-border text-danger text-[11px] shrink-0">
             متبقي: {current.countdown}
           </span>
         )}
@@ -313,7 +321,7 @@ export const CompactAlertTickerBar: React.FC<{
               <ChevronRight className="w-3 h-3" />
             </button>
             <span>
-              {currentIndex + 1} / {notifications.length}
+              {safeIndex + 1} / {notifications.length}
             </span>
             <button
               type="button"
@@ -335,12 +343,12 @@ export const CompactAlertTickerBar: React.FC<{
             onClick={current.onAction}
             className={`text-white text-[11px] font-bold px-3 py-1 rounded-lg shadow-2xs transition-all active:scale-95 cursor-pointer flex items-center gap-1 ${
               isCritical
-                ? 'bg-rose-600 hover:bg-rose-700'
+                ? 'bg-danger hover:bg-danger/90'
                 : isWarning
-                ? 'bg-amber-700 hover:bg-amber-800'
+                ? 'bg-warn hover:bg-warn/90'
                 : isInfo
                 ? 'bg-blue-600 hover:bg-blue-700'
-                : 'bg-emerald-700 hover:bg-emerald-800'
+                : 'bg-paid hover:bg-paid/90'
             }`}
           >
             <span>{current.actionLabel}</span>

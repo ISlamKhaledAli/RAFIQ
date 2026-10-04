@@ -153,7 +153,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
   if (!isOpen) return null;
 
   const formatPiasters = (piasters: number) => {
-    return (piasters / 100).toLocaleString('ar-EG', {
+    return (piasters / 100).toLocaleString('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }) + ' ج.م';

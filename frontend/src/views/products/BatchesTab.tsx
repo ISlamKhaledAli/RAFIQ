@@ -226,7 +226,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged }) => {
             <div>
               <div className="text-[11px] text-ink-muted font-bold">إجمالي الدفعات النشطة</div>
               <div className="text-[18px] font-mono font-bold text-ink">
-                {(summary?.totalActiveBatches || 0).toLocaleString('ar-EG')} دفعة
+                {(summary?.totalActiveBatches || 0).toLocaleString('en-US')} دفعة
               </div>
             </div>
           </div>
@@ -255,7 +255,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged }) => {
                 أوشكت على الانتهاء ({alertDays} يوم)
               </div>
               <div className="text-[18px] font-mono font-bold text-amber-950">
-                {(summary?.expiringSoonCount || 0).toLocaleString('ar-EG')} دفعة
+                {(summary?.expiringSoonCount || 0).toLocaleString('en-US')} دفعة
               </div>
             </div>
           </div>
@@ -282,7 +282,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged }) => {
             <div>
               <div className="text-[11px] text-rose-900 font-bold">دفعات منتهية الصلاحية</div>
               <div className="text-[18px] font-mono font-bold text-rose-950">
-                {(summary?.expiredCount || 0).toLocaleString('ar-EG')} دفعة
+                {(summary?.expiredCount || 0).toLocaleString('en-US')} دفعة
               </div>
             </div>
           </div>
@@ -442,7 +442,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged }) => {
             </div>
           ) : (
             filteredBatches.map((b) => {
-              const qtyFormatted = (b.quantityMilli / 1000).toLocaleString('ar-EG', {
+              const qtyFormatted = (b.quantityMilli / 1000).toLocaleString('en-US', {
                 maximumFractionDigits: 3,
               });
               const totalValPiasters = Math.round((b.quantityMilli * b.costPricePiasters) / 1000);

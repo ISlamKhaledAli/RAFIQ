@@ -713,7 +713,7 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
             <div>
               قيمة التكلفة الافتتاحية:{' '}
               <strong className="text-paid font-bold font-mono text-sm">
-                {totalCostEGP.toLocaleString('ar-EG', { minimumFractionDigits: 2 })}
+                {totalCostEGP.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </strong>{' '}
               ج.م
             </div>

@@ -97,7 +97,7 @@ export const PeriodSalesReportModal: React.FC<PeriodSalesReportModalProps> = ({
         <div className="hidden print:block p-6 border-b border-line text-center space-y-1">
           <h1 className="text-2xl font-black text-ink">رفيق POS - تقرير المبيعات والأرباح</h1>
           <p className="text-sm text-ink-muted">
-            الفترة: {report ? `${report.startDate} إلى ${report.endDate}` : ''} | تاريخ الطباعة: {new Date().toLocaleDateString('ar-EG')}
+            الفترة: {report ? `${report.startDate} إلى ${report.endDate}` : ''} | تاريخ الطباعة: {new Date().toLocaleDateString('ar-EG-u-nu-latn')}
           </p>
         </div>
 
@@ -281,7 +281,7 @@ export const PeriodSalesReportModal: React.FC<PeriodSalesReportModalProps> = ({
                           <td className="p-3 text-xs text-ink-muted text-center">{idx + 1}</td>
                           <td className="p-3 font-bold text-ink">{p.productName}</td>
                           <td className="p-3 text-center font-bold text-brand bg-brand-soft/30 font-mono">
-                            {p.totalQuantity.toLocaleString('ar-EG')}
+                            {p.totalQuantity.toLocaleString('en-US')}
                           </td>
                           <td className="p-3 font-bold text-ink">
                             {p.totalSalesFormatted || formatArabicCurrency(p.totalSalesPiasters)}

@@ -717,7 +717,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   <h2 className="text-sm font-black text-ink leading-tight">كتالوج الأصناف والأسعار</h2>
                   <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-surface-2 text-ink font-bold border border-line tabular-nums">
                     {totalCount > products.length
-                      ? `عرض ${products.length} من ${totalCount.toLocaleString('ar-EG')} صنف`
+                      ? `عرض ${products.length} من ${totalCount.toLocaleString('en-US')} صنف`
                       : `${products.length} صنف`
                     }
                   </span>
@@ -1002,7 +1002,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 <span>كافة الأصناف</span>
                 {totalCount > 0 && (
                   <span className="font-mono text-[11px] mr-1.5 opacity-90 tabular-nums">
-                    ({totalCount.toLocaleString('ar-EG')})
+                    ({totalCount.toLocaleString('en-US')})
                   </span>
                 )}
               </button>
@@ -1022,7 +1022,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 <AlertTriangle className="w-3.5 h-3.5" />
                 <span>النواقص وحد الطلب</span>
                 <span className="font-mono text-[11px] mr-0.5 opacity-95 tabular-nums">
-                  ({totalLowStockCount.toLocaleString('ar-EG')})
+                  ({totalLowStockCount.toLocaleString('en-US')})
                 </span>
               </button>
               <button
@@ -1040,7 +1040,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               >
                 <span>النافد من المخزن</span>
                 <span className="font-mono text-[11px] mr-0.5 opacity-95 tabular-nums">
-                  ({totalOutOfStockCount.toLocaleString('ar-EG')})
+                  ({totalOutOfStockCount.toLocaleString('en-US')})
                 </span>
               </button>
             </div>
@@ -1107,8 +1107,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                 <span>
                   {stockStatusFilter === 'lowStock'
-                    ? `تصفية النواقص: يتم عرض الأصناف التي كميتها أقل من أو تساوي حد الطلب (${totalCount.toLocaleString('ar-EG')} صنف)`
-                    : `تصفية النافد: يتم عرض الأصناف التي نفدت تماماً من المخزن (${totalCount.toLocaleString('ar-EG')} صنف)`}
+                    ? `تصفية النواقص: يتم عرض الأصناف التي كميتها أقل من أو تساوي حد الطلب (${totalCount.toLocaleString('en-US')} صنف)`
+                    : `تصفية النافد: يتم عرض الأصناف التي نفدت تماماً من المخزن (${totalCount.toLocaleString('en-US')} صنف)`}
                 </span>
               </div>
               <button
@@ -1158,7 +1158,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             <div className="bg-surface border border-line rounded-2xl px-4 py-2.5 flex items-center justify-between gap-3 shrink-0 shadow-xs select-none">
               {/* Page Info */}
               <div className="text-xs text-ink-muted font-bold">
-                عرض {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, totalCount)} من إجمالي {totalCount.toLocaleString('ar-EG')} صنف
+                عرض {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, totalCount)} من إجمالي {totalCount.toLocaleString('en-US')} صنف
               </div>
 
               {/* Navigation Buttons */}

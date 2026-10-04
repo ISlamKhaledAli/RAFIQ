@@ -112,7 +112,7 @@ export const LowStockReportModal: React.FC<LowStockReportModalProps> = ({
         <div className="hidden print:block p-6 border-b border-line text-center space-y-1">
           <h1 className="text-2xl font-black text-ink">رفيق POS - أمر شراء ونواقص المخزون</h1>
           <p className="text-sm text-ink-muted">
-            تاريخ التقرير: {new Date().toLocaleDateString('ar-EG')} - إجمالي الأصناف الناقصة: {filteredItems.length}
+            تاريخ التقرير: {new Date().toLocaleDateString('ar-EG-u-nu-latn')} - إجمالي الأصناف الناقصة: {filteredItems.length}
           </p>
         </div>
 
@@ -200,9 +200,9 @@ export const LowStockReportModal: React.FC<LowStockReportModalProps> = ({
                 </thead>
                 <tbody className="divide-y divide-line">
                   {filteredItems.map((item, idx) => {
-                    const currentStock = (item.stockMilli / 1000).toLocaleString('ar-EG');
-                    const minStock = (item.minStockMilli / 1000).toLocaleString('ar-EG');
-                    const suggested = (item.suggestedOrderMilli / 1000).toLocaleString('ar-EG');
+                    const currentStock = (item.stockMilli / 1000).toLocaleString('en-US');
+                    const minStock = (item.minStockMilli / 1000).toLocaleString('en-US');
+                    const suggested = (item.suggestedOrderMilli / 1000).toLocaleString('en-US');
                     const isZero = item.stockMilli <= 0;
 
                     return (

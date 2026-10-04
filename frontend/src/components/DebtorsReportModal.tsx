@@ -112,7 +112,7 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
         <div className="hidden print:block p-6 border-b border-line text-center space-y-1">
           <h1 className="text-2xl font-black text-ink">رفيق POS - كشف حساب ديون العملاء</h1>
           <p className="text-sm text-ink-muted">
-            تاريخ التقرير: {new Date().toLocaleDateString('ar-EG')} - إجمالي الديون المستحقة: {formatArabicCurrency(totalDebtsPiasters)}
+            تاريخ التقرير: {new Date().toLocaleDateString('ar-EG-u-nu-latn')} - إجمالي الديون المستحقة: {formatArabicCurrency(totalDebtsPiasters)}
           </p>
         </div>
 

@@ -667,7 +667,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
                         #{pur.invoiceNumber}
                       </div>
                       <div className="col-span-2 text-ink-muted">
-                        {new Date(pur.invoiceDate).toLocaleDateString('ar-EG', {
+                        {new Date(pur.invoiceDate).toLocaleDateString('ar-EG-u-nu-latn', {
                           year: 'numeric',
                           month: 'short',
                           day: 'numeric',
@@ -809,7 +809,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
                 <div className="col-span-2 text-left">
                   <span className="text-[11px] text-ink-muted block">تاريخ الفاتورة</span>
                   <span className="text-xs font-bold text-ink">
-                    {new Date().toLocaleDateString('ar-EG', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    {new Date().toLocaleDateString('ar-EG-u-nu-latn', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </span>
                 </div>
               </div>
@@ -1617,7 +1617,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
                           {tx.transactionType === 'PAYMENT' && 'سداد دفعة نقدية'}
                         </span>
                         <span className="text-[10px] text-ink-muted">
-                          {new Date(tx.createdAt).toLocaleDateString('ar-EG', {
+                          {new Date(tx.createdAt).toLocaleDateString('ar-EG-u-nu-latn', {
                             year: 'numeric',
                             month: 'short',
                             day: 'numeric',
@@ -1689,7 +1689,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
               <div>
                 <span className="text-ink-muted block">تاريخ الفاتورة:</span>
                 <span className="font-semibold text-ink">
-                  {new Date(selectedPurchaseDetails.invoiceDate).toLocaleDateString('ar-EG', {
+                  {new Date(selectedPurchaseDetails.invoiceDate).toLocaleDateString('ar-EG-u-nu-latn', {
                     year: 'numeric',
                     month: 'long',
                     day: 'numeric',
