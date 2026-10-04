@@ -497,7 +497,7 @@ namespace RafiqPOS.Services
             t1.FeatureFlags["feature_taxes"] = false;
             t1.FeatureFlags["feature_expiry_dates"] = true;
             t1.FeatureFlags["feature_multi_units"] = true;
-            t1.Categories = new List<string> { "معلبات وبقوليات", "ألبان وأجبان", "منظفات وعناية منزلية", "بسكويت وحلويات", "مشروبات وعصائر", "مخبوزات", "خضار وفاكهة" };
+            t1.Categories = new List<string> { "معلبات وبقوليات", "ألبان وأجبان", "منظفات وعناية منزلية", "بسكويت وحلويات", "مشروبات وعصائر", "مخبوزات", "خضار وفاكهة", "مجمدات", "دخان وسجائر" };
             t1.QuickItems = new List<TemplateQuickItem>
             {
                 new TemplateQuickItem { Name = "خبز بلدي طازج", PricePiasters = 100, Unit = "piece", CategoryName = "مخبوزات" },

@@ -29,16 +29,6 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isOpen && parentProduct?.id) {
-      loadVariants(parentProduct.id);
-    } else {
-      setVariants([]);
-      setSelectedColor(null);
-      setSelectedSize(null);
-    }
-  }, [isOpen, parentProduct]);
-
   const loadVariants = async (parentId: string) => {
     setIsLoading(true);
     try {
@@ -53,6 +43,16 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (isOpen && parentProduct?.id) {
+      loadVariants(parentProduct.id);
+    } else {
+      setVariants([]);
+      setSelectedColor(null);
+      setSelectedSize(null);
+    }
+  }, [isOpen, parentProduct]);
 
   if (!isOpen || !parentProduct) return null;
 

@@ -195,6 +195,29 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, updatedSettings);
                     return true;
 
+                case "settings:updateBatch":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات الإعدادات فارغة");
+                        return true;
+                    }
+                    Dictionary<string, string> batchDict = null;
+                    JObject batchObj = request.Payload as JObject;
+                    if (batchObj != null && batchObj["settings"] != null)
+                    {
+                        batchDict = JsonConvert.DeserializeObject<Dictionary<string, string>>(batchObj["settings"].ToString());
+                    }
+                    else
+                    {
+                        batchDict = JsonConvert.DeserializeObject<Dictionary<string, string>>(request.Payload.ToString());
+                    }
+                    if (batchDict != null)
+                    {
+                        DatabaseService.Settings.SaveSettings(batchDict);
+                    }
+                    response = BridgeResponse.Ok(request.Id, new { success = true });
+                    return true;
+
                 case "features:getAll":
                     var flags = DatabaseService.Settings.GetFeatureFlags();
                     response = BridgeResponse.Ok(request.Id, flags);

@@ -323,6 +323,12 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       );
     }
 
+    case 'products:getById': {
+      const prodId = payload?.id || payload;
+      const mockList = await mockHandler('products:search', { query: '' });
+      return (mockList || []).find((p: any) => p.id === prodId) || null;
+    }
+
     case 'products:getLowStock': {
       const mockLowStock = [
         {
@@ -933,9 +939,9 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           name: 'سوبرماركت ومواد غذائية',
           description: 'مناسب لمحلات السوبرماركت ومحلات البقالة الكبيرة التي تستخدم الباركود والميزان والآجل',
           icon: 'shopping-cart',
-          productsCount: 30,
+          productsCount: 168,
           featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: true, feature_multi_units: true },
-          categories: ['معلبات وبقوليات', 'ألبان وأجبان', 'منظفات وعناية منزلية', 'بسكويت وحلويات', 'مشروبات وعصائر', 'مخبوزات', 'خضار وفاكهة'],
+          categories: ['معلبات وبقوليات', 'ألبان وأجبان', 'منظفات وعناية منزلية', 'بسكويت وحلويات', 'مشروبات وعصائر', 'مخبوزات', 'خضار وفاكهة', 'مجمدات', 'دخان وسجائر'],
           quickItems: [
             { Name: 'خبز بلدي طازج', PricePiasters: 100, Unit: 'piece', CategoryName: 'مخبوزات', IsOpenPrice: false },
             { Name: 'عيش فينو كيس 5 رغيف', PricePiasters: 1000, Unit: 'piece', CategoryName: 'مخبوزات', IsOpenPrice: false },
@@ -953,7 +959,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           name: 'محلات هواتف وموبايل وإلكترونيات',
           description: 'مخصص لمحلات الهواتف الذكية والإلكترونيات وصيانة الجوال والإكسسوارات (بدون ميزان وأوزان)',
           icon: 'smartphone',
-          productsCount: 30,
+          productsCount: 44,
           featureFlags: { feature_scale_weight: false, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false },
           categories: ['كابلات وشواحن', 'سماعات وصوتيات', 'جرابات وحافظات', 'لاصقات حماية وشاشات', 'باور بانك وبطاريات', 'كروت ميموري وفلاشات', 'صيانة وخدمات سريعة'],
           quickItems: [
@@ -973,7 +979,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           name: 'ألبان ومخبوزات ومعلبات',
           description: 'مناسب لمحلات اللبانة والأجبان والمخابز التي تعتمد على البيع بالوزن والأصناف الطازجة',
           icon: 'milk',
-          productsCount: 30,
+          productsCount: 41,
           featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: true, feature_multi_units: false },
           categories: ['ألبان سائبة ومعبأة', 'أجبان بيضاء ومطبوخة', 'مخبوزات طازجة', 'بيض ومستلزمات', 'معلبات وعسل'],
           quickItems: [
@@ -992,7 +998,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           name: 'خضار وفاكهة ومجزر',
           description: 'مناسب لمحلات الخضار والفاكهة والجزارة والمجمدات التي تعتمد أساسياً على الميزان الإلكتروني',
           icon: 'apple',
-          productsCount: 30,
+          productsCount: 48,
           featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false },
           categories: ['خضروات طازجة', 'فواكه موسمية', 'ورقيات وأعشاب', 'لحوم ودواجن', 'مجمدات'],
           quickItems: [
@@ -1011,7 +1017,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           name: 'مكتبات وأدوات مدرسية وهدايا',
           description: 'مناسب للمكتبات والقرطاسية، الهدايا، الألعاب ومستلزمات الطباعة (بدون ميزان)',
           icon: 'book',
-          productsCount: 30,
+          productsCount: 42,
           featureFlags: { feature_scale_weight: false, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false },
           categories: ['أدوات كتابة وأقلام', 'كشاكيل ودفاتر', 'أدوات هندسية ومدرسية', 'ألعاب وهدايا', 'طباعة وتصوير مستندات'],
           quickItems: [
@@ -1030,7 +1036,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           name: 'عطارة ومحامص وبن وتوابل',
           description: 'مناسب لمحلات العطارة والبن والمحامص والمكسرات بالأوزان والجرامات والميزان',
           icon: 'flame',
-          productsCount: 30,
+          productsCount: 45,
           featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: true, feature_multi_units: false },
           categories: ['بن ومشروبات ساخنة', 'مكسرات ومحامص', 'توابل وبهارات', 'أعشاب طبيعية', 'ياميش وتمور'],
           quickItems: [
@@ -1048,16 +1054,15 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           name: 'ملابس وأحذية وأزياء',
           description: 'مناسب لمحلات الملابس والأحذية والأزياء والحقائب (بدون ميزان وأوزان)',
           icon: 'shirt',
-          productsCount: 30,
+          productsCount: 40,
           featureFlags: { feature_scale_weight: false, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false },
-          categories: ['رجالي', 'حريمي', 'أطفال', 'أحذية ومصنوعات جلدية', 'إكسسوارات وطرح'],
+          categories: ['ملابس رجالي', 'ملابس حريمي', 'ملابس أطفال', 'أحذية وحقائب', 'إكسسوارات ملابس'],
           quickItems: [
-            { Name: 'تيشيرت قطن سادة', PricePiasters: 15000, Unit: 'piece', CategoryName: 'رجالي', IsOpenPrice: false },
-            { Name: 'قميص كاجوال', PricePiasters: 25000, Unit: 'piece', CategoryName: 'رجالي', IsOpenPrice: false },
-            { Name: 'بنطلون جينز', PricePiasters: 30000, Unit: 'piece', CategoryName: 'رجالي', IsOpenPrice: false },
-            { Name: 'طرحة شيفون فاخرة', PricePiasters: 6500, Unit: 'piece', CategoryName: 'إكسسوارات وطرح', IsOpenPrice: false },
-            { Name: 'شراب قطن 3 قطع', PricePiasters: 4500, Unit: 'piece', CategoryName: 'رجالي', IsOpenPrice: false },
-            { Name: 'كيس ملابس فاخر للمحل', PricePiasters: 500, Unit: 'piece', CategoryName: 'إكسسوارات وطرح', IsOpenPrice: false }
+            { Name: 'تيشيرت قطن أساسي', PricePiasters: 15000, Unit: 'piece', CategoryName: 'ملابس رجالي', IsOpenPrice: false },
+            { Name: 'شراب قطن فاخر', PricePiasters: 2500, Unit: 'piece', CategoryName: 'إكسسوارات ملابس', IsOpenPrice: false },
+            { Name: 'حزام جلد كلاسيك', PricePiasters: 8500, Unit: 'piece', CategoryName: 'إكسسوارات ملابس', IsOpenPrice: false },
+            { Name: 'طرحة شيفون سادة', PricePiasters: 6000, Unit: 'piece', CategoryName: 'ملابس حريمي', IsOpenPrice: false },
+            { Name: 'كيس ملابس فاخر للمحل', PricePiasters: 500, Unit: 'piece', CategoryName: 'إكسسوارات ملابس', IsOpenPrice: false }
           ],
           defaultSettings: { receipt_header: 'متاجر رفيق للملابس والأزياء', receipt_footer: 'شكراً لاختياركم متجرنا! الاستبدال خلال 14 يوماً مع وجود كارت الصنف والباركود.' }
         },
@@ -1066,7 +1071,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           name: 'بقالة ومحل تجاري عام',
           description: 'إعداد عام متوازن يناسب كافة المحلات والأنشطة التجارية المتنوعة',
           icon: 'store',
-          productsCount: 30,
+          productsCount: 47,
           featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false },
           categories: ['عام', 'أغذية ومشروبات', 'منظفات', 'حلويات وتسالي', 'دخان وسجائر'],
           quickItems: [
@@ -2351,6 +2356,14 @@ async function mockHandler(action: string, payload: any): Promise<any> {
 
     case 'settings:save':
       return saveMockAppSettings(payload);
+
+    case 'settings:updateBatch': {
+      const batch = payload?.settings || payload;
+      if (batch && typeof batch === 'object') {
+        saveMockAppSettings(batch);
+      }
+      return { success: true };
+    }
 
     case 'features:getAll':
       return getMockFeatureFlags();

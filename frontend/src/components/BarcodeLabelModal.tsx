@@ -459,7 +459,14 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
                         <div className="font-semibold text-ink truncate">{p.name}</div>
                         <div className="text-[10px] text-ink-muted font-mono">{p.barcode} • {formatArabicCurrency(p.pricePiasters)}</div>
                       </div>
-                      <button className="px-2 py-1 bg-brand-soft text-brand rounded text-[11px] font-bold flex items-center gap-1 hover:bg-brand hover:text-white transition-colors">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          addProductToQueue(p);
+                        }}
+                        className="px-2 py-1 bg-brand-soft text-brand rounded text-[11px] font-bold flex items-center gap-1 hover:bg-brand hover:text-white transition-colors cursor-pointer"
+                      >
                         <Plus className="w-3 h-3" />
                         إضافة
                       </button>

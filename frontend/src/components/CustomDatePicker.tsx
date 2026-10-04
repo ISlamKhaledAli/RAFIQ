@@ -7,12 +7,12 @@ import {
   X
 } from 'lucide-react';
 
-export const ARABIC_MONTHS = [
+const ARABIC_MONTHS = [
   'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
   'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
 ];
 
-export const ARABIC_DAYS_SAT_FIRST = [
+const ARABIC_DAYS_SAT_FIRST = [
   { short: 'سبت', full: 'السبت' },
   { short: 'أحد', full: 'الأحد' },
   { short: 'إثن', full: 'الإثنين' },
@@ -22,7 +22,7 @@ export const ARABIC_DAYS_SAT_FIRST = [
   { short: 'جمع', full: 'الجمعة' },
 ];
 
-export function parseDateString(dateStr: string): Date | null {
+function parseDateString(dateStr: string): Date | null {
   if (!dateStr || typeof dateStr !== 'string') return null;
   const parts = dateStr.trim().split('-');
   if (parts.length !== 3) return null;
@@ -33,14 +33,14 @@ export function parseDateString(dateStr: string): Date | null {
   return new Date(y, m, d);
 }
 
-export function formatDateString(d: Date): string {
+function formatDateString(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
 
-export function formatFriendlyArabicDate(dateStr: string): string {
+function formatFriendlyArabicDate(dateStr: string): string {
   const d = parseDateString(dateStr);
   if (!d) return dateStr || 'اختر التاريخ';
   const day = String(d.getDate()).padStart(2, '0');

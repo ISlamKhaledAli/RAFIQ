@@ -25,6 +25,31 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, allProducts);
                     return true;
 
+                case "products:getById":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "معرف الصنف فارغ");
+                        return true;
+                    }
+                    string getProdId = null;
+                    JObject getByIdObj = request.Payload as JObject;
+                    if (getByIdObj != null && getByIdObj["id"] != null)
+                    {
+                        getProdId = getByIdObj["id"].ToString();
+                    }
+                    else
+                    {
+                        getProdId = request.Payload.ToString();
+                    }
+                    if (string.IsNullOrEmpty(getProdId))
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "معرف الصنف غير محدد");
+                        return true;
+                    }
+                    var singleProd = DatabaseService.Products.GetById(getProdId);
+                    response = BridgeResponse.Ok(request.Id, singleProd);
+                    return true;
+
                 case "products:getLowStock":
                     int lowStockLimit = 100;
                     JObject lowStockObj = request.Payload as JObject;
