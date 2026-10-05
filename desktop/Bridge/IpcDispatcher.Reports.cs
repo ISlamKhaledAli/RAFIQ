@@ -211,6 +211,47 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, payHistory);
                     return true;
 
+                case "reports:getHourlyIntensity":
+                    string hrPeriod = "today";
+                    string hrFrom = null;
+                    string hrTo = null;
+                    JObject hrObj = request.Payload as JObject;
+                    if (hrObj != null)
+                    {
+                        if (hrObj["period"] != null) hrPeriod = hrObj["period"].ToString();
+                        if (hrObj["fromDate"] != null) hrFrom = hrObj["fromDate"].ToString();
+                        if (hrObj["toDate"] != null) hrTo = hrObj["toDate"].ToString();
+                    }
+                    var hourlyIntensity = DatabaseService.Reports.GetHourlyIntensityReport(hrPeriod, hrFrom, hrTo);
+                    response = BridgeResponse.Ok(request.Id, hourlyIntensity);
+                    return true;
+
+                case "reports:getDeadStock":
+                    int deadThreshold = 30;
+                    JObject deadObj = request.Payload as JObject;
+                    if (deadObj != null && deadObj["daysThreshold"] != null)
+                    {
+                        deadThreshold = deadObj["daysThreshold"].Value<int>();
+                    }
+                    var deadStock = DatabaseService.Reports.GetDeadStockReport(deadThreshold);
+                    response = BridgeResponse.Ok(request.Id, deadStock);
+                    return true;
+
+                case "reports:getCashierPerformance":
+                    string cpPeriod = "today";
+                    string cpFrom = null;
+                    string cpTo = null;
+                    JObject cpObj = request.Payload as JObject;
+                    if (cpObj != null)
+                    {
+                        if (cpObj["period"] != null) cpPeriod = cpObj["period"].ToString();
+                        if (cpObj["fromDate"] != null) cpFrom = cpObj["fromDate"].ToString();
+                        if (cpObj["toDate"] != null) cpTo = cpObj["toDate"].ToString();
+                    }
+                    var cashierPerf = DatabaseService.Reports.GetCashierPerformanceReport(cpPeriod, cpFrom, cpTo);
+                    response = BridgeResponse.Ok(request.Id, cashierPerf);
+                    return true;
+
                 case "closing:getPreview":
                     string bDate = null;
                     JObject prevObj = request.Payload as JObject;

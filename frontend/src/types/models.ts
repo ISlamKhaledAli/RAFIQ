@@ -1008,4 +1008,54 @@ export interface PaymentHistoryRecord {
   newBalancePiasters: number;
 }
 
+export interface HourlySalesPoint {
+  hour: number;
+  hourLabel: string;
+  salesPiasters: number;
+  invoicesCount: number;
+  returnsPiasters: number;
+}
+
+export interface HourlyIntensityReport {
+  period: string;
+  peakHour: number;
+  peakHourLabel: string;
+  peakHourSalesPiasters: number;
+  peakHourInvoicesCount: number;
+  hours: HourlySalesPoint[];
+}
+
+export interface DeadStockItem {
+  productId: string;
+  barcode: string;
+  name: string;
+  categoryName: string;
+  stockMilli: number;
+  unit: string;
+  unitCostPiasters: number;
+  retailPricePiasters: number;
+  tiedCapitalPiasters: number;
+  daysInactive: number;
+  lastSoldDate?: string | null;
+}
+
+export interface DeadStockReport {
+  totalDeadItemsCount: number;
+  totalTiedCapitalPiasters: number;
+  daysThreshold: number;
+  items: DeadStockItem[];
+}
+
+export interface CashierPerformanceMetric {
+  cashierId: string;
+  cashierName: string;
+  role: string;
+  invoicesCount: number;
+  totalSalesPiasters: number;
+  cashSalesPiasters: number;
+  averageInvoicePiasters: number;
+  cancelledCount: number;
+  returnsCount: number;
+}
+
 

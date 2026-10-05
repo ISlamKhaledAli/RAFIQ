@@ -3,31 +3,36 @@ import type { FC } from 'react';
 import {
   DollarSign,
   TrendingUp,
-  TrendingDown,
   RefreshCw,
   Printer,
-  AlertTriangle,
-  ArrowUpRight,
-  ArrowDownRight,
   PieChart as PieIcon,
   BarChart3,
   Layers,
   Award,
   Wallet,
-  CheckCircle2
+  CheckCircle2,
+  Flame,
+  ArrowUpRight,
+  ArrowDownRight,
+  AlertTriangle,
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { CustomSelect } from '../../components/CustomSelect';
 import type { SelectOption } from '../../components/CustomSelect';
 import { CustomDateRangePicker } from '../../components/CustomDatePicker';
 import { formatArabicCurrency } from '../../utils/money';
+import { FinancialGaugeMeter } from '../../components/analytics/FinancialGaugeMeter';
+import { FinancialWaterfallChart } from '../../components/analytics/FinancialWaterfallChart';
+import { HourlyHeatmapBar } from '../../components/analytics/HourlyHeatmapBar';
+import { CashierPerformanceCard } from '../../components/analytics/CashierPerformanceCard';
 import type {
   PeriodSalesReport,
   InventoryLossReport,
   ClosingHistoryRecord,
   CategoryPerformanceItem,
   ItemProfitabilityItem,
-  PeriodComparisonReport
+  PeriodComparisonReport,
+  HourlyIntensityReport,
 } from '../../types/models';
 
 const PERIOD_OPTIONS: SelectOption[] = [
@@ -57,8 +62,9 @@ export const RevenueAnalyticsView: FC = () => {
   const [profitableItems, setProfitableItems] = useState<ItemProfitabilityItem[]>([]);
   const [itemsDirection, setItemsDirection] = useState<'desc' | 'asc'>('desc');
   const [comparison, setComparison] = useState<PeriodComparisonReport | null>(null);
+  const [hourlyReport, setHourlyReport] = useState<HourlyIntensityReport | null>(null);
 
-  const [activeSection, setActiveSection] = useState<'overview' | 'categories' | 'items' | 'closings'>('overview');
+  const [activeSection, setActiveSection] = useState<'overview' | 'traffic' | 'categories' | 'items' | 'closings'>('overview');
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -69,7 +75,7 @@ export const RevenueAnalyticsView: FC = () => {
         toDate: period === 'custom' ? customTo : undefined,
       };
 
-      const [salesRes, lossRes, closingsRes, catRes, itemsRes, compRes] = await Promise.all([
+      const [salesRes, lossRes, closingsRes, catRes, itemsRes, compRes, hourlyRes] = await Promise.all([
         invoke<PeriodSalesReport>('reports:getPeriodSales', payload).catch(() => null),
         invoke<InventoryLossReport>('reports:getInventoryLoss', payload).catch(() => null),
         invoke<ClosingHistoryRecord[]>('reports:getClosingHistory', payload).catch(() => []),
@@ -80,6 +86,7 @@ export const RevenueAnalyticsView: FC = () => {
           limit: 20
         }).catch(() => []),
         invoke<PeriodComparisonReport>('reports:getPeriodComparison', { period }).catch(() => null),
+        invoke<HourlyIntensityReport>('reports:getHourlyIntensity', payload).catch(() => null),
       ]);
 
       setSalesReport(salesRes);
@@ -88,6 +95,7 @@ export const RevenueAnalyticsView: FC = () => {
       setCategories(catRes || []);
       setProfitableItems(itemsRes || []);
       setComparison(compRes);
+      setHourlyReport(hourlyRes);
     } catch (err) {
       console.error('Failed to load revenue analytics:', err);
     } finally {
@@ -116,6 +124,21 @@ export const RevenueAnalyticsView: FC = () => {
   const cashPct = totalSales > 0 ? Math.round((cashSales * 100) / totalSales) : 0;
   const creditPct = totalSales > 0 ? Math.round((creditSales * 100) / totalSales) : 0;
   const cardPct = totalSales > 0 ? Math.max(0, 100 - cashPct - creditPct) : 0;
+
+  // Composite Financial Health Score (0 - 100)
+  const financialScore = Math.max(
+    15,
+    Math.min(
+      98,
+      Math.round(
+        50 +
+        (cashPct * 0.25) +
+        Math.min(25, netMarginPercent * 1.2) -
+        (totalSales > 0 ? (inventoryLosses * 100 / totalSales) * 2 : 0) -
+        (creditPct > 35 ? (creditPct - 35) * 0.5 : 0)
+      )
+    )
+  );
 
   // Print handler
   const handlePrint = () => {
@@ -292,7 +315,20 @@ export const RevenueAnalyticsView: FC = () => {
           }`}
         >
           <PieIcon className="w-4 h-4 shrink-0" />
-          <span>ملخص التدفق ومصادر الدخل</span>
+          <span>ملخص التدفق والشلال المالي</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSection('traffic')}
+          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
+            activeSection === 'traffic'
+              ? 'bg-brand-dark text-white border border-brand-dark shadow-xs'
+              : 'bg-surface text-ink-muted hover:text-ink hover:bg-surface-2 border border-line hover:border-line-hover'
+          }`}
+        >
+          <Flame className="w-4 h-4 shrink-0 text-amber-500" />
+          <span>ساعات الذروة ونشاط الكاشير</span>
         </button>
 
         <button
@@ -339,266 +375,245 @@ export const RevenueAnalyticsView: FC = () => {
       <div className="flex-1 pb-6">
         {/* SECTION A: Overview & Breakdown */}
         {activeSection === 'overview' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Visual Breakdown of Income Sources */}
-            <div className="bg-surface border border-line rounded-xl p-4 shadow-2xs flex flex-col">
-              <h2 className="text-sm font-bold text-ink mb-1 flex items-center gap-1.5">
-                <Wallet className="w-4 h-4 text-paid" />
-                <span>توزيع المبيعات حسب طريقة الدفع</span>
-              </h2>
-              <p className="text-xs text-ink-muted mb-4">
-                توزيع نقدي مباشر مقابل آجل وبطاقات بنكية
-              </p>
+          <div className="space-y-4">
+            {/* Visual Micro-Visualizations Row: 3D Gauge Meter & Waterfall Flow */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="lg:col-span-1">
+                <FinancialGaugeMeter
+                  score={financialScore}
+                  cashRatioPercent={cashPct}
+                  netMarginPercent={netMarginPercent}
+                  uncollectedCreditPercent={creditPct}
+                />
+              </div>
+              <div className="lg:col-span-2">
+                <FinancialWaterfallChart
+                  grossSalesPiasters={totalSales}
+                  returnsPiasters={returnsTotal}
+                  netSalesPiasters={netSales}
+                  cogsPiasters={cogs}
+                  grossProfitPiasters={grossProfit}
+                  inventoryLossPiasters={inventoryLosses}
+                  netProfitPiasters={netOperationalProfit}
+                />
+              </div>
+            </div>
 
-              {/* Pure SVG Donut Chart (Zero external libraries - Chromium 109 compatible) */}
-              <div className="flex items-center justify-center my-2">
-                <div className="relative w-36 h-36 flex items-center justify-center">
-                  <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-                    {/* Background circle */}
-                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="#E2E8F0" strokeWidth="4" />
-                    {/* Cash slice (Green) */}
-                    <circle
-                      cx="18"
-                      cy="18"
-                      r="15.915"
-                      fill="none"
-                      stroke="#006D41"
-                      strokeWidth="4"
-                      strokeDasharray={`${cashPct} ${100 - cashPct}`}
-                      strokeDashoffset="0"
-                    />
-                    {/* Credit slice (Amber/Warn) */}
-                    <circle
-                      cx="18"
-                      cy="18"
-                      r="15.915"
-                      fill="none"
-                      stroke="#B3720E"
-                      strokeWidth="4"
-                      strokeDasharray={`${creditPct} ${100 - creditPct}`}
-                      strokeDashoffset={`${-cashPct}`}
-                    />
-                    {/* Card slice (Brand) */}
-                    {cardPct > 0 && (
+            {/* Income Sources Donut & Period Comparison */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Visual Breakdown of Income Sources */}
+              <div className="bg-surface border border-line rounded-xl p-4 shadow-2xs flex flex-col justify-between">
+                <div>
+                  <h2 className="text-sm font-bold text-ink mb-1 flex items-center gap-1.5">
+                    <Wallet className="w-4 h-4 text-paid" />
+                    <span>توزيع المبيعات حسب طريقة الدفع</span>
+                  </h2>
+                  <p className="text-xs text-ink-muted mb-3">
+                    توزيع نقدي مباشر مقابل آجل وبطاقات بنكية
+                  </p>
+                </div>
+
+                {/* Pure SVG Donut Chart (Zero external libraries - Chromium 109 compatible) */}
+                <div className="flex items-center justify-center my-1">
+                  <div className="relative w-32 h-32 flex items-center justify-center">
+                    <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                      {/* Background circle */}
+                      <circle cx="18" cy="18" r="15.915" fill="none" stroke="#E2E8F0" strokeWidth="4" />
+                      {/* Cash slice (Green) */}
                       <circle
                         cx="18"
                         cy="18"
                         r="15.915"
                         fill="none"
-                        stroke="#004D3F"
+                        stroke="#006D41"
                         strokeWidth="4"
-                        strokeDasharray={`${cardPct} ${100 - cardPct}`}
-                        strokeDashoffset={`${-(cashPct + creditPct)}`}
+                        strokeDasharray={`${cashPct} ${100 - cashPct}`}
+                        strokeDashoffset="0"
                       />
-                    )}
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-                    <span className="text-[10px] text-ink-muted">نقدي مباشر</span>
-                    <span className="text-base font-bold font-mono text-paid">{cashPct}%</span>
+                      {/* Credit slice (Amber/Warn) */}
+                      <circle
+                        cx="18"
+                        cy="18"
+                        r="15.915"
+                        fill="none"
+                        stroke="#B3720E"
+                        strokeWidth="4"
+                        strokeDasharray={`${creditPct} ${100 - creditPct}`}
+                        strokeDashoffset={`${-cashPct}`}
+                      />
+                      {/* Card slice (Brand) */}
+                      {cardPct > 0 && (
+                        <circle
+                          cx="18"
+                          cy="18"
+                          r="15.915"
+                          fill="none"
+                          stroke="#004D3F"
+                          strokeWidth="4"
+                          strokeDasharray={`${cardPct} ${100 - cardPct}`}
+                          strokeDashoffset={`${-(cashPct + creditPct)}`}
+                        />
+                      )}
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+                      <span className="text-[10px] text-ink-muted">نقدي مباشر</span>
+                      <span className="text-base font-bold font-mono text-paid">{cashPct}%</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Legend & Details */}
+                <div className="space-y-2 mt-3 pt-3 border-t border-line text-xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full bg-paid shrink-0" />
+                      <span>مبيعات نقدية (درج الكاشير):</span>
+                    </div>
+                    <div className="font-mono font-bold text-ink">
+                      {formatArabicCurrency(cashSales)} ({cashPct}%)
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full bg-warn shrink-0" />
+                      <span>مبيعات آجلة (ذمم عملاء):</span>
+                    </div>
+                    <div className="font-mono font-bold text-ink">
+                      {formatArabicCurrency(creditSales)} ({creditPct}%)
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full bg-brand shrink-0" />
+                      <span>بطاقات بنكية / إلكتروني:</span>
+                    </div>
+                    <div className="font-mono font-bold text-ink">
+                      {formatArabicCurrency(cardSales)} ({cardPct}%)
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Legend & Details */}
-              <div className="space-y-2 mt-4 pt-3 border-t border-line text-xs">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-paid shrink-0" />
-                    <span>مبيعات نقدية (درج الكاشير):</span>
-                  </div>
-                  <div className="font-mono font-bold text-ink">
-                    {formatArabicCurrency(cashSales)} ({cashPct}%)
-                  </div>
+              {/* Period-over-Period Comparison Widget */}
+              <div className="bg-surface border border-line rounded-xl p-4 shadow-2xs flex flex-col justify-between">
+                <div>
+                  <h2 className="text-sm font-bold text-ink mb-1 flex items-center gap-1.5">
+                    <BarChart3 className="w-4 h-4 text-brand" />
+                    <span>مقارنة الأداء ({comparison?.currentPeriodName || 'الحالية'} vs {comparison?.previousPeriodName || 'السابقة'})</span>
+                  </h2>
+                  <p className="text-xs text-ink-muted mb-3">
+                    تطور ونمو المبيعات والأرباح مقارنة بالفترة السابقة المماثلة
+                  </p>
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-warn shrink-0" />
-                    <span>مبيعات آجلة (ذمم عملاء):</span>
+                {isLoading ? (
+                  <div className="text-center text-xs text-ink-muted py-8 flex flex-col items-center justify-center gap-2 my-auto">
+                    <RefreshCw className="w-5 h-5 animate-spin text-paid" />
+                    <span>جاري حساب ومقارنة الفترات...</span>
                   </div>
-                  <div className="font-mono font-bold text-ink">
-                    {formatArabicCurrency(creditSales)} ({creditPct}%)
-                  </div>
-                </div>
+                ) : comparison ? (
+                  <div className="space-y-2.5 flex-1 flex flex-col justify-around my-2">
+                    {/* Metric: Sales */}
+                    <div className="p-2.5 rounded-lg bg-surface-2 border border-line/60">
+                      <div className="flex items-center justify-between text-xs text-ink-muted">
+                        <span>إجمالي المبيعات</span>
+                        <span className={`flex items-center gap-0.5 font-bold font-mono text-[11px] ${
+                          comparison.sales.deltaPiasters >= 0 ? 'text-paid' : 'text-danger'
+                        }`}>
+                          {comparison.sales.deltaPiasters >= 0 ? (
+                            <ArrowUpRight className="w-3.5 h-3.5" />
+                          ) : (
+                            <ArrowDownRight className="w-3.5 h-3.5" />
+                          )}
+                          {Math.abs(comparison.sales.percentChange)}%
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="font-mono font-bold text-sm text-ink">
+                          {formatArabicCurrency(comparison.sales.current)}
+                        </span>
+                        <span className="font-mono text-xs text-ink-muted">
+                          السابق: {formatArabicCurrency(comparison.sales.previous)}
+                        </span>
+                      </div>
+                    </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-brand shrink-0" />
-                    <span>بطاقات بنكية / إلكتروني:</span>
+                    {/* Metric: Profit */}
+                    <div className="p-2.5 rounded-lg bg-surface-2 border border-line/60">
+                      <div className="flex items-center justify-between text-xs text-ink-muted">
+                        <span>مجمل الأرباح</span>
+                        <span className={`flex items-center gap-0.5 font-bold font-mono text-[11px] ${
+                          comparison.profit.deltaPiasters >= 0 ? 'text-paid' : 'text-danger'
+                        }`}>
+                          {comparison.profit.deltaPiasters >= 0 ? (
+                            <ArrowUpRight className="w-3.5 h-3.5" />
+                          ) : (
+                            <ArrowDownRight className="w-3.5 h-3.5" />
+                          )}
+                          {Math.abs(comparison.profit.percentChange)}%
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="font-mono font-bold text-sm text-paid">
+                          {formatArabicCurrency(comparison.profit.current)}
+                        </span>
+                        <span className="font-mono text-xs text-ink-muted">
+                          السابق: {formatArabicCurrency(comparison.profit.previous)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Metric: Average Basket */}
+                    <div className="p-2.5 rounded-lg bg-surface-2 border border-line/60">
+                      <div className="flex items-center justify-between text-xs text-ink-muted">
+                        <span>متوسط الفاتورة الواحدة</span>
+                        <span className={`flex items-center gap-0.5 font-bold font-mono text-[11px] ${
+                          comparison.avgInvoicePiasters.deltaPiasters >= 0 ? 'text-paid' : 'text-danger'
+                        }`}>
+                          {comparison.avgInvoicePiasters.deltaPiasters >= 0 ? (
+                            <ArrowUpRight className="w-3.5 h-3.5" />
+                          ) : (
+                            <ArrowDownRight className="w-3.5 h-3.5" />
+                          )}
+                          {Math.abs(comparison.avgInvoicePiasters.percentChange)}%
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="font-mono font-bold text-sm text-ink">
+                          {formatArabicCurrency(comparison.avgInvoicePiasters.current)}
+                        </span>
+                        <span className="font-mono text-xs text-ink-muted">
+                          {comparison.invoiceCount.current} فاتورة
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="font-mono font-bold text-ink">
-                    {formatArabicCurrency(cardSales)} ({cardPct}%)
+                ) : (
+                  <div className="text-center text-xs text-ink-muted py-6 flex flex-col items-center justify-center gap-2 my-auto">
+                    <BarChart3 className="w-7 h-7 text-line" />
+                    <span className="font-bold text-ink">لا توجد مبيعات سابقة كافية للمقارنة</span>
+                    <span className="text-[11px] text-ink-muted">ستظهر نسب النمو ومقارنة الإيرادات تلقائياً عند وجود فترات سابقة</span>
                   </div>
-                </div>
+                )}
               </div>
-            </div>
-
-            {/* Expense & Loss Waterfall */}
-            <div className="bg-surface border border-line rounded-xl p-4 shadow-2xs flex flex-col">
-              <h2 className="text-sm font-bold text-ink mb-1 flex items-center gap-1.5">
-                <TrendingDown className="w-4 h-4 text-danger" />
-                <span>أين ذهبت الأموال؟ (المصروفات والخسائر)</span>
-              </h2>
-              <p className="text-xs text-ink-muted mb-4">
-                تفكيك التكاليف والفاقد ومقارنتها بإجمالي الدخل
-              </p>
-
-              <div className="space-y-3.5 flex-1 justify-center flex flex-col">
-                {/* COGS bar */}
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="font-semibold text-ink">تكلفة البضاعة المباعة (COGS)</span>
-                    <span className="font-mono font-bold text-ink">{formatArabicCurrency(cogs)}</span>
-                  </div>
-                  <div className="w-full h-2.5 bg-surface-2 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-brand rounded-full"
-                      style={{ width: `${totalSales > 0 ? Math.min(100, (cogs * 100) / totalSales) : 0}%` }}
-                    />
-                  </div>
-                  <div className="text-[10px] text-ink-muted mt-0.5 font-mono">
-                    {totalSales > 0 ? ((cogs * 100) / totalSales).toFixed(1) : 0}% من إجمالي المبيعات
-                  </div>
-                </div>
-
-                {/* Returns bar */}
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="font-semibold text-ink">مرتجع مبيعات للزبائن</span>
-                    <span className="font-mono font-bold text-danger">{formatArabicCurrency(returnsTotal)}</span>
-                  </div>
-                  <div className="w-full h-2.5 bg-surface-2 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-danger rounded-full"
-                      style={{ width: `${totalSales > 0 ? Math.min(100, (returnsTotal * 100) / totalSales) : 0}%` }}
-                    />
-                  </div>
-                  <div className="text-[10px] text-ink-muted mt-0.5 font-mono">
-                    {totalSales > 0 ? ((returnsTotal * 100) / totalSales).toFixed(1) : 0}% نسبة الإرجاع
-                  </div>
-                </div>
-
-                {/* Inventory losses bar */}
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="font-semibold text-ink">تالف وهالك وعجز جرد المخزن</span>
-                    <span className="font-mono font-bold text-danger">{formatArabicCurrency(inventoryLosses)}</span>
-                  </div>
-                  <div className="w-full h-2.5 bg-surface-2 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-danger/70 rounded-full"
-                      style={{ width: `${totalSales > 0 ? Math.min(100, (inventoryLosses * 100) / totalSales) : 0}%` }}
-                    />
-                  </div>
-                  <div className="text-[10px] text-ink-muted mt-0.5 font-mono">
-                    {totalSales > 0 ? ((inventoryLosses * 100) / totalSales).toFixed(1) : 0}% فاقد المخزون
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Period-over-Period Comparison Widget */}
-            <div className="bg-surface border border-line rounded-xl p-4 shadow-2xs flex flex-col">
-              <h2 className="text-sm font-bold text-ink mb-1 flex items-center gap-1.5">
-                <BarChart3 className="w-4 h-4 text-brand" />
-                <span>مقارنة الأداء ({comparison?.currentPeriodName || 'الحالية'} vs {comparison?.previousPeriodName || 'السابقة'})</span>
-              </h2>
-              <p className="text-xs text-ink-muted mb-4">
-                تطور ونمو المبيعات والأرباح مقارنة بالفترة السابقة المماثلة
-              </p>
-
-              {isLoading ? (
-                <div className="text-center text-xs text-ink-muted py-10 flex flex-col items-center justify-center gap-2 my-auto">
-                  <RefreshCw className="w-5 h-5 animate-spin text-paid" />
-                  <span>جاري حساب ومقارنة الفترات...</span>
-                </div>
-              ) : comparison ? (
-                <div className="space-y-3 flex-1 flex flex-col justify-around">
-                  {/* Metric: Sales */}
-                  <div className="p-2.5 rounded-lg bg-surface-2 border border-line/60">
-                    <div className="flex items-center justify-between text-xs text-ink-muted">
-                      <span>إجمالي المبيعات</span>
-                      <span className={`flex items-center gap-0.5 font-bold font-mono text-[11px] ${
-                        comparison.sales.deltaPiasters >= 0 ? 'text-paid' : 'text-danger'
-                      }`}>
-                        {comparison.sales.deltaPiasters >= 0 ? (
-                          <ArrowUpRight className="w-3.5 h-3.5" />
-                        ) : (
-                          <ArrowDownRight className="w-3.5 h-3.5" />
-                        )}
-                        {Math.abs(comparison.sales.percentChange)}%
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="font-mono font-bold text-sm text-ink">
-                        {formatArabicCurrency(comparison.sales.current)}
-                      </span>
-                      <span className="font-mono text-xs text-ink-muted">
-                        السابق: {formatArabicCurrency(comparison.sales.previous)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Metric: Profit */}
-                  <div className="p-2.5 rounded-lg bg-surface-2 border border-line/60">
-                    <div className="flex items-center justify-between text-xs text-ink-muted">
-                      <span>مجمل الأرباح</span>
-                      <span className={`flex items-center gap-0.5 font-bold font-mono text-[11px] ${
-                        comparison.profit.deltaPiasters >= 0 ? 'text-paid' : 'text-danger'
-                      }`}>
-                        {comparison.profit.deltaPiasters >= 0 ? (
-                          <ArrowUpRight className="w-3.5 h-3.5" />
-                        ) : (
-                          <ArrowDownRight className="w-3.5 h-3.5" />
-                        )}
-                        {Math.abs(comparison.profit.percentChange)}%
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="font-mono font-bold text-sm text-paid">
-                        {formatArabicCurrency(comparison.profit.current)}
-                      </span>
-                      <span className="font-mono text-xs text-ink-muted">
-                        السابق: {formatArabicCurrency(comparison.profit.previous)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Metric: Average Basket */}
-                  <div className="p-2.5 rounded-lg bg-surface-2 border border-line/60">
-                    <div className="flex items-center justify-between text-xs text-ink-muted">
-                      <span>متوسط الفاتورة الواحدة</span>
-                      <span className={`flex items-center gap-0.5 font-bold font-mono text-[11px] ${
-                        comparison.avgInvoicePiasters.deltaPiasters >= 0 ? 'text-paid' : 'text-danger'
-                      }`}>
-                        {comparison.avgInvoicePiasters.deltaPiasters >= 0 ? (
-                          <ArrowUpRight className="w-3.5 h-3.5" />
-                        ) : (
-                          <ArrowDownRight className="w-3.5 h-3.5" />
-                        )}
-                        {Math.abs(comparison.avgInvoicePiasters.percentChange)}%
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="font-mono font-bold text-sm text-ink">
-                        {formatArabicCurrency(comparison.avgInvoicePiasters.current)}
-                      </span>
-                      <span className="font-mono text-xs text-ink-muted">
-                        {comparison.invoiceCount.current} فاتورة
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center text-xs text-ink-muted py-8 flex flex-col items-center justify-center gap-2 my-auto">
-                  <BarChart3 className="w-7 h-7 text-line" />
-                  <span className="font-bold text-ink">لا توجد مبيعات سابقة كافية للمقارنة</span>
-                  <span className="text-[11px] text-ink-muted">ستظهر نسب النمو ومقارنة الإيرادات تلقائياً عند وجود فترات سابقة</span>
-                </div>
-              )}
             </div>
           </div>
         )}
+
+        {/* SECTION TRAFFIC: Peak Hours & Cashier Performance */}
+        {activeSection === 'traffic' && (
+          <div className="space-y-4">
+            <HourlyHeatmapBar report={hourlyReport} isLoading={isLoading} />
+            <CashierPerformanceCard
+              period={period}
+              customFrom={customFrom}
+              customTo={customTo}
+            />
+          </div>
+        )}
+
 
         {/* SECTION B: Category Performance Table */}
         {activeSection === 'categories' && (

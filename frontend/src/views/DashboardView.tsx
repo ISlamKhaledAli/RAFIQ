@@ -17,7 +17,7 @@ import {
   Boxes
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
-import type { DashboardSummary, UnclosedDayAlert, BatchSummary } from '../types/models';
+import type { DashboardSummary, UnclosedDayAlert, BatchSummary, HourlyIntensityReport } from '../types/models';
 import { DailyClosingModal } from '../components/DailyClosingModal';
 import { LowStockReportModal } from '../components/LowStockReportModal';
 import { DebtorsReportModal } from '../components/DebtorsReportModal';
@@ -45,6 +45,7 @@ export function DashboardView({
   const [isLoading, setIsLoading] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<string>('');
   const [batchSummary, setBatchSummary] = useState<BatchSummary | null>(null);
+  const [hourlyData, setHourlyData] = useState<HourlyIntensityReport | null>(null);
 
   // Milestone 9 Modals State
   const [isClosingModalOpen, setIsClosingModalOpen] = useState(false);
@@ -55,14 +56,16 @@ export function DashboardView({
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [sumData, unclosedData, batchData] = await Promise.all([
+      const [sumData, unclosedData, batchData, hrData] = await Promise.all([
         invoke<DashboardSummary>('reports:getTodaySummary'),
         invoke<UnclosedDayAlert>('closing:checkPreviousDay'),
-        invoke<BatchSummary>('batch:summary').catch(() => null)
+        invoke<BatchSummary>('batch:summary').catch(() => null),
+        invoke<HourlyIntensityReport>('reports:getHourlyIntensity', { period: 'today' }).catch(() => null)
       ]);
       if (sumData) setSummary(sumData);
       if (unclosedData) setUnclosedAlert(unclosedData);
       if (batchData) setBatchSummary(batchData);
+      if (hrData) setHourlyData(hrData);
       const now = new Date();
       setLastRefreshed(now.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch {
@@ -76,15 +79,17 @@ export function DashboardView({
     let active = true;
     void (async () => {
       try {
-        const [sumData, unclosedData, batchData] = await Promise.all([
+        const [sumData, unclosedData, batchData, hrData] = await Promise.all([
           invoke<DashboardSummary>('reports:getTodaySummary'),
           invoke<UnclosedDayAlert>('closing:checkPreviousDay'),
-          invoke<BatchSummary>('batch:summary').catch(() => null)
+          invoke<BatchSummary>('batch:summary').catch(() => null),
+          invoke<HourlyIntensityReport>('reports:getHourlyIntensity', { period: 'today' }).catch(() => null)
         ]);
         if (active) {
           if (sumData) setSummary(sumData);
           if (unclosedData) setUnclosedAlert(unclosedData);
           if (batchData) setBatchSummary(batchData);
+          if (hrData) setHourlyData(hrData);
           const now = new Date();
           setLastRefreshed(now.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
         }
@@ -137,6 +142,31 @@ export function DashboardView({
           </button>
         </div>
       </div>
+
+      {/* Live Hourly Peak Ticker Banner */}
+      {hourlyData && hourlyData.peakHourSalesPiasters > 0 && (
+        <div 
+          onClick={() => onNavigateSubTab && onNavigateSubTab('revenue')}
+          className="bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/30 rounded-xl px-3.5 py-2.5 flex items-center justify-between gap-3 text-xs text-ink cursor-pointer transition-all shadow-2xs group shrink-0"
+        >
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-md bg-amber-500 text-white flex items-center justify-center font-bold">
+              <Flame className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <span className="font-bold text-ink">ساعة الذروة الكبرى اليوم: </span>
+              <span className="font-mono font-bold text-amber-800">{hourlyData.peakHourLabel}</span>
+              <span className="text-ink-muted mr-2">
+                ({hourlyData.peakHourInvoicesCount} فاتورة — {formatArabicCurrency(hourlyData.peakHourSalesPiasters)})
+              </span>
+            </div>
+          </div>
+          <span className="text-amber-800 font-bold flex items-center gap-0.5 group-hover:underline">
+            <span>تحليل ساعات الذروة والشلال المالي</span>
+            <ChevronLeft className="w-3.5 h-3.5" />
+          </span>
+        </div>
+      )}
 
       {/* Unclosed Previous Business Day Warning Alert Banner (Story 87 / Task 49-5) */}
       {unclosedAlert && unclosedAlert.hasUnclosedDay && (

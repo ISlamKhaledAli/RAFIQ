@@ -593,5 +593,135 @@ namespace RafiqPOS.Models
         [JsonProperty("newBalancePiasters")]
         public long NewBalancePiasters { get; set; }
     }
+
+    public class HourlySalesPoint
+    {
+        [JsonProperty("hour")]
+        public int Hour { get; set; }
+
+        [JsonProperty("hourLabel")]
+        public string HourLabel { get; set; }
+
+        [JsonProperty("salesPiasters")]
+        public long SalesPiasters { get; set; }
+
+        [JsonProperty("invoicesCount")]
+        public int InvoicesCount { get; set; }
+
+        [JsonProperty("returnsPiasters")]
+        public long ReturnsPiasters { get; set; }
+    }
+
+    public class HourlyIntensityReport
+    {
+        [JsonProperty("period")]
+        public string Period { get; set; }
+
+        [JsonProperty("peakHour")]
+        public int PeakHour { get; set; }
+
+        [JsonProperty("peakHourLabel")]
+        public string PeakHourLabel { get; set; }
+
+        [JsonProperty("peakHourSalesPiasters")]
+        public long PeakHourSalesPiasters { get; set; }
+
+        [JsonProperty("peakHourInvoicesCount")]
+        public int PeakHourInvoicesCount { get; set; }
+
+        [JsonProperty("hours")]
+        public List<HourlySalesPoint> Hours { get; set; }
+
+        public HourlyIntensityReport()
+        {
+            Hours = new List<HourlySalesPoint>();
+        }
+    }
+
+    public class DeadStockItem
+    {
+        [JsonProperty("productId")]
+        public string ProductId { get; set; }
+
+        [JsonProperty("barcode")]
+        public string Barcode { get; set; }
+
+        [JsonProperty("name")]
+        public string Name { get; set; }
+
+        [JsonProperty("categoryName")]
+        public string CategoryName { get; set; }
+
+        [JsonProperty("stockMilli")]
+        public long StockMilli { get; set; }
+
+        [JsonProperty("unit")]
+        public string Unit { get; set; }
+
+        [JsonProperty("unitCostPiasters")]
+        public long UnitCostPiasters { get; set; }
+
+        [JsonProperty("retailPricePiasters")]
+        public long RetailPricePiasters { get; set; }
+
+        [JsonProperty("tiedCapitalPiasters")]
+        public long TiedCapitalPiasters { get; set; }
+
+        [JsonProperty("daysInactive")]
+        public int DaysInactive { get; set; }
+
+        [JsonProperty("lastSoldDate")]
+        public string LastSoldDate { get; set; }
+    }
+
+    public class DeadStockReport
+    {
+        [JsonProperty("totalDeadItemsCount")]
+        public int TotalDeadItemsCount { get; set; }
+
+        [JsonProperty("totalTiedCapitalPiasters")]
+        public long TotalTiedCapitalPiasters { get; set; }
+
+        [JsonProperty("daysThreshold")]
+        public int DaysThreshold { get; set; }
+
+        [JsonProperty("items")]
+        public List<DeadStockItem> Items { get; set; }
+
+        public DeadStockReport()
+        {
+            Items = new List<DeadStockItem>();
+        }
+    }
+
+    public class CashierPerformanceMetric
+    {
+        [JsonProperty("cashierId")]
+        public string CashierId { get; set; }
+
+        [JsonProperty("cashierName")]
+        public string CashierName { get; set; }
+
+        [JsonProperty("role")]
+        public string Role { get; set; }
+
+        [JsonProperty("invoicesCount")]
+        public int InvoicesCount { get; set; }
+
+        [JsonProperty("totalSalesPiasters")]
+        public long TotalSalesPiasters { get; set; }
+
+        [JsonProperty("cashSalesPiasters")]
+        public long CashSalesPiasters { get; set; }
+
+        [JsonProperty("averageInvoicePiasters")]
+        public long AverageInvoicePiasters { get; set; }
+
+        [JsonProperty("cancelledCount")]
+        public int CancelledCount { get; set; }
+
+        [JsonProperty("returnsCount")]
+        public int ReturnsCount { get; set; }
+    }
 }
 

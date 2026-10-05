@@ -15,13 +15,15 @@ import {
   ChevronLeft,
   DollarSign,
   Info,
-  CheckCircle2
+  CheckCircle2,
+  PackageX
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { CustomSelect } from '../../components/CustomSelect';
 import type { SelectOption } from '../../components/CustomSelect';
 import { CustomDateRangePicker } from '../../components/CustomDatePicker';
 import { formatArabicCurrency } from '../../utils/money';
+import { DeadStockRadar } from '../../components/analytics/DeadStockRadar';
 import type {
   InventoryOverviewReport,
   ShrinkageAnalysisReport,
@@ -63,7 +65,7 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
   const [lowStockItems, setLowStockItems] = useState<LowStockReportItem[]>([]);
   const [batchSummary, setBatchSummary] = useState<BatchSummary | null>(null);
 
-  const [activeSection, setActiveSection] = useState<'shrinkage' | 'lowstock' | 'purchases' | 'expiry'>('shrinkage');
+  const [activeSection, setActiveSection] = useState<'shrinkage' | 'lowstock' | 'purchases' | 'expiry' | 'deadstock'>('shrinkage');
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -320,6 +322,19 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
           {(batchSummary?.expiredCount || 0) > 0 && (
             <span className="w-2 h-2 rounded-full bg-danger animate-pulse shrink-0" />
           )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSection('deadstock')}
+          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
+            activeSection === 'deadstock'
+              ? 'bg-brand-dark text-white border border-brand-dark shadow-xs'
+              : 'bg-surface text-ink-muted hover:text-ink hover:bg-surface-2 border border-line hover:border-line-hover'
+          }`}
+        >
+          <PackageX className="w-4 h-4 shrink-0 text-red-500" />
+          <span>رادار الرواكد والسيولة المجمدة</span>
         </button>
       </div>
 
@@ -661,6 +676,15 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
               </button>
             </div>
           </div>
+        )}
+
+        {/* SECTION E: Dead Stock Radar */}
+        {activeSection === 'deadstock' && (
+          <DeadStockRadar 
+            onNavigateToProduct={() => {
+              if (onNavigateToProducts) onNavigateToProducts('catalog');
+            }} 
+          />
         )}
       </div>
     </div>

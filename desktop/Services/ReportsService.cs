@@ -2124,6 +2124,325 @@ namespace RafiqPOS.Services
 
             return list;
         }
+
+        public HourlyIntensityReport GetHourlyIntensityReport(string period, string customFromDate, string customToDate)
+        {
+            var report = new HourlyIntensityReport
+            {
+                Period = period ?? "today"
+            };
+
+            for (int i = 0; i < 24; i++)
+            {
+                string suffix = i >= 12 ? "م" : "ص";
+                int displayHour = i % 12;
+                if (displayHour == 0) displayHour = 12;
+                string label = string.Format("{0:D2}:00 {1}", displayHour, suffix);
+
+                report.Hours.Add(new HourlySalesPoint
+                {
+                    Hour = i,
+                    HourLabel = label,
+                    SalesPiasters = 0,
+                    InvoicesCount = 0,
+                    ReturnsPiasters = 0
+                });
+            }
+
+            string dateFilterClause;
+            if (period == "yesterday")
+            {
+                dateFilterClause = "date(created_at, 'localtime') = date('now', 'localtime', '-1 day')";
+            }
+            else if (period == "week")
+            {
+                dateFilterClause = "date(created_at, 'localtime') >= date('now', 'localtime', '-7 days')";
+            }
+            else if (period == "month")
+            {
+                dateFilterClause = "date(created_at, 'localtime') >= date('now', 'localtime', '-30 days')";
+            }
+            else if (period == "custom" && !string.IsNullOrEmpty(customFromDate) && !string.IsNullOrEmpty(customToDate))
+            {
+                dateFilterClause = "date(created_at, 'localtime') >= date(@from) AND date(created_at, 'localtime') <= date(@to)";
+            }
+            else
+            {
+                dateFilterClause = "(date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'))";
+            }
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+
+                string salesSql = string.Format(@"
+                    SELECT 
+                        CAST(strftime('%H', created_at, 'localtime') AS INTEGER) AS sale_hour,
+                        COALESCE(SUM(total_piasters), 0) AS total_sales,
+                        COUNT(*) AS inv_count
+                    FROM sales 
+                    WHERE {0}
+                      AND status != 'cancelled'
+                      AND id NOT LIKE 'demo_%'
+                      AND id NOT LIKE 'stress_%'
+                    GROUP BY sale_hour
+                    ORDER BY sale_hour ASC;
+                ", dateFilterClause);
+
+                using (var cmd = new SQLiteCommand(salesSql, conn))
+                {
+                    if (period == "custom")
+                    {
+                        cmd.Parameters.AddWithValue("@from", customFromDate);
+                        cmd.Parameters.AddWithValue("@to", customToDate);
+                    }
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            int h = Convert.ToInt32(reader["sale_hour"]);
+                            if (h >= 0 && h < 24)
+                            {
+                                report.Hours[h].SalesPiasters = Convert.ToInt64(reader["total_sales"]);
+                                report.Hours[h].InvoicesCount = Convert.ToInt32(reader["inv_count"]);
+                            }
+                        }
+                    }
+                }
+
+                // Check returns
+                using (var checkRetCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='returns';", conn))
+                {
+                    if (checkRetCmd.ExecuteScalar() != null)
+                    {
+                        string returnsSql = string.Format(@"
+                            SELECT 
+                                CAST(strftime('%H', created_at, 'localtime') AS INTEGER) AS ret_hour,
+                                COALESCE(SUM(total_piasters), 0) AS total_returns
+                            FROM returns 
+                            WHERE {0}
+                            GROUP BY ret_hour;
+                        ", dateFilterClause);
+
+                        using (var retCmd = new SQLiteCommand(returnsSql, conn))
+                        {
+                            if (period == "custom")
+                            {
+                                retCmd.Parameters.AddWithValue("@from", customFromDate);
+                                retCmd.Parameters.AddWithValue("@to", customToDate);
+                            }
+                            using (var reader = retCmd.ExecuteReader())
+                            {
+                                while (reader.Read())
+                                {
+                                    int h = Convert.ToInt32(reader["ret_hour"]);
+                                    if (h >= 0 && h < 24)
+                                    {
+                                        report.Hours[h].ReturnsPiasters = Convert.ToInt64(reader["total_returns"]);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Calculate peak hour
+            int peakH = 0;
+            long maxSales = -1;
+            int maxInvs = 0;
+            for (int i = 0; i < report.Hours.Count; i++)
+            {
+                if (report.Hours[i].SalesPiasters > maxSales)
+                {
+                    maxSales = report.Hours[i].SalesPiasters;
+                    maxInvs = report.Hours[i].InvoicesCount;
+                    peakH = i;
+                }
+            }
+
+            report.PeakHour = peakH;
+            report.PeakHourLabel = report.Hours[peakH].HourLabel;
+            report.PeakHourSalesPiasters = maxSales > 0 ? maxSales : 0;
+            report.PeakHourInvoicesCount = maxInvs;
+
+            return report;
+        }
+
+        public DeadStockReport GetDeadStockReport(int daysThreshold)
+        {
+            if (daysThreshold <= 0) daysThreshold = 30;
+
+            var report = new DeadStockReport
+            {
+                DaysThreshold = daysThreshold,
+                TotalDeadItemsCount = 0,
+                TotalTiedCapitalPiasters = 0
+            };
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+
+                string sql = @"
+                    SELECT 
+                        p.id,
+                        p.barcode,
+                        p.name,
+                        COALESCE(c.name, 'عام') AS category_name,
+                        COALESCE(p.stock_quantity_milli, 0) AS stock_milli,
+                        COALESCE(p.unit, 'piece') AS unit,
+                        COALESCE(p.cost_piasters, 0) AS cost_piasters,
+                        COALESCE(p.price_piasters, 0) AS retail_price_piasters,
+                        MAX(s.created_at) AS last_sold
+                    FROM products p
+                    LEFT JOIN categories c ON p.category_id = c.id
+                    LEFT JOIN sale_items si ON p.id = si.product_id
+                    LEFT JOIN sales s ON si.sale_id = s.id AND s.status != 'cancelled' AND s.id NOT LIKE 'demo_%' AND s.id NOT LIKE 'stress_%'
+                    WHERE p.is_active = 1 AND p.stock_quantity_milli > 0
+                    GROUP BY p.id
+                    HAVING last_sold IS NULL OR date(last_sold, 'localtime') <= date('now', 'localtime', '-' || @days || ' days')
+                    ORDER BY (COALESCE(p.stock_quantity_milli, 0) * COALESCE(p.cost_piasters, 0)) DESC
+                    LIMIT 50;
+                ";
+
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@days", daysThreshold);
+
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            long stockMilli = Convert.ToInt64(reader["stock_milli"]);
+                            long cost = Convert.ToInt64(reader["cost_piasters"]);
+                            long tiedCapital = (stockMilli * cost) / 1000;
+
+                            string lastSoldStr = reader["last_sold"] != DBNull.Value ? reader["last_sold"].ToString() : null;
+                            int daysInactive = daysThreshold;
+                            if (!string.IsNullOrEmpty(lastSoldStr))
+                            {
+                                DateTime dt;
+                                if (DateTime.TryParse(lastSoldStr, out dt))
+                                {
+                                    daysInactive = (int)(DateTime.Now - dt).TotalDays;
+                                    if (daysInactive < daysThreshold) daysInactive = daysThreshold;
+                                }
+                            }
+                            else
+                            {
+                                daysInactive = 999; // Never sold
+                            }
+
+                            var item = new DeadStockItem
+                            {
+                                ProductId = reader["id"].ToString(),
+                                Barcode = reader["barcode"].ToString(),
+                                Name = reader["name"].ToString(),
+                                CategoryName = reader["category_name"].ToString(),
+                                StockMilli = stockMilli,
+                                Unit = reader["unit"].ToString(),
+                                UnitCostPiasters = cost,
+                                RetailPricePiasters = Convert.ToInt64(reader["retail_price_piasters"]),
+                                TiedCapitalPiasters = tiedCapital,
+                                DaysInactive = daysInactive,
+                                LastSoldDate = lastSoldStr
+                            };
+
+                            report.Items.Add(item);
+                            report.TotalTiedCapitalPiasters += tiedCapital;
+                        }
+                    }
+                }
+            }
+
+            report.TotalDeadItemsCount = report.Items.Count;
+            return report;
+        }
+
+        public List<CashierPerformanceMetric> GetCashierPerformanceReport(string period, string customFromDate, string customToDate)
+        {
+            var list = new List<CashierPerformanceMetric>();
+
+            string dateFilterClause;
+            if (period == "yesterday")
+            {
+                dateFilterClause = "date(s.created_at, 'localtime') = date('now', 'localtime', '-1 day')";
+            }
+            else if (period == "week")
+            {
+                dateFilterClause = "date(s.created_at, 'localtime') >= date('now', 'localtime', '-7 days')";
+            }
+            else if (period == "month")
+            {
+                dateFilterClause = "date(s.created_at, 'localtime') >= date('now', 'localtime', '-30 days')";
+            }
+            else if (period == "custom" && !string.IsNullOrEmpty(customFromDate) && !string.IsNullOrEmpty(customToDate))
+            {
+                dateFilterClause = "date(s.created_at, 'localtime') >= date(@from) AND date(s.created_at, 'localtime') <= date(@to)";
+            }
+            else
+            {
+                dateFilterClause = "(date(s.created_at, 'localtime') = date('now', 'localtime') OR date(s.created_at) = date('now'))";
+            }
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+
+                string sql = string.Format(@"
+                    SELECT 
+                        COALESCE(s.cashier_id, 'admin') AS cashier_id,
+                        COALESCE(u.display_name, u.username, 'المدير') AS cashier_name,
+                        COALESCE(u.role, 'admin') AS role,
+                        COUNT(s.id) AS inv_count,
+                        COALESCE(SUM(CASE WHEN s.status != 'cancelled' THEN s.total_piasters ELSE 0 END), 0) AS total_sales,
+                        COALESCE(SUM(CASE WHEN s.status != 'cancelled' THEN s.paid_piasters ELSE 0 END), 0) AS cash_sales,
+                        COALESCE(SUM(CASE WHEN s.status = 'cancelled' THEN 1 ELSE 0 END), 0) AS cancelled_count
+                    FROM sales s
+                    LEFT JOIN users u ON s.cashier_id = u.id
+                    WHERE {0}
+                      AND s.id NOT LIKE 'demo_%'
+                      AND s.id NOT LIKE 'stress_%'
+                    GROUP BY s.cashier_id
+                    ORDER BY total_sales DESC;
+                ", dateFilterClause);
+
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    if (period == "custom")
+                    {
+                        cmd.Parameters.AddWithValue("@from", customFromDate);
+                        cmd.Parameters.AddWithValue("@to", customToDate);
+                    }
+
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            int invCount = Convert.ToInt32(reader["inv_count"]);
+                            long totalSales = Convert.ToInt64(reader["total_sales"]);
+                            long avgInv = invCount > 0 ? totalSales / invCount : 0;
+
+                            list.Add(new CashierPerformanceMetric
+                            {
+                                CashierId = reader["cashier_id"].ToString(),
+                                CashierName = reader["cashier_name"].ToString(),
+                                Role = reader["role"].ToString(),
+                                InvoicesCount = invCount,
+                                TotalSalesPiasters = totalSales,
+                                CashSalesPiasters = Convert.ToInt64(reader["cash_sales"]),
+                                AverageInvoicePiasters = avgInv,
+                                CancelledCount = Convert.ToInt32(reader["cancelled_count"]),
+                                ReturnsCount = 0
+                            });
+                        }
+                    }
+                }
+            }
+
+            return list;
+        }
     }
 }
 
