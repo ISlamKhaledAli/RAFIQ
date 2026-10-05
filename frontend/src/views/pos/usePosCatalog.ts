@@ -215,7 +215,7 @@ export const usePosCatalog = ({
     }
 
     if (bundleList && bundleList.length > 0) {
-      const totalOriginalPiasters = bundleList.reduce((sum, b) => sum + (b.originalPricePiasters * (b.quantityMilli / 1000)), 0);
+      const totalOriginalPiasters = bundleList.reduce((sum, b) => sum + Math.round((b.originalPricePiasters * b.quantityMilli) / 1000), 0);
       const ratio = totalOriginalPiasters > 0 ? (item.pricePiasters / totalOriginalPiasters) : 1;
 
       for (const bItem of bundleList) {
@@ -225,7 +225,7 @@ export const usePosCatalog = ({
           name: `${bItem.productName} (ضمن ${item.name})`,
           barcode: bItem.barcode || null,
           pricePiasters: linePrice,
-          costPiasters: Math.round(linePrice * 0.75),
+          costPiasters: Math.round((linePrice * 75) / 100),
           stockQuantityMilli: 100000,
           unit: bItem.unit || 'piece',
           taxRatePercent: 0,

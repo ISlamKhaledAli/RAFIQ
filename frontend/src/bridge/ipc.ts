@@ -110,7 +110,12 @@ function ensureListenerAttached() {
   if (isListenerAttached) return;
   if (window.chrome?.webview) {
     window.chrome.webview.addEventListener('message', (event: any) => {
-      const response: BridgeResponse = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+      let response: BridgeResponse;
+      try {
+        response = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+      } catch {
+        return;
+      }
       if (!response || !response.id) return;
 
       const pending = pendingRequests.get(response.id);

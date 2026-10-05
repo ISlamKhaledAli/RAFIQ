@@ -825,8 +825,8 @@ export function CustomersView() {
                             title={hasDebt ? "تسجيل دفعة سداد نقدية" : "لا يوجد دين مستحق"}
                             className={`flex items-center gap-1 h-7.5 px-3 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer ${
                               hasDebt 
-                                ? 'bg-emerald-50 text-[#006D41] hover:bg-[#006D41] hover:text-white border border-emerald-200' 
-                                : 'opacity-30 cursor-not-allowed bg-slate-50 text-[#52605D] border border-slate-200'
+                                ? 'bg-paid-soft text-paid hover:bg-paid hover:text-white border border-paid/20' 
+                                : 'opacity-30 cursor-not-allowed bg-surface-2 text-ink-muted border border-line'
                             }`}
                           >
                             <CreditCard className="w-3.5 h-3.5" />
@@ -860,8 +860,8 @@ export function CustomersView() {
                               disabled={hasDebt}
                               className={`w-7.5 h-7.5 flex items-center justify-center rounded-xl border transition-colors shadow-2xs cursor-pointer ${
                                 hasDebt
-                                  ? 'bg-slate-50 border-slate-200 text-slate-300 cursor-not-allowed opacity-40'
-                                  : 'bg-white border-[#E2E8F0] text-rose-400 hover:text-white hover:bg-rose-600 hover:border-rose-600'
+                                  ? 'bg-surface-2 border-line text-ink-muted/40 cursor-not-allowed opacity-40'
+                                  : 'bg-surface border-line text-danger/80 hover:text-white hover:bg-danger hover:border-danger'
                               }`}
                             >
                               <Trash2 className="w-3.5 h-3.5" />

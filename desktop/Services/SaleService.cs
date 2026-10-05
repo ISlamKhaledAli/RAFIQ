@@ -204,18 +204,25 @@ namespace RafiqPOS.Services
                 sale.DiscountPiasters = existingItemDiscountsSum;
             }
 
-            // Finalize item line totals
+            // Finalize item line totals and calculate tax
             for (int i = 0; i < sale.Items.Count; i++)
             {
                 var it = sale.Items[i];
                 Money lineDiscount = Money.FromPiasters(it.DiscountPiasters);
                 Money lineTotal = Money.FromPiasters(grossPiasters[i]).Subtract(lineDiscount);
                 it.TotalPiasters = Math.Max(0, lineTotal.Piasters);
+
+                if (it.TaxRatePercent > 0)
+                {
+                    it.TaxPiasters = Money.CalculateTaxPiasters(it.TotalPiasters, it.TaxRatePercent, true);
+                    totalTax = totalTax.Add(Money.FromPiasters(it.TaxPiasters));
+                }
             }
 
             sale.SubtotalPiasters = subtotal.Piasters;
+            sale.TaxPiasters = totalTax.Piasters;
             totalDiscount = Money.FromPiasters(sale.DiscountPiasters);
-            Money grandTotal = subtotal.Subtract(totalDiscount).Add(totalTax);
+            Money grandTotal = subtotal.Subtract(totalDiscount);
             sale.TotalPiasters = Math.Max(0, grandTotal.Piasters);
 
             if (sale.PaidPiasters <= 0 && !string.Equals(sale.PaymentMethod, "credit", StringComparison.OrdinalIgnoreCase))

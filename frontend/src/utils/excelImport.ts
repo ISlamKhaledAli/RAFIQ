@@ -1,7 +1,10 @@
-import * as XLSX from 'xlsx';
 import type { Product, Category } from '../types/models';
 import { poundsToPiasters, normalizeArabicNumerals } from './money';
 import { invoke } from '../bridge/ipc';
+
+async function getXlsx() {
+  return await import('xlsx');
+}
 
 export interface RawImportRow {
   rowIndex: number;
@@ -180,6 +183,7 @@ export async function downloadExcelTemplate(): Promise<void> {
     ]
   ];
 
+  const XLSX = await getXlsx();
   const wsData = [headers, ...sampleRows];
   const ws = XLSX.utils.aoa_to_sheet(wsData);
 
@@ -211,7 +215,8 @@ function getFormattedTimestamp(): string {
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}_${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-function exportProductsViaSheetJs(products: Product[], catMap: Map<string, string>): void {
+async function exportProductsViaSheetJs(products: Product[], catMap: Map<string, string>): Promise<void> {
+  const XLSX = await getXlsx();
   const headers = [
     'م',
     'اسم الصنف',
@@ -283,7 +288,8 @@ function exportProductsViaSheetJs(products: Product[], catMap: Map<string, strin
   XLSX.writeFile(wb, `كتالوج_أصناف_رفيق_${getFormattedTimestamp()}.xlsx`);
 }
 
-function exportCustomersViaSheetJs(customers: any[]): void {
+async function exportCustomersViaSheetJs(customers: any[]): Promise<void> {
+  const XLSX = await getXlsx();
   const headers = [
     'م',
     'اسم العميل',
@@ -364,7 +370,7 @@ export async function exportProductsToExcel(): Promise<{ success: boolean; count
     }
 
     if (Array.isArray(products) && products.length > 0) {
-      exportProductsViaSheetJs(products, catMap);
+      await exportProductsViaSheetJs(products, catMap);
       return { success: true, count: products.length };
     }
   } catch (fallbackErr: unknown) {
@@ -401,7 +407,7 @@ export async function exportCustomersToExcel(): Promise<{ success: boolean; coun
   try {
     const customers = await invoke<any[]>('customers:getAll');
     if (Array.isArray(customers) && customers.length > 0) {
-      exportCustomersViaSheetJs(customers);
+      await exportCustomersViaSheetJs(customers);
       return { success: true, count: customers.length };
     }
   } catch (fallbackErr: unknown) {
@@ -416,8 +422,9 @@ export async function exportCustomersToExcel(): Promise<{ success: boolean; coun
 /**
  * تصدير تقرير بالأصناف المرفوضة التي تحتوي على أخطاء لإصلاحها
  */
-export function downloadErrorReport(errorRows: ValidatedImportRow[]): void {
+export async function downloadErrorReport(errorRows: ValidatedImportRow[]): Promise<void> {
   if (errorRows.length === 0) return;
+  const XLSX = await getXlsx();
 
   const headers = [
     'رقم الصف بالملف',
@@ -463,6 +470,7 @@ export function downloadErrorReport(errorRows: ValidatedImportRow[]): void {
  */
 export async function parseExcelOrCsvFile(file: File): Promise<RawImportRow[]> {
   const arrayBuffer = await file.arrayBuffer();
+  const XLSX = await getXlsx();
   const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: false, raw: false });
 
   const firstSheetName = workbook.SheetNames[0];

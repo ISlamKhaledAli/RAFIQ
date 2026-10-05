@@ -142,7 +142,7 @@ namespace RafiqPOS.Services
             Encryption = new EncryptionService();
 
             _dbPath = Path.Combine(dataFolder, "rafiq_pos.db");
-            _connectionString = string.Format("Data Source={0};Version=3;BusyTimeout=5000;", _dbPath);
+            _connectionString = string.Format("Data Source={0};Version=3;BusyTimeout=5000;Foreign Keys=True;Journal Mode=Wal;", _dbPath);
 
             // Fast Startup Integrity Check (Feature #124 / Task 124-1)
             IntegrityStatus = CheckDatabaseIntegrityInternal(_connectionString, _dbPath);

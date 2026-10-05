@@ -78,7 +78,7 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
         <button
           type="submit"
           disabled={loading}
-          className="h-11 px-4.5 bg-[#006d41] hover:bg-[#005734] text-white rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shrink-0 shadow-xs active:scale-[0.98] cursor-pointer"
+          className="h-11 px-4.5 bg-paid hover:bg-paid-hover text-white rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shrink-0 shadow-xs active:scale-[0.98] cursor-pointer"
         >
           <Search className="w-4 h-4 stroke-[2.5]" />
           <span>إضافة</span>
@@ -87,10 +87,10 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
         <button
           type="button"
           onClick={onOpenScannerModal}
-          className="h-11 px-3.5 bg-white hover:bg-slate-50 border border-[#dce1dc] hover:border-[#006d41]/50 text-[#0f172a] rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 shadow-2xs active:scale-[0.98] cursor-pointer"
+          className="h-11 px-3.5 bg-surface hover:bg-surface-2 border border-line hover:border-paid/50 text-ink rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 shadow-2xs active:scale-[0.98] cursor-pointer"
           title="فحص واختبار قارئ الباركود (F8)"
         >
-          <Barcode className="w-4 h-4 text-[#006d41]" />
+          <Barcode className="w-4 h-4 text-paid" />
           <span className="hidden sm:inline">فحص القارئ</span>
         </button>
       </form>
@@ -98,12 +98,12 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
       {/* Live Search Floating Dropdown (Task 22-4) */}
       {isSearchDropdownOpen && liveSearchResults.length > 0 && (
         <div 
-          className="absolute left-3 right-3 top-[64px] z-50 bg-white rounded-xl border border-[#dce1dc] shadow-2xl overflow-hidden max-h-[360px] flex flex-col animate-in fade-in zoom-in-95 duration-100"
+          className="absolute left-3 right-3 top-[64px] z-50 bg-surface rounded-xl border border-line shadow-2xl overflow-hidden max-h-[360px] flex flex-col animate-in fade-in zoom-in-95 duration-100"
         >
           <div className="px-3 py-2 bg-surface-2 border-b border-line flex items-center justify-between text-xs font-semibold text-ink-muted select-none">
             <div className="flex items-center gap-2">
               <span className="font-bold text-ink">نتائج البحث الفورية ({liveSearchResults.length})</span>
-              <span className="text-[10px] bg-white px-2 py-0.5 rounded border border-line">
+              <span className="text-[10px] bg-surface px-2 py-0.5 rounded border border-line">
                 استخدم الأسهم ↑ ↓ ثم اضغط Enter للإضافة
               </span>
             </div>
@@ -135,28 +135,28 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
                   onClick={() => onSelectProduct(prod)}
                   onMouseEnter={() => setSelectedDropdownIndex(idx)}
                   className={`px-3.5 py-2.5 flex items-center justify-between cursor-pointer transition-colors ${
-                    isSelected ? 'bg-[#eaf5ee] border-r-4 border-r-[#006d41] pl-2' : 'hover:bg-surface-2'
+                    isSelected ? 'bg-paid-soft border-r-4 border-r-paid pl-2' : 'hover:bg-surface-2'
                   }`}
                 >
                   {/* Right: Product Info & Package Buttons */}
                   <div className="flex flex-col items-start gap-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-[13px] text-[#0f172a]">{prod.name}</span>
+                      <span className="font-bold text-[13px] text-ink">{prod.name}</span>
                       {prod.unit === 'kg' && (
                         <span className="px-1.5 py-0.2 text-[10px] font-bold bg-sky-50 text-sky-800 rounded border border-sky-200">
                           بالوزن (كجم)
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 text-[11px] text-[#52605d] font-mono">
+                    <div className="flex items-center gap-2 text-[11px] text-ink-muted font-mono">
                       {prod.barcode && (
-                        <span className="flex items-center gap-1 bg-[#f1f5f4] px-1.5 py-0.5 rounded border border-[#dce1dc]/60">
+                        <span className="flex items-center gap-1 bg-surface-2 px-1.5 py-0.5 rounded border border-line/60">
                           <Barcode className="w-3 h-3" />
                           {prod.barcode}
                         </span>
                       )}
                       {prod.internalCode && (
-                        <span className="text-[10px] text-[#52605d]">كود: {prod.internalCode}</span>
+                        <span className="text-[10px] text-ink-muted">كود: {prod.internalCode}</span>
                       )}
                     </div>
 
@@ -171,7 +171,7 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
                               e.stopPropagation();
                               onSelectProduct(prod, u);
                             }}
-                            className="px-2 py-0.5 text-[11px] font-bold rounded-lg bg-[#eaf5ee] hover:bg-[#006d41] text-[#006d41] hover:text-white border border-[#c4e3d0] hover:border-[#006d41] transition-all flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95"
+                            className="px-2 py-0.5 text-[11px] font-bold rounded-lg bg-paid-soft hover:bg-paid text-paid hover:text-white border border-paid/20 hover:border-paid transition-all flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95"
                             title={`إضافة ${u.unitName} (${u.conversionFactor} قطعة) - ${formatArabicCurrency(u.sellPricePiasters || (prod.pricePiasters * u.conversionFactor))}`}
                           >
                             <Package className="w-3 h-3" />
@@ -190,7 +190,7 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
                     {/* Stock status badge with dynamic carton breakdown */}
                     <div className="text-right">
                       {isOutOfStock ? (
-                        <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-[#fdf3f2] border border-[#f6cbc6] text-[#b23a2e]">
+                        <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-danger-soft border border-danger/30 text-danger">
                           نفد من المخزن (0)
                         </span>
                       ) : isLowStock ? (
@@ -199,7 +199,7 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
                           {packUnit && wholePacks !== null && wholePacks > 0 ? ` = ${wholePacks} ${packUnit.unitName}` : ''})
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#eaf5ee] border border-[#c4e3d0] text-[#006d41]">
+                        <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-paid-soft border border-paid/20 text-paid">
                           متاح: {stock.toLocaleString('en-US')} {prod.unit === 'kg' ? 'كجم' : 'قطعة'}
                           {packUnit && wholePacks !== null ? ` (${wholePacks} ${packUnit.unitName}${remPieces && remPieces > 0 ? ` و ${remPieces} ق` : ''})` : ''}
                         </span>
@@ -207,7 +207,7 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
                     </div>
 
                     {/* Price formatted */}
-                    <div className="text-[15px] font-mono font-bold text-[#006d41] min-w-[70px] text-left">
+                    <div className="text-[15px] font-mono font-bold text-paid min-w-[70px] text-left">
                       {formatArabicCurrency(prod.pricePiasters)}
                     </div>
                   </div>

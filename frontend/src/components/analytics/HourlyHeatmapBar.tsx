@@ -103,7 +103,7 @@ export const HourlyHeatmapBar: FC<HourlyHeatmapBarProps> = ({ report, isLoading 
             const heightPx = hasSales ? Math.max(16, Math.round(ratio * 92)) : 8;
 
             // Color gradations according to volume
-            let barBg = 'bg-surface-2 group-hover:bg-slate-200';
+            let barBg = 'bg-surface-2 group-hover:bg-line-hover';
             if (hasSales) {
               if (ratio >= 0.75) {
                 barBg = 'bg-brand-dark group-hover:bg-brand';
@@ -137,7 +137,7 @@ export const HourlyHeatmapBar: FC<HourlyHeatmapBarProps> = ({ report, isLoading 
                 )}
 
                 {/* Vertical Bar Slot Container */}
-                <div className="w-full h-full flex flex-col justify-end items-center bg-slate-50/50 rounded-t-sm">
+                <div className="w-full h-full flex flex-col justify-end items-center bg-surface-2/60 rounded-t-sm">
                   <div
                     className={`w-full rounded-t-sm transition-all duration-300 ${barBg}`}
                     style={{ height: `${heightPx}px` }}
