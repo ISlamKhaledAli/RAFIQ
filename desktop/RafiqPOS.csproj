@@ -80,6 +80,12 @@
     <Compile Include="Bridge\IpcDispatcher.Purchases.cs" />
     <Compile Include="Bridge\IpcDispatcher.Inventory.cs" />
     <Compile Include="Bridge\IpcDispatcher.Batch.cs" />
+    <Compile Include="Bridge\IpcDispatcher.Printing.cs" />
+    <Compile Include="Bridge\IpcDispatcher.Auth.cs" />
+    <Compile Include="Bridge\IpcDispatcher.Templates.cs" />
+    <Compile Include="Bridge\IpcDispatcher.Reports.cs" />
+    <Compile Include="Bridge\IpcDispatcher.Backup.cs" />
+    <Compile Include="Bridge\IpcDispatcher.Excel.cs" />
     <Compile Include="Bridge\IpcDispatcher.System.cs" />
     <Compile Include="Common\Money.cs" />
     <Compile Include="Common\OsDetector.cs" />

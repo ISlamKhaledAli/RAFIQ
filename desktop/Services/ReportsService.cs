@@ -1034,7 +1034,7 @@ namespace RafiqPOS.Services
         }
 
         // ==========================================
-        // 📊 ADVANCED ANALYTICS & REPORTING METHODS
+        // ADVANCED ANALYTICS & REPORTING METHODS
         // ==========================================
 
         private string GetDateClause(string period, string customFrom, string customTo, string column)

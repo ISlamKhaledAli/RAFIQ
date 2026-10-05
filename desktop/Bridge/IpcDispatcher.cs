@@ -76,6 +76,12 @@ namespace RafiqPOS.Bridge
                 if (TryDispatchSuppliers(request, out response)) return response;
                 if (TryDispatchPurchases(request, out response)) return response;
                 if (TryDispatchInventory(request, out response)) return response;
+                if (TryDispatchPrinting(request, out response)) return response;
+                if (TryDispatchAuth(request, out response)) return response;
+                if (TryDispatchTemplates(request, out response)) return response;
+                if (TryDispatchReports(request, out response)) return response;
+                if (TryDispatchBackup(request, out response)) return response;
+                if (TryDispatchExcel(request, out response)) return response;
                 if (TryDispatchSystem(request, out response)) return response;
 
                 Logger.Warn("محاولة تنفيذ إجراء غير مسجل: " + request.Action);

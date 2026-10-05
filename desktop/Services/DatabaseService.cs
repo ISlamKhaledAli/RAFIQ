@@ -220,6 +220,19 @@ namespace RafiqPOS.Services
             {
                 Logger.Warn("تعذر تنظيف الفواتير المعلقة القديمة: " + ex.Message);
             }
+
+            // Ensure initial template products are seeded if store was configured but products are 0
+            try
+            {
+                if (Templates != null)
+                {
+                    Templates.EnsureInitialProductsSeeded();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("تعذر التحقق من كتالوج المنتجات الافتتاحي عند بدء التشغيل: " + ex.Message);
+            }
         }
 
         public static DatabaseIntegrityStatus CheckDatabaseIntegrity()

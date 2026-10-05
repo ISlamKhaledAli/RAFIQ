@@ -477,7 +477,7 @@ namespace RafiqPOS.Services
 
                     if (cust.BalancePiasters > cust.CreditLimitPiasters && cust.CreditLimitPiasters > 0)
                     {
-                        statusText = "تجاوز حد الائتمان ⚠️";
+                        statusText = "تجاوز حد الائتمان";
                         statusBg = XLColor.FromArgb(253, 232, 232);
                         statusFont = XLColor.FromArgb(155, 28, 28);
                     }
@@ -489,7 +489,7 @@ namespace RafiqPOS.Services
                     }
                     else
                     {
-                        statusText = "الحساب مسدد بالكامل ✅";
+                        statusText = "الحساب مسدد بالكامل";
                         statusBg = XLColor.FromArgb(220, 252, 231);
                         statusFont = XLColor.FromArgb(20, 83, 45);
                     }

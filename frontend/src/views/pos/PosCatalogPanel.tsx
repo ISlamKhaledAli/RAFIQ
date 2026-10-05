@@ -9,7 +9,8 @@ import {
   Scale, 
   Package, 
   Layers,
-  FolderOpen
+  FolderOpen,
+  Download
 } from 'lucide-react';
 import type { ProductUnit } from '../../types/models';
 import type { SmartCatalogItem } from './types';
@@ -26,6 +27,9 @@ interface PosCatalogPanelProps {
   handleSmartItemClick: (item: SmartCatalogItem, specificUnit?: ProductUnit) => void;
   onOpenQuickFastItemModal: () => void;
   onOpenQuickItemsManager: () => void;
+  totalCatalogProductsCount?: number;
+  onSeedProducts?: () => void;
+  isSeedingProducts?: boolean;
 }
 
 export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
@@ -40,6 +44,9 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
   handleSmartItemClick,
   onOpenQuickFastItemModal,
   onOpenQuickItemsManager,
+  totalCatalogProductsCount = 0,
+  onSeedProducts,
+  isSeedingProducts = false,
 }) => {
   // Progressive display to guarantee ultra-fast 60fps rendering even with 1000+ items
   const [prevFilter, setPrevFilter] = React.useState({ tab: activeCatalogTab, query: catalogSearchQuery });
@@ -329,7 +336,22 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                 اضغط على «تخصيص» بالأسفل لإنشاء أزرارك السريعة.
               </p>
             ) : (
-              <p className="text-xs font-medium">لا توجد أصناف تطابق هذا البحث أو القسم</p>
+              <div>
+                <p className="text-xs font-medium">لا توجد أصناف تطابق هذا البحث أو القسم</p>
+                {totalCatalogProductsCount === 0 && onSeedProducts && (
+                  <div className="mt-3 flex flex-col items-center">
+                    <button
+                      type="button"
+                      onClick={onSeedProducts}
+                      disabled={isSeedingProducts}
+                      className="px-4 py-2 bg-brand hover:bg-brand-dark text-white text-xs font-bold rounded-lg shadow-sm flex items-center gap-2 cursor-pointer active:scale-95 transition-all disabled:opacity-50"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>{isSeedingProducts ? 'جاري تثبيت المنتجات في النظام...' : 'تنزيل وتثبيت منتجات النشاط الجاهزة (168 صنف)'}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
             {activeCatalogTab === '__CUSTOM__' && (
               <button

@@ -820,7 +820,7 @@ export interface AssignBarcodeResult {
 }
 
 // ==========================================
-// 📊 ANALYTICS & ADVANCED REPORTING MODELS
+// ANALYTICS & ADVANCED REPORTING MODELS
 // ==========================================
 
 export type DashboardSubTab = 'today' | 'revenue' | 'inventory' | 'customers';

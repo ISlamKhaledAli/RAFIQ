@@ -43,24 +43,24 @@ export const SecuritySettingsTab = ({
 
       {/* Status Overview Card */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-        <div className="p-3.5 rounded-lg bg-[#f7f8f6] border border-[#dce1dc] flex flex-col gap-1.5">
-          <span className="text-[11px] text-[#5b6664] font-bold">حالة الحماية العامة:</span>
+        <div className="p-3.5 rounded-lg bg-surface-2 border border-line flex flex-col gap-1.5">
+          <span className="text-[11px] text-ink-muted font-bold">حالة الحماية العامة:</span>
           <div className="flex items-center gap-2">
-            <div className={`w-2.5 h-2.5 rounded-full ${pinStatus?.isPinSet ? (pinStatus?.isEnabled ? 'bg-[#1b7a4d]' : 'bg-[#b3720e]') : 'bg-slate-400'}`} />
-            <span className="text-xs font-bold text-[#14181a]">
+            <div className={`w-2.5 h-2.5 rounded-full ${pinStatus?.isPinSet ? (pinStatus?.isEnabled ? 'bg-paid' : 'bg-warn') : 'bg-line-hover'}`} />
+            <span className="text-xs font-bold text-ink">
               {!pinStatus?.isPinSet ? 'غير منشأ' : (pinStatus?.isEnabled ? 'مفعل ونشط' : 'معطل مؤقتاً')}
             </span>
           </div>
         </div>
 
-        <div className="p-3.5 rounded-lg bg-[#f7f8f6] border border-[#dce1dc] flex flex-col gap-1.5">
-          <span className="text-[11px] text-[#5b6664] font-bold">خوارزمية التشفير (Task 52-1):</span>
-          <span className="text-xs font-mono font-bold text-[#006d41]">PBKDF2 Salted Hash (10,000 دورة)</span>
+        <div className="p-3.5 rounded-lg bg-surface-2 border border-line flex flex-col gap-1.5">
+          <span className="text-[11px] text-ink-muted font-bold">خوارزمية التشفير (Task 52-1):</span>
+          <span className="text-xs font-mono font-bold text-paid">PBKDF2 Salted Hash (10,000 دورة)</span>
         </div>
 
-        <div className="p-3.5 rounded-lg bg-[#f7f8f6] border border-[#dce1dc] flex flex-col gap-1.5">
-          <span className="text-[11px] text-[#5b6664] font-bold">الحماية من التخمين (Brute-Force):</span>
-          <span className="text-xs font-bold text-[#0b4f42]">قفل تصاعدي (30 ثانية - 5 دقائق)</span>
+        <div className="p-3.5 rounded-lg bg-surface-2 border border-line flex flex-col gap-1.5">
+          <span className="text-[11px] text-ink-muted font-bold">الحماية من التخمين (Brute-Force):</span>
+          <span className="text-xs font-bold text-brand">قفل تصاعدي (30 ثانية - 5 دقائق)</span>
         </div>
       </div>
 

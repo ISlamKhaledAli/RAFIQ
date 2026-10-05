@@ -24,8 +24,11 @@ describe('Story 58: Sensitive Screens PIN Code Protection (Feature #52)', () => 
 
     // IPC endpoints registration
     assert.ok(fs.existsSync(ipcDispatcherPath), 'IpcDispatcher.cs must exist');
-    const systemDispatcherPath = path.resolve('..', 'desktop', 'Bridge', 'IpcDispatcher.System.cs');
-    const dispatcherContent = fs.readFileSync(ipcDispatcherPath, 'utf8') + (fs.existsSync(systemDispatcherPath) ? fs.readFileSync(systemDispatcherPath, 'utf8') : '');
+    const bridgeDir = path.resolve('..', 'desktop', 'Bridge');
+    const dispatcherContent = fs.readdirSync(bridgeDir)
+      .filter(f => f.startsWith('IpcDispatcher') && f.endsWith('.cs'))
+      .map(f => fs.readFileSync(path.join(bridgeDir, f), 'utf8'))
+      .join('\n');
     assert.ok(dispatcherContent.includes('case "security:verifyPin":'), 'IpcDispatcher must handle security:verifyPin');
     assert.ok(dispatcherContent.includes('case "security:getStatus":'), 'IpcDispatcher must handle security:getStatus');
 

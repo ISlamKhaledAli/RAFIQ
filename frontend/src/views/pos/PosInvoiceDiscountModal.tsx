@@ -144,7 +144,7 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
                       key={val}
                       type="button"
                       onClick={() => setDiscountInputEgp(String(val))}
-                      className="h-8 rounded bg-surface border border-slate-300 hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-slate-700 text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
+                      className="h-8 rounded bg-surface border border-line hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-ink text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
                     >
                       {val} ج.م
                     </button>
@@ -157,7 +157,7 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
                       key={pct}
                       type="button"
                       onClick={() => setDiscountInputEgp(String(pct))}
-                      className="h-8 rounded bg-surface border border-slate-300 hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-slate-700 text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
+                      className="h-8 rounded bg-surface border border-line hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-ink text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
                     >
                       {pct}%
                     </button>
@@ -167,7 +167,7 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
               <button
                 type="button"
                 onClick={() => setDiscountInputEgp('0')}
-                className="col-span-4 h-8 rounded bg-surface border border-slate-300 hover:border-red-500 hover:text-red-600 hover:bg-red-50 text-slate-700 text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
+                className="col-span-4 h-8 rounded bg-surface border border-line hover:border-danger hover:text-danger hover:bg-danger-soft text-ink text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
               >
                 إلغاء الخصم (0)
               </button>

@@ -1093,13 +1093,21 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       if (typeof window !== 'undefined') {
         localStorage.setItem('rafiq_first_run_completed', 'true');
       }
-      const count = payload?.seedInitialProducts !== false ? 30 : 0;
+      const count = payload?.seedInitialProducts !== false ? 168 : 0;
       return {
         success: true,
         message: 'تم تطبيق القالب وتخصيص المتجر بنجاح.',
-        categoriesCount: 6,
+        categoriesCount: 7,
         quickItemsCount: 8,
         productsCount: count,
+      };
+    }
+
+    case 'templates:seedProducts': {
+      return {
+        success: true,
+        seededCount: 168,
+        templateId: payload?.templateId || 'supermarket',
       };
     }
 

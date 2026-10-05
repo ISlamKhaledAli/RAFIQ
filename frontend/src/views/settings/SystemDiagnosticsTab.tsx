@@ -224,12 +224,12 @@ export const SystemDiagnosticsTab = ({
         </div>
 
         {/* Developer & Copyright Info */}
-        <div className="flex items-center justify-between p-3 rounded-lg bg-white border border-[#dce1dc] text-xs">
+        <div className="flex items-center justify-between p-3 rounded-lg bg-surface border border-line text-xs">
           <div className="flex items-center gap-2">
-            <span className="text-slate-500 font-medium">المطور والناشر:</span>
-            <span className="font-bold text-[#006d41]">ISlam Khaled Ali</span>
+            <span className="text-ink-muted font-medium">المطور والناشر:</span>
+            <span className="font-bold text-paid">ISlam Khaled Ali</span>
           </div>
-          <span className="text-slate-500 text-[11px] font-mono">
+          <span className="text-ink-muted text-[11px] font-mono">
             جميع الحقوق محفوظة © 2026 رفيق POS
           </span>
         </div>
@@ -305,14 +305,14 @@ export const SystemDiagnosticsTab = ({
             عند مواجهة أي استفسار أو مشكلة تقنية، انقر على الزر لتوليد ملف مضغوط آمن على سطح المكتب يحتوي على سجل الأخطاء الفنية ومواصفات النظام لإرساله لفريق الدعم.
           </p>
 
-          <div className="flex items-center justify-between p-3 rounded-lg bg-white border border-[#dce1dc]">
-            <div className="flex items-center gap-2 text-xs text-slate-700">
-              <PhoneCall className="w-4 h-4 text-[#0b4f42]" />
+          <div className="flex items-center justify-between p-3 rounded-lg bg-surface border border-line">
+            <div className="flex items-center gap-2 text-xs text-ink">
+              <PhoneCall className="w-4 h-4 text-brand" />
               <span className="font-bold">رقم الدعم الفني وخدمة العملاء:</span>
             </div>
             <a 
               href="tel:01097782965" 
-              className="font-mono text-[#0b4f42] hover:underline font-black text-sm select-all tracking-wider" 
+              className="font-mono text-brand hover:underline font-black text-sm select-all tracking-wider" 
               dir="ltr"
               title="انقر للاتصال المباشر"
             >

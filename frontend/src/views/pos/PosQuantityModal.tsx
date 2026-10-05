@@ -58,7 +58,7 @@ export const PosQuantityModal: React.FC<PosQuantityModalProps> = ({
                 const curr = parseFloat(quantityInputVal) || 1;
                 if (curr > 1) setQuantityInputVal(String(curr - 1));
               }}
-              className="w-11 h-11 rounded-lg bg-surface border border-slate-300 hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-ink font-bold text-lg flex items-center justify-center shadow-2xs"
+              className="w-11 h-11 rounded-lg bg-surface border border-line hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-ink font-bold text-lg flex items-center justify-center shadow-2xs"
             >
               -
             </button>
@@ -75,7 +75,7 @@ export const PosQuantityModal: React.FC<PosQuantityModalProps> = ({
                 const curr = parseFloat(quantityInputVal) || 0;
                 setQuantityInputVal(String(curr + 1));
               }}
-              className="w-11 h-11 rounded-lg bg-surface border border-slate-300 hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-ink font-bold text-lg flex items-center justify-center shadow-2xs"
+              className="w-11 h-11 rounded-lg bg-surface border border-line hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-ink font-bold text-lg flex items-center justify-center shadow-2xs"
             >
               +
             </button>
@@ -88,7 +88,7 @@ export const PosQuantityModal: React.FC<PosQuantityModalProps> = ({
                 key={n}
                 type="button"
                 onClick={() => setQuantityInputVal(String(n))}
-                className="h-8 rounded bg-surface border border-slate-300 hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-slate-700 text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
+                className="h-8 rounded bg-surface border border-line hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-ink text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
               >
                 {n}
               </button>

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using Newtonsoft.Json;
+using RafiqPOS.Common;
 using RafiqPOS.Models;
 using RafiqPOS.Repositories;
 
@@ -344,112 +345,11 @@ namespace RafiqPOS.Services
                 {
                     try
                     {
-                        var catalog = StoreCatalogSeeder.GetCatalogForTemplate(template.Id);
-                        if (catalog != null && catalog.Count > 0)
-                        {
-                            string now = DateTime.UtcNow.ToString("o");
-                            using (var conn = new SQLiteConnection(_connectionString))
-                            {
-                                conn.Open();
-                                using (var trans = conn.BeginTransaction())
-                                {
-                                    for (int i = 0; i < catalog.Count; i++)
-                                    {
-                                        var p = catalog[i];
-                                        if (p == null || string.IsNullOrWhiteSpace(p.Barcode) || string.IsNullOrWhiteSpace(p.Name))
-                                        {
-                                            continue;
-                                        }
-
-                                        // Check if a product with this barcode already exists
-                                        using (var chkCmd = new SQLiteCommand("SELECT COUNT(*) FROM products WHERE barcode = @bc;", conn, trans))
-                                        {
-                                            chkCmd.Parameters.AddWithValue("@bc", p.Barcode);
-                                            long count = Convert.ToInt64(chkCmd.ExecuteScalar());
-                                            if (count > 0)
-                                            {
-                                                continue;
-                                            }
-                                        }
-
-                                        string catId = null;
-                                        if (!string.IsNullOrEmpty(p.CategoryName) && categoryNameToId.ContainsKey(p.CategoryName))
-                                        {
-                                            catId = categoryNameToId[p.CategoryName];
-                                        }
-
-                                        string prodId = Guid.NewGuid().ToString();
-
-                                        // Insert into products table
-                                        using (var insProd = new SQLiteCommand(@"
-                                            INSERT INTO products (
-                                                id, name, normalized_name, barcode, category_id,
-                                                price_piasters, cost_piasters, stock_quantity_milli,
-                                                min_stock_quantity_milli, unit, tax_rate_percent,
-                                                is_active, created_at, updated_at
-                                            ) VALUES (
-                                                @id, @name, @norm, @barcode, @catId,
-                                                @price, @cost, @stock,
-                                                @minStock, @unit, 0,
-                                                1, @now, @now
-                                            );
-                                        ", conn, trans))
-                                        {
-                                            insProd.Parameters.AddWithValue("@id", prodId);
-                                            insProd.Parameters.AddWithValue("@name", p.Name);
-                                            insProd.Parameters.AddWithValue("@norm", p.Name.ToLowerInvariant());
-                                            insProd.Parameters.AddWithValue("@barcode", p.Barcode);
-                                            insProd.Parameters.AddWithValue("@catId", (object)catId ?? DBNull.Value);
-                                            insProd.Parameters.AddWithValue("@price", p.PricePiasters);
-                                            insProd.Parameters.AddWithValue("@cost", p.CostPiasters);
-                                            insProd.Parameters.AddWithValue("@stock", p.StockQuantityMilli);
-                                            insProd.Parameters.AddWithValue("@minStock", p.MinStockQuantityMilli);
-                                            insProd.Parameters.AddWithValue("@unit", string.IsNullOrEmpty(p.Unit) ? "piece" : p.Unit);
-                                            insProd.Parameters.AddWithValue("@now", now);
-                                            insProd.ExecuteNonQuery();
-                                        }
-
-                                        // Insert into product_barcodes table
-                                        using (var insBc = new SQLiteCommand(@"
-                                            INSERT OR IGNORE INTO product_barcodes (id, product_id, barcode, created_at)
-                                            VALUES (@id, @prodId, @barcode, @now);
-                                        ", conn, trans))
-                                        {
-                                            insBc.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
-                                            insBc.Parameters.AddWithValue("@prodId", prodId);
-                                            insBc.Parameters.AddWithValue("@barcode", p.Barcode);
-                                            insBc.Parameters.AddWithValue("@now", now);
-                                            insBc.ExecuteNonQuery();
-                                        }
-
-                                        // Insert initial opening stock movement
-                                        using (var insSm = new SQLiteCommand(@"
-                                            INSERT INTO stock_movements (
-                                                id, product_id, movement_type, quantity_milli,
-                                                reference_type, reference_id, notes, created_by, created_at
-                                            ) VALUES (
-                                                @id, @prodId, 'INITIAL_OPENING', @qty,
-                                                'SETUP', 'INITIAL_SEED', 'رصيد افتتاحي مسجل تلقائياً مع تجهيز النظام', 'system', @now
-                                            );
-                                        ", conn, trans))
-                                        {
-                                            insSm.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
-                                            insSm.Parameters.AddWithValue("@prodId", prodId);
-                                            insSm.Parameters.AddWithValue("@qty", p.StockQuantityMilli);
-                                            insSm.Parameters.AddWithValue("@now", now);
-                                            insSm.ExecuteNonQuery();
-                                        }
-
-                                        prodsCreated++;
-                                    }
-                                    trans.Commit();
-                                }
-                            }
-                        }
+                        prodsCreated = SeedProductsForTemplate(template.Id, categoryNameToId);
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        // Non-blocking for product catalog seeding errors
+                        Logger.Error("خطأ أثناء تنزيل كتالوج المنتجات الأولي: " + ex.Message, ex);
                     }
                 }
 
@@ -479,6 +379,238 @@ namespace RafiqPOS.Services
                 result.Message = "حدث خطأ أثناء تطبيق القالب: " + ex.Message;
                 return result;
             }
+        }
+
+        public int SeedProductsForTemplate(string templateId, Dictionary<string, string> categoryNameToId = null)
+        {
+            var catalog = StoreCatalogSeeder.GetCatalogForTemplate(templateId);
+            if (catalog == null || catalog.Count == 0)
+            {
+                return 0;
+            }
+
+            if (categoryNameToId == null)
+            {
+                categoryNameToId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                try
+                {
+                    if (_categoryService != null)
+                    {
+                        var existingCats = _categoryService.GetAll(true);
+                        for (int i = 0; i < existingCats.Count; i++)
+                        {
+                            if (!categoryNameToId.ContainsKey(existingCats[i].Name))
+                            {
+                                categoryNameToId[existingCats[i].Name] = existingCats[i].Id;
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error("فشل في تحميل قائمة الأقسام قبل تثبيت الكتالوج: " + ex.Message, ex);
+                }
+            }
+
+            int prodsCreated = 0;
+            string now = DateTime.UtcNow.ToString("o");
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var trans = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        for (int i = 0; i < catalog.Count; i++)
+                        {
+                            var p = catalog[i];
+                            if (p == null || string.IsNullOrWhiteSpace(p.Barcode) || string.IsNullOrWhiteSpace(p.Name))
+                            {
+                                continue;
+                            }
+
+                            // Check if a product with this barcode already exists
+                            using (var chkCmd = new SQLiteCommand("SELECT COUNT(*) FROM products WHERE barcode = @bc;", conn, trans))
+                            {
+                                chkCmd.Parameters.AddWithValue("@bc", p.Barcode);
+                                long count = Convert.ToInt64(chkCmd.ExecuteScalar());
+                                if (count > 0)
+                                {
+                                    continue;
+                                }
+                            }
+
+                            string catId = null;
+                            if (!string.IsNullOrEmpty(p.CategoryName))
+                            {
+                                if (categoryNameToId.ContainsKey(p.CategoryName))
+                                {
+                                    catId = categoryNameToId[p.CategoryName];
+                                }
+                                else
+                                {
+                                    // Category does not exist, create it inside transaction
+                                    try
+                                    {
+                                        string newCatId = Guid.NewGuid().ToString();
+                                        using (var insCat = new SQLiteCommand(@"
+                                            INSERT INTO categories (id, name, display_order, is_active, created_at, updated_at)
+                                            VALUES (@cid, @cname, @order, 1, @now, @now);
+                                        ", conn, trans))
+                                        {
+                                            insCat.Parameters.AddWithValue("@cid", newCatId);
+                                            insCat.Parameters.AddWithValue("@cname", p.CategoryName.Trim());
+                                            insCat.Parameters.AddWithValue("@order", categoryNameToId.Count + 1);
+                                            insCat.Parameters.AddWithValue("@now", now);
+                                            insCat.ExecuteNonQuery();
+                                        }
+                                        categoryNameToId[p.CategoryName] = newCatId;
+                                        catId = newCatId;
+                                    }
+                                    catch
+                                    {
+                                        catId = null;
+                                    }
+                                }
+                            }
+
+                            string prodId = Guid.NewGuid().ToString();
+                            string normName = ArabicTextNormalizer.Normalize(p.Name ?? "");
+
+                            // Insert into products table
+                            using (var insProd = new SQLiteCommand(@"
+                                INSERT INTO products (
+                                    id, barcode, internal_code, name, normalized_name, category_id,
+                                    price_piasters, cost_piasters, stock_quantity_milli,
+                                    min_stock_quantity_milli, unit, tax_rate_percent, tax_category_code,
+                                    is_active, created_at, updated_at
+                                ) VALUES (
+                                    @id, @barcode, '', @name, @norm, @catId,
+                                    @price, @cost, @stock,
+                                    @minStock, @unit, 0, '',
+                                    1, @now, @now
+                                );
+                            ", conn, trans))
+                            {
+                                insProd.Parameters.AddWithValue("@id", prodId);
+                                insProd.Parameters.AddWithValue("@barcode", p.Barcode);
+                                insProd.Parameters.AddWithValue("@name", p.Name);
+                                insProd.Parameters.AddWithValue("@norm", normName);
+                                insProd.Parameters.AddWithValue("@catId", (object)catId ?? DBNull.Value);
+                                insProd.Parameters.AddWithValue("@price", p.PricePiasters);
+                                insProd.Parameters.AddWithValue("@cost", p.CostPiasters);
+                                insProd.Parameters.AddWithValue("@stock", p.StockQuantityMilli);
+                                insProd.Parameters.AddWithValue("@minStock", p.MinStockQuantityMilli > 0 ? p.MinStockQuantityMilli : 5000);
+                                insProd.Parameters.AddWithValue("@unit", string.IsNullOrEmpty(p.Unit) ? "piece" : p.Unit);
+                                insProd.Parameters.AddWithValue("@now", now);
+                                insProd.ExecuteNonQuery();
+                            }
+
+                            // Insert into product_barcodes table
+                            using (var insBc = new SQLiteCommand(@"
+                                INSERT OR IGNORE INTO product_barcodes (id, product_id, barcode, created_at)
+                                VALUES (@id, @prodId, @barcode, @now);
+                            ", conn, trans))
+                            {
+                                insBc.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
+                                insBc.Parameters.AddWithValue("@prodId", prodId);
+                                insBc.Parameters.AddWithValue("@barcode", p.Barcode);
+                                insBc.Parameters.AddWithValue("@now", now);
+                                insBc.ExecuteNonQuery();
+                            }
+
+                            // Insert initial opening stock movement (stock_movements: unit_cost_piasters is NOT NULL)
+                            try
+                            {
+                                using (var insSm = new SQLiteCommand(@"
+                                    INSERT INTO stock_movements (
+                                        id, product_id, movement_type, quantity_milli,
+                                        reference_type, reference_id, unit_cost_piasters, note, created_at
+                                    ) VALUES (
+                                        @id, @prodId, 'INITIAL_OPENING', @qty,
+                                        'SETUP', 'INITIAL_SEED', @cost, 'رصيد افتتاحي مسجل تلقائياً مع تجهيز النظام', @now
+                                    );
+                                ", conn, trans))
+                                {
+                                    insSm.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
+                                    insSm.Parameters.AddWithValue("@prodId", prodId);
+                                    insSm.Parameters.AddWithValue("@qty", p.StockQuantityMilli);
+                                    insSm.Parameters.AddWithValue("@cost", p.CostPiasters);
+                                    insSm.Parameters.AddWithValue("@now", now);
+                                    insSm.ExecuteNonQuery();
+                                }
+                            }
+                            catch (Exception smEx)
+                            {
+                                Logger.Warn("تنبيه أثناء تسجيل حركة المخزون الافتتاحية للصنف: " + smEx.Message);
+                            }
+
+                            prodsCreated++;
+                        }
+
+                        trans.Commit();
+                    }
+                    catch (Exception ex)
+                    {
+                        try { trans.Rollback(); } catch { }
+                        Logger.Error("فشل في تثبيت كتالوج الأصناف للقالب " + templateId + ": " + ex.Message, ex);
+                        throw;
+                    }
+                }
+            }
+
+            if (prodsCreated > 0 && _auditRepo != null)
+            {
+                try
+                {
+                    _auditRepo.Log(new AuditLog
+                    {
+                        UserId = "system",
+                        Action = "PRODUCTS_CATALOG_SEEDED",
+                        EntityType = "PRODUCT",
+                        EntityId = templateId,
+                        DetailsJson = string.Format("تم تثبيت كتالوج سلع جاهزة للبيع بنجاح ({0} صنف)", prodsCreated)
+                    });
+                }
+                catch
+                {
+                }
+            }
+
+            return prodsCreated;
+        }
+
+        public int EnsureInitialProductsSeeded()
+        {
+            try
+            {
+                using (var conn = new SQLiteConnection(_connectionString))
+                {
+                    conn.Open();
+                    using (var chkCmd = new SQLiteCommand("SELECT COUNT(*) FROM products WHERE is_active = 1;", conn))
+                    {
+                        long count = Convert.ToInt64(chkCmd.ExecuteScalar());
+                        if (count > 0)
+                        {
+                            return 0; // Products already exist
+                        }
+                    }
+                }
+
+                string isFirstRunDone = _settingsRepo != null ? _settingsRepo.Get("first_run_completed", "0") : "0";
+                if (isFirstRunDone == "1")
+                {
+                    string storeType = _settingsRepo != null ? _settingsRepo.Get("store_type", "supermarket") : "supermarket";
+                    if (string.IsNullOrWhiteSpace(storeType)) storeType = "supermarket";
+                    return SeedProductsForTemplate(storeType);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("خطأ أثناء التحقق من كتالوج المنتجات الافتتاحية: " + ex.Message, ex);
+            }
+            return 0;
         }
 
         private static List<StoreTemplate> GetFallbackTemplates()

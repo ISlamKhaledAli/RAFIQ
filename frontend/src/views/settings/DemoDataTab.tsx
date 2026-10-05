@@ -54,11 +54,11 @@ export const DemoDataTab = ({
 
       {/* Status Breakdown Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-        <div className="p-3.5 rounded-lg bg-white border border-[#dce1dc] shadow-subtle flex flex-col gap-1.5">
-          <span className="text-[11px] text-[#5b6664] font-bold">حالة البيانات التجريبية:</span>
+        <div className="p-3.5 rounded-lg bg-surface border border-line shadow-subtle flex flex-col gap-1.5">
+          <span className="text-[11px] text-ink-muted font-bold">حالة البيانات التجريبية:</span>
           <div className="flex items-center gap-2">
-            <div className={`w-2.5 h-2.5 rounded-full ${demoStatus?.hasDemoData ? 'bg-[#b3720e] animate-pulse' : 'bg-slate-400'}`} />
-            <span className="text-xs font-bold text-[#14181a]">
+            <div className={`w-2.5 h-2.5 rounded-full ${demoStatus?.hasDemoData ? 'bg-warn animate-pulse' : 'bg-line-hover'}`} />
+            <span className="text-xs font-bold text-ink">
               {demoStatus?.hasDemoData ? 'نشطة في النظام (للتدريب)' : 'غير محملة'}
             </span>
           </div>

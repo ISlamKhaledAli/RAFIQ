@@ -609,6 +609,25 @@ export const PosView = () => {
 
   const loadQuickItems = loadSmartCatalog;
 
+  const [isSeedingCatalog, setIsSeedingCatalog] = useState(false);
+
+  const handleSeedTemplateProducts = async () => {
+    setIsSeedingCatalog(true);
+    try {
+      const res: any = await invoke('templates:seedProducts');
+      if (res && res.success) {
+        showStatus(`تم تنزيل ${res.seededCount || 168} صنفاً بنجاح!`, 'success');
+        await loadSmartCatalog();
+      } else {
+        showStatus('تعذر تنزيل كتالوج الأصناف', 'error');
+      }
+    } catch (err: any) {
+      showStatus('حدث خطأ أثناء تنزيل الأصناف: ' + (err?.message || ''), 'error');
+    } finally {
+      setIsSeedingCatalog(false);
+    }
+  };
+
   useEffect(() => {
     let active = true;
     void (async () => {
@@ -1349,6 +1368,9 @@ export const PosView = () => {
             handleSmartItemClick={handleSmartItemClick}
             onOpenQuickFastItemModal={() => setIsQuickFastItemModalOpen(true)}
             onOpenQuickItemsManager={() => setIsQuickItemsManagerOpen(true)}
+            totalCatalogProductsCount={catalogProducts.length}
+            onSeedProducts={handleSeedTemplateProducts}
+            isSeedingProducts={isSeedingCatalog}
           />
         )}
 
