@@ -1,4 +1,4 @@
-# <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="branding/logo_full_dark.png"><source media="(prefers-color-scheme: light)" srcset="branding/logo_full.png"><img src="branding/logo_full.png" width="460" alt="رفيق — نظام إدارة نقاط البيع والسوبرماركت" /></picture><br/><b>نظام رفيق لإدارة نقاط البيع والسوبرماركت (Rafiq POS)</b><br/><sub>Enterprise-Grade, Offline-First Supermarket &amp; Retail Management System</sub></p>
+# <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="branding/logo_full_dark.png"><source media="(prefers-color-scheme: light)" srcset="branding/logo_full.png"><img src="branding/logo_full.png" width="460" alt="رفيق — نظام إدارة نقاط البيع والمتاجر ومحلات التجزئة" /></picture><br/><b>نظام رفيق لإدارة نقاط البيع والمتاجر ومحلات التجزئة (Rafiq POS)</b><br/><sub>Enterprise-Grade, Offline-First Retail &amp; Store Management System</sub></p>
 
 <p align="center">
   <a href="https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48"><img src="https://img.shields.io/badge/.NET_Framework-4.8_C%23-blueviolet?style=for-the-badge&logo=dotnet" alt=".NET 4.8"/></a>
@@ -14,7 +14,7 @@
 
 ## نظرة عامة (Overview)
 
-**رفيق (Rafiq POS)** هو نظام برمجي متكامل فائق السرعة لنقاط البيع وإدارة السوبرماركت ومحلات التجزئة، مصمم هندسياً للعمل المستقل **بدون إنترنت نهائياً (Offline-First)** مع أمان مالي صارم ومناعة كاملة ضد أخطاء التقريب العشري وانقطاع الكهرباء المفاجئ.
+**رفيق (Rafiq POS)** هو نظام برمجي متكامل فائق السرعة لنقاط البيع وإدارة المتاجر ومحلات التجزئة العامة، مصمم هندسياً للعمل المستقل **بدون إنترنت نهائياً (Offline-First)** مع أمان مالي صارم ومناعة كاملة ضد أخطاء التقريب العشري وانقطاع الكهرباء المفاجئ.
 
 يعمل النظام عبر **حزمة تثبيت مستقلة واحدة** تدعم التثبيت والتشغيل الفوري بسلاسة تامة على جميع إصدارات ويندوز من **Windows 7 SP1 (32-bit و 64-bit)** ومروراً بـ **Windows 8.1 / 10** وحتى **Windows 11**، مع استهلاك اقتصادي جداً لموارد الجهاز (**RAM < 150MB**) وسرعة استجابة فائقة تضاهي سرعة الكاشير المحترف.
 
@@ -37,7 +37,7 @@
 
 ## العروض المرئية والتفاعلية (Interactive Video Showcases)
 
-يحتوي النظام على مكتبة مرئية شاملة وتفاعلية تشرح أهم دورات العمل في السوبرماركت ومحلات التجزئة، بصوت بشري استوديو واضح وعالي النقاء وجودة **1080p Full HD**:
+يحتوي النظام على مكتبة مرئية شاملة وتفاعلية تشرح أهم دورات العمل في المتاجر ومحلات التجزئة، بصوت بشري استوديو واضح وعالي النقاء وجودة **1080p Full HD**:
 
 ---
 

@@ -95,7 +95,7 @@ namespace RafiqPOS.Services
             string key = _settingsRepo.Get("license_key", "");
             string token = _settingsRepo.Get("license_token", "");
             string status = _settingsRepo.Get("license_status", "");
-            string shopName = _settingsRepo.Get("license_shop_name", _settingsRepo.Get("store_name", "سوبرماركت رفيق"));
+            string shopName = _settingsRepo.Get("license_shop_name", _settingsRepo.Get("store_name", "متجر رفيق"));
             string licType = _settingsRepo.Get("license_type", "trial");
             string activatedAt = _settingsRepo.Get("license_activated_at", "");
             string expiresAt = _settingsRepo.Get("license_expires_at", "");

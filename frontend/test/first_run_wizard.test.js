@@ -36,6 +36,10 @@ describe('Story 59: First-run Setup Wizard by Store Type (Feature #106)', () => 
     // 4. General Grocery template
     assert.ok(serviceContent.includes('general_grocery'), 'Must define general grocery template');
     assert.ok(serviceContent.includes('بقالة ومحل تجاري عام'), 'Must have Arabic title for general grocery');
+
+    // 5. Toys & Kids Store template
+    assert.ok(serviceContent.includes('toys_kids'), 'Must define toys & kids template');
+    assert.ok(serviceContent.includes('محلات ألعاب أطفال وهدايا'), 'Must have Arabic title for toys');
   });
 
   it('Task 106-2: Database storage of templates as data in SQLite (Migration 13)', () => {
@@ -132,6 +136,12 @@ describe('Story 59: First-run Setup Wizard by Store Type (Feature #106)', () => 
         categoriesCount: 5,
         hasScale: true,
         quickItemPrice: 1500, // 15 EGP
+      },
+      {
+        id: 'toys_kids',
+        categoriesCount: 6,
+        hasScale: false,
+        quickItemPrice: 4000, // 40 EGP
       }
     ];
 

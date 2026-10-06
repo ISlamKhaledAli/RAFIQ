@@ -876,7 +876,7 @@ export const HelpCenterModal = ({
                           الأسئلة الشائعة وحلول المشاكل الواقعية
                         </h3>
                         <p className="text-xs text-slate-500 m-0">
-                          إجابات واضحة ومباشرة لتساؤلات أصحاب السوبرماركت ومحلات التجزئة بدون إنترنت
+                          إجابات واضحة ومباشرة لتساؤلات أصحاب المتاجر ومحلات التجزئة بدون إنترنت
                         </p>
                       </div>
                       <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
@@ -1014,7 +1014,7 @@ export const HelpCenterModal = ({
                         </div>
 
                         <div className="flex items-center justify-between text-[11px] text-slate-600">
-                          <span>اسم المحل: <strong>{licenseInfo?.shopName || 'سوبرماركت رفيق'}</strong></span>
+                          <span>اسم المحل: <strong>{licenseInfo?.shopName || 'متجر رفيق'}</strong></span>
                           <span>الترخيص: <strong className="text-[#006d41]">{licenseInfo?.statusLabel || 'مفعّل'}</strong></span>
                         </div>
                       </div>
@@ -1114,7 +1114,7 @@ export const HelpCenterModal = ({
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-emerald-600" />
             <span className="font-medium">
-              نظام رفيق POS — تصميم مصري مخصص للسوبرماركت ومحلات التجزئة
+              نظام رفيق POS — نظام إدارة نقاط البيع والمتاجر ومحلات التجزئة
             </span>
           </div>
 

@@ -43,7 +43,7 @@ interface LabelQueueItem extends BarcodeLabelItem {
 }
 
 const PAPER_SIZES = [
-  { value: '38x25', label: '38×25 مم (بكرة رول قياسية صغيرة - سوبرماركت وملابس)', widthMm: 38, heightMm: 25 },
+  { value: '38x25', label: '38×25 مم (بكرة رول قياسية صغيرة - محلات التجزئة والملابس واللعب)', widthMm: 38, heightMm: 25 },
   { value: '40x30', label: '40×30 مم (بكرة رول متوسطة)', widthMm: 40, heightMm: 30 },
   { value: '50x25', label: '50×25 مم (بكرة رول عريضة مدمجة)', widthMm: 50, heightMm: 25 },
   { value: '50x30', label: '50×30 مم (بكرة رول عريضة قياسية)', widthMm: 50, heightMm: 30 },
@@ -116,7 +116,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
   const [config, setConfig] = useState<BarcodeLabelConfig>({
     paperSize: '38x25',
     showStoreName: true,
-    storeName: 'رفيق سوبرماركت',
+    storeName: 'متجر رفيق',
     showPrice: true,
     showBarcodeText: true,
     showExpiryDate: false,
@@ -146,7 +146,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
         setInstalledPrinters(printerList || []);
 
         const sRecord = (appSettings || {}) as Record<string, string>;
-        const storeName = sRecord.store_name || 'رفيق سوبرماركت';
+        const storeName = sRecord.store_name || 'متجر رفيق';
         const defaultLabelPrinter = sRecord.default_label_printer_name || sRecord.default_printer_name || '';
         const defaultPaperSize = sRecord.default_label_paper_size || '38x25';
 
@@ -714,7 +714,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
                   type="text"
                   value={config.storeName || ''}
                   onChange={(e) => setConfig((prev) => ({ ...prev, storeName: e.target.value }))}
-                  placeholder="اسم السوبرماركت / المتجر"
+                  placeholder="اسم المتجر / المحل"
                   className="w-full px-3 py-1.5 text-xs bg-canvas border border-line rounded-lg text-ink"
                 />
               </div>

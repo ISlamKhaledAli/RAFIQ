@@ -153,7 +153,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
               value={costingMethod}
               onChange={(val) => setCostingMethod(val as 'LATEST' | 'WEIGHTED_AVERAGE')}
               options={[
-                { value: 'LATEST', label: 'آخر سعر شراء (المعتاد في السوبرماركت)' },
+                { value: 'LATEST', label: 'آخر سعر شراء (المعتاد في محلات التجزئة)' },
                 { value: 'WEIGHTED_AVERAGE', label: 'المتوسط المرجح للتكلفة (محاسبي)' },
               ]}
               className="w-full"

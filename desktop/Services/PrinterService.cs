@@ -483,7 +483,7 @@ namespace RafiqPOS.Services
 
             try
             {
-                string storeName = _settings != null ? _settings.Get("store_name", "رفيق سوبرماركت") : "رفيق سوبرماركت";
+                string storeName = _settings != null ? _settings.Get("store_name", "متجر رفيق") : "متجر رفيق";
                 string phone = _settings != null ? _settings.Get("store_phone", "") : "";
                 string address = _settings != null ? _settings.Get("store_address", "") : "";
 
@@ -856,7 +856,7 @@ namespace RafiqPOS.Services
 
             g.DrawString("سجل إقفال رسمي ومختوم رقمياً • لا يُعدّل بعد الحفظ", fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, 16), centerFormat);
             y += 16;
-            g.DrawString("نظام رفيق لنقاط البيع وإدارة السوبرماركت", fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, 16), centerFormat);
+            g.DrawString("نظام رفيق لنقاط البيع وإدارة المتاجر", fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, 16), centerFormat);
         }
 
         private string ResolvePrinterName(string explicitPrinter)

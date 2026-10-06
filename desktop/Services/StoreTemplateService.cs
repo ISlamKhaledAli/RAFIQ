@@ -93,7 +93,7 @@ namespace RafiqPOS.Services
                 // Fallback to built-in presets if table query fails
             }
 
-            if (list.Count < 8)
+            if (list.Count < 9)
             {
                 list = GetFallbackTemplates();
                 EnsureTemplatesSeeded(list);
@@ -753,6 +753,33 @@ namespace RafiqPOS.Services
             t5.DefaultSettings["receipt_header"] = "مكتبة رفيق للقرطاسية والهدايا";
             t5.DefaultSettings["receipt_footer"] = "نتمنى لطلابنا الأعزاء دوام التوفيق والنجاح!";
             list.Add(t5);
+
+            // 5.5 Toys & Kids Store
+            var tToys = new StoreTemplate();
+            tToys.Id = "toys_kids";
+            tToys.Name = "محلات ألعاب أطفال وهدايا";
+            tToys.Description = "مخصص لمحلات لعب الأطفال والهدايا والمجسمات والدمى والسيارات (بدون ميزان وأوزان)";
+            tToys.Icon = "package";
+            tToys.FeatureFlags["feature_scale_weight"] = false;
+            tToys.FeatureFlags["feature_credit_debts"] = true;
+            tToys.FeatureFlags["feature_fast_buttons"] = true;
+            tToys.FeatureFlags["feature_taxes"] = false;
+            tToys.FeatureFlags["feature_expiry_dates"] = false;
+            tToys.FeatureFlags["feature_multi_units"] = false;
+            tToys.Categories = new List<string> { "ألعاب ذكاء وتركيب", "سيارات وطائرات تحكم", "عرائس ومجسمات", "ألعاب تعليمية ورضع", "ألعاب حركية ورياضية", "سكوتر وركوب", "هدايا وتغليف وبطاريات" };
+            tToys.QuickItems = new List<TemplateQuickItem>
+            {
+                new TemplateQuickItem { Name = "حجارة قلم AA باكت 4 حجر", PricePiasters = 4000, Unit = "piece", CategoryName = "هدايا وتغليف وبطاريات" },
+                new TemplateQuickItem { Name = "كيس هدايا كرتون كبير", PricePiasters = 1500, Unit = "piece", CategoryName = "هدايا وتغليف وبطاريات" },
+                new TemplateQuickItem { Name = "شريط تغليف وفيونكة هدية", PricePiasters = 500, Unit = "piece", CategoryName = "هدايا وتغليف وبطاريات" },
+                new TemplateQuickItem { Name = "فقاعات صابون بابلز كبيرة", PricePiasters = 2000, Unit = "piece", CategoryName = "ألعاب حركية وركوب" },
+                new TemplateQuickItem { Name = "سلايم ألوان للأطفال", PricePiasters = 2500, Unit = "piece", CategoryName = "ألعاب ذكاء وتركيب" },
+                new TemplateQuickItem { Name = "مكعبات تركيب علبة صغيرة", PricePiasters = 5500, Unit = "piece", CategoryName = "ألعاب ذكاء وتركيب" },
+                new TemplateQuickItem { Name = "عربية صغيرة معدن سباق", PricePiasters = 3500, Unit = "piece", CategoryName = "سيارات وطائرات تحكم" }
+            };
+            tToys.DefaultSettings["receipt_header"] = "متجر عالم الألعاب للأطفال";
+            tToys.DefaultSettings["receipt_footer"] = "شكراً لاختياركم متجرنا! يسعدنا دائماً رسم البسمة على وجوه أطفالكم.";
+            list.Add(tToys);
 
             // 6. Spices, Roastery & Coffee
             var t6 = new StoreTemplate();

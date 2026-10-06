@@ -94,7 +94,7 @@ export const StoreProfileTab = ({
                 type="text"
                 value={storeName}
                 onChange={(e) => setStoreName(e.target.value)}
-                placeholder="مثال: سوبر ماركت النور"
+                placeholder="مثال: متجر رفيق / مؤسسة النور للتجارة"
                 className="w-full bg-[#fdfdfd] border border-[#dce1dc] rounded h-10 px-3 text-xs text-[#14181a] focus:outline-none focus:border-[#0b4f42] focus:ring-1 focus:ring-[#0b4f42] transition-colors"
                 required
               />

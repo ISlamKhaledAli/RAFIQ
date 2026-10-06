@@ -146,12 +146,12 @@ def create_sidebar(output_path, width=164, height=314, is_2x=False):
             draw.point((w // 2 + dx, sep_y + 1), fill=(0, c_g, c_b))
 
     # النصوص التوضيحية
-    sub_ar = reshape_ar('المنصة التجارية الذكية للسوبرماركت')
+    sub_ar = reshape_ar('المنصة التجارية الذكية لإدارة المتاجر')
     bbox = draw.textbbox((0, 0), sub_ar, font=font_sub)
     tw = bbox[2] - bbox[0]
     draw.text(((w - tw) // 2, int(400 * scale)), sub_ar, fill=(210, 240, 230), font=font_sub)
 
-    sub_en = 'Smart Supermarket Management'
+    sub_en = 'Smart Retail & Store Management'
     bbox = draw.textbbox((0, 0), sub_en, font=font_sub)
     tw = bbox[2] - bbox[0]
     draw.text(((w - tw) // 2, int(426 * scale)), sub_en, fill=(125, 195, 170), font=font_sub)

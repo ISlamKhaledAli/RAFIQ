@@ -73,7 +73,7 @@ namespace RafiqPOS.Services
                 var config = request.Config ?? new BarcodeLabelConfig();
                 if (string.IsNullOrEmpty(config.StoreName) && _settings != null)
                 {
-                    config.StoreName = _settings.Get("store_name", "رفيق سوبرماركت");
+                    config.StoreName = _settings.Get("store_name", "متجر رفيق");
                 }
 
                 bool isA4 = config.PaperSize != null && config.PaperSize.StartsWith("a4", StringComparison.OrdinalIgnoreCase);

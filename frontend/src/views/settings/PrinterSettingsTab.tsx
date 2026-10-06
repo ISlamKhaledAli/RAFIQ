@@ -335,7 +335,7 @@ export const PrinterSettingsTab = ({
               value={labelPaperSize}
               onChange={(val) => setLabelPaperSize(val)}
               options={[
-                { value: '38x25', label: '38×25 مم (بكرة رول قياسية صغيرة - سوبرماركت وملابس)' },
+                { value: '38x25', label: '38×25 مم (بكرة رول قياسية صغيرة - محلات التجزئة والملابس واللعب)' },
                 { value: '40x30', label: '40×30 مم (بكرة رول متوسطة)' },
                 { value: '50x25', label: '50×25 مم (بكرة رول عريضة مدمجة)' },
                 { value: '50x30', label: '50×30 مم (بكرة رول عريضة قياسية)' },

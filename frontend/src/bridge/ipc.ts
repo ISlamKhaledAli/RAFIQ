@@ -1037,6 +1037,25 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           defaultSettings: { receipt_header: 'مكتبة رفيق للقرطاسية والهدايا', receipt_footer: 'نتمنى لطلابنا الأعزاء دوام التوفيق والنجاح!' }
         },
         {
+          id: 'toys_kids',
+          name: 'محلات ألعاب أطفال وهدايا',
+          description: 'مخصص لمحلات لعب الأطفال والهدايا والمجسمات والدمى والسيارات (بدون ميزان وأوزان)',
+          icon: 'package',
+          productsCount: 51,
+          featureFlags: { feature_scale_weight: false, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false },
+          categories: ['ألعاب ذكاء وتركيب', 'سيارات وطائرات تحكم', 'عرائس ومجسمات', 'ألعاب تعليمية ورضع', 'ألعاب حركية ورياضية', 'سكوتر وركوب', 'هدايا وتغليف وبطاريات'],
+          quickItems: [
+            { Name: 'حجارة قلم AA باكت 4 حجر', PricePiasters: 4000, Unit: 'piece', CategoryName: 'هدايا وتغليف وبطاريات', IsOpenPrice: false },
+            { Name: 'كيس هدايا كرتون كبير', PricePiasters: 1500, Unit: 'piece', CategoryName: 'هدايا وتغليف وبطاريات', IsOpenPrice: false },
+            { Name: 'شريط تغليف وفيونكة هدية', PricePiasters: 500, Unit: 'piece', CategoryName: 'هدايا وتغليف وبطاريات', IsOpenPrice: false },
+            { Name: 'فقاعات صابون بابلز كبيرة', PricePiasters: 2000, Unit: 'piece', CategoryName: 'ألعاب حركية ورياضية', IsOpenPrice: false },
+            { Name: 'سلايم ألوان للأطفال', PricePiasters: 2500, Unit: 'piece', CategoryName: 'ألعاب ذكاء وتركيب', IsOpenPrice: false },
+            { Name: 'مكعبات تركيب ليجو علبة صغيرة', PricePiasters: 5500, Unit: 'piece', CategoryName: 'ألعاب ذكاء وتركيب', IsOpenPrice: false },
+            { Name: 'عربية صغيرة معدن سباق', PricePiasters: 3500, Unit: 'piece', CategoryName: 'سيارات وطائرات تحكم', IsOpenPrice: false }
+          ],
+          defaultSettings: { receipt_header: 'متجر عالم الألعاب للأطفال', receipt_footer: 'شكراً لاختياركم متجرنا! يسعدنا دائماً رسم البسمة على وجوه أطفالكم.' }
+        },
+        {
           id: 'spices_roastery',
           name: 'عطارة ومحامص وبن وتوابل',
           description: 'مناسب لمحلات العطارة والبن والمحامص والمكسرات بالأوزان والجرامات والميزان',
@@ -1166,7 +1185,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
             key: 'store_profile',
             title: 'بيانات المحل والفاتورة',
             passed: true,
-            statusText: 'مضبوطة (سوبرماركت رفيق)',
+            statusText: 'مضبوطة (متجر رفيق)',
             description: 'اسم المحل وبيانات التواصل تظهر بشكل سليم في رأس وتذييل الإيصال المطبوع.',
             actionLabel: 'تعديل البيانات',
             actionTarget: 'settings:profile',
@@ -2274,7 +2293,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       return {
         isActive: true,
         licenseKey: 'RFQ-PERM-8899-A1B2',
-        shopName: 'سوبرماركت رفيق',
+        shopName: 'متجر رفيق',
         licenseType: 'lifetime',
         status: 'active',
         statusLabel: 'ترخيص دائم نشط (مدى الحياة)',
@@ -2293,7 +2312,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         license: {
           isActive: true,
           licenseKey: key || 'RFQ-PERM-8899-A1B2',
-          shopName: 'سوبرماركت رفيق',
+          shopName: 'متجر رفيق',
           licenseType: 'lifetime',
           status: 'active',
           statusLabel: 'ترخيص دائم نشط (مدى الحياة)',
@@ -2313,7 +2332,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         license: {
           isActive: true,
           licenseKey: 'RFQ-PERM-8899-A1B2',
-          shopName: 'سوبرماركت رفيق',
+          shopName: 'متجر رفيق',
           licenseType: 'lifetime',
           status: 'active',
           statusLabel: 'ترخيص دائم نشط (مدى الحياة)',
@@ -2335,7 +2354,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         clockTampered: false,
         clockTamperMessage: '',
         licenseType: 'lifetime',
-        shopName: 'سوبرماركت رفيق',
+        shopName: 'متجر رفيق',
         deviceFingerprint: 'RAFIQ-DEV-MOCK-FINGERPRINT-8899AABB',
       };
 

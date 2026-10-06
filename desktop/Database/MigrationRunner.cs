@@ -1290,8 +1290,8 @@ namespace RafiqPOS.Database
 
                         -- بذر البيانات الأولية (Default Seed Data)
                         INSERT OR IGNORE INTO app_settings (key, value, updated_at)
-                        VALUES ('store_name', 'سوبرماركت رفيق', datetime('now')),
-                               ('receipt_header', 'أهلاً بكم في سوبرماركت رفيق', datetime('now')),
+                        VALUES ('store_name', 'متجر رفيق', datetime('now')),
+                               ('receipt_header', 'أهلاً بكم في متجر رفيق', datetime('now')),
                                ('receipt_footer', 'شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل خلال 14 يوم', datetime('now')),
                                ('currency_symbol', 'ج.م', datetime('now'));
 

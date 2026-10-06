@@ -70,7 +70,7 @@ const CERTIFIED_DEVICES: CertifiedDevice[] = [
       driverName: 'Xprinter 80 Series Driver',
       drawerCode: '27,112,0,25,250 (أمر فتح الدرج القياسي)',
     },
-    notes: 'أكثر طابعات الفواتير انتشاراً واقتصادية في مصر، قطع الغيار ورولات الورق متوفرة في كل مكان، واعتماديتها ممتازة للسوبرماركت.',
+    notes: 'أكثر طابعات الفواتير انتشاراً واقتصادية في مصر، قطع الغيار ورولات الورق متوفرة في كل مكان، واعتماديتها ممتازة لكافة المحلات والمتاجر.',
   },
   {
     id: 'bixolon_srp330',
@@ -227,7 +227,7 @@ const CERTIFIED_DEVICES: CertifiedDevice[] = [
     recommendedSettings: {
       baudRateOrSuffix: 'USB HID + Auto-Enter',
     },
-    notes: 'الخيار الأفضل للسوبرماركت المزدحم؛ يرفع سرعة الكاشير بنسبة 40% لعدم الحاجة لرفع المسدس اليدوي.',
+    notes: 'الخيار الأفضل للمتاجر والمحلات المزدحمة؛ يرفع سرعة الكاشير بنسبة 40% لعدم الحاجة لرفع المسدس اليدوي.',
   },
 
   // 3. CASH DRAWERS
@@ -274,7 +274,7 @@ const CERTIFIED_DEVICES: CertifiedDevice[] = [
       autoCutterOrTrigger: 'طباعة ملصق باركود فوري على الميزان',
     },
     setupSteps: [
-      'ضبط صيغة الباركود في الميزان لتكون صيغة قياسية EAN-13 تبدأ بـ 20 أو 21 (النوع المعتمد للسوبرماركت).',
+      'ضبط صيغة الباركود في الميزان لتكون صيغة قياسية EAN-13 تبدأ بـ 20 أو 21 (النوع المعتمد للمتاجر ومحلات الأوزان والتجزئة).',
       'تكويد الصنف في رفيق بنفس كود الـ PLU المحدد في الميزان واختيار الوحدة (كيلوجرام).',
       'عند تمرير ملصق الميزان أمام الكاشير، يستخرج رفيق وزن الجرامات ويحسب السعر فوراً بدقة القروش.',
     ],
@@ -484,7 +484,7 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
                         </span>
                         {device.status === 'recommended' && (
                           <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300">
-                            موصى به للسوبرماركت
+                            موصى به للمتاجر المزدحمة
                           </span>
                         )}
                       </div>

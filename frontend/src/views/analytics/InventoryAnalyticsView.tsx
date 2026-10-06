@@ -371,7 +371,7 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
 
                 <div className="text-[11px] text-ink-muted border-t border-line pt-3 mt-4 flex items-center gap-1.5">
                   <Info className="w-3.5 h-3.5 text-brand shrink-0" />
-                  <span>المعدل الآمن المقبول في قطاع السوبرماركت هو أقل من 1.2% من إجمالي المبيعات.</span>
+                  <span>المعدل الآمن المقبول في قطاع التجزئة والمتاجر هو أقل من 1.2% من إجمالي المبيعات.</span>
                 </div>
               </div>
 

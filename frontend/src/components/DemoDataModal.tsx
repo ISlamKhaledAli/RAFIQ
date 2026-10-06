@@ -17,6 +17,7 @@ import {
   Croissant,
   Smartphone,
   Store,
+  Package,
   Sparkles,
   RefreshCw,
 } from 'lucide-react';
@@ -36,10 +37,11 @@ interface DemoDataModalProps {
 }
 
 const STORE_TYPE_OPTIONS = [
-  { id: 'supermarket', label: 'سوبرماركت وبقالة', icon: ShoppingCart },
+  { id: 'supermarket', label: 'سوبرماركت ومواد غذائية', icon: ShoppingCart },
+  { id: 'toys_kids', label: 'لعب أطفال وهدايا', icon: Package },
   { id: 'dairy_bakery', label: 'ألبان ومخبوزات', icon: Croissant },
   { id: 'accessories_gifts', label: 'إكسسوارات وموبايل', icon: Smartphone },
-  { id: 'general_grocery', label: 'محل تجاري عام', icon: Store },
+  { id: 'general_grocery', label: 'محل تجاري عام وتجزئة', icon: Store },
 ];
 
 export const DemoDataModal: React.FC<DemoDataModalProps> = ({

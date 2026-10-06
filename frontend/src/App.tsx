@@ -693,7 +693,7 @@ export default function App() {
           </button>
           <div className="min-w-0">
             <h1 className="text-sm sm:text-base font-extrabold text-ink leading-tight m-0 truncate">{storeName || 'رفيق POS'}</h1>
-            <p className="text-[10px] sm:text-[11px] font-medium text-ink-muted m-0 truncate">نظام نقاط البيع وإدارة السوبرماركت</p>
+            <p className="text-[10px] sm:text-[11px] font-medium text-ink-muted m-0 truncate">نظام نقاط البيع وإدارة المتاجر والمحلات</p>
           </div>
         </div>
 

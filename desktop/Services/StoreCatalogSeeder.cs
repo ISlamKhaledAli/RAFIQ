@@ -37,6 +37,10 @@ namespace RafiqPOS.Services
             {
                 return GetStationeryGiftsCatalog();
             }
+            else if (templateId == "toys_kids")
+            {
+                return GetToysKidsCatalog();
+            }
             else if (templateId == "spices_roastery")
             {
                 return GetSpicesRoasteryCatalog();
@@ -646,6 +650,79 @@ namespace RafiqPOS.Services
             // عام
             list.Add(new TemplateProductItem { Name = "علبة كبريت فراشة", Barcode = "6229900010047", CategoryName = "عام", PricePiasters = 100, CostPiasters = 50, StockQuantityMilli = 100000, MinStockQuantityMilli = 20000, Unit = "piece" });
             list.Add(new TemplateProductItem { Name = "كيس تسوق عادي للمحل", Barcode = "6229900010054", CategoryName = "عام", PricePiasters = 100, CostPiasters = 40, StockQuantityMilli = 150000, MinStockQuantityMilli = 25000, Unit = "piece" });
+
+            return list;
+        }
+
+        // 9. محلات ألعاب أطفال وهدايا (Toys & Kids Store)
+        private static List<TemplateProductItem> GetToysKidsCatalog()
+        {
+            var list = new List<TemplateProductItem>();
+
+            // ألعاب ذكاء وتركيب
+            list.Add(new TemplateProductItem { Name = "مكعبات تركيب أطفال ليجو كلاسيك 150 قطعة", Barcode = "6979900110015", CategoryName = "ألعاب ذكاء وتركيب", PricePiasters = 16500, CostPiasters = 11000, StockQuantityMilli = 30000, MinStockQuantityMilli = 5000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "مكعبات تركيب قلعة الأميرات للبنات 120 قطعة", Barcode = "6979900110022", CategoryName = "ألعاب ذكاء وتركيب", PricePiasters = 18000, CostPiasters = 12000, StockQuantityMilli = 25000, MinStockQuantityMilli = 5000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "مكعب روبيك المغناطيسي 3x3 احترافي سريع", Barcode = "6979900110039", CategoryName = "ألعاب ذكاء وتركيب", PricePiasters = 8500, CostPiasters = 5000, StockQuantityMilli = 40000, MinStockQuantityMilli = 8000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "لعبة جينجا خشبية برج التوازن 54 قطعة", Barcode = "6979900110046", CategoryName = "ألعاب ذكاء وتركيب", PricePiasters = 12000, CostPiasters = 7500, StockQuantityMilli = 20000, MinStockQuantityMilli = 4000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "بازل خشبي تعليمي الحروف والأرقام للأطفال", Barcode = "6979900110053", CategoryName = "ألعاب ذكاء وتركيب", PricePiasters = 6500, CostPiasters = 3800, StockQuantityMilli = 35000, MinStockQuantityMilli = 6000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "بازل صور كرتونية ديزني 100 قطعة كرتون مقوى", Barcode = "6979900110060", CategoryName = "ألعاب ذكاء وتركيب", PricePiasters = 7500, CostPiasters = 4500, StockQuantityMilli = 30000, MinStockQuantityMilli = 5000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "لوحة رسم مغناطيسية ذكية LCD شاشة مسح بزر", Barcode = "6979900110077", CategoryName = "ألعاب ذكاء وتركيب", PricePiasters = 14500, CostPiasters = 9500, StockQuantityMilli = 25000, MinStockQuantityMilli = 5000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "رمل سحري طبي ملون مع 6 قوالب تشكيل قلعة", Barcode = "6979900110084", CategoryName = "ألعاب ذكاء وتركيب", PricePiasters = 9500, CostPiasters = 6000, StockQuantityMilli = 30000, MinStockQuantityMilli = 6000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "علبة صلصال طبيعي آمن للأطفال 12 لون مع قوالب", Barcode = "6979900110091", CategoryName = "ألعاب ذكاء وتركيب", PricePiasters = 5500, CostPiasters = 3200, StockQuantityMilli = 45000, MinStockQuantityMilli = 10000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "سلايم ألوان براق للأطفال غير لاصق 200 جم", Barcode = "6979900110107", CategoryName = "ألعاب ذكاء وتركيب", PricePiasters = 3500, CostPiasters = 1800, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "piece" });
+
+            // سيارات وطائرات تحكم
+            list.Add(new TemplateProductItem { Name = "سيارة دريفت ريموت كنترول سريعة شاحن USB", Barcode = "6979900220011", CategoryName = "سيارات وطائرات تحكم", PricePiasters = 38000, CostPiasters = 26000, StockQuantityMilli = 15000, MinStockQuantityMilli = 3000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "سيارة جيب تسلق صخور دفع رباعي 2.4GHz", Barcode = "6979900220028", CategoryName = "سيارات وطائرات تحكم", PricePiasters = 55000, CostPiasters = 38000, StockQuantityMilli = 12000, MinStockQuantityMilli = 2000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "طائرة هليكوبتر بمستشعر يدوي سينسور وإضاءة ليد", Barcode = "6979900220035", CategoryName = "سيارات وطائرات تحكم", PricePiasters = 19500, CostPiasters = 13000, StockQuantityMilli = 20000, MinStockQuantityMilli = 4000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "طيارة درون صغيرة للأطفال بحماية كاملة صدمات", Barcode = "6979900220042", CategoryName = "سيارات وطائرات تحكم", PricePiasters = 65000, CostPiasters = 46000, StockQuantityMilli = 10000, MinStockQuantityMilli = 2000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "سيارة شرطة إلكترونية تصطدم وتلف بإضاءة وسرينة", Barcode = "6979900220059", CategoryName = "سيارات وطائرات تحكم", PricePiasters = 14000, CostPiasters = 8500, StockQuantityMilli = 25000, MinStockQuantityMilli = 5000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "طقم عربيات سباق معدنية Hot Wheels كروت (5 قطع)", Barcode = "6979900220066", CategoryName = "سيارات وطائرات تحكم", PricePiasters = 22000, CostPiasters = 15500, StockQuantityMilli = 20000, MinStockQuantityMilli = 4000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "طقم قطار كلاسيكي بالصوت والدخان وقضبان سكة حديد", Barcode = "6979900220073", CategoryName = "سيارات وطائرات تحكم", PricePiasters = 34000, CostPiasters = 23000, StockQuantityMilli = 12000, MinStockQuantityMilli = 2000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "لودر وحفار أطفال هيدروليكي للمهام الشاقة", Barcode = "6979900220080", CategoryName = "سيارات وطائرات تحكم", PricePiasters = 16500, CostPiasters = 10500, StockQuantityMilli = 18000, MinStockQuantityMilli = 3000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "عربية سباق معدنية صغيرة كبس وتراجع ألوان", Barcode = "6979900220097", CategoryName = "سيارات وطائرات تحكم", PricePiasters = 3500, CostPiasters = 1800, StockQuantityMilli = 60000, MinStockQuantityMilli = 10000, Unit = "piece" });
+
+            // عرائس ومجسمات
+            list.Add(new TemplateProductItem { Name = "عروسة ناطقة ومتحركة ملابس شتوية مع رضاعة", Barcode = "6979900330018", CategoryName = "عرائس ومجسمات", PricePiasters = 28000, CostPiasters = 19000, StockQuantityMilli = 15000, MinStockQuantityMilli = 3000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "طقم دمية فاشن باربي مع فساتين وإكسسوارات شعر", Barcode = "6979900330025", CategoryName = "عرائس ومجسمات", PricePiasters = 18500, CostPiasters = 12000, StockQuantityMilli = 25000, MinStockQuantityMilli = 5000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "بيت عرائس فيلا طابقين مع مجسمات وأثاث مصغر", Barcode = "6979900330032", CategoryName = "عرائس ومجسمات", PricePiasters = 42000, CostPiasters = 29000, StockQuantityMilli = 10000, MinStockQuantityMilli = 2000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "مجسم بطل خارق سبايدرمان مفصلي بصوت وإضاءة", Barcode = "6979900330049", CategoryName = "عرائس ومجسمات", PricePiasters = 15000, CostPiasters = 9500, StockQuantityMilli = 25000, MinStockQuantityMilli = 5000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "طقم مجسمات أبطال مارفل (4 شخصيات أكشن فيجر)", Barcode = "6979900330056", CategoryName = "عرائس ومجسمات", PricePiasters = 32000, CostPiasters = 21000, StockQuantityMilli = 15000, MinStockQuantityMilli = 3000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "دبدوب تيدي بير فرو ناعم فاخر 50 سم", Barcode = "6979900330063", CategoryName = "عرائس ومجسمات", PricePiasters = 26000, CostPiasters = 17000, StockQuantityMilli = 20000, MinStockQuantityMilli = 4000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "مجسم ديناصور جوراسيك بصوت زئير وحركة ليد", Barcode = "6979900330070", CategoryName = "عرائس ومجسمات", PricePiasters = 24000, CostPiasters = 16000, StockQuantityMilli = 15000, MinStockQuantityMilli = 3000, Unit = "piece" });
+
+            // ألعاب تعليمية ورضع
+            list.Add(new TemplateProductItem { Name = "بيانو أطفال موسيقي مضيء بأصوات الحيوانات", Barcode = "6979900440014", CategoryName = "ألعاب تعليمية ورضع", PricePiasters = 14500, CostPiasters = 9500, StockQuantityMilli = 25000, MinStockQuantityMilli = 5000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "طقم شخشيخة وعضاضة سيليكون طبي معقم (6 قطع)", Barcode = "6979900440021", CategoryName = "ألعاب تعليمية ورضع", PricePiasters = 11000, CostPiasters = 6800, StockQuantityMilli = 30000, MinStockQuantityMilli = 5000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "هرم الحلقات الملونة البلاستيكي لترتيب المقاسات", Barcode = "6979900440038", CategoryName = "ألعاب تعليمية ورضع", PricePiasters = 5000, CostPiasters = 2800, StockQuantityMilli = 40000, MinStockQuantityMilli = 8000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "مشاية أطفال تفاعلية بأنشطة وأزرار صوتية", Barcode = "6979900440045", CategoryName = "ألعاب تعليمية ورضع", PricePiasters = 58000, CostPiasters = 41000, StockQuantityMilli = 8000, MinStockQuantityMilli = 2000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "سجادة لعب ورعاية بيبي مع قوس ألعاب وبيانو قدم", Barcode = "6979900440052", CategoryName = "ألعاب تعليمية ورضع", PricePiasters = 48000, CostPiasters = 33000, StockQuantityMilli = 10000, MinStockQuantityMilli = 2000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "كتاب قماش تفاعلي للأطفال ناعم صوتي قابل للغسيل", Barcode = "6979900440069", CategoryName = "ألعاب تعليمية ورضع", PricePiasters = 6500, CostPiasters = 3800, StockQuantityMilli = 35000, MinStockQuantityMilli = 6000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "مكعب الأنشطة الخشبي التعليمي متعدد الأوجه", Barcode = "6979900440076", CategoryName = "ألعاب تعليمية ورضع", PricePiasters = 29000, CostPiasters = 19500, StockQuantityMilli = 12000, MinStockQuantityMilli = 2000, Unit = "piece" });
+
+            // ألعاب حركية ورياضية
+            list.Add(new TemplateProductItem { Name = "مسدس فوم رصاص إسفنجي نيرف مع 20 طلقة أمان", Barcode = "6979900550010", CategoryName = "ألعاب حركية ورياضية", PricePiasters = 19500, CostPiasters = 13000, StockQuantityMilli = 25000, MinStockQuantityMilli = 5000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "باكت رصاص فوم نيرف إضافي (20 طلقة إسفنجية)", Barcode = "6979900550027", CategoryName = "ألعاب حركية ورياضية", PricePiasters = 4500, CostPiasters = 2200, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "مسدس فقاعات صابون أوتوماتيكي بابل جان ملون", Barcode = "6979900550034", CategoryName = "ألعاب حركية ورياضية", PricePiasters = 12500, CostPiasters = 7500, StockQuantityMilli = 35000, MinStockQuantityMilli = 6000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "جالون محلول فقاعات صابون مركز معطر 500 مل", Barcode = "6979900550041", CategoryName = "ألعاب حركية ورياضية", PricePiasters = 4000, CostPiasters = 2000, StockQuantityMilli = 40000, MinStockQuantityMilli = 8000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "مسدس مياه ضغط عالي كبير للأطفال", Barcode = "6979900550058", CategoryName = "ألعاب حركية ورياضية", PricePiasters = 16000, CostPiasters = 10000, StockQuantityMilli = 20000, MinStockQuantityMilli = 4000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "كورة قدم جلد أصلي خياطة يدوية مقاس 5", Barcode = "6979900550065", CategoryName = "ألعاب حركية ورياضية", PricePiasters = 18000, CostPiasters = 12000, StockQuantityMilli = 25000, MinStockQuantityMilli = 5000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "طقم مضارب بينج بونج طاولة مع 3 كور", Barcode = "6979900550072", CategoryName = "ألعاب حركية ورياضية", PricePiasters = 14000, CostPiasters = 8500, StockQuantityMilli = 20000, MinStockQuantityMilli = 4000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "حبل قفز رياضي للأطفال مع عداد ومقبض إسفنجي", Barcode = "6979900550089", CategoryName = "ألعاب حركية ورياضية", PricePiasters = 5500, CostPiasters = 3000, StockQuantityMilli = 30000, MinStockQuantityMilli = 5000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "لعبة صيد السمك الدوارة المغناطيسية الموسيقية", Barcode = "6979900550096", CategoryName = "ألعاب حركية ورياضية", PricePiasters = 13500, CostPiasters = 8500, StockQuantityMilli = 20000, MinStockQuantityMilli = 4000, Unit = "piece" });
+
+            // سكوتر وركوب
+            list.Add(new TemplateProductItem { Name = "سكوتر أطفال ثلاثي العجلات مضيء بقفل أمان", Barcode = "6979900660016", CategoryName = "سكوتر وركوب", PricePiasters = 52000, CostPiasters = 36000, StockQuantityMilli = 10000, MinStockQuantityMilli = 2000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "لوح تزلج سكيت بورد خشب زان متين عجلات سيليكون", Barcode = "6979900660023", CategoryName = "سكوتر وركوب", PricePiasters = 38000, CostPiasters = 25000, StockQuantityMilli = 12000, MinStockQuantityMilli = 2000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "طقم خوذة حماية وواقي ركب وأكواع للأطفال", Barcode = "6979900660030", CategoryName = "سكوتر وركوب", PricePiasters = 15000, CostPiasters = 9500, StockQuantityMilli = 20000, MinStockQuantityMilli = 4000, Unit = "piece" });
+
+            // هدايا وتغليف وبطاريات
+            list.Add(new TemplateProductItem { Name = "بطاريات قلم AA إنرجايزر أصلية باكت 4 حجر", Barcode = "6979900770012", CategoryName = "هدايا وتغليف وبطاريات", PricePiasters = 4500, CostPiasters = 3200, StockQuantityMilli = 60000, MinStockQuantityMilli = 12000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "بطاريات ريموت AAA إنرجايزر أصلية باكت 4 حجر", Barcode = "6979900770029", CategoryName = "هدايا وتغليف وبطاريات", PricePiasters = 4500, CostPiasters = 3200, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "شنطة هدايا كرتون فاخرة مقاس كبير رسومات أطفال", Barcode = "6979900770036", CategoryName = "هدايا وتغليف وبطاريات", PricePiasters = 2000, CostPiasters = 900, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "شنطة هدايا كرتون مقاس وسط مبهجة يد ستان", Barcode = "6979900770043", CategoryName = "هدايا وتغليف وبطاريات", PricePiasters = 1500, CostPiasters = 650, StockQuantityMilli = 60000, MinStockQuantityMilli = 12000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "بوكس هدايا كرتون مقوى فاخر مع فيونكة ستان", Barcode = "6979900770050", CategoryName = "هدايا وتغليف وبطاريات", PricePiasters = 4500, CostPiasters = 2200, StockQuantityMilli = 25000, MinStockQuantityMilli = 5000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "رول ورق تغليف هدايا أطفال فاخر 2 متر", Barcode = "6979900770067", CategoryName = "هدايا وتغليف وبطاريات", PricePiasters = 1200, CostPiasters = 500, StockQuantityMilli = 40000, MinStockQuantityMilli = 8000, Unit = "piece" });
 
             return list;
         }

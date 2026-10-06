@@ -50,14 +50,14 @@ english.BeveledLabel=Rafiq POS — Enterprise Edition
 
 ; تخصيص نصوص معالج التثبيت لتعكس الهوية الاحترافية لنظام رفيق
 arabic.WelcomeLabel1=مرحباً بك في معالج تثبيت منصة رفيق POS
-arabic.WelcomeLabel2=سيقوم هذا المعالج بتثبيت منصة رفيق المتكاملة لنقاط البيع وإدارة السوبرماركت والمتاجر على جهاز الكمبيوتر الخاص بك.%n%nالمواصفات الهندسية الأساسية للنظام:%n• تشغيل أوفلاين 100%% بدون الحاجة لأي اتصال بالإنترنت.%n• محرك بيانات فائق الاستقرار ومعاملات مالية ذرية آمنة لحماية بيانات المحل.%n• توافق فوري مع قارئ الباركود، موازين الأوزان، وطابعات الإيصالات الحرارية.%n• توافق تام بنسخة واحدة مستقرة من Windows 7 SP1 حتى Windows 11.%n%nانقر على «التالي» للمتابعة، أو «إلغاء» للخروج من معالج التثبيت.
+arabic.WelcomeLabel2=سيقوم هذا المعالج بتثبيت منصة رفيق المتكاملة لنقاط البيع وإدارة المتاجر ومحلات التجزئة على جهاز الكمبيوتر الخاص بك.%n%nالمواصفات الهندسية الأساسية للنظام:%n• تشغيل أوفلاين 100%% بدون الحاجة لأي اتصال بالإنترنت.%n• محرك بيانات فائق الاستقرار ومعاملات مالية ذرية آمنة لحماية بيانات المحل.%n• توافق فوري مع قارئ الباركود، موازين الأوزان، وطابعات الإيصالات الحرارية.%n• توافق تام بنسخة واحدة مستقرة من Windows 7 SP1 حتى Windows 11.%n%nانقر على «التالي» للمتابعة، أو «إلغاء» للخروج من معالج التثبيت.
 
 arabic.FinishedHeadingLabel=اكتمل تثبيت رفيق POS بنجاح!
 arabic.FinishedLabelNoIcons=تم تثبيت نظام رفيق لنقاط البيع وإدارة المتاجر بنجاح على جهازك.%n%nيمكنك الآن تشغيل البرنامج وبدء إعداد متجرك التجاري.
 arabic.FinishedLabel=تم تثبيت نظام رفيق لنقاط البيع وإدارة المتاجر بنجاح وهو جاهز للتشغيل الفوري.%n%nانقر على «إنهاء» لتشغيل رفيق والبدء مباشرة.
 
 english.WelcomeLabel1=Welcome to Rafiq POS Setup
-english.WelcomeLabel2=This wizard will install Rafiq Enterprise POS (Supermarket & Retail System) on your computer.%n%nBuilt-in Enterprise Capabilities:%n• 100%% Offline Operation — no internet required.%n• Ultra-fast & crash-resilient SQLite WAL database engine.%n• Instant compatibility with barcode scanners, digital scales, and receipt printers.%n• Runs reliably on Windows 7 SP1 through Windows 11.%n%nClick Next to continue, or Cancel to exit Setup.
+english.WelcomeLabel2=This wizard will install Rafiq Enterprise POS (Retail & Store Management System) on your computer.%n%nBuilt-in Enterprise Capabilities:%n• 100%% Offline Operation — no internet required.%n• Ultra-fast & crash-resilient SQLite WAL database engine.%n• Instant compatibility with barcode scanners, digital scales, and receipt printers.%n• Runs reliably on Windows 7 SP1 through Windows 11.%n%nClick Next to continue, or Cancel to exit Setup.
 english.FinishedHeadingLabel=Rafiq POS Setup Complete!
 english.FinishedLabelNoIcons=Rafiq POS has been successfully installed on your computer.%n%nYou may now launch the application to start setting up your store.
 english.FinishedLabel=Rafiq POS has been successfully installed and is ready for use.%n%nClick Finish to launch Rafiq POS and get started.

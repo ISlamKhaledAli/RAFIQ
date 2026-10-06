@@ -80,7 +80,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
     } catch {
       // ignore
     }
-    return 'سوبر ماركت النور';
+    return 'متجر رفيق';
   });
   const [phone, setPhone] = useState(() => {
     try {
@@ -250,6 +250,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
         else if (id === 'dairy_bakery') setStoreName('ألبان ومخبوزات رفيق');
         else if (id === 'produce_butchery') setStoreName('أسواق رفيق للخضار والفاكهة');
         else if (id === 'stationery_gifts') setStoreName('مكتبة رفيق للقرطاسية والهدايا');
+        else if (id === 'toys_kids') setStoreName('متجر عالم الألعاب والهدايا');
         else if (id === 'spices_roastery') setStoreName('عطارة ومحامص رفيق');
         else if (id === 'clothing_apparel') setStoreName('متاجر رفيق للأزياء');
         else if (id === 'supermarket') setStoreName('سوبر ماركت النور');
@@ -424,7 +425,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
                   value={storeName}
                   onChange={(e) => setStoreName(e.target.value)}
                   className="w-full h-[44px] px-3.5 bg-surface border border-line rounded-[6px] text-[14px] text-ink font-semibold outline-none focus:border-brand"
-                  placeholder="سوبر ماركت النور"
+                  placeholder="مثال: متجر رفيق / مؤسسة النور"
                   required
                 />
               </div>
@@ -502,7 +503,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
                 {/* Centered Header Block */}
                 <div className="text-center flex flex-col gap-0.5">
                   <div className="font-bold text-[14px] text-ink font-sans">
-                    {storeName || 'سوبر ماركت النور'}
+                    {storeName || 'متجر رفيق'}
                   </div>
                   <div className="text-[11px] tabular-nums font-mono">
                     هاتف: {phone || '01012345678'}
