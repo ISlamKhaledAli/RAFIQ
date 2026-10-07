@@ -13,6 +13,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { useDataSubscription } from '../utils/eventBus';
 import { normalizeArabicNumerals } from '../utils/money';
 import { rafiqConfirm, rafiqAlert } from '../utils/dialogService';
 import { exportCustomersToExcel } from '../utils/excelImport';
@@ -205,19 +206,12 @@ export function CustomersView() {
   }, []);
 
   useEffect(() => {
-    let active = true;
-    void (async () => {
-      try {
-        const data = await invoke<Customer[]>('customers:getAll', { limit: 200 });
-        if (active) {
-          setCustomers(data || []);
-        }
-      } catch {
-        // Offline fallback
-      }
-    })();
-    return () => { active = false; };
-  }, []);
+    void loadCustomers();
+  }, [loadCustomers]);
+
+  useDataSubscription(['customers', 'sales', 'all'], () => {
+    void loadCustomers();
+  });
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -238,6 +232,7 @@ export function CustomersView() {
 
   const filteredCustomers = useMemo(() => {
     return customers.filter(c => {
+      if (c.id === 'cust_general_cash') return false;
       if (filterType === 'debtors') return c.balancePiasters > 0;
       if (filterType === 'settled') return c.balancePiasters <= 0;
       return true;
@@ -246,15 +241,15 @@ export function CustomersView() {
 
   // KPIs
   const totalDebtsPiasters = useMemo(() => {
-    return customers.reduce((sum, c) => sum + (c.balancePiasters > 0 ? c.balancePiasters : 0), 0);
+    return customers.filter(c => c.id !== 'cust_general_cash').reduce((sum, c) => sum + (c.balancePiasters > 0 ? c.balancePiasters : 0), 0);
   }, [customers]);
 
   const debtorsCount = useMemo(() => {
-    return customers.filter(c => c.balancePiasters > 0).length;
+    return customers.filter(c => c.id !== 'cust_general_cash' && c.balancePiasters > 0).length;
   }, [customers]);
 
   const totalCreditLimitPiasters = useMemo(() => {
-    return customers.reduce((sum, c) => sum + c.creditLimitPiasters, 0);
+    return customers.filter(c => c.id !== 'cust_general_cash').reduce((sum, c) => sum + c.creditLimitPiasters, 0);
   }, [customers]);
 
   const checkPhoneDuplicate = useCallback(async (phoneVal: string, excludeId?: string) => {
@@ -521,17 +516,7 @@ export function CustomersView() {
   };
 
   const handleArchiveCustomer = async (cust: Customer) => {
-    // 1. Protect system customer
-    if (cust.id === 'cust_general_cash') {
-      void rafiqAlert({
-        title: 'لا يمكن حذف هذا العميل',
-        message: 'العميل النقدي العام هو حساب نظام أساسي مطلوب لتشغيل نقطة البيع ولا يمكن حذفه.',
-        variant: 'warning',
-      });
-      return;
-    }
-
-    // 2. Block if customer has active debt
+    // 1. Block if customer has active debt
     if (cust.balancePiasters > 0) {
       void rafiqAlert({
         title: 'لا يمكن حذف العميل',
@@ -781,13 +766,17 @@ export function CustomersView() {
                       {/* Balance */}
                       <td className="px-3">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full font-mono font-bold text-xs tabular-nums ${
-                          hasDebt 
+                          cust.balancePiasters > 0 
                             ? 'bg-rose-50 text-rose-700 border border-rose-200' 
-                            : 'bg-emerald-50 text-[#006D41] border border-emerald-200'
+                            : cust.balancePiasters < 0
+                            ? 'bg-emerald-50 text-[#006D41] border border-emerald-200'
+                            : 'bg-slate-100 text-[#52605D] border border-slate-200'
                         }`}>
-                          {(cust.balancePiasters / 100).toFixed(2)} ج.م
-                          {hasDebt ? (
-                            <span className="mr-1 text-[10px] font-sans font-normal">(آجل)</span>
+                          {(Math.abs(cust.balancePiasters) / 100).toFixed(2)} ج.م
+                          {cust.balancePiasters > 0 ? (
+                            <span className="mr-1 text-[10px] font-sans font-bold text-rose-700">(عليه)</span>
+                          ) : cust.balancePiasters < 0 ? (
+                            <span className="mr-1 text-[10px] font-sans font-bold text-[#006D41]">(له)</span>
                           ) : (
                             <span className="mr-1 text-[10px] font-sans font-normal">(خالص)</span>
                           )}
@@ -852,8 +841,6 @@ export function CustomersView() {
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
 
-                          {/* Delete (Archive) Button — hidden for system customer */}
-                          {cust.id !== 'cust_general_cash' && (
                             <button
                               onClick={() => void handleArchiveCustomer(cust)}
                               title={hasDebt ? 'لا يمكن الحذف — يوجد دين مستحق' : 'حذف العميل'}
@@ -866,7 +853,6 @@ export function CustomersView() {
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
-                          )}
                         </div>
                       </td>
                     </tr>

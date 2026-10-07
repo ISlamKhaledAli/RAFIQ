@@ -90,11 +90,76 @@ declare global {
   }
 }
 
+import { emitDataChanged } from '../utils/eventBus';
+
 const pendingRequests = new Map<string, {
+  action: string;
   resolve: (value: any) => void;
   reject: (reason: any) => void;
   timer: any;
 }>();
+
+function dispatchAutoTopicsForAction(action: string) {
+  if (
+    action.startsWith('sales:create') || 
+    action.startsWith('sales:cancel') || 
+    action.startsWith('returns:') || 
+    action.startsWith('sales:return')
+  ) {
+    emitDataChanged(['sales', 'products', 'customers', 'dashboard']);
+  } else if (
+    action.startsWith('products:save') || 
+    action.startsWith('products:delete') || 
+    action.startsWith('products:bulk') || 
+    action.startsWith('products:import') || 
+    action.startsWith('inventory:') || 
+    action.startsWith('productUnits:') ||
+    action.startsWith('excel:importProducts')
+  ) {
+    emitDataChanged(['products', 'dashboard']);
+  } else if (
+    action.startsWith('categories:save') || 
+    action.startsWith('categories:delete')
+  ) {
+    emitDataChanged(['categories', 'products']);
+  } else if (
+    action.startsWith('customers:save') || 
+    action.startsWith('customers:delete') || 
+    action.startsWith('customers:recordPayment') || 
+    action.startsWith('customers:cancelPayment') || 
+    action.startsWith('excel:importCustomers')
+  ) {
+    emitDataChanged(['customers', 'dashboard']);
+  } else if (
+    action.startsWith('purchases:create') || 
+    action.startsWith('purchases:delete')
+  ) {
+    emitDataChanged(['purchases', 'products', 'suppliers', 'dashboard']);
+  } else if (
+    action.startsWith('suppliers:save') || 
+    action.startsWith('suppliers:recordPayment') || 
+    action.startsWith('suppliers:archive') || 
+    action.startsWith('suppliers:restore')
+  ) {
+    emitDataChanged(['suppliers', 'purchases']);
+  } else if (
+    action.startsWith('settings:save') ||
+    action.startsWith('templates:')
+  ) {
+    emitDataChanged(['settings', 'all']);
+  } else if (
+    action.startsWith('heldSales:') || 
+    action.startsWith('held:')
+  ) {
+    emitDataChanged(['held_sales']);
+  } else if (
+    action.startsWith('demo:') || 
+    action.startsWith('system:restore') || 
+    action.startsWith('system:vacuum')
+  ) {
+    emitDataChanged(['all']);
+  }
+}
 
 function sanitizeBridgeError(rawMessage?: string): string {
   if (!rawMessage) return 'حدث خطأ أثناء تنفيذ العملية، يرجى المحاولة لاحقاً';
@@ -123,6 +188,7 @@ function ensureListenerAttached() {
         clearTimeout(pending.timer);
         pendingRequests.delete(response.id);
         if (response.success) {
+          dispatchAutoTopicsForAction(pending.action);
           pending.resolve(response.data);
         } else {
           const friendlyMessage = sanitizeBridgeError(response.error?.message);
@@ -175,7 +241,7 @@ export async function invoke<TResult = any, TPayload = any>(
         reject(new Error(`انتهت مهلة الانتظار للعملية: ${action}`));
       }, effectiveTimeout);
 
-      pendingRequests.set(id, { resolve, reject, timer });
+      pendingRequests.set(id, { action, resolve, reject, timer });
       window.chrome!.webview!.postMessage(request);
     });
   }
@@ -183,7 +249,9 @@ export async function invoke<TResult = any, TPayload = any>(
 
   // Fallback: Browser Development Mode Mock
   console.info(`[IPC-DEV-MOCK] Action: "${action}"`, payload);
-  return mockHandler(action, payload);
+  const mockRes = await mockHandler(action, payload);
+  dispatchAutoTopicsForAction(action);
+  return mockRes;
 }
 
 /**
@@ -1933,9 +2001,6 @@ async function mockHandler(action: string, payload: any): Promise<any> {
 
     case 'customers:archive': {
       const archiveId = typeof payload === 'string' ? payload : payload?.customerId;
-      if (archiveId === 'cust_general_cash') {
-        throw new Error('لا يمكن حذف العميل النقدي العام — هو حساب نظام أساسي مطلوب لتشغيل نقطة البيع');
-      }
       const custToArchive = mockCustomers.find((c: any) => c.id === archiveId);
       if (custToArchive && custToArchive.balancePiasters > 0) {
         throw new Error(`لا يمكن حذف العميل "${custToArchive.name}" لأن عليه رصيد دين مستحق. يجب تسوية حسابه أولاً.`);
@@ -2961,16 +3026,7 @@ let mockDemoDataLoaded = false;
 let mockDemoProductsCount = 0;
 let mockDemoSalesCount = 0;
 let mockDemoCustomersCount = 0;
-let mockCustomers: any[] = [
-  {
-    id: 'cust_general_cash',
-    name: 'عميل نقدي عام',
-    phone: '',
-    balancePiasters: 0,
-    creditLimitPiasters: 0,
-    createdAt: new Date().toISOString(),
-  },
-];
+let mockCustomers: any[] = [];
 
 let mockLedgerEntries: any[] = [];
 

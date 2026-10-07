@@ -77,7 +77,7 @@ export const CreditPaymentSection = ({
         onChange={(val) => setCurrentCustomerId(val || null)}
         options={[
           { value: '', label: '-- اختر العميل لتسجيل المديونية عليه --' },
-          ...localCustomers.map((c) => ({
+          ...localCustomers.filter(c => c.id !== 'cust_general_cash').map((c) => ({
             value: c.id,
             label: `${c.name} ${c.phone ? `(${c.phone})` : ''} - الرصيد الحالي: ${formatArabicCurrency(c.balancePiasters)}`
           }))

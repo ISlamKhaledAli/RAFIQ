@@ -606,6 +606,26 @@ namespace RafiqPOS.Database
                                     alter.ExecuteNonQuery();
                                 }
                             }
+
+                            // Sync sales status for any sales that have records in returns table
+                            using (var checkRetTable = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='returns';", conn, trans))
+                            {
+                                if (checkRetTable.ExecuteScalar() != null)
+                                {
+                                    using (var syncReturnsCmd = new SQLiteCommand(@"
+                                        UPDATE sales 
+                                        SET status = 'refunded' 
+                                        WHERE status = 'completed' 
+                                          AND (
+                                              id IN (SELECT DISTINCT sale_id FROM returns WHERE sale_id IS NOT NULL AND sale_id != '')
+                                              OR invoice_number IN (SELECT DISTINCT invoice_number FROM returns WHERE invoice_number IS NOT NULL)
+                                          );
+                                    ", conn, trans))
+                                    {
+                                        syncReturnsCmd.ExecuteNonQuery();
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -972,13 +992,10 @@ namespace RafiqPOS.Database
                         }
                     }
 
-                    // 13. Ensure demo customer debts or records are completely cleaned
+                    // 13. Ensure demo customer debts or records and legacy cust_general_cash are completely cleaned
                     using (var cleanDemoCmd = new SQLiteCommand(@"
-                        DELETE FROM customer_ledger WHERE customer_id IN ('cust_demo_1', 'cust_demo_2') OR id = 'led_seed_demo_1';
-                        DELETE FROM customers WHERE id IN ('cust_demo_1', 'cust_demo_2');
-                        UPDATE customers SET balance_piasters = 0 WHERE id = 'cust_general_cash';
-                        INSERT OR IGNORE INTO customers (id, name, phone, balance_piasters, credit_limit_piasters, created_at)
-                        VALUES ('cust_general_cash', 'عميل نقدي عام', '', 0, 0, datetime('now'));
+                        DELETE FROM customer_ledger WHERE customer_id IN ('cust_demo_1', 'cust_demo_2', 'cust_general_cash') OR id = 'led_seed_demo_1';
+                        DELETE FROM customers WHERE id IN ('cust_demo_1', 'cust_demo_2', 'cust_general_cash');
                     ", conn, trans))
                     {
                         cleanDemoCmd.ExecuteNonQuery();
@@ -1341,10 +1358,6 @@ namespace RafiqPOS.Database
 
                         CREATE INDEX IF NOT EXISTS idx_customer_ledger_customer ON customer_ledger(customer_id);
                         CREATE INDEX IF NOT EXISTS idx_customer_ledger_created ON customer_ledger(created_at);
-
-                        -- بذر عميل نقدي عام فقط بدون أي عملاء تجريبيين أو ديون
-                        INSERT OR IGNORE INTO customers (id, name, phone, balance_piasters, credit_limit_piasters, created_at)
-                        VALUES ('cust_general_cash', 'عميل نقدي عام', '', 0, 0, datetime('now'));
 
                         -- تسجيل إصدار الهيكل رقم 2
                         INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
@@ -2658,10 +2671,7 @@ namespace RafiqPOS.Database
 
                         -- تصفير رقم الفاتورة ليبدأ الكاشير من الفاتورة رقم 1
                         UPDATE counters SET current_value = 0 WHERE name = 'invoice_number';
-
-                        -- التأكد من وجود العميل النقدي العام برصيد 0
-                        INSERT OR IGNORE INTO customers (id, name, phone, balance_piasters, credit_limit_piasters, created_at)
-                        VALUES ('cust_general_cash', 'عميل نقدي عام', '', 0, 0, datetime('now'));
+                        DELETE FROM customers WHERE id = 'cust_general_cash';
                     ", conn, trans))
                     {
                         cmd.ExecuteNonQuery();
@@ -3034,9 +3044,9 @@ namespace RafiqPOS.Database
                         cmd.ExecuteNonQuery();
                     }
 
-                    // 3. Ensure system customer is never archived
+                    // 3. Purge legacy system customer from customers table
                     using (var cmd = new SQLiteCommand(@"
-                        UPDATE customers SET is_archived = 0 WHERE id = 'cust_general_cash';
+                        DELETE FROM customers WHERE id = 'cust_general_cash';
                     ", conn, trans))
                     {
                         cmd.ExecuteNonQuery();

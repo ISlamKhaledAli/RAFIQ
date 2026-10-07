@@ -17,6 +17,7 @@ import {
   Boxes
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { useDataSubscription } from '../utils/eventBus';
 import type { DashboardSummary, UnclosedDayAlert, BatchSummary, HourlyIntensityReport } from '../types/models';
 import { DailyClosingModal } from '../components/DailyClosingModal';
 import { LowStockReportModal } from '../components/LowStockReportModal';
@@ -76,29 +77,12 @@ export function DashboardView({
   }, []);
 
   useEffect(() => {
-    let active = true;
-    void (async () => {
-      try {
-        const [sumData, unclosedData, batchData, hrData] = await Promise.all([
-          invoke<DashboardSummary>('reports:getTodaySummary'),
-          invoke<UnclosedDayAlert>('closing:checkPreviousDay'),
-          invoke<BatchSummary>('batch:summary').catch(() => null),
-          invoke<HourlyIntensityReport>('reports:getHourlyIntensity', { period: 'today' }).catch(() => null)
-        ]);
-        if (active) {
-          if (sumData) setSummary(sumData);
-          if (unclosedData) setUnclosedAlert(unclosedData);
-          if (batchData) setBatchSummary(batchData);
-          if (hrData) setHourlyData(hrData);
-          const now = new Date();
-          setLastRefreshed(now.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-        }
-      } catch {
-        // Offline fallback
-      }
-    })();
-    return () => { active = false; };
-  }, []);
+    void loadData();
+  }, [loadData]);
+
+  useDataSubscription(['sales', 'dashboard', 'purchases', 'all'], () => {
+    void loadData();
+  });
 
   return (
     <div className="flex flex-col h-full w-full bg-canvas select-none overflow-y-auto p-5 gap-4 font-sans text-ink" dir="rtl">

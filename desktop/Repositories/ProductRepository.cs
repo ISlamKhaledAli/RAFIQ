@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using RafiqPOS.Common;
@@ -6,7 +6,7 @@ using RafiqPOS.Models;
 
 namespace RafiqPOS.Repositories
 {
-    public class ProductRepository
+    public partial class ProductRepository
     {
         private readonly string _connectionString;
         private readonly AuditLogRepository _auditRepo;
@@ -24,7 +24,12 @@ namespace RafiqPOS.Repositories
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = "SELECT * FROM products WHERE id = @id LIMIT 1;";
+                string sql = @"
+                    SELECT p.*, COALESCE(c.name, 'عام') AS category_name 
+                    FROM products p 
+                    LEFT JOIN categories c ON p.category_id = c.id 
+                    WHERE p.id = @id LIMIT 1;
+                ";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@id", id);
@@ -51,7 +56,8 @@ namespace RafiqPOS.Repositories
             {
                 conn.Open();
                 string sql = @"
-                    SELECT DISTINCT p.* FROM products p
+                    SELECT DISTINCT p.*, COALESCE(c.name, 'عام') AS category_name FROM products p
+                    LEFT JOIN categories c ON p.category_id = c.id
                     LEFT JOIN product_barcodes pb ON p.id = pb.product_id
                     LEFT JOIN product_units pu ON p.id = pu.product_id
                     WHERE p.is_active = 1 AND (p.barcode = @barcode OR pb.barcode = @barcode OR pu.barcode = @barcode)
@@ -83,7 +89,8 @@ namespace RafiqPOS.Repositories
             {
                 conn.Open();
                 string sql = @"
-                    SELECT DISTINCT p.* FROM products p
+                    SELECT DISTINCT p.*, COALESCE(c.name, 'عام') AS category_name FROM products p
+                    LEFT JOIN categories c ON p.category_id = c.id
                     LEFT JOIN product_barcodes pb ON p.id = pb.product_id
                     LEFT JOIN product_units pu ON p.id = pu.product_id
                     WHERE p.barcode = @barcode OR pb.barcode = @barcode OR pu.barcode = @barcode
@@ -202,7 +209,8 @@ namespace RafiqPOS.Repositories
                 }
 
                 string sql = @"
-                    SELECT DISTINCT p.* FROM products p
+                    SELECT DISTINCT p.*, COALESCE(c.name, 'عام') AS category_name FROM products p
+                    LEFT JOIN categories c ON p.category_id = c.id
                     LEFT JOIN product_barcodes pb ON p.id = pb.product_id
                     LEFT JOIN product_units pu ON p.id = pu.product_id
                     WHERE p.is_active = 1 " + filterSql + @"
@@ -264,19 +272,26 @@ namespace RafiqPOS.Repositories
                 string filterSql = "";
                 if (string.Equals(stockStatus, "lowStock", StringComparison.OrdinalIgnoreCase))
                 {
-                    filterSql = " AND stock_quantity_milli <= min_stock_quantity_milli";
+                    filterSql = " AND p.stock_quantity_milli <= p.min_stock_quantity_milli";
                 }
                 else if (string.Equals(stockStatus, "outOfStock", StringComparison.OrdinalIgnoreCase))
                 {
-                    filterSql = " AND stock_quantity_milli <= 0";
+                    filterSql = " AND p.stock_quantity_milli <= 0";
                 }
 
                 if (!string.IsNullOrEmpty(categoryId) && !string.Equals(categoryId, "all", StringComparison.OrdinalIgnoreCase))
                 {
-                    filterSql += " AND (category_id = @categoryId OR (category_id IS NULL AND @categoryId = 'cat_general'))";
+                    filterSql += " AND (p.category_id = @categoryId OR (p.category_id IS NULL AND @categoryId = 'cat_general'))";
                 }
 
-                string sql = "SELECT * FROM products WHERE is_active = 1" + filterSql + " ORDER BY created_at DESC LIMIT @limit OFFSET @offset;";
+                string sql = @"
+                    SELECT p.*, COALESCE(c.name, 'عام') AS category_name
+                    FROM products p
+                    LEFT JOIN categories c ON p.category_id = c.id
+                    WHERE p.is_active = 1" + filterSql + @"
+                    ORDER BY p.created_at DESC
+                    LIMIT @limit OFFSET @offset;
+                ";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@categoryId", categoryId);
@@ -310,9 +325,11 @@ namespace RafiqPOS.Repositories
             {
                 conn.Open();
                 string sql = @"
-                    SELECT * FROM products 
-                    WHERE is_active = 1 AND stock_quantity_milli <= min_stock_quantity_milli 
-                    ORDER BY stock_quantity_milli ASC, (min_stock_quantity_milli - stock_quantity_milli) DESC 
+                    SELECT p.*, COALESCE(c.name, 'عام') AS category_name
+                    FROM products p
+                    LEFT JOIN categories c ON p.category_id = c.id
+                    WHERE p.is_active = 1 AND p.stock_quantity_milli <= p.min_stock_quantity_milli 
+                    ORDER BY p.stock_quantity_milli ASC, (p.min_stock_quantity_milli - p.stock_quantity_milli) DESC 
                     LIMIT @limit;
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn))
@@ -813,303 +830,6 @@ namespace RafiqPOS.Repositories
             }
         }
 
-        public void BulkUpdateMinStock(List<string> productIds, long minStockMilli)
-        {
-            if (productIds == null || productIds.Count == 0) return;
-
-            using (var conn = new SQLiteConnection(_connectionString))
-            {
-                conn.Open();
-                using (var trans = conn.BeginTransaction())
-                {
-                    try
-                    {
-                        string sql = "UPDATE products SET min_stock_quantity_milli = @minStock, updated_at = @updatedAt WHERE id = @id;";
-                        string now = DateTime.UtcNow.ToString("o");
-
-                        foreach (var id in productIds)
-                        {
-                            if (string.IsNullOrWhiteSpace(id)) continue;
-                            using (var cmd = new SQLiteCommand(sql, conn, trans))
-                            {
-                                cmd.Parameters.AddWithValue("@minStock", minStockMilli);
-                                cmd.Parameters.AddWithValue("@updatedAt", now);
-                                cmd.Parameters.AddWithValue("@id", id);
-                                cmd.ExecuteNonQuery();
-                            }
-                        }
-
-                        trans.Commit();
-                    }
-                    catch
-                    {
-                        trans.Rollback();
-                        throw;
-                    }
-                }
-            }
-        }
-
-        public BatchImportResult ImportBatchAtomic(List<BatchImportItem> items, string duplicateStrategy, string userId = "usr_admin_default")
-        {
-            var result = new BatchImportResult();
-            if (items == null || items.Count == 0) return result;
-
-            result.TotalRows = items.Count;
-            string strat = (duplicateStrategy ?? "skip").Trim().ToLowerInvariant();
-
-            using (var conn = new SQLiteConnection(_connectionString))
-            {
-                conn.Open();
-                using (var trans = conn.BeginTransaction())
-                {
-                    try
-                    {
-                        // 1. Preload categories map (name.ToLower() -> id)
-                        var categoryMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                        using (var catCmd = new SQLiteCommand("SELECT id, name FROM categories;", conn, trans))
-                        {
-                            using (var catReader = catCmd.ExecuteReader())
-                            {
-                                while (catReader.Read())
-                                {
-                                    categoryMap[catReader["name"].ToString().Trim()] = catReader["id"].ToString();
-                                }
-                            }
-                        }
-
-                        // 2. Preload existing barcodes map (barcode.ToLower() -> product_id)
-                        var existingBarcodeMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                        using (var bcCmd = new SQLiteCommand("SELECT barcode, id FROM products WHERE barcode IS NOT NULL UNION SELECT barcode, product_id FROM product_barcodes WHERE barcode IS NOT NULL;", conn, trans))
-                        {
-                            using (var bcReader = bcCmd.ExecuteReader())
-                            {
-                                while (bcReader.Read())
-                                {
-                                    string bc = bcReader["barcode"].ToString().Trim();
-                                    string pid = bcReader[1].ToString();
-                                    existingBarcodeMap[bc] = pid;
-                                }
-                            }
-                        }
-
-                        string now = DateTime.UtcNow.ToString("o");
-
-                        foreach (var item in items)
-                        {
-                            if (string.IsNullOrWhiteSpace(item.Name))
-                            {
-                                continue;
-                            }
-
-                            // Resolve category
-                            string categoryId = item.CategoryId;
-                            if (string.IsNullOrWhiteSpace(categoryId))
-                            {
-                                string catName = !string.IsNullOrWhiteSpace(item.CategoryName) ? item.CategoryName.Trim() : "عام";
-                                if (categoryMap.ContainsKey(catName))
-                                {
-                                    categoryId = categoryMap[catName];
-                                }
-                                else
-                                {
-                                    categoryId = "cat_" + Guid.NewGuid().ToString("N").Substring(0, 8);
-                                    using (var insCatCmd = new SQLiteCommand("INSERT INTO categories (id, name, created_at) VALUES (@cid, @cname, @cdate);", conn, trans))
-                                    {
-                                        insCatCmd.Parameters.AddWithValue("@cid", categoryId);
-                                        insCatCmd.Parameters.AddWithValue("@cname", catName);
-                                        insCatCmd.Parameters.AddWithValue("@cdate", now);
-                                        insCatCmd.ExecuteNonQuery();
-                                    }
-                                    categoryMap[catName] = categoryId;
-                                }
-                            }
-
-                            // Check duplicate barcode
-                            string primaryBarcode = !string.IsNullOrWhiteSpace(item.Barcode) ? item.Barcode.Trim() : null;
-                            string existingProductId = null;
-
-                            if (primaryBarcode != null && existingBarcodeMap.ContainsKey(primaryBarcode))
-                            {
-                                existingProductId = existingBarcodeMap[primaryBarcode];
-                            }
-                            else if (item.Barcodes != null)
-                            {
-                                foreach (var b in item.Barcodes)
-                                {
-                                    if (!string.IsNullOrWhiteSpace(b) && existingBarcodeMap.ContainsKey(b.Trim()))
-                                    {
-                                        existingProductId = existingBarcodeMap[b.Trim()];
-                                        break;
-                                    }
-                                }
-                            }
-
-                            if (existingProductId != null)
-                            {
-                                if (strat == "error")
-                                {
-                                    throw new InvalidOperationException(string.Format("الباركود '{0}' مسجل مسبقاً في النظام.", primaryBarcode));
-                                }
-                                else if (strat == "update")
-                                {
-                                    // Update existing product
-                                    string updateSql = @"
-                                        UPDATE products SET
-                                            name = @name,
-                                            normalized_name = @normName,
-                                            category_id = @categoryId,
-                                            price_piasters = @price,
-                                            cost_piasters = @cost,
-                                            stock_quantity_milli = @stock,
-                                            min_stock_quantity_milli = @minStock,
-                                            unit = @unit,
-                                            tax_rate_percent = @tax,
-                                            internal_code = @internalCode,
-                                            tax_category_code = @taxCategoryCode,
-                                            is_active = 1,
-                                            updated_at = @now
-                                        WHERE id = @pid;
-                                    ";
-                                    using (var uCmd = new SQLiteCommand(updateSql, conn, trans))
-                                    {
-                                        uCmd.Parameters.AddWithValue("@pid", existingProductId);
-                                        uCmd.Parameters.AddWithValue("@name", item.Name.Trim());
-                                        uCmd.Parameters.AddWithValue("@normName", Common.ArabicTextNormalizer.Normalize(item.Name ?? ""));
-                                        uCmd.Parameters.AddWithValue("@categoryId", (object)categoryId ?? DBNull.Value);
-                                        uCmd.Parameters.AddWithValue("@price", item.PricePiasters);
-                                        uCmd.Parameters.AddWithValue("@cost", item.CostPiasters);
-                                        uCmd.Parameters.AddWithValue("@stock", item.StockQuantityMilli);
-                                        uCmd.Parameters.AddWithValue("@minStock", item.MinStockQuantityMilli);
-                                        uCmd.Parameters.AddWithValue("@unit", item.Unit ?? "piece");
-                                        uCmd.Parameters.AddWithValue("@tax", item.TaxRatePercent);
-                                        uCmd.Parameters.AddWithValue("@internalCode", (object)item.InternalCode ?? "");
-                                        uCmd.Parameters.AddWithValue("@taxCategoryCode", (object)item.TaxCategoryCode ?? "");
-                                        uCmd.Parameters.AddWithValue("@now", now);
-                                        uCmd.ExecuteNonQuery();
-                                    }
-                                    result.UpdatedCount++;
-                                    continue;
-                                }
-                                else // "skip"
-                                {
-                                    result.SkippedCount++;
-                                    continue;
-                                }
-                            }
-
-                            // Fresh Insert
-                            string newId = Guid.NewGuid().ToString();
-                            if (string.IsNullOrWhiteSpace(primaryBarcode))
-                            {
-                                primaryBarcode = "200" + Math.Abs(newId.GetHashCode()).ToString("D9");
-                            }
-
-                            string insertSql = @"
-                                INSERT INTO products (
-                                    id, barcode, internal_code, name, normalized_name, category_id, price_piasters, cost_piasters,
-                                    stock_quantity_milli, min_stock_quantity_milli, unit, tax_rate_percent, tax_category_code, is_active, created_at, updated_at
-                                ) VALUES (
-                                    @id, @barcode, @internalCode, @name, @normName, @categoryId, @price, @cost,
-                                    @stock, @minStock, @unit, @tax, @taxCategoryCode, 1, @now, @now
-                                );
-                            ";
-                            using (var insCmd = new SQLiteCommand(insertSql, conn, trans))
-                            {
-                                insCmd.Parameters.AddWithValue("@id", newId);
-                                insCmd.Parameters.AddWithValue("@barcode", primaryBarcode);
-                                insCmd.Parameters.AddWithValue("@internalCode", (object)item.InternalCode ?? "");
-                                insCmd.Parameters.AddWithValue("@name", item.Name.Trim());
-                                insCmd.Parameters.AddWithValue("@normName", Common.ArabicTextNormalizer.Normalize(item.Name ?? ""));
-                                insCmd.Parameters.AddWithValue("@categoryId", (object)categoryId ?? DBNull.Value);
-                                insCmd.Parameters.AddWithValue("@price", item.PricePiasters);
-                                insCmd.Parameters.AddWithValue("@cost", item.CostPiasters);
-                                insCmd.Parameters.AddWithValue("@stock", item.StockQuantityMilli);
-                                insCmd.Parameters.AddWithValue("@minStock", item.MinStockQuantityMilli);
-                                insCmd.Parameters.AddWithValue("@unit", item.Unit ?? "piece");
-                                insCmd.Parameters.AddWithValue("@tax", item.TaxRatePercent);
-                                insCmd.Parameters.AddWithValue("@taxCategoryCode", (object)item.TaxCategoryCode ?? "");
-                                insCmd.Parameters.AddWithValue("@now", now);
-                                insCmd.ExecuteNonQuery();
-                            }
-
-                            existingBarcodeMap[primaryBarcode] = newId;
-
-                            // Insert additional barcodes
-                            if (item.Barcodes != null && item.Barcodes.Count > 0)
-                            {
-                                foreach (var b in item.Barcodes)
-                                {
-                                    if (!string.IsNullOrWhiteSpace(b))
-                                    {
-                                        string trimmedB = b.Trim();
-                                        if (!string.Equals(trimmedB, primaryBarcode, StringComparison.OrdinalIgnoreCase))
-                                        {
-                                            using (var pbCmd = new SQLiteCommand("INSERT OR IGNORE INTO product_barcodes (id, product_id, barcode, created_at) VALUES (@pbid, @pid, @bc, @now);", conn, trans))
-                                            {
-                                                pbCmd.Parameters.AddWithValue("@pbid", "pbc_" + Guid.NewGuid().ToString("N"));
-                                                pbCmd.Parameters.AddWithValue("@pid", newId);
-                                                pbCmd.Parameters.AddWithValue("@bc", trimmedB);
-                                                pbCmd.Parameters.AddWithValue("@now", now);
-                                                pbCmd.ExecuteNonQuery();
-                                            }
-                                            existingBarcodeMap[trimmedB] = newId;
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Record Initial Stock Movement (Task 21-5 & Feature #35)
-                            if (item.StockQuantityMilli != 0)
-                            {
-                                string insertSmSql = @"
-                                    INSERT INTO stock_movements (
-                                        id, product_id, movement_type, quantity_milli, reference_id, reference_type,
-                                        unit_cost_piasters, note, batch_number, created_at
-                                    ) VALUES (
-                                        @smId, @smPid, 'INITIAL', @smQty, 'EXCEL_IMPORT', 'INITIAL_IMPORT',
-                                        @smCost, 'رصيد افتتاحي مسجل من استيراد إكسل', NULL, @now
-                                    );
-                                ";
-                                using (var smCmd = new SQLiteCommand(insertSmSql, conn, trans))
-                                {
-                                    smCmd.Parameters.AddWithValue("@smId", Guid.NewGuid().ToString());
-                                    smCmd.Parameters.AddWithValue("@smPid", newId);
-                                    smCmd.Parameters.AddWithValue("@smQty", item.StockQuantityMilli);
-                                    smCmd.Parameters.AddWithValue("@smCost", item.CostPiasters);
-                                    smCmd.Parameters.AddWithValue("@now", now);
-                                    smCmd.ExecuteNonQuery();
-                                }
-                            }
-
-                            result.ImportedCount++;
-                        }
-
-                        // Record audit log entry inside transaction with full cryptographic chaining (Feature #169)
-                        string details = string.Format("{{\"imported\":{0},\"updated\":{1},\"skipped\":{2},\"total\":{3}}}", result.ImportedCount, result.UpdatedCount, result.SkippedCount, result.TotalRows);
-                        _auditRepo.Log(conn, trans, new AuditLog
-                        {
-                            Id = "aud_" + Guid.NewGuid().ToString("N"),
-                            UserId = string.IsNullOrWhiteSpace(userId) ? "usr_admin_default" : userId,
-                            Action = "product_import_batch",
-                            EntityType = "products",
-                            EntityId = "batch",
-                            DetailsJson = details,
-                            CreatedAt = now
-                        });
-
-                        trans.Commit();
-                        return result;
-                    }
-                    catch
-                    {
-                        trans.Rollback();
-                        throw;
-                    }
-                }
-            }
-        }
-
         private static Product MapReaderToProduct(SQLiteDataReader reader)
         {
             string taxCategory = "";
@@ -1235,526 +955,5 @@ namespace RafiqPOS.Repositories
                 VariantsCount = variantsCount
             };
         }
-        public List<Product> GetProductsForBulkPrice(string scope, List<string> productIds, string categoryId, string searchQuery)
-        {
-            var results = new List<Product>();
-            using (var conn = new SQLiteConnection(_connectionString))
-            {
-                conn.Open();
-
-                if (string.Equals(scope, "selected", StringComparison.OrdinalIgnoreCase))
-                {
-                    if (productIds == null || productIds.Count == 0) return results;
-
-                    var paramNames = new List<string>();
-                    using (var cmd = new SQLiteCommand(conn))
-                    {
-                        for (int i = 0; i < productIds.Count; i++)
-                        {
-                            string pName = "@p" + i;
-                            paramNames.Add(pName);
-                            cmd.Parameters.AddWithValue(pName, productIds[i]);
-                        }
-
-                        cmd.CommandText = @"
-                            SELECT p.*, c.name AS category_name
-                            FROM products p
-                            LEFT JOIN categories c ON p.category_id = c.id
-                            WHERE p.is_active = 1 AND p.id IN (" + string.Join(",", paramNames.ToArray()) + @")
-                            ORDER BY p.name ASC;
-                        ";
-
-                        using (var reader = cmd.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                results.Add(MapReaderToProduct(reader));
-                            }
-                        }
-                    }
-                    return results;
-                }
-                else if (string.Equals(scope, "category", StringComparison.OrdinalIgnoreCase))
-                {
-                    string catSql = @"
-                        SELECT p.*, c.name AS category_name
-                        FROM products p
-                        LEFT JOIN categories c ON p.category_id = c.id
-                        WHERE p.is_active = 1 
-                          AND (p.category_id = @catId OR (p.category_id IS NULL AND @catId = 'cat_general'))
-                        ORDER BY p.name ASC;
-                    ";
-
-                    using (var cmd = new SQLiteCommand(catSql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@catId", categoryId ?? "cat_general");
-                        using (var reader = cmd.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                results.Add(MapReaderToProduct(reader));
-                            }
-                        }
-                    }
-                    return results;
-                }
-                else if (string.Equals(scope, "search", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(searchQuery))
-                {
-                    return Search(searchQuery, 1000, 0, "all", categoryId ?? "all");
-                }
-                else
-                {
-                    // "all" scope
-                    string allSql = @"
-                        SELECT p.*, c.name AS category_name
-                        FROM products p
-                        LEFT JOIN categories c ON p.category_id = c.id
-                        WHERE p.is_active = 1
-                        ORDER BY p.name ASC;
-                    ";
-
-                    using (var cmd = new SQLiteCommand(allSql, conn))
-                    {
-                        using (var reader = cmd.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                results.Add(MapReaderToProduct(reader));
-                            }
-                        }
-                    }
-                    return results;
-                }
-            }
-        }
-
-        public BulkPriceApplyResult ApplyBulkPriceAdjustment(List<BulkPriceApplyItem> items, string reason, string userId)
-        {
-            var result = new BulkPriceApplyResult();
-            if (items == null || items.Count == 0)
-            {
-                result.Success = true;
-                result.UpdatedCount = 0;
-                result.Message = "لا توجد أصناف لتعديل أسعارها";
-                return result;
-            }
-
-            using (var conn = new SQLiteConnection(_connectionString))
-            {
-                conn.Open();
-                using (var trans = conn.BeginTransaction())
-                {
-                    try
-                    {
-                        string now = DateTime.UtcNow.ToString("o");
-                        string updateProductSql = @"
-                            UPDATE products 
-                            SET price_piasters = @newPrice, 
-                                cost_piasters = @newCost, 
-                                updated_at = @now 
-                            WHERE id = @id AND is_active = 1;
-                        ";
-
-                        string updateBaseUnitSql = @"
-                            UPDATE product_units 
-                            SET sell_price_piasters = @newPrice, 
-                                cost_price_piasters = @newCost, 
-                                updated_at = @now 
-                            WHERE product_id = @id AND is_base_unit = 1;
-                        ";
-
-                        string insertHistorySql = @"
-                            INSERT INTO product_price_history (
-                                id, product_id, old_price_piasters, new_price_piasters, 
-                                old_cost_piasters, new_cost_piasters, change_reason, created_at
-                            ) VALUES (
-                                @histId, @productId, @oldPrice, @newPrice, 
-                                @oldCost, @newCost, @reason, @now
-                            );
-                        ";
-
-                        int updatedCount = 0;
-                        foreach (var item in items)
-                        {
-                            if (item == null || string.IsNullOrWhiteSpace(item.ProductId)) continue;
-
-                            long finalPrice = item.NewPricePiasters < 0 ? 0 : item.NewPricePiasters;
-                            long finalCost = item.NewCostPiasters < 0 ? 0 : item.NewCostPiasters;
-
-                            using (var cmd = new SQLiteCommand(updateProductSql, conn, trans))
-                            {
-                                cmd.Parameters.AddWithValue("@newPrice", finalPrice);
-                                cmd.Parameters.AddWithValue("@newCost", finalCost);
-                                cmd.Parameters.AddWithValue("@now", now);
-                                cmd.Parameters.AddWithValue("@id", item.ProductId);
-                                int affected = cmd.ExecuteNonQuery();
-                                if (affected > 0)
-                                {
-                                    updatedCount++;
-
-                                    try
-                                    {
-                                        using (var unitCmd = new SQLiteCommand(updateBaseUnitSql, conn, trans))
-                                        {
-                                            unitCmd.Parameters.AddWithValue("@newPrice", finalPrice);
-                                            unitCmd.Parameters.AddWithValue("@newCost", finalCost);
-                                            unitCmd.Parameters.AddWithValue("@now", now);
-                                            unitCmd.Parameters.AddWithValue("@id", item.ProductId);
-                                            unitCmd.ExecuteNonQuery();
-                                        }
-                                    }
-                                    catch { }
-
-                                    using (var histCmd = new SQLiteCommand(insertHistorySql, conn, trans))
-                                    {
-                                        histCmd.Parameters.AddWithValue("@histId", "ph_" + Guid.NewGuid().ToString("N"));
-                                        histCmd.Parameters.AddWithValue("@productId", item.ProductId);
-                                        histCmd.Parameters.AddWithValue("@oldPrice", item.OldPricePiasters);
-                                        histCmd.Parameters.AddWithValue("@newPrice", finalPrice);
-                                        histCmd.Parameters.AddWithValue("@oldCost", item.OldCostPiasters);
-                                        histCmd.Parameters.AddWithValue("@newCost", finalCost);
-                                        histCmd.Parameters.AddWithValue("@reason", string.IsNullOrWhiteSpace(reason) ? "تعديل أسعار جماعي" : reason.Trim());
-                                        histCmd.Parameters.AddWithValue("@now", now);
-                                        histCmd.ExecuteNonQuery();
-                                    }
-                                }
-                            }
-                        }
-
-                        if (_auditRepo != null && updatedCount > 0)
-                        {
-                            try
-                            {
-                                string details = string.Format(
-                                    "{{\"updatedCount\":{0},\"reason\":\"{1}\"}}",
-                                    updatedCount,
-                                    (reason ?? "تعديل أسعار جماعي").Replace("\"", "\\\"")
-                                );
-                                _auditRepo.Log(conn, trans, new AuditLog
-                                {
-                                    Id = "aud_" + Guid.NewGuid().ToString("N"),
-                                    UserId = string.IsNullOrWhiteSpace(userId) ? "usr_admin_default" : userId,
-                                    Action = "bulk_price_adjustment",
-                                    EntityType = "products",
-                                    EntityId = "bulk",
-                                    DetailsJson = details,
-                                    CreatedAt = now
-                                });
-                            }
-                            catch { }
-                        }
-
-                        trans.Commit();
-
-                        result.Success = true;
-                        result.UpdatedCount = updatedCount;
-                        result.Message = string.Format("تم تحديث أسعار {0} صنف بنجاح", updatedCount);
-                        return result;
-                    }
-                    catch (Exception ex)
-                    {
-                        trans.Rollback();
-                        Common.Logger.Error("فشل تنفيذ التعديل الجماعي للأسعار", ex);
-                        throw;
-                    }
-                }
-            }
-        }
-
-        #region Feature #119 / Story 108: الباركود الداخلي القياسي للأصناف
-
-        /// <summary>
-        /// فحص هل الباركود مستخدم بالفعل في الأصناف أو الباركودات الإضافية أو الوحدات
-        /// </summary>
-        public bool IsBarcodeInUse(SQLiteConnection conn, SQLiteTransaction trans, string barcode, string excludeProductId = null)
-        {
-            if (string.IsNullOrWhiteSpace(barcode)) return false;
-            string clean = barcode.Trim();
-
-            string sql = @"
-                SELECT 1 FROM products WHERE is_active = 1 AND barcode = @barcode AND (@excludeId IS NULL OR id != @excludeId)
-                UNION ALL
-                SELECT 1 FROM product_barcodes WHERE barcode = @barcode AND (@excludeId IS NULL OR product_id != @excludeId)
-                UNION ALL
-                SELECT 1 FROM product_units WHERE barcode = @barcode AND (@excludeId IS NULL OR product_id != @excludeId)
-                LIMIT 1;
-            ";
-            using (var cmd = new SQLiteCommand(sql, conn, trans))
-            {
-                cmd.Parameters.AddWithValue("@barcode", clean);
-                cmd.Parameters.AddWithValue("@excludeId", (object)excludeProductId ?? DBNull.Value);
-                object res = cmd.ExecuteScalar();
-                return res != null && res != DBNull.Value;
-            }
-        }
-
-        /// <summary>
-        /// توليد باركود داخلي قياسي فريد يمنع التعارض مع أي صنف مسجل
-        /// </summary>
-        public string GenerateUniqueInternalBarcode(SQLiteConnection conn, SQLiteTransaction trans)
-        {
-            const int maxAttempts = 10000;
-            for (int attempt = 0; attempt < maxAttempts; attempt++)
-            {
-                long nextCounter = _counters.GetNextCounterNumber(conn, trans, "internal_barcode");
-                string candidate = BarcodeGenerator.FormatInternalEan13(nextCounter);
-                if (!IsBarcodeInUse(conn, trans, candidate))
-                {
-                    return candidate;
-                }
-            }
-            throw new InvalidOperationException("تعذر توليد باركود داخلي فريد بعد عدة محاولات لتفادي التعارض.");
-        }
-
-        /// <summary>
-        /// توليد الرقم المتوقع التالي للباركود الداخلي دون حفظه على منتج معين
-        /// </summary>
-        public string GenerateNextInternalBarcode()
-        {
-            using (var conn = new SQLiteConnection(_connectionString))
-            {
-                conn.Open();
-                using (var trans = conn.BeginTransaction())
-                {
-                    try
-                    {
-                        string bc = GenerateUniqueInternalBarcode(conn, trans);
-                        trans.Commit();
-                        return bc;
-                    }
-                    catch
-                    {
-                        trans.Rollback();
-                        throw;
-                    }
-                }
-            }
-        }
-
-        /// <summary>
-        /// تعيين وتوليد باركود داخلي قياسي لصنف واحد محدد
-        /// </summary>
-        public AssignBarcodeResult AssignInternalBarcode(string productId, string userId = null)
-        {
-            if (string.IsNullOrWhiteSpace(productId))
-            {
-                return new AssignBarcodeResult
-                {
-                    Success = false,
-                    Message = "معرف الصنف غير محدد."
-                };
-            }
-
-            using (var conn = new SQLiteConnection(_connectionString))
-            {
-                conn.Open();
-                using (var trans = conn.BeginTransaction())
-                {
-                    try
-                    {
-                        string name = null;
-                        string existingBarcode = null;
-                        using (var cmdFind = new SQLiteCommand("SELECT name, barcode FROM products WHERE id = @id LIMIT 1;", conn, trans))
-                        {
-                            cmdFind.Parameters.AddWithValue("@id", productId);
-                            using (var r = cmdFind.ExecuteReader())
-                            {
-                                if (r.Read())
-                                {
-                                    name = r["name"].ToString();
-                                    existingBarcode = r["barcode"] != DBNull.Value ? r["barcode"].ToString() : "";
-                                }
-                            }
-                        }
-
-                        if (name == null)
-                        {
-                            trans.Rollback();
-                            return new AssignBarcodeResult
-                            {
-                                Success = false,
-                                Message = "الصنف غير موجود في قاعدة البيانات."
-                            };
-                        }
-
-                        string generatedBarcode = GenerateUniqueInternalBarcode(conn, trans);
-                        string now = DateTime.UtcNow.ToString("o");
-
-                        using (var cmdUp = new SQLiteCommand("UPDATE products SET barcode = @bc, updated_at = @now WHERE id = @id;", conn, trans))
-                        {
-                            cmdUp.Parameters.AddWithValue("@bc", generatedBarcode);
-                            cmdUp.Parameters.AddWithValue("@now", now);
-                            cmdUp.Parameters.AddWithValue("@id", productId);
-                            cmdUp.ExecuteNonQuery();
-                        }
-
-                        if (_auditRepo != null)
-                        {
-                            try
-                            {
-                                string details = string.Format("{{\"product_id\":\"{0}\",\"name\":\"{1}\",\"old_barcode\":\"{2}\",\"new_barcode\":\"{3}\"}}",
-                                    productId,
-                                    (name ?? "").Replace("\"", "\\\""),
-                                    (existingBarcode ?? "").Replace("\"", "\\\""),
-                                    generatedBarcode);
-
-                                _auditRepo.Log(conn, trans, new AuditLog
-                                {
-                                    Id = "aud_" + Guid.NewGuid().ToString("N"),
-                                    UserId = string.IsNullOrWhiteSpace(userId) ? "usr_admin_default" : userId,
-                                    Action = "assign_internal_barcode",
-                                    EntityType = "products",
-                                    EntityId = productId,
-                                    DetailsJson = details,
-                                    CreatedAt = now
-                                });
-                            }
-                            catch { }
-                        }
-
-                        trans.Commit();
-                        return new AssignBarcodeResult
-                        {
-                            Success = true,
-                            ProductId = productId,
-                            Barcode = generatedBarcode,
-                            Message = string.Format("تم تعيين الباركود الداخلي {0} للصنف '{1}' بنجاح.", generatedBarcode, name)
-                        };
-                    }
-                    catch (Exception ex)
-                    {
-                        trans.Rollback();
-                        Common.Logger.Error("فشل تعيين باركود داخلي للصنف: " + productId, ex);
-                        throw;
-                    }
-                }
-            }
-        }
-
-        /// <summary>
-        /// توليد باركودات داخلية قياسية لجميع الأصناف النشطة التي ليس لها باركود دفعة واحدة
-        /// في معاملة ذرية واحدة (ACID Transaction)
-        /// </summary>
-        public BulkGenerateBarcodesResult BulkGenerateInternalBarcodes(string userId = null)
-        {
-            var result = new BulkGenerateBarcodesResult();
-            using (var conn = new SQLiteConnection(_connectionString))
-            {
-                conn.Open();
-                using (var trans = conn.BeginTransaction())
-                {
-                    try
-                    {
-                        // 1. استرجاع كافة الأصناف النشطة التي ليس لها باركود
-                        var missingProducts = new List<BulkBarcodeProductItem>();
-                        string selectSql = @"
-                            SELECT id, name, price_piasters
-                            FROM products
-                            WHERE is_active = 1 AND (barcode IS NULL OR TRIM(barcode) = '')
-                            ORDER BY created_at ASC;
-                        ";
-                        using (var cmdSelect = new SQLiteCommand(selectSql, conn, trans))
-                        {
-                            using (var r = cmdSelect.ExecuteReader())
-                            {
-                                while (r.Read())
-                                {
-                                    missingProducts.Add(new BulkBarcodeProductItem
-                                    {
-                                        ProductId = r["id"].ToString(),
-                                        ProductName = r["name"].ToString(),
-                                        PricePiasters = Convert.ToInt64(r["price_piasters"])
-                                    });
-                                }
-                            }
-                        }
-
-                        if (missingProducts.Count == 0)
-                        {
-                            trans.Commit();
-                            result.Success = true;
-                            result.Count = 0;
-                            result.Message = "لا توجد أصناف نشطة بدون باركود في النظام.";
-                            return result;
-                        }
-
-                        string now = DateTime.UtcNow.ToString("o");
-
-                        // 2. توليد باركود فريد وتحديث كل صنف داخل المعاملة الذرية
-                        for (int i = 0; i < missingProducts.Count; i++)
-                        {
-                            var prod = missingProducts[i];
-                            string bc = GenerateUniqueInternalBarcode(conn, trans);
-                            prod.Barcode = bc;
-
-                            using (var cmdUpdate = new SQLiteCommand("UPDATE products SET barcode = @bc, updated_at = @now WHERE id = @id;", conn, trans))
-                            {
-                                cmdUpdate.Parameters.AddWithValue("@bc", bc);
-                                cmdUpdate.Parameters.AddWithValue("@now", now);
-                                cmdUpdate.Parameters.AddWithValue("@id", prod.ProductId);
-                                cmdUpdate.ExecuteNonQuery();
-                            }
-                        }
-
-                        // 3. تسجيل حركة التدقيق الأمني
-                        if (_auditRepo != null)
-                        {
-                            try
-                            {
-                                string details = string.Format("{{\"count\":{0},\"action\":\"bulk_generate_internal_barcodes\"}}", missingProducts.Count);
-                                _auditRepo.Log(conn, trans, new AuditLog
-                                {
-                                    Id = "aud_" + Guid.NewGuid().ToString("N"),
-                                    UserId = string.IsNullOrWhiteSpace(userId) ? "usr_admin_default" : userId,
-                                    Action = "bulk_generate_internal_barcodes",
-                                    EntityType = "products",
-                                    EntityId = "bulk",
-                                    DetailsJson = details,
-                                    CreatedAt = now
-                                });
-                            }
-                            catch { }
-                        }
-
-                        trans.Commit();
-
-                        result.Success = true;
-                        result.Count = missingProducts.Count;
-                        result.Products = missingProducts;
-                        result.Message = string.Format("تم توليد وتعيين باركود داخلي قياسي (EAN-13) لـ {0} صنف بنجاح.", missingProducts.Count);
-                        return result;
-                    }
-                    catch (Exception ex)
-                    {
-                        trans.Rollback();
-                        Common.Logger.Error("فشل التوليد الجماعي للباركودات الداخلية للأصناف", ex);
-                        throw;
-                    }
-                }
-            }
-        }
-
-        /// <summary>
-        /// حساب عدد الأصناف التي ليس لها باركود
-        /// </summary>
-        public int GetMissingBarcodeCount()
-        {
-            using (var conn = new SQLiteConnection(_connectionString))
-            {
-                conn.Open();
-                string sql = "SELECT COUNT(*) FROM products WHERE is_active = 1 AND (barcode IS NULL OR TRIM(barcode) = '');";
-                using (var cmd = new SQLiteCommand(sql, conn))
-                {
-                    object res = cmd.ExecuteScalar();
-                    if (res != null && res != DBNull.Value)
-                    {
-                        return Convert.ToInt32(res);
-                    }
-                }
-            }
-            return 0;
-        }
-
-        #endregion
     }
 }

@@ -1,12 +1,13 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { FormEvent } from 'react';
-import type { Product, QuickItem, QuickBundleItem, ProductUnit } from '../../types/models';
+import type { Product, QuickItem, QuickBundleItem, ProductUnit, Category } from '../../types/models';
 import type { SmartCatalogItem } from './types';
 import { normalizeArabicNumerals, normalizeArabicText } from '../../utils/money';
 
 interface UsePosCatalogProps {
   catalogProducts: Product[];
   quickItems: QuickItem[];
+  categories?: Category[];
   addProductToCart: (prod: Product, customWeightMilli?: number, specificUnit?: ProductUnit) => void;
   showStatus: (text: string, type?: 'success' | 'error' | 'warning') => void;
   barcodeInputRef: React.RefObject<HTMLInputElement | null>;
@@ -25,6 +26,7 @@ interface UsePosCatalogProps {
 export const usePosCatalog = ({
   catalogProducts,
   quickItems,
+  categories = [],
   addProductToCart,
   showStatus,
   barcodeInputRef,
@@ -50,10 +52,34 @@ export const usePosCatalog = ({
     const list: SmartCatalogItem[] = [];
     const seenProductIds = new Set<string>();
 
+    const categoryIdToName = new Map<string, string>();
+    const categoryNameToId = new Map<string, string>();
+    for (const cat of categories) {
+      if (cat.id && cat.name) {
+        categoryIdToName.set(cat.id, cat.name.trim());
+        categoryNameToId.set(cat.name.trim().toLowerCase(), cat.id);
+      }
+    }
+
     for (const p of catalogProducts) {
       const matchedQuick = quickItems.find((q) => q.productId === p.id);
       const isCustom = Boolean(matchedQuick) || Boolean(p.isCustomQuickItem);
       const popScore = p.salesCount || 0;
+
+      let resolvedCategoryName = matchedQuick?.categoryName?.trim() || p.categoryName?.trim();
+      let resolvedCategoryId = p.categoryId || null;
+
+      if (!resolvedCategoryName || resolvedCategoryName === 'عام') {
+        if (resolvedCategoryId && categoryIdToName.has(resolvedCategoryId)) {
+          resolvedCategoryName = categoryIdToName.get(resolvedCategoryId)!;
+        } else {
+          resolvedCategoryName = 'عام';
+        }
+      }
+
+      if (!resolvedCategoryId && resolvedCategoryName && resolvedCategoryName !== 'عام') {
+        resolvedCategoryId = categoryNameToId.get(resolvedCategoryName.toLowerCase()) || null;
+      }
 
       list.push({
         id: p.id,
@@ -62,8 +88,8 @@ export const usePosCatalog = ({
         pricePiasters: (matchedQuick && matchedQuick.pricePiasters > 0) ? matchedQuick.pricePiasters : p.pricePiasters,
         isOpenPrice: matchedQuick?.isOpenPrice || Boolean(p.isOpenPrice),
         unit: p.unit || 'piece',
-        categoryId: p.categoryId,
-        categoryName: matchedQuick?.categoryName || p.categoryName || 'عام',
+        categoryId: resolvedCategoryId,
+        categoryName: resolvedCategoryName,
         stockQuantityMilli: p.stockQuantityMilli,
         barcode: p.barcode,
         barcodes: p.barcodes,
@@ -84,6 +110,9 @@ export const usePosCatalog = ({
       if (q.productId && seenProductIds.has(q.productId)) continue;
       const matchedProd = q.productId ? catalogProducts.find((p) => p.id === q.productId) : null;
       const popScore = matchedProd?.salesCount || 0;
+      const qCatName = q.categoryName?.trim() || 'عام';
+      const qCatId = categoryNameToId.get(qCatName.toLowerCase()) || null;
+
       list.push({
         id: q.id,
         productId: q.productId,
@@ -91,8 +120,8 @@ export const usePosCatalog = ({
         pricePiasters: q.pricePiasters,
         isOpenPrice: Boolean(q.isOpenPrice),
         unit: q.unit || 'piece',
-        categoryId: null,
-        categoryName: q.categoryName || 'عام',
+        categoryId: qCatId,
+        categoryName: qCatName,
         isCustomQuickItem: true,
         salesCount: popScore,
         quickDisplayOrder: q.displayOrder ?? 0,
@@ -100,7 +129,7 @@ export const usePosCatalog = ({
     }
 
     return list;
-  }, [catalogProducts, quickItems]);
+  }, [catalogProducts, quickItems, categories]);
 
   const categoryTabs = useMemo(() => {
     const map = new Map<string, number>();
@@ -174,13 +203,24 @@ export const usePosCatalog = ({
       });
     }
 
+    const targetCat = categories.find((c) => c.id === activeCatalogTab || c.name === activeCatalogTab);
+    const targetId = targetCat?.id || activeCatalogTab;
+    const targetName = (targetCat?.name || activeCatalogTab).trim().toLowerCase();
+    const targetNorm = normalizeArabicText(targetName);
+
     return result
-      .filter((it) => (it.categoryName || 'عام') === activeCatalogTab || it.categoryId === activeCatalogTab)
+      .filter((it) => {
+        if (it.categoryId && targetId && it.categoryId === targetId) return true;
+        const itCatName = (it.categoryName || 'عام').trim().toLowerCase();
+        if (itCatName === targetName) return true;
+        if (normalizeArabicText(itCatName) === targetNorm) return true;
+        return false;
+      })
       .sort((a, b) => {
         if (b.salesCount !== a.salesCount) return b.salesCount - a.salesCount;
         return a.name.localeCompare(b.name, 'ar');
       });
-  }, [smartItems, catalogSearchQuery, activeCatalogTab]);
+  }, [smartItems, catalogSearchQuery, activeCatalogTab, categories]);
 
   const handleSmartItemClick = useCallback((item: SmartCatalogItem, specificUnit?: ProductUnit) => {
     if (item.isOpenPrice) {

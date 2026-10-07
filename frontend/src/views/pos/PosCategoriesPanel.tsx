@@ -17,6 +17,7 @@ import {
   PanelLeftOpen
 } from 'lucide-react';
 import type { Category } from '../../types/models';
+import { normalizeArabicText } from '../../utils/money';
 
 interface PosCategoriesPanelProps {
   categories: Category[];
@@ -356,7 +357,12 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
         ) : (
           filteredCategories.map((cat) => {
             const count = categoryProductCounts[cat.name] ?? categoryProductCounts[cat.id] ?? cat.productCount ?? 0;
-            const isSelected = activeCatalogTab === cat.name || activeCatalogTab === cat.id;
+            const isSelected = activeCatalogTab === cat.name || 
+              activeCatalogTab === cat.id || 
+              (activeCatalogTab !== '__ALL__' && 
+               activeCatalogTab !== '__POPULAR__' && 
+               activeCatalogTab !== '__CUSTOM__' && 
+               normalizeArabicText(cat.name.trim()) === normalizeArabicText(activeCatalogTab.trim()));
             const IconComponent = getCategoryIcon(cat.name);
 
             if (isCollapsed) {

@@ -116,6 +116,9 @@
     <Compile Include="Models\Return.cs" />
     <Compile Include="Models\ProductBatch.cs" />
     <Compile Include="Repositories\ProductRepository.cs" />
+    <Compile Include="Repositories\ProductRepository.Import.cs" />
+    <Compile Include="Repositories\ProductRepository.BulkPricing.cs" />
+    <Compile Include="Repositories\ProductRepository.Barcodes.cs" />
     <Compile Include="Repositories\SaleRepository.cs" />
     <Compile Include="Repositories\CounterRepository.cs" />
     <Compile Include="Repositories\SettingsRepository.cs" />

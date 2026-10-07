@@ -68,7 +68,7 @@ export const VoidInvoiceModal: React.FC<VoidInvoiceModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none"
+      className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none"
       onClick={onClose}
     >
       <div 
@@ -77,7 +77,7 @@ export const VoidInvoiceModal: React.FC<VoidInvoiceModalProps> = ({
         dir="rtl"
       >
         {/* Modal Header */}
-        <div className="h-[52px] px-4 border-b border-rose-100 flex items-center justify-between bg-rose-50/70">
+        <div className="h-[52px] px-4 border-b border-rose-100 flex items-center justify-between bg-rose-50/70 shrink-0">
           <div className="flex items-center gap-2">
             <Ban className="w-5 h-5 text-rose-600" />
             <h2 className="text-[17px] font-bold text-rose-900 m-0">إلغاء الفاتورة بالكامل</h2>

@@ -41,6 +41,7 @@ import {
 } from './components/NotificationCenter';
 import { useSystemNotifications } from './utils/useSystemNotifications';
 import { invoke } from './bridge/ipc';
+import { useDataSubscription, emitDataChanged } from './utils/eventBus';
 import { PosView } from './views/PosView';
 import { DashboardView } from './views/DashboardView';
 import { RevenueAnalyticsView } from './views/analytics/RevenueAnalyticsView';
@@ -479,52 +480,60 @@ export default function App() {
         // Ignore in dev
       }
     };
-    const checkSettings = async () => {
-      try {
-        const s: any = await invoke('settings:getAll');
-        if (s && isMounted) {
-          if (s.store_name) setStoreName(s.store_name);
-          if (s.cashier_name) setCashierName((prev) => prev || s.cashier_name);
-          if (s.logo_variant === 'modern' || s.logo_variant === 'classic') {
-            setLogoVariant(s.logo_variant);
-            try {
-              localStorage.setItem('rafiq_logo_variant', s.logo_variant);
-            } catch {
-              // ignore
-            }
-          }
-        }
-        const u: UserDto = await invoke('auth:getCurrentUser');
-        if (u && isMounted) {
-          setCurrentUser(u);
-          setCashierName(u.displayName);
-        }
-        const sec: any = await invoke('security:getStatus');
-        if (sec && isMounted && typeof sec.idleTimeoutMinutes === 'number') {
-          setIdleTimeoutMinutes(sec.idleTimeoutMinutes);
-        }
-      } catch {
-        // Ignore in dev
-      }
-    };
-    const checkLowStock = async () => {
-      try {
-        const res: any = await invoke('products:getLowStockCount');
-        if (res && typeof res.count === 'number' && isMounted) {
-          setLowStockCount(res.count);
-        }
-      } catch {
-        // Ignore in dev
-      }
-    };
-    void checkLowStock();
     void checkDemo();
-    void checkSettings();
 
     return () => {
       isMounted = false;
     };
   }, [activeTab]);
+
+  const refreshSettings = useCallback(async () => {
+    try {
+      const s: any = await invoke('settings:getAll');
+      if (s) {
+        if (s.store_name) setStoreName(s.store_name);
+        if (s.cashier_name) setCashierName((prev) => prev || s.cashier_name);
+        if (s.logo_variant === 'modern' || s.logo_variant === 'classic') {
+          setLogoVariant(s.logo_variant);
+          try {
+            localStorage.setItem('rafiq_logo_variant', s.logo_variant);
+          } catch {
+            // ignore
+          }
+        }
+      }
+      const u: UserDto = await invoke('auth:getCurrentUser');
+      if (u) {
+        setCurrentUser(u);
+        setCashierName(u.displayName);
+      }
+      const sec: any = await invoke('security:getStatus');
+      if (sec && typeof sec.idleTimeoutMinutes === 'number') {
+        setIdleTimeoutMinutes(sec.idleTimeoutMinutes);
+      }
+    } catch {
+      // Ignore in dev
+    }
+  }, []);
+
+  const refreshLowStock = useCallback(async () => {
+    try {
+      const res: any = await invoke('products:getLowStockCount');
+      if (res && typeof res.count === 'number') {
+        setLowStockCount(res.count);
+      }
+    } catch {
+      // Ignore in dev
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshSettings();
+    void refreshLowStock();
+  }, [refreshSettings, refreshLowStock]);
+
+  useDataSubscription(['settings', 'all'], refreshSettings);
+  useDataSubscription(['products', 'all'], refreshLowStock);
 
 
   // Global keyboard shortcuts for switching tabs and system actions
@@ -575,6 +584,13 @@ export default function App() {
       if (e.key === 'F1' && activeTab !== 'pos') {
         e.preventDefault();
         setActiveTab('pos');
+        return;
+      }
+
+      // 4. F5 or Ctrl+R for instant live soft data refresh across all views
+      if (e.key === 'F5' || (e.ctrlKey && e.key.toLowerCase() === 'r')) {
+        e.preventDefault();
+        emitDataChanged('all');
         return;
       }
     };
@@ -870,7 +886,7 @@ export default function App() {
                         if (isSettingsItem) setSettingsSubTab('profile');
                       });
                     }}
-                    title={`${item.label} (${item.shortcut})`}
+                    title={item.label}
                     className={`relative w-full h-[42px] rounded-xl flex items-center justify-center transition-all duration-150 group cursor-pointer ${
                       isActive
                         ? 'bg-brand-dark text-white shadow-xs'
@@ -939,26 +955,15 @@ export default function App() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-1.5">
-                      {item.shortcut && (
-                        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-md border ${
-                          isActive
-                            ? 'bg-white/15 text-white/90 border-white/20'
-                            : 'bg-slate-100 text-[#52605d] border-[#dce1dc]'
-                        }`}>
-                          {item.shortcut}
-                        </span>
-                      )}
-                      {(isDashboardItem || isProductsItem || isPurchasesItem || isSettingsItem) && (
-                        <span className={isActive ? 'text-white/80' : 'text-[#52605d]'}>
-                          {(isDashboardItem ? isDashboardMenuExpanded : isProductsItem ? isProductsMenuExpanded : isPurchasesItem ? isPurchasesMenuExpanded : isSettingsMenuExpanded) ? (
-                            <ChevronDown className="w-3.5 h-3.5" />
-                          ) : (
-                            <ChevronLeft className="w-3.5 h-3.5" />
-                          )}
-                        </span>
-                      )}
-                    </div>
+                    {(isDashboardItem || isProductsItem || isPurchasesItem || isSettingsItem) && (
+                      <span className={`shrink-0 ${isActive ? 'text-white/80' : 'text-[#52605d]'}`}>
+                        {(isDashboardItem ? isDashboardMenuExpanded : isProductsItem ? isProductsMenuExpanded : isPurchasesItem ? isPurchasesMenuExpanded : isSettingsMenuExpanded) ? (
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        ) : (
+                          <ChevronLeft className="w-3.5 h-3.5" />
+                        )}
+                      </span>
+                    )}
                   </button>
 
                   {/* Sub-tree for Dashboard & Executive Analytics */}

@@ -623,8 +623,8 @@ namespace RafiqPOS.Services
                             ('cat_snacks', 'حلويات ومقرمشات', 4, 1, datetime('now'), datetime('now')),
                             ('cat_cleaning', 'منظفات وعناية شخصية', 5, 1, datetime('now'), datetime('now'));
 
-                            INSERT OR IGNORE INTO customers (id, name, phone, balance_piasters, credit_limit_piasters, created_at)
-                            VALUES ('cust_general_cash', 'عميل نقدي عام', '', 0, 0, datetime('now'));
+                            DELETE FROM customer_ledger WHERE customer_id = 'cust_general_cash';
+                            DELETE FROM customers WHERE id = 'cust_general_cash';
                         ", conn, trans))
                         {
                             cmd.ExecuteNonQuery();

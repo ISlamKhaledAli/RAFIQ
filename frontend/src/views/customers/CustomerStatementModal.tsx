@@ -10,6 +10,8 @@ import {
   Receipt,
   Printer,
   AlertTriangle,
+  ArrowUpRight,
+  ArrowDownLeft,
 } from 'lucide-react';
 import type { Customer, CustomerLedgerEntry, CustomerBalanceVerification } from '../../types/models';
 import { CustomSelect } from '../../components/CustomSelect';
@@ -90,8 +92,18 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               <span className="text-sm font-bold text-ink">
                 كشف حساب العميل: {selectedCustomer.name}
               </span>
-              <span className="text-[11px] px-2 py-0.5 rounded bg-danger-soft text-danger border border-danger-border font-mono font-bold">
-                الرصيد الحالي: {(selectedCustomer.balancePiasters / 100).toFixed(2)} ج.م
+              <span className={`text-[11px] px-2.5 py-0.5 rounded font-bold border ${
+                selectedCustomer.balancePiasters > 0
+                  ? 'bg-danger-soft text-danger border-danger-border'
+                  : selectedCustomer.balancePiasters < 0
+                  ? 'bg-paid-soft text-paid border-paid-border'
+                  : 'bg-surface-2 text-ink-muted border-line'
+              }`}>
+                {selectedCustomer.balancePiasters > 0
+                  ? `عليه دين: ${(selectedCustomer.balancePiasters / 100).toFixed(2)} ج.م`
+                  : selectedCustomer.balancePiasters < 0
+                  ? `له رصيد: ${(Math.abs(selectedCustomer.balancePiasters) / 100).toFixed(2)} ج.م`
+                  : 'الحساب خالص (0.00 ج.م)'}
               </span>
               <button
                 type="button"
@@ -208,30 +220,84 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
           </div>
 
           {/* Statement Summary Strip */}
-          <div className="grid grid-cols-4 divide-x divide-x-reverse divide-line bg-surface hairline-b text-center py-2 shrink-0">
-            <div className="px-2">
-              <span className="block text-[10px] text-ink-muted">رصيد أول المدة</span>
-              <span className="font-mono text-xs font-bold text-ink">
-                {(statementPeriodSummary.openingBalancePiasters / 100).toFixed(2)} ج.م
-              </span>
+          <div className="bg-surface hairline-b px-4 py-2.5 shrink-0 flex flex-wrap items-center justify-between gap-3">
+            {/* Hero Net Balance Card */}
+            <div className={`flex items-center gap-3 px-3.5 py-2 rounded-lg border flex-1 min-w-[280px] ${
+              statementPeriodSummary.closingBalancePiasters > 0
+                ? 'bg-danger-soft border-danger-border text-danger'
+                : statementPeriodSummary.closingBalancePiasters < 0
+                ? 'bg-paid-soft border-paid-border text-paid'
+                : 'bg-surface-2 border-line text-ink'
+            }`}>
+              <div className="shrink-0 p-2 rounded-md bg-surface shadow-xs">
+                {statementPeriodSummary.closingBalancePiasters > 0 ? (
+                  <ArrowUpRight className="w-5 h-5 text-danger" />
+                ) : statementPeriodSummary.closingBalancePiasters < 0 ? (
+                  <ArrowDownLeft className="w-5 h-5 text-paid" />
+                ) : (
+                  <CheckCircle2 className="w-5 h-5 text-paid" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-ink">
+                    {statementPeriodSummary.closingBalancePiasters > 0
+                      ? 'الوضع المالي: عليه دين للمحل'
+                      : statementPeriodSummary.closingBalancePiasters < 0
+                      ? 'الوضع المالي: له رصيد عند المحل'
+                      : 'الوضع المالي: الحساب خالص بالكامل'}
+                  </span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
+                    statementPeriodSummary.closingBalancePiasters > 0
+                      ? 'bg-danger text-white'
+                      : statementPeriodSummary.closingBalancePiasters < 0
+                      ? 'bg-paid text-white'
+                      : 'bg-surface border border-line text-ink-muted'
+                  }`}>
+                    {statementPeriodSummary.closingBalancePiasters > 0
+                      ? 'عليه دين'
+                      : statementPeriodSummary.closingBalancePiasters < 0
+                      ? 'له رصيد'
+                      : 'خالص'}
+                  </span>
+                </div>
+                <div className="text-lg font-black font-mono tracking-tight mt-0.5">
+                  {(Math.abs(statementPeriodSummary.closingBalancePiasters) / 100).toFixed(2)} ج.م
+                </div>
+              </div>
             </div>
-            <div className="px-2">
-              <span className="block text-[10px] text-ink-muted">مبيعات الآجل (+)</span>
-              <span className="font-mono text-xs font-bold text-danger">
-                +{(statementPeriodSummary.periodDebitsPiasters / 100).toFixed(2)} ج.م
-              </span>
-            </div>
-            <div className="px-2">
-              <span className="block text-[10px] text-ink-muted">دفعات السداد (-)</span>
-              <span className="font-mono text-xs font-bold text-paid">
-                -{(statementPeriodSummary.periodCreditsPiasters / 100).toFixed(2)} ج.م
-              </span>
-            </div>
-            <div className="px-2">
-              <span className="block text-[10px] text-ink-muted">رصيد آخر المدة</span>
-              <span className="font-mono text-xs font-bold text-ink">
-                {(statementPeriodSummary.closingBalancePiasters / 100).toFixed(2)} ج.م
-              </span>
+
+            {/* Simplified Period Details */}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Period Purchases */}
+              <div className="px-3 py-1.5 rounded-lg bg-surface-2 border border-line text-right min-w-[120px]">
+                <span className="block text-[10px] text-ink-muted font-medium">مسحوبات آجل</span>
+                <span className="font-mono text-xs font-bold text-danger">
+                  {(statementPeriodSummary.periodDebitsPiasters / 100).toFixed(2)} ج.م
+                </span>
+              </div>
+
+              {/* Period Payments */}
+              <div className="px-3 py-1.5 rounded-lg bg-surface-2 border border-line text-right min-w-[120px]">
+                <span className="block text-[10px] text-ink-muted font-medium">سداد نقدي</span>
+                <span className="font-mono text-xs font-bold text-paid">
+                  {(statementPeriodSummary.periodCreditsPiasters / 100).toFixed(2)} ج.م
+                </span>
+              </div>
+
+              {/* Prior Balance */}
+              <div className="px-3 py-1.5 rounded-lg bg-surface-2 border border-line text-right min-w-[130px]">
+                <span className="block text-[10px] text-ink-muted font-medium">رصيد ما قبل الفترة</span>
+                <span className="font-mono text-xs font-bold text-ink">
+                  {(Math.abs(statementPeriodSummary.openingBalancePiasters) / 100).toFixed(2)} ج.م
+                  {statementPeriodSummary.openingBalancePiasters > 0 && (
+                    <span className="text-[9px] text-danger mr-1 font-sans font-medium">(كان عليه)</span>
+                  )}
+                  {statementPeriodSummary.openingBalancePiasters < 0 && (
+                    <span className="text-[9px] text-paid mr-1 font-sans font-medium">(كان له)</span>
+                  )}
+                </span>
+              </div>
             </div>
           </div>
 

@@ -335,7 +335,7 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
                 <div className="grid grid-cols-12 gap-3 items-end">
                   {/* 1. Unit Name */}
                   <div className="col-span-12 sm:col-span-3">
-                    <label className="block text-[11.5px] font-semibold text-ink mb-1">
+                    <label className="block text-[11.5px] font-semibold text-ink mb-1 whitespace-nowrap">
                       اسم العبوة *
                     </label>
                     <input
@@ -349,8 +349,8 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
 
                   {/* 2. Factor (Quantity inside) */}
                   <div className="col-span-6 sm:col-span-2">
-                    <label className="block text-[11.5px] font-semibold text-ink mb-1 truncate" title={`تحتوي على كم ${baseUnitName}؟`}>
-                      تحتوي على ({baseUnitName}) *
+                    <label className="block text-[11.5px] font-semibold text-ink mb-1 whitespace-nowrap truncate" title={`تحتوي على كم ${baseUnitName}؟`}>
+                      العدد ({baseUnitName}) *
                     </label>
                     <input
                       type="number"
@@ -373,16 +373,18 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
 
                   {/* 3. Sell Price */}
                   <div className="col-span-6 sm:col-span-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-[11.5px] font-semibold text-ink">سعر بيع العبوة *</label>
+                    <div className="flex items-center justify-between gap-1 mb-1 min-w-0">
+                      <label className="text-[11.5px] font-semibold text-ink whitespace-nowrap">
+                        سعر بيع العبوة *
+                      </label>
                       <button
                         type="button"
                         onClick={() => handleAutoCalculatePrices(idx)}
-                        className="text-[10px] text-brand hover:underline font-bold flex items-center gap-0.5 bg-brand-soft/70 px-1.5 py-0.2 rounded"
-                        title={`احتساب تلقائي: ${factor} × سعر ${baseUnitName}`}
+                        className="text-[10px] text-brand hover:bg-brand/10 font-bold flex items-center gap-1 bg-brand-soft px-1.5 py-0.5 rounded border border-brand/20 whitespace-nowrap shrink-0 transition-colors cursor-pointer"
+                        title={`احتساب تلقائي: ضرب سعر ${baseUnitName} (${formatArabicCurrency(basePricePiasters)}) × ${factor} = ${formatArabicCurrency(basePricePiasters * factor)}`}
                       >
-                        <Sparkles className="w-2.5 h-2.5" />
-                        <span>تلقائي ({formatArabicCurrency(basePricePiasters * factor)})</span>
+                        <Sparkles className="w-2.5 h-2.5 text-brand shrink-0" />
+                        <span>تلقائي</span>
                       </button>
                     </div>
                     <MoneyInput
@@ -394,7 +396,9 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
 
                   {/* 4. Cost Price */}
                   <div className="col-span-6 sm:col-span-2">
-                    <label className="block text-[11.5px] font-semibold text-ink mb-1">تكلفة العبوة</label>
+                    <label className="block text-[11.5px] font-semibold text-ink mb-1 whitespace-nowrap">
+                      تكلفة العبوة
+                    </label>
                     <MoneyInput
                       valuePiasters={u.costPricePiasters}
                       onChangePiasters={(c) => handleUpdateAdditionalUnit(idx, { costPricePiasters: c })}
@@ -404,7 +408,7 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
 
                   {/* 5. Barcode */}
                   <div className="col-span-6 sm:col-span-2">
-                    <label className="block text-[11.5px] font-semibold text-ink mb-1 truncate" title="باركود خاص بالكرتونة لقراءته بالسكانر">
+                    <label className="block text-[11.5px] font-semibold text-ink mb-1 whitespace-nowrap truncate" title="باركود خاص بالكرتونة لقراءته بالسكانر">
                       باركود العبوة
                     </label>
                     <div className="relative flex items-center">

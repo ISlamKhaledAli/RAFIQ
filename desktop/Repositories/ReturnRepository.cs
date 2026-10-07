@@ -243,7 +243,25 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
-                        // 5. Audit Log inside transaction
+                        // 5. Update original sale status to 'refunded' if linked to a sale
+                        if (!string.IsNullOrEmpty(returnObj.SaleId))
+                        {
+                            using (var uSaleCmd = new SQLiteCommand("UPDATE sales SET status = 'refunded' WHERE id = @sid AND status != 'cancelled';", conn, trans))
+                            {
+                                uSaleCmd.Parameters.AddWithValue("@sid", returnObj.SaleId);
+                                uSaleCmd.ExecuteNonQuery();
+                            }
+                        }
+                        else if (returnObj.InvoiceNumber.HasValue)
+                        {
+                            using (var uSaleCmd = new SQLiteCommand("UPDATE sales SET status = 'refunded' WHERE invoice_number = @inv AND status != 'cancelled';", conn, trans))
+                            {
+                                uSaleCmd.Parameters.AddWithValue("@inv", returnObj.InvoiceNumber.Value);
+                                uSaleCmd.ExecuteNonQuery();
+                            }
+                        }
+
+                        // 6. Audit Log inside transaction
                         string detailsJson = string.Format(
                             "{{\"returnNumber\":{0},\"totalPiasters\":{1},\"itemCount\":{2},\"refundMethod\":\"{3}\",\"saleId\":\"{4}\",\"invoiceNumber\":{5}}}",
                             returnObj.ReturnNumber, returnObj.TotalPiasters, returnObj.Items.Count,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   RotateCcw, 
   X, 
@@ -74,21 +74,89 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
   const [catalogResults, setCatalogResults] = useState<Product[]>([]);
   const [searchingCatalog, setSearchingCatalog] = useState(false);
 
-  const setupDraftFromSale = (sale: Sale) => {
+  const setupDraftFromSale = async (sale: Sale) => {
     setLoadedSale(sale);
+    setInvoiceQuery(sale.invoiceNumber ? String(sale.invoiceNumber) : '');
     setRefundMethod(sale.paymentMethod === 'credit' ? 'credit' : 'cash');
-    const drafts: ReturnItemDraft[] = (sale.items || []).map((item) => ({
-      saleItemId: item.id,
-      productId: item.productId,
-      productName: item.productName,
-      unitPricePiasters: item.unitPricePiasters,
-      originalQuantityPieces: item.quantityMilli / 1000,
-      previouslyReturnedPieces: (item.returnedQuantityMilli || 0) / 1000,
-      returnQuantityPieces: 0,
-      isDamaged: false
-    }));
+    setSaleError(null);
+
+    let returnedQtyMap: Record<string, number> = {};
+    try {
+      if (sale.id) {
+        const pastReturns = await invoke<Return[]>('returns:getForSale', { saleId: sale.id });
+        if (pastReturns && pastReturns.length > 0) {
+          pastReturns.forEach((ret) => {
+            (ret.items || []).forEach((ritem) => {
+              const pid = ritem.productId;
+              returnedQtyMap[pid] = (returnedQtyMap[pid] || 0) + (ritem.quantityMilli / 1000);
+            });
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    const drafts: ReturnItemDraft[] = (sale.items || []).map((item) => {
+      const prevReturned = returnedQtyMap[item.productId] ?? ((item.returnedQuantityMilli || 0) / 1000);
+      return {
+        saleItemId: item.id,
+        productId: item.productId,
+        productName: item.productName,
+        unitPricePiasters: item.unitPricePiasters,
+        originalQuantityPieces: item.quantityMilli / 1000,
+        previouslyReturnedPieces: prevReturned,
+        returnQuantityPieces: 0,
+        isDamaged: false
+      };
+    });
     setDraftItems(drafts);
   };
+
+  const fetchAndSetupSale = async (sale: Sale) => {
+    setSearchingSale(true);
+    setSaleError(null);
+    try {
+      const fullSale = sale.invoiceNumber 
+        ? await invoke<Sale>('sales:getByInvoiceNumber', { invoiceNumber: sale.invoiceNumber })
+        : (sale.id ? await invoke<Sale>('sales:getById', { id: sale.id }) : null);
+      if (fullSale && fullSale.id && fullSale.items && fullSale.items.length > 0) {
+        await setupDraftFromSale(fullSale);
+      } else {
+        await setupDraftFromSale(sale);
+      }
+    } catch {
+      await setupDraftFromSale(sale);
+    } finally {
+      setSearchingSale(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialSale) {
+        setMode('withInvoice');
+        setInvoiceQuery(initialSale.invoiceNumber ? String(initialSale.invoiceNumber) : '');
+        setCompletedReturn(null);
+        setSubmitError(null);
+        setSaleError(null);
+
+        if (initialSale.items && initialSale.items.length > 0) {
+          void setupDraftFromSale(initialSale);
+        } else {
+          void fetchAndSetupSale(initialSale);
+        }
+      } else {
+        setMode('withInvoice');
+        setInvoiceQuery('');
+        setLoadedSale(null);
+        setDraftItems([]);
+        setCompletedReturn(null);
+        setSubmitError(null);
+        setSaleError(null);
+      }
+    }
+  }, [isOpen, initialSale]);
 
   if (!isOpen) return null;
 
@@ -115,7 +183,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
           setSaleError('هذه الفاتورة ملغاة بالفعل، ولا يمكن عمل مرتجع لها.');
           return;
         }
-        setupDraftFromSale(sale);
+        void setupDraftFromSale(sale);
       } else {
         setSaleError(`لم يتم العثور على أي فاتورة برقم "${query}"`);
       }
@@ -258,7 +326,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none"
+      className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none"
       onClick={onClose}
     >
       <div 
@@ -267,7 +335,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
         dir="rtl"
       >
         {/* Modal Header */}
-        <div className="h-[52px] px-4 border-b border-amber-200 flex items-center justify-between bg-amber-50/70">
+        <div className="h-[52px] px-4 border-b border-amber-200 flex items-center justify-between bg-amber-50/70 shrink-0">
           <div className="flex items-center gap-2">
             <RotateCcw className="w-5 h-5 text-amber-700" />
             <h2 className="text-[17px] font-bold text-amber-900 m-0">مرتجع مبيعات (Refund)</h2>
@@ -275,14 +343,14 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
           <button 
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-slate-100 transition-colors"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Modal Content */}
-        <div className="p-4 space-y-4 overflow-y-auto flex-1">
+        <div className="p-4 space-y-4 overflow-y-auto flex-1 min-h-0">
           {completedReturn ? (
             /* Success State */
             <div className="py-8 text-center space-y-4">
@@ -628,7 +696,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
 
         {/* Modal Footer */}
         {!completedReturn && (
-          <div className="h-[56px] px-4 bg-[#F7F8F6] border-t border-slate-200 flex items-center justify-between">
+          <div className="h-[56px] px-4 bg-[#F7F8F6] border-t border-slate-200 flex items-center justify-between shrink-0">
             <div className="flex items-baseline gap-1">
               <span className="text-xs text-slate-500 font-bold">إجمالي المرتجع:</span>
               <span className="text-lg font-black font-mono text-amber-800 tabular-nums">

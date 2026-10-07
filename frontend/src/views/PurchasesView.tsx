@@ -6,6 +6,7 @@ import {
   Building2,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { useDataSubscription } from '../utils/eventBus';
 import { ConfirmModal } from '../components/ConfirmModal';
 import type { Supplier, Purchase, PurchaseItem, Product, SupplierTransaction } from '../types/models';
 import { PurchasesInvoicesTab } from './purchases/PurchasesInvoicesTab';
@@ -126,7 +127,6 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
     }
   }, [showToast]);
 
-  // Initial data loading
   useEffect(() => {
     let isMounted = true;
     const fetchInitialData = async () => {
@@ -148,6 +148,14 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
       isMounted = false;
     };
   }, [showArchivedSuppliers, showToast]);
+
+  useDataSubscription(['purchases', 'all'], () => {
+    void loadPurchases();
+  });
+
+  useDataSubscription(['suppliers', 'all'], () => {
+    void loadSuppliers();
+  });
 
   // Search products when query changes
   useEffect(() => {

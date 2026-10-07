@@ -22,7 +22,7 @@ namespace RafiqPOS.Repositories
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = "SELECT * FROM customers WHERE is_archived = 0 ORDER BY balance_piasters DESC, name ASC LIMIT @limit;";
+                string sql = "SELECT * FROM customers WHERE is_archived = 0 AND id != 'cust_general_cash' ORDER BY balance_piasters DESC, name ASC LIMIT @limit;";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@limit", limit > 0 ? limit : 100);
@@ -46,7 +46,7 @@ namespace RafiqPOS.Repositories
                 conn.Open();
                 string sql = @"
                     SELECT * FROM customers 
-                    WHERE is_archived = 0 AND (name LIKE @q OR phone LIKE @q)
+                    WHERE is_archived = 0 AND id != 'cust_general_cash' AND (name LIKE @q OR phone LIKE @q)
                     ORDER BY balance_piasters DESC, name ASC 
                     LIMIT 50;
                 ";
@@ -722,15 +722,18 @@ namespace RafiqPOS.Repositories
                 throw new ArgumentException("معرف العميل مفقود");
             }
 
-            // 1. Protect system customer
-            if (customerId == "cust_general_cash")
-            {
-                throw new InvalidOperationException("لا يمكن حذف العميل النقدي العام — هو حساب نظام أساسي مطلوب لتشغيل نقطة البيع");
-            }
-
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+
+                if (customerId == "cust_general_cash")
+                {
+                    using (var delCmd = new SQLiteCommand("DELETE FROM customers WHERE id = 'cust_general_cash';", conn))
+                    {
+                        delCmd.ExecuteNonQuery();
+                    }
+                    return;
+                }
 
                 // 2. Fetch current customer
                 Customer cust = null;

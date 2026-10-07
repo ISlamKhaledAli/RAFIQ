@@ -83,17 +83,33 @@ export const PaymentModal = ({
   ]);
 
   const receivedInputRef = useRef<HTMLInputElement>(null);
+  const prevIsOpenRef = useRef(false);
 
-  // Focus input on mount
+  // Reset and synchronize all payment fields cleanly whenever modal opens (Feature #27 / Anti-leak)
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpenRef.current) {
+      setActiveTab('cash');
+      setReceivedInput('0');
+      setReceivedPiasters(0);
+      setCurrentCustomerId(selectedCustomerId || null);
+      setShowQuickAdd(false);
+      setQuickName('');
+      setQuickPhone('');
+      setSplitRows([
+        { id: '1', method: 'cash', amountPiasters: Math.round(netTotalPiasters / 2) },
+        { id: '2', method: 'card', amountPiasters: netTotalPiasters - Math.round(netTotalPiasters / 2) },
+      ]);
       const timer = setTimeout(() => {
         receivedInputRef.current?.focus();
         receivedInputRef.current?.select();
       }, 60);
+      prevIsOpenRef.current = true;
       return () => clearTimeout(timer);
     }
-  }, [isOpen]);
+    if (!isOpen) {
+      prevIsOpenRef.current = false;
+    }
+  }, [isOpen, netTotalPiasters, selectedCustomerId]);
 
   const duplicateQuickCustomer = useMemo(() => {
     const clean = quickPhone.trim().replace(/[\s-]/g, '');
@@ -134,7 +150,7 @@ export const PaymentModal = ({
 
   // Calculations for Single Cash payment
   const changeDuePiasters = Math.max(0, receivedPiasters - netTotalPiasters);
-  const isShortPayment = receivedPiasters < netTotalPiasters;
+  const isShortPayment = receivedPiasters > 0 && receivedPiasters < netTotalPiasters;
   const shortAmountPiasters = Math.max(0, netTotalPiasters - receivedPiasters);
 
   // Calculations for Multi/Split payment
@@ -167,6 +183,33 @@ export const PaymentModal = ({
 
   const handleConfirm = async () => {
     if (activeTab === 'cash') {
+      if (receivedPiasters === 0) {
+        const confirmExact = await rafiqConfirm({
+          title: 'تأكيد الدفع نقداً بالكامل',
+          message: `المبلغ المستلم غير مدخل (0 ج.م).\nهل تم استلام كامل قيمة الفاتورة بالظبط (${formatArabicCurrency(netTotalPiasters)}) نقداً؟`,
+          confirmText: 'نعم، تم استلام المبلغ بالكامل',
+          cancelText: 'تراجع لكتابة المبلغ',
+          variant: 'info',
+        });
+        if (!confirmExact) return;
+
+        const payments: SalePayment[] = [
+          {
+            amountPiasters: netTotalPiasters,
+            method: 'cash',
+          },
+        ];
+
+        onConfirmPayment({
+          paymentMethod: 'cash',
+          paidPiasters: netTotalPiasters,
+          payments,
+          changeDuePiasters: 0,
+          customerId: currentCustomerId,
+        });
+        return;
+      }
+
       if (isShortPayment) {
         if (!currentCustomerId) {
           await rafiqAlert({
@@ -459,7 +502,7 @@ export const PaymentModal = ({
                     }}
                     options={[
                       { value: '', label: 'عميل نقدي عام (بدون حساب)' },
-                      ...localCustomers.map((c) => ({
+                      ...localCustomers.filter(c => c.id !== 'cust_general_cash').map((c) => ({
                         value: c.id,
                         label: `${c.name} ${c.phone ? `(${c.phone})` : ''} ${c.balancePiasters > 0 ? `[دين: ${(c.balancePiasters / 100).toFixed(0)} ج.م]` : ''}`,
                       })),
@@ -600,24 +643,6 @@ export const PaymentModal = ({
               shortAmountPiasters={shortAmountPiasters}
               receivedPiasters={receivedPiasters}
               changeDuePiasters={changeDuePiasters}
-              currentCustomerId={currentCustomerId}
-              setCurrentCustomerId={setCurrentCustomerId}
-              localCustomers={localCustomers}
-              showQuickAdd={showQuickAdd}
-              setShowQuickAdd={setShowQuickAdd}
-              quickName={quickName}
-              setQuickName={setQuickName}
-              quickPhone={quickPhone}
-              setQuickPhone={setQuickPhone}
-              quickSaving={quickSaving}
-              duplicateQuickCustomer={duplicateQuickCustomer}
-              onSelectDuplicateCustomer={(c) => {
-                setCurrentCustomerId(c.id);
-                setShowQuickAdd(false);
-                setQuickName('');
-                setQuickPhone('');
-              }}
-              onQuickAddCustomer={handleQuickAddCustomer}
             />
           )}
 

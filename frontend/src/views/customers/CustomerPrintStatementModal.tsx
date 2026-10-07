@@ -110,18 +110,41 @@ export const CustomerPrintStatementModal: React.FC<CustomerPrintStatementModalPr
             </div>
 
             {/* Financial Period Summary Strip */}
-            <div className="grid grid-cols-2 gap-2 text-xs mb-3 pb-2 border-b border-neutral-300">
-              <div className="p-1.5 bg-neutral-100 rounded">
-                <span className="block text-[10px] text-neutral-600">رصيد أول المدة:</span>
-                <span className="font-bold font-mono">
-                  {(statementPeriodSummary.openingBalancePiasters / 100).toFixed(2)} ج.م
+            <div className="mb-3 p-2 bg-neutral-50 rounded border border-neutral-300 text-xs">
+              <div className="flex items-center justify-between border-b border-neutral-200 pb-1.5 mb-1.5">
+                <span className="font-bold text-neutral-800">
+                  {statementPeriodSummary.closingBalancePiasters > 0
+                    ? 'الرصيد المطلوب سداده (عليه دين):'
+                    : statementPeriodSummary.closingBalancePiasters < 0
+                    ? 'رصيد زائد للعميل (له مستحق):'
+                    : 'الوضع المالي للعميل (خالص):'}
+                </span>
+                <span className="font-bold font-mono text-sm text-neutral-900">
+                  {(Math.abs(statementPeriodSummary.closingBalancePiasters) / 100).toFixed(2)} ج.م
+                  {statementPeriodSummary.closingBalancePiasters > 0 && ' (عليه)'}
+                  {statementPeriodSummary.closingBalancePiasters < 0 && ' (له)'}
+                  {statementPeriodSummary.closingBalancePiasters === 0 && ' (خالص)'}
                 </span>
               </div>
-              <div className="p-1.5 bg-neutral-100 rounded">
-                <span className="block text-[10px] text-neutral-600">الرصيد الختامي:</span>
-                <span className="font-bold font-mono text-neutral-900">
-                  {(statementPeriodSummary.closingBalancePiasters / 100).toFixed(2)} ج.م
-                </span>
+              <div className="grid grid-cols-3 gap-1 text-[10px] text-neutral-600 pt-0.5">
+                <div>
+                  <span>مسحوبات آجل: </span>
+                  <span className="font-bold font-mono text-neutral-800">
+                    {(statementPeriodSummary.periodDebitsPiasters / 100).toFixed(2)} ج.م
+                  </span>
+                </div>
+                <div>
+                  <span>سداد نقدي: </span>
+                  <span className="font-bold font-mono text-neutral-800">
+                    {(statementPeriodSummary.periodCreditsPiasters / 100).toFixed(2)} ج.م
+                  </span>
+                </div>
+                <div>
+                  <span>رصيد سابق: </span>
+                  <span className="font-bold font-mono text-neutral-800">
+                    {(Math.abs(statementPeriodSummary.openingBalancePiasters) / 100).toFixed(2)} ج.م
+                  </span>
+                </div>
               </div>
             </div>
 

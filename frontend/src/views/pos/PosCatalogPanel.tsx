@@ -12,7 +12,7 @@ import {
   FolderOpen,
   Download
 } from 'lucide-react';
-import type { ProductUnit } from '../../types/models';
+import type { ProductUnit, Category } from '../../types/models';
 import type { SmartCatalogItem } from './types';
 
 interface PosCatalogPanelProps {
@@ -30,6 +30,7 @@ interface PosCatalogPanelProps {
   totalCatalogProductsCount?: number;
   onSeedProducts?: () => void;
   isSeedingProducts?: boolean;
+  categories?: Category[];
 }
 
 export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
@@ -47,6 +48,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
   totalCatalogProductsCount = 0,
   onSeedProducts,
   isSeedingProducts = false,
+  categories = [],
 }) => {
   // Progressive display to guarantee ultra-fast 60fps rendering even with 1000+ items
   const [prevFilter, setPrevFilter] = React.useState({ tab: activeCatalogTab, query: catalogSearchQuery });
@@ -75,7 +77,8 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
     if (activeCatalogTab === '__ALL__') return 'جميع الأصناف';
     if (activeCatalogTab === '__POPULAR__') return 'الأكثر طلباً ومبيعاً';
     if (activeCatalogTab === '__CUSTOM__') return 'الأصناف المفضلة والسريعة';
-    return `قسم: ${activeCatalogTab}`;
+    const foundCat = categories.find((c) => c.id === activeCatalogTab || c.name === activeCatalogTab);
+    return `قسم: ${foundCat ? foundCat.name : activeCatalogTab}`;
   };
 
   return (

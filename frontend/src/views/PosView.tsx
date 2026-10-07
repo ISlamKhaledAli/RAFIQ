@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { FormEvent } from 'react';
 import { invoke } from '../bridge/ipc';
+import { useDataSubscription } from '../utils/eventBus';
 import type { Product, Sale, Customer, QuickItem, SalePayment, ProductUnit, HeldSale, Category } from '../types/models';
 import { 
   formatArabicCurrency, 
@@ -184,6 +185,7 @@ export const PosView = () => {
     setIsClearConfirmOpen(false);
     setCart([]);
     setDiscountPiasters(0);
+    setSelectedCustomerId('');
     try {
       localStorage.removeItem('rafiq_pos_cart_draft');
     } catch {
@@ -503,6 +505,7 @@ export const PosView = () => {
       });
       setCart([]);
       setDiscountPiasters(0);
+      setSelectedCustomerId('');
       try {
         localStorage.removeItem('rafiq_pos_cart_draft');
       } catch {
@@ -544,17 +547,18 @@ export const PosView = () => {
   }, [loadHeldSalesCount, showStatus]);
 
   // Load customers for selection
-  useEffect(() => {
-    const loadCustomers = async () => {
-      try {
-        const data = await invoke<Customer[]>('customers:getAll', { limit: 100 });
-        setCustomers(data || []);
-      } catch {
-        // Offline fallback
-      }
-    };
-    void loadCustomers();
+  const loadCustomers = useCallback(async () => {
+    try {
+      const data = await invoke<Customer[]>('customers:getAll', { limit: 100 });
+      setCustomers(data || []);
+    } catch {
+      // Offline fallback
+    }
   }, []);
+
+  useEffect(() => {
+    void loadCustomers();
+  }, [loadCustomers]);
 
   // Load Categories for POS category panel
   const loadCategories = useCallback(async () => {
@@ -569,21 +573,8 @@ export const PosView = () => {
   }, []);
 
   useEffect(() => {
-    let active = true;
-    void (async () => {
-      try {
-        const data = await invoke<Category[]>('categories:getAll', { includeArchived: false });
-        if (active && Array.isArray(data)) {
-          setCategories(data);
-        }
-      } catch {
-        // Offline fallback
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, []);
+    void loadCategories();
+  }, [loadCategories]);
 
   // Load Quick Items & Inventory Products (Smart Catalog)
   const loadSmartCatalog = useCallback(async () => {
@@ -608,6 +599,21 @@ export const PosView = () => {
   }, []);
 
   const loadQuickItems = loadSmartCatalog;
+
+  // Automatic real-time subscriptions across all views
+  useDataSubscription(['products', 'all'], () => {
+    void loadSmartCatalog();
+  });
+  useDataSubscription(['categories', 'all'], () => {
+    void loadCategories();
+    void loadSmartCatalog();
+  });
+  useDataSubscription(['customers', 'all'], () => {
+    void loadCustomers();
+  });
+  useDataSubscription(['held_sales', 'all'], () => {
+    void loadHeldSalesCount();
+  });
 
   const [isSeedingCatalog, setIsSeedingCatalog] = useState(false);
 
@@ -774,6 +780,8 @@ export const PosView = () => {
       setDiscountPiasters(0);
       setSelectedCustomerId('');
       setPaymentMethod('cash');
+      void loadSmartCatalog();
+      void loadHeldSalesCount();
       try {
         localStorage.removeItem('rafiq_pos_cart_draft');
       } catch {
@@ -802,7 +810,9 @@ export const PosView = () => {
     netTotalPiasters, 
     cart, 
     selectedCustomerId, 
-    showStatus
+    showStatus,
+    loadSmartCatalog,
+    loadHeldSalesCount,
   ]);
 
   const setDirectQuantity = useCallback((index: number, newQtyPieces: number) => {
@@ -896,8 +906,9 @@ export const PosView = () => {
     setBarcodeQuery('');
     setIsSearchDropdownOpen(false);
     showStatus(`تم تسجيل الصنف وإضافته للسلة: ${newProd.name}`, 'success');
+    void loadSmartCatalog();
     barcodeInputRef.current?.focus();
-  }, [addProductToCart, showStatus]);
+  }, [addProductToCart, showStatus, loadSmartCatalog]);
 
   const handleFastBarcodeScan = useCallback(async (scannedBarcode: string) => {
     if (!scannedBarcode) return;
@@ -1084,6 +1095,7 @@ export const PosView = () => {
   } = usePosCatalog({
     catalogProducts,
     quickItems,
+    categories,
     addProductToCart,
     showStatus,
     barcodeInputRef,
@@ -1371,6 +1383,7 @@ export const PosView = () => {
             totalCatalogProductsCount={catalogProducts.length}
             onSeedProducts={handleSeedTemplateProducts}
             isSeedingProducts={isSeedingCatalog}
+            categories={allPosCategories}
           />
         )}
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { FormEvent } from 'react';
 import { 
   Package, 
@@ -24,6 +24,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { useDataSubscription } from '../utils/eventBus';
 import { openHelpCenter } from '../utils/helpService';
 import { rafiqAlert } from '../utils/dialogService';
 import type { Product, Category, StockMovement, StockDiscrepancy, ProductUnit, BulkGenerateBarcodesResult } from '../types/models';
@@ -307,7 +308,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     }
   };
 
-  const loadProducts = async (
+  const loadProducts = useCallback(async (
     query = searchQuery, 
     page = currentPage, 
     size = pageSize, 
@@ -341,9 +342,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchQuery, currentPage, pageSize, stockStatusFilter, selectedCategoryFilter]);
 
-  const fetchCategoriesList = async () => {
+  const fetchCategoriesList = useCallback(async () => {
     try {
       const res = await invoke<Category[]>('categories:getAll', { includeArchived: false });
       if (Array.isArray(res)) {
@@ -352,7 +353,15 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     } catch (err) {
       console.error(err);
     }
-  };
+  }, []);
+
+  useDataSubscription(['products', 'all'], () => {
+    void loadProducts();
+  });
+
+  useDataSubscription(['categories', 'all'], () => {
+    void fetchCategoriesList();
+  });
 
   useEffect(() => {
     let active = true;
@@ -424,8 +433,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       isDivisible: false,
       sortOrder: 0
     }]);
-    setStockInput('10');
-    setMinStockInput('5');
+    setStockInput('0');
+    setMinStockInput('0');
     setTaxRatePercent(0);
     setFormError('');
     setSimilarWarning(null);
