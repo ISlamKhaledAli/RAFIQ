@@ -48,6 +48,7 @@ import { ProductsTable } from './products/ProductsTable';
 import { BulkPriceAdjustmentModal } from './products/BulkPriceAdjustmentModal';
 
 export interface ProductsViewProps {
+  isActive?: boolean;
   subView?: 'catalog' | 'movements' | 'batches';
   onSubViewChange?: (view: 'catalog' | 'movements' | 'batches') => void;
   initialFilter?: 'all' | 'lowStock' | 'outOfStock';
@@ -55,6 +56,7 @@ export interface ProductsViewProps {
 }
 
 export const ProductsView: React.FC<ProductsViewProps> = ({ 
+  isActive = true,
   subView, 
   initialFilter = 'all', 
   onResetFilter 
@@ -135,6 +137,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
   // F8 Global Shortcut to open Barcode Label Modal
   useEffect(() => {
+    if (!isActive) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F8') {
         e.preventDefault();
@@ -144,7 +148,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [isActive]);
 
   const handleExportProductsToExcel = async () => {
     setIsExportingExcel(true);

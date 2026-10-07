@@ -9,8 +9,7 @@ import {
   Scale, 
   Package, 
   Layers,
-  FolderOpen,
-  Download
+  FolderOpen
 } from 'lucide-react';
 import type { ProductUnit, Category } from '../../types/models';
 import type { SmartCatalogItem } from './types';
@@ -28,8 +27,6 @@ interface PosCatalogPanelProps {
   onOpenQuickFastItemModal: () => void;
   onOpenQuickItemsManager: () => void;
   totalCatalogProductsCount?: number;
-  onSeedProducts?: () => void;
-  isSeedingProducts?: boolean;
   categories?: Category[];
 }
 
@@ -46,8 +43,6 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
   onOpenQuickFastItemModal,
   onOpenQuickItemsManager,
   totalCatalogProductsCount = 0,
-  onSeedProducts,
-  isSeedingProducts = false,
   categories = [],
 }) => {
   // Progressive display to guarantee ultra-fast 60fps rendering even with 1000+ items
@@ -340,19 +335,13 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
               </p>
             ) : (
               <div>
-                <p className="text-xs font-medium">لا توجد أصناف تطابق هذا البحث أو القسم</p>
-                {totalCatalogProductsCount === 0 && onSeedProducts && (
-                  <div className="mt-3 flex flex-col items-center">
-                    <button
-                      type="button"
-                      onClick={onSeedProducts}
-                      disabled={isSeedingProducts}
-                      className="px-4 py-2 bg-brand hover:bg-brand-dark text-white text-xs font-bold rounded-lg shadow-sm flex items-center gap-2 cursor-pointer active:scale-95 transition-all disabled:opacity-50"
-                    >
-                      <Download className="w-4 h-4" />
-                      <span>{isSeedingProducts ? 'جاري تثبيت المنتجات في النظام...' : 'تنزيل وتثبيت منتجات النشاط الجاهزة (168 صنف)'}</span>
-                    </button>
-                  </div>
+                <p className="text-xs font-medium text-ink">
+                  {totalCatalogProductsCount === 0 ? 'قائمة الأصناف فارغة حالياً' : 'لا توجد أصناف تطابق هذا البحث أو القسم'}
+                </p>
+                {totalCatalogProductsCount === 0 && (
+                  <p className="text-[11px] text-ink-muted mt-1 leading-relaxed">
+                    يمكنك إضافة أصنافك الأولى من شاشة «إدارة الأصناف» أو استيراد ملف إكسل جاهز.
+                  </p>
                 )}
               </div>
             )}

@@ -1891,51 +1891,7 @@ namespace RafiqPOS.Database
                             }
                         }
 
-                        // 2. Check if table is empty and seed defaults if so
-                        long count = 0;
-                        using (var checkCmd = new SQLiteCommand("SELECT COUNT(*) FROM quick_items;", conn, trans))
-                        {
-                            count = Convert.ToInt64(checkCmd.ExecuteScalar());
-                        }
-
-                        if (count == 0)
-                        {
-                            string now = DateTime.UtcNow.ToString("o");
-                            string seedSql = @"
-                                INSERT INTO quick_items (id, product_id, name, price_piasters, is_open_price, unit, category_name, display_order, created_at, updated_at)
-                                VALUES 
-                                  (@id1, NULL, 'خبز بلدي طازج', 100, 0, 'piece', 'مخبوزات وبقالة', 1, @now, @now),
-                                  (@id2, NULL, 'عيش فينو كيس 5 رغيف', 1000, 0, 'piece', 'مخبوزات وبقالة', 2, @now, @now),
-                                  (@id3, NULL, 'سكر أبيض ناعم 1 كجم', 3500, 0, 'piece', 'مخبوزات وبقالة', 3, @now, @now),
-                                  (@id4, NULL, 'شاي العروسة 40 جم', 1200, 0, 'piece', 'مخبوزات وبقالة', 4, @now, @now),
-                                  (@id5, NULL, 'مياه بركة معدنية 1.5 لتر', 800, 0, 'piece', 'ألبان ومشروبات', 1, @now, @now),
-                                  (@id6, NULL, 'لبن جهينة كامل الدسم 1 لتر', 4200, 0, 'piece', 'ألبان ومشروبات', 2, @now, @now),
-                                  (@id7, NULL, 'زبادي المراعي سادة 105 جم', 850, 0, 'piece', 'ألبان ومشروبات', 3, @now, @now),
-                                  (@id8, NULL, 'بيبسي كانز 330 مل', 1500, 0, 'piece', 'ألبان ومشروبات', 4, @now, @now),
-                                  (@id9, NULL, 'طماطم بلدي طازجة', 1500, 0, 'kg', 'خضار وفاكهة', 1, @now, @now),
-                                  (@id10, NULL, 'بطاطس تحمير', 1800, 0, 'kg', 'خضار وفاكهة', 2, @now, @now),
-                                  (@id11, NULL, 'بصل أحمر كجم', 1400, 0, 'kg', 'خضار وفاكهة', 3, @now, @now),
-                                  (@id12, NULL, 'خيار صوب', 1600, 0, 'kg', 'خضار وفاكهة', 4, @now, @now);
-                            ";
-
-                            using (var seedCmd = new SQLiteCommand(seedSql, conn, trans))
-                            {
-                                seedCmd.Parameters.AddWithValue("@id1", Guid.NewGuid().ToString());
-                                seedCmd.Parameters.AddWithValue("@id2", Guid.NewGuid().ToString());
-                                seedCmd.Parameters.AddWithValue("@id3", Guid.NewGuid().ToString());
-                                seedCmd.Parameters.AddWithValue("@id4", Guid.NewGuid().ToString());
-                                seedCmd.Parameters.AddWithValue("@id5", Guid.NewGuid().ToString());
-                                seedCmd.Parameters.AddWithValue("@id6", Guid.NewGuid().ToString());
-                                seedCmd.Parameters.AddWithValue("@id7", Guid.NewGuid().ToString());
-                                seedCmd.Parameters.AddWithValue("@id8", Guid.NewGuid().ToString());
-                                seedCmd.Parameters.AddWithValue("@id9", Guid.NewGuid().ToString());
-                                seedCmd.Parameters.AddWithValue("@id10", Guid.NewGuid().ToString());
-                                seedCmd.Parameters.AddWithValue("@id11", Guid.NewGuid().ToString());
-                                seedCmd.Parameters.AddWithValue("@id12", Guid.NewGuid().ToString());
-                                seedCmd.Parameters.AddWithValue("@now", now);
-                                seedCmd.ExecuteNonQuery();
-                            }
-                        }
+                        // 2. Table created/updated without mock data injection (starts clean)
 
                         // 3. Record migration
                         using (var cmd = new SQLiteCommand(@"

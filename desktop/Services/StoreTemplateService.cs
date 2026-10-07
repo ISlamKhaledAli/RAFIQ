@@ -232,128 +232,14 @@ namespace RafiqPOS.Services
                     _settingsRepo.SaveBatch(settingsBatch);
                 }
 
-                // 2. Clear unused categories and seed template categories
+                // 2. Zero Injected Mock Data Policy
+                // The application starts 100% clean with zero injected categories, quick items, or products.
+                // Merchants can add their own products or import complete pre-built catalogs from the provided Excel files.
                 int catsCreated = 0;
-                var categoryNameToId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-                if (template.Categories != null && _categoryService != null)
-                {
-                    try
-                    {
-                        using (var conn = new SQLiteConnection(_connectionString))
-                        {
-                            conn.Open();
-                            using (var cleanCatCmd = new SQLiteCommand(@"
-                                DELETE FROM categories 
-                                WHERE id NOT IN (SELECT DISTINCT category_id FROM products WHERE category_id IS NOT NULL AND category_id != '');
-                            ", conn))
-                            {
-                                cleanCatCmd.ExecuteNonQuery();
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // Non-blocking
-                    }
-
-                    var existingCats = _categoryService.GetAll(true);
-                    var existingNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    for (int i = 0; i < existingCats.Count; i++)
-                    {
-                        existingNames.Add(existingCats[i].Name);
-                        if (!categoryNameToId.ContainsKey(existingCats[i].Name))
-                        {
-                            categoryNameToId[existingCats[i].Name] = existingCats[i].Id;
-                        }
-                    }
-
-                    for (int i = 0; i < template.Categories.Count; i++)
-                    {
-                        string catName = template.Categories[i];
-                        if (!string.IsNullOrWhiteSpace(catName) && !existingNames.Contains(catName.Trim()))
-                        {
-                            try
-                            {
-                                var newCat = new Category();
-                                newCat.Name = catName.Trim();
-                                newCat.DisplayOrder = i + 1;
-                                newCat.IsActive = true;
-                                _categoryService.SaveCategory(newCat);
-                                catsCreated++;
-                            }
-                            catch
-                            {
-                                // Ignore duplicate conflicts
-                            }
-                        }
-                    }
-
-                    // Refresh category map with newly added categories
-                    try
-                    {
-                        var refreshedCats = _categoryService.GetAll(true);
-                        for (int i = 0; i < refreshedCats.Count; i++)
-                        {
-                            if (!categoryNameToId.ContainsKey(refreshedCats[i].Name))
-                            {
-                                categoryNameToId[refreshedCats[i].Name] = refreshedCats[i].Id;
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // Non-blocking
-                    }
-                }
-
-                // 3. Clear ALL existing quick items and seed selected template quick items ONLY
                 int itemsCreated = 0;
-                if (template.QuickItems != null && _quickItemService != null)
-                {
-                    _quickItemService.ClearAll();
-
-                    for (int i = 0; i < template.QuickItems.Count; i++)
-                    {
-                        var tplItem = template.QuickItems[i];
-                        if (tplItem != null && !string.IsNullOrWhiteSpace(tplItem.Name))
-                        {
-                            try
-                            {
-                                var qItem = new QuickItem();
-                                qItem.Id = Guid.NewGuid().ToString();
-                                qItem.Name = tplItem.Name.Trim();
-                                qItem.PricePiasters = tplItem.PricePiasters;
-                                qItem.IsOpenPrice = tplItem.IsOpenPrice;
-                                qItem.Unit = string.IsNullOrEmpty(tplItem.Unit) ? "piece" : tplItem.Unit;
-                                qItem.CategoryName = string.IsNullOrEmpty(tplItem.CategoryName) ? "عام" : tplItem.CategoryName;
-                                qItem.DisplayOrder = i + 1;
-                                _quickItemService.Save(qItem);
-                                itemsCreated++;
-                            }
-                            catch
-                            {
-                                // Ignore item save conflicts
-                            }
-                        }
-                    }
-                }
-
-                // 4. Seed Real Product Catalog for Merchant's Selected Activity (Feature #106 / Point 2)
                 int prodsCreated = 0;
-                if (req.SeedInitialProducts)
-                {
-                    try
-                    {
-                        prodsCreated = SeedProductsForTemplate(template.Id, categoryNameToId);
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.Error("خطأ أثناء تنزيل كتالوج المنتجات الأولي: " + ex.Message, ex);
-                    }
-                }
 
-                // 5. Audit Log
+                // 3. Audit Log
                 if (_auditRepo != null)
                 {
                     _auditRepo.Log(new AuditLog
@@ -362,12 +248,12 @@ namespace RafiqPOS.Services
                         Action = "FIRST_RUN_WIZARD_COMPLETED",
                         EntityType = "TEMPLATE",
                         EntityId = template.Id,
-                        DetailsJson = string.Format("تم تهيئة النظام بنجاح بقالب: {0} ({1} تصنيفات، {2} أصناف سريعة، {3} أصناف بباركود جاهزة للبيع)", template.Name, catsCreated, itemsCreated, prodsCreated)
+                        DetailsJson = string.Format("تم تهيئة النظام بنجاح وتجهيز خصائص النشاط التجاري: {0} (قاعدة بيانات نظيفة 100% وجاهزة للبدء)", template.Name)
                     });
                 }
 
                 result.Success = true;
-                result.Message = string.Format("تم تهيئة وتجهيز النظام بنجاح لنشاط: {0}", template.Name);
+                result.Message = string.Format("تم تهيئة وتجهيز النظام بنجاح لنشاط: {0} بقاعدة بيانات نظيفة.", template.Name);
                 result.CategoriesCount = catsCreated;
                 result.QuickItemsCount = itemsCreated;
                 result.ProductsCount = prodsCreated;
@@ -382,6 +268,13 @@ namespace RafiqPOS.Services
         }
 
         public int SeedProductsForTemplate(string templateId, Dictionary<string, string> categoryNameToId = null)
+        {
+            // Zero Automatic Mock Injection Policy:
+            // Catalogs are externalized as rich Excel sheets for voluntary merchant import.
+            return 0;
+        }
+
+        private int SeedProductsForTemplateInternal(string templateId, Dictionary<string, string> categoryNameToId = null)
         {
             var catalog = StoreCatalogSeeder.GetCatalogForTemplate(templateId);
             if (catalog == null || catalog.Count == 0)
@@ -583,33 +476,7 @@ namespace RafiqPOS.Services
 
         public int EnsureInitialProductsSeeded()
         {
-            try
-            {
-                using (var conn = new SQLiteConnection(_connectionString))
-                {
-                    conn.Open();
-                    using (var chkCmd = new SQLiteCommand("SELECT COUNT(*) FROM products WHERE is_active = 1;", conn))
-                    {
-                        long count = Convert.ToInt64(chkCmd.ExecuteScalar());
-                        if (count > 0)
-                        {
-                            return 0; // Products already exist
-                        }
-                    }
-                }
-
-                string isFirstRunDone = _settingsRepo != null ? _settingsRepo.Get("first_run_completed", "0") : "0";
-                if (isFirstRunDone == "1")
-                {
-                    string storeType = _settingsRepo != null ? _settingsRepo.Get("store_type", "supermarket") : "supermarket";
-                    if (string.IsNullOrWhiteSpace(storeType)) storeType = "supermarket";
-                    return SeedProductsForTemplate(storeType);
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.Error("خطأ أثناء التحقق من كتالوج المنتجات الافتتاحية: " + ex.Message, ex);
-            }
+            // Zero Automatic Mock Injection: Application starts 100% clean
             return 0;
         }
 

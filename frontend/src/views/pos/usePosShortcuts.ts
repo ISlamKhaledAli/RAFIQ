@@ -8,6 +8,7 @@ import {
 } from '../../utils/barcodeReader';
 
 interface UsePosShortcutsProps {
+  isActive?: boolean;
   cart: CartItem[];
   loading: boolean;
   lastCompletedSale: Sale | null;
@@ -31,6 +32,7 @@ interface UsePosShortcutsProps {
 }
 
 export const usePosShortcuts = ({
+  isActive = true,
   cart,
   loading,
   lastCompletedSale,
@@ -53,6 +55,8 @@ export const usePosShortcuts = ({
   showStatus,
 }: UsePosShortcutsProps) => {
   useEffect(() => {
+    if (!isActive) return;
+
     let scanBuffer = '';
     let lastKeyTime = 0;
 
@@ -227,5 +231,6 @@ export const usePosShortcuts = ({
     setPaymentMethod,
     setIsReturnModalOpen,
     showStatus,
+    isActive,
   ]);
 };

@@ -83,10 +83,12 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
   if (!isOpen) return null;
 
   const getLicenseTypeArabic = (type?: string): string => {
-    if (!type) return 'نسخة تجريبية مجانية';
+    if (!type) return 'غير مفعل';
     switch (type.toLowerCase().trim()) {
+      case 'unlicensed':
+        return 'غير مفعل (بانتظار كود الترخيص)';
       case 'trial':
-        return 'فترة تجريبية مجانية';
+        return 'فترة تجريبية معتمدة من الإدارة';
       case 'annual':
         return 'اشتراك سنوي معتمد';
       case 'monthly':
@@ -207,6 +209,7 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
 
 
   const isClockIssue = Boolean(expiryInfo?.clockTampered);
+  const isUnlicensed = expiryInfo?.status === 'unlicensed' || (!expiryInfo?.isActive && !expiryInfo?.expiresAt);
 
   return (
     <div 
@@ -232,6 +235,11 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
                 <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
                 تنبيه أمان: عدم دقة ساعة وتاريخ النظام
               </span>
+            ) : isUnlicensed ? (
+              <span className="inline-flex items-center gap-1.5 text-amber-900 bg-amber-50 border border-amber-300 px-3.5 py-1 rounded-full text-xs font-bold shadow-xs">
+                <KeyRound className="w-3.5 h-3.5 text-amber-700" />
+                تنبيه: النسخة بانتظار كود التفعيل
+              </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 text-rose-800 bg-rose-50 border border-rose-200/90 px-3.5 py-1 rounded-full text-xs font-bold shadow-xs">
                 <Lock className="w-3.5 h-3.5 text-rose-600" />
@@ -241,12 +249,18 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
           </div>
 
           <h2 className="text-xl sm:text-2xl font-black text-slate-900 mb-1.5">
-            {isClockIssue ? 'يرجى تصحيح ساعة وتاريخ النظام' : 'انتهت فترة اشتراك رفيق POS'}
+            {isClockIssue
+              ? 'يرجى تصحيح ساعة وتاريخ النظام'
+              : isUnlicensed
+              ? 'تفعيل نسخة رفيق POS'
+              : 'انتهت فترة اشتراك رفيق POS'}
           </h2>
 
           <p className="text-xs sm:text-sm text-slate-500 max-w-md leading-relaxed">
             {isClockIssue
               ? (expiryInfo?.clockTamperMessage || 'تم رصد تراجع في ساعة وتاريخ الجهاز مقارنة بآخر سجل نشاط. يرجى تصحيح التاريخ والوقت للمتابعة.')
+              : isUnlicensed
+              ? 'يرجى إدخال رمز الترخيص أو كود الفترة التجريبية الممنوح من إدارة رفيق، أو تزويد الدعم الفني ببصمة جهازك للمتابعة.'
               : 'توقفت عمليات البيع مؤقتاً لانتهاء المدة المحددة من إدارة النظام. يمكنك إدخال كود التجديد فوراً أو التحقق من السيرفر.'}
           </p>
         </div>
@@ -300,7 +314,7 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
         {/* Input New License Key */}
         <div className="px-6 sm:px-8 space-y-2 mb-4">
           <label className="block text-xs font-bold text-slate-700">
-            أدخل كود التجديد الجديد:
+            {isUnlicensed ? 'أدخل رمز الترخيص أو كود التجربة:' : 'أدخل كود التجديد الجديد:'}
           </label>
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -353,7 +367,7 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
             <span>تحقق من السيرفر (تم التمديد)</span>
           </button>
 
-          {onEnterReadOnlyMode && (
+          {!isUnlicensed && onEnterReadOnlyMode && (
             <button
               type="button"
               onClick={onEnterReadOnlyMode}

@@ -157,18 +157,6 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
     }
     return 'D:\\RafiqBackups';
   });
-  const [seedInitialProducts, setSeedInitialProducts] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.seedInitialProducts !== undefined) return parsed.seedInitialProducts;
-      }
-    } catch {
-      // ignore
-    }
-    return true;
-  });
 
   // Sync to localStorage
   useEffect(() => {
@@ -183,13 +171,12 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
         receiptFooter,
         selectedPrinter,
         backupFolder,
-        seedInitialProducts
       };
       localStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify(data));
     } catch {
       // ignore
     }
-  }, [step, selectedTemplateId, storeName, phone, address, receiptHeader, receiptFooter, selectedPrinter, backupFolder, seedInitialProducts]);
+  }, [step, selectedTemplateId, storeName, phone, address, receiptHeader, receiptFooter, selectedPrinter, backupFolder]);
 
   // Result state
   const [appliedStats, setAppliedStats] = useState<{ categoriesCount: number; quickItemsCount: number; productsCount: number } | null>(null);
@@ -272,14 +259,14 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
         receiptFooter: receiptFooter.trim(),
         defaultPrinter: selectedPrinter,
         backupFolder: backupFolder.trim(),
-        seedInitialProducts: seedInitialProducts,
+        seedInitialProducts: false,
       });
 
       if (res && res.success) {
         setAppliedStats({
-          categoriesCount: res.categoriesCount || 0,
-          quickItemsCount: res.quickItemsCount || 0,
-          productsCount: res.productsCount != null ? res.productsCount : (seedInitialProducts ? (selectedTemplate?.productsCount || 35) : 0),
+          categoriesCount: 0,
+          quickItemsCount: 0,
+          productsCount: 0,
         });
         setTimeout(() => {
           onCompleted();
@@ -339,7 +326,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
           <div className="bg-brand-soft border border-brand/50 rounded-[6px] p-3.5 flex items-center gap-3 shrink-0">
             <Info className="w-5 h-5 text-brand shrink-0" />
             <span className="text-[14px] text-brand font-medium">
-              اختار القالب الأقرب لطبيعة محلك — تقدر تعدل كل حاجة بعد كده من الإعدادات
+              اختر نشاط محلك لتهيئة الميزات الملائمة — قاعدة البيانات تبدأ نظيفة 100% بدون أي أصناف أو تصنيفات مسبقة
             </span>
           </div>
 
@@ -376,27 +363,16 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
                     {tpl.description}
                   </p>
 
-                  {/* Summary Tags */}
+                  {/* Summary Feature Badges */}
                   <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                    <span className="text-[12px] text-ink-muted border border-line rounded-[6px] px-2 py-0.5 tabular-nums bg-white font-medium">
-                      {tpl.productsCount || 35} صنف جاهز للبيع
+                    <span className="text-[12px] text-paid border border-paid/30 bg-paid-soft rounded-[6px] px-2 py-0.5 font-bold">
+                      نظيف 100%
                     </span>
-                    <span className="text-[12px] text-ink-muted border border-line rounded-[6px] px-2 py-0.5 tabular-nums bg-white font-medium">
-                      {tpl.categories.length} أقسام
-                    </span>
-                    <span className="text-[12px] text-ink-muted border border-line rounded-[6px] px-2 py-0.5 tabular-nums bg-white font-medium">
-                      {tpl.quickItems.length} أزرار سريعة
-                    </span>
-                    {tpl.featureFlags?.feature_scale_weight && (
-                      <span className="text-[12px] text-brand border border-brand/40 bg-white font-medium rounded-[6px] px-2 py-0.5">
-                        دعم الميزان
+                    {tpl.featuresSummary?.map((feat, idx) => (
+                      <span key={idx} className="text-[12px] text-ink-muted border border-line rounded-[6px] px-2 py-0.5 bg-white font-medium">
+                        {feat}
                       </span>
-                    )}
-                    {tpl.featureFlags?.feature_expiry_dates && (
-                      <span className="text-[12px] text-brand border border-brand/40 bg-white font-medium rounded-[6px] px-2 py-0.5">
-                        تاريخ الصلاحية
-                      </span>
-                    )}
+                    ))}
                   </div>
                 </div>
               );
@@ -673,50 +649,46 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
 
             {/* Card 4 */}
             <div className="bg-surface border border-line rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
-              <span className="text-ink-muted text-[12px] font-medium">الأقسام والتصنيفات</span>
-              <span className="text-ink text-[16px] font-semibold mt-2 tabular-nums font-bold">
-                {selectedTemplate?.categories?.length || 0} أقسام رئيسية
+              <span className="text-ink-muted text-[12px] font-medium">حالة قاعدة البيانات</span>
+              <span className="text-paid text-[15px] font-bold mt-2 flex items-center gap-1.5">
+                <Check className="w-4 h-4 text-paid" />
+                <span>نظيفة 100% وجاهزة</span>
               </span>
             </div>
 
             {/* Card 5 */}
             <div className="bg-surface border border-line rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
-              <span className="text-ink-muted text-[12px] font-medium">أزرار الكاشير السريعة</span>
-              <span className="text-ink text-[16px] font-semibold mt-2 tabular-nums font-bold">
-                {selectedTemplate?.quickItems?.length || 0} أزرار سريعة
+              <span className="text-ink-muted text-[12px] font-medium">كتالوج الأصناف المسبقة</span>
+              <span className="text-ink text-[15px] font-semibold mt-2 font-mono">
+                0 أصناف مسبقة
               </span>
             </div>
 
             {/* Card 6 (Special Highlighted) */}
             <div className="bg-brand-soft border border-brand rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
               <div className="flex items-center justify-between">
-                <span className="text-brand text-[12px] font-medium">الكتالوج الفعلي الجاهز</span>
+                <span className="text-brand text-[12px] font-medium">استيراد الأصناف الجاهزة</span>
                 <span className="text-[10px] font-semibold text-brand bg-white border border-brand/40 px-1.5 py-0.5 rounded-[3px]">
-                  جاهز فوراً
+                  ملفات Excel
                 </span>
               </div>
-              <span className="text-brand text-[16px] font-semibold mt-2 tabular-nums font-bold">
-                {selectedTemplate?.productsCount || 35} صنف حقيقي بباركود
+              <span className="text-brand text-[14px] font-semibold mt-2">
+                متاح بضغطة زر من إدارة الأصناف
               </span>
             </div>
           </div>
 
-          {/* Full-width Checkbox Card */}
-          <div
-            onClick={() => setSeedInitialProducts(!seedInitialProducts)}
-            className="bg-brand-soft border border-brand rounded-[6px] p-5 flex items-start gap-4 cursor-pointer select-none shadow-2xs"
-          >
-            <div className={`w-5 h-5 rounded-[4px] flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
-              seedInitialProducts ? 'bg-brand text-white' : 'border border-brand bg-white text-transparent'
-            }`}>
-              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+          {/* Clean Slate Reassurance Card */}
+          <div className="bg-paid-soft border border-paid/40 rounded-[6px] p-5 flex items-start gap-4 shadow-2xs">
+            <div className="w-8 h-8 rounded-[6px] bg-paid text-white flex items-center justify-center shrink-0 mt-0.5">
+              <Check className="w-5 h-5 stroke-[2.5]" />
             </div>
             <div className="flex flex-col">
               <h4 className="text-ink text-[16px] font-semibold">
-                تحميل كتالوج الأصناف الفعلية الجاهزة لنشاطك (موصى به بشدة)
+                بداية نقية 100% بدون أي بيانات وهمية
               </h4>
               <p className="text-ink-muted text-[13px] mt-1 leading-relaxed">
-                بيوفر عليك إدخال البيانات يدوياً — هيتم إنشاء {selectedTemplate?.productsCount || 35} صنف أساسي بأسمائها الواقعية وأسعارها وتكلفتها وباركوداتها الجاهزة للبيع فوراً مع إمكانية تعديلها أو حذفها في أي وقت.
+                تم تجهيز النظام وإعدادات نشاطك بقاعدة بيانات نظيفة تماماً بدون أي أصناف أو تصنيفات مسبقة لتتمكن من إدخال بضاعتك بنفسك. كما يمكنك في أي وقت استيراد كتالوج كامل جاهز لنشاطك من ملفات الإكسل المرفقة عبر شاشة إدارة المنتجات.
               </p>
             </div>
           </div>
@@ -764,7 +736,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
               <div className="absolute top-4 right-[13px] bottom-4 w-[1px] bg-white/25 -z-0 pointer-events-none" />
 
               {[
-                { num: 1, title: 'نوع النشاط والكتالوج', desc: 'تحديد القالب وحقن الأصناف الفعلية', badge: '30+ صنف' },
+                { num: 1, title: 'نوع النشاط وتخصيص النظام', desc: 'تحديد نشاط المحل وضبط الميزات التشغيلية', badge: 'نظيف 100%' },
                 { num: 2, title: 'بيانات المحل والفاتورة', desc: 'الاسم، الهاتف، وترويسة الإيصال' },
                 { num: 3, title: 'الأجهزة وحفظ البيانات', desc: 'طابعة الكاشير ومسار النسخ الاحتياطي' },
                 { num: 4, title: 'المراجعة وتأكيد البدء', desc: 'اعتماد التجهيزات والانتقال للكاشير' },
@@ -881,7 +853,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
                     {step === 4 && 'مراجعة التجهيزات والبدء الفعلي'}
                   </h1>
                   <p className="text-[13px] text-ink-muted mt-0.5">
-                    {step === 1 && 'سيقوم رفيق بضبط الميزات، وتوليد الفئات، وتجهيز كتالوج أصناف فعلية بأسعار وباركودات جاهزة للبيع فوراً'}
+                    {step === 1 && 'سيقوم رفيق بضبط خصائص النظام وميزات البيع المناسبة لنشاطك مع إبقاء قاعدة البيانات نظيفة 100% للبدء الفوري'}
                     {step === 2 && 'المعلومات اللي هتظهر في رأس وتذييل إيصال الكاشير للزبون'}
                     {step === 3 && 'حدد طابعة الإيصالات الحرارية ومسار النسخ الاحتياطي التلقائي لحماية بياناتك'}
                     {step === 4 && 'تأكيد الخيارات واعتماد التجهيز لفتح شاشة الكاشير وبدء البيع فوراً'}
@@ -931,9 +903,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
                 <span>النشاط المختار: </span>
                 <span className="font-semibold text-ink">{selectedTemplate?.name}</span>
                 <span className="mx-2">·</span>
-                <span className="tabular-nums font-semibold text-brand">
-                  {selectedTemplate?.productsCount || 35} صنف جاهز للبيع
-                </span>
+                <span className="font-semibold text-paid">قاعدة بيانات نظيفة 100% · جاهز للبدء</span>
               </div>
 
               <div className="flex items-center gap-4">

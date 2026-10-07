@@ -376,5 +376,28 @@ describe('Rafiq POS License Server & D1 Tests (Feature #170)', () => {
       const actData2 = await actRes2.json() as any;
       assert.equal(actData2.success, true);
     });
+
+    it('Admin can generate cryptographically signed offline support code for air-gapped PC', async () => {
+      const genReq = new Request('http://localhost/api/admin/generate-support-code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Secret': ADMIN_SECRET,
+        },
+        body: JSON.stringify({
+          device_fingerprint: 'A1B2C3D4E5F6',
+          license_type: 'trial',
+          days: 7,
+        }),
+      });
+
+      const genRes = await server.fetch(genReq, env);
+      assert.equal(genRes.status, 200);
+      const genData = await genRes.json() as any;
+      assert.equal(genData.success, true);
+      assert.ok(genData.support_code.startsWith('RFQ-SUP-T0007-'));
+      assert.equal(genData.support_code.length, 26);
+    });
   });
 });
+

@@ -180,10 +180,23 @@ namespace RafiqPOS.Services
                 settingsRepo.Set("license_expires_at", "");
                 settingsRepo.Set("last_known_utc", DateTime.UtcNow.ToString("o"));
 
-                var trialInfo = DatabaseService.License.GetLicenseInfo();
-                if (!trialInfo.IsActive || trialInfo.Status != "trial" || trialInfo.DaysRemaining < 10)
+                var initialInfo = DatabaseService.License.GetLicenseInfo();
+                if (initialInfo.IsActive || initialInfo.Status != "unlicensed")
                 {
-                    result.Message = "فشل اختبار بدء الفترة التجريبية (14 يوماً)";
+                    result.Message = "فشل التحقق من أن النسخة غير المفعلة تبدأ بحالة unlicensed";
+                    return result;
+                }
+
+                // Simulate authorized trial granted from server or support code (7 days)
+                settingsRepo.Set("license_key", "RFQ-TR-TEST-1234");
+                settingsRepo.Set("license_status", "trial");
+                settingsRepo.Set("license_type", "trial");
+                settingsRepo.Set("license_expires_at", DateTime.UtcNow.AddDays(7).ToString("yyyy-MM-dd HH:mm:ss"));
+
+                var trialInfo = DatabaseService.License.GetLicenseInfo();
+                if (!trialInfo.IsActive || trialInfo.Status != "trial" || trialInfo.DaysRemaining < 5)
+                {
+                    result.Message = "فشل اختبار تشغيل الفترة التجريبية المعتمدة";
                     return result;
                 }
 
@@ -217,6 +230,14 @@ namespace RafiqPOS.Services
                     return result;
                 }
 
+                // Verify ActivateLicense automatically detects RFQ-SUP- and activates offline without internet
+                var actLicViaSup = DatabaseService.License.ActivateLicense(validSupportCode);
+                if (!actLicViaSup.Success || !actLicViaSup.License.IsActive)
+                {
+                    result.Message = "فشل التفعيل التلقائي لكود الدعم عبر دالة ActivateLicense الرئيسية: " + actLicViaSup.Message;
+                    return result;
+                }
+
                 // Verify mismatching fingerprint is rejected
                 string fakeFp = "RAFIQ-DEV-FAKEMACHINE-000011112222";
                 string foreignCode = LicenseService.GenerateOfflineSupportCode(fakeFp, "lifetime", 9999);
@@ -226,6 +247,22 @@ namespace RafiqPOS.Services
                     result.Message = "فشل حماية عدم تطابق بصمة الجهاز لكود الدعم";
                     return result;
                 }
+
+                // Verify consumed trial code cannot be reused to reset trial
+                string trialSupCode = LicenseService.GenerateOfflineSupportCode(myFp, "trial", 7);
+                var actTrial1 = DatabaseService.License.ActivateWithSupportCode(trialSupCode, "سوبرماركت البركة");
+                if (!actTrial1.Success || actTrial1.License.LicenseType != "trial")
+                {
+                    result.Message = "فشل التفعيل الأول لكود التجربة أوفلاين";
+                    return result;
+                }
+                var actTrialAgain = DatabaseService.License.ActivateWithSupportCode(trialSupCode, "سوبرماركت البركة");
+                if (actTrialAgain.Success || actTrialAgain.Code != "CODE_ALREADY_USED")
+                {
+                    result.Message = "فشل منع إعادة استخدام نفس كود التجربة المستهلك";
+                    return result;
+                }
+
                 result.OfflineSupportActivationPassed = true;
                 result.PassedAssertions++;
 

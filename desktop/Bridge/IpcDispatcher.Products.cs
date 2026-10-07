@@ -79,14 +79,6 @@ namespace RafiqPOS.Bridge
                         smartLimit = smartObj["limit"].Value<int>();
                     }
                     var smartCatalog = DatabaseService.Products.GetSmartCatalog(smartLimit);
-                    if ((smartCatalog == null || smartCatalog.Count == 0) && DatabaseService.Templates != null)
-                    {
-                        int recovered = DatabaseService.Templates.EnsureInitialProductsSeeded();
-                        if (recovered > 0)
-                        {
-                            smartCatalog = DatabaseService.Products.GetSmartCatalog(smartLimit);
-                        }
-                    }
                     var customQuickList = DatabaseService.QuickItems.GetAll();
                     response = BridgeResponse.Ok(request.Id, new {
                         products = smartCatalog,

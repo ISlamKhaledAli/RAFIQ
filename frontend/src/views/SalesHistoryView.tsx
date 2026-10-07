@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   FileText, 
   RefreshCw, 
@@ -27,7 +27,11 @@ import { VoidInvoiceModal } from '../components/VoidInvoiceModal';
 import { ReturnModal } from '../components/ReturnModal';
 import { CustomDatePicker } from '../components/CustomDatePicker';
 
-export const SalesHistoryView = () => {
+export interface SalesHistoryViewProps {
+  isActive?: boolean;
+}
+
+export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = true }) => {
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
@@ -220,7 +224,7 @@ export const SalesHistoryView = () => {
   };
 
   // Task 133-3: Reprint receipt with copy watermark and audit log
-  const handleReprint = async () => {
+  const handleReprint = useCallback(async () => {
     if (!selectedSale) return;
     setIsReprinting(true);
     setReprintFeedback(null);
@@ -240,10 +244,12 @@ export const SalesHistoryView = () => {
     } finally {
       setIsReprinting(false);
     }
-  };
+  }, [selectedSale]);
 
   // Keyboard shortcut listener: F9 to reprint, Esc to close
   useEffect(() => {
+    if (!isActive) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!selectedSale) return;
       if (e.key === 'Escape') {
@@ -255,7 +261,7 @@ export const SalesHistoryView = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  });
+  }, [isActive, selectedSale, handleReprint]);
 
   // Client-side filtering across criteria (Tasks 133-1 & 133-2)
   const filteredSales = sales.filter((s) => {

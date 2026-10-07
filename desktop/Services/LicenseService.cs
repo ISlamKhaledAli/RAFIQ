@@ -78,12 +78,8 @@ namespace RafiqPOS.Services
             if (string.IsNullOrEmpty(key) && string.IsNullOrEmpty(status))
             {
                 string nowStr = DateTime.UtcNow.ToString("o");
-                string trialExpiresStr = DateTime.UtcNow.AddDays(14).ToString("yyyy-MM-dd HH:mm:ss");
-                _settingsRepo.Set("license_status", "trial");
-                _settingsRepo.Set("license_type", "trial");
-                _settingsRepo.Set("license_activated_at", nowStr);
-                _settingsRepo.Set("license_expires_at", trialExpiresStr);
-                _settingsRepo.Set("trial_started_at", nowStr);
+                _settingsRepo.Set("license_status", "unlicensed");
+                _settingsRepo.Set("license_type", "unlicensed");
                 _settingsRepo.Set("last_known_utc", nowStr);
             }
         }
@@ -96,7 +92,7 @@ namespace RafiqPOS.Services
             string token = _settingsRepo.Get("license_token", "");
             string status = _settingsRepo.Get("license_status", "");
             string shopName = _settingsRepo.Get("license_shop_name", _settingsRepo.Get("store_name", "متجر رفيق"));
-            string licType = _settingsRepo.Get("license_type", "trial");
+            string licType = _settingsRepo.Get("license_type", "unlicensed");
             string activatedAt = _settingsRepo.Get("license_activated_at", "");
             string expiresAt = _settingsRepo.Get("license_expires_at", "");
             string releaseCode = _settingsRepo.Get("transfer_release_code", "");
@@ -149,7 +145,15 @@ namespace RafiqPOS.Services
             }
 
             // 2. Base Activation State & Lifecycle
-            if (status == "trial")
+            if (status == "unlicensed" || (string.IsNullOrEmpty(key) && string.IsNullOrEmpty(token) && status != "trial"))
+            {
+                isActive = false;
+                isExpired = true;
+                daysRemaining = 0;
+                status = "unlicensed";
+                statusLabel = "النسخة غير مفعلة - أدخل كود الترخيص أو الفترة التجريبية من الإدارة للمتابعة";
+            }
+            else if (status == "trial" && (!string.IsNullOrEmpty(key) || !string.IsNullOrEmpty(token)))
             {
                 DateTime trialExpiresUtc;
                 if (!string.IsNullOrEmpty(expiresAt) && DateTime.TryParse(expiresAt, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out trialExpiresUtc))
@@ -163,21 +167,22 @@ namespace RafiqPOS.Services
                         isActive = false;
                         isExpired = true;
                         status = "expired";
-                        statusLabel = "انتهت الفترة التجريبية المجانية (14 يوماً). يرجى تفعيل النسخة المشتراة.";
+                        statusLabel = "انتهت الفترة التجريبية المحددة من الإدارة. يرجى تفعيل النسخة المشتراة.";
                         _settingsRepo.Set("license_status", "expired");
                     }
                     else
                     {
                         isActive = true;
                         isExpired = false;
-                        statusLabel = string.Format("فترة تجريبية مجانية (متبقي {0} أيام)", daysRemaining);
+                        statusLabel = string.Format("فترة تجريبية معتمدة من الإدارة (متبقي {0} أيام)", daysRemaining);
                     }
                 }
                 else
                 {
-                    isActive = true;
-                    isExpired = false;
-                    statusLabel = "فترة تجريبية مجانية (14 يوماً)";
+                    isActive = false;
+                    isExpired = true;
+                    status = "expired";
+                    statusLabel = "انتهت صلاحية الفترة التجريبية المحددة";
                 }
             }
             else if (status == "transferred")
@@ -251,7 +256,7 @@ namespace RafiqPOS.Services
             info.LicenseKey = key;
             info.ShopName = shopName;
             info.LicenseType = licType;
-            info.Status = string.IsNullOrEmpty(status) ? "trial" : status;
+            info.Status = string.IsNullOrEmpty(status) ? "unlicensed" : status;
             info.StatusLabel = statusLabel;
             info.DeviceFingerprint = fp;
             info.ActivatedAt = activatedAt;
@@ -275,7 +280,9 @@ namespace RafiqPOS.Services
             {
                 expiryStatus = info.Status == "disabled" 
                     ? "disabled" 
-                    : (info.Status == "transferred" ? "transferred" : "expired");
+                    : (info.Status == "transferred" 
+                        ? "transferred" 
+                        : (info.Status == "unlicensed" ? "unlicensed" : "expired"));
 
                 // If expired locally and has a key, trigger background online check so extensions reflect automatically
                 if (!string.IsNullOrEmpty(info.LicenseKey))
@@ -369,6 +376,13 @@ namespace RafiqPOS.Services
             }
 
             string cleanKey = licenseKey.Trim().ToUpperInvariant();
+
+            // If this is an offline support code, activate directly without requiring internet
+            if (cleanKey.StartsWith("RFQ-SUP-"))
+            {
+                return ActivateWithSupportCode(cleanKey, "");
+            }
+
             string fp = EncryptionService.GenerateDeviceFingerprint();
             string machineName = Environment.MachineName;
 
@@ -683,6 +697,10 @@ namespace RafiqPOS.Services
                 typeChar = 'L';
                 days = 9999;
             }
+            else if (licenseType == "trial")
+            {
+                typeChar = 'T';
+            }
             else if (licenseType == "monthly" || days <= 31)
             {
                 typeChar = 'M';
@@ -787,16 +805,34 @@ namespace RafiqPOS.Services
                 return result;
             }
 
+            string consumedCodes = _settingsRepo.Get("consumed_offline_codes", "");
+            if (typeChar == 'T' && consumedCodes.Contains(expectedSig))
+            {
+                result.Success = false;
+                result.Code = "CODE_ALREADY_USED";
+                result.Message = "تم استخدام كود التجربة هذا مسبقاً على هذا الجهاز ولا يمكن إعادة استخدامه لتجديد الفترة التجريبية.";
+                return result;
+            }
+
             string licType = "lifetime";
             string expiresAt = "";
+            string status = "active";
             if (typeChar == 'L' || days >= 9000)
             {
                 licType = "lifetime";
                 expiresAt = "";
+                status = "active";
+            }
+            else if (typeChar == 'T')
+            {
+                licType = "trial";
+                status = "trial";
+                expiresAt = DateTime.UtcNow.AddDays(days).ToString("yyyy-MM-dd HH:mm:ss");
             }
             else
             {
                 licType = typeChar == 'M' ? "monthly" : "annual";
+                status = "active";
                 expiresAt = DateTime.UtcNow.AddDays(days).ToString("yyyy-MM-dd HH:mm:ss");
             }
 
@@ -805,13 +841,18 @@ namespace RafiqPOS.Services
 
             _settingsRepo.Set("license_key", cleanCode);
             _settingsRepo.Set("license_token", token);
-            _settingsRepo.Set("license_status", "active");
+            _settingsRepo.Set("license_status", status);
             _settingsRepo.Set("license_type", licType);
             _settingsRepo.Set("license_activated_at", nowStr);
             _settingsRepo.Set("license_expires_at", expiresAt);
             _settingsRepo.Set("transfer_release_code", "");
             if (!string.IsNullOrEmpty(shopName)) _settingsRepo.Set("license_shop_name", shopName);
             _settingsRepo.Set("last_known_utc", DateTime.UtcNow.ToString("o"));
+
+            if (typeChar == 'T' && !consumedCodes.Contains(expectedSig))
+            {
+                _settingsRepo.Set("consumed_offline_codes", (consumedCodes + ";" + expectedSig).Trim(';'));
+            }
 
             if (_auditService != null)
             {

@@ -121,3 +121,54 @@ export async function verifyActivationToken(
     return { valid: false, error: 'فشل فك تشفير وفحص التوكن' };
   }
 }
+
+/**
+ * Master offline secret for signing offline support codes (Identical to C# Desktop host)
+ */
+export const OFFLINE_MASTER_SECRET = 'RafiqPOS_Master_Secret_Offline_2026_Secure';
+
+/**
+ * Generate cryptographically signed offline support code for air-gapped retail devices
+ * Output format: RFQ-SUP-{TypeChar}{DaysHex}-{SigHex12}
+ */
+export async function generateOfflineSupportCode(
+  deviceFingerprint: string,
+  licenseType: string,
+  days: number
+): Promise<string> {
+  if (!deviceFingerprint || !deviceFingerprint.trim()) {
+    throw new Error('بصمة الجهاز (Device Fingerprint) مطلوبة');
+  }
+
+  let typeChar = 'A';
+  let finalDays = days;
+  if (licenseType === 'lifetime' || finalDays >= 9000) {
+    typeChar = 'L';
+    finalDays = 9999;
+  } else if (licenseType === 'trial') {
+    typeChar = 'T';
+  } else if (licenseType === 'monthly' || finalDays <= 31) {
+    typeChar = 'M';
+  } else {
+    typeChar = 'A';
+  }
+
+  const daysHex = finalDays.toString(16).toUpperCase().padStart(4, '0');
+  const payload = `${deviceFingerprint.trim().toUpperCase()}:${typeChar}${daysHex}`;
+
+  const key = await getCryptoKey(OFFLINE_MASTER_SECRET);
+  const sigBuffer = await crypto.subtle.sign(
+    'HMAC',
+    key,
+    new TextEncoder().encode(payload)
+  );
+
+  const sigBytes = new Uint8Array(sigBuffer);
+  let sigHex = '';
+  for (let i = 0; i < 6; i++) {
+    sigHex += sigBytes[i].toString(16).toUpperCase().padStart(2, '0');
+  }
+
+  return `RFQ-SUP-${typeChar}${daysHex}-${sigHex}`;
+}
+

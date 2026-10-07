@@ -127,6 +127,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<UserDto | null>(null);
   const isCashier = currentUser?.role === 'cashier';
   const effectiveActiveTab: TabType = isCashier && !CASHIER_ALLOWED_TABS.includes(activeTab) ? 'pos' : activeTab;
+
   const [productsSubView, setProductsSubView] = useState<'catalog' | 'movements' | 'batches'>('catalog');
   const [isProductsMenuExpanded, setIsProductsMenuExpanded] = useState(false);
   const [dashboardSubTab, setDashboardSubTab] = useState<DashboardSubTab>('today');
@@ -135,6 +136,32 @@ export default function App() {
   const [isPurchasesMenuExpanded, setIsPurchasesMenuExpanded] = useState(false);
   const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('profile');
   const [isSettingsMenuExpanded, setIsSettingsMenuExpanded] = useState(false);
+
+  // Senior Architecture: Lazy Keep-Alive Tabs
+  // Views are mounted on first visit, then retained in DOM and toggled via CSS
+  // This achieves 0ms switching without re-triggering IPC calls or resetting component state/scroll
+  const [visitedTabs, setVisitedTabs] = useState<Set<TabType>>(() => new Set<TabType>(['pos']));
+  const [visitedDashboardSubTabs, setVisitedDashboardSubTabs] = useState<Set<DashboardSubTab>>(() => new Set<DashboardSubTab>(['today']));
+
+  useEffect(() => {
+    setVisitedTabs((prev) => {
+      if (prev.has(effectiveActiveTab)) return prev;
+      const next = new Set(prev);
+      next.add(effectiveActiveTab);
+      return next;
+    });
+  }, [effectiveActiveTab]);
+
+  useEffect(() => {
+    if (effectiveActiveTab === 'dashboard') {
+      setVisitedDashboardSubTabs((prev) => {
+        if (prev.has(dashboardSubTab)) return prev;
+        const next = new Set(prev);
+        next.add(dashboardSubTab);
+        return next;
+      });
+    }
+  }, [effectiveActiveTab, dashboardSubTab]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem('rafiq_pos_sidebar_collapsed');
@@ -1199,64 +1226,101 @@ export default function App() {
           </div>
         </aside>
 
-        {/* Dynamic Views Viewport */}
-        <main className="flex-1 h-full overflow-hidden bg-canvas">
-          {effectiveActiveTab === 'pos' && <PosView />}
-          {!isCashier && effectiveActiveTab === 'dashboard' && (
-            <div className="h-full overflow-hidden">
-              {dashboardSubTab === 'today' && (
-                <DashboardView 
-                  onNavigateToPos={() => setActiveTab('pos')} 
-                  onNavigateToProducts={(sub?: 'catalog' | 'movements' | 'batches', filter?: 'all' | 'lowStock' | 'outOfStock') => {
-                    setActiveTab('products');
-                    setProductsSubView(sub || 'catalog');
-                    if (filter) setInitialProductFilter(filter);
-                    setIsProductsMenuExpanded(true);
-                  }} 
-                  onNavigateToCustomers={() => setActiveTab('customers')}
-                  onNavigateToSales={() => setActiveTab('sales')}
-                  onNavigateToAudit={() => setActiveTab('audit')}
-                  onNavigateToSettings={(target) => {
-                    setActiveTab('settings');
-                    if (target?.includes('backup')) setSettingsSubTab('backup');
-                  }}
-                  onNavigateSubTab={(sub) => setDashboardSubTab(sub)}
-                />
+        {/* Dynamic Views Viewport - Lazy Keep-Alive Architecture */}
+        <main className="flex-1 h-full overflow-hidden bg-canvas relative">
+          {/* POS View is always mounted, kept alive, and instant */}
+          <div className={`h-full w-full ${effectiveActiveTab === 'pos' ? '' : 'hidden'}`}>
+            <PosView isActive={effectiveActiveTab === 'pos'} />
+          </div>
+
+          {!isCashier && visitedTabs.has('dashboard') && (
+            <div className={`h-full w-full overflow-hidden ${effectiveActiveTab === 'dashboard' ? '' : 'hidden'}`}>
+              {visitedDashboardSubTabs.has('today') && (
+                <div className={`h-full w-full ${dashboardSubTab === 'today' ? '' : 'hidden'}`}>
+                  <DashboardView 
+                    onNavigateToPos={() => setActiveTab('pos')} 
+                    onNavigateToProducts={(sub?: 'catalog' | 'movements' | 'batches', filter?: 'all' | 'lowStock' | 'outOfStock') => {
+                      setActiveTab('products');
+                      setProductsSubView(sub || 'catalog');
+                      if (filter) setInitialProductFilter(filter);
+                      setIsProductsMenuExpanded(true);
+                    }} 
+                    onNavigateToCustomers={() => setActiveTab('customers')}
+                    onNavigateToSales={() => setActiveTab('sales')}
+                    onNavigateToAudit={() => setActiveTab('audit')}
+                    onNavigateToSettings={(target) => {
+                      setActiveTab('settings');
+                      if (target?.includes('backup')) setSettingsSubTab('backup');
+                    }}
+                    onNavigateSubTab={(sub) => setDashboardSubTab(sub)}
+                  />
+                </div>
               )}
-              {dashboardSubTab === 'revenue' && (
-                <RevenueAnalyticsView />
+              {visitedDashboardSubTabs.has('revenue') && (
+                <div className={`h-full w-full ${dashboardSubTab === 'revenue' ? '' : 'hidden'}`}>
+                  <RevenueAnalyticsView />
+                </div>
               )}
-              {dashboardSubTab === 'inventory' && (
-                <InventoryAnalyticsView />
+              {visitedDashboardSubTabs.has('inventory') && (
+                <div className={`h-full w-full ${dashboardSubTab === 'inventory' ? '' : 'hidden'}`}>
+                  <InventoryAnalyticsView />
+                </div>
               )}
-              {dashboardSubTab === 'customers' && (
-                <CustomerAnalyticsView onNavigateToCustomers={() => setActiveTab('customers')} />
+              {visitedDashboardSubTabs.has('customers') && (
+                <div className={`h-full w-full ${dashboardSubTab === 'customers' ? '' : 'hidden'}`}>
+                  <CustomerAnalyticsView onNavigateToCustomers={() => setActiveTab('customers')} />
+                </div>
               )}
             </div>
           )}
-          {effectiveActiveTab === 'customers' && <CustomersView />}
-          {!isCashier && effectiveActiveTab === 'products' && (
-            <ProductsView 
-              subView={productsSubView} 
-              onSubViewChange={(tab) => setProductsSubView(tab)} 
-              initialFilter={initialProductFilter}
-              onResetFilter={() => setInitialProductFilter('all')}
-            />
+
+          {visitedTabs.has('customers') && (
+            <div className={`h-full w-full ${effectiveActiveTab === 'customers' ? '' : 'hidden'}`}>
+              <CustomersView />
+            </div>
           )}
-          {!isCashier && effectiveActiveTab === 'purchases' && (
-            <PurchasesView 
-              subView={purchasesSubView} 
-              onSubViewChange={(tab) => setPurchasesSubView(tab)} 
-            />
+
+          {!isCashier && visitedTabs.has('products') && (
+            <div className={`h-full w-full ${effectiveActiveTab === 'products' ? '' : 'hidden'}`}>
+              <ProductsView 
+                isActive={effectiveActiveTab === 'products'}
+                subView={productsSubView} 
+                onSubViewChange={(tab) => setProductsSubView(tab)} 
+                initialFilter={initialProductFilter}
+                onResetFilter={() => setInitialProductFilter('all')}
+              />
+            </div>
           )}
-          {!isCashier && effectiveActiveTab === 'sales' && <SalesHistoryView />}
-          {!isCashier && effectiveActiveTab === 'audit' && <AuditLogView />}
-          {!isCashier && effectiveActiveTab === 'settings' && (
-            <SettingsView 
-              sysInfo={sysInfo} 
-              activeSubTab={settingsSubTab} 
-              onSubTabChange={(tab) => setSettingsSubTab(tab)} 
-            />
+
+          {!isCashier && visitedTabs.has('purchases') && (
+            <div className={`h-full w-full ${effectiveActiveTab === 'purchases' ? '' : 'hidden'}`}>
+              <PurchasesView 
+                subView={purchasesSubView} 
+                onSubViewChange={(tab) => setPurchasesSubView(tab)} 
+              />
+            </div>
+          )}
+
+          {!isCashier && visitedTabs.has('sales') && (
+            <div className={`h-full w-full ${effectiveActiveTab === 'sales' ? '' : 'hidden'}`}>
+              <SalesHistoryView isActive={effectiveActiveTab === 'sales'} />
+            </div>
+          )}
+
+          {!isCashier && visitedTabs.has('audit') && (
+            <div className={`h-full w-full ${effectiveActiveTab === 'audit' ? '' : 'hidden'}`}>
+              <AuditLogView />
+            </div>
+          )}
+
+          {!isCashier && visitedTabs.has('settings') && (
+            <div className={`h-full w-full ${effectiveActiveTab === 'settings' ? '' : 'hidden'}`}>
+              <SettingsView 
+                sysInfo={sysInfo} 
+                activeSubTab={settingsSubTab} 
+                onSubTabChange={(tab) => setSettingsSubTab(tab)} 
+              />
+            </div>
           )}
         </main>
       </div>

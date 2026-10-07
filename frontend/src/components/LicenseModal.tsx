@@ -278,7 +278,7 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
   };
 
   const isAlreadyActive = license?.isActive && (license.status === 'active' || license.status === 'trial');
-  const isTrial = license?.status === 'trial' || license?.licenseType === 'trial';
+  const isTrial = Boolean(license?.isActive) && (license?.status === 'trial' || license?.licenseType === 'trial');
   const isTransferred = license?.status === 'transferred';
 
   return (

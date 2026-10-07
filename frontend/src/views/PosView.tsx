@@ -48,7 +48,11 @@ import { PosInvoiceDiscountModal } from './pos/PosInvoiceDiscountModal';
 import { usePosCatalog } from './pos/usePosCatalog';
 import { usePosShortcuts } from './pos/usePosShortcuts';
 
-export const PosView = () => {
+export interface PosViewProps {
+  isActive?: boolean;
+}
+
+export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
   const { isEnabled } = useFeatures();
   const showFastItems = isEnabled('feature_fast_buttons');
   const showCredit = isEnabled('feature_credit_debts');
@@ -614,25 +618,6 @@ export const PosView = () => {
   useDataSubscription(['held_sales', 'all'], () => {
     void loadHeldSalesCount();
   });
-
-  const [isSeedingCatalog, setIsSeedingCatalog] = useState(false);
-
-  const handleSeedTemplateProducts = async () => {
-    setIsSeedingCatalog(true);
-    try {
-      const res: any = await invoke('templates:seedProducts');
-      if (res && res.success) {
-        showStatus(`تم تنزيل ${res.seededCount || 168} صنفاً بنجاح!`, 'success');
-        await loadSmartCatalog();
-      } else {
-        showStatus('تعذر تنزيل كتالوج الأصناف', 'error');
-      }
-    } catch (err: any) {
-      showStatus('حدث خطأ أثناء تنزيل الأصناف: ' + (err?.message || ''), 'error');
-    } finally {
-      setIsSeedingCatalog(false);
-    }
-  };
 
   useEffect(() => {
     let active = true;
@@ -1226,6 +1211,7 @@ export const PosView = () => {
 
   // Hook 2: Cashier Keyboard Shortcuts & Hardware Scanner Listener (F1 to F12)
   usePosShortcuts({
+    isActive,
     cart,
     loading,
     lastCompletedSale,
@@ -1248,8 +1234,10 @@ export const PosView = () => {
     showStatus,
   });
 
-  // Focus Management - Always return focus to barcode/search input
+  // Focus Management - Always return focus to barcode/search input when POS is active
   useEffect(() => {
+    if (!isActive) return;
+
     const isAnyModalOpen = isPaymentModalOpen || isReceiptOpen || isClearConfirmOpen || 
       isScannerModalOpen || isQuickAddModalOpen || isQuickItemsManagerOpen || 
       isQuickFastItemModalOpen || isHelpModalOpen || isHeldSalesModalOpen || isReturnModalOpen || !!weightModalProduct || !!variantPickerParentProduct || !!unitPickerProduct;
@@ -1273,7 +1261,8 @@ export const PosView = () => {
     isReturnModalOpen,
     weightModalProduct,
     variantPickerParentProduct,
-    unitPickerProduct
+    unitPickerProduct,
+    isActive,
   ]);
 
   return (
@@ -1381,8 +1370,6 @@ export const PosView = () => {
             onOpenQuickFastItemModal={() => setIsQuickFastItemModalOpen(true)}
             onOpenQuickItemsManager={() => setIsQuickItemsManagerOpen(true)}
             totalCatalogProductsCount={catalogProducts.length}
-            onSeedProducts={handleSeedTemplateProducts}
-            isSeedingProducts={isSeedingCatalog}
             categories={allPosCategories}
           />
         )}
