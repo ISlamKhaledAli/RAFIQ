@@ -21,15 +21,22 @@ import { rafiqAlert } from '../../utils/dialogService';
 
 export interface BatchesTabProps {
   onBatchChanged?: () => void;
+  initialSearchQuery?: string;
 }
 
-export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged }) => {
+export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialSearchQuery }) => {
   const [batches, setBatches] = useState<ProductBatch[]>([]);
   const [summary, setSummary] = useState<BatchSummary | null>(null);
   const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery || '');
   const [statusFilter, setStatusFilter] = useState<'all' | 'expiring' | 'expired' | 'active'>('all');
   const [alertDays, setAlertDays] = useState<number>(30);
+
+  useEffect(() => {
+    if (initialSearchQuery !== undefined) {
+      setSearchQuery(initialSearchQuery);
+    }
+  }, [initialSearchQuery]);
 
   // Modals state
   const [adjustingBatch, setAdjustingBatch] = useState<ProductBatch | null>(null);

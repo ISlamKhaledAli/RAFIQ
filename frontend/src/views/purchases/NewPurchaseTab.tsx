@@ -10,6 +10,8 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { CustomSelect } from '../../components/CustomSelect';
+import { CustomDatePicker } from '../../components/CustomDatePicker';
+import { useFeatures } from '../../context/useFeatures';
 import type { Supplier, Product } from '../../types/models';
 import { formatMoney, type NewPurchaseLineItem } from './types';
 
@@ -68,6 +70,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
   onSavePurchase,
   onRequestCancel,
 }) => {
+  const { isEnabled } = useFeatures();
   const displayedCatalogProducts = useMemo(() => {
     if (!productSearchQuery.trim() || productSearchQuery.length < 2) return [];
     return catalogProducts;
@@ -345,49 +348,53 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                     </div>
 
                     {/* Batch & Expiry Input Row */}
-                    <div className="flex items-center gap-3 pr-2 text-[11px] text-ink-muted flex-wrap bg-surface/60 p-1.5 rounded-lg border border-line/60">
-                      <span className="font-bold text-brand text-[10.5px]">بيانات الدفعة (FEFO):</span>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] text-ink-muted">رقم التشغيلة:</span>
-                        <input
-                          type="text"
-                          placeholder="مثال: BATCH-01"
-                          value={item.batchNumber || ''}
-                          onChange={(e) => {
-                            const updated = [...lineItems];
-                            updated[idx].batchNumber = e.target.value;
-                            setLineItems(updated);
-                          }}
-                          className="h-6 w-28 px-2 bg-surface border border-line rounded text-[11px] font-mono focus:border-brand focus:outline-none"
-                        />
+                    {isEnabled('feature_expiry_dates') && (
+                      <div className="flex items-center gap-3 pr-2 text-[11px] text-ink-muted flex-wrap bg-surface/60 p-1.5 rounded-lg border border-line/60">
+                        <span className="font-bold text-brand text-[10.5px]">بيانات الشحنة والصلاحية:</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-ink-muted">كود الشحنة:</span>
+                          <input
+                            type="text"
+                            placeholder="مثال: فاتورة 101"
+                            value={item.batchNumber || ''}
+                            onChange={(e) => {
+                              const updated = [...lineItems];
+                              updated[idx].batchNumber = e.target.value;
+                              setLineItems(updated);
+                            }}
+                            className="h-6 w-28 px-2 bg-surface border border-line rounded text-[11px] font-mono focus:border-brand focus:outline-none"
+                          />
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-ink-muted">تاريخ انتهاء الصلاحية:</span>
+                          <CustomDatePicker
+                            value={item.expiryDate || ''}
+                            onChange={(val) => {
+                              const updated = [...lineItems];
+                              updated[idx].expiryDate = val;
+                              setLineItems(updated);
+                            }}
+                            placeholder="تاريخ الصلاحية"
+                            size="sm"
+                            className="w-[125px]"
+                          />
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-ink-muted">تاريخ الإنتاج:</span>
+                          <CustomDatePicker
+                            value={item.productionDate || ''}
+                            onChange={(val) => {
+                              const updated = [...lineItems];
+                              updated[idx].productionDate = val;
+                              setLineItems(updated);
+                            }}
+                            placeholder="تاريخ الإنتاج"
+                            size="sm"
+                            className="w-[125px]"
+                          />
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] text-ink-muted">تاريخ انتهاء الصلاحية:</span>
-                        <input
-                          type="date"
-                          value={item.expiryDate || ''}
-                          onChange={(e) => {
-                            const updated = [...lineItems];
-                            updated[idx].expiryDate = e.target.value;
-                            setLineItems(updated);
-                          }}
-                          className="h-6 px-2 bg-surface border border-line rounded text-[11px] font-mono focus:border-brand focus:outline-none"
-                        />
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] text-ink-muted">تاريخ الإنتاج:</span>
-                        <input
-                          type="date"
-                          value={item.productionDate || ''}
-                          onChange={(e) => {
-                            const updated = [...lineItems];
-                            updated[idx].productionDate = e.target.value;
-                            setLineItems(updated);
-                          }}
-                          className="h-6 px-2 bg-surface border border-line rounded text-[11px] font-mono focus:border-brand focus:outline-none"
-                        />
-                      </div>
-                    </div>
+                    )}
                   </div>
                 );
               })

@@ -15,18 +15,21 @@ import {
   Store,
   ShoppingBag,
   Percent,
-  CheckCircle2
+  CheckCircle2,
+  Layers
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { QuickItem, Product } from '../types/models';
 import { normalizeArabicNumerals } from '../utils/money';
 import { CustomSelect } from './CustomSelect';
+import { useFeatures } from '../context/useFeatures';
 
 interface QuickFastItemModalProps {
   isOpen: boolean;
   onClose: () => void;
   onItemAdded?: (savedItem: QuickItem) => void;
   onOpenFullManager?: () => void;
+  onOpenVariantMatrixModal?: () => void;
   existingCategories?: string[];
 }
 
@@ -35,8 +38,10 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
   onClose,
   onItemAdded,
   onOpenFullManager,
+  onOpenVariantMatrixModal,
   existingCategories = ['عام']
 }) => {
+  const { isEnabled } = useFeatures();
   // Mode selection: warehouse (default & primary) | bundle (combos like Ramadan box) | service (standalone/bags)
   const [mode, setMode] = useState<'warehouse' | 'bundle' | 'service'>('warehouse');
 
@@ -412,6 +417,31 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
             <div className="p-2.5 rounded-lg bg-danger-soft border border-danger-border text-danger text-xs font-semibold flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
+            </div>
+          )}
+
+          {/* Matrix Variants Quick Action (Feature #114) */}
+          {isEnabled('feature_matrix_variants') && onOpenVariantMatrixModal && (
+            <div className="p-3 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-between gap-3 text-xs shadow-2xs">
+              <div className="flex items-center gap-2.5 text-purple-950 font-bold">
+                <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center shrink-0">
+                  <Layers className="w-4 h-4 text-purple-700" />
+                </div>
+                <div>
+                  <div className="text-purple-950">هل تريد إنشاء صنف بـ مقاسات وألوان متعددة؟</div>
+                  <div className="text-[11px] text-purple-700 font-normal">مصفوفة سريعة لملابس وأحذية (مقاس × لون) بباركود لكل خيار</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenVariantMatrixModal();
+                }}
+                className="px-3 py-1.5 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-lg transition-colors shrink-0 text-xs shadow-xs cursor-pointer active:scale-95"
+              >
+                + مصفوفة مقاسات وألوان
+              </button>
             </div>
           )}
 

@@ -102,6 +102,9 @@ export const usePosCatalog = ({
         variantColor: p.variantColor,
         variantSize: p.variantSize,
         variantsCount: p.variantsCount,
+        hasBatches: p.hasBatches,
+        nearestExpiryDate: p.nearestExpiryDate,
+        isExpired: p.isExpired,
       });
       seenProductIds.add(p.id);
     }

@@ -28,4 +28,7 @@ export interface SmartCatalogItem {
   variantColor?: string | null;
   variantSize?: string | null;
   variantsCount?: number;
+  hasBatches?: boolean;
+  nearestExpiryDate?: string | null;
+  isExpired?: boolean;
 }

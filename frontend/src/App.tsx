@@ -71,6 +71,7 @@ import { LicenseExpiredLockScreen } from './components/LicenseExpiredLockScreen'
 import type { LicenseExpiryDetails } from './components/LicenseExpiredLockScreen';
 import { LicenseModal } from './components/LicenseModal';
 import { HelpCenterModal } from './components/HelpCenterModal';
+import { useFeatures } from './context/useFeatures';
 
 export interface SystemInfo {
   appName: string;
@@ -123,6 +124,7 @@ const ADMIN_ONLY_TABS: TabType[] = ['dashboard', 'products', 'purchases', 'sales
 const CASHIER_ALLOWED_TABS: TabType[] = ['pos', 'customers'];
 
 export default function App() {
+  const { isEnabled } = useFeatures();
   const [activeTab, setActiveTab] = useState<TabType>('pos');
   const [currentUser, setCurrentUser] = useState<UserDto | null>(null);
   const isCashier = currentUser?.role === 'cashier';
@@ -1064,23 +1066,25 @@ export default function App() {
                         </div>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveTab('products');
-                          setProductsSubView('batches');
-                        }}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
-                          effectiveActiveTab === 'products' && productsSubView === 'batches'
-                            ? 'bg-[#006d41] text-white font-bold shadow-2xs'
-                            : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-3.5 h-3.5" />
-                          <span>تواريخ الصلاحية والدفعات</span>
-                        </div>
-                      </button>
+                      {isEnabled('feature_expiry_dates') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveTab('products');
+                            setProductsSubView('batches');
+                          }}
+                          className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
+                            effectiveActiveTab === 'products' && productsSubView === 'batches'
+                              ? 'bg-[#006d41] text-white font-bold shadow-2xs'
+                              : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>تواريخ الصلاحية والدفعات</span>
+                          </div>
+                        </button>
+                      )}
                     </div>
                   )}
 

@@ -98,6 +98,15 @@ namespace RafiqPOS.Models
         [JsonProperty("variants")]
         public System.Collections.Generic.List<ProductVariant> Variants { get; set; }
 
+        [JsonProperty("hasBatches")]
+        public bool HasBatches { get; set; }
+
+        [JsonProperty("nearestExpiryDate")]
+        public string NearestExpiryDate { get; set; }
+
+        [JsonProperty("isExpired")]
+        public bool IsExpired { get; set; }
+
         // Presentation helpers (Never used in internal DB math)
         [JsonProperty("priceFormatted")]
         public string PriceFormatted

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using RafiqPOS.Common;
@@ -285,7 +285,16 @@ namespace RafiqPOS.Repositories
                 }
 
                 string sql = @"
-                    SELECT p.*, COALESCE(c.name, 'عام') AS category_name
+                    SELECT p.*, COALESCE(c.name, 'عام') AS category_name,
+                        CASE 
+                            WHEN p.has_variants = 1 THEN 1
+                            WHEN EXISTS(SELECT 1 FROM product_variants pv WHERE pv.parent_product_id = p.id) THEN 1
+                            ELSE 0 
+                        END AS has_variants_computed,
+                        (SELECT COUNT(*) FROM product_variants pv WHERE pv.parent_product_id = p.id) AS variants_count,
+                        (SELECT MIN(pb.expiry_date) FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND pb.expiry_date IS NOT NULL AND pb.expiry_date != '') AS nearest_expiry_date,
+                        CASE WHEN EXISTS(SELECT 1 FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND pb.expiry_date < date('now')) THEN 1 ELSE 0 END AS is_expired,
+                        CASE WHEN EXISTS(SELECT 1 FROM product_batches pb WHERE pb.product_id = p.id) THEN 1 ELSE 0 END AS has_batches
                     FROM products p
                     LEFT JOIN categories c ON p.category_id = c.id
                     WHERE p.is_active = 1" + filterSql + @"
@@ -532,7 +541,10 @@ namespace RafiqPOS.Repositories
                             WHEN EXISTS(SELECT 1 FROM product_variants pv WHERE pv.parent_product_id = p.id) THEN 1
                             ELSE 0 
                         END AS has_variants_computed,
-                        (SELECT COUNT(*) FROM product_variants pv WHERE pv.parent_product_id = p.id) AS variants_count
+                        (SELECT COUNT(*) FROM product_variants pv WHERE pv.parent_product_id = p.id) AS variants_count,
+                        (SELECT MIN(pb.expiry_date) FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND pb.expiry_date IS NOT NULL AND pb.expiry_date != '') AS nearest_expiry_date,
+                        CASE WHEN EXISTS(SELECT 1 FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND pb.expiry_date < date('now')) THEN 1 ELSE 0 END AS is_expired,
+                        CASE WHEN EXISTS(SELECT 1 FROM product_batches pb WHERE pb.product_id = p.id) THEN 1 ELSE 0 END AS has_batches
                     FROM products p
                     LEFT JOIN categories c ON p.category_id = c.id
                     LEFT JOIN (
@@ -923,6 +935,15 @@ namespace RafiqPOS.Repositories
             string variantSku = null;
             try { if (reader["variant_sku"] != DBNull.Value) variantSku = reader["variant_sku"].ToString(); } catch { }
 
+            bool hasBatches = false;
+            try { if (reader["has_batches"] != DBNull.Value) hasBatches = Convert.ToInt32(reader["has_batches"]) == 1; } catch { }
+
+            string nearestExpiryDate = null;
+            try { if (reader["nearest_expiry_date"] != DBNull.Value) nearestExpiryDate = reader["nearest_expiry_date"].ToString(); } catch { }
+
+            bool isExpired = false;
+            try { if (reader["is_expired"] != DBNull.Value) isExpired = Convert.ToInt32(reader["is_expired"]) == 1; } catch { }
+
             return new Product
             {
                 Id = reader["id"].ToString(),
@@ -952,7 +973,10 @@ namespace RafiqPOS.Repositories
                 VariantSize = variantSize,
                 VariantColor = variantColor,
                 VariantSku = variantSku,
-                VariantsCount = variantsCount
+                VariantsCount = variantsCount,
+                HasBatches = hasBatches,
+                NearestExpiryDate = nearestExpiryDate,
+                IsExpired = isExpired
             };
         }
     }

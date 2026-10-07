@@ -32,6 +32,9 @@ export interface Product {
   variantColor?: string | null;
   variantSku?: string | null;
   variantsCount?: number;
+  hasBatches?: boolean;
+  nearestExpiryDate?: string | null;
+  isExpired?: boolean;
 }
 
 export interface ProductVariant {

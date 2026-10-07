@@ -10,6 +10,7 @@ import {
   Layers,
   Tag,
   TrendingUp,
+  Clock,
 } from 'lucide-react';
 import type { Product } from '../../types/models';
 import { formatArabicCurrency } from '../../utils/money';
@@ -32,6 +33,8 @@ export interface ProductsTableProps {
   onEditProduct: (prod: Product) => void;
   onDeleteProduct: (prod: Product) => void;
   onPrintLabel?: (prod: Product) => void;
+  onViewVariants?: (prod: Product) => void;
+  onNavigateToBatches?: (prodName: string) => void;
 }
 
 export const ProductsTable: React.FC<ProductsTableProps> = ({
@@ -52,6 +55,8 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
   onEditProduct,
   onDeleteProduct,
   onPrintLabel,
+  onViewVariants,
+  onNavigateToBatches,
 }) => {
   const filteredProducts = products.filter(
     (p) => selectedCategoryFilter === 'all' || (p.categoryId || 'cat_general') === selectedCategoryFilter
@@ -245,6 +250,24 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
                 {/* Actions: History, Stock Adjust, Edit & Soft Delete */}
                 <div className="col-span-1 flex items-center justify-center gap-1">
+                  {prod.hasVariants && onViewVariants && (
+                    <button
+                      onClick={() => onViewVariants(prod)}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-brand hover:text-brand-dark hover:bg-brand-soft transition-colors cursor-pointer"
+                      title="عرض وتفاصيل المقاسات والألوان (Matrix)"
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  {onNavigateToBatches && (
+                    <button
+                      onClick={() => onNavigateToBatches(prod.name)}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-ink-muted hover:text-amber-800 hover:bg-amber-50 transition-colors cursor-pointer"
+                      title="عرض دفعات الصنف وتواريخ الصلاحية (FEFO)"
+                    >
+                      <Clock className="w-3.5 h-3.5 text-amber-600" />
+                    </button>
+                  )}
                   <button
                     onClick={() => onSelectProdForMovements(prod)}
                     className="w-7 h-7 flex items-center justify-center rounded-lg text-[#52605D] hover:text-[#006D41] hover:bg-emerald-50 transition-colors cursor-pointer"

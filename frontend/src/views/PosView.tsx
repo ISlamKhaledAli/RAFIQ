@@ -25,6 +25,7 @@ import { SupervisorPromptModal } from '../components/SupervisorPromptModal';
 import { HeldSalesModal } from '../components/HeldSalesModal';
 import { ReturnModal } from '../components/ReturnModal';
 import { ProductVariantPickerModal } from '../components/ProductVariantPickerModal';
+import { ProductVariantMatrixModal } from '../components/ProductVariantMatrixModal';
 import { ProductUnitPickerModal } from '../components/ProductUnitPickerModal';
 import { 
   convertArabicLayoutToBarcode,
@@ -149,6 +150,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
 
   // Variant Picker Modal State (Feature #114 / Task 114-5)
   const [variantPickerParentProduct, setVariantPickerParentProduct] = useState<Product | null>(null);
+  const [showVariantMatrixModal, setShowVariantMatrixModal] = useState(false);
 
   // Unit Picker Modal State (Feature #175 / Task 175-2)
   const [unitPickerProduct, setUnitPickerProduct] = useState<Product | null>(null);
@@ -204,6 +206,10 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
     if (prod.hasVariants) {
       setVariantPickerParentProduct(prod);
       return;
+    }
+
+    if (isEnabled('feature_expiry_dates') && prod.isExpired) {
+      showStatus(`تنبيه هالك: الصنف "${prod.name}" يحتوي على دفعات منتهية الصلاحية!`, 'warning');
     }
 
     let unitToUse = specificUnit;
@@ -314,7 +320,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
       };
       return [newItem, ...prev];
     });
-  }, [allowNegativeStock, showStatus]);
+  }, [allowNegativeStock, showStatus, isEnabled]);
 
   const changeCartItemUnit = useCallback((index: number, newUnitId: string) => {
     setCart((prev) => {
@@ -1369,6 +1375,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
             handleSmartItemClick={handleSmartItemClick}
             onOpenQuickFastItemModal={() => setIsQuickFastItemModalOpen(true)}
             onOpenQuickItemsManager={() => setIsQuickItemsManagerOpen(true)}
+            onOpenVariantMatrixModal={() => setShowVariantMatrixModal(true)}
             totalCatalogProductsCount={catalogProducts.length}
             categories={allPosCategories}
           />
@@ -1523,6 +1530,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
           showStatus(`تمت إضافة الصنف السريع "${savedItem.name}" بنجاح!`, 'success');
         }}
         onOpenFullManager={() => setIsQuickItemsManagerOpen(true)}
+        onOpenVariantMatrixModal={() => setShowVariantMatrixModal(true)}
         existingCategories={categoryTabs.map(c => c.name).filter(n => n && n !== 'الكل' && n !== 'الأكثر طلباً')}
       />
 
@@ -1700,6 +1708,22 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
         onSelectVariant={(variantProd) => {
           addProductToCart(variantProd);
           showStatus(`تمت إضافة: ${variantProd.name}`, 'success');
+        }}
+      />
+
+      {/* 16b. VARIANT MATRIX CREATOR MODAL (Feature #114 / Task 114-4) */}
+      <ProductVariantMatrixModal
+        isOpen={showVariantMatrixModal}
+        onClose={() => {
+          setShowVariantMatrixModal(false);
+          barcodeInputRef.current?.focus();
+        }}
+        categories={categories}
+        onSuccess={(result) => {
+          setShowVariantMatrixModal(false);
+          void loadSmartCatalog();
+          showStatus(`تم إنشاء مصفوفة المقاسات والألوان بنجاح للصنف "${result.parentProduct.name}"!`, 'success');
+          barcodeInputRef.current?.focus();
         }}
       />
 

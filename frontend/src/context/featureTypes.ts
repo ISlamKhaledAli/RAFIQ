@@ -14,6 +14,7 @@ export const DEFAULT_FLAGS: Record<string, boolean> = {
   feature_taxes: false,
   feature_expiry_dates: false,
   feature_multi_units: false,
+  feature_matrix_variants: false,
 };
 
 export const FeaturesContext = createContext<FeaturesState>({

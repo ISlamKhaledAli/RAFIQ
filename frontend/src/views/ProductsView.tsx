@@ -38,8 +38,10 @@ import { StockMovementsModal } from '../components/StockMovementsModal';
 import { StockAdjustmentModal } from '../components/StockAdjustmentModal';
 import { PurchaseEntryModal } from '../components/PurchaseEntryModal';
 import { ProductVariantMatrixModal } from '../components/ProductVariantMatrixModal';
+import { ProductVariantsListModal } from '../components/ProductVariantsListModal';
 import { BarcodeLabelModal } from '../components/BarcodeLabelModal';
 import { DataQualityAuditModal } from '../components/DataQualityAuditModal';
+import { useFeatures } from '../context/useFeatures';
 import { ProductFormModal } from './products/ProductFormModal';
 import { BulkMinStockModal } from './products/BulkMinStockModal';
 import { StockMovementsTab } from './products/StockMovementsTab';
@@ -58,6 +60,7 @@ export interface ProductsViewProps {
 export const ProductsView: React.FC<ProductsViewProps> = ({ 
   isActive = true,
   subView, 
+  onSubViewChange,
   initialFilter = 'all', 
   onResetFilter 
 }) => {
@@ -94,6 +97,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [stockInput, setStockInput] = useState('10');
   const [minStockInput, setMinStockInput] = useState('5');
   const [taxRatePercent, setTaxRatePercent] = useState(0);
+  const [variantSize, setVariantSize] = useState('');
+  const [variantColor, setVariantColor] = useState('');
+  const [initialExpiryDate, setInitialExpiryDate] = useState('');
+  const [initialBatchNumber, setInitialBatchNumber] = useState('');
   const [formError, setFormError] = useState('');
   const [similarWarning, setSimilarWarning] = useState<string | null>(null);
   const [additionalBarcodes, setAdditionalBarcodes] = useState<string[]>([]);
@@ -124,6 +131,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [importSuccessAlert, setImportSuccessAlert] = useState<string | null>(null);
   const [showVariantMatrixModal, setShowVariantMatrixModal] = useState(false);
+  const [selectedParentForVariants, setSelectedParentForVariants] = useState<Product | null>(null);
+  const [batchesInitialSearch, setBatchesInitialSearch] = useState<string>('');
+  const { isEnabled } = useFeatures();
 
   // Barcode Label Printing Modal State (Feature #57 / Tasks 57-1 to 57-4)
   const [showBarcodeLabelModal, setShowBarcodeLabelModal] = useState(false);
@@ -176,7 +186,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   };
 
   // Stock Movements & Inventory state (Stories 38 & 39 / Features #34 & #35)
-  const activeSubView = subView ?? 'catalog';
+  const activeSubView = (!isEnabled('feature_expiry_dates') && subView === 'batches') ? 'catalog' : (subView ?? 'catalog');
 
   const [selectedProdForMovements, setSelectedProdForMovements] = useState<Product | null>(null);
   const [selectedProdForAdjustment, setSelectedProdForAdjustment] = useState<Product | null>(null);
@@ -440,6 +450,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setStockInput('0');
     setMinStockInput('0');
     setTaxRatePercent(0);
+    setVariantSize('');
+    setVariantColor('');
+    setInitialExpiryDate('');
+    setInitialBatchNumber('');
     setFormError('');
     setSimilarWarning(null);
     setBelowCostWarning(null);
@@ -458,6 +472,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setTaxCategoryCode(prod.taxCategoryCode || '');
     setPricePiasters(prod.pricePiasters);
     setCostPiasters(prod.costPiasters);
+    setVariantSize(prod.variantSize || '');
+    setVariantColor(prod.variantColor || '');
+    setInitialExpiryDate(prod.nearestExpiryDate || '');
+    setInitialBatchNumber('');
     const u = prod.unit === 'kg' ? 'kg' : 'piece';
     setUnit(u);
 
@@ -681,6 +699,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         units: synchronizedUnits,
         taxRatePercent,
         isActive: true,
+        variantSize: variantSize.trim() || undefined,
+        variantColor: variantColor.trim() || undefined,
         confirmSimilarName: forceConfirmSimilar,
         confirmBelowCost: forceConfirmCost,
       };
@@ -689,7 +709,17 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         productPayload.id = editingId;
       }
 
-      await invoke<Product>('products:save', productPayload);
+      const saved = await invoke<Product>('products:save', productPayload);
+      if (saved && isEnabled('feature_expiry_dates') && initialExpiryDate.trim() && stockQuantityMilli > 0) {
+        await invoke('batch:save', {
+          productId: saved.id,
+          batchNumber: initialBatchNumber.trim() || `B-${Date.now().toString().slice(-6)}`,
+          expiryDate: initialExpiryDate.trim(),
+          quantityMilli: stockQuantityMilli,
+          costPricePiasters: costPiasters,
+          status: 'ACTIVE'
+        }).catch(() => null);
+      }
       setSimilarWarning(null);
       setBelowCostWarning(null);
       setShowModal(false);
@@ -948,6 +978,18 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 <HelpCircle className="w-4 h-4" />
               </button>
 
+              {isEnabled('feature_matrix_variants') && (
+                <button
+                  type="button"
+                  onClick={() => setShowVariantMatrixModal(true)}
+                  className="h-9 px-3 bg-brand-soft hover:bg-emerald-100 text-brand border border-brand/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-[0.98] shrink-0"
+                  title="إنشاء صنف أب مع جدول تركيبات المقاسات والألوان والباركود (Matrix)"
+                >
+                  <Layers className="w-4 h-4 text-brand" />
+                  <span>مقاسات وألوان (Matrix)</span>
+                </button>
+              )}
+
               <button
                 onClick={openAddModal}
                 className="h-9 px-3.5 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-[0.98] shrink-0"
@@ -1164,6 +1206,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               setLabelModalProduct(prod);
               setShowBarcodeLabelModal(true);
             }}
+            onViewVariants={(prod) => setSelectedParentForVariants(prod)}
+            onNavigateToBatches={isEnabled('feature_expiry_dates') ? (prodName) => {
+              setBatchesInitialSearch(prodName);
+              if (onSubViewChange) {
+                onSubViewChange('batches');
+              }
+            } : undefined}
           />
 
           {/* Pagination Bar */}
@@ -1286,7 +1335,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         />
       ) : (
         /* Batches & Expiry Dates Tab (Story 93 / Feature #60) */
-        <BatchesTab onBatchChanged={() => void loadProducts(searchQuery)} />
+        <BatchesTab 
+          onBatchChanged={() => void loadProducts(searchQuery)} 
+          initialSearchQuery={batchesInitialSearch}
+        />
       )}
 
       {/* 3. Add/Edit Product Modal Subcomponent */}
@@ -1296,6 +1348,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         editingId={editingId}
         name={name}
         setName={setName}
+        onOpenVariantMatrix={() => {
+          setShowModal(false);
+          setShowVariantMatrixModal(true);
+        }}
         barcode={barcode}
         setBarcode={setBarcode}
         additionalBarcodes={additionalBarcodes}
@@ -1341,6 +1397,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         onGenerateInternalBarcode={generateInternalBarcode}
         onAddBarcode={handleAddBarcode}
         onRemoveBarcode={handleRemoveBarcode}
+        variantSize={variantSize}
+        setVariantSize={setVariantSize}
+        variantColor={variantColor}
+        setVariantColor={setVariantColor}
+        initialExpiryDate={initialExpiryDate}
+        setInitialExpiryDate={setInitialExpiryDate}
+        initialBatchNumber={initialBatchNumber}
+        setInitialBatchNumber={setInitialBatchNumber}
       />
 
       {/* Confirm Product Delete Modal (Feature #112 / Task 112-2) */}
@@ -1464,6 +1528,35 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           void loadProducts('');
         }}
         categories={categories}
+      />
+
+      {/* Product Variants List Details Modal */}
+      <ProductVariantsListModal
+        isOpen={selectedParentForVariants !== null}
+        onClose={() => setSelectedParentForVariants(null)}
+        parentProduct={selectedParentForVariants}
+        onOpenMatrixModal={() => {
+          setShowVariantMatrixModal(true);
+        }}
+        onPrintVariantLabel={(v) => {
+          if (selectedParentForVariants) {
+            setLabelModalProduct({
+              id: v.variantProductId,
+              name: `${selectedParentForVariants.name} - ${v.color} - ${v.size}`,
+              barcode: v.barcode,
+              pricePiasters: v.pricePiasters,
+              costPiasters: v.costPiasters,
+              stockQuantityMilli: v.stockQuantityMilli,
+              unit: 'piece',
+              taxRatePercent: selectedParentForVariants.taxRatePercent || 0,
+              isActive: true,
+              categoryId: selectedParentForVariants.categoryId,
+              createdAt: v.createdAt,
+              updatedAt: v.updatedAt,
+            });
+            setShowBarcodeLabelModal(true);
+          }
+        }}
       />
 
       {/* Barcode Label Printing Modal (Story 105 - Feature #57) */}

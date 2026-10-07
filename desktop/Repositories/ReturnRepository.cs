@@ -156,6 +156,30 @@ namespace RafiqPOS.Repositories
                                     cmd.ExecuteNonQuery();
                                 }
 
+                                // If this product is a variant (has parent_id), synchronize variant table and parent product total stock
+                                string syncVariantStockSql = @"
+                                    UPDATE product_variants
+                                    SET stock_quantity_milli = stock_quantity_milli + @qty,
+                                        updated_at = @now
+                                    WHERE variant_product_id = @prodId;
+
+                                    UPDATE products
+                                    SET stock_quantity_milli = (
+                                        SELECT COALESCE(SUM(p2.stock_quantity_milli), 0)
+                                        FROM products p2
+                                        WHERE p2.parent_id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @prodId)
+                                    ),
+                                    updated_at = @now
+                                    WHERE id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @prodId AND p1.parent_id IS NOT NULL);
+                                ";
+                                using (var vSyncCmd = new SQLiteCommand(syncVariantStockSql, conn, trans))
+                                {
+                                    vSyncCmd.Parameters.AddWithValue("@qty", item.QuantityMilli);
+                                    vSyncCmd.Parameters.AddWithValue("@now", nowIso);
+                                    vSyncCmd.Parameters.AddWithValue("@prodId", item.ProductId);
+                                    vSyncCmd.ExecuteNonQuery();
+                                }
+
                                 // Stock movement entry
                                 string insertMovementSql = @"
                                     INSERT INTO stock_movements (

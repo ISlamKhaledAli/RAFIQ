@@ -17,6 +17,7 @@ import {
   Plus,
   Coins,
   Layers,
+  Calendar,
   Calculator,
   Receipt,
 } from 'lucide-react';
@@ -24,7 +25,9 @@ import type { Category, ProductUnit } from '../../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
 import { MoneyInput } from '../../components/MoneyInput';
 import { CustomSelect } from '../../components/CustomSelect';
+import { CustomDatePicker } from '../../components/CustomDatePicker';
 import { ProductUnitsEditor } from '../../components/ProductUnitsEditor';
+import { useFeatures } from '../../context/useFeatures';
 
 export interface BelowCostWarningData {
   pricePiasters: number;
@@ -77,6 +80,15 @@ export interface ProductFormModalProps {
   onGenerateInternalBarcode: () => void;
   onAddBarcode: () => void;
   onRemoveBarcode: (index: number) => void;
+  onOpenVariantMatrix?: () => void;
+  variantSize?: string;
+  setVariantSize?: (v: string) => void;
+  variantColor?: string;
+  setVariantColor?: (v: string) => void;
+  initialExpiryDate?: string;
+  setInitialExpiryDate?: (v: string) => void;
+  initialBatchNumber?: string;
+  setInitialBatchNumber?: (v: string) => void;
 }
 
 export const ProductFormModal: React.FC<ProductFormModalProps> = ({
@@ -85,6 +97,15 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   editingId,
   name,
   setName,
+  onOpenVariantMatrix,
+  variantSize = '',
+  setVariantSize,
+  variantColor = '',
+  setVariantColor,
+  initialExpiryDate = '',
+  setInitialExpiryDate,
+  initialBatchNumber = '',
+  setInitialBatchNumber,
   barcode,
   setBarcode,
   additionalBarcodes,
@@ -252,6 +273,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const calculatedFromInvoice = invoiceQtyNum > 0 ? Math.round(calcInvoiceTotalPiasters / invoiceQtyNum) : 0;
 
   const activeCalculatedCost = costCalcMode === 'carton' ? calculatedFromCarton : calculatedFromInvoice;
+  const { isEnabled } = useFeatures();
 
   if (!isOpen) return null;
 
@@ -321,6 +343,28 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               </div>
             )}
 
+
+            {/* Matrix Variants Quick Action (Feature #114) */}
+            {!editingId && onOpenVariantMatrix && isEnabled('feature_matrix_variants') && (
+              <div className="p-3 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-between gap-3 text-xs shadow-2xs">
+                <div className="flex items-center gap-2.5 text-purple-950 font-bold">
+                  <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center shrink-0">
+                    <Layers className="w-4 h-4 text-purple-700" />
+                  </div>
+                  <div>
+                    <div className="text-purple-950">هل يحتوي هذا الصنف على مقاسات وألوان متعددة (ملابس / أحذية)؟</div>
+                    <div className="text-[11px] text-purple-700 font-normal">أنشئ مصفوفة سريعة (مقاس × لون) بباركود ورصيد وسعر لكل خيار بدفعة واحدة</div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={onOpenVariantMatrix}
+                  className="px-3 py-1.5 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-lg transition-colors shrink-0 text-xs shadow-xs cursor-pointer active:scale-95"
+                >
+                  + إنشاء مصفوفة مقاسات وألوان
+                </button>
+              </div>
+            )}
 
             {/* Name */}
             <div>
@@ -474,6 +518,85 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 </button>
               </div>
             </div>
+
+            {/* Variant Attributes: Size & Color (Feature #114) */}
+            {isEnabled('feature_matrix_variants') && (
+              <div className="p-3 bg-purple-50/60 border border-purple-200 rounded-lg flex flex-col gap-2.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-purple-950 font-bold text-[12px]">
+                    <Layers className="w-4 h-4 text-purple-700" />
+                    <span>المقاس واللون للصنف (اختياري)</span>
+                  </div>
+                  {!editingId && onOpenVariantMatrix && (
+                    <button
+                      type="button"
+                      onClick={onOpenVariantMatrix}
+                      className="text-[11px] text-purple-700 hover:text-purple-900 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>+ توليد مصفوفة متعددة (مقاس × لون)</span>
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-ink-muted mb-1">المقاس</label>
+                    <input
+                      type="text"
+                      placeholder="مثال: L أو 42 أو 2XL"
+                      value={variantSize}
+                      onChange={(e) => setVariantSize?.(e.target.value)}
+                      className="w-full bg-surface border border-line rounded h-[36px] px-3 text-[12px] font-mono text-ink focus:outline-none focus:border-brand"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-ink-muted mb-1">اللون</label>
+                    <input
+                      type="text"
+                      placeholder="مثال: كحلي أو أبيض أو أسود"
+                      value={variantColor}
+                      onChange={(e) => setVariantColor?.(e.target.value)}
+                      className="w-full bg-surface border border-line rounded h-[36px] px-3 text-[12px] text-ink focus:outline-none focus:border-brand"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Expiry Date & Batch for Initial Stock (Feature #60) */}
+            {isEnabled('feature_expiry_dates') && (
+              <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-lg flex flex-col gap-2.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-amber-950 font-bold text-[12px]">
+                    <Calendar className="w-4 h-4 text-amber-700" />
+                    <span>تاريخ الصلاحية وشحنة البضاعة (اختياري)</span>
+                  </div>
+                  <span className="text-[10px] text-amber-700 font-medium">تسجيل تلقائي لرصيد أول المدة بالمخزن</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-ink-muted mb-1">تاريخ انتهاء الصلاحية</label>
+                    <CustomDatePicker
+                      value={initialExpiryDate || ''}
+                      onChange={(val) => setInitialExpiryDate?.(val)}
+                      placeholder="اختر تاريخ الصلاحية"
+                      size="md"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-ink-muted mb-1">
+                      كود الشحنة أو الفاتورة (اختياري)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="مثلاً: شحنة 1 أو رقم الفاتورة (تلقائي لو فارغ)"
+                      value={initialBatchNumber}
+                      onChange={(e) => setInitialBatchNumber?.(e.target.value)}
+                      className="w-full bg-surface border border-line rounded h-[34px] px-3 text-[12px] font-mono text-ink focus:outline-none focus:border-brand shadow-2xs"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Integrated Dynamic Packaging & Stock Quantity Engine */}
             <div className="p-3 bg-surface-2 border-2 border-brand/30 rounded-lg flex flex-col gap-3 shadow-2xs">

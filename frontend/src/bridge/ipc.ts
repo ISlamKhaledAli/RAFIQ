@@ -1147,7 +1147,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           description: 'مناسب لمحلات الملابس والأحذية والأزياء والحقائب (بدون ميزان وأوزان)',
           icon: 'shirt',
           productsCount: 40,
-          featureFlags: { feature_scale_weight: false, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false },
+          featureFlags: { feature_scale_weight: false, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false, feature_matrix_variants: true },
           categories: ['ملابس رجالي', 'ملابس حريمي', 'ملابس أطفال', 'أحذية وحقائب', 'إكسسوارات ملابس'],
           quickItems: [
             { Name: 'تيشيرت قطن أساسي', PricePiasters: 15000, Unit: 'piece', CategoryName: 'ملابس رجالي', IsOpenPrice: false },
@@ -2923,6 +2923,7 @@ function getMockFeatureFlags(): Record<string, boolean> {
     feature_scale_weight: true,
     feature_expiry_dates: false,
     feature_multi_units: false,
+    feature_matrix_variants: false,
   };
   try {
     const stored = localStorage.getItem('rafiq_feature_flags');

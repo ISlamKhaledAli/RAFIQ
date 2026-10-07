@@ -101,7 +101,7 @@ export const INITIAL_STORE_TEMPLATES: StoreTemplateDto[] = [
     name: 'ملابس وأحذية وأزياء',
     description: 'مناسب لمحلات الملابس والأحذية والأزياء والحقائب مع دعم إدارة المقاسات والألوان والباركود',
     icon: 'shirt',
-    featureFlags: { feature_scale_weight: false, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false },
+    featureFlags: { feature_scale_weight: false, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false, feature_matrix_variants: true },
     categories: [],
     quickItems: [],
     productsCount: 0,

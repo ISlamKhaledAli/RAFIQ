@@ -9,10 +9,13 @@ import {
   Scale, 
   Package, 
   Layers,
+  Calendar,
+  AlertTriangle,
   FolderOpen
 } from 'lucide-react';
 import type { ProductUnit, Category } from '../../types/models';
 import type { SmartCatalogItem } from './types';
+import { useFeatures } from '../../context/useFeatures';
 
 interface PosCatalogPanelProps {
   smartItems: SmartCatalogItem[];
@@ -26,6 +29,7 @@ interface PosCatalogPanelProps {
   handleSmartItemClick: (item: SmartCatalogItem, specificUnit?: ProductUnit) => void;
   onOpenQuickFastItemModal: () => void;
   onOpenQuickItemsManager: () => void;
+  onOpenVariantMatrixModal?: () => void;
   totalCatalogProductsCount?: number;
   categories?: Category[];
 }
@@ -42,9 +46,11 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
   handleSmartItemClick,
   onOpenQuickFastItemModal,
   onOpenQuickItemsManager,
+  onOpenVariantMatrixModal,
   totalCatalogProductsCount = 0,
   categories = [],
 }) => {
+  const { isEnabled } = useFeatures();
   // Progressive display to guarantee ultra-fast 60fps rendering even with 1000+ items
   const [prevFilter, setPrevFilter] = React.useState({ tab: activeCatalogTab, query: catalogSearchQuery });
   const [visibleCount, setVisibleCount] = React.useState(40);
@@ -96,6 +102,17 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
+          {isEnabled('feature_matrix_variants') && onOpenVariantMatrixModal && (
+            <button
+              type="button"
+              onClick={onOpenVariantMatrixModal}
+              className="flex items-center gap-1 text-[11px] font-bold text-white bg-purple-700 hover:bg-purple-800 active:bg-purple-900 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:translate-y-0.5"
+              title="إضافة منتج بمقاسات وألوان متعددة (Matrix) للملابس والأحذية"
+            >
+              <Layers className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>+ مقاسات وألوان</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={onOpenQuickFastItemModal}
@@ -220,9 +237,9 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                       <span>ميزان</span>
                     </span>
                   ) : item.hasVariants ? (
-                    <span className="text-[10px] font-bold bg-purple-50 text-purple-800 border border-purple-200 px-1.5 py-0.2 rounded flex items-center gap-0.5" title="صنف يحتوي على ألوان ومقاسات">
+                    <span className="text-[10px] font-bold bg-purple-50 text-purple-800 border border-purple-200 px-1.5 py-0.2 rounded flex items-center gap-1" title="صنف يحتوي على ألوان ومقاسات متعددة">
                       <Layers className="w-2.5 h-2.5 text-purple-600" />
-                      <span>مقاسات</span>
+                      <span>مقاسات وألوان{item.variantsCount ? ` (${item.variantsCount})` : ''}</span>
                     </span>
                   ) : (
                     <span className="text-[10px] font-medium text-ink-muted bg-surface-2 border border-line px-1.5 py-0.2 rounded truncate max-w-[85px]">
@@ -231,9 +248,24 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                   )}
 
                   {(item.variantColor || item.variantSize) && (
-                    <span className="text-[10px] font-semibold bg-indigo-50 text-indigo-800 border border-indigo-200 px-1.5 py-0.2 rounded flex items-center gap-0.5 font-mono">
+                    <span className="text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200 px-1.5 py-0.2 rounded flex items-center gap-1 font-mono">
                       {item.variantColor && <span>{item.variantColor}</span>}
-                      {item.variantSize && <span>({item.variantSize})</span>}
+                      {item.variantColor && item.variantSize && <span className="opacity-40">|</span>}
+                      {item.variantSize && <span>مقاس: {item.variantSize}</span>}
+                    </span>
+                  )}
+
+                  {isEnabled('feature_expiry_dates') && item.isExpired && (
+                    <span className="text-[10px] font-bold bg-danger-soft text-danger border border-danger-border px-1.5 py-0.2 rounded flex items-center gap-1 animate-pulse" title="يحتوي على دفعات منتهية الصلاحية!">
+                      <AlertTriangle className="w-2.5 h-2.5 text-danger shrink-0" />
+                      <span>منتهي الصلاحية</span>
+                    </span>
+                  )}
+
+                  {isEnabled('feature_expiry_dates') && !item.isExpired && item.nearestExpiryDate && (
+                    <span className="text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.2 rounded flex items-center gap-0.5 font-mono" title={`أقرب تاريخ صلاحية: ${item.nearestExpiryDate}`}>
+                      <Calendar className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                      <span>صلاحية: {item.nearestExpiryDate}</span>
                     </span>
                   )}
 
@@ -294,9 +326,9 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                 </div>
 
                 {item.hasVariants ? (
-                  <span className="text-[10px] font-bold text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.2 rounded flex items-center gap-1">
-                    <Layers className="w-2.5 h-2.5 text-purple-600" />
-                    <span>تحديد الخيار</span>
+                  <span className="text-[10px] font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-2xs group-hover:bg-purple-600 group-hover:text-white transition-all">
+                    <Layers className="w-3 h-3 text-purple-600 group-hover:text-white transition-colors" />
+                    <span>اختر المقاس واللون ↵</span>
                   </span>
                 ) : (
                   <span className="text-[11px] text-ink-muted opacity-0 group-hover:opacity-100 transition-opacity font-medium">

@@ -686,6 +686,7 @@ namespace RafiqPOS.Services
             t7.FeatureFlags["feature_taxes"] = false;
             t7.FeatureFlags["feature_expiry_dates"] = false;
             t7.FeatureFlags["feature_multi_units"] = false;
+            t7.FeatureFlags["feature_matrix_variants"] = true;
             t7.Categories = new List<string> { "ملابس رجالي", "ملابس حريمي", "ملابس أطفال", "أحذية وحقائب", "إكسسوارات ملابس" };
             t7.QuickItems = new List<TemplateQuickItem>
             {

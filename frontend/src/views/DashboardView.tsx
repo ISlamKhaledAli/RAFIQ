@@ -19,6 +19,7 @@ import {
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
 import type { DashboardSummary, UnclosedDayAlert, BatchSummary, HourlyIntensityReport } from '../types/models';
+import { useFeatures } from '../context/useFeatures';
 import { DailyClosingModal } from '../components/DailyClosingModal';
 import { LowStockReportModal } from '../components/LowStockReportModal';
 import { DebtorsReportModal } from '../components/DebtorsReportModal';
@@ -41,6 +42,7 @@ export function DashboardView({
   onNavigateToCustomers,
   onNavigateSubTab
 }: DashboardViewProps) {
+  const { isEnabled } = useFeatures();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [unclosedAlert, setUnclosedAlert] = useState<UnclosedDayAlert | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -60,7 +62,9 @@ export function DashboardView({
       const [sumData, unclosedData, batchData, hrData] = await Promise.all([
         invoke<DashboardSummary>('reports:getTodaySummary'),
         invoke<UnclosedDayAlert>('closing:checkPreviousDay'),
-        invoke<BatchSummary>('batch:summary').catch(() => null),
+        isEnabled('feature_expiry_dates')
+          ? invoke<BatchSummary>('batch:summary').catch(() => null)
+          : Promise.resolve(null),
         invoke<HourlyIntensityReport>('reports:getHourlyIntensity', { period: 'today' }).catch(() => null)
       ]);
       if (sumData) setSummary(sumData);
@@ -74,7 +78,7 @@ export function DashboardView({
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isEnabled]);
 
   useEffect(() => {
     void loadData();
@@ -188,7 +192,7 @@ export function DashboardView({
       )}
 
       {/* Expiry Dates & Expiring Batches Alert Banner (Story 93 / Feature #60) */}
-      {batchSummary && (batchSummary.expiredCount > 0 || batchSummary.expiringSoonCount > 0) && (
+      {isEnabled('feature_expiry_dates') && batchSummary && (batchSummary.expiredCount > 0 || batchSummary.expiringSoonCount > 0) && (
         <div className={`border-2 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-ink shadow-xs shrink-0 animate-in fade-in duration-200 ${
           batchSummary.expiredCount > 0
             ? 'bg-rose-500/10 border-rose-500/30'
