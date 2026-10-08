@@ -123,10 +123,10 @@ export function DashboardView({
               setIsClosingModalOpen(true);
             }}
             className="flex items-center gap-1.5 h-9 px-3.5 bg-brand hover:bg-brand-dark active:bg-brand-dark text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer active:translate-y-0.5"
-            title="إقفال اليومية ومطابقة النقدية (Z-Report)"
+            title="إقفال اليومية ومطابقة النقدية"
           >
             <Lock className="w-4 h-4 text-emerald-300" />
-            <span>قفل اليومية (Z)</span>
+            <span>قفل اليومية</span>
           </button>
         </div>
       </div>
@@ -220,7 +220,7 @@ export function DashboardView({
               <p className="text-xs text-[#5B6664] mt-0.5">
                 {batchSummary.expiredCount > 0
                   ? `يوجد دفعات منتهية الصلاحية بقيمة تقديرية ${formatArabicCurrency(batchSummary.expiredValuePiasters)}. يرجى إتلافها أو تسويتها لمنع بيعها.`
-                  : `يوجد ${batchSummary.expiringSoonCount} دفعة تقترب من تاريخ الانتهاء بقيمة ${formatArabicCurrency(batchSummary.expiringSoonValuePiasters)}. تُصرف تلقائياً أولاً بنظام FEFO.`}
+                  : `يوجد ${batchSummary.expiringSoonCount} دفعة تقترب من تاريخ الانتهاء بقيمة ${formatArabicCurrency(batchSummary.expiringSoonValuePiasters)}. تُصرف تلقائياً حسب الأقرب انتهاءً.`}
               </p>
             </div>
           </div>

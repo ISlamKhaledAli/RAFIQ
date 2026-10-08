@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Package,
   Scale,
@@ -11,6 +12,8 @@ import {
   Tag,
   TrendingUp,
   Clock,
+  MoreHorizontal,
+  ChevronDown,
 } from 'lucide-react';
 import type { Product } from '../../types/models';
 import { formatArabicCurrency } from '../../utils/money';
@@ -61,6 +64,83 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
   const filteredProducts = products.filter(
     (p) => selectedCategoryFilter === 'all' || (p.categoryId || 'cat_general') === selectedCategoryFilter
   );
+
+  const [activeMenu, setActiveMenu] = useState<{
+    product: Product;
+    top: number;
+    left: number;
+    openUpwards: boolean;
+  } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close actions menu on click outside, Escape, or scrolling
+  useEffect(() => {
+    if (!activeMenu) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setActiveMenu(null);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setActiveMenu(null);
+      }
+    };
+
+    const handleScroll = (e: Event) => {
+      // Don't close the menu if the user is scrolling inside the actions dropdown itself!
+      if (menuRef.current && (menuRef.current === e.target || menuRef.current.contains(e.target as Node))) {
+        return;
+      }
+      setActiveMenu(null);
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('scroll', handleScroll, true);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [activeMenu]);
+
+  const handleToggleMenu = (prod: Product, e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (activeMenu?.product.id === prod.id) {
+      setActiveMenu(null);
+      return;
+    }
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const menuEstimatedHeight = 345;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUpwards = spaceBelow < menuEstimatedHeight && rect.top > menuEstimatedHeight;
+
+    const menuWidth = 220;
+    let left = rect.left;
+    if (left + menuWidth > window.innerWidth - 12) {
+      left = window.innerWidth - menuWidth - 12;
+    }
+    if (left < 12) {
+      left = 12;
+    }
+
+    let top = openUpwards ? rect.top - 6 : rect.bottom + 6;
+    if (!openUpwards && top + menuEstimatedHeight > window.innerHeight - 8) {
+      top = Math.max(8, window.innerHeight - menuEstimatedHeight - 8);
+    }
+
+    setActiveMenu({
+      product: prod,
+      top,
+      left,
+      openUpwards,
+    });
+  };
 
   return (
     <div className="flex-1 bg-surface border border-line rounded-2xl flex flex-col overflow-hidden relative shadow-xs">
@@ -135,7 +215,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
             return (
               <div 
                 key={prod.id} 
-                className={`h-12 border-b border-line px-4 grid grid-cols-12 items-center text-xs hover:bg-surface-2/60 transition-colors ${
+                onDoubleClick={() => onEditProduct(prod)}
+                title="انقر مرتين لتعديل بيانات الصنف"
+                className={`h-12 border-b border-line px-4 grid grid-cols-12 items-center text-xs hover:bg-surface-2/60 transition-colors select-none ${
                   isSelected ? 'bg-brand/10' : ''
                 }`}
               >
@@ -185,7 +267,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                   {prod.hasVariants && (
                     <span
                       className="shrink-0 px-2 py-0.5 bg-brand-soft text-brand text-[10px] font-bold rounded-full border border-brand/20 flex items-center gap-1"
-                      title="منتج متعدد المقاسات والألوان (Matrix)"
+                      title="منتج متعدد المقاسات والألوان"
                     >
                       <Layers className="w-2.5 h-2.5" />
                       <span>مقاسات وألوان</span>
@@ -248,78 +330,29 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                   </span>
                 </div>
 
-                {/* Actions: History, Stock Adjust, Edit & Soft Delete */}
-                <div className="col-span-1 flex items-center justify-center gap-1">
-                  {prod.hasVariants && onViewVariants && (
-                    <button
-                      onClick={() => onViewVariants(prod)}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg text-brand hover:text-brand-dark hover:bg-brand-soft transition-colors cursor-pointer"
-                      title="عرض وتفاصيل المقاسات والألوان (Matrix)"
-                    >
-                      <Layers className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                  {onNavigateToBatches && (
-                    <button
-                      onClick={() => onNavigateToBatches(prod.name)}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg text-ink-muted hover:text-amber-800 hover:bg-amber-50 transition-colors cursor-pointer"
-                      title="عرض دفعات الصنف وتواريخ الصلاحية (FEFO)"
-                    >
-                      <Clock className="w-3.5 h-3.5 text-amber-600" />
-                    </button>
-                  )}
+                {/* Single Unified Actions Dropdown Trigger */}
+                <div className="col-span-1 flex items-center justify-center">
                   <button
-                    onClick={() => onSelectProdForMovements(prod)}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg text-[#52605D] hover:text-[#006D41] hover:bg-emerald-50 transition-colors cursor-pointer"
-                    title="عرض كارت حركات الصنف"
+                    type="button"
+                    onClick={(e) => handleToggleMenu(prod, e)}
+                    className={`h-7 px-2.5 rounded-lg border text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer select-none ${
+                      activeMenu?.product.id === prod.id
+                        ? 'bg-brand text-white border-brand ring-2 ring-brand/20 shadow-xs'
+                        : 'bg-surface hover:bg-surface-2 border-line text-ink hover:text-brand hover:border-brand/40'
+                    }`}
+                    title="قائمة إجراءات وخيارات الصنف"
                   >
-                    <Boxes className="w-3.5 h-3.5" />
-                  </button>
-                  {onSelectProdForPurchase && (
-                    <button
-                      onClick={() => onSelectProdForPurchase(prod)}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg text-[#52605D] hover:text-brand hover:bg-brand-soft transition-colors cursor-pointer"
-                      title="استلام بضاعة / تسجيل شراء بالوحدة (كرتونة/دستة)"
-                    >
-                      <Truck className="w-3.5 h-3.5 text-brand" />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => onSelectProdForAdjustment(prod)}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg text-[#52605D] hover:text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer"
-                    title="تسوية جردية للصنف"
-                  >
-                    <Scale className="w-3.5 h-3.5" />
-                  </button>
-                  {onPrintLabel && (
-                    <button
-                      onClick={() => onPrintLabel(prod)}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg text-[#52605D] hover:text-[#006D41] hover:bg-emerald-50 transition-colors cursor-pointer"
-                      title="طباعة ملصق باركود وسعر"
-                    >
-                      <Tag className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => onOpenPriceHistory(prod)}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg text-[#52605D] hover:text-[#006D41] hover:bg-emerald-50 transition-colors cursor-pointer"
-                    title="سجل تغيير الأسعار"
-                  >
-                    <History className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => onEditProduct(prod)}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg text-[#52605D] hover:text-[#006D41] hover:bg-emerald-50 transition-colors cursor-pointer"
-                    title="تعديل بيانات الصنف"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => onDeleteProduct(prod)}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg text-[#52605D] hover:text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
-                    title="حذف الصنف"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <MoreHorizontal
+                      className={`w-3.5 h-3.5 transition-colors ${
+                        activeMenu?.product.id === prod.id ? 'text-white' : 'text-brand'
+                      }`}
+                    />
+                    <span>إجراءات</span>
+                    <ChevronDown
+                      className={`w-3 h-3 transition-transform duration-150 ${
+                        activeMenu?.product.id === prod.id ? 'rotate-180 text-white' : 'text-ink-muted'
+                      }`}
+                    />
                   </button>
                 </div>
               </div>
@@ -384,9 +417,198 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
       {/* Table Footer Status */}
       <div className="h-8 bg-surface-2 border-t border-line px-4 flex items-center justify-between text-[11px] text-ink-muted shrink-0">
-        <span>يتم تخزين جميع الأسعار بالقروش وتحديث حركة المخزون في معاملات SQLite فورية.</span>
+        <span>يتم حفظ الأسعار وتحديث حركة المخزون تلقائياً وفورياً.</span>
         <span className="font-mono tabular-nums font-bold">{filteredProducts.length} صنف في هذه الصفحة</span>
       </div>
+
+      {/* Floating Actions Portal Dropdown Menu */}
+      {activeMenu &&
+        createPortal(
+          <div
+            ref={menuRef}
+            style={{
+              position: 'fixed',
+              top: activeMenu.top,
+              left: activeMenu.left,
+              transform: activeMenu.openUpwards ? 'translateY(-100%)' : 'none',
+              width: '220px',
+              zIndex: 9999,
+            }}
+            onWheel={(e) => e.stopPropagation()}
+            className="bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden animate-fade-in text-right font-sans select-none"
+            dir="rtl"
+          >
+            {/* Product Info Header */}
+            <div className="p-2.5 bg-surface-2/80 border-b border-line">
+              <div className="font-bold text-xs text-ink truncate">{activeMenu.product.name}</div>
+              <div className="flex items-center justify-between text-[10px] text-ink-muted mt-1 font-mono">
+                <span className="truncate">كود: {activeMenu.product.barcode || '—'}</span>
+                <span className="font-bold text-paid shrink-0 font-sans">
+                  {formatArabicCurrency(activeMenu.product.pricePiasters)}
+                </span>
+              </div>
+            </div>
+
+            {/* Actions List */}
+            <div className="p-1.5 flex flex-col gap-0.5 max-h-[min(520px,calc(100vh-60px))] overflow-y-auto">
+              {/* 1. Edit */}
+              <button
+                type="button"
+                onClick={() => {
+                  const p = activeMenu.product;
+                  setActiveMenu(null);
+                  onEditProduct(p);
+                }}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft text-ink hover:text-brand text-[12px] font-bold transition-colors cursor-pointer group text-right"
+              >
+                <div className="w-6 h-6 rounded-md bg-brand-soft text-brand group-hover:bg-brand group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                  <Edit2 className="w-3.5 h-3.5" />
+                </div>
+                <span className="flex-1 min-w-0 truncate">تعديل بيانات الصنف</span>
+              </button>
+
+              {/* 2. Movements Card */}
+              <button
+                type="button"
+                onClick={() => {
+                  const p = activeMenu.product;
+                  setActiveMenu(null);
+                  onSelectProdForMovements(p);
+                }}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-paid-soft text-ink hover:text-paid text-[12px] font-bold transition-colors cursor-pointer group text-right"
+              >
+                <div className="w-6 h-6 rounded-md bg-paid-soft text-paid group-hover:bg-paid group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                  <Boxes className="w-3.5 h-3.5" />
+                </div>
+                <span className="flex-1 min-w-0 truncate">كارت حركة المخزون</span>
+              </button>
+
+              {/* 3. Stock Adjustment */}
+              <button
+                type="button"
+                onClick={() => {
+                  const p = activeMenu.product;
+                  setActiveMenu(null);
+                  onSelectProdForAdjustment(p);
+                }}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-warn-soft text-ink hover:text-warn text-[12px] font-bold transition-colors cursor-pointer group text-right"
+              >
+                <div className="w-6 h-6 rounded-md bg-warn-soft text-warn group-hover:bg-warn group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                  <Scale className="w-3.5 h-3.5" />
+                </div>
+                <span className="flex-1 min-w-0 truncate">تسوية جردية للصنف</span>
+              </button>
+
+              {/* 4. Print Barcode Label */}
+              {onPrintLabel && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const p = activeMenu.product;
+                    setActiveMenu(null);
+                    onPrintLabel(p);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-2 text-ink hover:text-brand text-[12px] font-bold transition-colors cursor-pointer group text-right"
+                >
+                  <div className="w-6 h-6 rounded-md bg-surface-2 text-ink-muted group-hover:bg-brand-soft group-hover:text-brand flex items-center justify-center shrink-0 transition-colors">
+                    <Tag className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="flex-1 min-w-0 truncate">طباعة ملصق باركود</span>
+                </button>
+              )}
+
+              {/* 5. Price History */}
+              <button
+                type="button"
+                onClick={() => {
+                  const p = activeMenu.product;
+                  setActiveMenu(null);
+                  onOpenPriceHistory(p);
+                }}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-2 text-ink hover:text-brand text-[12px] font-bold transition-colors cursor-pointer group text-right"
+              >
+                <div className="w-6 h-6 rounded-md bg-surface-2 text-ink-muted group-hover:bg-brand-soft group-hover:text-brand flex items-center justify-center shrink-0 transition-colors">
+                  <History className="w-3.5 h-3.5" />
+                </div>
+                <span className="flex-1 min-w-0 truncate">سجل تغيير الأسعار</span>
+              </button>
+
+              {/* 6. Purchase / Receiving */}
+              {onSelectProdForPurchase && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const p = activeMenu.product;
+                    setActiveMenu(null);
+                    onSelectProdForPurchase(p);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft text-ink hover:text-brand text-[12px] font-bold transition-colors cursor-pointer group text-right"
+                >
+                  <div className="w-6 h-6 rounded-md bg-brand-soft text-brand group-hover:bg-brand group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                    <Truck className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="flex-1 min-w-0 truncate">استلام بضاعة / شراء</span>
+                </button>
+              )}
+
+              {/* 7. Batches / Expiry */}
+              {onNavigateToBatches && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const p = activeMenu.product;
+                    setActiveMenu(null);
+                    onNavigateToBatches(p.name);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-warn-soft text-ink hover:text-warn text-[12px] font-bold transition-colors cursor-pointer group text-right"
+                >
+                  <div className="w-6 h-6 rounded-md bg-warn-soft text-warn group-hover:bg-warn group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                    <Clock className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="flex-1 min-w-0 truncate">الدفعات وتواريخ الصلاحية</span>
+                </button>
+              )}
+
+              {/* 8. Variants / Matrix */}
+              {activeMenu.product.hasVariants && onViewVariants && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const p = activeMenu.product;
+                    setActiveMenu(null);
+                    onViewVariants(p);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-brand-soft text-ink hover:text-brand text-[12px] font-bold transition-colors cursor-pointer group text-right"
+                >
+                  <div className="w-6 h-6 rounded-md bg-brand-soft text-brand group-hover:bg-brand group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                    <Layers className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="flex-1 min-w-0 truncate">المقاسات والألوان</span>
+                </button>
+              )}
+
+              {/* Divider */}
+              <div className="my-0.5 border-t border-line" />
+
+              {/* 9. Delete Product */}
+              <button
+                type="button"
+                onClick={() => {
+                  const p = activeMenu.product;
+                  setActiveMenu(null);
+                  onDeleteProduct(p);
+                }}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-danger-soft text-ink hover:text-danger text-[12px] font-bold transition-colors cursor-pointer group text-right"
+              >
+                <div className="w-6 h-6 rounded-md bg-danger-soft text-danger group-hover:bg-danger group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </div>
+                <span className="flex-1 min-w-0 truncate text-danger">حذف الصنف</span>
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

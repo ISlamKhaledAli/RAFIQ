@@ -107,7 +107,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
               type="button"
               onClick={onOpenVariantMatrixModal}
               className="flex items-center gap-1 text-[11px] font-bold text-white bg-purple-700 hover:bg-purple-800 active:bg-purple-900 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:translate-y-0.5"
-              title="إضافة منتج بمقاسات وألوان متعددة (Matrix) للملابس والأحذية"
+              title="إضافة منتج بمقاسات وألوان متعددة للملابس والأحذية"
             >
               <Layers className="w-3.5 h-3.5 stroke-[2.5]" />
               <span>+ مقاسات وألوان</span>

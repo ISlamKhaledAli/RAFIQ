@@ -727,7 +727,7 @@ namespace RafiqPOS.Services
                         };
                     }
 
-                    doc.DocumentName = string.Format("تقرير إقفال اليومية Z-Report #{0}", closing.ClosingNumber);
+                    doc.DocumentName = string.Format("تقرير إقفال اليومية #{0}", closing.ClosingNumber);
                     doc.PrintController = new StandardPrintController();
 
                     doc.PrintPage += delegate(object sender, PrintPageEventArgs e)
@@ -777,7 +777,7 @@ namespace RafiqPOS.Services
             g.DrawString(storeName, fontTitle, Brushes.Black, new RectangleF(0, y, contentWidth, 20), centerFormat);
             y += 22;
 
-            g.DrawString("تقرير إقفال اليومية (Z-REPORT)", fontHeader, Brushes.Black, new RectangleF(0, y, contentWidth, 18), centerFormat);
+            g.DrawString("تقرير إقفال اليومية والوردية", fontHeader, Brushes.Black, new RectangleF(0, y, contentWidth, 18), centerFormat);
             y += 20;
 
             g.DrawLine(Pens.Black, 0, y, contentWidth, y);

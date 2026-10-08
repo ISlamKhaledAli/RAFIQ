@@ -363,7 +363,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                 <div className="p-4 rounded-xl bg-surface-2 border border-line space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-ink">بيانات هذا الجهاز الحالية:</span>
-                    <span className="text-[11px] text-ink-muted">محرك SQLite WAL النشط</span>
+                    <span className="text-[11px] text-ink-muted">قاعدة البيانات المحلية النشطة</span>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                     <div className="p-2 rounded bg-surface border border-line/50">
@@ -471,7 +471,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                     حزمة متكاملة بضغطة واحدة (بيانات + إعدادات + بصمة أمان SHA256)
                   </span>
                   <p className="text-[11px] text-ink-muted m-0">
-                    يتم تفريغ معاملات SQLite WAL بالكامل لضمان سلامة 100% من البيانات أثناء النسخ.
+                    يتم حفظ ومزامنة كافة البيانات بالكامل لضمان سلامة 100% أثناء النقل.
                   </p>
                 </div>
                 <button

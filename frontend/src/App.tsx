@@ -684,13 +684,13 @@ export default function App() {
     { id: 'backup' as SettingsSubTab, label: 'النسخ الاحتياطي وحماية البيانات', icon: HardDrive },
     { id: 'printer' as SettingsSubTab, label: 'إعدادات الطابعة والورق', icon: Printer },
     { id: 'system' as SettingsSubTab, label: 'مفاتيح الميزات وفحص النظام', icon: Activity },
-    { id: 'scanner' as SettingsSubTab, label: 'قارئ الباركود (Wedge)', icon: Barcode },
+    { id: 'scanner' as SettingsSubTab, label: 'قارئ الباركود والماسح', icon: Barcode },
     { id: 'security' as SettingsSubTab, label: 'الرقم السري وأمان الشاشات', icon: KeyRound },
     { id: 'demo' as SettingsSubTab, label: 'البيانات التجريبية والتدريب', icon: FlaskConical },
   ];
 
   const allNavItems = [
-    { id: 'pos' as TabType, label: 'نقطة البيع (POS)', icon: ShoppingCart, shortcut: 'F1 / Alt+1' },
+    { id: 'pos' as TabType, label: 'نقطة البيع', icon: ShoppingCart, shortcut: 'F1 / Alt+1' },
     { id: 'dashboard' as TabType, label: 'لوحة اليوم والمتابعة', icon: LayoutDashboard, shortcut: 'Alt+2' },
     { id: 'customers' as TabType, label: 'العملاء والآجل', icon: Users, shortcut: 'Alt+3' },
     { id: 'products' as TabType, label: 'السلع والمخزن', icon: Package, shortcut: 'Alt+4' },
@@ -1048,7 +1048,7 @@ export default function App() {
 
                   {/* Sub-tree for Products & Inventory */}
                   {isProductsItem && isProductsMenuExpanded && (
-                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-[#00372d]/25 animate-in slide-in-from-top-1 duration-150">
+                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 animate-in slide-in-from-top-1 duration-150">
                       <button
                         type="button"
                         onClick={() => {
@@ -1058,13 +1058,14 @@ export default function App() {
                         }}
                         className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
                           effectiveActiveTab === 'products' && productsSubView === 'catalog'
-                            ? 'bg-[#006d41] text-white font-bold shadow-2xs'
-                            : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
+                            ? 'bg-paid text-white font-bold shadow-2xs'
+                            : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
                         }`}
+                        title="كتالوج الأصناف"
                       >
-                        <div className="flex items-center gap-2">
-                          <Tag className="w-3.5 h-3.5" />
-                          <span>كتالوج الأصناف</span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Tag className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate whitespace-nowrap">كتالوج الأصناف</span>
                         </div>
                       </button>
 
@@ -1076,13 +1077,14 @@ export default function App() {
                         }}
                         className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
                           effectiveActiveTab === 'products' && productsSubView === 'movements'
-                            ? 'bg-[#006d41] text-white font-bold shadow-2xs'
-                            : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
+                            ? 'bg-paid text-white font-bold shadow-2xs'
+                            : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
                         }`}
+                        title="حركات وجرد المخزون"
                       >
-                        <div className="flex items-center gap-2">
-                          <Boxes className="w-3.5 h-3.5" />
-                          <span>حركات وجرد المخزون</span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Boxes className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate whitespace-nowrap">حركات وجرد المخزون</span>
                         </div>
                       </button>
 
@@ -1095,13 +1097,14 @@ export default function App() {
                           }}
                           className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
                             effectiveActiveTab === 'products' && productsSubView === 'batches'
-                              ? 'bg-[#006d41] text-white font-bold shadow-2xs'
-                              : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
+                              ? 'bg-paid text-white font-bold shadow-2xs'
+                              : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
                           }`}
+                          title="تواريخ الصلاحية والدفعات"
                         >
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-3.5 h-3.5" />
-                            <span>تواريخ الصلاحية والدفعات</span>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Clock className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate whitespace-nowrap">تواريخ الصلاحية والدفعات</span>
                           </div>
                         </button>
                       )}
@@ -1122,10 +1125,11 @@ export default function App() {
                             ? 'bg-paid text-white font-bold shadow-2xs'
                             : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
                         }`}
+                        title="فاتورة شراء جديدة"
                       >
-                        <div className="flex items-center gap-2">
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>تسجيل فاتورة شراء جديدة</span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Plus className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate whitespace-nowrap">فاتورة شراء جديدة</span>
                         </div>
                       </button>
 
@@ -1140,10 +1144,11 @@ export default function App() {
                             ? 'bg-paid text-white font-bold shadow-2xs'
                             : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
                         }`}
+                        title="فواتير المشتريات"
                       >
-                        <div className="flex items-center gap-2">
-                          <Receipt className="w-3.5 h-3.5" />
-                          <span>فواتير المشتريات</span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Receipt className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate whitespace-nowrap">فواتير المشتريات</span>
                         </div>
                       </button>
 
@@ -1158,10 +1163,11 @@ export default function App() {
                             ? 'bg-paid text-white font-bold shadow-2xs'
                             : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
                         }`}
+                        title="دليل الموردين"
                       >
-                        <div className="flex items-center gap-2">
-                          <Building2 className="w-3.5 h-3.5" />
-                          <span>دليل الموردين</span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Building2 className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate whitespace-nowrap">دليل الموردين</span>
                         </div>
                       </button>
                     </div>
@@ -1169,7 +1175,7 @@ export default function App() {
 
                   {/* Sub-tree for Settings */}
                   {isSettingsItem && isSettingsMenuExpanded && (
-                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-[#00372d]/25 animate-in slide-in-from-top-1 duration-150">
+                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 animate-in slide-in-from-top-1 duration-150">
                       {settingsTreeItems.map((sub) => {
                         const SubIcon = sub.icon;
                         const isSubActive = activeTab === 'settings' && settingsSubTab === sub.id;
@@ -1184,16 +1190,16 @@ export default function App() {
                             }}
                             className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
                               isSubActive
-                                ? 'bg-[#006d41] text-white font-bold shadow-2xs'
-                                : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
+                                ? 'bg-paid text-white font-bold shadow-2xs'
+                                : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
                             }`}
                           >
-                            <div className="flex items-center gap-2 truncate">
-                              <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white' : 'text-[#52605d]'}`} />
-                              <span className="truncate">{sub.label}</span>
+                            <div className="flex items-center gap-2 min-w-0 truncate">
+                              <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white' : 'text-ink-muted'}`} />
+                              <span className="truncate whitespace-nowrap">{sub.label}</span>
                             </div>
                             {sub.id === 'demo' && hasDemoData && (
-                              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                              <span className="w-2 h-2 rounded-full bg-warn animate-pulse shrink-0" />
                             )}
                           </button>
                         );

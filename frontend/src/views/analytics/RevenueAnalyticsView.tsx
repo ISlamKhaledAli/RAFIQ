@@ -243,7 +243,7 @@ export const RevenueAnalyticsView: FC = () => {
         {/* KPI 3: COGS */}
         <div className="bg-surface border border-line rounded-xl p-3 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-ink-muted mb-1">
-            <span className="text-[11px] font-semibold">تكلفة البضاعة (COGS)</span>
+            <span className="text-[11px] font-semibold">تكلفة البضاعة المباعة</span>
             <Layers className="w-3.5 h-3.5 text-ink-muted" />
           </div>
           <div className="text-base font-bold font-mono tabular-nums text-ink">
@@ -367,7 +367,7 @@ export const RevenueAnalyticsView: FC = () => {
           }`}
         >
           <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>سجل إقفالات الوردية (Z-Reports)</span>
+          <span>سجل إقفالات الوردية</span>
         </button>
       </div>
 
@@ -637,7 +637,7 @@ export const RevenueAnalyticsView: FC = () => {
                     <th className="py-2.5 px-3">القسم / التصنيف</th>
                     <th className="py-2.5 px-3">إجمالي المبيعات</th>
                     <th className="py-2.5 px-3">حصة المبيعات (%)</th>
-                    <th className="py-2.5 px-3">التكلفة (COGS)</th>
+                    <th className="py-2.5 px-3">تكلفة الشراء</th>
                     <th className="py-2.5 px-3">مجمل الربح</th>
                     <th className="py-2.5 px-3">هامش الربح (%)</th>
                     <th className="py-2.5 px-3">القطع المباعة</th>
@@ -814,7 +814,7 @@ export const RevenueAnalyticsView: FC = () => {
           <div className="bg-surface border border-line rounded-xl p-4 shadow-2xs">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-sm font-bold text-ink">سجل إقفالات الوردية اليومية (Z-Reports)</h2>
+                <h2 className="text-sm font-bold text-ink">سجل إقفالات الوردية اليومية</h2>
                 <p className="text-xs text-ink-muted">
                   مراجعة فوارق الدرج النقدية بين الحساب الدفتري والمعدود الفعلي عند كل إقفال
                 </p>

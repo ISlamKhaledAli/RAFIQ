@@ -750,7 +750,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
 
         {/* Footer */}
         <div className="px-6 py-3 bg-surface-2 border-t border-line flex items-center justify-between text-xs text-ink-muted">
-          <span>حماية متعددة الموظفين — تشفير PBKDF2 مع Salt مستقل لكل حساب</span>
+          <span>حماية متعددة الموظفين — تشفير أمني مشدد ومستقل لكل حساب</span>
           <span>يتطلب النظام بقاء مدير نظام نشط واحد على الأقل</span>
         </div>
       </div>

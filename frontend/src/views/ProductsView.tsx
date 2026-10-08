@@ -794,7 +794,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-black text-ink leading-tight">تواريخ الصلاحية والدفعات (FEFO)</h2>
+                  <h2 className="text-sm font-black text-ink leading-tight">تواريخ الصلاحية والدفعات</h2>
                   <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-paid-soft text-paid font-bold border border-paid/20">
                     الأقرب انتهاءً يصرف أولاً
                   </span>
@@ -947,7 +947,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                         className="w-full px-3 py-2 text-right text-xs font-bold text-ink hover:bg-surface-2 flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
                         <Layers className="w-4 h-4 text-brand" />
-                        <span>جدول المقاسات والألوان (Matrix)</span>
+                        <span>جدول المقاسات والألوان</span>
                       </button>
 
                       <div className="h-px bg-line my-1" />
@@ -982,10 +982,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   type="button"
                   onClick={() => setShowVariantMatrixModal(true)}
                   className="h-9 px-3 bg-brand-soft hover:bg-emerald-100 text-brand border border-brand/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-[0.98] shrink-0"
-                  title="إنشاء صنف أب مع جدول تركيبات المقاسات والألوان والباركود (Matrix)"
+                  title="إنشاء صنف أب مع جدول تركيبات المقاسات والألوان والباركود"
                 >
                   <Layers className="w-4 h-4 text-brand" />
-                  <span>مقاسات وألوان (Matrix)</span>
+                  <span>مقاسات وألوان</span>
                 </button>
               )}
 

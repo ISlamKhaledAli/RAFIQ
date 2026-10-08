@@ -147,7 +147,7 @@ export const FinancialWaterfallChart: FC<FinancialWaterfallChartProps> = ({
                 <Minus className="w-3.5 h-3.5" />
               </div>
               <div>
-                <span className="font-bold text-ink">4. تكلفة شراء البضاعة المباعة (COGS)</span>
+                <span className="font-bold text-ink">4. تكلفة شراء البضاعة المباعة</span>
                 <span className="text-[10px] text-ink-muted mr-1.5 font-mono">
                   ({grossSalesPiasters > 0 && cogsPiasters > 0 ? ((cogsPiasters * 100) / grossSalesPiasters).toFixed(1) : 0}% للموردين والشركات)
                 </span>

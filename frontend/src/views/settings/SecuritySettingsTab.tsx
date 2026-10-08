@@ -54,13 +54,13 @@ export const SecuritySettingsTab = ({
         </div>
 
         <div className="p-3.5 rounded-lg bg-surface-2 border border-line flex flex-col gap-1.5">
-          <span className="text-[11px] text-ink-muted font-bold">خوارزمية التشفير (Task 52-1):</span>
-          <span className="text-xs font-mono font-bold text-paid">PBKDF2 Salted Hash (10,000 دورة)</span>
+          <span className="text-[11px] text-ink-muted font-bold">مستوى تشفير كلمة السر:</span>
+          <span className="text-xs font-bold text-paid">تشفير أمني مشدد (حماية مصرفية)</span>
         </div>
 
         <div className="p-3.5 rounded-lg bg-surface-2 border border-line flex flex-col gap-1.5">
-          <span className="text-[11px] text-ink-muted font-bold">الحماية من التخمين (Brute-Force):</span>
-          <span className="text-xs font-bold text-brand">قفل تصاعدي (30 ثانية - 5 دقائق)</span>
+          <span className="text-[11px] text-ink-muted font-bold">الحماية من التخمين العشوائي:</span>
+          <span className="text-xs font-bold text-brand">قفل تصاعدي تلقائي عند الخطأ</span>
         </div>
       </div>
 

@@ -1,16 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutGrid, 
   Flame, 
   Star, 
-  Package, 
   Search, 
   X, 
   FolderTree, 
-  Coffee, 
-  Sparkles, 
-  Apple, 
-  Layers, 
   Settings,
   ChevronLeft,
   PanelLeftClose,
@@ -18,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { Category } from '../../types/models';
 import { normalizeArabicText } from '../../utils/money';
+import { getCategoryIconComponent, CATEGORY_ICONS_CHANGED_EVENT } from '../../utils/categoryIcons';
 
 interface PosCategoriesPanelProps {
   categories: Category[];
@@ -29,30 +25,6 @@ interface PosCategoriesPanelProps {
   categoryProductCounts: Record<string, number>;
   onOpenCategoryManager?: () => void;
 }
-
-// Helper to choose a smart intuitive icon based on category title
-const getCategoryIcon = (name: string) => {
-  const lower = name.toLowerCase();
-  if (lower.includes('مشروب') || lower.includes('عصير') || lower.includes('شاي') || lower.includes('قهوة') || lower.includes('مياه')) {
-    return Coffee;
-  }
-  if (lower.includes('ألبان') || lower.includes('جبن') || lower.includes('حليب') || lower.includes('زبادي')) {
-    return Layers;
-  }
-  if (lower.includes('خضار') || lower.includes('فاكهة') || lower.includes('طازج')) {
-    return Apple;
-  }
-  if (lower.includes('منظف') || lower.includes('صابون') || lower.includes('عناية')) {
-    return Sparkles;
-  }
-  if (lower.includes('حلو') || lower.includes('شوكولا') || lower.includes('بسكويت') || lower.includes('شيبس')) {
-    return Star;
-  }
-  if (lower.includes('توابل') || lower.includes('عطارة') || lower.includes('بهارات')) {
-    return Flame;
-  }
-  return Package;
-};
 
 export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
   categories,
@@ -74,6 +46,13 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
       return false;
     }
   });
+
+  const [, setIconsTick] = useState(0);
+  useEffect(() => {
+    const handleIconsChanged = () => setIconsTick((t) => t + 1);
+    window.addEventListener(CATEGORY_ICONS_CHANGED_EVENT, handleIconsChanged);
+    return () => window.removeEventListener(CATEGORY_ICONS_CHANGED_EVENT, handleIconsChanged);
+  }, []);
 
   const toggleCollapsed = () => {
     setIsCollapsed((prev) => {
@@ -339,10 +318,22 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
         <div className="py-1 flex items-center gap-2 w-full">
           <div className="h-px bg-line flex-1" />
           {!isCollapsed && (
-            <span className="text-[10px] font-bold text-ink-muted uppercase tracking-wider flex items-center gap-1">
-              <FolderTree className="w-3 h-3 text-brand" />
-              <span>أقسام المتجر</span>
-            </span>
+            <div className="flex items-center justify-between w-full px-1">
+              <span className="text-[10px] font-bold text-ink-muted uppercase tracking-wider flex items-center gap-1">
+                <FolderTree className="w-3 h-3 text-brand" />
+                <span>أقسام المتجر</span>
+              </span>
+              {onOpenCategoryManager && (
+                <button
+                  type="button"
+                  onClick={onOpenCategoryManager}
+                  title="تخصيص وإدارة الأقسام والأيقونات"
+                  className="p-1 hover:bg-surface rounded-md text-ink-muted hover:text-brand transition-colors cursor-pointer"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           )}
           <div className="h-px bg-line flex-1" />
         </div>
@@ -363,7 +354,7 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
                activeCatalogTab !== '__POPULAR__' && 
                activeCatalogTab !== '__CUSTOM__' && 
                normalizeArabicText(cat.name.trim()) === normalizeArabicText(activeCatalogTab.trim()));
-            const IconComponent = getCategoryIcon(cat.name);
+            const IconComponent = getCategoryIconComponent(cat.name, cat.id);
 
             if (isCollapsed) {
               return (

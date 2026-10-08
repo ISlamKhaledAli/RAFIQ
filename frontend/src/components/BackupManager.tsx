@@ -317,7 +317,7 @@ export const BackupManager = () => {
             </div>
             <div>
               <h3 className="text-[14px] font-bold text-ink m-0">حالة النسخ الاحتياطي وحماية قاعدة البيانات</h3>
-              <p className="text-[11px] text-ink-muted m-0">نسخ حي مباشر بدون إيقاف البيع باستخدام محرك SQLite WAL Online Backup</p>
+              <p className="text-[11px] text-ink-muted m-0">نسخ حي مباشر وآمن للبيانات في الخلفية دون الحاجة لإيقاف البيع</p>
             </div>
           </div>
 

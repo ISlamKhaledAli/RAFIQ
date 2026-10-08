@@ -144,7 +144,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
         closing: target
       });
       if (res && res.success) {
-        setPrintFeedback('تم إرسال إيصال الإقفال اليومي (Z-Report) إلى الطابعة بنجاح.');
+        setPrintFeedback('تم إرسال إيصال الإقفال اليومي إلى الطابعة بنجاح.');
       } else {
         setPrintFeedback(res?.message || 'تمت محاولة الطباعة.');
       }
@@ -176,7 +176,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold tracking-tight">إقفال الوردية واليومية (Z-Report)</h2>
+                <h2 className="text-xl font-bold tracking-tight">إقفال الوردية واليومية</h2>
                 {savedClosing && (
                   <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-paid text-white">
                     معتمد #{savedClosing.closingNumber}
@@ -272,7 +272,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                               <button
                                 onClick={() => handlePrintReceipt(h)}
                                 className="px-2.5 py-1 text-xs rounded-lg border border-line hover:bg-surface-2 text-ink flex items-center gap-1 mx-auto"
-                                title="إعادة طباعة Z-Report"
+                                title="إعادة طباعة إيصال الإقفال"
                               >
                                 <Printer className="w-3.5 h-3.5" />
                                 <span>طباعة</span>
@@ -332,7 +332,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                     className="px-4 py-2 rounded-xl bg-paid text-white hover:bg-paid/90 font-medium text-xs flex items-center gap-2 shadow-xs transition"
                   >
                     <Printer className="w-4 h-4" />
-                    <span>{isPrinting ? 'جاري الطباعة...' : 'طباعة إيصال Z-Report'}</span>
+                    <span>{isPrinting ? 'جاري الطباعة...' : 'طباعة إيصال الإقفال'}</span>
                   </button>
                 </div>
               )}
@@ -539,7 +539,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                 className="px-5 py-2.5 text-xs font-bold text-white bg-paid hover:bg-paid/90 rounded-xl transition flex items-center gap-2 shadow-xs"
               >
                 <Printer className="w-4 h-4" />
-                <span>{isPrinting ? 'جاري الإرسال للطابعة...' : 'طباعة إيصال Z-Report'}</span>
+                <span>{isPrinting ? 'جاري الإرسال للطابعة...' : 'طباعة إيصال الإقفال'}</span>
               </button>
             ) : (
               <button

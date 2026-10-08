@@ -11,6 +11,7 @@ import {
   DollarSign,
   Layers,
   ArrowUpDown,
+  Check,
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import type { ProductBatch, BatchSummary } from '../../types/models';
@@ -33,6 +34,25 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || '');
   const [statusFilter, setStatusFilter] = useState<'all' | 'expiring' | 'expired' | 'active'>('all');
   const [alertDays, setAlertDays] = useState<number>(30);
+  const [isCustomDays, setIsCustomDays] = useState(false);
+  const [customDaysInput, setCustomDaysInput] = useState('30');
+
+  const standardDayOptions = [7, 15, 30, 60, 90, 120, 180, 365];
+  const isStandardOption = standardDayOptions.includes(alertDays);
+
+  const handleApplyCustomDays = () => {
+    const num = parseInt(normalizeArabicNumerals(customDaysInput), 10);
+    if (!num || isNaN(num) || num <= 0) {
+      void rafiqAlert({
+        title: 'قيمة غير صحيحة',
+        message: 'يرجى إدخال عدد أيام صحيح أكبر من الصفر.',
+        variant: 'warning',
+      });
+      return;
+    }
+    setAlertDays(num);
+    setIsCustomDays(false);
+  };
 
   useEffect(() => {
     if (initialSearchQuery !== undefined) {
@@ -248,16 +268,13 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
             </div>
           </div>
           <span className="text-[10px] text-paid bg-paid-soft px-2 py-0.5 rounded-full border border-paid/20 font-bold">
-            FEFO مفعّل
+            نظام الصلاحية نشط
           </span>
         </div>
 
         {/* 2. Expiring Soon Card */}
         <div
-          onClick={() => setStatusFilter(statusFilter === 'expiring' ? 'all' : 'expiring')}
-          className={`p-3.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all shadow-2xs ${
-            statusFilter === 'expiring' ? 'ring-2 ring-warn ring-offset-1' : ''
-          } ${
+          className={`p-3.5 rounded-xl border flex items-center justify-between shadow-2xs ${
             (summary?.expiringSoonCount || 0) > 0
               ? 'bg-amber-50/70 border-amber-200'
               : 'bg-surface border-line'
@@ -283,10 +300,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
 
         {/* 3. Expired Card */}
         <div
-          onClick={() => setStatusFilter(statusFilter === 'expired' ? 'all' : 'expired')}
-          className={`p-3.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all shadow-2xs ${
-            statusFilter === 'expired' ? 'ring-2 ring-danger ring-offset-1' : ''
-          } ${
+          className={`p-3.5 rounded-xl border flex items-center justify-between shadow-2xs ${
             (summary?.expiredCount || 0) > 0
               ? 'bg-rose-50/80 border-rose-200'
               : 'bg-surface border-line'
@@ -387,19 +401,73 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
           {/* Alert Days Selector */}
           <div className="flex items-center gap-1.5 bg-surface-2 px-2.5 py-1 rounded-xl border border-line">
             <span className="text-xs text-ink-muted font-bold whitespace-nowrap">فترة التنبيه:</span>
-            <CustomSelect
-              value={String(alertDays)}
-              onChange={(val) => setAlertDays(parseInt(val, 10) || 30)}
-              options={[
-                { value: '7', label: 'خلال 7 أيام' },
-                { value: '15', label: 'خلال 15 يوماً' },
-                { value: '30', label: 'خلال 30 يوماً (المعتاد)' },
-                { value: '60', label: 'خلال 60 يوماً' },
-                { value: '90', label: 'خلال 90 يوماً' },
-              ]}
-              className="w-36"
-              size="sm"
-            />
+            {isCustomDays ? (
+              <div className="flex items-center gap-1">
+                <div className="relative flex items-center">
+                  <input
+                    type="number"
+                    min="1"
+                    max="3650"
+                    value={customDaysInput}
+                    onChange={(e) => setCustomDaysInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleApplyCustomDays();
+                      if (e.key === 'Escape') setIsCustomDays(false);
+                    }}
+                    className="w-16 h-7 px-2 text-xs font-mono font-bold bg-surface border border-line rounded-lg text-ink focus:border-brand focus:outline-none text-center"
+                    placeholder="الأيام"
+                    autoFocus
+                  />
+                  <span className="text-[11px] text-ink-muted mr-1 font-bold">يوم</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleApplyCustomDays}
+                  className="h-7 px-2 bg-brand text-white rounded-lg text-xs font-bold hover:bg-brand-dark transition-colors cursor-pointer flex items-center gap-0.5 shadow-2xs"
+                  title="تطبيق فترة التنبيه"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>تطبيق</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsCustomDays(false)}
+                  className="h-7 px-1.5 bg-surface text-ink-muted hover:text-ink border border-line rounded-lg text-xs transition-colors cursor-pointer"
+                  title="إلغاء والعودة للقائمة"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <CustomSelect
+                value={isStandardOption ? String(alertDays) : 'custom'}
+                onChange={(val) => {
+                  if (val === 'custom') {
+                    setCustomDaysInput(String(alertDays));
+                    setIsCustomDays(true);
+                  } else {
+                    setAlertDays(parseInt(val, 10) || 30);
+                  }
+                }}
+                options={[
+                  { value: '7', label: 'خلال 7 أيام' },
+                  { value: '15', label: 'خلال 15 يوماً' },
+                  { value: '30', label: 'خلال 30 يوماً (المعتاد)' },
+                  { value: '60', label: 'خلال 60 يوماً' },
+                  { value: '90', label: 'خلال 90 يوماً' },
+                  { value: '120', label: 'خلال 120 يوماً (4 أشهر)' },
+                  { value: '180', label: 'خلال 180 يوماً (6 أشهر)' },
+                  { value: '365', label: 'خلال سنة (365 يوماً)' },
+                  {
+                    value: 'custom',
+                    label: isStandardOption ? '+ إدخال عدد أيام مخصص...' : `مخصص: ${alertDays} يوماً (تعديل)`,
+                    isAction: true,
+                  },
+                ]}
+                className="w-44"
+                size="sm"
+              />
+            )}
           </div>
 
           {/* Search Box */}

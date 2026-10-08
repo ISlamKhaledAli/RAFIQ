@@ -795,7 +795,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
             </div>
             <div className="flex items-center gap-2.5 text-white">
               <Check className="w-4 h-4 text-white shrink-0 stroke-[2.5]" />
-              <span className="text-[13px] text-white/90">حماية مالية فائقة بمعاملات ذرية SQLite WAL</span>
+              <span className="text-[13px] text-white/90">حماية مالية فائقة وتخزين محلي آمن</span>
             </div>
             <div className="flex items-center gap-2.5 text-white">
               <Check className="w-4 h-4 text-white shrink-0 stroke-[2.5]" />

@@ -93,12 +93,12 @@ export const SystemDiagnosticsTab = ({
             },
             {
               key: 'feature_expiry_dates',
-              title: 'تواريخ الصلاحية وتتبع الدفعات (FEFO)',
+              title: 'تواريخ الصلاحية وتتبع الدفعات',
               description: 'تسجيل أرقام التشغيلات وتواريخ الانتهاء والصرف بنظام الأقدم أولاً مع تنبيهات الصلاحية للأغذية والألبان.',
             },
             {
               key: 'feature_matrix_variants',
-              title: 'المقاسات والألوان ومصفوفة الملابس (Matrix)',
+              title: 'المقاسات والألوان ومصفوفة الملابس',
               description: 'إدارة الأصناف متعددة المقاسات والألوان مع توليد باركود لكل مقاس لمحلات الملابس والأحذية والأزياء.',
             },
             {
@@ -162,11 +162,11 @@ export const SystemDiagnosticsTab = ({
             </div>
             <div>
               <h3 className="text-sm font-bold text-[#14181a] m-0">صيانة النظام وفحص الأجهزة</h3>
-              <p className="text-[11px] text-[#5b6664] m-0">فحص سلامة قاعدة البيانات، وسرعة استجابة الجسر (IPC)، وكفاءة الطباعة</p>
+              <p className="text-[11px] text-[#5b6664] m-0">فحص سلامة قاعدة البيانات وسرعة استجابة النظام وكفاءة الطباعة</p>
             </div>
           </div>
-          <span className="text-[11px] font-mono text-[#1b7a4d] bg-[#eaf5ee] border border-[#c4e3d0] font-bold px-2.5 py-1 rounded">
-            SQLite WAL Active
+          <span className="text-[11px] font-sans text-[#1b7a4d] bg-[#eaf5ee] border border-[#c4e3d0] font-bold px-2.5 py-1 rounded">
+            قاعدة البيانات مؤمنة ونشطة
           </span>
         </div>
 
@@ -213,7 +213,7 @@ export const SystemDiagnosticsTab = ({
             className="h-11 bg-[#f7f8f6] hover:bg-[#ebeef1] border border-[#dce1dc] text-[#14181a] rounded-lg font-bold flex items-center justify-center gap-2 transition-colors text-xs cursor-pointer shadow-2xs"
           >
             <Zap className="w-4 h-4 text-amber-600" />
-            <span>سرعة الجسر (IPC)</span>
+            <span>سرعة استجابة النظام</span>
           </button>
 
           <button

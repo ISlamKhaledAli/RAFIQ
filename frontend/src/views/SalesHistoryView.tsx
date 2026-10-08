@@ -380,12 +380,12 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
         {/* Card 4: Actions & Refresh */}
         <div className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 flex items-center justify-between shadow-xs">
           <div>
-            <span className="text-[11px] font-bold text-ink-muted block mb-1">سجل الفواتير وقاعدة البيانات</span>
+            <span className="text-[11px] font-bold text-ink-muted block mb-1">سجل الفواتير والعمليات</span>
             <div className="text-xs font-bold text-ink mt-1 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-paid animate-pulse"></span>
-              <span>سجل محمي بوضع WAL</span>
+              <span>سجل محفوظ ومؤمن</span>
             </div>
-            <span className="text-[10px] text-ink-muted block mt-0.5">معاملات ذرية فورية</span>
+            <span className="text-[10px] text-ink-muted block mt-0.5">حفظ محلي فوري وتلقائي</span>
           </div>
           <div className="flex items-center gap-1.5">
             <button
@@ -672,7 +672,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
 
         {/* Footer info */}
         <div className="h-8 bg-surface-2 border-t border-line px-4 flex items-center justify-between text-[11px] text-ink-muted shrink-0 font-mono">
-          <span>قاعدة بيانات SQLite - محرك المعاملات الذرية نشط</span>
+          <span className="font-sans">جميع فواتير المبيعات محفوظة ومؤمنة محلياً</span>
           <span className="tabular-nums font-bold">
             المعروض: {pagedSales.length} من أصل {filteredSales.length} فاتورة (إجمالي السجل: {sales.length})
           </span>

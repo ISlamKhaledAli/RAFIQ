@@ -249,7 +249,7 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
             </div>
             <div>
               <h2 className="text-lg font-bold text-ink flex items-center gap-2">
-                إضافة منتج بمقاسات وألوان (Matrix)
+                إضافة منتج متعدد المقاسات والألوان
                 <span className="text-xs px-2 py-0.5 rounded-full bg-brand-soft text-brand font-medium">
                   {activeCells.length} تركيبة مفعلة
                 </span>

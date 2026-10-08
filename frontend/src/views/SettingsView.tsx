@@ -362,10 +362,10 @@ export const SettingsView = ({
     try {
       await invoke('system:ping', { timestamp: Date.now() });
       const latency = Math.round(performance.now() - start);
-      setDiagnosticResult(`استجابة الجسر (IPC): تم الرد في ${latency} مللي ثانية`);
+      setDiagnosticResult(`سرعة استجابة النظام الداخلي: تم الرد في ${latency} مللي ثانية`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      setDiagnosticResult(`خطأ في الجسر: ${msg}`);
+      setDiagnosticResult(`خطأ في الاتصال الداخلي: ${msg}`);
     } finally {
       setDiagnosticsLoading(false);
     }
@@ -414,12 +414,12 @@ export const SettingsView = ({
     },
     system: {
       title: 'مفاتيح الميزات وفحص النظام',
-      subtitle: 'تشخيص الجسر (IPC)، فحص قاعدة البيانات SQLite، وتفعيل الميزات المتقدمة',
+      subtitle: 'فحص سرعة النظام وسلامة البيانات، وتفعيل الميزات المتقدمة',
       icon: Activity,
     },
     scanner: {
       title: 'قارئ الباركود والماسح الضوئي',
-      subtitle: 'فحص استجابة القارئ السلكي أو اللاسلكي وضبط إعدادات الـ Wedge والبادئة واللاحقة',
+      subtitle: 'فحص استجابة القارئ السلكي أو اللاسلكي وضبط سرعة الالتقاط والبادئة واللاحقة',
       icon: Barcode,
     },
     security: {

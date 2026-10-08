@@ -180,7 +180,7 @@ export const ExcelImportModal = ({
             </div>
             <div>
               <h2 className="text-sm font-bold text-ink">استيراد الأصناف من ملف إكسل أو CSV</h2>
-              <p className="text-[11px] text-ink-muted">إضافة وتحديث المنتجات والمخزون دفعة واحدة في معاملة آمنة (ClosedXML / SQLite)</p>
+              <p className="text-[11px] text-ink-muted">إضافة وتحديث المنتجات والمخزون دفعة واحدة في معاملة آمنة ومحمية</p>
             </div>
           </div>
           <button

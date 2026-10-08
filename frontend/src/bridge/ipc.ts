@@ -267,7 +267,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         version: '1.0.0-Spike',
         osVersion: 'Windows 10/11 (Dev Mock)',
         isWebView2: false,
-        dbStatus: 'Connected (WAL)',
+        dbStatus: 'Connected',
       };
 
     case 'db:testTransaction':
@@ -1351,7 +1351,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     case 'health:getStatus':
       return {
         overallStatus: 'HEALTHY',
-        oneSentenceSummary: 'كل شيء تمام! النظام سليم، قاعدة البيانات محمية بوضع WAL، والنظام جاهز للبيع.',
+        oneSentenceSummary: 'كل شيء تمام! النظام سليم، قاعدة البيانات محمية ضد انقطاع الكهرباء، والنظام جاهز للبيع.',
         healthScore: 100,
         primaryIssueFixAction: null,
         primaryIssueFixTarget: null,
@@ -1360,7 +1360,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
             id: 'info_wal',
             level: 'info',
             title: 'قاعدة البيانات في وضع الاستقرار الفائق',
-            message: 'نظام رفيق يعمل بنمط SQLite WAL المقاوم لانقطاع الكهرباء الفجائي.',
+            message: 'نظام رفيق يعمل بوضع الحماية الفائقة المقاوم لانقطاع الكهرباء الفجائي.',
             fixAction: 'فحص الحماية',
             fixTarget: 'settings:system',
           },
@@ -1373,8 +1373,8 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           printerName: 'طابعة الإيصالات الحرارية XP-80C',
           isPrinterReady: true,
           licenseStatus: 'ترخيص محلي دائم (نشط مدى الحياة)',
-          appVersion: 'رفيق POS v1.0.0 (أوفلاين)',
-          databaseStatus: 'سليمة (وضع WAL الفائق)',
+          appVersion: 'رفيق لنقاط البيع v1.0.0 (أوفلاين)',
+          databaseStatus: 'سليمة (وضع الحماية الفائق)',
           productsCount: 8,
         },
       };
