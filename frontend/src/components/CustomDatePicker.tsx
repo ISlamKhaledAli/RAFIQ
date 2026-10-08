@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Calendar as CalendarIcon, 
   ChevronRight, 
@@ -59,6 +60,8 @@ export interface CustomDatePickerProps {
   disabled?: boolean;
   size?: 'sm' | 'md' | 'lg';
   id?: string;
+  placement?: 'auto' | 'top' | 'bottom';
+  align?: 'auto' | 'right' | 'left';
 }
 
 export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
@@ -71,9 +74,13 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
   disabled = false,
   size = 'md',
   id,
+  placement = 'auto',
+  align = 'auto',
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
 
   const initialDate = useMemo(() => {
     return parseDateString(value) || new Date();
@@ -84,6 +91,42 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
   const [isMonthSelectOpen, setIsMonthSelectOpen] = useState(false);
   const [isYearSelectOpen, setIsYearSelectOpen] = useState(false);
 
+  // Position calculation for Portal
+  const updateCoords = useCallback(() => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const calendarHeight = 295;
+    const calendarWidth = size === 'sm' ? 255 : 270;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    let top: number;
+    if (placement === 'top' || (placement === 'auto' && spaceBelow < 310 && spaceAbove > spaceBelow)) {
+      top = Math.max(8, rect.top - calendarHeight - 6);
+    } else {
+      top = Math.min(window.innerHeight - calendarHeight - 8, rect.bottom + 6);
+    }
+
+    let left: number;
+    if (align === 'left') {
+      left = rect.left;
+    } else if (align === 'right') {
+      left = rect.right - calendarWidth;
+    } else {
+      left = rect.right - calendarWidth;
+      if (left < 10) {
+        left = Math.max(10, rect.left);
+      }
+    }
+
+    if (left + calendarWidth > window.innerWidth - 10) {
+      left = window.innerWidth - calendarWidth - 10;
+    }
+    if (left < 10) left = 10;
+
+    setCoords({ top, left });
+  }, [placement, align, size]);
+
   // Sync view year/month when value changes
   useEffect(() => {
     const d = parseDateString(value);
@@ -93,12 +136,25 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
     }
   }, [value]);
 
-  // Close on outside click
+  // Handle open state, scroll, resize, outside clicks
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      setCoords(null);
+      return;
+    }
+    updateCoords();
+
+    const handleScroll = (e: Event) => {
+      if (popoverRef.current && popoverRef.current.contains(e.target as Node)) return;
+      updateCoords();
+    };
 
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        containerRef.current && !containerRef.current.contains(target) &&
+        popoverRef.current && !popoverRef.current.contains(target)
+      ) {
         setIsOpen(false);
         setIsMonthSelectOpen(false);
         setIsYearSelectOpen(false);
@@ -113,13 +169,18 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
       }
     };
 
+    window.addEventListener('scroll', handleScroll, true);
+    window.addEventListener('resize', updateCoords);
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);
+
     return () => {
+      window.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('resize', updateCoords);
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen]);
+  }, [isOpen, updateCoords]);
 
   const handlePrevMonth = () => {
     if (viewMonth === 0) {
@@ -289,9 +350,20 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
         )}
       </button>
 
-      {/* Floating Calendar Popover */}
-      {isOpen && (
-        <div className="absolute right-0 top-full mt-1.5 z-50 bg-surface border border-line rounded-xl shadow-xl p-3 w-[270px] animate-in fade-in zoom-in-95 duration-100 flex flex-col">
+      {/* Floating Calendar Popover via Portal */}
+      {isOpen && coords && createPortal(
+        <div
+          ref={popoverRef}
+          style={{
+            position: 'fixed',
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            zIndex: 99999,
+          }}
+          className={`bg-surface border border-line rounded-xl shadow-2xl ${
+            size === 'sm' ? 'p-2.5 w-[255px]' : 'p-3 w-[270px]'
+          } animate-in fade-in zoom-in-95 duration-100 flex flex-col text-right select-none`}
+        >
           {/* Header: Month & Year with Navigation */}
           <div className="flex items-center justify-between mb-2.5 pb-2 border-b border-line/60">
             {/* Previous month (Right in RTL) */}
@@ -452,7 +524,8 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
               إغلاق
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

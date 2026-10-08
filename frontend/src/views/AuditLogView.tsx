@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { CustomSelect } from '../components/CustomSelect';
+import { PaginationBar } from '../components/PaginationBar';
+import { useClientPagination } from '../utils/usePagination';
 import type { AuditLogEntry, AuditChainVerificationResult } from '../types/models';
 import { piastersToPounds } from '../utils/money';
 
@@ -35,6 +37,14 @@ export const AuditLogView = () => {
   const [verification, setVerification] = useState<AuditChainVerificationResult | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [resealing, setResealing] = useState(false);
+
+  const {
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
+    paginatedItems: pagedLogs,
+  } = useClientPagination(logs, 25, selectedAction);
 
   const loadAuditLogs = async (actionFilter = selectedAction) => {
     setLoading(true);
@@ -328,7 +338,7 @@ export const AuditLogView = () => {
               </p>
             </div>
           ) : (
-            logs.map((log, index) => {
+            pagedLogs.map((log, index) => {
               const formattedDate = log.createdAt
                 ? new Date(log.createdAt).toLocaleString('ar-EG-u-nu-latn', {
                     month: 'short',
@@ -344,7 +354,7 @@ export const AuditLogView = () => {
                   className="h-11 sm:h-12 border-b border-line px-4 grid grid-cols-12 items-center text-xs hover:bg-surface-2 transition-colors"
                 >
                   <span className="col-span-1 text-center font-mono text-xs text-ink-muted">
-                    {index + 1}
+                    {((currentPage - 1) * pageSize) + index + 1}
                   </span>
 
                   <span className="col-span-2 flex items-center gap-1.5 text-xs text-ink-muted font-sans truncate">
@@ -380,13 +390,26 @@ export const AuditLogView = () => {
 
         {/* Table Footer */}
         <div className="h-9 bg-surface-2 border-t border-line px-4 flex items-center justify-between text-xs text-ink-muted shrink-0">
-          <span>إجمالي العمليات المسجلة في السجل: {logs.length} عملية</span>
+          <span>
+            المعروض: {pagedLogs.length} من أصل {logs.length} عملية مسجلة
+          </span>
           <span className="font-mono text-[11px] text-paid flex items-center gap-1">
             <Lock className="w-3 h-3 text-paid" />
             نظام التدقيق الداخلي مشفر ومتسلسل بمعايير SHA-256
           </span>
         </div>
       </div>
+
+      {/* Pagination Bar */}
+      <PaginationBar
+        currentPage={currentPage}
+        pageSize={pageSize}
+        totalCount={logs.length}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={setPageSize}
+        pageSizeOptions={[15, 25, 50, 100]}
+        itemLabel="عملية"
+      />
     </div>
   );
 };

@@ -35,6 +35,7 @@ namespace RafiqPOS
         private Button _btnClose;
         private string _lastErrorFullText;
         private bool _isDemoError;
+        private bool _isKioskFullscreen;
 
         public static MainForm Instance { get; private set; }
 
@@ -48,10 +49,10 @@ namespace RafiqPOS
             this.StartPosition = FormStartPosition.CenterScreen;
             this.BackColor = Color.FromArgb(11, 20, 29);
 
-            // Default to true borderless fullscreen (Kiosk POS mode covering Windows Taskbar)
+            // Default to borderless desktop mode matching Windows WorkingArea (respecting Windows Taskbar and preventing bottom bar overflow)
             this.WindowState = FormWindowState.Normal;
             this.FormBorderStyle = FormBorderStyle.None;
-            this.Bounds = Screen.PrimaryScreen.Bounds;
+            this.Bounds = Screen.PrimaryScreen.WorkingArea;
             this.KeyPreview = true;
             this.KeyDown += delegate(object s, KeyEventArgs e)
             {
@@ -530,13 +531,13 @@ namespace RafiqPOS
 
                 string userDataFolder = Path.Combine(baseDataFolder, "webview_profile");
 
-                // تحسينات سرعة التشغيل الصارمة لويندوز 7 والعمل بدون إنترنت (تجاوز مهلة WPAD وفحص البروكسي البالغة 3 دقائق)
+                // تحسينات سرعة التشغيل الصارمة لويندوز 7 والعمل بدون إنترنت وحماية استقرار معالج الرسوميات (DWM & GPU) عند تشغيل برامج أخرى بجانب التطبيق
                 string browserArgs = "--no-proxy-server " +
                                      "--disable-background-networking " +
                                      "--disable-component-update " +
                                      "--disable-domain-reliability " +
                                      "--disable-sync " +
-                                     "--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider,CalculateNativeWinOcclusion " +
+                                     "--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider " +
                                      "--disable-gpu-watchdog " +
                                      "--no-first-run " +
                                      "--autoplay-policy=no-user-gesture-required";
@@ -705,24 +706,27 @@ namespace RafiqPOS
                 return;
             }
 
-            if (this.FormBorderStyle == FormBorderStyle.None)
+            if (_isKioskFullscreen)
             {
+                // Return to borderless WorkingArea (respecting Windows Taskbar and preventing overflow)
                 this.WindowState = FormWindowState.Normal;
-                this.FormBorderStyle = FormBorderStyle.Sizable;
-                this.Size = new Size(1280, 800);
-                this.CenterToScreen();
+                this.FormBorderStyle = FormBorderStyle.None;
+                this.Bounds = Screen.FromControl(this).WorkingArea;
+                _isKioskFullscreen = false;
             }
             else
             {
+                // Enter True Kiosk Fullscreen (covering entire display including taskbar)
                 this.WindowState = FormWindowState.Normal;
                 this.FormBorderStyle = FormBorderStyle.None;
                 this.Bounds = Screen.FromControl(this).Bounds;
+                _isKioskFullscreen = true;
             }
         }
 
         public bool IsFullscreen()
         {
-            return this.FormBorderStyle == FormBorderStyle.None;
+            return _isKioskFullscreen;
         }
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)

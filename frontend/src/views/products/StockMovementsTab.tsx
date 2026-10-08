@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Boxes,
   RotateCcw,
@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import type { StockMovement, StockDiscrepancy } from '../../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
+import { PaginationBar } from '../../components/PaginationBar';
+import { useClientPagination } from '../../utils/usePagination';
 
 export interface StockMovementsTabProps {
   allMovements: StockMovement[];
@@ -43,6 +45,24 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
   onRecalculateStock,
   onLoadMovements,
 }) => {
+  const filteredMovements = useMemo(() => {
+    if (!movementSearchQuery.trim()) return allMovements;
+    const q = movementSearchQuery.toLowerCase();
+    return allMovements.filter((m) =>
+      (m.productName && m.productName.toLowerCase().includes(q)) ||
+      (m.productBarcode && m.productBarcode.toLowerCase().includes(q)) ||
+      (m.note && m.note.toLowerCase().includes(q))
+    );
+  }, [allMovements, movementSearchQuery]);
+
+  const {
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
+    paginatedItems: pagedMovements,
+  } = useClientPagination(filteredMovements, 25, `${movementSearchQuery}_${movementTypeFilter}`);
+
   return (
     <div className="flex-1 flex flex-col gap-3 overflow-hidden select-none">
       {/* Top Reconciliation Summary Cards */}
@@ -204,7 +224,7 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
               <RefreshCw className="w-8 h-8 animate-spin text-brand" />
               <span className="text-[13px]">جاري تحميل سجل حركات المخزون...</span>
             </div>
-          ) : allMovements.length === 0 ? (
+          ) : filteredMovements.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-ink-muted gap-2 p-6">
               <Boxes className="w-12 h-12 stroke-[1.2] text-ink-muted opacity-50" />
               <p className="text-[14px] font-semibold text-ink m-0">لا توجد حركات مخزون مسجلة مطابقة للفلتر</p>
@@ -213,104 +233,107 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
               </p>
             </div>
           ) : (
-            allMovements
-              .filter((m) => {
-                if (!movementSearchQuery.trim()) return true;
-                const q = movementSearchQuery.toLowerCase();
-                return (
-                  (m.productName && m.productName.toLowerCase().includes(q)) ||
-                  (m.productBarcode && m.productBarcode.toLowerCase().includes(q)) ||
-                  (m.note && m.note.toLowerCase().includes(q))
-                );
-              })
-              .map((m) => {
-                const isPositive = m.quantityMilli >= 0;
-                const isKg = m.unit === 'kg';
-                const qtyUnits = Math.abs(m.quantityMilli / 1000);
-                const qtyDisplay = isKg
-                  ? `${qtyUnits.toFixed(3).replace(/\.?0+$/, '')} كجم`
-                  : `${Math.round(qtyUnits)} ق`;
+            pagedMovements.map((m) => {
+              const isPositive = m.quantityMilli >= 0;
+              const isKg = m.unit === 'kg';
+              const qtyUnits = Math.abs(m.quantityMilli / 1000);
+              const qtyDisplay = isKg
+                ? `${qtyUnits.toFixed(3).replace(/\.?0+$/, '')} كجم`
+                : `${Math.round(qtyUnits)} ق`;
 
-                let badgeClass = 'bg-surface-2 text-ink-muted border-line';
-                if (m.movementType === 'INITIAL') badgeClass = 'bg-brand-soft text-brand border-brand/20';
-                else if (m.movementType === 'SALE') badgeClass = 'bg-danger-soft text-danger border-danger-border';
-                else if (m.movementType === 'PURCHASE') badgeClass = 'bg-paid-soft text-paid border-paid-border';
-                else if (m.movementType === 'ADJUSTMENT') badgeClass = 'bg-warn-soft text-warn border-warn-border';
-                else if (m.movementType === 'RETURN') badgeClass = 'bg-surface-2 text-brand border-brand/30';
+              let badgeClass = 'bg-surface-2 text-ink-muted border-line';
+              if (m.movementType === 'INITIAL') badgeClass = 'bg-brand-soft text-brand border-brand/20';
+              else if (m.movementType === 'SALE') badgeClass = 'bg-danger-soft text-danger border-danger-border';
+              else if (m.movementType === 'PURCHASE') badgeClass = 'bg-paid-soft text-paid border-paid-border';
+              else if (m.movementType === 'ADJUSTMENT') badgeClass = 'bg-warn-soft text-warn border-warn-border';
+              else if (m.movementType === 'RETURN') badgeClass = 'bg-surface-2 text-brand border-brand/30';
 
-                const dateFormatted = (() => {
-                  try {
-                    const d = new Date(m.createdAt);
-                    return d.toLocaleDateString('ar-EG-u-nu-latn', {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    });
-                  } catch {
-                    return m.createdAt;
-                  }
-                })();
+              const dateFormatted = (() => {
+                try {
+                  const d = new Date(m.createdAt);
+                  return d.toLocaleDateString('ar-EG-u-nu-latn', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  });
+                } catch {
+                  return m.createdAt;
+                }
+              })();
 
-                return (
-                  <div
-                    key={m.id}
-                    className="h-[46px] hairline-b px-4 grid grid-cols-12 items-center text-[12px] hover:bg-surface-2 transition-colors"
-                  >
-                    {/* 1. Date */}
-                    <div className="col-span-2 flex items-center gap-1.5 font-mono text-[11.5px] text-ink-muted">
-                      <Calendar className="w-3.5 h-3.5 text-ink-muted shrink-0" />
-                      <span>{dateFormatted}</span>
-                    </div>
+              return (
+                <div
+                  key={m.id}
+                  className="h-[46px] hairline-b px-4 grid grid-cols-12 items-center text-[12px] hover:bg-surface-2 transition-colors"
+                >
+                  {/* 1. Date */}
+                  <div className="col-span-2 flex items-center gap-1.5 font-mono text-[11.5px] text-ink-muted">
+                    <Calendar className="w-3.5 h-3.5 text-ink-muted shrink-0" />
+                    <span>{dateFormatted}</span>
+                  </div>
 
-                    {/* 2. Product Name & Barcode */}
-                    <div className="col-span-3 flex flex-col justify-center truncate pr-1">
-                      <span className="font-semibold text-ink truncate text-[12.5px]">{m.productName || 'صنف غير معروف'}</span>
-                      {m.productBarcode && (
-                        <span className="font-mono text-[10.5px] text-ink-muted">{m.productBarcode}</span>
-                      )}
-                    </div>
+                  {/* 2. Product Name & Barcode */}
+                  <div className="col-span-3 flex flex-col justify-center truncate pr-1">
+                    <span className="font-semibold text-ink truncate text-[12.5px]">{m.productName || 'صنف غير معروف'}</span>
+                    {m.productBarcode && (
+                      <span className="font-mono text-[10.5px] text-ink-muted">{m.productBarcode}</span>
+                    )}
+                  </div>
 
-                    {/* 3. Movement Type */}
-                    <div className="col-span-2 flex justify-center">
-                      <span className={`px-2.5 py-0.5 rounded text-[10.5px] font-bold border ${badgeClass}`}>
-                        {m.movementTypeArabic || m.movementType}
-                      </span>
-                    </div>
-
-                    {/* 4. Signed Quantity */}
-                    <div className="col-span-2 flex items-center justify-center font-mono font-bold text-[13px] tabular-nums">
-                      <div className={`flex items-center gap-1 ${isPositive ? 'text-paid' : 'text-danger'}`}>
-                        {isPositive ? (
-                          <ArrowUpRight className="w-4 h-4" />
-                        ) : (
-                          <ArrowDownLeft className="w-4 h-4" />
-                        )}
-                        <span dir="ltr">{isPositive ? `+${qtyDisplay}` : `-${qtyDisplay}`}</span>
-                      </div>
-                    </div>
-
-                    {/* 5. Unit Cost */}
-                    <span className="col-span-1 text-left font-mono text-ink-muted tabular-nums text-[12px]">
-                      {formatArabicCurrency(m.unitCostPiasters)}
+                  {/* 3. Movement Type */}
+                  <div className="col-span-2 flex justify-center">
+                    <span className={`px-2.5 py-0.5 rounded text-[10.5px] font-bold border ${badgeClass}`}>
+                      {m.movementTypeArabic || m.movementType}
                     </span>
+                  </div>
 
-                    {/* 6. Note */}
-                    <div className="col-span-2 truncate text-[11px] text-ink-muted" title={m.note || ''}>
-                      {m.note || <span className="opacity-40">—</span>}
+                  {/* 4. Signed Quantity */}
+                  <div className="col-span-2 flex items-center justify-center font-mono font-bold text-[13px] tabular-nums">
+                    <div className={`flex items-center gap-1 ${isPositive ? 'text-paid' : 'text-danger'}`}>
+                      {isPositive ? (
+                        <ArrowUpRight className="w-4 h-4" />
+                      ) : (
+                        <ArrowDownLeft className="w-4 h-4" />
+                      )}
+                      <span dir="ltr">{isPositive ? `+${qtyDisplay}` : `-${qtyDisplay}`}</span>
                     </div>
                   </div>
-                );
-              })
+
+                  {/* 5. Unit Cost */}
+                  <span className="col-span-1 text-left font-mono text-ink-muted tabular-nums text-[12px]">
+                    {formatArabicCurrency(m.unitCostPiasters)}
+                  </span>
+
+                  {/* 6. Note */}
+                  <div className="col-span-2 truncate text-[11px] text-ink-muted" title={m.note || ''}>
+                    {m.note || <span className="opacity-40">—</span>}
+                  </div>
+                </div>
+              );
+            })
           )}
         </div>
 
         {/* Table Footer */}
         <div className="h-[32px] bg-surface-2 hairline-t px-4 flex items-center justify-between text-[11px] text-ink-muted shrink-0">
           <span>جميع الحركات مسجلة بقيود ذرية غير قابلة للحذف لضمان سلامة المخزون.</span>
-          <span className="font-mono tabular-nums">{allMovements.length} حركة إجمالية</span>
+          <span className="font-mono tabular-nums">
+            المعروض: {pagedMovements.length} من أصل {filteredMovements.length} حركة (إجمالي المسجل: {allMovements.length})
+          </span>
         </div>
       </div>
+
+      {/* Pagination Bar */}
+      <PaginationBar
+        currentPage={currentPage}
+        pageSize={pageSize}
+        totalCount={filteredMovements.length}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={setPageSize}
+        pageSizeOptions={[25, 50, 100]}
+        itemLabel="حركة مخزون"
+      />
     </div>
   );
 };

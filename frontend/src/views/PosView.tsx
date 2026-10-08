@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { FormEvent } from 'react';
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
-import type { Product, Sale, Customer, QuickItem, SalePayment, ProductUnit, HeldSale, Category } from '../types/models';
+import { extractProducts, type Product, type Sale, type Customer, type QuickItem, type SalePayment, type ProductUnit, type HeldSale, type Category } from '../types/models';
 import { 
   formatArabicCurrency, 
   calculateLineTotal, 
@@ -862,8 +862,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
     const timer = setTimeout(async () => {
       setIsSearching(true);
       try {
-        const results = await invoke<Product[]>('products:search', { query: q, limit: 8 });
-        if (Array.isArray(results) && results.length > 0) {
+        const res = await invoke<unknown>('products:search', { query: q, limit: 8 });
+        const results = extractProducts(res);
+        if (results.length > 0) {
           setLiveSearchResults(results);
           setIsSearchDropdownOpen(true);
           setSelectedDropdownIndex(0);
@@ -905,7 +906,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
     if (!scannedBarcode) return;
     try {
       setLoading(true);
-      const results = await invoke<Product[]>('products:search', { query: scannedBarcode, limit: 5 });
+      const res = await invoke<unknown>('products:search', { query: scannedBarcode, limit: 5 });
+      const results = extractProducts(res);
       if (results && results.length > 0) {
         let matchedUnit: ProductUnit | undefined;
         const exactMatch = results.find((p) => {
@@ -977,7 +979,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
 
     try {
       setLoading(true);
-      const results = await invoke<Product[]>('products:search', { query, limit: 10 });
+      const res = await invoke<unknown>('products:search', { query, limit: 10 });
+      const results = extractProducts(res);
       if (results && results.length > 0) {
         let matchedUnit: ProductUnit | undefined;
         const targetProd = results.find((p) => {

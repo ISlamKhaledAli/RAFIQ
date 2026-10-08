@@ -72,8 +72,20 @@ export const PurchaseDetailsModal: React.FC<PurchaseDetailsModalProps> = ({ purc
               {purchase.items?.map((item) => (
                 <tr key={item.id} className="hover:bg-surface-2/60 transition-colors">
                   <td className="p-3 font-semibold text-ink">
-                    {item.productName}
-                    {item.barcode && <span className="text-[10px] text-ink-muted block font-mono">{item.barcode}</span>}
+                    <span>{item.productName}</span>
+                    <div className="flex items-center gap-1.5 text-[10.5px] text-ink-muted mt-0.5 flex-wrap">
+                      {item.barcode && <span className="font-mono">باركود: {item.barcode}</span>}
+                      {item.batchNumber && (
+                        <span className="bg-brand-soft/80 text-brand-dark px-1.5 py-0.2 rounded font-mono font-bold">
+                          شحنة: {item.batchNumber}
+                        </span>
+                      )}
+                      {item.expiryDate && (
+                        <span className="bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded font-mono font-bold">
+                          صلاحية: {item.expiryDate}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="p-3 text-center font-mono font-bold text-ink">
                     {(item.quantityMilli / 1000).toFixed(0)}

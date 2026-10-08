@@ -14,6 +14,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import type { Sale, Return, Product } from '../types/models';
+import { extractProducts } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
 import { invoke } from '../bridge/ipc';
 
@@ -204,10 +205,10 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
     }
     setSearchingCatalog(true);
     try {
-      const prods = await invoke<Product[]>('products:search', { query: query.trim(), limit: 8 });
-      setCatalogResults(prods || []);
+      const res = await invoke<unknown>('products:search', { query: query.trim(), limit: 8 });
+      setCatalogResults(extractProducts(res));
     } catch {
-      // ignore
+      setCatalogResults([]);
     } finally {
       setSearchingCatalog(false);
     }

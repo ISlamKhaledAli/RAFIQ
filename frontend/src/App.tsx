@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   Maximize2,
   Minimize2,
+  Minus,
   Store,
   HardDrive,
   Printer,
@@ -134,7 +135,7 @@ export default function App() {
   const [isProductsMenuExpanded, setIsProductsMenuExpanded] = useState(false);
   const [dashboardSubTab, setDashboardSubTab] = useState<DashboardSubTab>('today');
   const [isDashboardMenuExpanded, setIsDashboardMenuExpanded] = useState(false);
-  const [purchasesSubView, setPurchasesSubView] = useState<PurchasesSubView>('invoices');
+  const [purchasesSubView, setPurchasesSubView] = useState<PurchasesSubView>('new_invoice');
   const [isPurchasesMenuExpanded, setIsPurchasesMenuExpanded] = useState(false);
   const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('profile');
   const [isSettingsMenuExpanded, setIsSettingsMenuExpanded] = useState(false);
@@ -414,6 +415,14 @@ export default function App() {
       }
     } catch {
       setIsFullscreen((prev) => !prev);
+    }
+  };
+
+  const handleMinimizeWindow = async () => {
+    try {
+      await invoke('window:minimize');
+    } catch {
+      // web preview fallback
     }
   };
 
@@ -799,6 +808,17 @@ export default function App() {
             </button>
           )}
 
+          {/* Minimize Window Button */}
+          <button
+            type="button"
+            onClick={handleMinimizeWindow}
+            className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-surface hover:bg-surface-2 border border-line hover:border-ink-muted text-ink font-bold text-xs shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer shrink-0"
+            title="تصغير التطبيق إلى شريط المهام"
+          >
+            <Minus className="w-3.5 h-3.5 text-ink-muted shrink-0" />
+            <span className="hidden lg:inline">تصغير</span>
+          </button>
+
           {/* Fullscreen Kiosk Mode Toggle */}
           <button
             type="button"
@@ -1090,25 +1110,7 @@ export default function App() {
 
                   {/* Sub-tree for Purchases & Suppliers */}
                   {isPurchasesItem && isPurchasesMenuExpanded && (
-                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-[#00372d]/25 animate-in slide-in-from-top-1 duration-150">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveTab('purchases');
-                          setPurchasesSubView('invoices');
-                        }}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
-                          effectiveActiveTab === 'purchases' && purchasesSubView === 'invoices'
-                            ? 'bg-[#006d41] text-white font-bold shadow-2xs'
-                            : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Receipt className="w-3.5 h-3.5" />
-                          <span>فواتير المشتريات</span>
-                        </div>
-                      </button>
-
+                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 animate-in slide-in-from-top-1 duration-150">
                       <button
                         type="button"
                         onClick={() => {
@@ -1117,8 +1119,8 @@ export default function App() {
                         }}
                         className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
                           effectiveActiveTab === 'purchases' && purchasesSubView === 'new_invoice'
-                            ? 'bg-[#006d41] text-white font-bold shadow-2xs'
-                            : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
+                            ? 'bg-paid text-white font-bold shadow-2xs'
+                            : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
                         }`}
                       >
                         <div className="flex items-center gap-2">
@@ -1131,12 +1133,30 @@ export default function App() {
                         type="button"
                         onClick={() => {
                           setActiveTab('purchases');
+                          setPurchasesSubView('invoices');
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
+                          effectiveActiveTab === 'purchases' && purchasesSubView === 'invoices'
+                            ? 'bg-paid text-white font-bold shadow-2xs'
+                            : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Receipt className="w-3.5 h-3.5" />
+                          <span>فواتير المشتريات</span>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('purchases');
                           setPurchasesSubView('suppliers');
                         }}
                         className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
                           effectiveActiveTab === 'purchases' && purchasesSubView === 'suppliers'
-                            ? 'bg-[#006d41] text-white font-bold shadow-2xs'
-                            : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
+                            ? 'bg-paid text-white font-bold shadow-2xs'
+                            : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
                         }`}
                       >
                         <div className="flex items-center gap-2">

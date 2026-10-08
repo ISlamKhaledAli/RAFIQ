@@ -15,7 +15,7 @@ import {
   FolderPlus
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
-import type { QuickItem, Product } from '../types/models';
+import { extractProducts, type QuickItem, type Product } from '../types/models';
 import { CustomSelect } from './CustomSelect';
 
 interface QuickItemsManagerModalProps {
@@ -226,8 +226,8 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
     }
     setSearchingLoading(true);
     try {
-      const results = await invoke<Product[]>('products:search', { query: query.trim(), limit: 8 });
-      setSearchResults(Array.isArray(results) ? results : []);
+      const res = await invoke<unknown>('products:search', { query: query.trim(), limit: 8 });
+      setSearchResults(extractProducts(res));
     } catch {
       setSearchResults([]);
     } finally {

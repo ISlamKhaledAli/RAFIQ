@@ -388,17 +388,25 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           updatedAt: new Date().toISOString(),
         },
       ];
-      if (!q) return mockProducts;
-      return mockProducts.filter((p) => 
+      const filtered = !q ? mockProducts : mockProducts.filter((p) => 
         p.barcode?.toLowerCase().includes(q) ||
         p.name.toLowerCase().includes(q) ||
         p.normalizedName?.toLowerCase().includes(q)
       );
+      return {
+        products: filtered,
+        totalCount: filtered.length,
+        lowStockCount: 0,
+        outOfStockCount: 0,
+        offset: 0,
+        limit: payload?.limit || 20,
+      };
     }
 
     case 'products:getById': {
       const prodId = payload?.id || payload;
-      const mockList = await mockHandler('products:search', { query: '' });
+      const res: any = await mockHandler('products:search', { query: '' });
+      const mockList = Array.isArray(res) ? res : res?.products || [];
       return (mockList || []).find((p: any) => p.id === prodId) || null;
     }
 

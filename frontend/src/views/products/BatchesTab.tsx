@@ -17,6 +17,8 @@ import type { ProductBatch, BatchSummary } from '../../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
 import { CustomSelect } from '../../components/CustomSelect';
 import { ConfirmModal } from '../../components/ConfirmModal';
+import { PaginationBar } from '../../components/PaginationBar';
+import { useClientPagination } from '../../utils/usePagination';
 import { rafiqAlert } from '../../utils/dialogService';
 
 export interface BatchesTabProps {
@@ -219,6 +221,14 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
 
     return true;
   });
+
+  const {
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
+    paginatedItems: pagedBatches,
+  } = useClientPagination(filteredBatches, 25, `${searchQuery}_${statusFilter}_${alertDays}`);
 
   return (
     <div className="flex-1 flex flex-col gap-3 overflow-hidden select-none">
@@ -448,7 +458,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
               </span>
             </div>
           ) : (
-            filteredBatches.map((b) => {
+            pagedBatches.map((b) => {
               const qtyFormatted = (b.quantityMilli / 1000).toLocaleString('en-US', {
                 maximumFractionDigits: 3,
               });
@@ -568,7 +578,26 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
             })
           )}
         </div>
+
+        {/* Table Footer */}
+        <div className="h-9 bg-surface-2 border-t border-line px-4 flex items-center justify-between text-xs text-ink-muted shrink-0">
+          <span>إجمالي الدفعات المسجلة: {batches.length} دفعة</span>
+          <span className="font-mono text-[11px] text-brand-dark">
+            المعروض: {pagedBatches.length} من أصل {filteredBatches.length} دفعة
+          </span>
+        </div>
       </div>
+
+      {/* Pagination Bar */}
+      <PaginationBar
+        currentPage={currentPage}
+        pageSize={pageSize}
+        totalCount={filteredBatches.length}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={setPageSize}
+        pageSizeOptions={[15, 25, 50, 100]}
+        itemLabel="دفعة"
+      />
 
       {/* Adjust Batch Quantity Modal */}
       {adjustingBatch && (

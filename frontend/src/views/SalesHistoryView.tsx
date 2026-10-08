@@ -26,6 +26,8 @@ import { formatArabicCurrency } from '../utils/money';
 import { VoidInvoiceModal } from '../components/VoidInvoiceModal';
 import { ReturnModal } from '../components/ReturnModal';
 import { CustomDatePicker } from '../components/CustomDatePicker';
+import { PaginationBar } from '../components/PaginationBar';
+import { useClientPagination } from '../utils/usePagination';
 
 export interface SalesHistoryViewProps {
   isActive?: boolean;
@@ -319,6 +321,15 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
   const invoiceCount = filteredSales.length;
   const averageInvoicePiasters = invoiceCount > 0 ? Math.round(totalSalesPiasters / invoiceCount) : 0;
 
+  // Pagination state
+  const {
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
+    paginatedItems: pagedSales,
+  } = useClientPagination(filteredSales, 25, `${searchQuery}_${statusFilter}_${dateFilter}_${customDate}`);
+
   return (
     <div className="flex flex-col h-full bg-canvas p-3 sm:p-3.5 gap-2.5 sm:gap-3 overflow-hidden select-none">
       {/* 1. Stat Summary Cards Strip */}
@@ -574,7 +585,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
               </p>
             </div>
           ) : (
-            filteredSales.map((sale) => {
+            pagedSales.map((sale) => {
               const isCancelled = sale.status === 'cancelled';
               const isRefunded = sale.status === 'refunded';
               return (
@@ -663,10 +674,21 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
         <div className="h-8 bg-surface-2 border-t border-line px-4 flex items-center justify-between text-[11px] text-ink-muted shrink-0 font-mono">
           <span>قاعدة بيانات SQLite - محرك المعاملات الذرية نشط</span>
           <span className="tabular-nums font-bold">
-            المعروض: {filteredSales.length} من أصل {sales.length} فاتورة
+            المعروض: {pagedSales.length} من أصل {filteredSales.length} فاتورة (إجمالي السجل: {sales.length})
           </span>
         </div>
       </div>
+
+      {/* Pagination Bar */}
+      <PaginationBar
+        currentPage={currentPage}
+        pageSize={pageSize}
+        totalCount={filteredSales.length}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={setPageSize}
+        pageSizeOptions={[15, 25, 50, 100]}
+        itemLabel="فاتورة"
+      />
 
       {/* 4. Full Invoice Details Modal */}
       {selectedSale && (

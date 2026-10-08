@@ -1,7 +1,8 @@
 import React from 'react';
-import { Banknote, X } from 'lucide-react';
+import { Banknote, X, CheckCheck } from 'lucide-react';
 import type { Supplier } from '../../types/models';
 import { formatMoney } from './types';
+import { MoneyInput } from '../../components/MoneyInput';
 
 interface SupplierPaymentModalProps {
   isOpen: boolean;
@@ -58,20 +59,25 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
           </div>
 
           <div>
-            <label className="text-xs font-bold text-ink block mb-1">
-              مبلغ السداد (ج.م) <span className="text-danger">*</span>
-            </label>
-            <input
-              type="number"
-              step="1"
-              min="1"
-              required
-              value={(paymentAmountPiasters / 100).toFixed(2)}
-              onChange={(e) => {
-                const valEGP = parseFloat(e.target.value) || 0;
-                setPaymentAmountPiasters(Math.round(valEGP * 100));
-              }}
-              className="w-full h-11 px-3 bg-surface-2 border-2 border-paid focus:bg-surface rounded-xl text-base font-mono font-bold text-paid focus:outline-none transition-colors"
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-bold text-ink block">
+                مبلغ السداد <span className="text-danger">*</span>
+              </label>
+              {supplier.balancePiasters > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setPaymentAmountPiasters(supplier.balancePiasters)}
+                  className="text-[11px] font-bold text-paid hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <CheckCheck className="w-3 h-3" />
+                  <span>كامل المديونية</span>
+                </button>
+              )}
+            </div>
+            <MoneyInput
+              valuePiasters={paymentAmountPiasters}
+              onChangePiasters={setPaymentAmountPiasters}
+              className="h-11 text-base text-paid font-bold"
               autoFocus
             />
           </div>

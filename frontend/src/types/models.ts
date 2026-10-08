@@ -1061,4 +1061,23 @@ export interface CashierPerformanceMetric {
   returnsCount: number;
 }
 
+export interface ProductSearchResult {
+  products: Product[];
+  totalCount: number;
+  lowStockCount?: number;
+  outOfStockCount?: number;
+  offset: number;
+  limit: number;
+}
+
+export function extractProducts(res: unknown): Product[] {
+  if (!res) return [];
+  if (Array.isArray(res)) return res as Product[];
+  if (typeof res === 'object' && res !== null && 'products' in res) {
+    const list = (res as { products?: unknown }).products;
+    if (Array.isArray(list)) return list as Product[];
+  }
+  return [];
+}
+
 

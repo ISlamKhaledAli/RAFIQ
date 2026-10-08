@@ -281,6 +281,21 @@ namespace RafiqPOS.Repositories
                                 cmd.ExecuteNonQuery();
                             }
 
+                            // If this product is a variant, also sync the parent product's total stock
+                            string syncParentSql = @"
+                                UPDATE products
+                                SET stock_quantity_milli = stock_quantity_milli + @qtyDelta,
+                                    updated_at = @now
+                                WHERE id = (SELECT parent_id FROM products WHERE id = @pid AND parent_id IS NOT NULL);
+                            ";
+                            using (var cmdSync = new SQLiteCommand(syncParentSql, conn, trans))
+                            {
+                                cmdSync.Parameters.AddWithValue("@qtyDelta", item.QuantityMilli);
+                                cmdSync.Parameters.AddWithValue("@now", now);
+                                cmdSync.Parameters.AddWithValue("@pid", item.ProductId);
+                                cmdSync.ExecuteNonQuery();
+                            }
+
                             // Record Stock Movement (Purchase increases stock)
                             string insertSmSql = @"
                                 INSERT INTO stock_movements (

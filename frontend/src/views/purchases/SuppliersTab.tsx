@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import type { Supplier } from '../../types/models';
 import { formatMoney } from './types';
+import { PaginationBar } from '../../components/PaginationBar';
+import { useClientPagination } from '../../utils/usePagination';
 
 interface SuppliersTabProps {
   suppliers: Supplier[];
@@ -51,6 +53,14 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
       );
     });
   }, [suppliers, supplierSearchQuery, showArchivedSuppliers]);
+
+  const {
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
+    paginatedItems: pagedSuppliers,
+  } = useClientPagination(filteredSuppliers, 25, `${supplierSearchQuery}_${showArchivedSuppliers}`);
 
   return (
     <div className="flex-1 flex flex-col gap-4 overflow-hidden">
@@ -107,7 +117,7 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
               <span className="text-sm font-medium">لا يوجد موردين مطابقين للبحث</span>
             </div>
           ) : (
-            filteredSuppliers.map((sup) => (
+            pagedSuppliers.map((sup) => (
               <div
                 key={sup.id}
                 className={`h-14 grid grid-cols-12 px-4 items-center text-xs hover:bg-surface-2/60 transition-colors ${
@@ -208,6 +218,17 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
           )}
         </div>
       </div>
+
+      {/* Pagination Bar */}
+      <PaginationBar
+        currentPage={currentPage}
+        pageSize={pageSize}
+        totalCount={filteredSuppliers.length}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={setPageSize}
+        pageSizeOptions={[15, 25, 50, 100]}
+        itemLabel="مورد"
+      />
     </div>
   );
 };

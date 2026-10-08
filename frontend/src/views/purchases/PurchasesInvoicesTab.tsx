@@ -11,6 +11,8 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { CustomSelect } from '../../components/CustomSelect';
+import { PaginationBar } from '../../components/PaginationBar';
+import { useClientPagination } from '../../utils/usePagination';
 import { openHelpCenter } from '../../utils/helpService';
 import type { Purchase } from '../../types/models';
 import { formatMoney } from './types';
@@ -57,6 +59,14 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
   const totalUnpaidPurchasesCount = useMemo(() => {
     return purchases.filter((p) => p.paymentStatus === 'CREDIT' || p.paymentStatus === 'PARTIAL').length;
   }, [purchases]);
+
+  const {
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
+    paginatedItems: pagedPurchases,
+  } = useClientPagination(filteredPurchases, 25, `${purchaseSearchQuery}_${purchasePaymentFilter}`);
 
   return (
     <div className="flex-1 flex flex-col gap-2.5 sm:gap-3 overflow-hidden">
@@ -172,7 +182,7 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
               <span className="text-sm font-medium">لا توجد فواتير شراء مسجلة مطابقة للبحث</span>
             </div>
           ) : (
-            filteredPurchases.map((pur) => (
+            pagedPurchases.map((pur) => (
               <div
                 key={pur.id}
                 className="h-12 grid grid-cols-12 px-4 items-center text-xs hover:bg-surface-2/60 transition-colors"
@@ -237,6 +247,17 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
           )}
         </div>
       </div>
+
+      {/* Pagination Bar */}
+      <PaginationBar
+        currentPage={currentPage}
+        pageSize={pageSize}
+        totalCount={filteredPurchases.length}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={setPageSize}
+        pageSizeOptions={[15, 25, 50, 100]}
+        itemLabel="فاتورة شراء"
+      />
     </div>
   );
 };

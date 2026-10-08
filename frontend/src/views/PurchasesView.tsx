@@ -1,22 +1,24 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   ShoppingCart,
-  Plus,
   Receipt,
   Building2,
+  ArrowRight,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
 import { ConfirmModal } from '../components/ConfirmModal';
-import type { Supplier, Purchase, PurchaseItem, Product, SupplierTransaction } from '../types/models';
+import { extractProducts, type Supplier, type Purchase, type PurchaseItem, type Product, type SupplierTransaction } from '../types/models';
 import { PurchasesInvoicesTab } from './purchases/PurchasesInvoicesTab';
 import { NewPurchaseTab } from './purchases/NewPurchaseTab';
 import { SuppliersTab } from './purchases/SuppliersTab';
 import { PurchaseDetailsModal } from './purchases/PurchaseDetailsModal';
+import { ProductVariantPickerModal } from '../components/ProductVariantPickerModal';
 import { SupplierFormModal, type SupplierFormData } from './purchases/SupplierFormModal';
 import { SupplierPaymentModal } from './purchases/SupplierPaymentModal';
 import { SupplierStatementModal } from './purchases/SupplierStatementModal';
 import { type PurchasesSubView, type NewPurchaseLineItem } from './purchases/types';
+import { normalizeArabicNumerals } from '../utils/money';
 
 export { type PurchasesSubView } from './purchases/types';
 
@@ -26,7 +28,7 @@ interface PurchasesViewProps {
 }
 
 export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubViewChange }) => {
-  const [internalTab, setInternalTab] = useState<PurchasesSubView>('invoices');
+  const [internalTab, setInternalTab] = useState<PurchasesSubView>('new_invoice');
   const activeTab = subView ?? internalTab;
   const setActiveTab = (view: PurchasesSubView) => {
     if (onSubViewChange) {
@@ -95,6 +97,9 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
     notes: '',
   });
 
+  // Variant Picker State for Clothing/Colors/Sizes
+  const [variantPickerParentProduct, setVariantPickerParentProduct] = useState<Product | null>(null);
+
   // Show temporary toast notification
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setNotification({ message, type });
@@ -159,19 +164,22 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
 
   // Search products when query changes
   useEffect(() => {
-    if (!productSearchQuery.trim() || productSearchQuery.length < 2) {
+    const q = productSearchQuery.trim();
+    if (!q) {
+      setCatalogProducts([]);
       return;
     }
     let isMounted = true;
     const timer = setTimeout(async () => {
       setIsSearchingProduct(true);
       try {
-        const res = await invoke<Product[]>('products:search', { query: productSearchQuery.trim() });
-        if (isMounted && res) {
-          setCatalogProducts(res.slice(0, 8));
+        const res = await invoke<unknown>('products:search', { query: q });
+        if (isMounted) {
+          const items = extractProducts(res);
+          setCatalogProducts(items.slice(0, 10));
         }
       } catch {
-        // ignore
+        if (isMounted) setCatalogProducts([]);
       } finally {
         if (isMounted) setIsSearchingProduct(false);
       }
@@ -184,10 +192,28 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
 
   // Add Product to Line Items
   const handleAddProductToPurchase = (prod: Product) => {
+    // If product has variants (matrix parent), prompt variant picker modal
+    if (prod.hasVariants) {
+      setVariantPickerParentProduct(prod);
+      return;
+    }
+
     const existingIdx = lineItems.findIndex((item) => item.productId === prod.id);
     if (existingIdx >= 0) {
       const updated = [...lineItems];
-      updated[existingIdx].quantityUnits += 1;
+      const nextQty = (updated[existingIdx].quantityUnits || 0) + 1;
+      updated[existingIdx].quantityUnits = nextQty;
+      updated[existingIdx].quantityInput = String(nextQty);
+      const p = parseInt(normalizeArabicNumerals(updated[existingIdx].packSizeInput || ''), 10) || 0;
+      if (p > 0) {
+        const c = Math.floor(nextQty / p);
+        const rem = Math.round(nextQty % p);
+        updated[existingIdx].cartonsInput = c > 0 ? String(c) : '0';
+        updated[existingIdx].looseInput = rem > 0 ? String(rem) : '0';
+      } else {
+        updated[existingIdx].cartonsInput = '0';
+        updated[existingIdx].looseInput = String(nextQty);
+      }
       setLineItems(updated);
     } else {
       setLineItems([
@@ -199,12 +225,20 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
           currentStockMilli: prod.stockQuantityMilli,
           currentCostPiasters: prod.costPiasters,
           currentPricePiasters: prod.pricePiasters,
-          quantityUnits: 1,
+          quantityUnits: 0,
+          quantityInput: '',
           unitCostPiasters: prod.costPiasters > 0 ? prod.costPiasters : prod.pricePiasters,
           newSellingPricePiasters: prod.pricePiasters,
           batchNumber: '',
           expiryDate: '',
           productionDate: '',
+          variantColor: prod.variantColor || undefined,
+          variantSize: prod.variantSize || undefined,
+          variantSku: prod.variantSku || undefined,
+          unit: prod.unit || 'piece',
+          cartonsInput: '',
+          packSizeInput: '',
+          looseInput: '',
         },
       ]);
     }
@@ -235,6 +269,11 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
   const handleSavePurchase = async () => {
     if (lineItems.length === 0) {
       showToast('يرجى إضافة صنف واحد على الأقل لفاتورة الشراء', 'error');
+      return;
+    }
+
+    if (remainingAmountPiasters > 0 && !selectedSupplierId) {
+      showToast('يجب اختيار المورد أولاً لتسجيل الفاتورة الآجلة أو السداد الجزئي', 'error');
       return;
     }
 
@@ -336,7 +375,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
     }
 
     try {
-      const balancePiasters = Math.round((parseFloat(supplierForm.balanceEGP) || 0) * 100);
+      const balancePiasters = Math.round((parseFloat(normalizeArabicNumerals(supplierForm.balanceEGP)) || 0) * 100);
       const res = await invoke<Supplier>('suppliers:save', {
         id: supplierForm.id,
         name: supplierForm.name.trim(),
@@ -483,34 +522,40 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
           </div>
         </div>
 
-        {/* Current Sub-View Badge */}
+        {/* Header Right Action / Badges */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-surface-2 border border-line text-xs font-bold text-ink shadow-2xs">
-            {activeTab === 'invoices' && (
-              <>
-                <Receipt className="w-3.5 h-3.5 text-brand" />
-                <span>فواتير المشتريات</span>
-                <span className="bg-brand-soft text-brand-dark px-1.5 py-0.2 rounded-full text-[11px] font-mono">
-                  {purchases.length}
-                </span>
-              </>
-            )}
-            {activeTab === 'new_invoice' && (
-              <>
-                <Plus className="w-3.5 h-3.5 text-brand" />
-                <span>تسجيل فاتورة شراء جديدة</span>
-              </>
-            )}
-            {activeTab === 'suppliers' && (
-              <>
-                <Building2 className="w-3.5 h-3.5 text-brand" />
-                <span>دليل الموردين</span>
-                <span className="bg-brand-soft text-brand-dark px-1.5 py-0.2 rounded-full text-[11px] font-mono">
-                  {suppliers.length}
-                </span>
-              </>
-            )}
-          </div>
+          {activeTab === 'new_invoice' ? (
+            <button
+              type="button"
+              onClick={handleRequestCancelNewPurchase}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface hover:bg-surface-2 border border-line text-xs font-bold text-ink-muted hover:text-ink transition-colors cursor-pointer shadow-2xs"
+              title="العودة إلى قائمة الفواتير"
+            >
+              <ArrowRight className="w-3.5 h-3.5" />
+              <span>العودة للفواتير</span>
+            </button>
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-surface-2 border border-line text-xs font-bold text-ink shadow-2xs">
+              {activeTab === 'invoices' && (
+                <>
+                  <Receipt className="w-3.5 h-3.5 text-brand" />
+                  <span>فواتير المشتريات</span>
+                  <span className="bg-brand-soft text-brand-dark px-1.5 py-0.2 rounded-full text-[11px] font-mono">
+                    {purchases.length}
+                  </span>
+                </>
+              )}
+              {activeTab === 'suppliers' && (
+                <>
+                  <Building2 className="w-3.5 h-3.5 text-brand" />
+                  <span>دليل الموردين</span>
+                  <span className="bg-brand-soft text-brand-dark px-1.5 py-0.2 rounded-full text-[11px] font-mono">
+                    {suppliers.length}
+                  </span>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
@@ -613,6 +658,17 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
       <PurchaseDetailsModal
         purchase={selectedPurchaseDetails}
         onClose={() => setSelectedPurchaseDetails(null)}
+      />
+
+      {/* Product Variant Picker for Clothing / Colors & Sizes */}
+      <ProductVariantPickerModal
+        isOpen={variantPickerParentProduct !== null}
+        onClose={() => setVariantPickerParentProduct(null)}
+        parentProduct={variantPickerParentProduct}
+        onSelectVariant={(variantProd) => {
+          handleAddProductToPurchase(variantProd);
+          showToast(`تم اختيار وإضافة: ${variantProd.name}`);
+        }}
       />
 
       <ConfirmModal

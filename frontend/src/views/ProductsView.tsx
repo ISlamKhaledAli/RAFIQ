@@ -12,8 +12,6 @@ import {
   Boxes,
   Download,
   AlertTriangle,
-  ChevronLeft,
-  ChevronRight,
   Calendar,
   HelpCircle,
   Layers,
@@ -31,6 +29,7 @@ import type { Product, Category, StockMovement, StockDiscrepancy, ProductUnit, B
 import { normalizeArabicNumerals } from '../utils/money';
 import { exportProductsToExcel } from '../utils/excelImport';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { PaginationBar } from '../components/PaginationBar';
 import { CategoryManagerModal } from '../components/CategoryManagerModal';
 import { PriceHistoryModal } from '../components/PriceHistoryModal';
 import { ExcelImportModal } from '../components/ExcelImportModal';
@@ -1216,106 +1215,22 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           />
 
           {/* Pagination Bar */}
-          {totalCount > 0 && (
-            <div className="bg-surface border border-line rounded-2xl px-4 py-2.5 flex items-center justify-between gap-3 shrink-0 shadow-xs select-none">
-              {/* Page Info */}
-              <div className="text-xs text-ink-muted font-bold">
-                عرض {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, totalCount)} من إجمالي {totalCount.toLocaleString('en-US')} صنف
-              </div>
-
-              {/* Navigation Buttons */}
-              <div className="flex items-center gap-1.5">
-                {/* Page Size Selector */}
-                <div className="flex items-center gap-1.5 ml-3 pl-3 border-l border-line">
-                  <span className="text-[11px] text-ink-muted font-bold">عرض:</span>
-                  {[50, 100, 250].map((size) => (
-                    <button
-                      key={size}
-                      type="button"
-                      onClick={() => {
-                        setPageSize(size);
-                        setCurrentPage(1);
-                        void loadProducts(searchQuery, 1, size);
-                      }}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                        pageSize === size
-                          ? 'bg-brand-dark text-white shadow-xs'
-                          : 'bg-surface-2 text-ink-muted border border-line hover:border-brand hover:text-brand'
-                      }`}
-                    >
-                      {size}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Prev / Page Numbers / Next */}
-                <button
-                  type="button"
-                  disabled={currentPage <= 1}
-                  onClick={() => {
-                    const prev = currentPage - 1;
-                    setCurrentPage(prev);
-                    void loadProducts(searchQuery, prev, pageSize);
-                  }}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-2 border border-line text-ink-muted hover:bg-brand-soft hover:text-brand hover:border-brand disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
-                  title="الصفحة السابقة"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-
-                {(() => {
-                  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
-                  const pages: (number | string)[] = [];
-                  if (totalPages <= 7) {
-                    for (let i = 1; i <= totalPages; i++) pages.push(i);
-                  } else {
-                    pages.push(1);
-                    if (currentPage > 3) pages.push('...');
-                    const start = Math.max(2, currentPage - 1);
-                    const end = Math.min(totalPages - 1, currentPage + 1);
-                    for (let i = start; i <= end; i++) pages.push(i);
-                    if (currentPage < totalPages - 2) pages.push('...');
-                    pages.push(totalPages);
-                  }
-                  return pages.map((p, idx) =>
-                    typeof p === 'string' ? (
-                      <span key={`dots-${idx}`} className="text-xs text-ink-muted px-1 select-none">…</span>
-                    ) : (
-                      <button
-                        key={p}
-                        type="button"
-                        onClick={() => {
-                          setCurrentPage(p);
-                          void loadProducts(searchQuery, p, pageSize);
-                        }}
-                        className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          currentPage === p
-                            ? 'bg-brand-dark text-white shadow-xs'
-                            : 'bg-surface-2 text-ink-muted border border-line hover:bg-brand-soft hover:text-brand hover:border-brand'
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    )
-                  );
-                })()}
-
-                <button
-                  type="button"
-                  disabled={currentPage >= Math.ceil(totalCount / pageSize)}
-                  onClick={() => {
-                    const next = currentPage + 1;
-                    setCurrentPage(next);
-                    void loadProducts(searchQuery, next, pageSize);
-                  }}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-2 border border-line text-ink-muted hover:bg-brand-soft hover:text-brand hover:border-brand disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
-                  title="الصفحة التالية"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          )}
+          <PaginationBar
+            currentPage={currentPage}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            onPageChange={(page) => {
+              setCurrentPage(page);
+              void loadProducts(searchQuery, page, pageSize);
+            }}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setCurrentPage(1);
+              void loadProducts(searchQuery, 1, size);
+            }}
+            pageSizeOptions={[50, 100, 250]}
+            itemLabel="صنف"
+          />
         </>
       ) : activeSubView === 'movements' ? (
         /* Movements & Inventory Audit SubView Subcomponent */

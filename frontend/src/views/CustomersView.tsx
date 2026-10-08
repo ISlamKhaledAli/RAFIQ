@@ -23,6 +23,8 @@ import { CustomerPaymentModal } from './customers/CustomerPaymentModal';
 import { CustomerStatementModal } from './customers/CustomerStatementModal';
 import { CustomerPrintStatementModal } from './customers/CustomerPrintStatementModal';
 import { CustomerImportExcelModal } from './customers/CustomerImportExcelModal';
+import { PaginationBar } from '../components/PaginationBar';
+import { useClientPagination } from '../utils/usePagination';
 
 export function CustomersView() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -251,6 +253,14 @@ export function CustomersView() {
   const totalCreditLimitPiasters = useMemo(() => {
     return customers.filter(c => c.id !== 'cust_general_cash').reduce((sum, c) => sum + c.creditLimitPiasters, 0);
   }, [customers]);
+
+  const {
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
+    paginatedItems: pagedCustomers,
+  } = useClientPagination(filteredCustomers, 25, `${searchQuery}_${filterType}`);
 
   const checkPhoneDuplicate = useCallback(async (phoneVal: string, excludeId?: string) => {
     const clean = phoneVal.trim().replace(/[\s-]/g, '');
@@ -742,7 +752,7 @@ export function CustomersView() {
                   </td>
                 </tr>
               ) : (
-                filteredCustomers.map((cust) => {
+                pagedCustomers.map((cust) => {
                   const hasDebt = cust.balancePiasters > 0;
                   return (
                     <tr key={cust.id} className="h-12 hover:bg-[#F1F5F4]/60 transition-colors">
@@ -863,6 +873,17 @@ export function CustomersView() {
           </table>
         </div>
       </div>
+
+      {/* Pagination Bar */}
+      <PaginationBar
+        currentPage={currentPage}
+        pageSize={pageSize}
+        totalCount={filteredCustomers.length}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={setPageSize}
+        pageSizeOptions={[15, 25, 50, 100]}
+        itemLabel="عميل"
+      />
 
       {/* 4. MODALS DELEGATION */}
 

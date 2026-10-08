@@ -19,7 +19,7 @@ import {
   Layers
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
-import type { QuickItem, Product } from '../types/models';
+import { extractProducts, type QuickItem, type Product } from '../types/models';
 import { normalizeArabicNumerals } from '../utils/money';
 import { CustomSelect } from './CustomSelect';
 import { useFeatures } from '../context/useFeatures';
@@ -85,8 +85,8 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
     }
     setIsSearching(true);
     try {
-      const results = await invoke<Product[]>('products:search', { query: query.trim(), limit: 8 });
-      setSearchResults(Array.isArray(results) ? results : []);
+      const res = await invoke<unknown>('products:search', { query: query.trim(), limit: 8 });
+      setSearchResults(extractProducts(res));
     } catch {
       setSearchResults([]);
     } finally {
@@ -120,8 +120,8 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
     }
     setIsBundleSearching(true);
     try {
-      const results = await invoke<Product[]>('products:search', { query: query.trim(), limit: 8 });
-      setBundleSearchResults(Array.isArray(results) ? results : []);
+      const res = await invoke<unknown>('products:search', { query: query.trim(), limit: 8 });
+      setBundleSearchResults(extractProducts(res));
     } catch {
       setBundleSearchResults([]);
     } finally {

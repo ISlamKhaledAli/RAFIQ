@@ -120,7 +120,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
             title="إضافة صنف سريع جديد يظهر في أزرار المحل بدون مخزن"
           >
             <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-            <span>+ صنف سريع</span>
+            <span> صنف سريع</span>
           </button>
           <button
             type="button"
