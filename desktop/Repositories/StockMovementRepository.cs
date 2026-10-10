@@ -258,6 +258,17 @@ namespace RafiqPOS.Repositories
             if (!string.IsNullOrWhiteSpace(productId))
             {
                 sql = @"
+                    -- 1. If this is a parent product with variants, calculate stock from its child variants
+                    UPDATE products
+                    SET stock_quantity_milli = COALESCE((
+                        SELECT SUM(c.stock_quantity_milli)
+                        FROM products c
+                        WHERE c.parent_id = @pid
+                    ), 0),
+                    updated_at = datetime('now')
+                    WHERE id = @pid AND has_variants = 1;
+
+                    -- 2. If this is a standalone product or a variant, calculate from its stock movements
                     UPDATE products
                     SET stock_quantity_milli = COALESCE((
                         SELECT SUM(quantity_milli)
@@ -265,7 +276,26 @@ namespace RafiqPOS.Repositories
                         WHERE product_id = @pid
                     ), 0),
                     updated_at = datetime('now')
-                    WHERE id = @pid;
+                    WHERE id = @pid AND (has_variants = 0 OR has_variants IS NULL);
+
+                    -- 3. If this product is a variant, update product_variants table and sync parent product rollup
+                    UPDATE product_variants
+                    SET stock_quantity_milli = COALESCE((
+                        SELECT p.stock_quantity_milli
+                        FROM products p
+                        WHERE p.id = @pid
+                    ), 0),
+                    updated_at = datetime('now')
+                    WHERE variant_product_id = @pid;
+
+                    UPDATE products
+                    SET stock_quantity_milli = (
+                        SELECT COALESCE(SUM(p2.stock_quantity_milli), 0)
+                        FROM products p2
+                        WHERE p2.parent_id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @pid)
+                    ),
+                    updated_at = datetime('now')
+                    WHERE id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @pid AND p1.parent_id IS NOT NULL);
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn, trans))
                 {
@@ -276,13 +306,34 @@ namespace RafiqPOS.Repositories
             else
             {
                 sql = @"
+                    -- 1. Recalculate standalone products and variants from movements
                     UPDATE products
                     SET stock_quantity_milli = COALESCE((
                         SELECT SUM(quantity_milli)
                         FROM stock_movements
                         WHERE product_id = products.id
                     ), 0),
+                    updated_at = datetime('now')
+                    WHERE has_variants = 0 OR has_variants IS NULL;
+
+                    -- 2. Sync product_variants normalization table
+                    UPDATE product_variants
+                    SET stock_quantity_milli = COALESCE((
+                        SELECT p.stock_quantity_milli
+                        FROM products p
+                        WHERE p.id = product_variants.variant_product_id
+                    ), 0),
                     updated_at = datetime('now');
+
+                    -- 3. Roll up parent products from their children
+                    UPDATE products
+                    SET stock_quantity_milli = COALESCE((
+                        SELECT SUM(c.stock_quantity_milli)
+                        FROM products c
+                        WHERE c.parent_id = products.id
+                    ), 0),
+                    updated_at = datetime('now')
+                    WHERE has_variants = 1;
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn, trans))
                 {

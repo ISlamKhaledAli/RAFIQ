@@ -206,8 +206,14 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
               <input
                 ref={inputRef}
                 type="text"
+                inputMode="decimal"
                 value={inputValue}
-                onChange={(e) => setInputValue(normalizeArabicNumerals(e.target.value))}
+                onChange={(e) => {
+                  const norm = normalizeArabicNumerals(e.target.value);
+                  if (/^[0-9]*\.?[0-9]*$/.test(norm)) {
+                    setInputValue(norm);
+                  }
+                }}
                 placeholder={unitMode === 'kg' ? '0.350' : '350'}
                 className="w-full bg-transparent border-none text-[32px] font-bold font-mono text-ink text-center tracking-wider focus:outline-none"
               />

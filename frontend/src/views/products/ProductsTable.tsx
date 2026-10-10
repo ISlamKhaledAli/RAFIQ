@@ -214,9 +214,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                   ? `${minStockQuantityItem.toFixed(3).replace(/\.?0+$/, '')}`
                   : `${Math.round(minStockQuantityItem)}`;
 
-                let stockStatus = { label: 'موجود في المحل', class: 'bg-paid-soft text-paid border-emerald-200' };
+                let stockStatus = { label: 'متوفر', class: 'bg-paid-soft text-paid border-emerald-200' };
                 if (stockQuantityCurrent <= 0) {
-                  stockStatus = { label: 'خلصان من المخزن', class: 'bg-rose-50 text-danger border-rose-200' };
+                  stockStatus = { label: 'خلصان', class: 'bg-rose-50 text-danger border-rose-200' };
                 } else if (stockQuantityCurrent <= minStockQuantityItem) {
                   stockStatus = { label: `ناقص (${minStockDisplay})`, class: 'bg-amber-50 text-amber-700 border-amber-200' };
                 }

@@ -40,7 +40,7 @@ namespace RafiqPOS.Models
         public long TaxPiasters { get; set; }
 
         [JsonProperty("taxRatePercent")]
-        public int TaxRatePercent { get; set; }
+        public int? TaxRatePercent { get; set; }
 
         [JsonProperty("unit")]
         public string Unit { get; set; }

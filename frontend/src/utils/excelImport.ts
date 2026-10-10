@@ -1,5 +1,5 @@
 import type { Product, Category } from '../types/models';
-import { poundsToPiasters, normalizeArabicNumerals } from './money';
+import { poundsToPiasters, normalizeArabicNumerals, normalizeArabicText } from './money';
 import { invoke } from '../bridge/ipc';
 
 async function getXlsx() {
@@ -13,6 +13,8 @@ export interface RawImportRow {
   additionalBarcodes: string[];
   categoryName: string;
   unit: 'piece' | 'kg';
+  variantColor?: string;
+  variantSize?: string;
   pricePounds: number;
   costPounds: number;
   stockQuantity: number;
@@ -34,6 +36,8 @@ export interface ValidatedImportRow {
     barcodes: string[];
     categoryName: string;
     unit: 'piece' | 'kg';
+    variantColor?: string;
+    variantSize?: string;
     pricePiasters: number;
     costPiasters: number;
     stockQuantityMilli: number;
@@ -44,13 +48,15 @@ export interface ValidatedImportRow {
   };
 }
 
-// Flexible column name matching for Arabic & English supermarket templates
+// Flexible column name matching for Arabic & English retail & supermarket templates
 const HEADER_ALIASES: Record<string, string[]> = {
   name: ['اسم الصنف', 'الاسم', 'اسم المنتج', 'السلعة', 'الصنف', 'product name', 'name', 'item name'],
   barcode: ['الباركود الرئيسي', 'الباركود', 'كود الصنف', 'الكود', 'barcode', 'code', 'upc', 'ean'],
   additionalBarcodes: ['باركودات إضافية', 'باركودات اضافية', 'اكواد اضافية', 'additional barcodes', 'other barcodes'],
   category: ['القسم / التصنيف', 'القسم', 'التصنيف', 'الفئة', 'المجموعة', 'category', 'group'],
   unit: ['الوحدة', 'نوع البيع', 'نوع الوحدة', 'unit', 'type'],
+  color: ['اللون (اختياري / للملابس)', 'اللون', 'لون', 'color', 'colour'],
+  size: ['المقاس (اختياري / للملابس)', 'المقاس', 'مقاس', 'الحجم', 'size'],
   price: ['سعر البيع', 'السعر', 'سعر البيع للجمهور', 'سعر القطعة', 'سعر الكيلو', 'selling price', 'price'],
   cost: ['سعر التكلفة', 'التكلفة', 'سعر الشراء', 'سعر الجملة', 'تكلفة الشراء', 'cost price', 'cost'],
   stock: ['الرصيد الافتتاحي', 'الرصيد', 'الكمية', 'الكمية الافتتاحية', 'المخزون', 'stock', 'quantity', 'qty'],
@@ -115,6 +121,8 @@ export async function downloadExcelTemplate(): Promise<void> {
     'باركودات إضافية (مفصولة بفاصلة)',
     'القسم / التصنيف',
     'الوحدة (قطعة / كجم)',
+    'اللون (اختياري / للملابس)',
+    'المقاس (اختياري / للملابس)',
     'سعر البيع (بالجنيه) *',
     'سعر التكلفة (بالجنيه)',
     'الرصيد الافتتاحي',
@@ -131,6 +139,8 @@ export async function downloadExcelTemplate(): Promise<void> {
       '6223000123457, 6223000123458',
       'بقالة ومشروبات',
       'قطعة',
+      '',
+      '',
       35.00,
       28.50,
       50,
@@ -140,11 +150,45 @@ export async function downloadExcelTemplate(): Promise<void> {
       'EG-100000-01'
     ],
     [
+      'تيشيرت بولو كاجوال رجالي',
+      '6225501100026',
+      '',
+      'ملابس رجالي',
+      'قطعة',
+      'كحلي',
+      'L',
+      220.00,
+      140.00,
+      25,
+      5,
+      0,
+      'POLO-NV-L',
+      ''
+    ],
+    [
+      'حذاء رياضي كوتشي كاجوال',
+      '6225504400017',
+      '',
+      'أحذية وحقائب',
+      'قطعة',
+      'أسود',
+      '42',
+      320.00,
+      200.00,
+      15,
+      3,
+      0,
+      'SHOE-BK-42',
+      ''
+    ],
+    [
       'طماطم بلدي طازجة درجة أولى',
       '200123456789',
       '',
       'خضار وفاكهة',
       'كجم',
+      '',
+      '',
       15.00,
       10.00,
       35.5,
@@ -154,25 +198,13 @@ export async function downloadExcelTemplate(): Promise<void> {
       ''
     ],
     [
-      'لبن جهينة كامل الدسم 1 لتر',
-      '6221000543210',
-      '',
-      'ألبان وأجبان',
-      'قطعة',
-      42.00,
-      34.00,
-      24,
-      6,
-      0,
-      'DRY-JOH-01',
-      ''
-    ],
-    [
       'جبنة بيضاء رومي قديمة بالوزن',
       '200987654321',
       '',
       'ألبان وأجبان',
       'كجم',
+      '',
+      '',
       320.00,
       260.00,
       12.25,
@@ -194,6 +226,8 @@ export async function downloadExcelTemplate(): Promise<void> {
     { wch: 25 }, // باركودات إضافية
     { wch: 18 }, // القسم
     { wch: 15 }, // الوحدة
+    { wch: 16 }, // اللون
+    { wch: 16 }, // المقاس
     { wch: 18 }, // سعر البيع
     { wch: 18 }, // سعر التكلفة
     { wch: 16 }, // الرصيد الافتتاحي
@@ -223,6 +257,8 @@ async function exportProductsViaSheetJs(products: Product[], catMap: Map<string,
     'الباركود الرئيسي',
     'القسم / التصنيف',
     'الوحدة',
+    'اللون',
+    'المقاس',
     'سعر البيع (ج.م)',
     'سعر التكلفة (ج.م)',
     'هامش الربح (ج.م)',
@@ -253,6 +289,8 @@ async function exportProductsViaSheetJs(products: Product[], catMap: Map<string,
       prod.barcode || '',
       catName,
       prod.unit === 'kg' ? 'كجم' : 'قطعة',
+      prod.variantColor || '',
+      prod.variantSize || '',
       sellPounds,
       costPounds,
       profitPounds,
@@ -272,6 +310,8 @@ async function exportProductsViaSheetJs(products: Product[], catMap: Map<string,
     { wch: 20 },
     { wch: 20 },
     { wch: 14 },
+    { wch: 16 },
+    { wch: 16 },
     { wch: 18 },
     { wch: 18 },
     { wch: 18 },
@@ -486,25 +526,42 @@ export async function parseExcelOrCsvFile(file: File): Promise<RawImportRow[]> {
     throw new Error('الملف لا يحتوي على صفوف بيانات كافية (يجب وجود صف عناوين وصف بيانات واحد على الأقل)');
   }
 
-  const headerRow = sheetRows[0] as string[];
+  // Scan up to the first 10 rows to locate the table headers row
+  let headerRowIndex = -1;
   const columnMapping: Record<string, number> = {};
 
-  headerRow.forEach((cell, colIndex) => {
-    if (cell) {
-      const matchedKey = matchHeader(cell);
-      if (matchedKey && !(matchedKey in columnMapping)) {
-        columnMapping[matchedKey] = colIndex;
+  for (let r = 0; r < Math.min(sheetRows.length, 10); r++) {
+    const candidateRow = sheetRows[r] as string[];
+    if (!candidateRow || !Array.isArray(candidateRow)) continue;
+
+    for (let c = 0; c < candidateRow.length; c++) {
+      const cell = candidateRow[c];
+      if (cell && matchHeader(cell) === 'name') {
+        headerRowIndex = r;
+        break;
       }
     }
-  });
 
-  if (!('name' in columnMapping)) {
+    if (headerRowIndex !== -1) {
+      candidateRow.forEach((cell, colIndex) => {
+        if (cell) {
+          const matchedKey = matchHeader(cell);
+          if (matchedKey && !(matchedKey in columnMapping)) {
+            columnMapping[matchedKey] = colIndex;
+          }
+        }
+      });
+      break;
+    }
+  }
+
+  if (headerRowIndex === -1 || !('name' in columnMapping)) {
     throw new Error('لم يتم العثور على عمود "اسم الصنف" في ملف الإكسل. يرجى استخدام القالب المعتمد.');
   }
 
   const resultRows: RawImportRow[] = [];
 
-  for (let i = 1; i < sheetRows.length; i++) {
+  for (let i = headerRowIndex + 1; i < sheetRows.length; i++) {
     const row = sheetRows[i];
     if (!row || row.length === 0) continue;
 
@@ -533,6 +590,8 @@ export async function parseExcelOrCsvFile(file: File): Promise<RawImportRow[]> {
     const categoryName = getCellString('category') || 'عام';
     const rawUnit = getCellString('unit').toLowerCase();
     const isKg = rawUnit === 'كجم' || rawUnit === 'كيلو' || rawUnit === 'وزن' || rawUnit === 'kg' || rawUnit === 'gram' || rawUnit === 'جم';
+    const rawColor = getCellString('color');
+    const rawSize = getCellString('size');
 
     const pricePounds = getCellNumber('price', 0);
     const costPounds = getCellNumber('cost', 0);
@@ -554,6 +613,8 @@ export async function parseExcelOrCsvFile(file: File): Promise<RawImportRow[]> {
       additionalBarcodes: additionalCodes,
       categoryName,
       unit: isKg ? 'kg' : 'piece',
+      variantColor: rawColor || undefined,
+      variantSize: rawSize || undefined,
       pricePounds,
       costPounds,
       stockQuantity,
@@ -577,6 +638,8 @@ export function validateImportRows(
 ): ValidatedImportRow[] {
   // Build lookup index of existing barcodes
   const dbBarcodeOwners = new Map<string, string>();
+  const dbNameVariantOwners = new Map<string, string>();
+
   for (const prod of existingProducts) {
     if (prod.barcode) {
       dbBarcodeOwners.set(prod.barcode.toLowerCase(), prod.name);
@@ -586,16 +649,21 @@ export function validateImportRows(
         if (b) dbBarcodeOwners.set(b.toLowerCase(), prod.name);
       }
     }
+    const nvKey = `${normalizeArabicText(prod.name)}||${normalizeArabicText(prod.variantColor || '')}||${normalizeArabicText(prod.variantSize || '')}`;
+    if (!dbNameVariantOwners.has(nvKey)) {
+      dbNameVariantOwners.set(nvKey, prod.name);
+    }
   }
 
-  // Build category lookup
+  // Build category lookup with Arabic text normalization
   const categoryMap = new Map<string, string>();
   for (const cat of categories) {
-    categoryMap.set(cat.name.trim().toLowerCase(), cat.id);
+    categoryMap.set(normalizeArabicText(cat.name), cat.id);
   }
 
-  // Track in-file barcodes to catch duplicates inside the file
+  // Track in-file barcodes and name+variant combinations to catch intra-file duplicates
   const seenFileBarcodes = new Map<string, number>();
+  const seenFileNameVariants = new Map<string, number>();
 
   const validated: ValidatedImportRow[] = [];
 
@@ -634,26 +702,47 @@ export function validateImportRows(
     const stockMilli = Math.round(row.stockQuantity * 1000);
     const minStockMilli = Math.round(row.minStockQuantity * 1000);
 
-    // 4. Validate Barcodes
+    const cleanColor = row.variantColor?.trim() || '';
+    const cleanSize = row.variantSize?.trim() || '';
+    const normName = normalizeArabicText(row.name);
+    const nameVariantKey = `${normName}||${normalizeArabicText(cleanColor)}||${normalizeArabicText(cleanSize)}`;
+
+    // 4. Validate Barcodes & Intra-file / DB Collision
     const allRowBarcodes = [
       ...(row.barcode ? [row.barcode] : []),
       ...row.additionalBarcodes
     ];
 
-    for (const bc of allRowBarcodes) {
-      const lower = bc.toLowerCase();
-      // Check in-file collision
-      if (seenFileBarcodes.has(lower)) {
-        const prevRow = seenFileBarcodes.get(lower);
-        errors.push(`الباركود (${bc}) مكرر داخل هذا الملف في الصف رقم ${prevRow}`);
+    if (allRowBarcodes.length > 0) {
+      for (const bc of allRowBarcodes) {
+        const lower = bc.toLowerCase();
+        // Check in-file collision
+        if (seenFileBarcodes.has(lower)) {
+          const prevRow = seenFileBarcodes.get(lower);
+          errors.push(`الباركود (${bc}) مكرر داخل هذا الملف في الصف رقم ${prevRow}`);
+        } else {
+          seenFileBarcodes.set(lower, row.rowIndex);
+        }
+
+        // Check database collision
+        if (dbBarcodeOwners.has(lower)) {
+          const ownerName = dbBarcodeOwners.get(lower);
+          warnings.push(`الباركود (${bc}) مسجل مسبقاً في النظام للمنتج: "${ownerName}"`);
+        }
+      }
+    } else {
+      // Barcode is absent: check duplicate name + variant
+      if (seenFileNameVariants.has(nameVariantKey)) {
+        const prevRow = seenFileNameVariants.get(nameVariantKey);
+        const variantDesc = cleanColor || cleanSize ? ` (${cleanColor} / ${cleanSize})` : '';
+        errors.push(`الصنف "${row.name}"${variantDesc} مكرر داخل هذا الملف في الصف رقم ${prevRow}`);
       } else {
-        seenFileBarcodes.set(lower, row.rowIndex);
+        seenFileNameVariants.set(nameVariantKey, row.rowIndex);
       }
 
-      // Check database collision
-      if (dbBarcodeOwners.has(lower)) {
-        const ownerName = dbBarcodeOwners.get(lower);
-        warnings.push(`الباركود (${bc}) مسجل مسبقاً في النظام للمنتج: "${ownerName}"`);
+      if (dbNameVariantOwners.has(nameVariantKey)) {
+        const variantDesc = cleanColor || cleanSize ? ` (${cleanColor} / ${cleanSize})` : '';
+        warnings.push(`الصنف "${row.name}"${variantDesc} مسجل مسبقاً في النظام`);
       }
     }
 
@@ -676,6 +765,8 @@ export function validateImportRows(
         barcodes: allRowBarcodes,
         categoryName: row.categoryName,
         unit: row.unit,
+        variantColor: cleanColor || undefined,
+        variantSize: cleanSize || undefined,
         pricePiasters,
         costPiasters,
         stockQuantityMilli: stockMilli,

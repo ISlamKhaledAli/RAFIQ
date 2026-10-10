@@ -437,7 +437,7 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                     title="إضافة قسم أو تصنيف جديد للأصناف السريعة"
                   >
                     <FolderPlus className="w-3.5 h-3.5" />
-                    <span>+ إضافة تصنيف</span>
+                    <span>إضافة تصنيف</span>
                   </button>
                 </div>
 

@@ -196,7 +196,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
       </div>
 
       {/* 2. Top Credit KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 my-4 shrink-0">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-2.5 my-4 shrink-0">
         {/* KPI 1: Total Outstanding Debts */}
         <div className="bg-surface border border-line rounded-xl p-3 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-ink-muted mb-1">
@@ -213,7 +213,37 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
           </div>
         </div>
 
-        {/* KPI 2: Repayments in Period */}
+        {/* KPI 2: Customer Advance Credits (تحت الحساب) */}
+        <div className="bg-surface border border-line rounded-xl p-3 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-ink-muted mb-1">
+            <span className="text-[11px] font-semibold">أرصدة عملاء (تحت الحساب)</span>
+            <span className="text-[10px] bg-paid-soft text-paid-dark px-1.5 py-0.5 rounded font-mono font-bold">
+              {creditOverview?.creditorsCount || 0} عملاء
+            </span>
+          </div>
+          <div className="text-base font-bold font-mono tabular-nums text-paid">
+            {formatArabicCurrency(creditOverview?.totalCustomerCreditsPiasters || 0)}
+          </div>
+          <div className="text-[10px] text-paid-dark mt-1">
+            أمانات زبائن سايبينها بالمحل
+          </div>
+        </div>
+
+        {/* KPI 3: Net Market Exposure */}
+        <div className="bg-surface border border-line rounded-xl p-3 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-ink-muted mb-1">
+            <span className="text-[11px] font-semibold">صافي ذمة السوق للمحل</span>
+            <Wallet className="w-3.5 h-3.5 text-brand" />
+          </div>
+          <div className="text-base font-bold font-mono tabular-nums text-brand-dark">
+            {formatArabicCurrency(creditOverview?.netMarketExposurePiasters ?? (creditOverview?.totalOutstandingDebtsPiasters || 0))}
+          </div>
+          <div className="text-[10px] text-ink-muted mt-1">
+            (ديون العملاء - أمانات الزبائن)
+          </div>
+        </div>
+
+        {/* KPI 4: Repayments in Period */}
         <div className="bg-surface border border-line rounded-xl p-3 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-ink-muted mb-1">
             <span className="text-[11px] font-semibold">سدادات تم تحصيلها</span>
@@ -227,7 +257,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
           </div>
         </div>
 
-        {/* KPI 3: New Credit Sales in Period */}
+        {/* KPI 5: New Credit Sales in Period */}
         <div className="bg-surface border border-line rounded-xl p-3 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-ink-muted mb-1">
             <span className="text-[11px] font-semibold">مبيعات آجلة جديدة</span>
@@ -241,7 +271,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
           </div>
         </div>
 
-        {/* KPI 4: Net Credit Flow */}
+        {/* KPI 6: Net Credit Flow */}
         <div className="bg-surface border border-line rounded-xl p-3 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-ink-muted mb-1">
             <span className="text-[11px] font-semibold">صافي حركة الآجل</span>
@@ -263,7 +293,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
           </div>
         </div>
 
-        {/* KPI 5: Average Payback Time */}
+        {/* KPI 7: Average Payback Time */}
         <div className="bg-surface border border-line rounded-xl p-3 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-ink-muted mb-1">
             <span className="text-[11px] font-semibold">متوسط دورة السداد</span>
@@ -277,7 +307,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
           </div>
         </div>
 
-        {/* KPI 6: Critical Debtors (>90 days) */}
+        {/* KPI 8: Critical Debtors (>90 days) */}
         <div className="bg-surface border border-line rounded-xl p-3 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-ink-muted mb-1">
             <span className="text-[11px] font-semibold">ديون حرجة (&gt; 90 يوم)</span>

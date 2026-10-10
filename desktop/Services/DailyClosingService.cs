@@ -135,16 +135,36 @@ namespace RafiqPOS.Services
                 // 3. Sales totals (Excluding cancelled and demo sales - strictly isolating cash, card, and credit)
                 string salesSql = @"
                     SELECT 
-                        COALESCE(SUM(total_piasters), 0) AS total_sales,
-                        COALESCE(SUM(CASE WHEN payment_method = 'cash' THEN paid_piasters ELSE 0 END), 0) AS cash_sales,
-                        COALESCE(SUM(CASE WHEN payment_method = 'card' THEN paid_piasters ELSE 0 END), 0) AS card_sales,
-                        COALESCE(SUM(CASE WHEN payment_method = 'credit' THEN (total_piasters - paid_piasters) ELSE 0 END), 0) AS credit_sales,
+                        COALESCE(SUM(s.total_piasters), 0) AS total_sales,
+                        COALESCE(SUM(
+                            CASE 
+                                WHEN s.payment_method = 'cash' THEN s.paid_piasters
+                                WHEN s.payment_method = 'multi' THEN (
+                                    SELECT COALESCE(SUM(p.amount_piasters), 0) 
+                                    FROM payments p 
+                                    WHERE p.sale_id = s.id AND p.method = 'cash'
+                                )
+                                ELSE 0 
+                            END
+                        ), 0) AS cash_sales,
+                        COALESCE(SUM(
+                            CASE 
+                                WHEN s.payment_method = 'card' THEN s.paid_piasters
+                                WHEN s.payment_method = 'multi' THEN (
+                                    SELECT COALESCE(SUM(p.amount_piasters), 0) 
+                                    FROM payments p 
+                                    WHERE p.sale_id = s.id AND p.method = 'card'
+                                )
+                                ELSE 0 
+                            END
+                        ), 0) AS card_sales,
+                        COALESCE(SUM(CASE WHEN s.total_piasters > s.paid_piasters THEN (s.total_piasters - s.paid_piasters) ELSE 0 END), 0) AS credit_sales,
                         COUNT(*) AS inv_count
-                    FROM sales
-                    WHERE date(datetime(created_at, 'localtime', '-' || @cutoff || ' hours')) = @bdate
-                      AND status != 'cancelled'
-                      AND id NOT LIKE 'demo_%'
-                      AND id NOT LIKE 'stress_%';
+                    FROM sales s
+                    WHERE date(datetime(s.created_at, 'localtime', '-' || @cutoff || ' hours')) = @bdate
+                      AND s.status != 'cancelled'
+                      AND s.id NOT LIKE 'demo_%'
+                      AND s.id NOT LIKE 'stress_%';
                 ";
                 using (var cmd = new SQLiteCommand(salesSql, conn))
                 {

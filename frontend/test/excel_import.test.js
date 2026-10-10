@@ -34,6 +34,8 @@ const HEADER_ALIASES = {
   additionalBarcodes: ['باركودات إضافية', 'باركودات اضافية', 'اكواد اضافية', 'additional barcodes'],
   category: ['القسم / التصنيف', 'القسم', 'التصنيف', 'الفئة', 'المجموعة', 'category'],
   unit: ['الوحدة', 'نوع البيع', 'unit'],
+  color: ['اللون (اختياري / للملابس)', 'اللون', 'لون', 'color', 'colour'],
+  size: ['المقاس (اختياري / للملابس)', 'المقاس', 'مقاس', 'الحجم', 'size'],
   price: ['سعر البيع', 'السعر', 'سعر البيع للجمهور', 'selling price', 'price'],
   cost: ['سعر التكلفة', 'التكلفة', 'سعر الشراء', 'cost price', 'cost'],
   stock: ['الرصيد الافتتاحي', 'الرصيد', 'الكمية', 'stock', 'qty'],
@@ -58,6 +60,8 @@ function matchHeader(headerStr) {
 
 function validateImportRows(rawRows, existingProducts = []) {
   const existingBarcodeMap = new Map();
+  const existingNameVariantMap = new Map();
+
   for (const p of existingProducts) {
     if (p.barcode) existingBarcodeMap.set(p.barcode.trim(), p);
     if (p.barcodes && Array.isArray(p.barcodes)) {
@@ -65,9 +69,12 @@ function validateImportRows(rawRows, existingProducts = []) {
         if (b) existingBarcodeMap.set(b.trim(), p);
       }
     }
+    const nvKey = `${(p.name || '').trim()}||${(p.variantColor || '').trim()}||${(p.variantSize || '').trim()}`;
+    existingNameVariantMap.set(nvKey, p);
   }
 
   const seenInFileBarcodes = new Set();
+  const seenInFileNameVariants = new Set();
 
   return rawRows.map((row) => {
     const errors = [];
@@ -82,16 +89,32 @@ function validateImportRows(rawRows, existingProducts = []) {
     const additionalBarcodes = (row.additionalBarcodes || []).map((b) => b.trim()).filter(Boolean);
     const allRowBarcodes = [barcode, ...additionalBarcodes].filter(Boolean);
 
-    for (const b of allRowBarcodes) {
-      if (seenInFileBarcodes.has(b)) {
-        errors.push(`الباركود (${b}) مكرر في أكثر من صف داخل نفس الملف`);
+    const cleanColor = (row.variantColor || '').trim();
+    const cleanSize = (row.variantSize || '').trim();
+    const nvKey = `${name}||${cleanColor}||${cleanSize}`;
+
+    if (allRowBarcodes.length > 0) {
+      for (const b of allRowBarcodes) {
+        if (seenInFileBarcodes.has(b)) {
+          errors.push(`الباركود (${b}) مكرر في أكثر من صف داخل نفس الملف`);
+        } else {
+          seenInFileBarcodes.add(b);
+        }
+
+        if (existingBarcodeMap.has(b)) {
+          const conflict = existingBarcodeMap.get(b);
+          warnings.push(`الباركود (${b}) مستخدم مسبقاً لصالح الصنف "${conflict.name}"`);
+        }
+      }
+    } else {
+      if (seenInFileNameVariants.has(nvKey)) {
+        errors.push(`الصنف "${name}" بنفس اللون والمقاس مكرر في أكثر من صف داخل نفس الملف`);
       } else {
-        seenInFileBarcodes.add(b);
+        seenInFileNameVariants.add(nvKey);
       }
 
-      if (existingBarcodeMap.has(b)) {
-        const conflict = existingBarcodeMap.get(b);
-        warnings.push(`الباركود (${b}) مستخدم مسبقاً لصالح الصنف "${conflict.name}"`);
+      if (existingNameVariantMap.has(nvKey)) {
+        warnings.push(`الصنف "${name}" مسجل مسبقاً في النظام`);
       }
     }
 
@@ -131,6 +154,8 @@ function validateImportRows(rawRows, existingProducts = []) {
         barcodes: additionalBarcodes,
         categoryName: (row.categoryName || 'عام').trim(),
         unit,
+        variantColor: cleanColor || undefined,
+        variantSize: cleanSize || undefined,
         pricePiasters,
         costPiasters,
         stockQuantityMilli,
@@ -168,6 +193,14 @@ class MockSqliteBatchImporter {
           if (exists) {
             throw new Error(`تعذر الاستيراد: تم العثور على باركود مكرر (${item.barcode}) واختيار استراتيجية الإيقاف عند التكرار.`);
           }
+        } else {
+          const nvKey = `${(item.name || '').trim()}||${(item.variantColor || '').trim()}||${(item.variantSize || '').trim()}`;
+          const exists = Array.from(this.products.values()).some(
+            p => `${(p.name || '').trim()}||${(p.variantColor || '').trim()}||${(p.variantSize || '').trim()}` === nvKey
+          );
+          if (exists) {
+            throw new Error(`تعذر الاستيراد: تم العثور على منتج مكرر (${item.name}) واختيار استراتيجية الإيقاف عند التكرار.`);
+          }
         }
       }
     }
@@ -178,6 +211,11 @@ class MockSqliteBatchImporter {
       if (item.barcode) {
         existingProd = Array.from(this.products.values()).find(
           p => p.barcode === item.barcode || (p.barcodes && p.barcodes.includes(item.barcode))
+        );
+      } else {
+        const nvKey = `${(item.name || '').trim()}||${(item.variantColor || '').trim()}||${(item.variantSize || '').trim()}`;
+        existingProd = Array.from(this.products.values()).find(
+          p => `${(p.name || '').trim()}||${(p.variantColor || '').trim()}||${(p.variantSize || '').trim()}` === nvKey
         );
       }
 
@@ -190,6 +228,8 @@ class MockSqliteBatchImporter {
           existingProd.pricePiasters = item.pricePiasters;
           existingProd.costPiasters = item.costPiasters;
           existingProd.unit = item.unit;
+          existingProd.variantColor = item.variantColor;
+          existingProd.variantSize = item.variantSize;
           if (item.stockQuantityMilli > 0) {
             existingProd.stockQuantityMilli += item.stockQuantityMilli;
           }
@@ -203,6 +243,8 @@ class MockSqliteBatchImporter {
           barcode: item.barcode,
           barcodes: item.barcodes || [],
           unit: item.unit,
+          variantColor: item.variantColor,
+          variantSize: item.variantSize,
           pricePiasters: item.pricePiasters,
           costPiasters: item.costPiasters,
           stockQuantityMilli: item.stockQuantityMilli,
@@ -437,5 +479,106 @@ describe('Story 37 — Feature #21: Excel Import (ClosedXML & Frontend Parsing)'
     assert.equal(validated.length, 1000);
     assert.equal(validated.filter(r => r.status === 'valid').length, 1000);
     assert.ok(duration < 250, `1,000 items validated in ${duration}ms, must be < 250ms`);
+  });
+
+  it('Task 21-8: Should match color and size header aliases and parse variants accurately', () => {
+    assert.equal(matchHeader('اللون'), 'color');
+    assert.equal(matchHeader('اللون (اختياري / للملابس)'), 'color');
+    assert.equal(matchHeader('المقاس'), 'size');
+    assert.equal(matchHeader('المقاس (اختياري / للملابس)'), 'size');
+    assert.equal(matchHeader('الحجم'), 'size');
+    assert.equal(matchHeader('Color'), 'color');
+    assert.equal(matchHeader('Size'), 'size');
+  });
+
+  it('Task 21-9: Should allow distinct variants of same product while catching duplicates of same variant', () => {
+    const rows = [
+      {
+        rowIndex: 2,
+        name: 'تيشيرت بولو كاجوال',
+        variantColor: 'كحلي',
+        variantSize: 'L',
+        pricePounds: 250,
+        costPounds: 150
+      },
+      {
+        rowIndex: 3,
+        name: 'تيشيرت بولو كاجوال',
+        variantColor: 'أسود',
+        variantSize: 'M',
+        pricePounds: 250,
+        costPounds: 150
+      },
+      {
+        rowIndex: 4,
+        name: 'تيشيرت بولو كاجوال',
+        variantColor: 'كحلي',
+        variantSize: 'L', // Duplicate of row 2
+        pricePounds: 250,
+        costPounds: 150
+      }
+    ];
+
+    const validated = validateImportRows(rows, []);
+
+    // Row 2 and 3 should be valid (different color/size)
+    assert.equal(validated[0].status, 'valid');
+    assert.equal(validated[0].payload.variantColor, 'كحلي');
+    assert.equal(validated[0].payload.variantSize, 'L');
+
+    assert.equal(validated[1].status, 'valid');
+    assert.equal(validated[1].payload.variantColor, 'أسود');
+    assert.equal(validated[1].payload.variantSize, 'M');
+
+    // Row 4 should be flagged as error (exact duplicate of row 2)
+    assert.equal(validated[2].status, 'error');
+    assert.ok(validated[2].errors.some(e => e.includes('مكرر')));
+  });
+
+  it('Task 21-10: Should atomically import and update variants with update strategy', () => {
+    const existing = [
+      {
+        id: 'p_polo_1',
+        name: 'تيشيرت بولو',
+        variantColor: 'أبيض',
+        variantSize: 'XL',
+        pricePiasters: 20000,
+        costPiasters: 12000,
+        stockQuantityMilli: 5000
+      }
+    ];
+
+    const importer = new MockSqliteBatchImporter(existing);
+
+    const items = [
+      {
+        name: 'تيشيرت بولو',
+        variantColor: 'أبيض',
+        variantSize: 'XL',
+        pricePiasters: 23000,
+        costPiasters: 14000,
+        stockQuantityMilli: 3000
+      },
+      {
+        name: 'تيشيرت بولو',
+        variantColor: 'أزرق',
+        variantSize: 'M',
+        pricePiasters: 23000,
+        costPiasters: 14000,
+        stockQuantityMilli: 10000
+      }
+    ];
+
+    const result = importer.importBatchAtomic(items, 'update');
+
+    assert.equal(result.updatedCount, 1);
+    assert.equal(result.createdCount, 1);
+    assert.equal(result.skippedCount, 0);
+
+    const updated = importer.products.get('p_polo_1');
+    assert.equal(updated.pricePiasters, 23000);
+    assert.equal(updated.stockQuantityMilli, 8000); // 5000 + 3000
+    assert.equal(updated.variantColor, 'أبيض');
+    assert.equal(updated.variantSize, 'XL');
   });
 });

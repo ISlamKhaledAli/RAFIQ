@@ -21,6 +21,9 @@ namespace RafiqPOS.Models
         public long StockQuantityMilli { get; set; }
         public long MinStockQuantityMilli { get; set; }
         public string Unit { get; set; }
+        public string VariantColor { get; set; }
+        public string VariantSize { get; set; }
+        public string InternalCode { get; set; }
     }
 
     public class StoreTemplate

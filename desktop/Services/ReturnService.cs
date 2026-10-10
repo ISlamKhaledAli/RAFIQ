@@ -48,7 +48,17 @@ namespace RafiqPOS.Services
             {
                 // 2. Validate against original sale
                 var origSale = _saleRepo.GetSaleById(returnObj.SaleId);
-                if (origSale != null && origSale.Items != null)
+                if (origSale == null)
+                {
+                    throw new InvalidOperationException(string.Format("الفاتورة الأصلية رقم المعرف '{0}' غير موجودة.", returnObj.SaleId));
+                }
+
+                if (string.Equals(origSale.Status, "cancelled", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("لا يمكن عمل مرتجع على فاتورة ملغاة بالفعل.");
+                }
+
+                if (origSale.Items != null)
                 {
                     returnObj.InvoiceNumber = origSale.InvoiceNumber;
                     if (string.IsNullOrEmpty(returnObj.CustomerId))
@@ -59,7 +69,9 @@ namespace RafiqPOS.Services
 
                     // Get past returns for this sale to compute remaining returned quantities
                     var pastReturns = _returnRepo.GetReturnsForSale(returnObj.SaleId);
-                    var returnedQtyByProduct = new Dictionary<string, long>();
+                    var returnedQtyBySaleItem = new Dictionary<string, long>();
+                    var returnedQtyByProductUnit = new Dictionary<string, long>();
+
                     for (int r = 0; r < pastReturns.Count; r++)
                     {
                         var pastRet = pastReturns[r];
@@ -68,27 +80,65 @@ namespace RafiqPOS.Services
                             for (int i = 0; i < pastRet.Items.Count; i++)
                             {
                                 var pItem = pastRet.Items[i];
-                                if (!returnedQtyByProduct.ContainsKey(pItem.ProductId))
+                                if (!string.IsNullOrEmpty(pItem.SaleItemId))
                                 {
-                                    returnedQtyByProduct[pItem.ProductId] = 0;
+                                    if (!returnedQtyBySaleItem.ContainsKey(pItem.SaleItemId))
+                                    {
+                                        returnedQtyBySaleItem[pItem.SaleItemId] = 0;
+                                    }
+                                    returnedQtyBySaleItem[pItem.SaleItemId] += pItem.QuantityMilli;
                                 }
-                                returnedQtyByProduct[pItem.ProductId] += pItem.QuantityMilli;
+
+                                string unitKey = (pItem.ProductId ?? "") + "_" + (pItem.Unit ?? "");
+                                if (!returnedQtyByProductUnit.ContainsKey(unitKey))
+                                {
+                                    returnedQtyByProductUnit[unitKey] = 0;
+                                }
+                                returnedQtyByProductUnit[unitKey] += pItem.QuantityMilli;
                             }
                         }
                     }
 
-                    // Check quantities
+                    // Check quantities and enforce net unit prices
                     for (int i = 0; i < returnObj.Items.Count; i++)
                     {
                         var it = returnObj.Items[i];
-                        // Find item in original sale
+
+                        // Find item in original sale: match by SaleItemId first, then by ProductId + Unit, then by ProductId
                         SaleItem origItem = null;
-                        for (int j = 0; j < origSale.Items.Count; j++)
+                        if (!string.IsNullOrEmpty(it.SaleItemId))
                         {
-                            if (origSale.Items[j].ProductId == it.ProductId)
+                            for (int j = 0; j < origSale.Items.Count; j++)
                             {
-                                origItem = origSale.Items[j];
-                                break;
+                                if (origSale.Items[j].Id == it.SaleItemId)
+                                {
+                                    origItem = origSale.Items[j];
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (origItem == null && !string.IsNullOrEmpty(it.Unit))
+                        {
+                            for (int j = 0; j < origSale.Items.Count; j++)
+                            {
+                                if (origSale.Items[j].ProductId == it.ProductId && string.Equals(origSale.Items[j].Unit, it.Unit, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    origItem = origSale.Items[j];
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (origItem == null)
+                        {
+                            for (int j = 0; j < origSale.Items.Count; j++)
+                            {
+                                if (origSale.Items[j].ProductId == it.ProductId)
+                                {
+                                    origItem = origSale.Items[j];
+                                    break;
+                                }
                             }
                         }
 
@@ -98,9 +148,17 @@ namespace RafiqPOS.Services
                         }
 
                         long alreadyReturned = 0;
-                        if (returnedQtyByProduct.ContainsKey(it.ProductId))
+                        if (!string.IsNullOrEmpty(origItem.Id) && returnedQtyBySaleItem.ContainsKey(origItem.Id))
                         {
-                            alreadyReturned = returnedQtyByProduct[it.ProductId];
+                            alreadyReturned = returnedQtyBySaleItem[origItem.Id];
+                        }
+                        else
+                        {
+                            string unitKey = (it.ProductId ?? "") + "_" + (it.Unit ?? origItem.Unit ?? "");
+                            if (returnedQtyByProductUnit.ContainsKey(unitKey))
+                            {
+                                alreadyReturned = returnedQtyByProductUnit[unitKey];
+                            }
                         }
 
                         long maxAllowable = origItem.QuantityMilli - alreadyReturned;
@@ -110,6 +168,32 @@ namespace RafiqPOS.Services
                                 "الكمية المرتجعة للصنف '{0}' ({1:0.###}) أكبر من الكمية المتبقية المتاحة للإرجاع ({2:0.###}).",
                                 it.ProductName, it.QuantityMilli / 1000.0, Math.Max(0, maxAllowable) / 1000.0
                             ));
+                        }
+
+                        // Calculate effective net unit price after discounts (TEST-7)
+                        long effectiveUnitPrice = origItem.UnitPricePiasters;
+                        if (origItem.QuantityMilli > 0 && origItem.TotalPiasters > 0)
+                        {
+                            effectiveUnitPrice = (origItem.TotalPiasters * 1000) / origItem.QuantityMilli;
+                        }
+
+                        if (it.UnitPricePiasters <= 0 || it.UnitPricePiasters > effectiveUnitPrice)
+                        {
+                            it.UnitPricePiasters = effectiveUnitPrice;
+                        }
+                        it.TotalPiasters = (it.UnitPricePiasters * it.QuantityMilli) / 1000;
+
+                        if (it.ConversionFactor <= 0)
+                        {
+                            it.ConversionFactor = origItem.ConversionFactor > 0 ? origItem.ConversionFactor : 1;
+                        }
+                        if (string.IsNullOrEmpty(it.Unit))
+                        {
+                            it.Unit = origItem.Unit;
+                        }
+                        if (string.IsNullOrEmpty(it.SaleItemId))
+                        {
+                            it.SaleItemId = origItem.Id;
                         }
                     }
                 }

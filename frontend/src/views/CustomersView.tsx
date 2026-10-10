@@ -355,15 +355,17 @@ export function CustomersView() {
     setIsPaymentOpen(true);
   };
 
-  const handleRecordPayment = async (e: React.FormEvent) => {
+  const handleRecordPayment = async (e: React.FormEvent, effectiveAmount?: number, customNotes?: string) => {
     e.preventDefault();
-    if (!selectedCustomer || paymentAmountPiasters <= 0) return;
+    if (!selectedCustomer) return;
+    const finalAmount = effectiveAmount !== undefined ? effectiveAmount : paymentAmountPiasters;
+    if (finalAmount <= 0) return;
 
     try {
       await invoke<Customer>('customers:recordPayment', {
         customerId: selectedCustomer.id,
-        amountPiasters: paymentAmountPiasters,
-        notes: paymentNotes.trim() || 'سداد نقدي للدين',
+        amountPiasters: finalAmount,
+        notes: customNotes || paymentNotes.trim() || 'سداد نقدي للدين',
       });
 
       setIsPaymentOpen(false);
@@ -938,7 +940,7 @@ export function CustomersView() {
         setPaymentAmountPiasters={setPaymentAmountPiasters}
         paymentNotes={paymentNotes}
         setPaymentNotes={setPaymentNotes}
-        onRecordPayment={(e) => void handleRecordPayment(e)}
+        onRecordPayment={handleRecordPayment}
       />
 
       {/* Modal 3: Statement & Contra-Entry Cancellation */}

@@ -175,7 +175,7 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
                             title={`إضافة ${u.unitName} (${u.conversionFactor} قطعة) - ${formatArabicCurrency(u.sellPricePiasters || (prod.pricePiasters * u.conversionFactor))}`}
                           >
                             <Package className="w-3 h-3" />
-                            <span>+ {u.unitName} ({u.conversionFactor})</span>
+                            <span>{u.unitName} ({u.conversionFactor})</span>
                             <span className="font-mono text-[10px] opacity-80">
                               {formatArabicCurrency(u.sellPricePiasters || (prod.pricePiasters * u.conversionFactor))}
                             </span>

@@ -122,6 +122,30 @@ namespace RafiqPOS.Services
                     throw new InvalidOperationException("تعذر العثور على المنتج المطلوب تحديث مخزونه: " + movement.ProductId);
                 }
             }
+
+            // 3. If this product is a variant, update product_variants table and roll up parent product stock
+            string syncVariantSql = @"
+                UPDATE product_variants
+                SET stock_quantity_milli = stock_quantity_milli + @delta,
+                    updated_at = @now
+                WHERE variant_product_id = @pid;
+
+                UPDATE products
+                SET stock_quantity_milli = (
+                    SELECT COALESCE(SUM(p2.stock_quantity_milli), 0)
+                    FROM products p2
+                    WHERE p2.parent_id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @pid)
+                ),
+                updated_at = @now
+                WHERE id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @pid AND p1.parent_id IS NOT NULL);
+            ";
+            using (var cmdSync = new SQLiteCommand(syncVariantSql, conn, trans))
+            {
+                cmdSync.Parameters.AddWithValue("@delta", movement.QuantityMilli);
+                cmdSync.Parameters.AddWithValue("@now", movement.CreatedAt);
+                cmdSync.Parameters.AddWithValue("@pid", movement.ProductId);
+                cmdSync.ExecuteNonQuery();
+            }
         }
 
         /// <summary>

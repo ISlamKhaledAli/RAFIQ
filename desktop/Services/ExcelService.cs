@@ -28,7 +28,7 @@ namespace RafiqPOS.Services
                 ws.ShowGridLines = true;
 
                 // 1. Title Banner (Row 1)
-                ws.Range("A1:L1").Merge();
+                ws.Range("A1:N1").Merge();
                 var titleCell = ws.Cell("A1");
                 titleCell.Value = "رفيق POS - نموذج استيراد الأصناف المعتمد للمتاجر";
                 titleCell.Style.Font.Bold = true;
@@ -40,9 +40,9 @@ namespace RafiqPOS.Services
                 ws.Row(1).Height = 40;
 
                 // 2. Subtitle / Guidance Banner (Row 2)
-                ws.Range("A2:L2").Merge();
+                ws.Range("A2:N2").Merge();
                 var subCell = ws.Cell("A2");
-                subCell.Value = "تعليمات هامة: الأعمدة المميزة بنجمة (*) إلزامية | الباركودات تحفظ كنص لعدم مسح الأصفار جهة اليسار | الوحدة: قطعة أو كجم | الأسعار والتكلفة بالجنيه المصري";
+                subCell.Value = "تعليمات هامة: الأعمدة المميزة بنجمة (*) إلزامية | الباركودات تحفظ كنص | اللون والمقاس اختياريان لمحلات الملابس والأحذية | الوحدة: قطعة أو كجم | المبالغ بالجنيه المصري";
                 subCell.Style.Font.Bold = true;
                 subCell.Style.Font.FontSize = 9.5;
                 subCell.Style.Font.FontColor = XLColor.FromArgb(0, 77, 64);
@@ -59,6 +59,8 @@ namespace RafiqPOS.Services
                     "باركودات إضافية (مفصولة بفاصلة)",
                     "القسم / التصنيف",
                     "الوحدة (قطعة / كجم)",
+                    "اللون (اختياري / للملابس)",
+                    "المقاس (اختياري / للملابس)",
                     "سعر البيع (بالجنيه) *",
                     "سعر التكلفة (بالجنيه)",
                     "الرصيد الافتتاحي",
@@ -83,15 +85,15 @@ namespace RafiqPOS.Services
                     cell.Style.Border.OutsideBorderColor = XLColor.FromArgb(0, 77, 64);
                 }
 
-                // 4. Realistic Supermarket Sample Rows (Rows 4 to 9)
+                // 4. Realistic Supermarket & Retail Sample Rows (Rows 4 to 9)
                 object[][] sampleData = new object[][]
                 {
-                    new object[] { "شاي العروسة ناعم 250 جم", "6223000123456", "6223000123457, 6223000123458", "بقالة ومشروبات", "قطعة", 35.00, 28.50, 50, 10, 0, "TEA-AR-250", "EG-100000-01" },
-                    new object[] { "سكر الأسرة فاخر 1 كجم", "6221144001122", "", "بقالة ومشروبات", "قطعة", 36.00, 32.00, 80, 15, 0, "SUG-OSR-01", "EG-100000-02" },
-                    new object[] { "طماطم بلدي طازجة درجة أولى", "200123456789", "", "خضار وفاكهة", "كجم", 15.00, 10.00, 45.0, 5, 0, "VEG-TOM-01", "" },
-                    new object[] { "جبنة بيضاء رومي قديمة بالوزن", "200987654321", "", "ألبان وأجبان", "كجم", 320.00, 260.00, 15.5, 3, 0, "CHS-ROM-01", "EG-100000-03" },
-                    new object[] { "مكرونة حواء 400 جم", "6223000987654", "6223000987655", "بقالة ومشروبات", "قطعة", 14.50, 11.75, 120, 20, 0, "PAS-HAW-01", "EG-100000-04" },
-                    new object[] { "صابون سائل بريل بالليمون 1 لتر", "6222000554433", "", "منظفات وعناية", "قطعة", 42.00, 35.00, 30, 5, 14, "CLN-PRL-01", "EG-100000-05" }
+                    new object[] { "شاي العروسة ناعم 250 جم", "6223000123456", "6223000123457, 6223000123458", "بقالة ومشروبات", "قطعة", "", "", 35.00, 28.50, 50, 10, 0, "TEA-AR-250", "EG-100000-01" },
+                    new object[] { "تيشيرت بولو كاجوال رجالي", "6225501100026", "", "ملابس رجالي", "قطعة", "كحلي", "L", 220.00, 140.00, 25, 5, 0, "POLO-NV-L", "" },
+                    new object[] { "حذاء رياضي كوتشي كاجوال", "6225504400017", "", "أحذية وحقائب", "قطعة", "أسود", "42", 320.00, 200.00, 15, 3, 0, "SHOE-BK-42", "" },
+                    new object[] { "طماطم بلدي طازجة درجة أولى", "200123456789", "", "خضار وفاكهة", "كجم", "", "", 15.00, 10.00, 45.0, 5, 0, "VEG-TOM-01", "" },
+                    new object[] { "جبنة بيضاء رومي قديمة بالوزن", "200987654321", "", "ألبان وأجبان", "كجم", "", "", 320.00, 260.00, 15.5, 3, 0, "CHS-ROM-01", "EG-100000-03" },
+                    new object[] { "صابون سائل بريل بالليمون 1 لتر", "6222000554433", "", "منظفات وعناية", "قطعة", "", "", 42.00, 35.00, 30, 5, 14, "CLN-PRL-01", "EG-100000-05" }
                 };
 
                 for (int r = 0; r < sampleData.Length; r++)
@@ -122,11 +124,11 @@ namespace RafiqPOS.Services
                             cell.Style.NumberFormat.Format = "@";
                             cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                         }
-                        else if (c == 3 || c == 4) // Category, Unit
+                        else if (c == 3 || c == 4 || c == 5 || c == 6) // Category, Unit, Color, Size
                         {
                             cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                         }
-                        else if (c == 5 || c == 6) // Prices (Currency format)
+                        else if (c == 7 || c == 8) // Prices (Currency format)
                         {
                             if (rowVals[c] is double)
                             {
@@ -135,7 +137,7 @@ namespace RafiqPOS.Services
                             }
                             cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                         }
-                        else if (c == 7) // Stock
+                        else if (c == 9) // Stock
                         {
                             if (rowVals[c] is double)
                             {
@@ -149,7 +151,7 @@ namespace RafiqPOS.Services
                             }
                             cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                         }
-                        else if (c == 8 || c == 9) // Min stock, Tax
+                        else if (c == 10 || c == 11) // Min stock, Tax
                         {
                             if (rowVals[c] is int)
                             {
@@ -175,13 +177,15 @@ namespace RafiqPOS.Services
                 ws.Column(3).Width = 32; // باركودات إضافية
                 ws.Column(4).Width = 20; // القسم
                 ws.Column(5).Width = 18; // الوحدة
-                ws.Column(6).Width = 20; // سعر البيع
-                ws.Column(7).Width = 20; // سعر التكلفة
-                ws.Column(8).Width = 18; // الرصيد
-                ws.Column(9).Width = 18; // حد الطلب
-                ws.Column(10).Width = 16; // الضريبة
-                ws.Column(11).Width = 22; // SKU
-                ws.Column(12).Width = 26; // كود ضريبي
+                ws.Column(6).Width = 18; // اللون
+                ws.Column(7).Width = 18; // المقاس
+                ws.Column(8).Width = 20; // سعر البيع
+                ws.Column(9).Width = 20; // سعر التكلفة
+                ws.Column(10).Width = 18; // الرصيد
+                ws.Column(11).Width = 18; // حد الطلب
+                ws.Column(12).Width = 16; // الضريبة
+                ws.Column(13).Width = 22; // SKU
+                ws.Column(14).Width = 26; // كود ضريبي
 
                 using (var ms = new MemoryStream())
                 {
@@ -206,7 +210,7 @@ namespace RafiqPOS.Services
                 ws.ShowGridLines = true;
 
                 // 1. Header Banner (Row 1)
-                ws.Range("A1:N1").Merge();
+                ws.Range("A1:P1").Merge();
                 var titleCell = ws.Cell("A1");
                 titleCell.Value = "رفيق لنقاط البيع (Rafiq POS) - تقرير جرد وكتالوج الأصناف الكامل";
                 titleCell.Style.Font.Bold = true;
@@ -218,7 +222,7 @@ namespace RafiqPOS.Services
                 ws.Row(1).Height = 40;
 
                 // 2. Metadata Banner (Row 2)
-                ws.Range("A2:N2").Merge();
+                ws.Range("A2:P2").Merge();
                 var metaCell = ws.Cell("A2");
                 metaCell.Value = string.Format(
                     "تاريخ التصدير: {0} | إجمالي الأصناف المسجلة: {1} صنف | نظام رفيق لإدارة المبيعات والمخازن",
@@ -241,6 +245,8 @@ namespace RafiqPOS.Services
                     "الباركود الرئيسي",
                     "القسم / التصنيف",
                     "الوحدة",
+                    "اللون",
+                    "المقاس",
                     "سعر البيع (ج.م)",
                     "سعر التكلفة (ج.م)",
                     "هامش الربح (ج.م)",
@@ -317,26 +323,28 @@ namespace RafiqPOS.Services
                     ws.Cell(rowNum, 3).SetValue<string>(prod.Barcode ?? "");
                     ws.Cell(rowNum, 4).Value = catName;
                     ws.Cell(rowNum, 5).Value = prod.Unit == "kg" ? "كجم" : "قطعة";
-                    ws.Cell(rowNum, 6).Value = sellPounds;
-                    ws.Cell(rowNum, 7).Value = costPounds;
-                    ws.Cell(rowNum, 8).Value = profitPounds;
-                    ws.Cell(rowNum, 9).Value = marginPercent > 0 ? string.Format("{0:0.#}%", marginPercent) : "0%";
-                    ws.Cell(rowNum, 10).Value = currentStock;
-                    ws.Cell(rowNum, 11).Value = minStock;
+                    ws.Cell(rowNum, 6).Value = prod.VariantColor ?? "";
+                    ws.Cell(rowNum, 7).Value = prod.VariantSize ?? "";
+                    ws.Cell(rowNum, 8).Value = sellPounds;
+                    ws.Cell(rowNum, 9).Value = costPounds;
+                    ws.Cell(rowNum, 10).Value = profitPounds;
+                    ws.Cell(rowNum, 11).Value = marginPercent > 0 ? string.Format("{0:0.#}%", marginPercent) : "0%";
+                    ws.Cell(rowNum, 12).Value = currentStock;
+                    ws.Cell(rowNum, 13).Value = minStock;
 
-                    var statusCell = ws.Cell(rowNum, 12);
+                    var statusCell = ws.Cell(rowNum, 14);
                     statusCell.Value = stockStatusText;
                     statusCell.Style.Fill.BackgroundColor = stockBg;
                     statusCell.Style.Font.FontColor = stockFont;
                     statusCell.Style.Font.Bold = true;
 
-                    ws.Cell(rowNum, 13).Value = prod.TaxRatePercent > 0 ? string.Format("{0}%", prod.TaxRatePercent) : "0%";
-                    ws.Cell(rowNum, 14).SetValue<string>(prod.InternalCode ?? "");
+                    ws.Cell(rowNum, 15).Value = prod.TaxRatePercent > 0 ? string.Format("{0}%", prod.TaxRatePercent) : "0%";
+                    ws.Cell(rowNum, 16).SetValue<string>(prod.InternalCode ?? "");
 
                     if (idx % 2 == 1)
                     {
-                        ws.Range(rowNum, 1, rowNum, 11).Style.Fill.BackgroundColor = ZebraLight;
-                        ws.Range(rowNum, 13, rowNum, 14).Style.Fill.BackgroundColor = ZebraLight;
+                        ws.Range(rowNum, 1, rowNum, 13).Style.Fill.BackgroundColor = ZebraLight;
+                        ws.Range(rowNum, 15, rowNum, 16).Style.Fill.BackgroundColor = ZebraLight;
                     }
                 }
 
@@ -344,7 +352,7 @@ namespace RafiqPOS.Services
                 int lastRow = productCount + 3;
                 if (productCount > 0)
                 {
-                    var dataRange = ws.Range(4, 1, lastRow, 14);
+                    var dataRange = ws.Range(4, 1, lastRow, 16);
                     dataRange.Style.Font.FontSize = 10;
                     dataRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
                     dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
@@ -356,14 +364,13 @@ namespace RafiqPOS.Services
                     ws.Range(4, 2, lastRow, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
                     ws.Range(4, 3, lastRow, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                     ws.Range(4, 3, lastRow, 3).Style.NumberFormat.Format = "@";
-                    ws.Range(4, 4, lastRow, 4).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                    ws.Range(4, 5, lastRow, 5).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                    ws.Range(4, 6, lastRow, 8).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                    ws.Range(4, 6, lastRow, 8).Style.NumberFormat.Format = "#,##0.00";
-                    ws.Range(4, 9, lastRow, 9).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                    ws.Range(4, 10, lastRow, 11).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                    ws.Range(4, 10, lastRow, 11).Style.NumberFormat.Format = "#,##0.###";
-                    ws.Range(4, 12, lastRow, 14).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                    ws.Range(4, 4, lastRow, 7).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                    ws.Range(4, 8, lastRow, 10).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                    ws.Range(4, 8, lastRow, 10).Style.NumberFormat.Format = "#,##0.00";
+                    ws.Range(4, 11, lastRow, 11).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                    ws.Range(4, 12, lastRow, 13).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                    ws.Range(4, 12, lastRow, 13).Style.NumberFormat.Format = "#,##0.###";
+                    ws.Range(4, 14, lastRow, 16).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                 }
 
                 // 5. Freeze Header Rows

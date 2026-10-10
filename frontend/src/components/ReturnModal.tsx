@@ -88,8 +88,9 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
         if (pastReturns && pastReturns.length > 0) {
           pastReturns.forEach((ret) => {
             (ret.items || []).forEach((ritem) => {
-              const pid = ritem.productId;
-              returnedQtyMap[pid] = (returnedQtyMap[pid] || 0) + (ritem.quantityMilli / 1000);
+              const key = ritem.saleItemId || `${ritem.productId}_${ritem.unit || ''}`;
+              returnedQtyMap[key] = (returnedQtyMap[key] || 0) + (ritem.quantityMilli / 1000);
+              returnedQtyMap[ritem.productId] = (returnedQtyMap[ritem.productId] || 0) + (ritem.quantityMilli / 1000);
             });
           });
         }
@@ -99,12 +100,19 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
     }
 
     const drafts: ReturnItemDraft[] = (sale.items || []).map((item) => {
-      const prevReturned = returnedQtyMap[item.productId] ?? ((item.returnedQuantityMilli || 0) / 1000);
+      const key = item.id || `${item.productId}_${item.unit || ''}`;
+      const prevReturned = (returnedQtyMap[key] !== undefined)
+        ? returnedQtyMap[key]
+        : ((returnedQtyMap[item.productId] !== undefined) ? returnedQtyMap[item.productId] : ((item.returnedQuantityMilli || 0) / 1000));
+      const effectiveUnitPrice = (item.quantityMilli > 0 && item.totalPiasters > 0)
+        ? Math.round((item.totalPiasters * 1000) / item.quantityMilli)
+        : item.unitPricePiasters;
+
       return {
         saleItemId: item.id,
         productId: item.productId,
         productName: item.productName,
-        unitPricePiasters: item.unitPricePiasters,
+        unitPricePiasters: effectiveUnitPrice,
         originalQuantityPieces: item.quantityMilli / 1000,
         previouslyReturnedPieces: prevReturned,
         returnQuantityPieces: 0,

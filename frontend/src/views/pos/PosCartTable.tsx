@@ -25,10 +25,7 @@ interface PosCartTableProps {
   onRestoreDraft: () => void;
   onDiscardDraft: () => void;
   statusMessage: { text: string; type: 'success' | 'error' | 'warning' } | null;
-  editingPriceIndex: number | null;
-  setEditingPriceIndex: (idx: number | null) => void;
   changeCartItemUnit: (index: number, newUnitId: string) => void;
-  updateItemPrice: (index: number, newPricePiasters: number) => void;
   updateQuantity: (index: number, deltaPieces: number) => void;
   setDirectQuantity: (index: number, newQtyPieces: number) => void;
   openWeightEditorForCartItem: (index: number) => void;
@@ -43,10 +40,7 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
   onRestoreDraft,
   onDiscardDraft,
   statusMessage,
-  editingPriceIndex,
-  setEditingPriceIndex,
   changeCartItemUnit,
-  updateItemPrice,
   updateQuantity,
   setDirectQuantity,
   openWeightEditorForCartItem,
@@ -191,43 +185,10 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                   </div>
                 </div>
 
-                {/* Unit Price (Editable on click) */}
-                <div className="w-14 sm:w-16 shrink-0 text-left tabular-nums font-mono text-ink text-xs">
-                  {editingPriceIndex === index ? (
-                    <div className="flex items-center gap-0.5">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        autoFocus
-                        defaultValue={(item.unitPricePiasters / 100).toFixed(2)}
-                        onFocus={(e) => e.target.select()}
-                        onBlur={(e) => {
-                          const val = parseFloat(normalizeArabicNumerals(e.target.value));
-                          if (!isNaN(val) && val >= 0) {
-                            updateItemPrice(index, Math.round(val * 100));
-                          }
-                          setEditingPriceIndex(null);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.currentTarget.blur();
-                          } else if (e.key === 'Escape') {
-                            setEditingPriceIndex(null);
-                          }
-                        }}
-                        className="w-12 h-6 px-1 text-center font-mono text-xs bg-surface border-2 border-brand rounded text-brand font-bold focus:outline-none"
-                      />
-                    </div>
-                  ) : (
-                    <div 
-                      onClick={() => setEditingPriceIndex(index)}
-                      className="cursor-pointer hover:bg-paid-soft rounded px-1 py-0.5 inline-flex items-baseline gap-0.5 group transition-colors"
-                      title="اضغط لتعديل السعر يدويًا لهذه الفاتورة"
-                    >
-                      <span className="group-hover:text-paid font-bold text-xs">{(item.unitPricePiasters / 100).toFixed(2)}</span>
-                      <span className="text-[10px] text-ink-muted">ج.م</span>
-                    </div>
-                  )}
+                {/* Unit Price (Read-only from inventory) */}
+                <div className="w-14 sm:w-16 shrink-0 text-left tabular-nums font-mono text-ink text-xs font-bold">
+                  <span>{(item.unitPricePiasters / 100).toFixed(2)}</span>
+                  <span className="text-[10px] text-ink-muted mr-0.5 font-normal">ج.م</span>
                 </div>
 
                 {/* Quantity Stepper or Weight Button */}
@@ -256,11 +217,15 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                       </button>
                       <input
                         type="text"
+                        inputMode="numeric"
                         value={item.quantityMilli / 1000}
                         onChange={(e) => {
-                          const val = parseInt(normalizeArabicNumerals(e.target.value), 10);
-                          if (!isNaN(val) && val >= 0) {
-                            setDirectQuantity(index, val);
+                          const norm = normalizeArabicNumerals(e.target.value);
+                          if (/^[0-9]*$/.test(norm)) {
+                            const val = parseInt(norm, 10);
+                            if (!isNaN(val) && val >= 0) {
+                              setDirectQuantity(index, val);
+                            }
                           }
                         }}
                         className="w-6 h-4.5 text-center font-mono font-extrabold text-ink text-xs tabular-nums bg-transparent border-0 focus:outline-none focus:bg-surface rounded"

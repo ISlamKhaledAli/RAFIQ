@@ -453,6 +453,21 @@ namespace RafiqPOS.Models
         [JsonProperty("topSuppliers")]
         public List<SupplierPurchaseItem> TopSuppliers { get; set; }
 
+        [JsonProperty("totalSupplierDebtsPiasters")]
+        public long TotalSupplierDebtsPiasters { get; set; }
+
+        [JsonProperty("debtorSuppliersCount")]
+        public int DebtorSuppliersCount { get; set; }
+
+        [JsonProperty("totalSupplierCreditsPiasters")]
+        public long TotalSupplierCreditsPiasters { get; set; }
+
+        [JsonProperty("creditorSuppliersCount")]
+        public int CreditorSuppliersCount { get; set; }
+
+        [JsonProperty("netSupplierExposurePiasters")]
+        public long NetSupplierExposurePiasters { get; set; }
+
         public PurchaseAnalysisReport()
         {
             TopSuppliers = new List<SupplierPurchaseItem>();
@@ -466,6 +481,15 @@ namespace RafiqPOS.Models
 
         [JsonProperty("debtorsCount")]
         public int DebtorsCount { get; set; }
+
+        [JsonProperty("totalCustomerCreditsPiasters")]
+        public long TotalCustomerCreditsPiasters { get; set; }
+
+        [JsonProperty("creditorsCount")]
+        public int CreditorsCount { get; set; }
+
+        [JsonProperty("netMarketExposurePiasters")]
+        public long NetMarketExposurePiasters { get; set; }
 
         [JsonProperty("periodNewCreditPiasters")]
         public long PeriodNewCreditPiasters { get; set; }

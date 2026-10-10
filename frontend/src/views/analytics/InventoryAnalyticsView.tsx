@@ -551,7 +551,7 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
         {/* SECTION C: Purchases & Suppliers Analysis */}
         {activeSection === 'purchases' && (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
               <div className="bg-surface border border-line rounded-xl p-3 shadow-2xs">
                 <div className="text-xs text-ink-muted mb-1">إجمالي مشتريات الفترة</div>
                 <div className="text-base font-bold font-mono text-ink">
@@ -567,15 +567,33 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
                 <div className="text-base font-bold font-mono text-paid">
                   {formatArabicCurrency(purchases?.totalPaidPiasters || 0)}
                 </div>
-                <div className="text-[10px] text-paid mt-1">مدفوع بالكامل</div>
+                <div className="text-[10px] text-paid mt-1">مدفوع نقدياً بالفترة</div>
               </div>
 
               <div className="bg-surface border border-line rounded-xl p-3 shadow-2xs">
-                <div className="text-xs text-ink-muted mb-1">آجل ومتبقي على المحل</div>
-                <div className="text-base font-bold font-mono text-warn">
-                  {formatArabicCurrency(purchases?.totalUnpaidPiasters || 0)}
+                <div className="text-xs text-ink-muted mb-1 flex items-center justify-between">
+                  <span>مديونيات قائمة للموردين</span>
+                  <span className="text-[10px] bg-surface-2 px-1 py-0.5 rounded font-mono text-ink-muted">
+                    {purchases?.debtorSuppliersCount || 0} موردين
+                  </span>
                 </div>
-                <div className="text-[10px] text-warn mt-1">ديون مستحقة للموردين</div>
+                <div className="text-base font-bold font-mono text-warn">
+                  {formatArabicCurrency(purchases?.totalSupplierDebtsPiasters ?? (purchases?.totalUnpaidPiasters || 0))}
+                </div>
+                <div className="text-[10px] text-warn mt-1">ديون مستحقة على المحل</div>
+              </div>
+
+              <div className="bg-surface border border-line rounded-xl p-3 shadow-2xs">
+                <div className="text-xs text-ink-muted mb-1 flex items-center justify-between">
+                  <span>رصيد متاح لنا (تحت الحساب)</span>
+                  <span className="text-[10px] bg-paid-soft text-paid-dark px-1 py-0.5 rounded font-mono font-bold">
+                    {purchases?.creditorSuppliersCount || 0} شركات
+                  </span>
+                </div>
+                <div className="text-base font-bold font-mono text-paid">
+                  {formatArabicCurrency(purchases?.totalSupplierCreditsPiasters || 0)}
+                </div>
+                <div className="text-[10px] text-paid-dark mt-1">دفعات مقدمة لنا عند الموردين</div>
               </div>
 
               <div 

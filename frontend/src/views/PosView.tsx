@@ -110,7 +110,6 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
     return null;
   });
   const [undoItem, setUndoItem] = useState<{ item: CartItem; index: number } | null>(null);
-  const [editingPriceIndex, setEditingPriceIndex] = useState<number | null>(null);
   const [weightModalProduct, setWeightModalProduct] = useState<{
     id?: string;
     name: string;
@@ -383,18 +382,6 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
       return updated;
     });
   }, [allowNegativeStock, showStatus]);
-
-  const updateItemPrice = useCallback((index: number, newPricePiasters: number) => {
-    setCart((prev) => {
-      const updated = [...prev];
-      const item = updated[index];
-      if (!item) return prev;
-      item.unitPricePiasters = Math.max(0, newPricePiasters);
-      item.totalPiasters = calculateLineTotal(item.unitPricePiasters, item.quantityMilli, item.discountPiasters);
-      item.taxPiasters = calculateTaxPiasters(item.totalPiasters, item.taxRatePercent || 0, true);
-      return updated;
-    });
-  }, []);
 
   // Task 24-2: Apply discount on specific item
   const handleApplyItemDiscount = useCallback((index: number, itemDiscountPiasters: number, supervisorApproved = false) => {
@@ -1346,10 +1333,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
               setDraftPrompt(null);
             }}
             statusMessage={statusMessage}
-            editingPriceIndex={editingPriceIndex}
-            setEditingPriceIndex={setEditingPriceIndex}
             changeCartItemUnit={changeCartItemUnit}
-            updateItemPrice={updateItemPrice}
             updateQuantity={updateQuantity}
             setDirectQuantity={setDirectQuantity}
             openWeightEditorForCartItem={openWeightEditorForCartItem}

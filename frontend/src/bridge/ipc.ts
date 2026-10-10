@@ -90,7 +90,7 @@ declare global {
   }
 }
 
-import { emitDataChanged } from '../utils/eventBus';
+import { emitDataChanged } from '../utils/eventBus.ts';
 
 const pendingRequests = new Map<string, {
   action: string;

@@ -135,10 +135,16 @@ export const ItemDiscountModal: React.FC<ItemDiscountModalProps> = ({
           <div className="relative mb-3">
             <input
               type="text"
+              inputMode="decimal"
               autoFocus
               placeholder="0"
               value={inputValue}
-              onChange={(e) => setInputValue(normalizeArabicNumerals(e.target.value))}
+              onChange={(e) => {
+                const norm = normalizeArabicNumerals(e.target.value);
+                if (/^[0-9]*\.?[0-9]{0,2}$/.test(norm)) {
+                  setInputValue(norm);
+                }
+              }}
               className="w-full text-center text-3xl font-mono font-bold text-brand bg-surface-2 border-2 border-brand/50 focus:border-brand rounded-lg p-3 text-ink focus:outline-none shadow-inner"
             />
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-muted">

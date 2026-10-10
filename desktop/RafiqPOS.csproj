@@ -151,6 +151,8 @@
     <Compile Include="Services\InventoryTestRunner.cs" />
     <Compile Include="Services\CustomerLedgerTestRunner.cs" />
     <Compile Include="Services\SalesCompletionTestRunner.cs" />
+    <Compile Include="Services\AuditNewFolderTestRunner.cs" />
+    <Compile Include="Services\AuditDeepSuiteRunner.cs" />
     <Compile Include="Services\SettingsService.cs" />
     <Compile Include="Services\CustomerService.cs" />
     <Compile Include="Services\CategoryService.cs" />

@@ -2,7 +2,6 @@ import React from 'react';
 import { 
   Sparkles, 
   Plus, 
-  Settings, 
   Search, 
   X, 
   Star, 
@@ -36,7 +35,7 @@ interface PosCatalogPanelProps {
 
 export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
   smartItems,
-  customItemsCount,
+  customItemsCount: _customItemsCount,
   popularItemsCount: _popularItemsCount,
   catalogSearchQuery,
   setCatalogSearchQuery,
@@ -45,7 +44,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
   displayedCatalogItems,
   handleSmartItemClick,
   onOpenQuickFastItemModal,
-  onOpenQuickItemsManager,
+  onOpenQuickItemsManager: _onOpenQuickItemsManager,
   onOpenVariantMatrixModal,
   totalCatalogProductsCount = 0,
   categories = [],
@@ -110,7 +109,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
               title="إضافة منتج بمقاسات وألوان متعددة للملابس والأحذية"
             >
               <Layers className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span>+ مقاسات وألوان</span>
+              <span>مقاسات وألوان</span>
             </button>
           )}
           <button
@@ -120,16 +119,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
             title="إضافة صنف سريع يظهر في أزرار المحل بدون مخزن"
           >
             <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-            <span> صنف سريع</span>
-          </button>
-          <button
-            type="button"
-            onClick={onOpenQuickItemsManager}
-            className="flex items-center gap-1 text-[11px] font-semibold text-ink bg-surface hover:bg-surface-2 border border-line px-2 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:translate-y-0.5"
-            title="إدارة وتخصيص وترتيب الأصناف السريعة والمفضلة"
-          >
-            <Settings className="w-3.5 h-3.5 text-ink-muted" />
-            <span className="hidden sm:inline">إدارة</span>
+            <span>صنف سريع</span>
           </button>
         </div>
       </div>
@@ -305,7 +295,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                         title={`إضافة ${u.unitName} (${u.conversionFactor} قطعة) بسعر ${(u.sellPricePiasters / 100).toFixed(2)} ج.م`}
                       >
                         <Package className="w-2.5 h-2.5" />
-                        <span>+ {u.unitName} ({u.conversionFactor})</span>
+                        <span>{u.unitName} ({u.conversionFactor})</span>
                       </span>
                     ))}
                   </div>
@@ -384,32 +374,11 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                 className="mt-3 px-3.5 py-1.5 bg-paid hover:bg-paid-hover text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>+ ضيف أول صنف سريع دلوقتي</span>
+                <span>ضيف أول صنف سريع دلوقتي</span>
               </button>
             )}
           </div>
         )}
-      </div>
-
-      {/* Bottom Quick Items Manage Strip */}
-      <div className="mt-1.5 bg-surface hover:bg-surface-2 p-1.5 px-2.5 rounded-lg border border-line flex items-center justify-between text-xs text-ink-muted transition-colors shrink-0">
-        <button
-          type="button"
-          onClick={onOpenQuickFastItemModal}
-          className="flex items-center gap-1 font-bold text-paid hover:underline cursor-pointer"
-        >
-          <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-          <span>+ صنف سريع ملوش مخزن (خدمة/توصيل)</span>
-        </button>
-        <button
-          type="button"
-          onClick={onOpenQuickItemsManager}
-          className="flex items-center gap-1 text-ink-muted hover:text-ink cursor-pointer"
-          title="تخصيص وترتيب الأصناف السريعة"
-        >
-          <Settings className="w-3.5 h-3.5 text-brand" />
-          <span className="font-mono text-[10px]">{customItemsCount} صنف سريع جاهز</span>
-        </button>
       </div>
     </section>
   );

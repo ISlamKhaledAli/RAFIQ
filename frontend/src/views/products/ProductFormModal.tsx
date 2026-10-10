@@ -432,7 +432,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   disabled={!newBarcodeInput.trim()}
                   className="px-3 h-[34px] bg-brand hover:bg-brand-hover disabled:bg-surface disabled:text-ink-muted text-white rounded text-[11.5px] font-bold transition-colors shadow-xs"
                 >
-                  + إضافة كود
+                  إضافة كود
                 </button>
               </div>
 
@@ -536,7 +536,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       onClick={onOpenVariantMatrix}
                       className="text-[11px] text-purple-700 hover:text-purple-900 font-bold hover:underline flex items-center gap-1 cursor-pointer"
                     >
-                      <span>+ عمل مصفوفة سريعة (مقاس × لون)</span>
+                      <span>عمل مصفوفة سريعة (مقاس × لون)</span>
                     </button>
                   )}
                 </div>
@@ -766,7 +766,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         title={`إضافة ${packName} كاملة (+${packSizeNum} قطعة)`}
                       >
                         <Plus className="w-3 h-3" />
-                        <span>+1 {packName} ({packSizeNum})</span>
+                        <span>1 {packName} ({packSizeNum})</span>
                       </button>
                     )}
                     <button
@@ -775,7 +775,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       className="px-2 py-1 bg-white hover:bg-surface-2 border border-line text-ink rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                     >
                       <Plus className="w-3 h-3 text-ink-muted" />
-                      <span>+12 (دستة)</span>
+                      <span>12 (دستة)</span>
                     </button>
                     <button
                       type="button"
@@ -783,7 +783,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       className="px-2 py-1 bg-white hover:bg-surface-2 border border-line text-ink rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                     >
                       <Plus className="w-3 h-3 text-ink-muted" />
-                      <span>+24 (كرتونة)</span>
+                      <span>24 (كرتونة)</span>
                     </button>
                     <button
                       type="button"
@@ -791,7 +791,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       className="px-2 py-1 bg-white hover:bg-surface-2 border border-line text-ink rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                     >
                       <Plus className="w-3 h-3 text-ink-muted" />
-                      <span>+50</span>
+                      <span>50</span>
                     </button>
                     <button
                       type="button"
@@ -799,7 +799,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       className="px-2 py-1 bg-white hover:bg-surface-2 border border-line text-ink rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                     >
                       <Plus className="w-3 h-3 text-ink-muted" />
-                      <span>+100</span>
+                      <span>100</span>
                     </button>
                     <button
                       type="button"
@@ -807,7 +807,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       className="px-2 py-1 bg-white hover:bg-surface-2 border border-line text-ink rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                     >
                       <Plus className="w-3 h-3 text-ink-muted" />
-                      <span>+500</span>
+                      <span>500</span>
                     </button>
                     <button
                       type="button"
@@ -815,7 +815,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       className="px-2 py-1 bg-white hover:bg-surface-2 border border-line text-ink rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                     >
                       <Plus className="w-3 h-3 text-ink-muted" />
-                      <span>+1000</span>
+                      <span>1000</span>
                     </button>
                     <button
                       type="button"
@@ -873,7 +873,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       className="px-2 py-1 bg-white hover:bg-surface-2 border border-line text-ink rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                     >
                       <Plus className="w-3 h-3 text-ink-muted" />
-                      <span>+1 كجم</span>
+                      <span>1 كجم</span>
                     </button>
                     <button
                       type="button"
@@ -881,7 +881,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       className="px-2 py-1 bg-white hover:bg-surface-2 border border-line text-ink rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                     >
                       <Plus className="w-3 h-3 text-ink-muted" />
-                      <span>+5 كجم</span>
+                      <span>5 كجم</span>
                     </button>
                     <button
                       type="button"
@@ -889,7 +889,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       className="px-2 py-1 bg-white hover:bg-surface-2 border border-line text-ink rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                     >
                       <Plus className="w-3 h-3 text-ink-muted" />
-                      <span>+10 كجم</span>
+                      <span>10 كجم</span>
                     </button>
                     <button
                       type="button"
@@ -897,7 +897,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       className="px-2 py-1 bg-white hover:bg-surface-2 border border-line text-ink rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                     >
                       <Plus className="w-3 h-3 text-ink-muted" />
-                      <span>+25 كجم</span>
+                      <span>25 كجم</span>
                     </button>
                     <button
                       type="button"

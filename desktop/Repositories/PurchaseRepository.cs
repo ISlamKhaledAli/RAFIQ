@@ -80,6 +80,11 @@ namespace RafiqPOS.Repositories
                             totalCost += item.TotalCostPiasters;
                         }
 
+                        if (purchase.DiscountPiasters < 0)
+                        {
+                            throw new ArgumentException("قيمة الخصم في فاتورة الشراء لا يمكن أن تكون سالبة");
+                        }
+
                         purchase.TotalCostPiasters = totalCost;
                         purchase.NetCostPiasters = Math.Max(0, totalCost - purchase.DiscountPiasters);
 
@@ -273,16 +278,29 @@ namespace RafiqPOS.Repositories
                                 cmd.ExecuteNonQuery();
                             }
 
-                            // If this product is a variant, also sync the parent product's total stock
-                            string syncParentSql = @"
-                                UPDATE products
+                            // If this product is a variant, also sync product_variants normalization table and parent product's total stock
+                            string syncVariantSql = @"
+                                UPDATE product_variants
                                 SET stock_quantity_milli = stock_quantity_milli + @qtyDelta,
+                                    cost_piasters = @newCost,
+                                    price_piasters = @newPrice,
                                     updated_at = @now
-                                WHERE id = (SELECT parent_id FROM products WHERE id = @pid AND parent_id IS NOT NULL);
+                                WHERE variant_product_id = @pid;
+
+                                UPDATE products
+                                SET stock_quantity_milli = (
+                                    SELECT COALESCE(SUM(p2.stock_quantity_milli), 0)
+                                    FROM products p2
+                                    WHERE p2.parent_id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @pid)
+                                ),
+                                updated_at = @now
+                                WHERE id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @pid AND p1.parent_id IS NOT NULL);
                             ";
-                            using (var cmdSync = new SQLiteCommand(syncParentSql, conn, trans))
+                            using (var cmdSync = new SQLiteCommand(syncVariantSql, conn, trans))
                             {
                                 cmdSync.Parameters.AddWithValue("@qtyDelta", item.QuantityMilli);
+                                cmdSync.Parameters.AddWithValue("@newCost", newCost);
+                                cmdSync.Parameters.AddWithValue("@newPrice", newPriceToSet);
                                 cmdSync.Parameters.AddWithValue("@now", now);
                                 cmdSync.Parameters.AddWithValue("@pid", item.ProductId);
                                 cmdSync.ExecuteNonQuery();

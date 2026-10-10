@@ -185,7 +185,7 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
               title="اختيار زبون للفاتورة أو بيع شكك"
             >
               <Users className="w-3.5 h-3.5" />
-              <span>+ اختار زبون</span>
+              <span>اختار زبون</span>
             </button>
           )}
         </div>
@@ -345,23 +345,6 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
                 <span className="text-[10px] font-mono bg-white/20 px-1.5 py-0.5 rounded text-white/90 font-bold shrink-0">
                   F10
                 </span>
-              </button>
-
-              {/* زر سريع للبيع الآجل إذا رغب الكاشير في التحويل الفوري */}
-              <button
-                type="button"
-                onClick={() => {
-                  if (selectedCustomerId) {
-                    if (onChangePaymentMethod) onChangePaymentMethod('credit');
-                  } else {
-                    setIsCustomerModalOpen(true);
-                  }
-                }}
-                disabled={loading || cart.length === 0}
-                className="h-full px-2.5 bg-surface hover:bg-rose-50 text-danger border border-line hover:border-danger/40 rounded-xl flex items-center justify-center text-xs font-bold transition shadow-2xs cursor-pointer active:scale-95 disabled:opacity-50"
-                title="تحويل الفاتورة لبيع شكك (على الحساب)"
-              >
-                <span>شكك</span>
               </button>
             </>
           )}

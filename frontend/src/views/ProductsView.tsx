@@ -994,7 +994,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 className="h-9 px-3.5 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-[0.98] shrink-0"
               >
                 <Plus className="w-4 h-4" />
-                <span>+ صنف جديد</span>
+                <span>صنف جديد</span>
               </button>
             </>
           ) : (

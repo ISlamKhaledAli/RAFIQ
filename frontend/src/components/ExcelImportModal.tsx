@@ -127,6 +127,8 @@ export const ExcelImportModal = ({
         name: r.payload.name,
         categoryName: r.payload.categoryName,
         unit: r.payload.unit,
+        variantColor: r.payload.variantColor,
+        variantSize: r.payload.variantSize,
         pricePiasters: r.payload.pricePiasters,
         costPiasters: r.payload.costPiasters,
         stockQuantityMilli: r.payload.stockQuantityMilli,
@@ -429,7 +431,16 @@ export const ExcelImportModal = ({
                             <td className="py-2 px-3 font-mono text-ink font-semibold">
                               {row.data.barcode || <span className="text-ink-muted italic">بدون</span>}
                             </td>
-                            <td className="py-2 px-3 font-bold text-ink">{row.data.name}</td>
+                            <td className="py-2 px-3 font-bold text-ink">
+                              <span>{row.data.name}</span>
+                              {(row.data.variantColor || row.data.variantSize) && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-brand-soft text-brand font-medium mr-1.5">
+                                  {row.data.variantColor && <span>{row.data.variantColor}</span>}
+                                  {row.data.variantColor && row.data.variantSize && <span>/</span>}
+                                  {row.data.variantSize && <span>{row.data.variantSize}</span>}
+                                </span>
+                              )}
+                            </td>
                             <td className="py-2 px-3 text-ink-muted">{row.data.categoryName || 'عام'}</td>
                             <td className="py-2 px-3 text-center font-bold">
                               {row.data.unit === 'kg' ? 'كجم' : 'قطعة'}

@@ -25,16 +25,36 @@ namespace RafiqPOS.Services
                 // 1. Sales totals & counts (Excluding demo sales for real reporting - strictly isolating cash, card, credit)
                 string salesSql = @"
                     SELECT 
-                        COALESCE(SUM(total_piasters), 0) AS total_sales,
-                        COALESCE(SUM(CASE WHEN payment_method = 'cash' THEN paid_piasters ELSE 0 END), 0) AS cash_sales,
-                        COALESCE(SUM(CASE WHEN payment_method = 'card' THEN paid_piasters ELSE 0 END), 0) AS card_sales,
-                        COALESCE(SUM(CASE WHEN payment_method = 'credit' THEN (total_piasters - paid_piasters) ELSE 0 END), 0) AS credit_sales,
+                        COALESCE(SUM(s.total_piasters), 0) AS total_sales,
+                        COALESCE(SUM(
+                            CASE 
+                                WHEN s.payment_method = 'cash' THEN s.paid_piasters
+                                WHEN s.payment_method = 'multi' THEN (
+                                    SELECT COALESCE(SUM(p.amount_piasters), 0) 
+                                    FROM payments p 
+                                    WHERE p.sale_id = s.id AND p.method = 'cash'
+                                )
+                                ELSE 0 
+                            END
+                        ), 0) AS cash_sales,
+                        COALESCE(SUM(
+                            CASE 
+                                WHEN s.payment_method = 'card' THEN s.paid_piasters
+                                WHEN s.payment_method = 'multi' THEN (
+                                    SELECT COALESCE(SUM(p.amount_piasters), 0) 
+                                    FROM payments p 
+                                    WHERE p.sale_id = s.id AND p.method = 'card'
+                                )
+                                ELSE 0 
+                            END
+                        ), 0) AS card_sales,
+                        COALESCE(SUM(CASE WHEN s.total_piasters > s.paid_piasters THEN (s.total_piasters - s.paid_piasters) ELSE 0 END), 0) AS credit_sales,
                         COUNT(*) AS inv_count
-                    FROM sales 
-                    WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now')) 
-                      AND status != 'cancelled'
-                      AND id NOT LIKE 'demo_%'
-                      AND id NOT LIKE 'stress_%';
+                    FROM sales s
+                    WHERE (date(s.created_at, 'localtime') = date('now', 'localtime') OR date(s.created_at) = date('now')) 
+                      AND s.status != 'cancelled'
+                      AND s.id NOT LIKE 'demo_%'
+                      AND s.id NOT LIKE 'stress_%';
                 ";
                 using (var cmd = new SQLiteCommand(salesSql, conn))
                 {
@@ -422,17 +442,37 @@ namespace RafiqPOS.Services
                 // 1. Sales totals & payments breakdown (isolating cash, card, credit)
                 string salesSql = string.Format(@"
                     SELECT 
-                        COALESCE(SUM(total_piasters), 0) AS total_sales,
-                        COALESCE(SUM(CASE WHEN payment_method = 'cash' THEN paid_piasters ELSE 0 END), 0) AS cash_sales,
-                        COALESCE(SUM(CASE WHEN payment_method = 'card' THEN paid_piasters ELSE 0 END), 0) AS card_sales,
-                        COALESCE(SUM(CASE WHEN payment_method = 'credit' THEN (total_piasters - paid_piasters) ELSE 0 END), 0) AS credit_sales,
+                        COALESCE(SUM(s.total_piasters), 0) AS total_sales,
+                        COALESCE(SUM(
+                            CASE 
+                                WHEN s.payment_method = 'cash' THEN s.paid_piasters
+                                WHEN s.payment_method = 'multi' THEN (
+                                    SELECT COALESCE(SUM(p.amount_piasters), 0) 
+                                    FROM payments p 
+                                    WHERE p.sale_id = s.id AND p.method = 'cash'
+                                )
+                                ELSE 0 
+                            END
+                        ), 0) AS cash_sales,
+                        COALESCE(SUM(
+                            CASE 
+                                WHEN s.payment_method = 'card' THEN s.paid_piasters
+                                WHEN s.payment_method = 'multi' THEN (
+                                    SELECT COALESCE(SUM(p.amount_piasters), 0) 
+                                    FROM payments p 
+                                    WHERE p.sale_id = s.id AND p.method = 'card'
+                                )
+                                ELSE 0 
+                            END
+                        ), 0) AS card_sales,
+                        COALESCE(SUM(CASE WHEN s.total_piasters > s.paid_piasters THEN (s.total_piasters - s.paid_piasters) ELSE 0 END), 0) AS credit_sales,
                         COUNT(*) AS inv_count
-                    FROM sales 
+                    FROM sales s
                     WHERE {0}
-                      AND status != 'cancelled'
-                      AND id NOT LIKE 'demo_%'
-                      AND id NOT LIKE 'stress_%';
-                ", dateFilterClause);
+                      AND s.status != 'cancelled'
+                      AND s.id NOT LIKE 'demo_%'
+                      AND s.id NOT LIKE 'stress_%';
+                ", dateFilterClause.Replace("created_at", "s.created_at"));
 
                 using (var cmd = new SQLiteCommand(salesSql, conn))
                 {
@@ -1820,6 +1860,29 @@ namespace RafiqPOS.Services
                         }
                     }
                 }
+
+                // Query overall supplier balances (debts and advance credits)
+                string supBalSql = @"
+                    SELECT 
+                        COALESCE(SUM(CASE WHEN balance_piasters > 0 THEN balance_piasters ELSE 0 END), 0) AS total_debts,
+                        COUNT(CASE WHEN balance_piasters > 0 THEN 1 END) AS debtor_count,
+                        COALESCE(SUM(CASE WHEN balance_piasters < 0 THEN ABS(balance_piasters) ELSE 0 END), 0) AS total_credits,
+                        COUNT(CASE WHEN balance_piasters < 0 THEN 1 END) AS creditor_count
+                    FROM suppliers
+                    WHERE is_active = 1;
+                ";
+                using (var cmd = new SQLiteCommand(supBalSql, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        report.TotalSupplierDebtsPiasters = Convert.ToInt64(reader["total_debts"]);
+                        report.DebtorSuppliersCount = Convert.ToInt32(reader["debtor_count"]);
+                        report.TotalSupplierCreditsPiasters = Convert.ToInt64(reader["total_credits"]);
+                        report.CreditorSuppliersCount = Convert.ToInt32(reader["creditor_count"]);
+                        report.NetSupplierExposurePiasters = report.TotalSupplierDebtsPiasters - report.TotalSupplierCreditsPiasters;
+                    }
+                }
             }
 
             return report;
@@ -1834,13 +1897,15 @@ namespace RafiqPOS.Services
             {
                 conn.Open();
 
-                // 1. Current total debts
+                // 1. Current total debts and customer advance credits
                 string custSql = @"
                     SELECT 
-                        COALESCE(SUM(balance_piasters), 0) AS total_debts,
-                        COUNT(*) AS debtors_count
+                        COALESCE(SUM(CASE WHEN balance_piasters > 0 THEN balance_piasters ELSE 0 END), 0) AS total_debts,
+                        COUNT(CASE WHEN balance_piasters > 0 THEN 1 END) AS debtors_count,
+                        COALESCE(SUM(CASE WHEN balance_piasters < 0 THEN ABS(balance_piasters) ELSE 0 END), 0) AS total_credits,
+                        COUNT(CASE WHEN balance_piasters < 0 THEN 1 END) AS creditors_count
                     FROM customers 
-                    WHERE balance_piasters > 0 AND id NOT LIKE 'demo_%';
+                    WHERE id NOT LIKE 'demo_%' AND id != 'cust_general_cash';
                 ";
                 using (var cmd = new SQLiteCommand(custSql, conn))
                 using (var reader = cmd.ExecuteReader())
@@ -1849,6 +1914,9 @@ namespace RafiqPOS.Services
                     {
                         report.TotalOutstandingDebtsPiasters = Convert.ToInt64(reader["total_debts"]);
                         report.DebtorsCount = Convert.ToInt32(reader["debtors_count"]);
+                        report.TotalCustomerCreditsPiasters = Convert.ToInt64(reader["total_credits"]);
+                        report.CreditorsCount = Convert.ToInt32(reader["creditors_count"]);
+                        report.NetMarketExposurePiasters = report.TotalOutstandingDebtsPiasters - report.TotalCustomerCreditsPiasters;
                     }
                 }
 

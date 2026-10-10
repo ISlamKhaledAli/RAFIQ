@@ -45,6 +45,31 @@ namespace RafiqPOS.Services
             }
             bool allowNegative = (allowNegativeSetting == "1" || string.Equals(allowNegativeSetting, "true", StringComparison.OrdinalIgnoreCase));
 
+            // Pre-calculate total required base units demand per product across all cart items (prevents duplicate line bypass - TEST-4)
+            var productTotalDemandMilli = new Dictionary<string, long>();
+            for (int i = 0; i < sale.Items.Count; i++)
+            {
+                var it = sale.Items[i];
+                if (it != null && !string.IsNullOrEmpty(it.ProductId))
+                {
+                    int itFactor = it.ConversionFactor > 0 ? it.ConversionFactor : 1;
+                    if (itFactor == 1 && !string.IsNullOrEmpty(it.UnitId) && DatabaseService.ProductUnits != null)
+                    {
+                        var u = DatabaseService.ProductUnits.GetUnitById(it.UnitId);
+                        if (u != null && u.ConversionFactor > 0) itFactor = u.ConversionFactor;
+                    }
+                    long baseDemand = it.QuantityMilli * itFactor;
+                    if (productTotalDemandMilli.ContainsKey(it.ProductId))
+                    {
+                        productTotalDemandMilli[it.ProductId] += baseDemand;
+                    }
+                    else
+                    {
+                        productTotalDemandMilli[it.ProductId] = baseDemand;
+                    }
+                }
+            }
+
             foreach (var item in sale.Items)
             {
                 item.Id = Guid.NewGuid().ToString();
@@ -54,8 +79,11 @@ namespace RafiqPOS.Services
                 var product = _productRepo.GetById(item.ProductId);
                 if (product != null)
                 {
-                    item.UnitCostPiasters = product.CostPiasters;
-                    if (item.TaxRatePercent <= 0)
+                    if (item.UnitCostPiasters <= 0)
+                    {
+                        item.UnitCostPiasters = product.CostPiasters;
+                    }
+                    if (!item.TaxRatePercent.HasValue)
                     {
                         item.TaxRatePercent = product.TaxRatePercent;
                     }
@@ -132,16 +160,14 @@ namespace RafiqPOS.Services
                         );
                     }
 
-                    if (item.UnitCostPiasters <= 0)
+                    // Accurately assign carton unit cost (TEST-10)
+                    if (matchedUnit.CostPricePiasters > 0)
                     {
-                        if (matchedUnit.CostPricePiasters > 0)
-                        {
-                            item.UnitCostPiasters = matchedUnit.CostPricePiasters;
-                        }
-                        else if (product != null && product.CostPiasters > 0)
-                        {
-                            item.UnitCostPiasters = product.CostPiasters * item.ConversionFactor;
-                        }
+                        item.UnitCostPiasters = matchedUnit.CostPricePiasters;
+                    }
+                    else if (product != null && product.CostPiasters > 0)
+                    {
+                        item.UnitCostPiasters = product.CostPiasters * item.ConversionFactor;
                     }
                 }
                 else
@@ -150,13 +176,20 @@ namespace RafiqPOS.Services
                     {
                         item.ConversionFactor = 1;
                     }
+                    else if (item.ConversionFactor > 1 && product != null && product.CostPiasters > 0)
+                    {
+                        item.UnitCostPiasters = product.CostPiasters * item.ConversionFactor;
+                    }
+
                     if (string.IsNullOrWhiteSpace(item.UnitName))
                     {
                         item.UnitName = item.Unit ?? "piece";
                     }
                 }
 
-                long requiredStockBaseMilli = item.QuantityMilli * (item.ConversionFactor > 0 ? item.ConversionFactor : 1);
+                long requiredStockBaseMilli = productTotalDemandMilli.ContainsKey(item.ProductId)
+                    ? productTotalDemandMilli[item.ProductId]
+                    : item.QuantityMilli * (item.ConversionFactor > 0 ? item.ConversionFactor : 1);
 
                 if (product != null)
                 {
@@ -203,6 +236,33 @@ namespace RafiqPOS.Services
             {
                 sale.DiscountPiasters = existingItemDiscountsSum;
             }
+            else if (sale.DiscountPiasters > 0 && existingItemDiscountsSum > 0)
+            {
+                // Both item discounts and invoice discount exist (TEST-9)
+                long extraInvoiceDiscount;
+                if (sale.DiscountPiasters > existingItemDiscountsSum)
+                {
+                    extraInvoiceDiscount = sale.DiscountPiasters - existingItemDiscountsSum;
+                }
+                else
+                {
+                    extraInvoiceDiscount = sale.DiscountPiasters;
+                    sale.DiscountPiasters = existingItemDiscountsSum + extraInvoiceDiscount;
+                }
+
+                // Distribute extra invoice discount across remaining net amounts of lines
+                long[] remainingNetPiasters = new long[sale.Items.Count];
+                for (int i = 0; i < sale.Items.Count; i++)
+                {
+                    remainingNetPiasters[i] = Math.Max(0, grossPiasters[i] - sale.Items[i].DiscountPiasters);
+                }
+
+                long[] distributedExtra = Money.DistributeInvoiceDiscount(remainingNetPiasters, extraInvoiceDiscount);
+                for (int i = 0; i < sale.Items.Count; i++)
+                {
+                    sale.Items[i].DiscountPiasters += distributedExtra[i];
+                }
+            }
 
             // Finalize item line totals and calculate tax
             for (int i = 0; i < sale.Items.Count; i++)
@@ -212,10 +272,14 @@ namespace RafiqPOS.Services
                 Money lineTotal = Money.FromPiasters(grossPiasters[i]).Subtract(lineDiscount);
                 it.TotalPiasters = Math.Max(0, lineTotal.Piasters);
 
-                if (it.TaxRatePercent > 0)
+                if (it.TaxRatePercent.HasValue && it.TaxRatePercent.Value > 0)
                 {
-                    it.TaxPiasters = Money.CalculateTaxPiasters(it.TotalPiasters, it.TaxRatePercent, true);
+                    it.TaxPiasters = Money.CalculateTaxPiasters(it.TotalPiasters, it.TaxRatePercent.Value, true);
                     totalTax = totalTax.Add(Money.FromPiasters(it.TaxPiasters));
+                }
+                else
+                {
+                    it.TaxPiasters = 0;
                 }
             }
 
@@ -229,6 +293,19 @@ namespace RafiqPOS.Services
             {
                 // Default full payment for cash
                 sale.PaidPiasters = sale.TotalPiasters;
+            }
+
+            if (sale.Payments != null && sale.Payments.Count > 0)
+            {
+                long sumPayments = 0;
+                for (int pIdx = 0; pIdx < sale.Payments.Count; pIdx++)
+                {
+                    sumPayments += sale.Payments[pIdx].AmountPiasters;
+                }
+                if (sumPayments != sale.PaidPiasters)
+                {
+                    throw new InvalidOperationException(string.Format("مجموع الدفعات المتعددة ({0} قرش) لا يطابق المبلغ المدفوع المسجل ({1} قرش).", sumPayments, sale.PaidPiasters));
+                }
             }
 
             var result = _saleRepo.CreateSaleAtomic(sale);

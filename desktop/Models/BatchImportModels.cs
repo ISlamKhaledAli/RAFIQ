@@ -45,6 +45,12 @@ namespace RafiqPOS.Models
         [JsonProperty("taxCategoryCode")]
         public string TaxCategoryCode { get; set; }
 
+        [JsonProperty("variantColor")]
+        public string VariantColor { get; set; }
+
+        [JsonProperty("variantSize")]
+        public string VariantSize { get; set; }
+
         public BatchImportItem()
         {
             Barcodes = new List<string>();

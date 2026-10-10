@@ -7,7 +7,8 @@ import {
   X, 
   Printer, 
   ArrowRight,
-  Sparkles
+  Sparkles,
+  UserPlus
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { Customer, SalePayment } from '../types/models';
@@ -162,11 +163,13 @@ export const PaymentModal = ({
 
   const handleReceivedChange = (raw: string) => {
     const normalized = normalizeArabicNumerals(raw);
-    setReceivedInput(normalized);
-    const piasters = poundsToPiasters(normalized);
-    setReceivedPiasters(piasters);
-    if (piasters > 0) {
-      setIsFullCreditMode(false);
+    if (/^[0-9]*\.?[0-9]{0,2}$/.test(normalized)) {
+      setReceivedInput(normalized);
+      const piasters = poundsToPiasters(normalized);
+      setReceivedPiasters(piasters);
+      if (piasters > 0) {
+        setIsFullCreditMode(false);
+      }
     }
   };
 
@@ -633,10 +636,11 @@ export const PaymentModal = ({
                 <button
                   type="button"
                   onClick={() => setShowQuickAdd(true)}
-                  className="px-2.5 py-1.5 text-xs font-bold text-[#006d41] bg-[#eaf5ee] hover:bg-[#d8edd0] border border-[#c4e3d0] rounded-lg transition-colors shrink-0 shadow-2xs cursor-pointer active:scale-95"
+                  className="px-2.5 py-1.5 text-xs font-bold text-[#006d41] bg-[#eaf5ee] hover:bg-[#d8edd0] border border-[#c4e3d0] rounded-lg transition-colors shrink-0 shadow-2xs cursor-pointer active:scale-95 flex items-center gap-1"
                   title="تسجيل زبون جديد في النوتة فوراً"
                 >
-                  + تسجيل زبون جديد
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>تسجيل زبون جديد</span>
                 </button>
               </div>
 
@@ -748,26 +752,8 @@ export const PaymentModal = ({
 
           {activeTab === 'credit' && (
             <CreditPaymentSection
-              currentCustomerId={currentCustomerId}
-              setCurrentCustomerId={setCurrentCustomerId}
-              localCustomers={localCustomers}
               selectedCustomer={selectedCustomer}
               netTotalPiasters={netTotalPiasters}
-              showQuickAdd={showQuickAdd}
-              setShowQuickAdd={setShowQuickAdd}
-              quickName={quickName}
-              setQuickName={setQuickName}
-              quickPhone={quickPhone}
-              setQuickPhone={setQuickPhone}
-              quickSaving={quickSaving}
-              duplicateQuickCustomer={duplicateQuickCustomer}
-              onSelectDuplicateCustomer={(c) => {
-                setCurrentCustomerId(c.id);
-                setShowQuickAdd(false);
-                setQuickName('');
-                setQuickPhone('');
-              }}
-              onQuickAddCustomer={handleQuickAddCustomer}
             />
           )}
 
@@ -777,25 +763,7 @@ export const PaymentModal = ({
               setSplitRows={setSplitRows}
               splitRemainingPiasters={splitRemainingPiasters}
               netTotalPiasters={netTotalPiasters}
-              currentCustomerId={currentCustomerId}
-              setCurrentCustomerId={setCurrentCustomerId}
-              localCustomers={localCustomers}
               selectedCustomer={selectedCustomer}
-              showQuickAdd={showQuickAdd}
-              setShowQuickAdd={setShowQuickAdd}
-              quickName={quickName}
-              setQuickName={setQuickName}
-              quickPhone={quickPhone}
-              setQuickPhone={setQuickPhone}
-              quickSaving={quickSaving}
-              duplicateQuickCustomer={duplicateQuickCustomer}
-              onSelectDuplicateCustomer={(c) => {
-                setCurrentCustomerId(c.id);
-                setShowQuickAdd(false);
-                setQuickName('');
-                setQuickPhone('');
-              }}
-              onQuickAddCustomer={handleQuickAddCustomer}
             />
           )}
         </div>

@@ -122,10 +122,16 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
           <div className="relative mb-3">
             <input
               type="text"
+              inputMode="decimal"
               autoFocus
               placeholder="0.00"
               value={discountInputEgp}
-              onChange={(e) => setDiscountInputEgp(normalizeArabicNumerals(e.target.value))}
+              onChange={(e) => {
+                const norm = normalizeArabicNumerals(e.target.value);
+                if (/^[0-9]*\.?[0-9]{0,2}$/.test(norm)) {
+                  setDiscountInputEgp(norm);
+                }
+              }}
               className="w-full text-center text-3xl font-mono font-bold text-brand bg-surface-2 border-2 border-brand/50 focus:border-brand rounded-lg p-3 text-ink focus:outline-none shadow-inner"
             />
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-muted font-sans">

@@ -471,7 +471,7 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
               className="text-[11px] font-bold text-brand hover:underline flex items-center gap-1 py-1"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>+ إضافة عبوة مجمعة ثانية (مثلاً كرتونة أكبر بعد الدستة)</span>
+              <span>إضافة عبوة مجمعة ثانية (مثلاً كرتونة أكبر بعد الدستة)</span>
             </button>
             <span className="text-[10px] text-ink-muted">
               المخزن يُخصم تلقائياً بعدد الـ ({baseUnitName}) عند بيع أي عبوة في الكاشير

@@ -128,7 +128,7 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
           </div>
 
           {actionError && (
-            <div className="p-3 bg-rose-50 border border-rose-200 text-danger text-xs font-bold rounded-xl flex items-center gap-2">
+            <div className="p-3 bg-danger-soft border border-danger/20 text-danger text-xs font-bold rounded-xl flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0 text-danger" />
               <span>{actionError}</span>
             </div>
@@ -149,12 +149,12 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
                     <th className="px-3">الساعة</th>
                     <th className="px-3">الأصناف</th>
                     <th className="px-3">المبلغ</th>
-                    <th className="px-3 text-center w-[150px]">التحكم</th>
+                    <th className="px-3 text-center w-[165px]">التحكم</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line bg-surface">
                   {heldSales.map((sale, idx) => (
-                    <tr key={sale.id} className="h-13 hover:bg-surface-2/60 transition-colors">
+                    <tr key={sale.id} className="h-12 hover:bg-surface-2/60 transition-colors">
                       <td className="px-3 font-bold text-ink text-xs">
                         <div className="flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-warn shrink-0" />
@@ -189,10 +189,10 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
                             type="button"
                             onClick={() => void handleRecall(sale)}
                             disabled={loading}
-                            className="h-8 px-3 bg-surface border border-brand text-brand hover:bg-brand-soft rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+                            className="h-7.5 px-2.5 bg-brand text-white hover:bg-brand-dark rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer disabled:opacity-50 whitespace-nowrap"
                             title="استرجاع السلة والمتابعة"
                           >
-                            <RotateCcw className="w-3.5 h-3.5" />
+                            <RotateCcw className="w-3.5 h-3.5 shrink-0" />
                             <span>كمّل الفاتورة</span>
                           </button>
                           <button
@@ -201,7 +201,7 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
                               if (sale.id) void handleDelete(sale.id);
                             }}
                             disabled={deletingId === sale.id || loading}
-                            className="h-8 w-8 bg-surface border border-line text-ink-muted hover:text-danger hover:border-danger/30 hover:bg-rose-50 rounded-lg flex items-center justify-center transition-colors shadow-2xs cursor-pointer"
+                            className="h-7.5 w-7.5 bg-surface border border-line text-ink-muted hover:text-danger hover:border-danger/30 hover:bg-danger-soft rounded-lg flex items-center justify-center transition-colors shadow-2xs cursor-pointer shrink-0"
                             title="مسح الفاتورة المعلقة"
                           >
                             <Trash2 className="w-3.5 h-3.5" />

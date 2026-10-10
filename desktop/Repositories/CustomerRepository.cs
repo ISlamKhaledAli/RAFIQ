@@ -133,9 +133,22 @@ namespace RafiqPOS.Repositories
                     try
                     {
                         string now = DateTime.UtcNow.ToString("o");
-                        if (string.IsNullOrWhiteSpace(customer.Id))
+                        bool exists = false;
+                        if (!string.IsNullOrWhiteSpace(customer.Id))
                         {
-                            customer.Id = "cust_" + Guid.NewGuid().ToString("N").Substring(0, 12);
+                            using (var checkCmd = new SQLiteCommand("SELECT COUNT(*) FROM customers WHERE id = @id;", conn, trans))
+                            {
+                                checkCmd.Parameters.AddWithValue("@id", customer.Id);
+                                exists = Convert.ToInt64(checkCmd.ExecuteScalar()) > 0;
+                            }
+                        }
+
+                        if (!exists)
+                        {
+                            if (string.IsNullOrWhiteSpace(customer.Id))
+                            {
+                                customer.Id = "cust_" + Guid.NewGuid().ToString("N").Substring(0, 12);
+                            }
                             customer.CreatedAt = now;
 
                             string sqlInsert = @"

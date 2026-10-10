@@ -376,18 +376,19 @@ namespace RafiqPOS.Services
                                 INSERT INTO products (
                                     id, barcode, internal_code, name, normalized_name, category_id,
                                     price_piasters, cost_piasters, stock_quantity_milli,
-                                    min_stock_quantity_milli, unit, tax_rate_percent, tax_category_code,
+                                    min_stock_quantity_milli, unit, variant_color, variant_size, tax_rate_percent, tax_category_code,
                                     is_active, created_at, updated_at
                                 ) VALUES (
-                                    @id, @barcode, '', @name, @norm, @catId,
+                                    @id, @barcode, @icode, @name, @norm, @catId,
                                     @price, @cost, @stock,
-                                    @minStock, @unit, 0, '',
+                                    @minStock, @unit, @vcolor, @vsize, 0, '',
                                     1, @now, @now
                                 );
                             ", conn, trans))
                             {
                                 insProd.Parameters.AddWithValue("@id", prodId);
                                 insProd.Parameters.AddWithValue("@barcode", p.Barcode);
+                                insProd.Parameters.AddWithValue("@icode", string.IsNullOrEmpty(p.InternalCode) ? "" : p.InternalCode.Trim());
                                 insProd.Parameters.AddWithValue("@name", p.Name);
                                 insProd.Parameters.AddWithValue("@norm", normName);
                                 insProd.Parameters.AddWithValue("@catId", (object)catId ?? DBNull.Value);
@@ -396,6 +397,8 @@ namespace RafiqPOS.Services
                                 insProd.Parameters.AddWithValue("@stock", p.StockQuantityMilli);
                                 insProd.Parameters.AddWithValue("@minStock", p.MinStockQuantityMilli > 0 ? p.MinStockQuantityMilli : 5000);
                                 insProd.Parameters.AddWithValue("@unit", string.IsNullOrEmpty(p.Unit) ? "piece" : p.Unit);
+                                insProd.Parameters.AddWithValue("@vcolor", (object)p.VariantColor ?? DBNull.Value);
+                                insProd.Parameters.AddWithValue("@vsize", (object)p.VariantSize ?? DBNull.Value);
                                 insProd.Parameters.AddWithValue("@now", now);
                                 insProd.ExecuteNonQuery();
                             }

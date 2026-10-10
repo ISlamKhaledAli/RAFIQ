@@ -24,6 +24,8 @@ license-server/.wrangler/
 license-server/dist/
 *.log
 *.tsbuildinfo
+audit_results.json
+*audit*_output.json
 # Environment & Secrets
 .env
 .env.local

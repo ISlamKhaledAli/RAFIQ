@@ -352,6 +352,42 @@ namespace RafiqPOS
                         return;
                     }
 
+                    if (args[i] == "--run-audit-tests")
+                    {
+                        try
+                        {
+                            var res = Services.AuditNewFolderTestRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "audit_test_output.json"), json);
+                            Environment.Exit(0);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Audit test error: " + ex.ToString());
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
+
+                    if (args[i] == "--run-deep-audit-tests")
+                    {
+                        try
+                        {
+                            var res = Services.AuditDeepSuiteRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "deep_audit_test_output.json"), json);
+                            Environment.Exit(0);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Deep audit test error: " + ex.ToString());
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
+
 #if DEBUG
                     if (args[i] == "--demo-error" || args[i] == "--test-error")
                     {

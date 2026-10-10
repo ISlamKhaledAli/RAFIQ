@@ -17,6 +17,10 @@ namespace RafiqPOS.Repositories
         public Expense Insert(Expense expense)
         {
             if (expense == null) throw new ArgumentNullException("expense");
+            if (expense.AmountPiasters <= 0)
+            {
+                throw new ArgumentException("قيمة المصروف يجب أن تكون أكبر من الصفر", "AmountPiasters");
+            }
 
             using (var conn = new SQLiteConnection(_connectionString))
             {

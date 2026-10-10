@@ -39,8 +39,8 @@ interface NewPurchaseTabProps {
   setDiscountPiasters: (p: number) => void;
   paymentMode: 'PAID' | 'CREDIT' | 'PARTIAL';
   setPaymentMode: (mode: 'PAID' | 'CREDIT' | 'PARTIAL') => void;
-  customPaidAmountPiasters: number;
-  setCustomPaidAmountPiasters: (p: number) => void;
+  customPaidAmountPiasters: number | null;
+  setCustomPaidAmountPiasters: (p: number | null) => void;
   lineItems: NewPurchaseLineItem[];
   setLineItems: React.Dispatch<React.SetStateAction<NewPurchaseLineItem[]>>;
   productSearchQuery: string;
@@ -314,11 +314,12 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
   }, [selectedSupplier]);
 
   const paidAmountPiasters = useMemo(() => {
-    if (paymentMode === 'PAID') {
-      return customPaidAmountPiasters > 0 ? customPaidAmountPiasters : netCostPiasters;
-    }
     if (paymentMode === 'CREDIT') return 0;
-    return Math.max(0, customPaidAmountPiasters);
+    if (customPaidAmountPiasters !== null) {
+      return Math.max(0, customPaidAmountPiasters);
+    }
+    if (paymentMode === 'PAID') return netCostPiasters;
+    return 0;
   }, [paymentMode, netCostPiasters, customPaidAmountPiasters]);
 
   const remainingAmountPiasters = useMemo(() => {
@@ -328,6 +329,23 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
   const excessPaidPiasters = useMemo(() => {
     return Math.max(0, paidAmountPiasters - netCostPiasters);
   }, [netCostPiasters, paidAmountPiasters]);
+
+  const currentSupplierBalance = selectedSupplier ? selectedSupplier.balancePiasters : 0;
+  const balanceDelta = netCostPiasters - paidAmountPiasters;
+  const projectedBalance = currentSupplierBalance + balanceDelta;
+
+  const handleSupplierChange = (supId: string) => {
+    setSelectedSupplierId(supId);
+    const sup = suppliers.find((s) => s.id === supId);
+    if (sup && sup.balancePiasters < 0) {
+      // Supplier has advance credit in our favor: default to deducting from credit (0 cash)
+      setPaymentMode('CREDIT');
+      setCustomPaidAmountPiasters(0);
+    } else {
+      setPaymentMode('PAID');
+      setCustomPaidAmountPiasters(null);
+    }
+  };
 
   return (
     <div className="flex-1 flex gap-3 sm:gap-4 overflow-hidden">
@@ -344,7 +362,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
               <div className="flex items-center gap-1.5">
                 <CustomSelect
                   value={selectedSupplierId}
-                  onChange={(val) => setSelectedSupplierId(val)}
+                  onChange={handleSupplierChange}
                   placeholder="-- اختر مورد الفاتورة --"
                   options={[
                     { value: '', label: '-- اختار مورد الفاتورة / الشركة --' },
@@ -372,7 +390,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                   title="إضافة مورد جديد سريعاً"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>+ مورد جديد</span>
+                  <span>مورد جديد</span>
                 </button>
               </div>
             </div>
@@ -1008,17 +1026,17 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
               <div className="flex justify-between text-[10px] text-paid font-medium">
                 <span>حالة السداد:</span>
                 <span>
-                  {paymentMode === 'PAID'
+                  {paidAmountPiasters >= netCostPiasters
                     ? excessPaidPiasters > 0
-                      ? 'مدفوع زيادة (تحت الحساب)'
+                      ? `مدفوع بالزيادة (+${formatMoney(excessPaidPiasters)})`
                       : 'مدفوع كاش بالكامل'
-                    : paymentMode === 'CREDIT'
-                    ? advanceCreditPiasters > 0
-                      ? 'خصم من رصيدنا السابق'
-                      : 'آجل على الحساب'
-                    : excessPaidPiasters > 0
-                    ? 'مدفوع زيادة (تحت الحساب)'
-                    : 'سداد جزء من الفاتورة'}
+                    : paidAmountPiasters === 0
+                    ? advanceCreditPiasters >= netCostPiasters
+                      ? 'خصم كامل من رصيدنا المتاح (0 كاش)'
+                      : advanceCreditPiasters > 0
+                      ? 'خصم رصيدنا + الباقي آجل'
+                      : 'آجل بالكامل على الحساب'
+                    : `سداد جزئي (${formatMoney(paidAmountPiasters)} كاش)`}
                 </span>
               </div>
             </div>
@@ -1053,63 +1071,191 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
           <div className="pt-2 border-t border-line space-y-1.5">
             <label className="text-[11px] font-bold text-ink-muted block">هتدفع للمورد إزاي؟</label>
             <div className="grid grid-cols-3 gap-1 bg-surface-2 p-1 rounded-xl border border-line">
+              {/* Option 1 */}
               <button
                 type="button"
                 onClick={() => {
-                  setPaymentMode('PAID');
-                  setCustomPaidAmountPiasters(0);
+                  setPaymentMode(advanceCreditPiasters > 0 ? 'CREDIT' : 'PAID');
+                  setCustomPaidAmountPiasters(advanceCreditPiasters > 0 ? 0 : null);
                 }}
                 className={`h-7 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                  paymentMode === 'PAID'
+                  (advanceCreditPiasters > 0 && paymentMode === 'CREDIT') || (advanceCreditPiasters === 0 && paymentMode === 'PAID')
                     ? 'bg-paid text-white shadow-2xs'
                     : 'text-ink-muted hover:text-ink'
                 }`}
               >
-                <Banknote className="w-3 h-3" />
-                <span>كاش</span>
+                {advanceCreditPiasters > 0 ? (
+                  <>
+                    <Sparkles className="w-3 h-3" />
+                    <span>من رصيدنا</span>
+                  </>
+                ) : (
+                  <>
+                    <Banknote className="w-3 h-3" />
+                    <span>كاش</span>
+                  </>
+                )}
               </button>
+
+              {/* Option 2 */}
               <button
                 type="button"
                 onClick={() => {
-                  setPaymentMode('CREDIT');
-                  setCustomPaidAmountPiasters(0);
+                  setPaymentMode(advanceCreditPiasters > 0 ? 'PAID' : 'CREDIT');
+                  setCustomPaidAmountPiasters(advanceCreditPiasters > 0 ? null : 0);
                 }}
                 className={`h-7 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                  paymentMode === 'CREDIT'
-                    ? 'bg-warn text-white shadow-2xs'
+                  (advanceCreditPiasters > 0 && paymentMode === 'PAID') || (advanceCreditPiasters === 0 && paymentMode === 'CREDIT')
+                    ? advanceCreditPiasters > 0
+                      ? 'bg-brand text-white shadow-2xs'
+                      : 'bg-warn text-white shadow-2xs'
                     : 'text-ink-muted hover:text-ink'
                 }`}
               >
-                <CreditCard className="w-3 h-3" />
-                <span>{advanceCreditPiasters > 0 ? 'من رصيدنا' : 'آجل'}</span>
+                {advanceCreditPiasters > 0 ? (
+                  <>
+                    <Banknote className="w-3 h-3" />
+                    <span>كاش كامل</span>
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="w-3 h-3" />
+                    <span>آجل</span>
+                  </>
+                )}
               </button>
+
+              {/* Option 3 */}
               <button
                 type="button"
-                onClick={() => setPaymentMode('PARTIAL')}
+                onClick={() => {
+                  setPaymentMode('PARTIAL');
+                  if (customPaidAmountPiasters === null) {
+                    setCustomPaidAmountPiasters(advanceCreditPiasters > 0 ? 0 : netCostPiasters);
+                  }
+                }}
                 className={`h-7 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
                   paymentMode === 'PARTIAL'
                     ? 'bg-brand text-white shadow-2xs'
                     : 'text-ink-muted hover:text-ink'
                 }`}
               >
-                <span>دفع مشكل</span>
+                <Calculator className="w-3 h-3" />
+                <span>مبلغ مخصص</span>
               </button>
             </div>
 
-            {paymentMode === 'PAID' && (
-              <div className="p-2 bg-surface-2 border border-line rounded-lg space-y-1 mt-1 text-[11px]">
+            {/* Credit Notice Details */}
+            {paymentMode === 'CREDIT' && (
+              <div className="p-2 bg-surface-2 border border-line rounded-lg text-[10.5px] mt-1 space-y-1">
+                {advanceCreditPiasters > 0 ? (
+                  <div className="p-1.5 bg-paid-soft border border-paid/20 text-paid-dark rounded flex flex-col gap-1">
+                    <div className="flex items-center gap-1 font-bold">
+                      <Sparkles className="w-3.5 h-3.5 text-paid shrink-0" />
+                      <span>خصم تلقائي من رصيدنا المتاح (0 كاش من الخزينة):</span>
+                    </div>
+                    <span className="leading-tight">
+                      {netCostPiasters <= advanceCreditPiasters
+                        ? `الفاتورة هتتخصم بالكامل من رصيدنا السابق. المتبقي لنا بعد الخصم: ${formatMoney(advanceCreditPiasters - netCostPiasters)}.`
+                        : `هيتم استهلاك كامل رصيدنا السابق (${formatMoney(advanceCreditPiasters)})، والمتبقي (${formatMoney(netCostPiasters - advanceCreditPiasters)}) هيتسجل دين علينا للمورد.`}
+                    </span>
+                    {netCostPiasters > advanceCreditPiasters && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPaymentMode('PARTIAL');
+                          setCustomPaidAmountPiasters(netCostPiasters - advanceCreditPiasters);
+                        }}
+                        className="self-start mt-0.5 px-2 py-0.5 rounded bg-paid text-white text-[10px] font-bold cursor-pointer hover:bg-paid/90 transition-colors"
+                      >
+                        دفع الفرق كاش الآن ({formatMoney(netCostPiasters - advanceCreditPiasters)})
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-1.5 bg-warn-soft border border-warn/20 text-warn-dark rounded flex items-center gap-1.5">
+                    <CreditCard className="w-3.5 h-3.5 shrink-0" />
+                    <span>
+                      {supplierDebtPiasters > 0
+                        ? `الفاتورة بالكامل ستُضاف للدين القديم، فيصبح إجمالي المديونية ${formatMoney(supplierDebtPiasters + netCostPiasters)}.`
+                        : `هيتسجل المبلغ كله في دفتر حساب المورد الآجل (${formatMoney(netCostPiasters)}).`}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Cash & Custom Amount Section */}
+            {(paymentMode === 'PAID' || paymentMode === 'PARTIAL') && (
+              <div className="p-2 bg-surface-2 border border-line rounded-lg space-y-1.5 mt-1 text-[11px]">
                 <div className="flex justify-between items-center">
-                  <span className="text-ink-muted">المبلغ اللي دفعته كاش:</span>
+                  <span className="text-ink-muted font-bold">المبلغ اللي دفعته كاش:</span>
                   <div className="flex items-center gap-1">
                     <MoneyInput
-                      valuePiasters={customPaidAmountPiasters > 0 ? customPaidAmountPiasters : netCostPiasters}
-                      onChangePiasters={setCustomPaidAmountPiasters}
+                      valuePiasters={customPaidAmountPiasters !== null ? customPaidAmountPiasters : netCostPiasters}
+                      onChangePiasters={(val) => setCustomPaidAmountPiasters(val)}
                       hideCurrency
-                      className="!w-20 !h-6 !px-1.5 !py-0 !text-center !text-xs !bg-surface !border-line !rounded"
+                      className="!w-24 !h-6 !px-1.5 !py-0 !text-center !text-xs !bg-surface !border-line !rounded font-mono font-bold"
                     />
                     <span className="text-[10px] text-ink-muted">ج.م</span>
                   </div>
                 </div>
+
+                {/* Quick Shortcuts */}
+                <div className="flex flex-wrap items-center gap-1 pt-1 border-t border-line/60">
+                  <button
+                    type="button"
+                    onClick={() => setCustomPaidAmountPiasters(0)}
+                    className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold transition-colors cursor-pointer ${
+                      paidAmountPiasters === 0
+                        ? 'bg-ink text-white'
+                        : 'bg-surface border border-line text-ink-muted hover:text-ink'
+                    }`}
+                  >
+                    0 كاش
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCustomPaidAmountPiasters(netCostPiasters)}
+                    className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold transition-colors cursor-pointer ${
+                      paidAmountPiasters === netCostPiasters
+                        ? 'bg-ink text-white'
+                        : 'bg-surface border border-line text-ink-muted hover:text-ink'
+                    }`}
+                  >
+                    الفاتورة كاملة ({formatMoney(netCostPiasters)})
+                  </button>
+
+                  {advanceCreditPiasters > 0 && advanceCreditPiasters < netCostPiasters && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomPaidAmountPiasters(netCostPiasters - advanceCreditPiasters)}
+                      className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold transition-colors cursor-pointer ${
+                        paidAmountPiasters === netCostPiasters - advanceCreditPiasters
+                          ? 'bg-paid text-white'
+                          : 'bg-paid-soft border border-paid/30 text-paid-dark hover:bg-paid hover:text-white'
+                      }`}
+                    >
+                      سداد الفرق ({formatMoney(netCostPiasters - advanceCreditPiasters)})
+                    </button>
+                  )}
+
+                  {supplierDebtPiasters > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomPaidAmountPiasters(supplierDebtPiasters + netCostPiasters)}
+                      className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold transition-colors cursor-pointer ${
+                        paidAmountPiasters === supplierDebtPiasters + netCostPiasters
+                          ? 'bg-brand text-white'
+                          : 'bg-surface border border-line text-brand-dark hover:bg-brand-soft'
+                      }`}
+                    >
+                      تصفية الدين بالكامل ({formatMoney(supplierDebtPiasters + netCostPiasters)})
+                    </button>
+                  )}
+                </div>
+
                 {excessPaidPiasters > 0 && (
                   <div className="p-1.5 bg-paid-soft border border-paid/30 rounded-lg text-paid-dark text-[10px] flex flex-col gap-0.5">
                     <div className="flex justify-between items-center font-bold">
@@ -1126,75 +1272,86 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                     </span>
                   </div>
                 )}
+
                 {paidAmountPiasters < netCostPiasters && (
                   <div className="flex justify-between text-danger font-bold text-[10.5px]">
-                    <span>الباقي علينا آجل:</span>
+                    <span>{advanceCreditPiasters > 0 ? 'المتبقي يُخصم من رصيدنا:' : 'الباقي علينا آجل:'}</span>
                     <span className="font-mono">{formatMoney(remainingAmountPiasters)}</span>
                   </div>
                 )}
               </div>
             )}
 
-            {paymentMode === 'CREDIT' && (
-              <div className="p-1.5 bg-surface-2 border border-line rounded-lg text-[10.5px] mt-1 space-y-1">
-                {advanceCreditPiasters > 0 ? (
-                  <div className="p-1.5 bg-paid-soft border border-paid/20 text-paid-dark rounded flex flex-col gap-0.5">
-                    <div className="flex items-center gap-1 font-bold">
-                      <Sparkles className="w-3 h-3 text-paid shrink-0" />
-                      <span>خصم تلقائي من رصيدنا السابق:</span>
-                    </div>
-                    <span className="leading-tight">
-                      {netCostPiasters <= advanceCreditPiasters
-                        ? `الفاتورة هتتخصم بالكامل من رصيدنا. المتبقي لنا بعد الخصم: ${formatMoney(advanceCreditPiasters - netCostPiasters)}.`
-                        : `هيتم استهلاك رصيدنا بالكامل (${formatMoney(advanceCreditPiasters)})، والباقي (${formatMoney(netCostPiasters - advanceCreditPiasters)}) هيتسجل دين علينا للمورد.`}
+            {/* Interactive Supplier Ledger Impact Card */}
+            {selectedSupplier && (
+              <div className="p-2.5 rounded-xl border border-line bg-surface-2/80 space-y-1.5 mt-1.5">
+                <div className="flex items-center justify-between text-[10.5px] font-bold border-b border-line pb-1">
+                  <span className="text-ink flex items-center gap-1">
+                    <Receipt className="w-3.5 h-3.5 text-brand" />
+                    <span>كشف حساب المورد بعد العملية:</span>
+                  </span>
+                  <span className="font-mono text-[11px]">
+                    {selectedSupplier.balancePiasters < 0 ? (
+                      <span className="text-paid">رصيد متاح لنا: {formatMoney(Math.abs(selectedSupplier.balancePiasters))}</span>
+                    ) : selectedSupplier.balancePiasters > 0 ? (
+                      <span className="text-warn-dark">مديونية قديمة علينا: {formatMoney(selectedSupplier.balancePiasters)}</span>
+                    ) : (
+                      <span className="text-ink-muted">الحساب السابق خالص</span>
+                    )}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                  <div className="bg-surface p-1 rounded-lg border border-line flex flex-col">
+                    <span className="text-ink-muted">المدفوع كاش الآن:</span>
+                    <span className="font-mono font-bold text-ink text-[11px] mt-0.5">{formatMoney(paidAmountPiasters)}</span>
+                  </div>
+                  <div className="bg-surface p-1 rounded-lg border border-line flex flex-col">
+                    <span className="text-ink-muted">
+                      {paidAmountPiasters >= netCostPiasters
+                        ? (paidAmountPiasters > netCostPiasters ? 'زيادة تضاف لرصيدنا:' : 'المتبقي من الفاتورة:')
+                        : (advanceCreditPiasters > 0 ? 'يُخصم من رصيدنا:' : 'المتبقي دين علينا:')
+                      }
+                    </span>
+                    <span className="font-mono font-bold text-[11px] mt-0.5">
+                      {paidAmountPiasters > netCostPiasters
+                        ? `+${formatMoney(paidAmountPiasters - netCostPiasters)}`
+                        : advanceCreditPiasters > 0
+                        ? formatMoney(Math.min(remainingAmountPiasters, advanceCreditPiasters))
+                        : formatMoney(remainingAmountPiasters)
+                      }
                     </span>
                   </div>
-                ) : (
-                  <div className="p-1.5 bg-danger-soft border border-danger/20 text-danger rounded flex items-center gap-1.5">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                    <span>هيتسجل المبلغ كله في دفتر حساب المورد الآجل ({formatMoney(netCostPiasters)}).</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {paymentMode === 'PARTIAL' && (
-              <div className="p-2 bg-surface-2 border border-line rounded-lg space-y-1.5 mt-1 text-[11px]">
-                <div className="flex justify-between items-center">
-                  <span className="text-ink-muted">المدفوع كاش:</span>
-                  <div className="flex items-center gap-1">
-                    <MoneyInput
-                      valuePiasters={customPaidAmountPiasters}
-                      onChangePiasters={setCustomPaidAmountPiasters}
-                      hideCurrency
-                      className="!w-20 !h-6 !px-1.5 !py-0 !text-center !text-xs !bg-surface !border-line !rounded"
-                    />
-                    <span className="text-[10px] text-ink-muted">ج.م</span>
-                  </div>
                 </div>
-                {excessPaidPiasters > 0 ? (
-                  <div className="p-1.5 bg-paid-soft border border-paid/30 rounded-lg text-paid-dark text-[10px] flex flex-col gap-0.5">
-                    <div className="flex justify-between items-center font-bold">
-                      <span className="flex items-center gap-1">
-                        <Sparkles className="w-3 h-3 text-paid" />
-                        <span>فلوس زيادة سايبينها تحت الحساب:</span>
-                      </span>
-                      <span className="font-mono font-extrabold text-paid">+{formatMoney(excessPaidPiasters)}</span>
-                    </div>
-                    <span className="leading-tight">الزيادة هتتسجل كرصيد لنا عند الشركة تتخصم من فواتير البضاعة اللي جاية.</span>
-                  </div>
-                ) : (
-                  <div className="flex justify-between text-danger font-bold text-[10.5px]">
-                    <span>الباقي علينا آجل:</span>
-                    <span className="font-mono">{formatMoney(remainingAmountPiasters)}</span>
-                  </div>
-                )}
-                {remainingAmountPiasters > 0 && advanceCreditPiasters > 0 && (
-                  <div className="text-[10px] text-paid bg-paid-soft p-1.5 rounded border border-paid/20 leading-tight flex items-center gap-1">
-                    <Info className="w-3.5 h-3.5 text-paid shrink-0" />
-                    <span>المتبقي ده هيتخصم تلقائياً من رصيدنا المتاح عند الشركة ({formatMoney(advanceCreditPiasters)}).</span>
-                  </div>
-                )}
+
+                {/* Final Projected Outcome Banner */}
+                <div className={`p-1.5 rounded-lg border flex items-center justify-between text-[10.5px] font-bold ${
+                  projectedBalance < 0
+                    ? 'bg-paid-soft text-paid-dark border-paid/30'
+                    : projectedBalance > 0
+                    ? 'bg-warn-soft text-warn-dark border-warn/30'
+                    : 'bg-paid-soft text-paid-dark border-paid/30'
+                }`}>
+                  <span className="flex items-center gap-1">
+                    {projectedBalance < 0 ? (
+                      <Sparkles className="w-3.5 h-3.5 text-paid shrink-0" />
+                    ) : projectedBalance > 0 ? (
+                      <AlertCircle className="w-3.5 h-3.5 text-warn shrink-0" />
+                    ) : (
+                      <Receipt className="w-3.5 h-3.5 text-paid shrink-0" />
+                    )}
+                    <span>
+                      {projectedBalance < 0
+                        ? 'الموقف النهائي: رصيد متبقي لنا عند المورد'
+                        : projectedBalance > 0
+                        ? 'الموقف النهائي: إجمالي مديونية علينا للمورد'
+                        : 'الموقف النهائي: الحساب خالص تماماً'}
+                    </span>
+                  </span>
+                  <span className="font-mono text-xs font-extrabold">
+                    {projectedBalance === 0 ? '0.00 ج.م' : formatMoney(Math.abs(projectedBalance))}
+                  </span>
+                </div>
               </div>
             )}
           </div>

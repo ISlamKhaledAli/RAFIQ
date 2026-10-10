@@ -39,6 +39,9 @@ namespace RafiqPOS.Models
         [JsonProperty("unit")]
         public string Unit { get; set; }
 
+        [JsonProperty("conversionFactor")]
+        public int ConversionFactor { get; set; }
+
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
     }

@@ -1,29 +1,15 @@
-import type { FormEvent } from 'react';
-import { Split, Plus, Trash2, UserCheck } from 'lucide-react';
+import { Split, Plus, Trash2, UserCheck, AlertCircle } from 'lucide-react';
 import type { Customer } from '../../types/models';
-import { formatArabicCurrency, normalizeArabicNumerals, poundsToPiasters, piastersToPounds } from '../../utils/money';
+import { formatArabicCurrency } from '../../utils/money';
 import { CustomSelect } from '../CustomSelect';
-import { QuickAddCustomerForm } from './QuickAddCustomerForm';
+import { MoneyInput } from '../MoneyInput';
 
 interface MultiPaymentSectionProps {
   splitRows: Array<{ id: string; method: 'cash' | 'card' | 'credit'; amountPiasters: number }>;
   setSplitRows: React.Dispatch<React.SetStateAction<Array<{ id: string; method: 'cash' | 'card' | 'credit'; amountPiasters: number }>>>;
   splitRemainingPiasters: number;
   netTotalPiasters: number;
-  currentCustomerId: string | null;
-  setCurrentCustomerId: (id: string | null) => void;
-  localCustomers: Customer[];
   selectedCustomer: Customer | undefined;
-  showQuickAdd: boolean;
-  setShowQuickAdd: (show: boolean) => void;
-  quickName: string;
-  setQuickName: (val: string) => void;
-  quickPhone: string;
-  setQuickPhone: (val: string) => void;
-  quickSaving: boolean;
-  duplicateQuickCustomer: Customer | null;
-  onSelectDuplicateCustomer: (c: Customer) => void;
-  onQuickAddCustomer: (e: FormEvent) => void;
 }
 
 export const MultiPaymentSection = ({
@@ -31,20 +17,7 @@ export const MultiPaymentSection = ({
   setSplitRows,
   splitRemainingPiasters,
   netTotalPiasters,
-  currentCustomerId,
-  setCurrentCustomerId,
-  localCustomers,
   selectedCustomer,
-  showQuickAdd,
-  setShowQuickAdd,
-  quickName,
-  setQuickName,
-  quickPhone,
-  setQuickPhone,
-  quickSaving,
-  duplicateQuickCustomer,
-  onSelectDuplicateCustomer,
-  onQuickAddCustomer,
 }: MultiPaymentSectionProps) => {
   const hasCredit = splitRows.some((r) => r.method === 'credit');
   const totalCreditPartPiasters = splitRows
@@ -60,18 +33,31 @@ export const MultiPaymentSection = ({
         </div>
         <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded ${
           splitRemainingPiasters === 0 
-            ? 'bg-paid-soft text-paid border border-paid-border' 
-            : 'bg-danger-soft text-danger border border-danger/30'
+            ? 'bg-paid-soft text-paid' 
+            : 'bg-amber-50 text-amber-800 border border-amber-200'
         }`}>
-          {splitRemainingPiasters === 0
-            ? 'الحساب متطابق بالمليم'
-            : `لسه باقي فرق: ${formatArabicCurrency(splitRemainingPiasters)}`}
+          {splitRemainingPiasters === 0 
+            ? 'الحساب متطابق بالمليم' 
+            : `باقي لم يوزع: ${formatArabicCurrency(splitRemainingPiasters)}`}
         </span>
       </div>
 
-      {/* Quick Split Presets (Task 29-1) */}
-      <div className="flex items-center gap-1.5 flex-wrap">
-        <span className="text-[11px] text-ink-muted">توزيع تلقائي سريع:</span>
+      {/* Quick Distribution Presets */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-[11px] text-ink-muted font-bold">توزيع تلقائي سريع:</span>
+        <button
+          type="button"
+          onClick={() => {
+            const half = Math.round(netTotalPiasters / 2);
+            setSplitRows([
+              { id: '1', method: 'cash', amountPiasters: half },
+              { id: '2', method: 'card', amountPiasters: netTotalPiasters - half },
+            ]);
+          }}
+          className="text-[11px] px-2 py-1 bg-surface-2 hover:bg-surface border border-line rounded font-bold text-ink cursor-pointer transition-colors"
+        >
+          النص كاش + النص فيزا
+        </button>
         <button
           type="button"
           onClick={() => {
@@ -81,22 +67,24 @@ export const MultiPaymentSection = ({
               { id: '2', method: 'credit', amountPiasters: netTotalPiasters - half },
             ]);
           }}
-          className="px-2.5 py-1 rounded bg-surface-2 hover:bg-surface border border-line text-[11px] font-semibold text-ink transition-colors cursor-pointer"
+          className="text-[11px] px-2 py-1 bg-surface-2 hover:bg-surface border border-line rounded font-bold text-ink cursor-pointer transition-colors"
         >
           النص كاش + النص شكك
         </button>
         <button
           type="button"
           onClick={() => {
-            const cashRow = splitRows.find(r => r.method === 'cash');
-            const cashAmt = cashRow ? cashRow.amountPiasters : Math.round(netTotalPiasters / 2);
-            const remainingForCredit = Math.max(0, netTotalPiasters - cashAmt);
-            setSplitRows([
-              { id: '1', method: 'cash', amountPiasters: cashAmt },
-              { id: '2', method: 'credit', amountPiasters: remainingForCredit },
-            ]);
+            setSplitRows((rows) => {
+              const cashRow = rows.find(r => r.method === 'cash');
+              const cashPaid = cashRow ? cashRow.amountPiasters : 0;
+              const remaining = Math.max(0, netTotalPiasters - cashPaid);
+              return [
+                { id: '1', method: 'cash', amountPiasters: cashPaid },
+                { id: '2', method: 'credit', amountPiasters: remaining }
+              ];
+            });
           }}
-          className="px-2.5 py-1 rounded bg-surface-2 hover:bg-surface border border-line text-[11px] font-semibold text-ink transition-colors cursor-pointer"
+          className="text-[11px] px-2 py-1 bg-surface-2 hover:bg-surface border border-line rounded font-bold text-ink cursor-pointer transition-colors"
         >
           ثبّت الكاش والباقي على الحساب
         </button>
@@ -123,17 +111,15 @@ export const MultiPaymentSection = ({
               />
             </div>
 
-            <input
-              type="text"
-              value={piastersToPounds(row.amountPiasters).toString()}
-              onChange={(e) => {
-                const piasters = poundsToPiasters(normalizeArabicNumerals(e.target.value));
-                setSplitRows((rows) => rows.map((r) => r.id === row.id ? { ...r, amountPiasters: piasters } : r));
-              }}
-              className="flex-1 h-[34px] px-3 bg-surface border border-line rounded text-xs font-mono font-bold text-ink text-left"
-              placeholder="0.00"
-            />
-            <span className="text-xs text-ink-muted font-bold">ج.م</span>
+            <div className="flex-1">
+              <MoneyInput
+                valuePiasters={row.amountPiasters}
+                onChangePiasters={(val) => {
+                  setSplitRows((rows) => rows.map((r) => r.id === row.id ? { ...r, amountPiasters: val } : r));
+                }}
+                className="h-[34px] text-xs font-mono font-bold"
+              />
+            </div>
 
             {splitRows.length > 1 && (
               <button
@@ -162,7 +148,7 @@ export const MultiPaymentSection = ({
           className="py-1.5 px-3 rounded text-xs font-bold bg-surface-2 hover:bg-surface border border-line text-ink flex items-center justify-center gap-1 transition-colors cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5" />
-          <span>+ إضافة طريقة دفع تانية</span>
+          <span>إضافة طريقة دفع تانية</span>
         </button>
 
         {splitRemainingPiasters > 0 && (
@@ -170,8 +156,8 @@ export const MultiPaymentSection = ({
             type="button"
             onClick={() => {
               if (splitRows.length > 0) {
-                setSplitRows(rows => {
-                  const lastIdx = rows.length - 1;
+                const lastIdx = splitRows.length - 1;
+                setSplitRows((rows) => {
                   return rows.map((r, i) => i === lastIdx ? { ...r, amountPiasters: r.amountPiasters + splitRemainingPiasters } : r);
                 });
               }
@@ -183,77 +169,53 @@ export const MultiPaymentSection = ({
         )}
       </div>
 
-      {/* If credit is part of the split: Customer selection is required */}
+      {/* If credit is part of the split: show status card connected to top customer */}
       {hasCredit && (
-        <div className="mt-2 p-3 bg-brand-soft/20 border border-brand/30 rounded-lg flex flex-col gap-2.5 animate-in fade-in">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-bold text-ink flex items-center gap-1.5">
-              <UserCheck className="w-4 h-4 text-brand" />
-              <span>اختار الزبون عشان نسجل عليه الجزء الشكك ({formatArabicCurrency(totalCreditPartPiasters)}):</span>
-            </label>
-            <button
-              type="button"
-              onClick={() => setShowQuickAdd(!showQuickAdd)}
-              className="text-[11px] text-brand font-bold flex items-center gap-1 hover:underline cursor-pointer"
-            >
-              <Plus className="w-3 h-3" />
-              <span>{showQuickAdd ? 'إلغاء' : '+ تسجيل زبون جديد'}</span>
-            </button>
-          </div>
-
-          {showQuickAdd && (
-            <QuickAddCustomerForm
-              quickName={quickName}
-              setQuickName={setQuickName}
-              quickPhone={quickPhone}
-              setQuickPhone={setQuickPhone}
-              quickSaving={quickSaving}
-              duplicateQuickCustomer={duplicateQuickCustomer}
-              onSelectDuplicateCustomer={onSelectDuplicateCustomer}
-              onCancel={() => setShowQuickAdd(false)}
-              onSubmit={onQuickAddCustomer}
-              compact
-            />
-          )}
-
-          <CustomSelect
-            value={currentCustomerId || ''}
-            onChange={(val) => setCurrentCustomerId(val || null)}
-            options={[
-              { value: '', label: '-- اختار الزبون عشان نسجل عليه الشكك --' },
-              ...localCustomers.map((c) => ({
-                value: c.id,
-                label: `${c.name} ${c.phone ? `(${c.phone})` : ''} - حسابه الحالي: ${formatArabicCurrency(c.balancePiasters)}`
-              }))
-            ]}
-            placeholder="-- اختار الزبون عشان نسجل عليه الشكك --"
-            size="md"
-            searchable
-          />
-
-          {selectedCustomer && (() => {
-            const totalDebtAfter = selectedCustomer.balancePiasters + totalCreditPartPiasters;
-            const isOver = selectedCustomer.creditLimitPiasters > 0 && totalDebtAfter > selectedCustomer.creditLimitPiasters;
-
-            return (
-              <div className="p-2.5 bg-surface border border-line rounded text-xs font-mono flex items-center justify-between">
-                <div>
-                  <span className="text-ink-muted">حسابه القديم: </span>
-                  <strong>{formatArabicCurrency(selectedCustomer.balancePiasters)}</strong>
+        <div className="mt-2 animate-in fade-in">
+          {selectedCustomer ? (
+            <div className="p-3 bg-paid-soft/40 border border-paid-border rounded-xl flex flex-col gap-2">
+              <div className="flex items-center justify-between text-xs font-bold text-ink">
+                <div className="flex items-center gap-1.5">
+                  <UserCheck className="w-4 h-4 text-paid" />
+                  <span>الجزء الشكك ({formatArabicCurrency(totalCreditPartPiasters)}) هيتسجل على: <strong className="text-paid">{selectedCustomer.name}</strong></span>
                 </div>
-                <div>
-                  <span className="text-ink-muted">الشكك الجديد: </span>
-                  <strong className="text-brand">+{formatArabicCurrency(totalCreditPartPiasters)}</strong>
-                </div>
-                <div>
-                  <span className="text-ink-muted">إجمالي اللي عليه: </span>
-                  <strong className={isOver ? 'text-danger font-black' : 'text-ink font-bold'}>
-                    {formatArabicCurrency(totalDebtAfter)}
-                  </strong>
-                </div>
+                {selectedCustomer.phone && (
+                  <span className="text-[11px] text-ink-muted font-mono" dir="ltr">{selectedCustomer.phone}</span>
+                )}
               </div>
-            );
-          })()}
+
+              {(() => {
+                const totalDebtAfter = selectedCustomer.balancePiasters + totalCreditPartPiasters;
+                const isOver = selectedCustomer.creditLimitPiasters > 0 && totalDebtAfter > selectedCustomer.creditLimitPiasters;
+
+                return (
+                  <div className="p-2 bg-surface border border-line rounded-lg text-xs font-mono flex items-center justify-between">
+                    <div>
+                      <span className="text-ink-muted">حسابه القديم: </span>
+                      <strong>{formatArabicCurrency(selectedCustomer.balancePiasters)}</strong>
+                    </div>
+                    <div>
+                      <span className="text-ink-muted">الشكك الجديد: </span>
+                      <strong className="text-brand font-bold">+{formatArabicCurrency(totalCreditPartPiasters)}</strong>
+                    </div>
+                    <div>
+                      <span className="text-ink-muted">إجمالي اللي عليه: </span>
+                      <strong className={isOver ? 'text-danger font-black' : 'text-ink font-bold'}>
+                        {formatArabicCurrency(totalDebtAfter)}
+                      </strong>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          ) : (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-900">
+              <div className="flex items-center gap-2 font-bold">
+                <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                <span>فيه جزء شكك ({formatArabicCurrency(totalCreditPartPiasters)}) — يرجى تحديد الزبون من خانة «الزبون» بأعلى الفاتورة لتسجيله.</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

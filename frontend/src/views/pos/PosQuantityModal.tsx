@@ -66,7 +66,12 @@ export const PosQuantityModal: React.FC<PosQuantityModalProps> = ({
               type="text"
               autoFocus
               value={quantityInputVal}
-              onChange={(e) => setQuantityInputVal(normalizeArabicNumerals(e.target.value))}
+              onChange={(e) => {
+                const norm = normalizeArabicNumerals(e.target.value);
+                if (/^[0-9]*\.?[0-9]*$/.test(norm)) {
+                  setQuantityInputVal(norm);
+                }
+              }}
               className="flex-1 h-11 text-center text-3xl font-mono font-bold text-brand bg-surface-2 border-2 border-brand/50 focus:border-brand rounded-lg text-ink focus:outline-none shadow-inner"
             />
             <button

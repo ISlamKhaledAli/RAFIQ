@@ -95,7 +95,7 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@discount", item.DiscountPiasters);
                                 cmd.Parameters.AddWithValue("@total", item.TotalPiasters);
                                 cmd.Parameters.AddWithValue("@tax", item.TaxPiasters);
-                                cmd.Parameters.AddWithValue("@taxRate", item.TaxRatePercent);
+                                cmd.Parameters.AddWithValue("@taxRate", item.TaxRatePercent.HasValue ? item.TaxRatePercent.Value : 0);
                                 cmd.Parameters.AddWithValue("@unit", item.Unit ?? "piece");
                                 cmd.Parameters.AddWithValue("@unitId", (object)item.UnitId ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@unitName", (object)item.UnitName ?? (item.Unit ?? "piece"));
@@ -252,6 +252,16 @@ namespace RafiqPOS.Repositories
                         ";
                         if (sale.Payments != null && sale.Payments.Count > 0)
                         {
+                            long sumPayments = 0;
+                            for (int pIdx = 0; pIdx < sale.Payments.Count; pIdx++)
+                            {
+                                sumPayments += sale.Payments[pIdx].AmountPiasters;
+                            }
+                            if (sumPayments != sale.PaidPiasters)
+                            {
+                                throw new InvalidOperationException(string.Format("مجموع الدفعات المتعددة ({0} قرش) لا يطابق المبلغ المدفوع المسجل ({1} قرش).", sumPayments, sale.PaidPiasters));
+                            }
+
                             foreach (var p in sale.Payments)
                             {
                                 using (var cmd = new SQLiteCommand(insertPaymentSql, conn, trans))
@@ -848,38 +858,111 @@ namespace RafiqPOS.Repositories
                         sale.Notes = (sale.Notes ?? "") + cancelNote;
 
                         string nowIso = DateTime.UtcNow.ToString("o");
+
+                        // Restore batches deducted during this sale (FEFO reversal - Task 60)
+                        var batchRestores = new List<KeyValuePair<string, long>>();
+                        using (var bCmd = new SQLiteCommand("SELECT batch_id, ABS(quantity_milli) AS qty FROM stock_movements WHERE reference_id = @sid AND movement_type = 'SALE' AND batch_id IS NOT NULL;", conn, trans))
+                        {
+                            bCmd.Parameters.AddWithValue("@sid", sale.Id);
+                            using (var bReader = bCmd.ExecuteReader())
+                            {
+                                while (bReader.Read())
+                                {
+                                    batchRestores.Add(new KeyValuePair<string, long>(bReader["batch_id"].ToString(), Convert.ToInt64(bReader["qty"])));
+                                }
+                            }
+                        }
+                        for (int b = 0; b < batchRestores.Count; b++)
+                        {
+                            using (var uBatchCmd = new SQLiteCommand("UPDATE product_batches SET quantity_milli = quantity_milli + @bQty, status = 'ACTIVE', updated_at = @now WHERE id = @bid;", conn, trans))
+                            {
+                                uBatchCmd.Parameters.AddWithValue("@bQty", batchRestores[b].Value);
+                                uBatchCmd.Parameters.AddWithValue("@now", nowIso);
+                                uBatchCmd.Parameters.AddWithValue("@bid", batchRestores[b].Key);
+                                uBatchCmd.ExecuteNonQuery();
+                            }
+                        }
+
                         foreach (var item in items)
                         {
                             int factor = item.ConversionFactor > 0 ? item.ConversionFactor : 1;
-                            long restoreQtyMilli = item.QuantityMilli * factor;
 
-                            using (var cmd = new SQLiteCommand("UPDATE products SET stock_quantity_milli = stock_quantity_milli + @qty, updated_at = @now WHERE id = @prodId;", conn, trans))
+                            // Check if any portion was already returned in returns table (prevent double restore on cancellation)
+                            long alreadyReturnedMilli = 0;
+                            using (var retCheckCmd = new SQLiteCommand(@"
+                                SELECT COALESCE(SUM(ri.quantity_milli), 0)
+                                FROM return_items ri
+                                JOIN returns r ON ri.return_id = r.id
+                                WHERE r.sale_id = @sid AND (ri.sale_item_id = @siId OR (ri.sale_item_id IS NULL AND ri.product_id = @pid));
+                            ", conn, trans))
                             {
-                                cmd.Parameters.AddWithValue("@qty", restoreQtyMilli);
-                                cmd.Parameters.AddWithValue("@now", nowIso);
-                                cmd.Parameters.AddWithValue("@prodId", item.ProductId);
-                                cmd.ExecuteNonQuery();
+                                retCheckCmd.Parameters.AddWithValue("@sid", sale.Id);
+                                retCheckCmd.Parameters.AddWithValue("@siId", item.Id);
+                                retCheckCmd.Parameters.AddWithValue("@pid", item.ProductId);
+                                object retVal = retCheckCmd.ExecuteScalar();
+                                if (retVal != null && retVal != DBNull.Value)
+                                {
+                                    alreadyReturnedMilli = Convert.ToInt64(retVal);
+                                }
                             }
 
-                            string insertMovementSql = @"
-                                INSERT INTO stock_movements (
-                                    id, product_id, movement_type, quantity_milli, reference_id, reference_type,
-                                    unit_cost_piasters, note, batch_number, created_at
-                                ) VALUES (
-                                    @mId, @mProdId, 'SALE_CANCEL', @mQty, @mRefId, 'SALE_CANCEL',
-                                    @mUnitCost, @mNote, NULL, @mNow
-                                );
-                            ";
-                            using (var cmd = new SQLiteCommand(insertMovementSql, conn, trans))
+                            long unreturnedMilli = Math.Max(0L, item.QuantityMilli - alreadyReturnedMilli);
+                            long restoreQtyMilli = unreturnedMilli * factor;
+
+                            if (restoreQtyMilli > 0)
                             {
-                                cmd.Parameters.AddWithValue("@mId", Guid.NewGuid().ToString());
-                                cmd.Parameters.AddWithValue("@mProdId", item.ProductId);
-                                cmd.Parameters.AddWithValue("@mQty", item.QuantityMilli);
-                                cmd.Parameters.AddWithValue("@mRefId", sale.Id);
-                                cmd.Parameters.AddWithValue("@mUnitCost", item.UnitCostPiasters);
-                                cmd.Parameters.AddWithValue("@mNote", "إلغاء فاتورة مبيعات #" + sale.InvoiceNumber);
-                                cmd.Parameters.AddWithValue("@mNow", nowIso);
-                                cmd.ExecuteNonQuery();
+                                using (var cmd = new SQLiteCommand("UPDATE products SET stock_quantity_milli = stock_quantity_milli + @qty, updated_at = @now WHERE id = @prodId;", conn, trans))
+                                {
+                                    cmd.Parameters.AddWithValue("@qty", restoreQtyMilli);
+                                    cmd.Parameters.AddWithValue("@now", nowIso);
+                                    cmd.Parameters.AddWithValue("@prodId", item.ProductId);
+                                    cmd.ExecuteNonQuery();
+                                }
+
+                                // Synchronize variant table and parent product total stock if item is a variant
+                                string syncVariantStockSql = @"
+                                    UPDATE product_variants
+                                    SET stock_quantity_milli = stock_quantity_milli + @qty,
+                                        updated_at = @now
+                                    WHERE variant_product_id = @prodId;
+
+                                    UPDATE products
+                                    SET stock_quantity_milli = (
+                                        SELECT COALESCE(SUM(p2.stock_quantity_milli), 0)
+                                        FROM products p2
+                                        WHERE p2.parent_id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @prodId)
+                                    ),
+                                    updated_at = @now
+                                    WHERE id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @prodId AND p1.parent_id IS NOT NULL);
+                                ";
+                                using (var vSyncCmd = new SQLiteCommand(syncVariantStockSql, conn, trans))
+                                {
+                                    vSyncCmd.Parameters.AddWithValue("@qty", restoreQtyMilli);
+                                    vSyncCmd.Parameters.AddWithValue("@now", nowIso);
+                                    vSyncCmd.Parameters.AddWithValue("@prodId", item.ProductId);
+                                    vSyncCmd.ExecuteNonQuery();
+                                }
+
+                                string insertMovementSql = @"
+                                    INSERT INTO stock_movements (
+                                        id, product_id, movement_type, quantity_milli, reference_id, reference_type,
+                                        unit_cost_piasters, note, batch_number, created_at
+                                    ) VALUES (
+                                        @mId, @mProdId, 'SALE_CANCEL', @mQty, @mRefId, 'SALE_CANCEL',
+                                        @mUnitCost, @mNote, NULL, @mNow
+                                    );
+                                ";
+                                using (var cmd = new SQLiteCommand(insertMovementSql, conn, trans))
+                                {
+                                    cmd.Parameters.AddWithValue("@mId", Guid.NewGuid().ToString());
+                                    cmd.Parameters.AddWithValue("@mProdId", item.ProductId);
+                                    cmd.Parameters.AddWithValue("@mQty", restoreQtyMilli);
+                                    cmd.Parameters.AddWithValue("@mRefId", sale.Id);
+                                    cmd.Parameters.AddWithValue("@mUnitCost", item.UnitCostPiasters);
+                                    cmd.Parameters.AddWithValue("@mNote", "إلغاء فاتورة مبيعات #" + sale.InvoiceNumber);
+                                    cmd.Parameters.AddWithValue("@mNow", nowIso);
+                                    cmd.ExecuteNonQuery();
+                                }
                             }
                         }
 
@@ -918,6 +1001,43 @@ namespace RafiqPOS.Repositories
                                     lCmd.Parameters.AddWithValue("@amt", -debtAmount);
                                     lCmd.Parameters.AddWithValue("@after", newBal);
                                     lCmd.Parameters.AddWithValue("@notes", string.Format("إلغاء فاتورة آجل رقم #{0} - {1}", sale.InvoiceNumber, reason));
+                                    lCmd.Parameters.AddWithValue("@cat", nowIso);
+                                    lCmd.ExecuteNonQuery();
+                                }
+                            }
+                            else if (debtAmount < 0)
+                            {
+                                long excessAmount = Math.Abs(debtAmount);
+                                long currentBal = 0;
+                                using (var cCmd = new SQLiteCommand("SELECT balance_piasters FROM customers WHERE id = @cid LIMIT 1;", conn, trans))
+                                {
+                                    cCmd.Parameters.AddWithValue("@cid", sale.CustomerId);
+                                    object cRes = cCmd.ExecuteScalar();
+                                    if (cRes != null && cRes != DBNull.Value)
+                                    {
+                                        currentBal = Convert.ToInt64(cRes);
+                                    }
+                                }
+                                long newBal = currentBal + excessAmount; // Reverses customer credit
+                                using (var uCmd = new SQLiteCommand("UPDATE customers SET balance_piasters = @newBal WHERE id = @cid;", conn, trans))
+                                {
+                                    uCmd.Parameters.AddWithValue("@newBal", newBal);
+                                    uCmd.Parameters.AddWithValue("@cid", sale.CustomerId);
+                                    uCmd.ExecuteNonQuery();
+                                }
+
+                                string insLedgerSql = @"
+                                    INSERT INTO customer_ledger (id, customer_id, type, sale_id, amount_piasters, balance_after_piasters, notes, created_at)
+                                    VALUES (@lid, @cid, 'cancellation', @sid, @amt, @after, @notes, @cat);
+                                ";
+                                using (var lCmd = new SQLiteCommand(insLedgerSql, conn, trans))
+                                {
+                                    lCmd.Parameters.AddWithValue("@lid", "led_" + Guid.NewGuid().ToString("N").Substring(0, 12));
+                                    lCmd.Parameters.AddWithValue("@cid", sale.CustomerId);
+                                    lCmd.Parameters.AddWithValue("@sid", sale.Id);
+                                    lCmd.Parameters.AddWithValue("@amt", excessAmount);
+                                    lCmd.Parameters.AddWithValue("@after", newBal);
+                                    lCmd.Parameters.AddWithValue("@notes", string.Format("إلغاء فاتورة مبيعات مسددة بزيادة رقم #{0} - {1}", sale.InvoiceNumber, reason));
                                     lCmd.Parameters.AddWithValue("@cat", nowIso);
                                     lCmd.ExecuteNonQuery();
                                 }

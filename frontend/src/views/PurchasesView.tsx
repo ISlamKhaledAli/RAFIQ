@@ -64,7 +64,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
   const [purchaseNotes, setPurchaseNotes] = useState<string>('');
   const [discountPiasters, setDiscountPiasters] = useState<number>(0);
   const [paymentMode, setPaymentMode] = useState<'PAID' | 'CREDIT' | 'PARTIAL'>('PAID');
-  const [customPaidAmountPiasters, setCustomPaidAmountPiasters] = useState<number>(0);
+  const [customPaidAmountPiasters, setCustomPaidAmountPiasters] = useState<number | null>(null);
   const [lineItems, setLineItems] = useState<NewPurchaseLineItem[]>([]);
 
   // Product Search / Scanner for new purchase
@@ -266,11 +266,12 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
   }, [totalCostPiasters, discountPiasters]);
 
   const paidAmountPiasters = useMemo(() => {
-    if (paymentMode === 'PAID') {
-      return customPaidAmountPiasters > 0 ? customPaidAmountPiasters : netCostPiasters;
-    }
     if (paymentMode === 'CREDIT') return 0;
-    return Math.max(0, customPaidAmountPiasters);
+    if (customPaidAmountPiasters !== null) {
+      return Math.max(0, customPaidAmountPiasters);
+    }
+    if (paymentMode === 'PAID') return netCostPiasters;
+    return 0;
   }, [paymentMode, netCostPiasters, customPaidAmountPiasters]);
 
   const remainingAmountPiasters = useMemo(() => {
@@ -354,7 +355,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
         setSupplierInvoiceNumber('');
         setPurchaseNotes('');
         setDiscountPiasters(0);
-        setCustomPaidAmountPiasters(0);
+        setCustomPaidAmountPiasters(null);
         setPaymentMode('PAID');
         loadPurchases();
         loadSuppliers();
@@ -458,10 +459,11 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
     setIsPaymentModalOpen(true);
   };
 
-  const handleConfirmPayment = async (e: React.FormEvent) => {
+  const handleConfirmPayment = async (e: React.FormEvent, effectiveAmount?: number, customNotes?: string) => {
     e.preventDefault();
     if (!selectedSupplierForModal) return;
-    if (paymentAmountPiasters <= 0) {
+    const finalAmount = effectiveAmount !== undefined ? effectiveAmount : paymentAmountPiasters;
+    if (finalAmount <= 0) {
       showToast('مبلغ السداد يجب أن يكون أكبر من صفر', 'error');
       return;
     }
@@ -469,8 +471,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
     try {
       await invoke('suppliers:recordPayment', {
         supplierId: selectedSupplierForModal.id,
-        amountPiasters: paymentAmountPiasters,
-        notes: paymentNotes.trim() || 'سداد دفعة نقدية للمورد',
+        amountPiasters: finalAmount,
+        notes: customNotes || paymentNotes.trim() || 'سداد دفعة نقدية للمورد',
       });
       showToast('تم تسجيل سداد الدفعة بنجاح وتحديث رصيد المورد');
       setIsPaymentModalOpen(false);

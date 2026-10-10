@@ -983,11 +983,19 @@ export interface PurchaseAnalysisReport {
   totalPaidPiasters: number;
   totalUnpaidPiasters: number;
   topSuppliers: SupplierPurchaseItem[];
+  totalSupplierDebtsPiasters?: number;
+  debtorSuppliersCount?: number;
+  totalSupplierCreditsPiasters?: number;
+  creditorSuppliersCount?: number;
+  netSupplierExposurePiasters?: number;
 }
 
 export interface CreditOverviewReport {
   totalOutstandingDebtsPiasters: number;
   debtorsCount: number;
+  totalCustomerCreditsPiasters?: number;
+  creditorsCount?: number;
+  netMarketExposurePiasters?: number;
   periodNewCreditPiasters: number;
   periodRepaymentsPiasters: number;
   netCreditFlowPiasters: number;

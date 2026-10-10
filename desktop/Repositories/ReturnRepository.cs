@@ -46,21 +46,19 @@ namespace RafiqPOS.Repositories
                         int nextReturnNumber = (int)_counters.GetNextCounterNumber(conn, trans, "return_number", "returns", "return_number");
                         returnObj.ReturnNumber = nextReturnNumber;
 
-                        // Calculate total if not set
+                        // Calculate total and enforce consistency (prevent tampering)
                         long calculatedTotal = 0;
                         for (int i = 0; i < returnObj.Items.Count; i++)
                         {
                             var it = returnObj.Items[i];
-                            if (it.TotalPiasters <= 0 && it.UnitPricePiasters > 0 && it.QuantityMilli > 0)
+                            long lineTotal = (it.UnitPricePiasters * it.QuantityMilli) / 1000;
+                            if (it.TotalPiasters <= 0 || it.TotalPiasters != lineTotal)
                             {
-                                it.TotalPiasters = (it.UnitPricePiasters * it.QuantityMilli) / 1000;
+                                it.TotalPiasters = lineTotal;
                             }
                             calculatedTotal += it.TotalPiasters;
                         }
-                        if (returnObj.TotalPiasters <= 0)
-                        {
-                            returnObj.TotalPiasters = calculatedTotal;
-                        }
+                        returnObj.TotalPiasters = calculatedTotal;
 
                         // 2. Insert Returns Master record
                         string insertReturnSql = @"
@@ -139,6 +137,37 @@ namespace RafiqPOS.Repositories
                                 }
                             }
 
+                            // Determine conversion factor for multi-unit items
+                            int factor = item.ConversionFactor > 0 ? item.ConversionFactor : 1;
+                            if (factor == 1 && !string.IsNullOrEmpty(item.SaleItemId))
+                            {
+                                using (var fCmd = new SQLiteCommand("SELECT conversion_factor FROM sale_items WHERE id = @siId LIMIT 1;", conn, trans))
+                                {
+                                    fCmd.Parameters.AddWithValue("@siId", item.SaleItemId);
+                                    object fRes = fCmd.ExecuteScalar();
+                                    if (fRes != null && fRes != DBNull.Value)
+                                    {
+                                        int cf = Convert.ToInt32(fRes);
+                                        if (cf > 0) factor = cf;
+                                    }
+                                }
+                            }
+                            else if (factor == 1 && !string.IsNullOrEmpty(item.Unit) && item.Unit != "piece")
+                            {
+                                using (var fCmd = new SQLiteCommand("SELECT conversion_factor FROM product_units WHERE product_id = @pid AND unit_name = @uname LIMIT 1;", conn, trans))
+                                {
+                                    fCmd.Parameters.AddWithValue("@pid", item.ProductId);
+                                    fCmd.Parameters.AddWithValue("@uname", item.Unit);
+                                    object fRes = fCmd.ExecuteScalar();
+                                    if (fRes != null && fRes != DBNull.Value)
+                                    {
+                                        int cf = Convert.ToInt32(fRes);
+                                        if (cf > 0) factor = cf;
+                                    }
+                                }
+                            }
+                            long baseQtyMilli = item.QuantityMilli * factor;
+
                             if (!item.IsDamaged)
                             {
                                 // Restore stock for undamaged returned items
@@ -150,7 +179,7 @@ namespace RafiqPOS.Repositories
                                 ";
                                 using (var cmd = new SQLiteCommand(updateStockSql, conn, trans))
                                 {
-                                    cmd.Parameters.AddWithValue("@qty", item.QuantityMilli);
+                                    cmd.Parameters.AddWithValue("@qty", baseQtyMilli);
                                     cmd.Parameters.AddWithValue("@now", nowIso);
                                     cmd.Parameters.AddWithValue("@prodId", item.ProductId);
                                     cmd.ExecuteNonQuery();
@@ -174,7 +203,7 @@ namespace RafiqPOS.Repositories
                                 ";
                                 using (var vSyncCmd = new SQLiteCommand(syncVariantStockSql, conn, trans))
                                 {
-                                    vSyncCmd.Parameters.AddWithValue("@qty", item.QuantityMilli);
+                                    vSyncCmd.Parameters.AddWithValue("@qty", baseQtyMilli);
                                     vSyncCmd.Parameters.AddWithValue("@now", nowIso);
                                     vSyncCmd.Parameters.AddWithValue("@prodId", item.ProductId);
                                     vSyncCmd.ExecuteNonQuery();
@@ -194,7 +223,7 @@ namespace RafiqPOS.Repositories
                                 {
                                     cmd.Parameters.AddWithValue("@mId", Guid.NewGuid().ToString());
                                     cmd.Parameters.AddWithValue("@mProdId", item.ProductId);
-                                    cmd.Parameters.AddWithValue("@mQty", item.QuantityMilli);
+                                    cmd.Parameters.AddWithValue("@mQty", baseQtyMilli);
                                     cmd.Parameters.AddWithValue("@mRefId", returnObj.Id);
                                     cmd.Parameters.AddWithValue("@mUnitCost", unitCost);
                                     cmd.Parameters.AddWithValue("@mNote", string.Format("مرتجع بضاعة #{0} (فاتورة #{1})", returnObj.ReturnNumber, returnObj.InvoiceNumber.HasValue ? returnObj.InvoiceNumber.Value.ToString() : "بدون"));

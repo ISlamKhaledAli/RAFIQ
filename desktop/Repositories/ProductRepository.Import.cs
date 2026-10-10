@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using RafiqPOS.Common;
@@ -60,15 +60,23 @@ namespace RafiqPOS.Repositories
                 {
                     try
                     {
-                        // 1. Preload categories map (name.ToLower() -> id)
+                        // 1. Preload categories map (exact name & normalized name)
                         var categoryMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                        var normalizedCategoryMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                         using (var catCmd = new SQLiteCommand("SELECT id, name FROM categories;", conn, trans))
                         {
                             using (var catReader = catCmd.ExecuteReader())
                             {
                                 while (catReader.Read())
                                 {
-                                    categoryMap[catReader["name"].ToString().Trim()] = catReader["id"].ToString();
+                                    string cName = catReader["name"].ToString().Trim();
+                                    string cId = catReader["id"].ToString();
+                                    categoryMap[cName] = cId;
+                                    string normCName = ArabicTextNormalizer.Normalize(cName);
+                                    if (!string.IsNullOrEmpty(normCName) && !normalizedCategoryMap.ContainsKey(normCName))
+                                    {
+                                        normalizedCategoryMap[normCName] = cId;
+                                    }
                                 }
                             }
                         }
@@ -88,6 +96,27 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
+                        // 3. Preload existing products by name + variant for deduplication when barcode is missing
+                        var existingNameVariantMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                        using (var prodCmd = new SQLiteCommand("SELECT id, name, normalized_name, variant_color, variant_size FROM products;", conn, trans))
+                        {
+                            using (var prodReader = prodCmd.ExecuteReader())
+                            {
+                                while (prodReader.Read())
+                                {
+                                    string pid = prodReader["id"].ToString();
+                                    string normName = prodReader["normalized_name"] != DBNull.Value ? prodReader["normalized_name"].ToString() : ArabicTextNormalizer.Normalize(prodReader["name"].ToString());
+                                    string vColor = prodReader["variant_color"] != DBNull.Value ? prodReader["variant_color"].ToString().Trim() : "";
+                                    string vSize = prodReader["variant_size"] != DBNull.Value ? prodReader["variant_size"].ToString().Trim() : "";
+                                    string key = string.Format("{0}||{1}||{2}", normName, vColor, vSize);
+                                    if (!existingNameVariantMap.ContainsKey(key))
+                                    {
+                                        existingNameVariantMap[key] = pid;
+                                    }
+                                }
+                            }
+                        }
+
                         string now = DateTime.UtcNow.ToString("o");
 
                         foreach (var item in items)
@@ -97,14 +126,20 @@ namespace RafiqPOS.Repositories
                                 continue;
                             }
 
-                            // Resolve category
+                            // Resolve category with Arabic normalization to prevent duplicate categories
                             string categoryId = item.CategoryId;
                             if (string.IsNullOrWhiteSpace(categoryId))
                             {
                                 string catName = !string.IsNullOrWhiteSpace(item.CategoryName) ? item.CategoryName.Trim() : "عام";
+                                string normCatName = ArabicTextNormalizer.Normalize(catName);
+
                                 if (categoryMap.ContainsKey(catName))
                                 {
                                     categoryId = categoryMap[catName];
+                                }
+                                else if (!string.IsNullOrEmpty(normCatName) && normalizedCategoryMap.ContainsKey(normCatName))
+                                {
+                                    categoryId = normalizedCategoryMap[normCatName];
                                 }
                                 else
                                 {
@@ -117,10 +152,19 @@ namespace RafiqPOS.Repositories
                                         insCatCmd.ExecuteNonQuery();
                                     }
                                     categoryMap[catName] = categoryId;
+                                    if (!string.IsNullOrEmpty(normCatName))
+                                    {
+                                        normalizedCategoryMap[normCatName] = categoryId;
+                                    }
                                 }
                             }
 
-                            // Check duplicate barcode
+                            string cleanColor = !string.IsNullOrWhiteSpace(item.VariantColor) ? item.VariantColor.Trim() : "";
+                            string cleanSize = !string.IsNullOrWhiteSpace(item.VariantSize) ? item.VariantSize.Trim() : "";
+                            string itemNormName = ArabicTextNormalizer.Normalize(item.Name ?? "");
+                            string nameVariantKey = string.Format("{0}||{1}||{2}", itemNormName, cleanColor, cleanSize);
+
+                            // Check duplicate barcode or duplicate (name + color + size)
                             string primaryBarcode = !string.IsNullOrWhiteSpace(item.Barcode) ? item.Barcode.Trim() : null;
                             string existingProductId = null;
 
@@ -140,15 +184,24 @@ namespace RafiqPOS.Repositories
                                 }
                             }
 
+                            // If not matched by barcode, check if exact name and variant match already exists
+                            if (existingProductId == null && existingNameVariantMap.ContainsKey(nameVariantKey))
+                            {
+                                existingProductId = existingNameVariantMap[nameVariantKey];
+                            }
+
                             if (existingProductId != null)
                             {
                                 if (strat == "error")
                                 {
-                                    throw new InvalidOperationException(string.Format("الباركود '{0}' مسجل مسبقاً في النظام.", primaryBarcode));
+                                    string identifier = primaryBarcode != null
+                                        ? string.Format("الباركود '{0}'", primaryBarcode)
+                                        : string.Format("المنتج '{0}'", item.Name);
+                                    throw new InvalidOperationException(string.Format("الصنف {0} مسجل مسبقاً في النظام.", identifier));
                                 }
                                 else if (strat == "update")
                                 {
-                                    // Update existing product
+                                    // Update existing product including variant_color and variant_size
                                     string updateSql = @"
                                         UPDATE products SET
                                             name = @name,
@@ -162,6 +215,8 @@ namespace RafiqPOS.Repositories
                                             tax_rate_percent = @tax,
                                             internal_code = @internalCode,
                                             tax_category_code = @taxCategoryCode,
+                                            variant_color = @color,
+                                            variant_size = @size,
                                             is_active = 1,
                                             updated_at = @now
                                         WHERE id = @pid;
@@ -170,7 +225,7 @@ namespace RafiqPOS.Repositories
                                     {
                                         uCmd.Parameters.AddWithValue("@pid", existingProductId);
                                         uCmd.Parameters.AddWithValue("@name", item.Name.Trim());
-                                        uCmd.Parameters.AddWithValue("@normName", Common.ArabicTextNormalizer.Normalize(item.Name ?? ""));
+                                        uCmd.Parameters.AddWithValue("@normName", itemNormName);
                                         uCmd.Parameters.AddWithValue("@categoryId", (object)categoryId ?? DBNull.Value);
                                         uCmd.Parameters.AddWithValue("@price", item.PricePiasters);
                                         uCmd.Parameters.AddWithValue("@cost", item.CostPiasters);
@@ -180,6 +235,8 @@ namespace RafiqPOS.Repositories
                                         uCmd.Parameters.AddWithValue("@tax", item.TaxRatePercent);
                                         uCmd.Parameters.AddWithValue("@internalCode", (object)item.InternalCode ?? "");
                                         uCmd.Parameters.AddWithValue("@taxCategoryCode", (object)item.TaxCategoryCode ?? "");
+                                        uCmd.Parameters.AddWithValue("@color", !string.IsNullOrEmpty(cleanColor) ? (object)cleanColor : DBNull.Value);
+                                        uCmd.Parameters.AddWithValue("@size", !string.IsNullOrEmpty(cleanSize) ? (object)cleanSize : DBNull.Value);
                                         uCmd.Parameters.AddWithValue("@now", now);
                                         uCmd.ExecuteNonQuery();
                                     }
@@ -203,10 +260,12 @@ namespace RafiqPOS.Repositories
                             string insertSql = @"
                                 INSERT INTO products (
                                     id, barcode, internal_code, name, normalized_name, category_id, price_piasters, cost_piasters,
-                                    stock_quantity_milli, min_stock_quantity_milli, unit, tax_rate_percent, tax_category_code, is_active, created_at, updated_at
+                                    stock_quantity_milli, min_stock_quantity_milli, unit, tax_rate_percent, tax_category_code,
+                                    variant_color, variant_size, is_active, created_at, updated_at
                                 ) VALUES (
                                     @id, @barcode, @internalCode, @name, @normName, @categoryId, @price, @cost,
-                                    @stock, @minStock, @unit, @tax, @taxCategoryCode, 1, @now, @now
+                                    @stock, @minStock, @unit, @tax, @taxCategoryCode,
+                                    @color, @size, 1, @now, @now
                                 );
                             ";
                             using (var insCmd = new SQLiteCommand(insertSql, conn, trans))
@@ -215,7 +274,7 @@ namespace RafiqPOS.Repositories
                                 insCmd.Parameters.AddWithValue("@barcode", primaryBarcode);
                                 insCmd.Parameters.AddWithValue("@internalCode", (object)item.InternalCode ?? "");
                                 insCmd.Parameters.AddWithValue("@name", item.Name.Trim());
-                                insCmd.Parameters.AddWithValue("@normName", Common.ArabicTextNormalizer.Normalize(item.Name ?? ""));
+                                insCmd.Parameters.AddWithValue("@normName", itemNormName);
                                 insCmd.Parameters.AddWithValue("@categoryId", (object)categoryId ?? DBNull.Value);
                                 insCmd.Parameters.AddWithValue("@price", item.PricePiasters);
                                 insCmd.Parameters.AddWithValue("@cost", item.CostPiasters);
@@ -224,11 +283,14 @@ namespace RafiqPOS.Repositories
                                 insCmd.Parameters.AddWithValue("@unit", item.Unit ?? "piece");
                                 insCmd.Parameters.AddWithValue("@tax", item.TaxRatePercent);
                                 insCmd.Parameters.AddWithValue("@taxCategoryCode", (object)item.TaxCategoryCode ?? "");
+                                insCmd.Parameters.AddWithValue("@color", !string.IsNullOrEmpty(cleanColor) ? (object)cleanColor : DBNull.Value);
+                                insCmd.Parameters.AddWithValue("@size", !string.IsNullOrEmpty(cleanSize) ? (object)cleanSize : DBNull.Value);
                                 insCmd.Parameters.AddWithValue("@now", now);
                                 insCmd.ExecuteNonQuery();
                             }
 
                             existingBarcodeMap[primaryBarcode] = newId;
+                            existingNameVariantMap[nameVariantKey] = newId;
 
                             // Insert additional barcodes
                             if (item.Barcodes != null && item.Barcodes.Count > 0)
