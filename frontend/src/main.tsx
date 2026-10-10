@@ -13,13 +13,16 @@ import '@fontsource/cairo/800.css'
 import './index.css'
 import App from './App.tsx'
 import { FeaturesProvider } from './context/FeaturesProvider'
+import { AuthProvider } from './context/AuthContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
       <FeaturesProvider>
-        <App />
+        <AuthProvider>
+          <App />
+        </AuthProvider>
       </FeaturesProvider>
     </ErrorBoundary>
   </StrictMode>,

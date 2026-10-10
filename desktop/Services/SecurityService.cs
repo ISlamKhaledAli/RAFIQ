@@ -74,15 +74,24 @@ namespace RafiqPOS.Services
             try
             {
                 var all = _userRepo.GetAll(false);
+                bool hasRoot = false;
+                for (int i = 0; i < all.Count; i++)
+                {
+                    if (all[i].Role == "root") hasRoot = true;
+                }
+
                 for (int i = 0; i < all.Count; i++)
                 {
                     var u = all[i];
-                    if (u.Role == "owner")
+                    if (u.Role == "owner" || (!hasRoot && (u.Id == "usr_admin_default" || u.Username == "admin")))
                     {
-                        u.Role = "admin";
+                        u.Role = "root";
+                        u.MaxDepth = 99;
+                        u.CanDelegate = true;
+                        hasRoot = true;
                         _userRepo.Update(u);
                     }
-                    if (u.Role == "admin" && string.IsNullOrEmpty(u.PinSalt) && !string.IsNullOrEmpty(u.PinCodeHash))
+                    if ((u.Role == "admin" || u.Role == "root") && string.IsNullOrEmpty(u.PinSalt) && !string.IsNullOrEmpty(u.PinCodeHash))
                     {
                         try
                         {
@@ -92,6 +101,15 @@ namespace RafiqPOS.Services
                         {
                         }
                     }
+                }
+
+                if (!hasRoot && all.Count > 0)
+                {
+                    var first = all[0];
+                    first.Role = "root";
+                    first.MaxDepth = 99;
+                    first.CanDelegate = true;
+                    _userRepo.Update(first);
                 }
             }
             catch
@@ -151,31 +169,7 @@ namespace RafiqPOS.Services
 
         public UserDto GetCurrentSessionUser()
         {
-            if (_currentUserSession != null)
-            {
-                return _currentUserSession;
-            }
-
-            // If no user is logged in, check if default admin exists
-            if (_userRepo != null)
-            {
-                var admin = _userRepo.GetById("usr_admin_default");
-                if (admin != null)
-                {
-                    _currentUserSession = MapToDto(admin);
-                    return _currentUserSession;
-                }
-            }
-
-            return new UserDto
-            {
-                Id = "usr_admin_default",
-                Username = "admin",
-                DisplayName = "مدير النظام",
-                Role = "admin",
-                IsActive = true,
-                Permissions = GetPermissionsForRole("admin")
-            };
+            return _currentUserSession;
         }
 
         public LoginResult Login(string usernameOrId, string pin)
@@ -227,16 +221,37 @@ namespace RafiqPOS.Services
                 return res;
             }
 
-            // Check PIN hash
+            // Check Password first if set
             bool matches = false;
-            if (!string.IsNullOrEmpty(user.PinCodeHash))
+            if (!string.IsNullOrEmpty(user.PasswordHash) && !string.IsNullOrEmpty(user.PasswordSalt))
+            {
+                try
+                {
+                    byte[] pSalt = Convert.FromBase64String(user.PasswordSalt);
+                    byte[] expectedPHash = Convert.FromBase64String(user.PasswordHash);
+                    byte[] actualPHash = HashWithSalt(pin, pSalt);
+                    matches = SlowEquals(expectedPHash, actualPHash);
+                }
+                catch
+                {
+                }
+            }
+
+            // If not matched by password, check PIN hash
+            if (!matches && !string.IsNullOrEmpty(user.PinCodeHash))
             {
                 if (!string.IsNullOrEmpty(user.PinSalt))
                 {
-                    byte[] salt = Convert.FromBase64String(user.PinSalt);
-                    byte[] expectedHash = Convert.FromBase64String(user.PinCodeHash);
-                    byte[] actualHash = HashWithSalt(pin, salt);
-                    matches = SlowEquals(expectedHash, actualHash);
+                    try
+                    {
+                        byte[] salt = Convert.FromBase64String(user.PinSalt);
+                        byte[] expectedHash = Convert.FromBase64String(user.PinCodeHash);
+                        byte[] actualHash = HashWithSalt(pin, salt);
+                        matches = SlowEquals(expectedHash, actualHash);
+                    }
+                    catch
+                    {
+                    }
                 }
                 else
                 {
@@ -256,7 +271,8 @@ namespace RafiqPOS.Services
                 var dto = MapToDto(user);
                 _currentUserSession = dto;
 
-                LogAudit("USER_LOGIN", "SECURITY", user.Username, string.Format("تسجيل دخول الموظف: {0} ({1})", user.DisplayName, user.Role == "admin" ? "مدير" : "كاشير"));
+                string roleName = user.Role == "root" ? "المالك (Root)" : (user.Role == "admin" ? "مدير النظام" : user.Role);
+                LogAudit("USER_LOGIN", "SECURITY", user.Username, string.Format("تسجيل دخول الموظف: {0} ({1})", user.DisplayName, roleName));
 
                 res.Success = true;
                 res.User = dto;
@@ -330,17 +346,17 @@ namespace RafiqPOS.Services
 
         public UserDto CreateUser(string username, string displayName, string pin, string role)
         {
+            return CreateSubUser(null, username, displayName, null, pin, role, null, role == "admin", role == "admin" ? 2 : 0);
+        }
+
+        public UserDto CreateSubUser(string parentUserId, string username, string displayName, string password, string pin, string role, Dictionary<string, bool> permissions, bool canDelegate, int maxDepth)
+        {
             if (_userRepo == null) throw new InvalidOperationException("UserRepository is null");
 
             if (string.IsNullOrEmpty(username)) throw new ArgumentException("اسم المستخدم مطلوب");
             if (string.IsNullOrEmpty(displayName)) throw new ArgumentException("اسم الموظف مطلوب");
-            if (string.IsNullOrEmpty(pin) || pin.Length < 4 || pin.Length > 8)
-                throw new ArgumentException("يجب أن يتكون الرقم السري من 4 إلى 8 أرقام");
-
-            for (int i = 0; i < pin.Length; i++)
-            {
-                if (!char.IsDigit(pin[i])) throw new ArgumentException("يجب أن يحتوي الرقم السري على أرقام فقط");
-            }
+            if (string.IsNullOrEmpty(password) && string.IsNullOrEmpty(pin))
+                throw new ArgumentException("يجب إدخال كلمة مرور أو رقم سري للموظف");
 
             string cleanUsername = username.Trim().ToLowerInvariant();
             if (_userRepo.GetByUsername(cleanUsername) != null)
@@ -348,24 +364,114 @@ namespace RafiqPOS.Services
                 throw new InvalidOperationException("اسم المستخدم موجود بالفعل");
             }
 
-            byte[] salt = GenerateSalt();
-            byte[] hash = HashWithSalt(pin, salt);
+            User parent = null;
+            if (!string.IsNullOrEmpty(parentUserId))
+            {
+                parent = _userRepo.GetById(parentUserId);
+            }
+            if (parent == null && _currentUserSession != null)
+            {
+                parent = _userRepo.GetById(_currentUserSession.Id);
+            }
+
+            if (parent == null)
+            {
+                if (_userRepo.GetActiveRootCount() > 0)
+                {
+                    throw new UnauthorizedAccessException("غير مصرح بإنشاء حساب بدون مستخدم أب.");
+                }
+            }
+
+            bool isParentRoot = (parent != null && parent.Role == "root");
+            int childMaxDepth = 0;
+            bool childCanDelegate = false;
+
+            if (parent != null)
+            {
+                if (!parent.IsActive)
+                {
+                    throw new InvalidOperationException("حساب المستخدم الأب معطّل، لا يمكن إنشاء حسابات فرعية تحته.");
+                }
+
+                if (!isParentRoot)
+                {
+                    if (!parent.CanDelegate)
+                    {
+                        throw new UnauthorizedAccessException("المستخدم لا يملك صلاحية تفويض أو إنشاء حسابات فرعية.");
+                    }
+                    if (parent.MaxDepth <= 0)
+                    {
+                        throw new InvalidOperationException("تم الوصول إلى أقصى عمق مسموح به للتفويض الفرعي.");
+                    }
+
+                    childMaxDepth = Math.Min(maxDepth, parent.MaxDepth - 1);
+                    if (childMaxDepth < 0) childMaxDepth = 0;
+                    childCanDelegate = canDelegate && (childMaxDepth > 0);
+
+                    // Filter permissions: child can only receive permissions that parent actually possesses
+                    var parentPerms = GetEffectivePermissions(parent);
+                    var filtered = new Dictionary<string, bool>();
+                    if (permissions != null)
+                    {
+                        foreach (var kvp in permissions)
+                        {
+                            bool parentHas = parentPerms.ContainsKey(kvp.Key) && parentPerms[kvp.Key];
+                            filtered[kvp.Key] = kvp.Value && parentHas;
+                        }
+                    }
+                    permissions = filtered;
+                }
+                else
+                {
+                    childMaxDepth = maxDepth > 0 ? maxDepth : 2;
+                    childCanDelegate = canDelegate;
+                }
+            }
+
+            string passSaltStr = null;
+            string passHashStr = null;
+            if (!string.IsNullOrEmpty(password))
+            {
+                byte[] pSalt = GenerateSalt();
+                byte[] pHash = HashWithSalt(password, pSalt);
+                passSaltStr = Convert.ToBase64String(pSalt);
+                passHashStr = Convert.ToBase64String(pHash);
+            }
+
+            string pinSaltStr = null;
+            string pinHashStr = null;
+            if (!string.IsNullOrEmpty(pin))
+            {
+                byte[] pSalt = GenerateSalt();
+                byte[] pHash = HashWithSalt(pin, pSalt);
+                pinSaltStr = Convert.ToBase64String(pSalt);
+                pinHashStr = Convert.ToBase64String(pHash);
+            }
+
+            string permsJson = permissions != null ? JsonConvert.SerializeObject(permissions) : null;
 
             var user = new User
             {
                 Id = "usr_" + Guid.NewGuid().ToString("N"),
                 Username = cleanUsername,
                 DisplayName = displayName.Trim(),
-                PinCodeHash = Convert.ToBase64String(hash),
-                PinSalt = Convert.ToBase64String(salt),
-                Role = role == "admin" ? "admin" : "cashier",
+                PasswordHash = passHashStr,
+                PasswordSalt = passSaltStr,
+                PinCodeHash = pinHashStr ?? "",
+                PinSalt = pinSaltStr ?? "",
+                Role = string.IsNullOrEmpty(role) ? "cashier" : role,
                 IsActive = true,
                 FailedAttempts = 0,
+                PermissionsJson = permsJson,
+                ParentId = parent != null ? parent.Id : null,
+                MaxDepth = childMaxDepth,
+                CreatedBy = parent != null ? parent.Id : null,
+                CanDelegate = childCanDelegate,
                 CreatedAt = DateTime.UtcNow.ToString("o")
             };
 
             _userRepo.Insert(user);
-            LogAudit("USER_CREATED", "SECURITY", user.Username, string.Format("تم إنشاء حساب جديد: {0} ({1})", user.DisplayName, user.Role));
+            LogAudit("USER_CREATED", "SECURITY", user.Username, string.Format("تم إنشاء حساب جديد: {0} ({1}) تحت: {2}", user.DisplayName, user.Role, parent != null ? parent.DisplayName : "Root"));
 
             return MapToDto(user);
         }
@@ -377,8 +483,19 @@ namespace RafiqPOS.Services
             var user = _userRepo.GetById(userId);
             if (user == null) throw new ArgumentException("الموظف غير موجود");
 
-            // Prevent removing last active admin
-            if (user.Role == "admin" && (role != "admin" || !isActive))
+            if (user.Role == "root")
+            {
+                if (!isActive)
+                {
+                    throw new InvalidOperationException("لا يمكن تعطيل حساب الـ Root المالك للنظام.");
+                }
+                if (role != "root")
+                {
+                    throw new InvalidOperationException("لا يمكن تغيير دور حساب الـ Root.");
+                }
+            }
+
+            if ((user.Role == "admin" || user.Role == "root") && (role != "admin" && role != "root" || !isActive))
             {
                 int activeAdmins = _userRepo.GetActiveAdminCount();
                 if (activeAdmins <= 1)
@@ -387,17 +504,244 @@ namespace RafiqPOS.Services
                 }
             }
 
+            bool wasActive = user.IsActive;
             user.DisplayName = displayName.Trim();
-            user.Role = role == "admin" ? "admin" : "cashier";
+            if (user.Role != "root")
+            {
+                user.Role = string.IsNullOrEmpty(role) ? "cashier" : role;
+            }
             user.IsActive = isActive;
 
             _userRepo.Update(user);
             LogAudit("USER_UPDATED", "SECURITY", user.Username, string.Format("تم تحديث بيانات الموظف: {0} ({1}) - الحالة: {2}", user.DisplayName, user.Role, isActive ? "نشط" : "معطّل"));
+
+            if (wasActive && !isActive)
+            {
+                CascadeDeactivate(user.Id);
+            }
+        }
+
+        public void UpdateUserPermissions(string userId, Dictionary<string, bool> permissions)
+        {
+            if (_userRepo == null) throw new InvalidOperationException("UserRepository is null");
+            var user = _userRepo.GetById(userId);
+            if (user == null) throw new ArgumentException("الموظف غير موجود");
+
+            if (user.Role == "root")
+            {
+                throw new InvalidOperationException("حساب الـ Root يملك جميع الصلاحيات دائماً ولا يمكن تقييده.");
+            }
+
+            string permsJson = permissions != null ? JsonConvert.SerializeObject(permissions) : "{}";
+            user.PermissionsJson = permsJson;
+            _userRepo.Update(user);
+            LogAudit("USER_PERMISSIONS_UPDATED", "SECURITY", user.Username, string.Format("تم تحديث صلاحيات الحساب: {0}", user.DisplayName));
+
+            CascadeRevokePermissions(user.Id, permissions);
+        }
+
+        public void SetUserDelegation(string userId, bool canDelegate, int maxDepth)
+        {
+            if (_userRepo == null) throw new InvalidOperationException("UserRepository is null");
+            var user = _userRepo.GetById(userId);
+            if (user == null) throw new ArgumentException("الموظف غير موجود");
+
+            if (user.Role == "root")
+            {
+                throw new InvalidOperationException("حساب الـ Root يملك أعلى مستوى تفويض دائماً.");
+            }
+
+            user.CanDelegate = canDelegate;
+            user.MaxDepth = maxDepth >= 0 ? maxDepth : 0;
+            _userRepo.Update(user);
+            LogAudit("USER_DELEGATION_UPDATED", "SECURITY", user.Username, string.Format("تحديث صلاحية التفويض للحساب: {0} (يمكنه التفويض: {1}, أقصى عمق: {2})", user.DisplayName, canDelegate, maxDepth));
+        }
+
+        private void CascadeDeactivate(string parentId)
+        {
+            if (string.IsNullOrEmpty(parentId) || _userRepo == null) return;
+            var children = _userRepo.GetByParentId(parentId);
+            for (int i = 0; i < children.Count; i++)
+            {
+                var child = children[i];
+                if (child.IsActive)
+                {
+                    _userRepo.SetStatus(child.Id, false);
+                    LogAudit("CASCADE_DEACTIVATE", "SECURITY", child.Username, string.Format("تعطيل تلقائي للحساب {0} لتعطيل حسابه الأعلى", child.DisplayName));
+                    CascadeDeactivate(child.Id);
+                }
+            }
+        }
+
+        private void CascadeRevokePermissions(string parentId, Dictionary<string, bool> parentPerms)
+        {
+            if (string.IsNullOrEmpty(parentId) || parentPerms == null || _userRepo == null) return;
+            var children = _userRepo.GetByParentId(parentId);
+            for (int i = 0; i < children.Count; i++)
+            {
+                var child = children[i];
+                if (!string.IsNullOrEmpty(child.PermissionsJson))
+                {
+                    try
+                    {
+                        var childPerms = JsonConvert.DeserializeObject<Dictionary<string, bool>>(child.PermissionsJson);
+                        if (childPerms != null)
+                        {
+                            bool changed = false;
+                            var keys = new List<string>(childPerms.Keys);
+                            for (int k = 0; k < keys.Count; k++)
+                            {
+                                string key = keys[k];
+                                if (childPerms[key] && (!parentPerms.ContainsKey(key) || !parentPerms[key]))
+                                {
+                                    childPerms[key] = false;
+                                    changed = true;
+                                }
+                            }
+                            if (changed)
+                            {
+                                child.PermissionsJson = JsonConvert.SerializeObject(childPerms);
+                                _userRepo.Update(child);
+                                CascadeRevokePermissions(child.Id, childPerms);
+                            }
+                        }
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+        }
+
+        public List<UserDto> GetUserTree(string parentUserId = null)
+        {
+            if (_userRepo == null) return new List<UserDto>();
+
+            var allUsers = _userRepo.GetAll(false);
+            var dtos = new Dictionary<string, UserDto>();
+            for (int i = 0; i < allUsers.Count; i++)
+            {
+                var d = MapToDto(allUsers[i]);
+                d.Children = new List<UserDto>();
+                dtos[d.Id] = d;
+            }
+
+            var rootNodes = new List<UserDto>();
+            foreach (var kvp in dtos)
+            {
+                var dto = kvp.Value;
+                if (string.IsNullOrEmpty(dto.ParentId) || !dtos.ContainsKey(dto.ParentId))
+                {
+                    rootNodes.Add(dto);
+                }
+                else
+                {
+                    dtos[dto.ParentId].Children.Add(dto);
+                }
+            }
+
+            if (!string.IsNullOrEmpty(parentUserId) && dtos.ContainsKey(parentUserId))
+            {
+                return new List<UserDto> { dtos[parentUserId] };
+            }
+
+            if (_currentUserSession != null && _currentUserSession.Role != "root" && _currentUserSession.Role != "admin")
+            {
+                if (dtos.ContainsKey(_currentUserSession.Id))
+                {
+                    return new List<UserDto> { dtos[_currentUserSession.Id] };
+                }
+            }
+
+            return rootNodes;
+        }
+
+        public void SetUserPassword(string userId, string newPassword, string currentPasswordOrSupervisorPin)
+        {
+            if (_userRepo == null) throw new InvalidOperationException("UserRepository is null");
+            var user = _userRepo.GetById(userId);
+            if (user == null) throw new ArgumentException("الموظف غير موجود");
+
+            if (string.IsNullOrEmpty(newPassword) || newPassword.Length < 4)
+            {
+                throw new ArgumentException("يجب أن لا تقل كلمة المرور عن 4 أحرف أو أرقام.");
+            }
+
+            bool authorized = false;
+            if (IsCurrentSessionRoot() || IsCurrentSessionAdmin())
+            {
+                authorized = true;
+            }
+            else if (!string.IsNullOrEmpty(currentPasswordOrSupervisorPin))
+            {
+                if (VerifyUserPassword(userId, currentPasswordOrSupervisorPin))
+                {
+                    authorized = true;
+                }
+                else if (VerifySupervisorPin(currentPasswordOrSupervisorPin, "CHANGE_PASSWORD").Success)
+                {
+                    authorized = true;
+                }
+            }
+
+            if (!authorized)
+            {
+                throw new UnauthorizedAccessException("غير مصرح بتغيير كلمة المرور دون تأكيد الهوية.");
+            }
+
+            byte[] salt = GenerateSalt();
+            byte[] hash = HashWithSalt(newPassword, salt);
+            _userRepo.UpdatePassword(userId, Convert.ToBase64String(hash), Convert.ToBase64String(salt));
+            LogAudit("PASSWORD_CHANGED", "SECURITY", user.Username, string.Format("تم تغيير كلمة المرور للموظف: {0}", user.DisplayName));
+        }
+
+        public bool VerifyUserPassword(string userId, string password)
+        {
+            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(password) || _userRepo == null)
+                return false;
+            var user = _userRepo.GetById(userId);
+            if (user == null || string.IsNullOrEmpty(user.PasswordHash) || string.IsNullOrEmpty(user.PasswordSalt))
+                return false;
+
+            try
+            {
+                byte[] salt = Convert.FromBase64String(user.PasswordSalt);
+                byte[] expectedHash = Convert.FromBase64String(user.PasswordHash);
+                byte[] actualHash = HashWithSalt(password, salt);
+                return SlowEquals(expectedHash, actualHash);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public bool HasPermission(string userId, string permKey)
+        {
+            if (string.IsNullOrEmpty(permKey)) return true;
+            if (_userRepo == null) return false;
+
+            User user = !string.IsNullOrEmpty(userId) ? _userRepo.GetById(userId) : null;
+            if (user == null && _currentUserSession != null)
+            {
+                user = _userRepo.GetById(_currentUserSession.Id);
+            }
+            if (user == null) return false;
+
+            if (user.Role == "root") return true;
+
+            var perms = GetEffectivePermissions(user);
+            return perms.ContainsKey(permKey) && perms[permKey];
+        }
+
+        public bool IsCurrentSessionRoot()
+        {
+            return _currentUserSession != null && _currentUserSession.Role == "root";
         }
 
         public bool IsCurrentSessionAdmin()
         {
-            return _currentUserSession != null && _currentUserSession.Role == "admin";
+            return _currentUserSession != null && (_currentUserSession.Role == "admin" || _currentUserSession.Role == "root");
         }
 
         public bool VerifyUserPin(string userId, string pin)
@@ -530,7 +874,7 @@ namespace RafiqPOS.Services
             var admins = new List<User>();
             for (int i = 0; i < allUsers.Count; i++)
             {
-                if (allUsers[i].Role == "admin" || allUsers[i].Role == "owner")
+                if (allUsers[i].Role == "admin" || allUsers[i].Role == "owner" || allUsers[i].Role == "root")
                 {
                     admins.Add(allUsers[i]);
                 }
@@ -981,6 +1325,102 @@ namespace RafiqPOS.Services
             return diff == 0;
         }
 
+        public static readonly string[] ALL_PERMISSIONS = new string[]
+        {
+            "pos.access", "pos.sell", "pos.discount_line", "pos.discount_invoice", "pos.discount_unlimited",
+            "pos.hold_invoice", "pos.price_override", "pos.void_line", "pos.quick_add", "pos.reprint",
+            "invoices.view", "invoices.cancel", "returns.create", "returns.without_invoice",
+            "products.view", "products.create", "products.edit", "products.edit_price", "products.edit_cost",
+            "products.archive", "products.import", "products.export", "categories.manage",
+            "stock.view", "stock.adjust", "stock.movement_log",
+            "purchases.view", "purchases.create", "suppliers.manage",
+            "customers.view", "customers.create", "customers.edit", "customers.ledger",
+            "customers.payment", "customers.payment_cancel", "customers.credit_sale",
+            "reports.sales", "reports.profit", "reports.inventory", "reports.customers", "reports.cashier", "reports.daily_closing",
+            "settings.store", "settings.printer", "settings.barcode", "settings.features", "settings.backup", "settings.restore", "settings.license",
+            "users.view", "users.create", "users.edit", "users.deactivate", "users.reset_pin", "users.delegate",
+            "audit_log.view", "expenses.view", "expenses.create", "expenses.delete",
+            // Legacy aliases
+            "pos", "customers", "products", "inventory", "reports", "settings", "users",
+            "discounts", "price_edit", "stock_adjust", "db_recovery", "refunds", "cancel_sale"
+        };
+
+        public static Dictionary<string, bool> GetAllPermissionsDictionary(bool defaultValue)
+        {
+            var dict = new Dictionary<string, bool>();
+            for (int i = 0; i < ALL_PERMISSIONS.Length; i++)
+            {
+                dict[ALL_PERMISSIONS[i]] = defaultValue;
+            }
+            return dict;
+        }
+
+        public static Dictionary<string, bool> GetEffectivePermissions(User u)
+        {
+            if (u == null) return new Dictionary<string, bool>();
+
+            if (u.Role == "root")
+            {
+                return GetAllPermissionsDictionary(true);
+            }
+
+            var p = GetPermissionsForRole(u.Role);
+            if (!string.IsNullOrEmpty(u.PermissionsJson))
+            {
+                try
+                {
+                    var custom = JsonConvert.DeserializeObject<Dictionary<string, bool>>(u.PermissionsJson);
+                    if (custom != null)
+                    {
+                        foreach (var kvp in custom)
+                        {
+                            p[kvp.Key] = kvp.Value;
+                        }
+                    }
+                }
+                catch
+                {
+                }
+            }
+
+            SyncPermissionAliases(p);
+            return p;
+        }
+
+        private static void SyncPermissionAliases(Dictionary<string, bool> p)
+        {
+            if (p == null) return;
+            if (p.ContainsKey("pos.access")) p["pos"] = p["pos.access"];
+            else if (p.ContainsKey("pos")) p["pos.access"] = p["pos"];
+
+            if (p.ContainsKey("products.view")) p["products"] = p["products.view"];
+            else if (p.ContainsKey("products")) p["products.view"] = p["products"];
+
+            if (p.ContainsKey("customers.view")) p["customers"] = p["customers.view"];
+            else if (p.ContainsKey("customers")) p["customers.view"] = p["customers"];
+
+            if (p.ContainsKey("stock.view")) p["inventory"] = p["stock.view"];
+            else if (p.ContainsKey("inventory")) p["stock.view"] = p["inventory"];
+
+            if (p.ContainsKey("reports.sales")) p["reports"] = p["reports.sales"];
+            else if (p.ContainsKey("reports")) p["reports.sales"] = p["reports"];
+
+            if (p.ContainsKey("settings.store")) p["settings"] = p["settings.store"];
+            else if (p.ContainsKey("settings")) p["settings.store"] = p["settings"];
+
+            if (p.ContainsKey("users.view")) p["users"] = p["users.view"];
+            else if (p.ContainsKey("users")) p["users.view"] = p["users"];
+
+            if (p.ContainsKey("pos.discount_invoice")) p["discounts"] = p["pos.discount_invoice"];
+            else if (p.ContainsKey("discounts")) p["pos.discount_invoice"] = p["discounts"];
+
+            if (p.ContainsKey("stock.adjust")) p["stock_adjust"] = p["stock.adjust"];
+            else if (p.ContainsKey("stock_adjust")) p["stock.adjust"] = p["stock_adjust"];
+
+            if (p.ContainsKey("pos.price_override")) p["price_edit"] = p["pos.price_override"];
+            else if (p.ContainsKey("price_edit")) p["pos.price_override"] = p["price_edit"];
+        }
+
         private static UserDto MapToDto(User u)
         {
             int remainingSec = 0;
@@ -1005,7 +1445,13 @@ namespace RafiqPOS.Services
                 IsActive = u.IsActive,
                 IsLocked = remainingSec > 0,
                 RemainingLockoutSeconds = remainingSec,
-                Permissions = GetPermissionsForRole(u.Role),
+                Permissions = GetEffectivePermissions(u),
+                ParentId = u.ParentId,
+                MaxDepth = u.MaxDepth,
+                CreatedBy = u.CreatedBy,
+                CanDelegate = u.CanDelegate,
+                HasPassword = !string.IsNullOrEmpty(u.PasswordHash),
+                Children = new List<UserDto>(),
                 CreatedAt = u.CreatedAt,
                 LastLoginAt = u.LastLoginAt
             };
@@ -1013,22 +1459,96 @@ namespace RafiqPOS.Services
 
         public static Dictionary<string, bool> GetPermissionsForRole(string role)
         {
-            var p = new Dictionary<string, bool>();
-            bool isAdmin = (role == "admin");
+            var p = GetAllPermissionsDictionary(false);
+            bool isRoot = (role == "root");
+            bool isAdmin = (role == "admin" || isRoot);
 
-            p["pos"] = true;                       // شاشة البيع متاحة للجميع
-            p["customers"] = true;                 // العملاء والدفتر
-            p["products"] = isAdmin;               // إدارة وحذف المنتجات
-            p["inventory"] = isAdmin;              // شاشة الجرد
-            p["reports"] = isAdmin;                // شاشة التقارير والأرباح
-            p["settings"] = isAdmin;               // شاشة الإعدادات
-            p["users"] = isAdmin;                  // إدارة الموظفين
-            p["discounts"] = isAdmin;              // منح الخصومات المفتوحة
-            p["price_edit"] = isAdmin;             // تعديل الأسعار يدويًا
-            p["stock_adjust"] = isAdmin;           // تسوية المخزون
-            p["db_recovery"] = isAdmin;            // استعادة وتصفير القاعدة
-            p["refunds"] = isAdmin;                // فواتير المرتجع
-            p["cancel_sale"] = isAdmin;            // إلغاء الفاتورة بالكامل
+            if (isRoot)
+            {
+                return GetAllPermissionsDictionary(true);
+            }
+
+            // POS
+            p["pos.access"] = true;
+            p["pos.sell"] = true;
+            p["pos.hold_invoice"] = true;
+            p["pos.void_line"] = true;
+            p["pos.reprint"] = true;
+            p["pos.quick_add"] = true;
+            p["pos.discount_line"] = true;
+            p["pos.discount_invoice"] = isAdmin;
+            p["pos.discount_unlimited"] = isAdmin;
+            p["pos.price_override"] = isAdmin;
+
+            // Invoices & Returns
+            p["invoices.view"] = true;
+            p["invoices.cancel"] = isAdmin;
+            p["returns.create"] = isAdmin;
+            p["returns.without_invoice"] = isAdmin;
+
+            // Products
+            p["products.view"] = true;
+            p["products.create"] = isAdmin;
+            p["products.edit"] = isAdmin;
+            p["products.edit_price"] = isAdmin;
+            p["products.edit_cost"] = isAdmin;
+            p["products.archive"] = isAdmin;
+            p["products.import"] = isAdmin;
+            p["products.export"] = isAdmin;
+            p["categories.manage"] = isAdmin;
+
+            // Stock
+            p["stock.view"] = isAdmin;
+            p["stock.adjust"] = isAdmin;
+            p["stock.movement_log"] = isAdmin;
+
+            // Purchases & Suppliers
+            p["purchases.view"] = isAdmin;
+            p["purchases.create"] = isAdmin;
+            p["suppliers.manage"] = isAdmin;
+
+            // Customers
+            p["customers.view"] = true;
+            p["customers.create"] = true;
+            p["customers.edit"] = isAdmin;
+            p["customers.ledger"] = isAdmin;
+            p["customers.payment"] = true;
+            p["customers.payment_cancel"] = isAdmin;
+            p["customers.credit_sale"] = true;
+
+            // Reports
+            p["reports.sales"] = isAdmin;
+            p["reports.profit"] = isAdmin;
+            p["reports.inventory"] = isAdmin;
+            p["reports.customers"] = isAdmin;
+            p["reports.cashier"] = isAdmin;
+            p["reports.daily_closing"] = isAdmin;
+
+            // Settings
+            p["settings.store"] = isAdmin;
+            p["settings.printer"] = isAdmin;
+            p["settings.barcode"] = isAdmin;
+            p["settings.features"] = isAdmin;
+            p["settings.backup"] = isAdmin;
+            p["settings.restore"] = isAdmin;
+            p["settings.license"] = isAdmin;
+
+            // Users
+            p["users.view"] = isAdmin;
+            p["users.create"] = isAdmin;
+            p["users.edit"] = isAdmin;
+            p["users.deactivate"] = isAdmin;
+            p["users.reset_pin"] = isAdmin;
+            p["users.delegate"] = isAdmin;
+
+            // Audit & Expenses
+            p["audit_log.view"] = isAdmin;
+            p["expenses.view"] = isAdmin;
+            p["expenses.create"] = isAdmin;
+            p["expenses.delete"] = isAdmin;
+
+            SyncPermissionAliases(p);
+
             return p;
         }
 

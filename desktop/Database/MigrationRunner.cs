@@ -6,7 +6,7 @@ namespace RafiqPOS.Database
 {
     public static class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 25;
+        public const int LATEST_SUPPORTED_VERSION = 26;
 
         public static void ApplyMigrations(string connectionString, string dbPath)
         {
@@ -231,7 +231,14 @@ namespace RafiqPOS.Database
                     ApplyMigration25(conn);
                 }
 
-                // 29. Self-Healing Schema Guard: Automatically repair missing columns or indexes
+                // 29. Apply Migration 26: Hierarchical Authentication and Permission Tree System
+                if (currentVersion < 26)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration26(conn);
+                }
+
+                // 30. Self-Healing Schema Guard: Automatically repair missing columns or indexes
                 EnsureSchemaHealth(conn);
             }
         }
@@ -961,10 +968,54 @@ namespace RafiqPOS.Database
                                 }
                             }
 
+                            if (!uCols.Contains("parent_id"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE users ADD COLUMN parent_id TEXT;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+                            if (!uCols.Contains("max_depth"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE users ADD COLUMN max_depth INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+                            if (!uCols.Contains("created_by"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE users ADD COLUMN created_by TEXT;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+                            if (!uCols.Contains("can_delegate"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE users ADD COLUMN can_delegate INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+                            if (!uCols.Contains("password_hash"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE users ADD COLUMN password_hash TEXT;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+                            if (!uCols.Contains("password_salt"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE users ADD COLUMN password_salt TEXT;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+
                             using (var idxCmd = new SQLiteCommand(@"
                                 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
                                 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
                                 CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active);
+                                CREATE INDEX IF NOT EXISTS idx_users_parent_id ON users(parent_id);
                             ", conn, trans))
                             {
                                 idxCmd.ExecuteNonQuery();
@@ -1175,6 +1226,124 @@ namespace RafiqPOS.Database
                     using (var logCmd = new SQLiteCommand(@"
                         INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
                         VALUES (25, 'Product Variants (Sizes & Colors) System (Feature #114)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        logCmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        private static void ApplyMigration26(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // 1. Add hierarchy and password columns to users table
+                    var uCols = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    using (var infoCmd = new SQLiteCommand("PRAGMA table_info(users);", conn, trans))
+                    using (var reader = infoCmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            uCols.Add(reader["name"].ToString());
+                        }
+                    }
+
+                    if (!uCols.Contains("parent_id"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE users ADD COLUMN parent_id TEXT;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (!uCols.Contains("max_depth"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE users ADD COLUMN max_depth INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (!uCols.Contains("created_by"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE users ADD COLUMN created_by TEXT;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (!uCols.Contains("can_delegate"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE users ADD COLUMN can_delegate INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (!uCols.Contains("password_hash"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE users ADD COLUMN password_hash TEXT;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (!uCols.Contains("password_salt"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE users ADD COLUMN password_salt TEXT;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    // 2. Index on parent_id
+                    using (var idxCmd = new SQLiteCommand("CREATE INDEX IF NOT EXISTS idx_users_parent_id ON users(parent_id);", conn, trans))
+                    {
+                        idxCmd.ExecuteNonQuery();
+                    }
+
+                    // 3. Promote default admin to root if exists, or promote first admin to root
+                    using (var promoteDefault = new SQLiteCommand(@"
+                        UPDATE users 
+                        SET role = 'root', 
+                            parent_id = NULL, 
+                            max_depth = 99, 
+                            can_delegate = 1
+                        WHERE id = 'usr_admin_default' OR username = 'admin';
+                    ", conn, trans))
+                    {
+                        promoteDefault.ExecuteNonQuery();
+                    }
+
+                    // If still no root user, check if any user exists, promote first user
+                    using (var checkRoot = new SQLiteCommand("SELECT COUNT(*) FROM users WHERE role = 'root';", conn, trans))
+                    {
+                        long rootCount = Convert.ToInt64(checkRoot.ExecuteScalar());
+                        if (rootCount == 0)
+                        {
+                            using (var promoteFirst = new SQLiteCommand(@"
+                                UPDATE users 
+                                SET role = 'root', 
+                                    parent_id = NULL, 
+                                    max_depth = 99, 
+                                    can_delegate = 1 
+                                WHERE id IN (SELECT id FROM users ORDER BY created_at ASC LIMIT 1);
+                            ", conn, trans))
+                            {
+                                promoteFirst.ExecuteNonQuery();
+                            }
+                        }
+                    }
+
+                    // 4. Update schema_migrations
+                    using (var logCmd = new SQLiteCommand(@"
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (26, 'Hierarchical Authentication and Permission Tree System', datetime('now'));
                     ", conn, trans))
                     {
                         logCmd.ExecuteNonQuery();

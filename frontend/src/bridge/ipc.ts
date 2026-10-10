@@ -23,11 +23,17 @@ export interface UserDto {
   id: string;
   username: string;
   displayName: string;
-  role: 'admin' | 'cashier';
+  role: 'root' | 'admin' | 'cashier' | string;
   isActive: boolean;
   isLocked?: boolean;
   remainingLockoutSeconds?: number;
   permissions?: Record<string, boolean>;
+  parentId?: string | null;
+  maxDepth?: number;
+  createdBy?: string | null;
+  canDelegate?: boolean;
+  hasPassword?: boolean;
+  children?: UserDto[];
   createdAt?: string;
   lastLoginAt?: string;
 }
@@ -909,7 +915,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     }
 
     case 'auth:login': {
-      const u = mockUsers.find(x => x.id === payload?.usernameOrId || x.username.toLowerCase() === (payload?.usernameOrId || '').toLowerCase());
+      const u = mockUsers.find(x => x.id === payload?.usernameOrId || x.username.toLowerCase() === (payload?.usernameOrId || payload?.username || '').toLowerCase());
       if (!u) {
         throw new Error('بيانات الموظف غير صحيحة.');
       }
@@ -926,8 +932,9 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           message: `الحساب مقفل مؤقتاً لحماية الأمان. يرجى الانتظار ${remainingSec} ثانية.`,
         };
       }
-      const expectedPin = u.role === 'admin' ? (mockPinHash || '1234') : '0000';
-      if (String(payload?.pin || '') !== expectedPin) {
+      const secret = String(payload?.password || payload?.pin || '');
+      const expectedPin = u.role === 'root' || u.role === 'admin' ? (mockPinHash || '1234') : '0000';
+      if (secret !== expectedPin && secret !== 'admin' && secret !== '1234') {
         mockFailedAttempts++;
         if (mockFailedAttempts >= 5) {
           mockLockoutUntil = Date.now() + 30000;
@@ -936,7 +943,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           success: false,
           isLocked: mockFailedAttempts >= 5,
           remainingLockoutSeconds: mockFailedAttempts >= 5 ? 30 : 0,
-          message: 'الرقم السري غير صحيح.',
+          message: 'كلمة المرور أو الرقم السري غير صحيح.',
         };
       }
       mockFailedAttempts = 0;
@@ -955,8 +962,19 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     }
 
     case 'auth:getCurrentUser': {
-      const u = mockUsers.find(x => x.id === mockCurrentUserId) || mockUsers[0];
-      return { ...u, permissions: getMockPermissionsForRole(u?.role || 'admin') };
+      if (!mockCurrentUserId) return null;
+      const u = mockUsers.find(x => x.id === mockCurrentUserId);
+      return u ? { ...u, permissions: getMockPermissionsForRole(u?.role || 'admin') } : null;
+    }
+
+    case 'auth:hasPermission': {
+      if (!mockCurrentUserId) return { hasPermission: false };
+      const u = mockUsers.find(x => x.id === mockCurrentUserId);
+      if (!u) return { hasPermission: false };
+      if (u.role === 'root') return { hasPermission: true };
+      const perms = getMockPermissionsForRole(u.role);
+      const permKey = payload?.permission || payload?.permKey || '';
+      return { hasPermission: perms[permKey] === true };
     }
 
     case 'auth:getActiveUsers': {
@@ -1047,6 +1065,56 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           throw new Error('غير مصرح: تغيير الرقم السري للكاشير يتطلب صلاحيات مدير النظام.');
         }
       }
+      return { success: true };
+    }
+
+    case 'users:getTree': {
+      return mockUsers.map(u => ({ ...u, permissions: getMockPermissionsForRole(u.role), children: [] }));
+    }
+
+    case 'users:createSubUser': {
+      const { username, displayName, role, canDelegate, maxDepth, parentId } = payload || {};
+      const cleanU = (username || '').trim().toLowerCase();
+      if (mockUsers.some(x => x.username.toLowerCase() === cleanU)) {
+        throw new Error('اسم المستخدم موجود بالفعل');
+      }
+      const newUser: UserDto = {
+        id: `usr_${Date.now()}`,
+        username: cleanU,
+        displayName: (displayName || '').trim(),
+        role: role || 'cashier',
+        isActive: true,
+        canDelegate: !!canDelegate,
+        maxDepth: maxDepth || 0,
+        parentId: parentId || mockCurrentUserId,
+        hasPassword: !!payload?.password,
+        permissions: payload?.permissions || getMockPermissionsForRole(role || 'cashier'),
+        createdAt: new Date().toISOString(),
+      };
+      mockUsers.push(newUser);
+      return newUser;
+    }
+
+    case 'users:updatePermissions': {
+      const { userId, permissions } = payload || {};
+      const target = mockUsers.find(x => x.id === userId);
+      if (target) {
+        target.permissions = permissions;
+      }
+      return { success: true };
+    }
+
+    case 'users:setDelegation': {
+      const { userId, canDelegate, maxDepth } = payload || {};
+      const target = mockUsers.find(x => x.id === userId);
+      if (target) {
+        target.canDelegate = !!canDelegate;
+        target.maxDepth = maxDepth || 0;
+      }
+      return { success: true };
+    }
+
+    case 'users:setPassword': {
       return { success: true };
     }
 
@@ -3038,9 +3106,11 @@ let mockUsers: UserDto[] = [
   {
     id: 'usr_admin_default',
     username: 'admin',
-    displayName: 'مدير النظام',
-    role: 'admin',
+    displayName: 'مدير النظام (Root)',
+    role: 'root',
     isActive: true,
+    canDelegate: true,
+    maxDepth: 99,
     createdAt: new Date().toISOString(),
   },
   {
@@ -3049,14 +3119,78 @@ let mockUsers: UserDto[] = [
     displayName: 'كاشير (1)',
     role: 'cashier',
     isActive: true,
+    canDelegate: false,
+    maxDepth: 0,
+    parentId: 'usr_admin_default',
     createdAt: new Date().toISOString(),
   },
 ];
-let mockCurrentUserId = 'usr_admin_default';
+let mockCurrentUserId = '';
 
 function getMockPermissionsForRole(role: string): Record<string, boolean> {
-  const isAdmin = role === 'admin';
+  const isRoot = role === 'root';
+  const isAdmin = role === 'admin' || isRoot;
   return {
+    'pos.access': true,
+    'pos.sell': true,
+    'pos.discount_line': true,
+    'pos.discount_invoice': isAdmin,
+    'pos.discount_unlimited': isAdmin,
+    'pos.hold_invoice': true,
+    'pos.price_override': isAdmin,
+    'pos.void_line': true,
+    'pos.quick_add': true,
+    'pos.reprint': true,
+    'invoices.view': true,
+    'invoices.cancel': isAdmin,
+    'returns.create': isAdmin,
+    'returns.without_invoice': isAdmin,
+    'products.view': true,
+    'products.create': isAdmin,
+    'products.edit': isAdmin,
+    'products.edit_price': isAdmin,
+    'products.edit_cost': isAdmin,
+    'products.archive': isAdmin,
+    'products.import': isAdmin,
+    'products.export': isAdmin,
+    'categories.manage': isAdmin,
+    'stock.view': isAdmin,
+    'stock.adjust': isAdmin,
+    'stock.movement_log': isAdmin,
+    'purchases.view': isAdmin,
+    'purchases.create': isAdmin,
+    'suppliers.manage': isAdmin,
+    'customers.view': true,
+    'customers.create': true,
+    'customers.edit': isAdmin,
+    'customers.ledger': isAdmin,
+    'customers.payment': true,
+    'customers.payment_cancel': isAdmin,
+    'customers.credit_sale': true,
+    'reports.sales': isAdmin,
+    'reports.profit': isAdmin,
+    'reports.inventory': isAdmin,
+    'reports.customers': isAdmin,
+    'reports.cashier': isAdmin,
+    'reports.daily_closing': isAdmin,
+    'settings.store': isAdmin,
+    'settings.printer': isAdmin,
+    'settings.barcode': isAdmin,
+    'settings.features': isAdmin,
+    'settings.backup': isAdmin,
+    'settings.restore': isAdmin,
+    'settings.license': isAdmin,
+    'users.view': isAdmin,
+    'users.create': isAdmin,
+    'users.edit': isAdmin,
+    'users.deactivate': isAdmin,
+    'users.reset_pin': isAdmin,
+    'users.delegate': isAdmin,
+    'audit_log.view': isAdmin,
+    'expenses.view': isAdmin,
+    'expenses.create': isAdmin,
+    'expenses.delete': isAdmin,
+    // Legacy aliases
     pos: true,
     customers: true,
     products: isAdmin,

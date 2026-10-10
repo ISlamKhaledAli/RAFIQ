@@ -64,7 +64,6 @@ import { GuidedTourModal } from './components/GuidedTourModal';
 import { ReadinessCheckModal } from './components/ReadinessCheckModal';
 import { RafiqDialogContainer } from './components/RafiqDialog';
 import { rafiqConfirm, rafiqAlert } from './utils/dialogService';
-import type { UserDto } from './bridge/ipc';
 import { LoginModal } from './components/LoginModal';
 import { UserManagerModal } from './components/UserManagerModal';
 import { SupervisorPromptModal } from './components/SupervisorPromptModal';
@@ -73,6 +72,8 @@ import type { LicenseExpiryDetails } from './components/LicenseExpiredLockScreen
 import { LicenseModal } from './components/LicenseModal';
 import { HelpCenterModal } from './components/HelpCenterModal';
 import { useFeatures } from './context/useFeatures';
+import { useAuth } from './context/useAuth';
+import { LoginScreen } from './views/LoginScreen';
 
 export interface SystemInfo {
   appName: string;
@@ -126,8 +127,8 @@ const CASHIER_ALLOWED_TABS: TabType[] = ['pos', 'customers'];
 
 export default function App() {
   const { isEnabled } = useFeatures();
+  const { currentUser, logout, hasPermission, isRoot, isAdmin, refreshUser } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('pos');
-  const [currentUser, setCurrentUser] = useState<UserDto | null>(null);
   const isCashier = currentUser?.role === 'cashier';
   const effectiveActiveTab: TabType = isCashier && !CASHIER_ALLOWED_TABS.includes(activeTab) ? 'pos' : activeTab;
 
@@ -541,11 +542,7 @@ export default function App() {
           }
         }
       }
-      const u: UserDto = await invoke('auth:getCurrentUser');
-      if (u) {
-        setCurrentUser(u);
-        setCashierName(u.displayName);
-      }
+      void refreshUser();
       const sec: any = await invoke('security:getStatus');
       if (sec && typeof sec.idleTimeoutMinutes === 'number') {
         setIdleTimeoutMinutes(sec.idleTimeoutMinutes);
@@ -553,7 +550,7 @@ export default function App() {
     } catch {
       // Ignore in dev
     }
-  }, []);
+  }, [refreshUser]);
 
   const refreshLowStock = useCallback(async () => {
     try {
@@ -700,9 +697,34 @@ export default function App() {
     { id: 'settings' as TabType, label: 'إعدادات المحل والسيستم', icon: Settings, shortcut: 'Alt+8' },
   ];
 
-  const navItems = currentUser?.role === 'cashier'
-    ? allNavItems.filter((item) => CASHIER_ALLOWED_TABS.includes(item.id))
-    : allNavItems;
+  const canAccessPos = hasPermission('pos.access') || hasPermission('pos');
+  const canAccessDashboard = hasPermission('reports.sales') || hasPermission('reports');
+  const canAccessCustomers = hasPermission('customers.view') || hasPermission('customers');
+  const canAccessProducts = hasPermission('products.view') || hasPermission('products');
+  const canAccessPurchases = hasPermission('purchases.view');
+  const canAccessSales = hasPermission('invoices.view');
+  const canAccessAudit = hasPermission('audit_log.view');
+  const canAccessSettings = hasPermission('settings.store') || hasPermission('settings');
+
+  const navItems = allNavItems.filter((item) => {
+    switch (item.id) {
+      case 'pos': return canAccessPos;
+      case 'dashboard': return canAccessDashboard;
+      case 'customers': return canAccessCustomers;
+      case 'products': return canAccessProducts;
+      case 'purchases': return canAccessPurchases;
+      case 'sales': return canAccessSales;
+      case 'audit': return canAccessAudit;
+      case 'settings': return canAccessSettings;
+      default: return true;
+    }
+  });
+
+  useEffect(() => {
+    if (navItems.length > 0 && !navItems.some((n) => n.id === activeTab)) {
+      setActiveTab(navItems[0].id);
+    }
+  }, [navItems, activeTab]);
 
   if (isFirstRunWizardOpen) {
     return (
@@ -717,6 +739,15 @@ export default function App() {
             window.location.reload();
           }}
         />
+        <RafiqDialogContainer />
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <div className="fixed inset-0 z-[9999] w-screen h-screen overflow-hidden select-none bg-canvas" dir="rtl">
+        <LoginScreen />
         <RafiqDialogContainer />
       </div>
     );
@@ -769,34 +800,55 @@ export default function App() {
             title="انقر لتبديل الموظف أو قفل الشاشة"
           >
             <div className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-extrabold shrink-0 ${
-              currentUser?.role === 'admin' ? 'bg-warn text-white shadow-2xs' : 'bg-paid text-white shadow-2xs'
+              isRoot ? 'bg-brand text-white shadow-2xs' : isAdmin ? 'bg-warn text-white shadow-2xs' : 'bg-paid text-white shadow-2xs'
             }`}>
               {currentUser?.displayName ? currentUser.displayName.slice(0, 1) : 'ك'}
             </div>
             <span className="font-bold text-ink text-xs max-w-[90px] sm:max-w-[120px] truncate">{currentUser?.displayName || cashierName || 'كاشير (1)'}</span>
             <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold shrink-0 ${
-              currentUser?.role === 'admin' ? 'bg-amber-100 text-amber-900 border border-amber-200' : 'bg-emerald-100 text-emerald-900 border border-emerald-200'
+              isRoot ? 'bg-emerald-100 text-brand-dark border border-emerald-300' : isAdmin ? 'bg-amber-100 text-amber-900 border border-amber-200' : 'bg-surface-2 text-ink-muted border border-line'
             }`}>
-              {currentUser?.role === 'admin' ? 'مدير' : 'كاشير'}
+              {isRoot ? 'المالك (Root)' : isAdmin ? 'مدير' : (currentUser?.role || 'كاشير')}
             </span>
             <KeyRound className="w-3 h-3 text-ink-muted group-hover:text-paid transition-colors shrink-0" />
           </button>
 
-          {/* Manage Users Button for Admin (Task 166-4) */}
-          {currentUser?.role === 'admin' && (
+          {/* Manage Users Button for Admin/Root or authorized managers (Task 166-4) */}
+          {(isAdmin || hasPermission('users.view')) && (
             <button
               type="button"
               onClick={() => setIsUserManagerOpen(true)}
               className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-surface hover:bg-amber-50/70 border border-amber-200 hover:border-amber-300 text-amber-900 font-bold text-xs shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer shrink-0"
-              title="إدارة حسابات الموظفين والصلاحيات"
+              title="إدارة حسابات الموظفين والصلاحيات والشجرة"
             >
               <Users className="w-3.5 h-3.5 text-amber-600 shrink-0" />
               <span className="hidden xl:inline">الموظفون</span>
             </button>
           )}
 
+          {/* Logout Button */}
+          <button
+            type="button"
+            onClick={async () => {
+              const confirmed = await rafiqConfirm({
+                title: 'تسجيل الخروج',
+                message: 'هل تريد تسجيل الخروج وقفل شاشة الكاشير الآن؟',
+                confirmText: 'تسجيل الخروج',
+                cancelText: 'إلغاء',
+              });
+              if (confirmed) {
+                await logout();
+              }
+            }}
+            className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-surface hover:bg-danger/10 border border-line hover:border-danger/30 text-ink-muted hover:text-danger font-bold text-xs shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer shrink-0"
+            title="تسجيل الخروج وقفل النظام"
+          >
+            <Power className="w-3.5 h-3.5 text-danger shrink-0" />
+            <span className="hidden xl:inline">خروج</span>
+          </button>
+
           {/* Readiness Checklist Button (Feature #137) - Admin Only */}
-          {currentUser?.role === 'admin' && (
+          {isAdmin && (
             <button
               type="button"
               onClick={() => setIsReadinessOpen(true)}
@@ -1397,7 +1449,7 @@ export default function App() {
         canCancel={Boolean(currentUser)}
         onClose={() => setIsLoginModalOpen(false)}
         onSuccess={(user) => {
-          setCurrentUser(user);
+          void refreshUser();
           setCashierName(user.displayName);
           setIsLoginModalOpen(false);
           // Cashiers are guided to POS
@@ -1412,15 +1464,7 @@ export default function App() {
         isOpen={isUserManagerOpen}
         onClose={() => setIsUserManagerOpen(false)}
         onUsersChanged={async () => {
-          try {
-            const u: UserDto = await invoke('auth:getCurrentUser');
-            if (u) {
-              setCurrentUser(u);
-              setCashierName(u.displayName);
-            }
-          } catch {
-            // ignore
-          }
+          void refreshUser();
         }}
       />
 

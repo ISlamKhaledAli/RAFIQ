@@ -20,7 +20,7 @@ namespace RafiqPOS.Repositories
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = "SELECT id, username, display_name, pin_code_hash, pin_salt, role, is_active, failed_attempts, lockout_until, permissions_json, created_at, updated_at, last_login_at FROM users";
+                string sql = "SELECT id, username, display_name, pin_code_hash, pin_salt, role, is_active, failed_attempts, lockout_until, permissions_json, parent_id, max_depth, created_by, can_delegate, password_hash, password_salt, created_at, updated_at, last_login_at FROM users";
                 if (onlyActive)
                 {
                     sql += " WHERE is_active = 1";
@@ -46,7 +46,7 @@ namespace RafiqPOS.Repositories
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = "SELECT id, username, display_name, pin_code_hash, pin_salt, role, is_active, failed_attempts, lockout_until, permissions_json, created_at, updated_at, last_login_at FROM users WHERE id = @id LIMIT 1;";
+                string sql = "SELECT id, username, display_name, pin_code_hash, pin_salt, role, is_active, failed_attempts, lockout_until, permissions_json, parent_id, max_depth, created_by, can_delegate, password_hash, password_salt, created_at, updated_at, last_login_at FROM users WHERE id = @id LIMIT 1;";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@id", id);
@@ -69,7 +69,7 @@ namespace RafiqPOS.Repositories
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = "SELECT id, username, display_name, pin_code_hash, pin_salt, role, is_active, failed_attempts, lockout_until, permissions_json, created_at, updated_at, last_login_at FROM users WHERE username = @username COLLATE NOCASE LIMIT 1;";
+                string sql = "SELECT id, username, display_name, pin_code_hash, pin_salt, role, is_active, failed_attempts, lockout_until, permissions_json, parent_id, max_depth, created_by, can_delegate, password_hash, password_salt, created_at, updated_at, last_login_at FROM users WHERE username = @username COLLATE NOCASE LIMIT 1;";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@username", username);
@@ -83,6 +83,44 @@ namespace RafiqPOS.Repositories
                 }
             }
             return null;
+        }
+
+        public List<User> GetByParentId(string parentId)
+        {
+            var list = new List<User>();
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = "SELECT id, username, display_name, pin_code_hash, pin_salt, role, is_active, failed_attempts, lockout_until, permissions_json, parent_id, max_depth, created_by, can_delegate, password_hash, password_salt, created_at, updated_at, last_login_at FROM users WHERE parent_id = @parentId ORDER BY display_name ASC;";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@parentId", parentId);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            list.Add(MapUser(reader));
+                        }
+                    }
+                }
+            }
+            return list;
+        }
+
+        public bool HasChildren(string userId)
+        {
+            if (string.IsNullOrEmpty(userId)) return false;
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = "SELECT COUNT(*) FROM users WHERE parent_id = @id LIMIT 1;";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", userId);
+                    long count = Convert.ToInt64(cmd.ExecuteScalar());
+                    return count > 0;
+                }
+            }
         }
 
         public void Insert(User user)
@@ -103,8 +141,8 @@ namespace RafiqPOS.Repositories
             {
                 conn.Open();
                 string sql = @"
-                    INSERT INTO users (id, username, display_name, pin_code_hash, pin_salt, role, is_active, failed_attempts, lockout_until, permissions_json, created_at, updated_at, last_login_at)
-                    VALUES (@id, @username, @displayName, @pinCodeHash, @pinSalt, @role, @isActive, @failedAttempts, @lockoutUntil, @permissionsJson, @createdAt, @updatedAt, @lastLoginAt);
+                    INSERT INTO users (id, username, display_name, pin_code_hash, pin_salt, role, is_active, failed_attempts, lockout_until, permissions_json, parent_id, max_depth, created_by, can_delegate, password_hash, password_salt, created_at, updated_at, last_login_at)
+                    VALUES (@id, @username, @displayName, @pinCodeHash, @pinSalt, @role, @isActive, @failedAttempts, @lockoutUntil, @permissionsJson, @parentId, @maxDepth, @createdBy, @canDelegate, @passwordHash, @passwordSalt, @createdAt, @updatedAt, @lastLoginAt);
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
@@ -118,6 +156,12 @@ namespace RafiqPOS.Repositories
                     cmd.Parameters.AddWithValue("@failedAttempts", user.FailedAttempts);
                     cmd.Parameters.AddWithValue("@lockoutUntil", (object)user.LockoutUntil ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@permissionsJson", (object)user.PermissionsJson ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@parentId", (object)user.ParentId ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@maxDepth", user.MaxDepth);
+                    cmd.Parameters.AddWithValue("@createdBy", (object)user.CreatedBy ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@canDelegate", user.CanDelegate ? 1 : 0);
+                    cmd.Parameters.AddWithValue("@passwordHash", (object)user.PasswordHash ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@passwordSalt", (object)user.PasswordSalt ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@createdAt", user.CreatedAt);
                     cmd.Parameters.AddWithValue("@updatedAt", user.UpdatedAt);
                     cmd.Parameters.AddWithValue("@lastLoginAt", (object)user.LastLoginAt ?? DBNull.Value);
@@ -141,6 +185,9 @@ namespace RafiqPOS.Repositories
                         role = @role,
                         is_active = @isActive,
                         permissions_json = @permissionsJson,
+                        parent_id = @parentId,
+                        max_depth = @maxDepth,
+                        can_delegate = @canDelegate,
                         updated_at = @updatedAt
                     WHERE id = @id;
                 ";
@@ -151,6 +198,9 @@ namespace RafiqPOS.Repositories
                     cmd.Parameters.AddWithValue("@role", user.Role ?? "cashier");
                     cmd.Parameters.AddWithValue("@isActive", user.IsActive ? 1 : 0);
                     cmd.Parameters.AddWithValue("@permissionsJson", (object)user.PermissionsJson ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@parentId", (object)user.ParentId ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@maxDepth", user.MaxDepth);
+                    cmd.Parameters.AddWithValue("@canDelegate", user.CanDelegate ? 1 : 0);
                     cmd.Parameters.AddWithValue("@updatedAt", user.UpdatedAt);
                     cmd.ExecuteNonQuery();
                 }
@@ -176,6 +226,31 @@ namespace RafiqPOS.Repositories
                     cmd.Parameters.AddWithValue("@id", userId);
                     cmd.Parameters.AddWithValue("@pinHash", pinHash ?? "");
                     cmd.Parameters.AddWithValue("@pinSalt", pinSalt ?? "");
+                    cmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
+                    cmd.ExecuteNonQuery();
+                }
+            }
+        }
+
+        public void UpdatePassword(string userId, string passwordHash, string passwordSalt)
+        {
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = @"
+                    UPDATE users 
+                    SET password_hash = @passHash,
+                        password_salt = @passSalt,
+                        failed_attempts = 0,
+                        lockout_until = NULL,
+                        updated_at = @updatedAt
+                    WHERE id = @id;
+                ";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", userId);
+                    cmd.Parameters.AddWithValue("@passHash", passwordHash ?? "");
+                    cmd.Parameters.AddWithValue("@passSalt", passwordSalt ?? "");
                     cmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
                     cmd.ExecuteNonQuery();
                 }
@@ -249,7 +324,20 @@ namespace RafiqPOS.Repositories
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = "SELECT COUNT(*) FROM users WHERE role = 'admin' AND is_active = 1;";
+                string sql = "SELECT COUNT(*) FROM users WHERE (role = 'admin' OR role = 'root') AND is_active = 1;";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    return Convert.ToInt32(cmd.ExecuteScalar());
+                }
+            }
+        }
+
+        public int GetActiveRootCount()
+        {
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = "SELECT COUNT(*) FROM users WHERE role = 'root' AND is_active = 1;";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     return Convert.ToInt32(cmd.ExecuteScalar());
@@ -270,6 +358,12 @@ namespace RafiqPOS.Repositories
             u.FailedAttempts = reader["failed_attempts"] != DBNull.Value ? Convert.ToInt32(reader["failed_attempts"]) : 0;
             u.LockoutUntil = reader["lockout_until"] != DBNull.Value ? reader["lockout_until"].ToString() : null;
             u.PermissionsJson = reader["permissions_json"] != DBNull.Value ? reader["permissions_json"].ToString() : null;
+            u.ParentId = reader["parent_id"] != DBNull.Value ? reader["parent_id"].ToString() : null;
+            u.MaxDepth = reader["max_depth"] != DBNull.Value ? Convert.ToInt32(reader["max_depth"]) : 0;
+            u.CreatedBy = reader["created_by"] != DBNull.Value ? reader["created_by"].ToString() : null;
+            u.CanDelegate = reader["can_delegate"] != DBNull.Value && Convert.ToInt32(reader["can_delegate"]) == 1;
+            u.PasswordHash = reader["password_hash"] != DBNull.Value ? reader["password_hash"].ToString() : null;
+            u.PasswordSalt = reader["password_salt"] != DBNull.Value ? reader["password_salt"].ToString() : null;
             u.CreatedAt = reader["created_at"].ToString();
             u.UpdatedAt = reader["updated_at"] != DBNull.Value ? reader["updated_at"].ToString() : null;
             u.LastLoginAt = reader["last_login_at"] != DBNull.Value ? reader["last_login_at"].ToString() : null;

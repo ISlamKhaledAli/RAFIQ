@@ -132,9 +132,19 @@ namespace RafiqPOS.Bridge
                         return true;
                     }
                     JObject loginObj = request.Payload as JObject;
-                    string loginUser = loginObj != null && loginObj["usernameOrId"] != null ? loginObj["usernameOrId"].ToString() : "";
-                    string loginPin = loginObj != null && loginObj["pin"] != null ? loginObj["pin"].ToString() : "";
-                    var loginRes = DatabaseService.Security.Login(loginUser, loginPin);
+                    string loginUser = "";
+                    if (loginObj != null)
+                    {
+                        if (loginObj["username"] != null) loginUser = loginObj["username"].ToString();
+                        else if (loginObj["usernameOrId"] != null) loginUser = loginObj["usernameOrId"].ToString();
+                    }
+                    string loginSecret = "";
+                    if (loginObj != null)
+                    {
+                        if (loginObj["password"] != null) loginSecret = loginObj["password"].ToString();
+                        else if (loginObj["pin"] != null) loginSecret = loginObj["pin"].ToString();
+                    }
+                    var loginRes = DatabaseService.Security.Login(loginUser, loginSecret);
                     if (!loginRes.Success)
                     {
                         response = BridgeResponse.Fail(request.Id, "AUTH_FAILED", loginRes.Message, loginRes);
@@ -151,6 +161,23 @@ namespace RafiqPOS.Bridge
                 case "auth:getCurrentUser":
                     var currentUserDto = DatabaseService.Security.GetCurrentSessionUser();
                     response = BridgeResponse.Ok(request.Id, currentUserDto);
+                    return true;
+
+                case "auth:hasPermission":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "مفتاح الصلاحية مطلوب");
+                        return true;
+                    }
+                    JObject hasObj = request.Payload as JObject;
+                    string permKey = "";
+                    if (hasObj != null)
+                    {
+                        if (hasObj["permission"] != null) permKey = hasObj["permission"].ToString();
+                        else if (hasObj["permKey"] != null) permKey = hasObj["permKey"].ToString();
+                    }
+                    bool hasPerm = DatabaseService.Security.HasPermission(null, permKey);
+                    response = BridgeResponse.Ok(request.Id, new { hasPermission = hasPerm });
                     return true;
 
                 case "auth:getActiveUsers":
@@ -189,6 +216,125 @@ namespace RafiqPOS.Bridge
                     }
                     var allUsersList = DatabaseService.Security.GetAllUsers();
                     response = BridgeResponse.Ok(request.Id, allUsersList);
+                    return true;
+
+                case "users:getTree":
+                    JObject treeObj = request.Payload as JObject;
+                    string treeParentId = treeObj != null && treeObj["parentId"] != null ? treeObj["parentId"].ToString() : null;
+                    var treeList = DatabaseService.Security.GetUserTree(treeParentId);
+                    response = BridgeResponse.Ok(request.Id, treeList);
+                    return true;
+
+                case "users:createSubUser":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات إنشاء الحساب فارغة");
+                        return true;
+                    }
+                    JObject subObj = request.Payload as JObject;
+                    string sParentId = subObj != null && subObj["parentId"] != null ? subObj["parentId"].ToString() : null;
+                    string sUsername = subObj != null && subObj["username"] != null ? subObj["username"].ToString() : "";
+                    string sDisplayName = subObj != null && subObj["displayName"] != null ? subObj["displayName"].ToString() : "";
+                    string sPassword = subObj != null && subObj["password"] != null ? subObj["password"].ToString() : null;
+                    string sPin = subObj != null && subObj["pin"] != null ? subObj["pin"].ToString() : null;
+                    string sRole = subObj != null && subObj["role"] != null ? subObj["role"].ToString() : "cashier";
+                    bool sCanDelegate = subObj != null && subObj["canDelegate"] != null ? subObj["canDelegate"].Value<bool>() : false;
+                    int sMaxDepth = subObj != null && subObj["maxDepth"] != null ? subObj["maxDepth"].Value<int>() : 0;
+                    Dictionary<string, bool> sPerms = null;
+                    if (subObj != null && subObj["permissions"] != null)
+                    {
+                        sPerms = JsonConvert.DeserializeObject<Dictionary<string, bool>>(subObj["permissions"].ToString());
+                    }
+                    try
+                    {
+                        var createdSub = DatabaseService.Security.CreateSubUser(sParentId, sUsername, sDisplayName, sPassword, sPin, sRole, sPerms, sCanDelegate, sMaxDepth);
+                        response = BridgeResponse.Ok(request.Id, createdSub);
+                    }
+                    catch (Exception ex)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "USER_CREATE_ERROR", ex.Message);
+                    }
+                    return true;
+
+                case "users:updatePermissions":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات الصلاحيات فارغة");
+                        return true;
+                    }
+                    JObject pObj = request.Payload as JObject;
+                    string pUserId = "";
+                    if (pObj != null)
+                    {
+                        if (pObj["userId"] != null) pUserId = pObj["userId"].ToString();
+                        else if (pObj["id"] != null) pUserId = pObj["id"].ToString();
+                    }
+                    Dictionary<string, bool> pDict = new Dictionary<string, bool>();
+                    if (pObj != null && pObj["permissions"] != null)
+                    {
+                        pDict = JsonConvert.DeserializeObject<Dictionary<string, bool>>(pObj["permissions"].ToString());
+                    }
+                    try
+                    {
+                        DatabaseService.Security.UpdateUserPermissions(pUserId, pDict);
+                        response = BridgeResponse.Ok(request.Id, new { success = true });
+                    }
+                    catch (Exception ex)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "PERMISSIONS_UPDATE_ERROR", ex.Message);
+                    }
+                    return true;
+
+                case "users:setDelegation":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات التفويض فارغة");
+                        return true;
+                    }
+                    JObject delObj = request.Payload as JObject;
+                    string delUserId = "";
+                    if (delObj != null)
+                    {
+                        if (delObj["userId"] != null) delUserId = delObj["userId"].ToString();
+                        else if (delObj["id"] != null) delUserId = delObj["id"].ToString();
+                    }
+                    bool delCan = delObj != null && delObj["canDelegate"] != null ? delObj["canDelegate"].Value<bool>() : false;
+                    int delDepth = delObj != null && delObj["maxDepth"] != null ? delObj["maxDepth"].Value<int>() : 0;
+                    try
+                    {
+                        DatabaseService.Security.SetUserDelegation(delUserId, delCan, delDepth);
+                        response = BridgeResponse.Ok(request.Id, new { success = true });
+                    }
+                    catch (Exception ex)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "DELEGATION_UPDATE_ERROR", ex.Message);
+                    }
+                    return true;
+
+                case "users:setPassword":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات كلمة المرور فارغة");
+                        return true;
+                    }
+                    JObject passObj = request.Payload as JObject;
+                    string passUserId = "";
+                    if (passObj != null)
+                    {
+                        if (passObj["userId"] != null) passUserId = passObj["userId"].ToString();
+                        else if (passObj["id"] != null) passUserId = passObj["id"].ToString();
+                    }
+                    string passNew = passObj != null && passObj["newPassword"] != null ? passObj["newPassword"].ToString() : "";
+                    string passCurrent = passObj != null && passObj["currentPassword"] != null ? passObj["currentPassword"].ToString() : "";
+                    try
+                    {
+                        DatabaseService.Security.SetUserPassword(passUserId, passNew, passCurrent);
+                        response = BridgeResponse.Ok(request.Id, new { success = true });
+                    }
+                    catch (Exception ex)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "PASSWORD_CHANGE_ERROR", ex.Message);
+                    }
                     return true;
 
                 case "users:create":
@@ -270,6 +416,7 @@ namespace RafiqPOS.Bridge
                         response = BridgeResponse.Fail(request.Id, "PIN_CHANGE_ERROR", uEx.Message);
                     }
                     return true;
+
 
                 case "security:setIdleTimeout":
                     if (request.Payload == null)

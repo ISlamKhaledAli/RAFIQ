@@ -21,8 +21,26 @@ namespace RafiqPOS.Models
         [JsonIgnore]
         public string PinSalt { get; set; }
 
+        [JsonProperty("parentId")]
+        public string ParentId { get; set; }
+
+        [JsonProperty("maxDepth")]
+        public int MaxDepth { get; set; }
+
+        [JsonProperty("createdBy")]
+        public string CreatedBy { get; set; }
+
+        [JsonProperty("canDelegate")]
+        public bool CanDelegate { get; set; }
+
+        [JsonIgnore]
+        public string PasswordHash { get; set; }
+
+        [JsonIgnore]
+        public string PasswordSalt { get; set; }
+
         [JsonProperty("role")]
-        public string Role { get; set; } // "admin" or "cashier"
+        public string Role { get; set; } // "root", "admin", "cashier", etc.
 
         [JsonProperty("isActive")]
         public bool IsActive { get; set; }
@@ -71,6 +89,24 @@ namespace RafiqPOS.Models
 
         [JsonProperty("permissions")]
         public Dictionary<string, bool> Permissions { get; set; }
+
+        [JsonProperty("parentId")]
+        public string ParentId { get; set; }
+
+        [JsonProperty("maxDepth")]
+        public int MaxDepth { get; set; }
+
+        [JsonProperty("createdBy")]
+        public string CreatedBy { get; set; }
+
+        [JsonProperty("canDelegate")]
+        public bool CanDelegate { get; set; }
+
+        [JsonProperty("hasPassword")]
+        public bool HasPassword { get; set; }
+
+        [JsonProperty("children")]
+        public List<UserDto> Children { get; set; }
 
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
