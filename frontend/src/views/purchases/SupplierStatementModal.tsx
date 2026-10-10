@@ -41,9 +41,25 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
 
         <div className="p-4 bg-surface-2 border-b border-line flex items-center justify-between shrink-0">
           <div>
-            <span className="text-xs text-ink-muted block">الرصيد القائم المستحق للمورد:</span>
-            <span className="text-xl font-mono font-bold text-danger">
-              {formatMoney(supplier.balancePiasters)}
+            <span className="text-xs text-ink-muted block">
+              {supplier.balancePiasters > 0
+                ? 'فلوس للمورد علينا (حسابه):'
+                : supplier.balancePiasters < 0
+                ? 'فلوس سايبينها عند المورد (لينا عنده):'
+                : 'حساب المورد:'}
+            </span>
+            <span
+              className={`text-xl font-mono font-bold ${
+                supplier.balancePiasters > 0
+                  ? 'text-danger'
+                  : supplier.balancePiasters < 0
+                  ? 'text-paid'
+                  : 'text-ink-muted'
+              }`}
+            >
+              {supplier.balancePiasters !== 0
+                ? formatMoney(Math.abs(supplier.balancePiasters))
+                : 'خالص تماماً (0.00 ج.م)'}
             </span>
           </div>
           <div className="text-left text-xs text-ink-muted">
@@ -54,7 +70,7 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
         <div className="flex-1 overflow-y-auto divide-y divide-line p-2">
           {transactions.length === 0 ? (
             <div className="h-40 flex items-center justify-center text-xs text-ink-muted">
-              لا توجد حركات مسجلة في كشف حساب المورد حتى الآن
+              مفيش حركات مسجلة للمورد ده لحد دلوقتي
             </div>
           ) : (
             transactions.map((tx) => (
@@ -62,9 +78,10 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-ink">
-                      {tx.transactionType === 'OPENING_BALANCE' && 'رصيد افتتاحي'}
-                      {tx.transactionType === 'PURCHASE_INVOICE' && 'فاتورة شراء آجل'}
-                      {tx.transactionType === 'PAYMENT' && 'سداد دفعة نقدية'}
+                      {tx.transactionType === 'OPENING_BALANCE' && 'حسابه القديم (أول المدة)'}
+                      {tx.transactionType === 'PURCHASE_INVOICE' && 'فاتورة بضاعة جديدة (على الحساب)'}
+                      {tx.transactionType === 'PURCHASE_OVERPAYMENT' && 'دفعنا بالزيادة ونزل في حسابنا'}
+                      {tx.transactionType === 'PAYMENT' && 'دفعنا له كاش (سداد)'}
                     </span>
                     <span className="text-[10px] text-ink-muted">
                       {new Date(tx.createdAt).toLocaleDateString('ar-EG-u-nu-latn', {

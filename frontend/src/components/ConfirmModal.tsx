@@ -48,11 +48,11 @@ export const ConfirmModal = ({
       >
         {/* Header Strip */}
         <div className={`px-5 py-4 border-b flex items-center justify-between ${
-          isDanger ? 'bg-red-500/10 border-red-500/20' : 'bg-brand-soft border-brand/20'
+          isDanger ? 'bg-danger-soft border-danger/20' : 'bg-brand-soft border-brand/20'
         }`}>
           <div className="flex items-center gap-2.5">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-              isDanger ? 'bg-red-600 text-white' : 'bg-brand text-white'
+              isDanger ? 'bg-danger text-white' : 'bg-brand text-white'
             }`}>
               {isDanger ? <AlertTriangle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
             </div>
@@ -62,7 +62,7 @@ export const ConfirmModal = ({
           <button
             type="button"
             onClick={onCancel}
-            className="w-7 h-7 rounded flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface-2 transition-colors"
+            className="w-7 h-7 rounded flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface-2 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -75,8 +75,8 @@ export const ConfirmModal = ({
           {consequence && (
             <div className={`p-3 rounded text-[11.5px] border leading-relaxed flex items-start gap-2 ${
               isDanger 
-                ? 'bg-red-500/5 border-red-500/20 text-red-700' 
-                : 'bg-amber-500/5 border-amber-500/20 text-amber-800'
+                ? 'bg-danger-soft border-danger/20 text-danger' 
+                : 'bg-warn-soft border-warn/20 text-warn'
             }`}>
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{consequence}</span>
@@ -89,7 +89,7 @@ export const ConfirmModal = ({
           <button
             type="button"
             onClick={onCancel}
-            className="h-[38px] px-4 rounded border border-line bg-surface hover:bg-surface-2 text-ink text-[12.5px] font-semibold transition-colors"
+            className="h-[38px] px-4 rounded border border-line bg-surface hover:bg-surface-2 text-ink text-[12.5px] font-semibold transition-colors cursor-pointer"
           >
             {cancelText}
           </button>
@@ -98,9 +98,9 @@ export const ConfirmModal = ({
             type="button"
             autoFocus
             onClick={onConfirm}
-            className={`h-[38px] px-5 rounded text-white text-[12.5px] font-bold shadow-sm transition-colors flex items-center gap-1.5 ${
+            className={`h-[38px] px-5 rounded text-white text-[12.5px] font-bold shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer ${
               isDanger 
-                ? 'bg-red-600 hover:bg-red-700 active:bg-red-800' 
+                ? 'bg-danger hover:bg-red-700 active:bg-red-800' 
                 : 'bg-brand hover:bg-brand-hover active:bg-brand'
             }`}
           >

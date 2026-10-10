@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   Search,
   X,
-  RefreshCw,
   Calendar,
   ArrowUpRight,
   ArrowDownLeft,
@@ -15,6 +14,8 @@ import type { StockMovement, StockDiscrepancy } from '../../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
 import { PaginationBar } from '../../components/PaginationBar';
 import { useClientPagination } from '../../utils/usePagination';
+import { RafiqLoadingState } from '../../components/RafiqLoadingState';
+import { useSmoothLoading } from '../../utils/useSmoothLoading';
 
 export interface StockMovementsTabProps {
   allMovements: StockMovement[];
@@ -45,6 +46,7 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
   onRecalculateStock,
   onLoadMovements,
 }) => {
+  const showLoading = useSmoothLoading(movementsLoading, 300);
   const filteredMovements = useMemo(() => {
     if (!movementSearchQuery.trim()) return allMovements;
     const q = movementSearchQuery.toLowerCase();
@@ -74,12 +76,12 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
               <Boxes className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-[11px] text-ink-muted font-bold">إجمالي الحركات المسجلة</div>
+              <div className="text-[11px] text-ink-muted font-bold">إجمالي حركات بضاعة المخزن</div>
               <div className="text-[18px] font-mono font-bold text-ink">{allMovements.length} حركة</div>
             </div>
           </div>
           <span className="text-[10px] text-ink-muted bg-surface-2 px-2 py-0.5 rounded border border-line">
-            غير قابلة للتعديل
+            دفتر غير قابل للتعديل
           </span>
         </div>
 
@@ -100,11 +102,11 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
               )}
             </div>
             <div>
-              <div className="text-[11px] font-bold text-ink">مطابقة المخزون الدورية</div>
+              <div className="text-[11px] font-bold text-ink">مطابقة وجرد بضاعة المخزن</div>
               <div className={`text-[13px] font-bold ${discrepancies.length > 0 ? 'text-warn' : 'text-paid'}`}>
                 {discrepancies.length > 0 
-                  ? `${discrepancies.length} صنف به تفاوت بحاجة لمطابقة` 
-                  : 'الأرصدة متطابقة بنسبة 100% مع الحركات'}
+                  ? `${discrepancies.length} صنف فيهم فرق جرد ومحتاجين مراجعة` 
+                  : 'أرصدة البضاعة متطابقة 100% مع حركة المبيعات والمشتريات'}
               </div>
             </div>
           </div>
@@ -116,7 +118,7 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
               className="px-3 py-1 rounded bg-warn text-white text-[11px] font-bold hover:bg-warn/90 transition-colors shadow-xs flex items-center gap-1"
             >
               <RotateCcw className={`w-3.5 h-3.5 ${recalculating ? 'animate-spin' : ''}`} />
-              <span>مطابقة الآن</span>
+              <span>مطابقة وجرد دلوقتي</span>
             </button>
           )}
         </div>
@@ -128,10 +130,10 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
             onClick={onRecalculateStock}
             disabled={recalculating}
             className="w-full h-10 px-4 bg-surface-2 hover:bg-surface border border-line text-ink rounded text-[12px] font-bold flex items-center justify-center gap-2 transition-colors shadow-2xs"
-            title="أداة تدقيق وإعادة حساب المخزون من الحركات لمعالجة أي تفاوت"
+            title="أداة تدقيق ومطابقة رصيد المخزن بناءً على حركات البيع والشراء الفعلية"
           >
             <RotateCcw className={`w-4 h-4 text-brand ${recalculating ? 'animate-spin' : ''}`} />
-            <span>{recalculating ? 'جاري مطابقة وحساب الأرصدة...' : 'إعادة مطابقة وحساب رصيد المخزون'}</span>
+            <span>{recalculating ? 'جاري مراجعة ومطابقة رصيد المخزن...' : 'إعادة مطابقة وحساب رصيد البضاعة بالمخزن'}</span>
           </button>
         </div>
       </div>
@@ -159,11 +161,11 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
         <div className="flex items-center gap-1.5 overflow-x-auto text-[11.5px]">
           {[
             { id: 'ALL', label: 'كل الحركات' },
-            { id: 'INITIAL', label: 'رصيد افتتاحي' },
-            { id: 'SALE', label: 'مبيعات' },
-            { id: 'PURCHASE', label: 'مشتريات' },
-            { id: 'ADJUSTMENT', label: 'تسويات جردية' },
-            { id: 'RETURN', label: 'مرتجعات' },
+            { id: 'INITIAL', label: 'رصيد أول المدة' },
+            { id: 'SALE', label: 'مبيعات للزبائن' },
+            { id: 'PURCHASE', label: 'مشتريات من الموردين' },
+            { id: 'ADJUSTMENT', label: 'تسوية جرد وعدّ المخزن' },
+            { id: 'RETURN', label: 'مرتجعات بضاعة' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -188,7 +190,7 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
           <Search className="w-3.5 h-3.5 text-ink-muted ml-2 shrink-0 pointer-events-none" />
           <input
             type="text"
-            placeholder="فلترة الحركات بالصنف..."
+            placeholder="دور في حركات البضاعة..."
             value={movementSearchQuery}
             onChange={(e) => setMovementSearchQuery(normalizeArabicNumerals(e.target.value))}
             className="w-full bg-transparent border-none text-[11.5px] text-ink placeholder:text-ink-muted focus:outline-none"
@@ -212,24 +214,24 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
           <span className="col-span-2">التاريخ والوقت</span>
           <span className="col-span-3">اسم الصنف والباركود</span>
           <span className="col-span-2 text-center">نوع الحركة</span>
-          <span className="col-span-2 text-center">الكمية</span>
-          <span className="col-span-1 text-left">التكلفة</span>
+          <span className="col-span-2 text-center">الكمية (وارد / صادر)</span>
+          <span className="col-span-1 text-left">سعر التكلفة</span>
           <span className="col-span-2">الملاحظات والسبب</span>
         </div>
 
         {/* Table Body */}
         <div className="flex-1 overflow-y-auto divide-y divide-line">
-          {movementsLoading ? (
-            <div className="h-full flex flex-col items-center justify-center text-ink-muted gap-2 p-6">
-              <RefreshCw className="w-8 h-8 animate-spin text-brand" />
-              <span className="text-[13px]">جاري تحميل سجل حركات المخزون...</span>
-            </div>
+          {showLoading ? (
+            <RafiqLoadingState
+              label="جاري تحميل دفتر حركات بضاعة المخزن..."
+              sublabel="استرجاع عمليات البيع والشراء وتسويات الجرد ومطابقة الأرصدة"
+            />
           ) : filteredMovements.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-ink-muted gap-2 p-6">
               <Boxes className="w-12 h-12 stroke-[1.2] text-ink-muted opacity-50" />
-              <p className="text-[14px] font-semibold text-ink m-0">لا توجد حركات مخزون مسجلة مطابقة للفلتر</p>
+              <p className="text-[14px] font-semibold text-ink m-0">مافيش حركات مسجلة للبضاعة مطابقة للبحث أو للفلتر ده</p>
               <p className="text-[12px] text-ink-muted m-0">
-                يتم تسجيل الحركات تلقائياً مع البيع وتغيير الأرصدة.
+                حركات المخزن بتتسجل تلقائياً مع كل فاتورة بيع أو شراء أو تسوية جرد.
               </p>
             </div>
           ) : (
@@ -317,9 +319,9 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
 
         {/* Table Footer */}
         <div className="h-[32px] bg-surface-2 hairline-t px-4 flex items-center justify-between text-[11px] text-ink-muted shrink-0">
-          <span>جميع الحركات مسجلة بقيود ذرية غير قابلة للحذف لضمان سلامة المخزون.</span>
+          <span>كل حركة بضاعة متسجلة تلقائياً بدون إمكانية للحذف لحماية المخزن من أي عجز أو تلاعب.</span>
           <span className="font-mono tabular-nums">
-            المعروض: {pagedMovements.length} من أصل {filteredMovements.length} حركة (إجمالي المسجل: {allMovements.length})
+            المعروض: {pagedMovements.length} من أصل {filteredMovements.length} حركة (إجمالي حركات المحل: {allMovements.length})
           </span>
         </div>
       </div>
@@ -332,7 +334,7 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
         onPageChange={setCurrentPage}
         onPageSizeChange={setPageSize}
         pageSizeOptions={[25, 50, 100]}
-        itemLabel="حركة مخزون"
+        itemLabel="حركة بضاعة"
       />
     </div>
   );

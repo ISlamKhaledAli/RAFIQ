@@ -21,6 +21,8 @@ import { CustomSelect } from '../../components/CustomSelect';
 import type { SelectOption } from '../../components/CustomSelect';
 import { CustomDateRangePicker } from '../../components/CustomDatePicker';
 import { formatArabicCurrency } from '../../utils/money';
+import { RafiqLoadingState } from '../../components/RafiqLoadingState';
+import { useSmoothLoading } from '../../utils/useSmoothLoading';
 import type {
   CreditOverviewReport,
   DebtAgingReport,
@@ -54,6 +56,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
   const [customTo, setCustomTo] = useState<string>(() => new Date().toISOString().split('T')[0]);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const showLoading = useSmoothLoading(isLoading, 300);
   const [creditOverview, setCreditOverview] = useState<CreditOverviewReport | null>(null);
   const [debtAging, setDebtAging] = useState<DebtAgingReport | null>(null);
   const [debtors, setDebtors] = useState<DebtorReportItem[]>([]);
@@ -106,6 +109,17 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
   const handlePrint = () => {
     window.print();
   };
+
+  if (showLoading && !creditOverview) {
+    return (
+      <div className="flex-1 flex flex-col h-full bg-canvas items-center justify-center select-none p-5" dir="rtl">
+        <RafiqLoadingState
+          label="جاري تجميع تحليلات العملاء والديون والآجل..."
+          sublabel="فحص أرصدة الذمم، دورات السداد، وأعمار الديون من قاعدة البيانات"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col h-full bg-canvas text-ink overflow-y-auto select-none p-3 sm:p-5" dir="rtl">

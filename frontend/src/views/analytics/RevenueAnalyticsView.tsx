@@ -21,6 +21,8 @@ import { CustomSelect } from '../../components/CustomSelect';
 import type { SelectOption } from '../../components/CustomSelect';
 import { CustomDateRangePicker } from '../../components/CustomDatePicker';
 import { formatArabicCurrency } from '../../utils/money';
+import { RafiqLoadingState } from '../../components/RafiqLoadingState';
+import { useSmoothLoading } from '../../utils/useSmoothLoading';
 import { FinancialGaugeMeter } from '../../components/analytics/FinancialGaugeMeter';
 import { FinancialWaterfallChart } from '../../components/analytics/FinancialWaterfallChart';
 import { HourlyHeatmapBar } from '../../components/analytics/HourlyHeatmapBar';
@@ -55,6 +57,7 @@ export const RevenueAnalyticsView: FC = () => {
   const [customTo, setCustomTo] = useState<string>(() => new Date().toISOString().split('T')[0]);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const showLoading = useSmoothLoading(isLoading, 300);
   const [salesReport, setSalesReport] = useState<PeriodSalesReport | null>(null);
   const [lossReport, setLossReport] = useState<InventoryLossReport | null>(null);
   const [closings, setClosings] = useState<ClosingHistoryRecord[]>([]);
@@ -144,6 +147,17 @@ export const RevenueAnalyticsView: FC = () => {
   const handlePrint = () => {
     window.print();
   };
+
+  if (showLoading && !salesReport) {
+    return (
+      <div className="flex-1 flex flex-col h-full bg-canvas items-center justify-center select-none p-5" dir="rtl">
+        <RafiqLoadingState
+          label="جاري تحليل الإيرادات وحساب الأرباح..."
+          sublabel="فحص المبيعات، تكاليف البضاعة، عجز الجرد، وسجلات الإقفال اليومي"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col h-full bg-canvas text-ink overflow-y-auto select-none p-3 sm:p-5" dir="rtl">

@@ -83,26 +83,18 @@ namespace RafiqPOS.Repositories
                         purchase.TotalCostPiasters = totalCost;
                         purchase.NetCostPiasters = Math.Max(0, totalCost - purchase.DiscountPiasters);
 
-                        // Clamp paid amount
+                        // Validate paid amount and set payment status
                         if (purchase.PaidAmountPiasters < 0) purchase.PaidAmountPiasters = 0;
-                        if (purchase.PaidAmountPiasters > purchase.NetCostPiasters)
-                        {
-                            purchase.PaidAmountPiasters = purchase.NetCostPiasters;
-                        }
 
-                        purchase.RemainingAmountPiasters = purchase.NetCostPiasters - purchase.PaidAmountPiasters;
-
-                        if (purchase.RemainingAmountPiasters == 0)
+                        if (purchase.PaidAmountPiasters >= purchase.NetCostPiasters)
                         {
-                            purchase.PaymentStatus = "PAID";
-                        }
-                        else if (purchase.PaidAmountPiasters > 0)
-                        {
-                            purchase.PaymentStatus = "PARTIAL";
+                            purchase.RemainingAmountPiasters = 0;
+                            purchase.PaymentStatus = purchase.PaidAmountPiasters > purchase.NetCostPiasters ? "OVERPAID" : "PAID";
                         }
                         else
                         {
-                            purchase.PaymentStatus = "CREDIT";
+                            purchase.RemainingAmountPiasters = purchase.NetCostPiasters - purchase.PaidAmountPiasters;
+                            purchase.PaymentStatus = purchase.PaidAmountPiasters > 0 ? "PARTIAL" : "CREDIT";
                         }
 
                         // 3. Insert Purchase Master Record
@@ -336,13 +328,27 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
-                        // 5. Update Supplier Balance if credit / unpaid portion
+                        // 5. Update Supplier Balance & Ledger (Smart Advance & Debt Settlement)
                         if (!string.IsNullOrWhiteSpace(purchase.SupplierId))
                         {
-                            if (purchase.RemainingAmountPiasters > 0)
+                            long balanceDelta = purchase.NetCostPiasters - purchase.PaidAmountPiasters;
+                            if (balanceDelta > 0)
                             {
-                                string debtNote = string.Format("متبقي آجل من فاتورة شراء #{0}", purchase.InvoiceNumber);
-                                _supplierRepo.AdjustBalance(purchase.SupplierId, purchase.RemainingAmountPiasters, "PURCHASE_INVOICE", purchase.Id, debtNote, conn, trans);
+                                // Unpaid portion: adds to debt or consumes available advance credit
+                                string debtNote = string.Format("فاتورة شراء #{0} (الصافي: {1:N2} ج.م، المسدد: {2:N2} ج.م)",
+                                    purchase.InvoiceNumber,
+                                    purchase.NetCostPiasters / 100.0,
+                                    purchase.PaidAmountPiasters / 100.0);
+                                _supplierRepo.AdjustBalance(purchase.SupplierId, balanceDelta, "PURCHASE_INVOICE", purchase.Id, debtNote, conn, trans);
+                            }
+                            else if (balanceDelta < 0)
+                            {
+                                // Overpayment: excess paid is credited to our favor / reduces existing debt
+                                long excessPiasters = Math.Abs(balanceDelta);
+                                string excessNote = string.Format("سداد بالزيادة (تحت الحساب) من فاتورة شراء #{0} (الزيادة: {1:N2} ج.م)",
+                                    purchase.InvoiceNumber,
+                                    excessPiasters / 100.0);
+                                _supplierRepo.AdjustBalance(purchase.SupplierId, balanceDelta, "PURCHASE_OVERPAYMENT", purchase.Id, excessNote, conn, trans);
                             }
                         }
 

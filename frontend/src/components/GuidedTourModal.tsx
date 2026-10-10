@@ -36,82 +36,82 @@ interface TourStep {
 const TOUR_STEPS: TourStep[] = [
   {
     step: 1,
-    title: 'شاشة البيع السريع ونقطة البيع',
-    subtitle: 'إدخال الباركود، البحث الفوري، والأزرار السريعة للأصناف الشعبية',
+    title: 'شاشة البيع السريع ونقطة البيع (الكاشير)',
+    subtitle: 'قراءة الباركود، بحث فوري، وأزرار سريعة للأصناف اللي ملهاش باركود',
     icon: 'fa-barcode',
-    color: 'from-emerald-600 to-teal-700',
+    color: 'from-brand-dark to-brand',
     description:
-      'تم تصميم شاشة البيع في رفيق لتكون الأسرع على الإطلاق. مؤشر الكتابة يظل دائماً في خانة الباركود تلقائياً بعد كل عملية بيع دون الحاجة لاستخدام الماوس إطلاقاً.',
+      'شاشة البيع في رفيق معموله عشان تكون أسرع حاجة للكاشير. مؤشر الماوس بيفضل واقف تلقائياً في خانة الباركود بعد كل بيعة، عشان تشتغل بالكيبورد وقارئ الباركود علطول من غير ما تلمس الماوس.',
     keyFeatures: [
-      'مسح تلقائي بقارئ الباركود مع دعم قارئات USB و RS232 الموزونة.',
-      'بحث فوري بالاسم أو جزء منه حتى بين أكثر من 50,000 صنف في أقل من 10ms.',
-      'أزرار سريعة للأصناف السائبة والمخبوزات بدون باركود مع تلوين وتصنيف مرئي.',
+      'قراءة فورية بالباركود ودعم كامل لموازين الباركود الموزونة.',
+      'بحث فوري بالاسم أو جزء منه حتى وسط 50,000 صنف في أقل من رمشة عين (10ms).',
+      'أزرار سريعة للأصناف السايبة والعيش مع ألوان وتصنيف واضح بالصور.',
     ],
-    shortcutTip: 'اضغط F2 في أي وقت للتركيز السريع على حقل الباركود، أو F3 للبحث بالاسم.',
+    shortcutTip: 'اضغط F2 في أي وقت للوقوف على خانة الباركود، أو F3 للبحث بالاسم.',
     badgeText: 'الخطوة 1 من 5',
   },
   {
     step: 2,
-    title: 'سلة المشتريات وإدارة الكميات والأوزان',
-    subtitle: 'تعديل ذكي للكميات والوزن (كجم) مع حماية المخزون',
+    title: 'سلة الفاتورة والكميات والأوزان',
+    subtitle: 'تعديل سريع للكمية والوزن بالجرام مع حماية المخزن',
     icon: 'fa-shopping-basket',
-    color: 'from-teal-600 to-cyan-700',
+    color: 'from-brand to-paid',
     description:
-      'جدول السلة يعرض الأصناف بوضوح مع إمكانية تعديل الكمية مباشرة أو بواسطة اختصارات لوحة المفاتيح، مع حساب دقيق للأوزان بالجرام والمليجرام دون أي أخطاء عشرية.',
+      'جدول الفاتورة بيعرض أصنافك بوضوح، وتقدر تعدل الكمية أو الوزن فوراً بأزرار الكيبورد، مع حساب دقيق للأوزان بالجرام من غير أي كسور ملخبطة.',
     keyFeatures: [
-      'حساب مالي آمن 100% بالقروش مع منع الكسور العشرية والتقريب العشوائي.',
-      'دعم الأوزان بالكيلوجرام (مثل 0.750 كجم لبن أو جبنة) بضغطة زر.',
-      'تنبيه فوري عند بيع صنف أوشك رصيده على النفاد لتنبيه الكاشير.',
+      'أمان مالي 100% وحسابات بالقروش بدون أي كسور عشرية عشوائية.',
+      'دعم بيع الوزن بالكيلو والجرام (زي 0.750 كجم جبنة أو لحوم) بضغطة واحدة.',
+      'تنبيه فوري لما بضاعة الصنف تقرب تخلص عشان تاخد بالك.',
     ],
-    shortcutTip: 'استخدم أزرار + و - لتعديل الكمية، أو مفتاح Delete لحذف الصنف المحدد.',
+    shortcutTip: 'استخدم زراير + و - لتعديل الكمية، أو زرار Delete لحذف الصنف من السلة.',
     badgeText: 'الخطوة 2 من 5',
   },
   {
     step: 3,
-    title: 'الدفع السريع والفاتورة وطباعة الإيصال',
-    subtitle: 'دفع نقدي، دفع بالآجل على العميل، وطباعة حرارية فورية',
+    title: 'الدفع السريع والفاتورة وطباعة الوصل',
+    subtitle: 'دفع كاش، شكك على الحساب، وطباعة وصل حراري فوري',
     icon: 'fa-file-invoice-dollar',
-    color: 'from-emerald-700 to-green-800',
+    color: 'from-paid to-brand-dark',
     description:
-      'نافذة الدفع تتيح إنهاء المعاملة في أقل من ثانيتين؛ مع حساب الباقي تلقائياً، وإمكانية ترحيل الفاتورة لحساب العميل بالآجل، وطباعة إيصال الفاتورة الحراري وفتح درج النقدية فوراً.',
+      'شاشة الدفع بتخلص البيعة في ثانيتين؛ بتحسب الباقي للزبون تلقائياً، وتقدر تسجل الفاتورة على حساب الزبون بالشكك، وتطبع وصل الكاشير وتفتح الدرج في نفس اللحظة.',
     keyFeatures: [
-      'إنهاء البيع السريع بضغطة واحدة على مفتاح Enter / F12 وحساب الباقي للعميل.',
-      'دعم كامل للبيع الآجل للعملاء المنتظمين مع فحص الرصيد والحد الائتماني.',
-      'دعم الطابعات الحرارية مقاس 80mm و 57mm مع معاينة سريعة وطباعة فورية.',
+      'تقفيل البيع السريع بضغطة زر واحدة على Enter أو F12 وحساب الباقي للزبون.',
+      'دعم كامل للبيع الآجل (الشكك) للزبائن مع متابعة الرصيد والحد الأقصى.',
+      'دعم طابعات الفواتير 80 مم و 57 مم مع طباعة سريعة ومباشرة بدون إنترنت.',
     ],
-    shortcutTip: 'اضغط مفتاح المسافة (Space) لفتح نافذة الدفع، ثم Enter لتأكيد استلام النقدية.',
+    shortcutTip: 'اضغط مسافة (Space) لفتح نافذة الدفع، وبعدها Enter لتأكيد استلام الكاش.',
     badgeText: 'الخطوة 3 من 5',
   },
   {
     step: 4,
-    title: 'إدارة المنتجات والتصنيفات والمخزون',
-    subtitle: 'إضافة الأصناف، استيراد إكسيل، وكشف النواقص وجرد المخزن',
+    title: 'إدارة البضاعة والتصنيفات والمخزن',
+    subtitle: 'إضافة أصناف، استيراد إكسيل، وكشف النواقص وجرد بضاعة المحل',
     icon: 'fa-boxes',
-    color: 'from-blue-700 to-indigo-800',
+    color: 'from-brand to-brand-dark',
     description:
-      'شاشة المنتجات توفر سجلاً متكاملاً لكافة الأصناف والباركودات البديلة، مع تتبع آلي لحركات الوارد والمنصرف والجرد الدوري وحساب أرباح كل صنف.',
+      'شاشة المنتجات بتديك سجل كامل لكل أصناف المحل والباركودات البديلة، مع متابعة تلقائية لحركات بضاعة المخزن وأرباح كل صنف.',
     keyFeatures: [
-      'إضافة صنف جديد في 10 ثوانٍ مع إنشاء باركود محلي تلقائي إذا لم يتوفر.',
-      'استيراد وتصدير الأصناف والأسعار دفعة واحدة عبر ملفات Excel و CSV.',
-      'كشف فوري بالنواقص والأصناف التي وصلت إلى حد الطلب الأدنى لإعادة التوريد.',
+      'إضافة صنف جديد في 10 ثواني وتوليد باركود تلقائي لو الصنف ملوش باركود.',
+      'استيراد وتصدير الأصناف والأسعار دفعة واحدة من شيتات Excel.',
+      'كشف فوري بالنواقص والأصناف اللي قربت تخلص عشان تلحق تطلبها من الشركات.',
     ],
-    shortcutTip: 'يمكنك إضافة صنف سريعاً أثناء البيع مباشرة دون مغادرة شاشة الكاشير.',
+    shortcutTip: 'تقدر تضيف صنف جديد علطول وأنت واقف في شاشة البيع من غير ما تخرج منها.',
     badgeText: 'الخطوة 4 من 5',
   },
   {
     step: 5,
-    title: 'التقارير المالية والأمان والنسخ الاحتياطي',
-    subtitle: 'حماية بكلمة سر، ملخص الوردية، وأمان تام ضد انقطاع الكهرباء',
+    title: 'التقارير والأرباح وأمان المحل',
+    subtitle: 'قفل بالرقم السري، تقرير الوردية، وأمان تام ضد انقطاع الكهرباء',
     icon: 'fa-shield-halved',
-    color: 'from-slate-700 to-emerald-900',
+    color: 'from-brand-dark to-paid',
     description:
-      'نظام رفيق مصمم خصيصاً للمحلات والمتاجر: حفظ محلي فوري وآمن ومقاوم لانقطاع الكهرباء، مع تشفير الأرقام السرية والنسخ الاحتياطي التلقائي.',
+      'نظام رفيق مصمم خصيصاً للمحلات والمتاجر: حفظ محلي فوري وآمن حتى لو الكهرباء قطعت فجأة، مع حماية العمليات بالرقم السري ونسخ احتياطي تلقائي.',
     keyFeatures: [
-      'رقم سري (PIN) مشفر لحماية شاشات التقارير وتعديل الأسعار واسترجاع البيانات.',
-      'تقارير أرباح ووردية تفصيلية وجرد مبيعات يومي وأسبوعي وشهري.',
-      'نسخ احتياطي محلي تلقائي عند كل إغلاق للبرنامج، وتنبيه عند فصل فلاشة النسخ.',
+      'رقم سري (PIN) لحماية شاشات التقارير وتعديل الأسعار واسترجاع البيانات.',
+      'تقارير أرباح ووردية مفصلة وجرد مبيعات يومي وأسبوعي وشهري.',
+      'نسخ احتياطي محلي تلقائي عند قفل البرنامج، مع تنبيه لو الفلاشة اتشالت.',
     ],
-    shortcutTip: 'تأكد من الاحتفاظ بنسخة احتياطية على فلاشة خارجية USB بانتظام لضمان أمان محلك.',
+    shortcutTip: 'احفظ نسخة احتياطية على فلاشة خارجية بانتظام عشان تضمن أمان محلك وفلوسك.',
     badgeText: 'الخطوة 5 من 5',
   },
 ];
@@ -147,7 +147,7 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
       <div
-        className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]"
         dir="rtl"
       >
         {/* Header with gradient and icon */}
@@ -198,21 +198,21 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
         </div>
 
         {/* Content Body */}
-        <div className="p-6 overflow-y-auto space-y-5 flex-1">
-          <p className="text-slate-700 leading-relaxed text-base font-normal">
+        <div className="p-6 overflow-y-auto space-y-5 flex-1 bg-canvas">
+          <p className="text-ink leading-relaxed text-base font-normal">
             {currentStep.description}
           </p>
 
           {/* Key Features List */}
-          <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 space-y-2.5">
-            <h4 className="text-xs font-black text-slate-500 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+          <div className="bg-surface border border-line rounded-xl p-4 space-y-2.5">
+            <h4 className="text-xs font-black text-ink-muted flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-paid" />
               أهم المزايا في هذه الشاشة
             </h4>
-            <ul className="space-y-2 text-sm text-slate-800">
+            <ul className="space-y-2 text-sm text-ink">
               {currentStep.keyFeatures.map((feat, idx) => (
                 <li key={idx} className="flex items-start gap-2.5">
-                  <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                  <span className="w-5 h-5 rounded-full bg-paid-soft text-paid flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
                     {idx + 1}
                   </span>
                   <span className="leading-snug">{feat}</span>
@@ -223,13 +223,13 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
 
           {/* Shortcut Tip Callout */}
           {currentStep.shortcutTip && (
-            <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-3.5 flex items-center gap-3 text-amber-900 text-sm">
-              <div className="w-9 h-9 rounded-lg bg-amber-200/70 text-amber-800 flex items-center justify-center shrink-0">
+            <div className="bg-warn-soft border border-warn-border rounded-xl p-3.5 flex items-center gap-3 text-ink text-sm">
+              <div className="w-9 h-9 rounded-lg bg-surface text-warn flex items-center justify-center shrink-0 border border-line">
                 <Keyboard className="w-4 h-4" />
               </div>
               <div className="flex-1">
-                <span className="font-bold block text-xs text-amber-800">تلميح الكيبورد السريع للكاشير:</span>
-                <p className="text-xs text-amber-950 font-medium leading-relaxed">
+                <span className="font-bold block text-xs text-warn">تلميح الكيبورد السريع للكاشير:</span>
+                <p className="text-xs text-ink font-medium leading-relaxed">
                   {currentStep.shortcutTip}
                 </p>
               </div>
@@ -238,7 +238,7 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
         </div>
 
         {/* Footer Navigation */}
-        <div className="bg-slate-100/90 border-t border-slate-200 px-6 py-4 flex items-center justify-between gap-3">
+        <div className="bg-surface-2 border-t border-line px-6 py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             {!hasDemoData && onLoadDemoData && (
               <button
@@ -247,7 +247,7 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
                   onClose();
                   onLoadDemoData();
                 }}
-                className="text-xs text-emerald-700 hover:text-emerald-900 font-bold bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-lg border border-emerald-300 transition-colors flex items-center gap-1.5 cursor-pointer"
+                className="text-xs text-brand hover:text-brand-dark font-bold bg-brand/10 hover:bg-brand/20 px-3 py-2 rounded-lg border border-brand/30 transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <Sparkles className="w-3.5 h-3.5" />
                 تحميل بيانات تجريبية للتدريب
@@ -256,7 +256,7 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="text-xs text-slate-500 hover:text-slate-700 font-semibold px-2 py-1 cursor-pointer"
+              className="text-xs text-ink-muted hover:text-ink font-semibold px-2 py-1 cursor-pointer"
             >
               تخطي الجولة
             </button>
@@ -267,7 +267,7 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
               <button
                 type="button"
                 onClick={handlePrev}
-                className="px-4 py-2 text-sm font-bold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+                className="px-4 py-2 text-sm font-bold text-ink bg-surface border border-line rounded-xl hover:bg-surface-2 transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
                 <ArrowRight className="w-4 h-4" />
                 السابق
@@ -277,9 +277,9 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
             <button
               type="button"
               onClick={handleNext}
-              className="px-5 py-2 text-sm font-bold text-white bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 rounded-xl transition-all shadow hover:shadow-md flex items-center gap-1.5 cursor-pointer"
+              className="px-5 py-2 text-sm font-bold text-white bg-paid hover:bg-paid/90 active:scale-95 rounded-xl transition-all shadow hover:shadow-md flex items-center gap-1.5 cursor-pointer"
             >
-              <span>{isLast ? 'إنهاء الجولة وبدء العمل' : 'التالي'}</span>
+              <span>{isLast ? 'إنهاء الجولة وبدء الشغل' : 'التالي'}</span>
               {isLast ? <Check className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
             </button>
           </div>

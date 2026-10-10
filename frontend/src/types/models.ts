@@ -332,6 +332,11 @@ export interface DashboardSummary {
   todayReturnsFormatted?: string;
   todayReturnsCount?: number;
   todayInvoicesCount: number;
+  todayCardPiasters?: number;
+  todayCardFormatted?: string;
+  todayExpensesPiasters?: number;
+  todayExpensesFormatted?: string;
+  todayExpensesCount?: number;
   cashDrawerPiasters: number;
   cashDrawerFormatted?: string;
   topSellingProducts: TopSellingItem[];
@@ -341,6 +346,9 @@ export interface DashboardSummary {
   totalCustomerDebtsFormatted?: string;
   debtorsCount?: number;
   topDebtors?: TopDebtorItem[];
+  isDayClosed?: boolean;
+  closingNumber?: number;
+  closedAt?: string;
 }
 
 export interface HeldSale {
@@ -563,9 +571,12 @@ export interface DailyClosing {
   cashierName?: string | null;
   totalSalesPiasters: number;
   cashSalesPiasters: number;
+  cardSalesPiasters?: number;
   creditSalesPiasters: number;
   returnsTotalPiasters: number;
   returnsCashPiasters: number;
+  expensesPiasters?: number;
+  expensesCount?: number;
   cancelledTotalPiasters: number;
   debtPaymentsPiasters: number;
   expectedCashPiasters: number;
@@ -580,6 +591,7 @@ export interface DailyClosing {
   isSealed: boolean;
   totalSalesFormatted?: string;
   cashSalesFormatted?: string;
+  cardSalesFormatted?: string;
   creditSalesFormatted?: string;
   expectedCashFormatted?: string;
   actualCashFormatted?: string;
@@ -591,9 +603,12 @@ export interface DailyClosingPreview {
   currentUtc: string;
   totalSalesPiasters: number;
   cashSalesPiasters: number;
+  cardSalesPiasters?: number;
   creditSalesPiasters: number;
   returnsTotalPiasters: number;
   returnsCashPiasters: number;
+  expensesPiasters?: number;
+  expensesCount?: number;
   cancelledTotalPiasters: number;
   debtPaymentsPiasters: number;
   expectedCashPiasters: number;
@@ -604,8 +619,20 @@ export interface DailyClosingPreview {
   cancelledCount: number;
   isAlreadyClosed: boolean;
   existingClosing?: DailyClosing | null;
+  postClosingSalesCount?: number;
+  postClosingSalesPiasters?: number;
   isDateSuspicious: boolean;
   dateSuspiciousReason?: string | null;
+}
+
+export interface Expense {
+  id: string;
+  amountPiasters: number;
+  category: string;
+  notes?: string;
+  createdAt: string;
+  cashierName?: string;
+  amountFormatted?: string;
 }
 
 export interface DailyClosingSaveRequest {

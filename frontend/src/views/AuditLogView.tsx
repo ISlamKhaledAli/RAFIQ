@@ -17,22 +17,25 @@ import { invoke } from '../bridge/ipc';
 import { CustomSelect } from '../components/CustomSelect';
 import { PaginationBar } from '../components/PaginationBar';
 import { useClientPagination } from '../utils/usePagination';
+import { RafiqLoadingState } from '../components/RafiqLoadingState';
+import { useSmoothLoading } from '../utils/useSmoothLoading';
 import type { AuditLogEntry, AuditChainVerificationResult } from '../types/models';
 import { piastersToPounds } from '../utils/money';
 
 const ACTION_FILTERS = [
-  { id: '', label: 'جميع العمليات الحساسة' },
+  { id: '', label: 'كل العمليات الحساسة' },
   { id: 'price_update', label: 'تعديل سعر البيع' },
   { id: 'cost_update', label: 'تعديل تكلفة الشراء' },
-  { id: 'stock_adjust', label: 'تسوية رصيد المخزون' },
-  { id: 'sale_create', label: 'إصدار فواتير البيع' },
-  { id: 'product_delete', label: 'حذف الأصناف' },
+  { id: 'stock_adjust', label: 'تسوية وعدّ بضاعة المخزن' },
+  { id: 'sale_create', label: 'إصدار فواتير بيع' },
+  { id: 'product_delete', label: 'حذف أصناف' },
   { id: 'product_create', label: 'إضافة أصناف جديدة' },
 ];
 
 export const AuditLogView = () => {
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const showLoading = useSmoothLoading(loading, 300);
   const [selectedAction, setSelectedAction] = useState('');
   const [verification, setVerification] = useState<AuditChainVerificationResult | null>(null);
   const [verifying, setVerifying] = useState(false);
@@ -150,9 +153,9 @@ export const AuditLogView = () => {
         return (
           <div className="flex items-center gap-1.5 text-xs font-mono">
             <span className="font-sans text-ink font-semibold">{String(details.productName || '')}:</span>
-            <span className="text-ink-muted">{oldS} ق</span>
+            <span className="text-ink-muted">{oldS} حتة</span>
             <ArrowRightLeft className="w-3 h-3 text-ink-muted" />
-            <span className="text-brand font-bold">{newS} ق</span>
+            <span className="text-brand font-bold">{newS} حتة</span>
           </div>
         );
       }
@@ -161,8 +164,8 @@ export const AuditLogView = () => {
         const total = piastersToPounds(Number(details.totalPiasters) || 0).toFixed(2);
         return (
           <div className="text-xs text-ink font-sans">
-            فاتورة رقم <span className="font-mono font-bold text-brand">#{String(details.invoiceNumber || '')}</span> بمبلغ{' '}
-            <span className="font-mono font-bold">{total} ج.م</span> ({String(details.itemCount || 0)} أصناف)
+            فاتورة بيع رقم <span className="font-mono font-bold text-brand">#{String(details.invoiceNumber || '')}</span> بمبلغ{' '}
+            <span className="font-mono font-bold">{total} ج.م</span> ({String(details.itemCount || 0)} صنف)
           </div>
         );
       }
@@ -183,21 +186,21 @@ export const AuditLogView = () => {
         return (
           <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-danger-soft text-danger border border-danger-border flex items-center gap-1">
             <AlertTriangle className="w-3 h-3" />
-            <span>{label || 'تعديل سعر'}</span>
+            <span>{label || 'تعديل سعر بيع'}</span>
           </span>
         );
       case 'cost_update':
         return (
           <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-warn-soft text-warn border border-warn-border flex items-center gap-1">
             <Tag className="w-3 h-3" />
-            <span>{label || 'تعديل تكلفة'}</span>
+            <span>{label || 'تعديل تكلفة شراء'}</span>
           </span>
         );
       case 'stock_adjust':
         return (
           <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-brand-soft text-brand border border-brand/20 flex items-center gap-1">
             <ArrowRightLeft className="w-3 h-3" />
-            <span>{label || 'تسوية مخزون'}</span>
+            <span>{label || 'تسوية مخزن'}</span>
           </span>
         );
       case 'sale_create':
@@ -229,7 +232,7 @@ export const AuditLogView = () => {
               سجل العمليات الحساسة والأمان (Audit Log)
             </h2>
             <p className="text-[11px] text-ink-muted m-0 hidden sm:block">
-              توثيق لحظي غير قابل للحذف لتعديل الأسعار والخصومات وحركات البيع
+              توثيق لحظي غير قابل للحذف لتعديل الأسعار والخصومات وحركات البيع لحماية المحل
             </p>
           </div>
         </div>
@@ -251,7 +254,7 @@ export const AuditLogView = () => {
             onClick={() => void handleVerifyChain()}
             disabled={verifying}
             className="h-8 px-2.5 sm:px-3 flex items-center gap-1.5 bg-brand-soft hover:bg-brand/20 border border-brand/30 text-brand text-xs font-bold rounded-lg transition-colors cursor-pointer"
-            title="فحص السلسلة المشفرة للتأكد من عدم التلاعب اليدوي بقاعدة البيانات"
+            title="فحص السلسلة المشفرة للتأكد من عدم التلاعب بقاعدة البيانات من بره البرنامج"
           >
             <ShieldCheck className={`w-4 h-4 ${verifying ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">{verifying ? 'جارِ التحقق...' : 'فحص سلامة السجل'}</span>
@@ -272,7 +275,7 @@ export const AuditLogView = () => {
       {verification && (
         <div className={`p-3 rounded-xl border flex items-center justify-between text-xs transition-all ${
           verification.isTampered 
-            ? 'bg-rose-50 border-rose-200 text-danger' 
+            ? 'bg-danger-soft border-danger-border text-danger' 
             : 'bg-paid-soft border-paid/20 text-paid'
         }`}>
           <div className="flex items-center gap-2.5">
@@ -284,13 +287,13 @@ export const AuditLogView = () => {
             <div>
               <p className="font-bold m-0 text-xs sm:text-[13px]">
                 {verification.isTampered 
-                  ? 'تحذير أمني حرج: تم اكتشاف تلاعب مباشر بسجل العمليات!' 
-                  : 'سلسلة العمليات سليمة ومحمية بالتوقيع الرقمي المتسلسل'}
+                  ? 'تحذير أمان: تم اكتشاف تلاعب مباشر بسجل العمليات من بره البرنامج!' 
+                  : 'سلسلة العمليات سليمة ومحمية بالتوقيع الرقمي بنسبة 100%'}
               </p>
               <p className="m-0 text-[11px] opacity-90">
                 {verification.isTampered 
                   ? verification.errorMessage 
-                  : `تم فحص وتأكيد سلامة جميع السجلات (${verification.totalRecordsVerified} سجل) ومطابقة بصمات SHA-256 بنجاح، مما يثبت عدم تعديل أو حذف أي سجل من خارج النظام.`}
+                  : `تم فحص وتأكيد سلامة جميع السجلات (${verification.totalRecordsVerified} حركة) ومطابقة بصمات SHA-256 بنجاح، ومفيش أي سجل اتعدل أو اتمسح من بره البرنامج.`}
               </p>
             </div>
           </div>
@@ -321,20 +324,25 @@ export const AuditLogView = () => {
         <div className="h-10 bg-surface-2 border-b border-line px-4 grid grid-cols-12 items-center text-xs font-bold text-ink-muted shrink-0 select-none">
           <span className="col-span-1 text-center">#</span>
           <span className="col-span-2">الوقت والتاريخ</span>
-          <span className="col-span-2">المستخدم المسؤول</span>
-          <span className="col-span-2">نوع العملية</span>
+          <span className="col-span-2">الموظف المسؤول</span>
+          <span className="col-span-2">نوع الحركة</span>
           <span className="col-span-4">التفاصيل والتغييرات</span>
           <span className="col-span-1 text-left">بصمة السلسلة</span>
         </div>
 
         {/* Table Body */}
         <div className="flex-1 overflow-y-auto divide-y divide-line">
-          {logs.length === 0 ? (
+          {showLoading ? (
+            <RafiqLoadingState
+              label="جاري فحص وتدقيق سجل العمليات الحساسة..."
+              sublabel="التحقق من أختام السلسلة المشفرة وسجلات الأمان الرقمية"
+            />
+          ) : logs.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-ink-muted gap-2 p-6">
               <ShieldAlert className="w-12 h-12 stroke-[1.2] text-ink-muted opacity-40" />
-              <p className="text-[14px] font-semibold text-ink m-0">لا توجد عمليات مسجلة في هذا التصنيف</p>
+              <p className="text-[14px] font-semibold text-ink m-0">مفيش أي عمليات متسجلة في التصنيف ده</p>
               <p className="text-[12px] text-ink-muted m-0">
-                يتم تسجيل أي تعديل للأسعار أو إصدار للفواتير تلقائياً وموثقاً هنا
+                كل تعديل في الأسعار أو بيع أو حذف بيتسجل ويتوثق هنا تلقائياً لحماية المحل
               </p>
             </div>
           ) : (
@@ -395,7 +403,7 @@ export const AuditLogView = () => {
           </span>
           <span className="font-mono text-[11px] text-paid flex items-center gap-1">
             <Lock className="w-3 h-3 text-paid" />
-            نظام التدقيق الداخلي مشفر ومتسلسل بمعايير SHA-256
+            سجل أمان غير قابل للتعديل مشفر ببصمة SHA-256
           </span>
         </div>
       </div>

@@ -175,25 +175,25 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     >
       <div className="bg-surface border border-line rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col">
         {/* Sleek Top Accent Line */}
-        <div className="h-1.5 w-full bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-600" />
+        <div className="h-1.5 w-full bg-brand" />
 
         {/* Modern Clean Header */}
-        <div className="bg-white px-6 py-4 flex items-center justify-between border-b border-slate-200/80">
+        <div className="bg-surface px-6 py-4 flex items-center justify-between border-b border-line">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 text-[#006D41] flex items-center justify-center shrink-0 shadow-2xs">
-              <svg className="w-5 h-5 text-[#006D41]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="w-10 h-10 rounded-xl bg-paid-soft border border-paid-border text-paid flex items-center justify-center shrink-0 shadow-2xs">
+              <svg className="w-5 h-5 text-paid" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
             </div>
             <div>
-              <h2 className="text-lg font-black text-slate-900">تسجيل دخول الموظف</h2>
-              <p className="text-xs text-slate-500 font-medium">اختر حسابك وأدخل الرقم السري لبدء العمل</p>
+              <h2 className="text-lg font-black text-ink">تسجيل دخول الكاشير والموظفين</h2>
+              <p className="text-xs text-ink-muted font-medium">اختار حسابك واكتب الرقم السري لبدء الشغل</p>
             </div>
           </div>
           {canCancel && onClose && (
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface-2 transition-colors cursor-pointer"
               title="إغلاق"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -208,12 +208,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           {/* Employee Selector Column (5 cols) */}
           <div className="md:col-span-5 flex flex-col gap-3">
             <label className="text-xs font-bold text-ink">
-              الموظفون النشطون ({activeUsers.length})
+              الموظفون والكاشير في المحل ({activeUsers.length})
             </label>
             <div className="flex-1 max-h-[340px] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
               {activeUsers.length === 0 ? (
                 <div className="p-6 text-center text-ink-muted text-sm bg-surface rounded-xl border border-line">
-                  لا يوجد موظفون نشطون مسجلون.
+                  مفيش حسابات موظفين نشطة مسجلة.
                 </div>
               ) : (
                 activeUsers.map((user) => {
@@ -277,7 +277,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 <svg className="w-3.5 h-3.5 text-warn shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
-                <span>إدارة الموظفين (تتطلب رقم المدير)</span>
+                <span>إدارة حسابات الموظفين (برقم المدير السري)</span>
               </button>
             </div>
           </div>
@@ -288,11 +288,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-semibold text-ink-muted">
-                  الرقم السري لـ: <span className="text-brand font-bold">{selectedUser?.displayName || 'الموظف'}</span>
+                  الرقم السري لـ: <span className="text-brand font-bold">{selectedUser?.displayName || 'الكاشير'}</span>
                 </span>
                 {selectedUser?.role && (
                   <span className="text-[11px] text-ink-muted">
-                    الدور: {selectedUser.role === 'admin' ? 'مدير كامل الصلاحيات' : 'كاشير نقطة البيع'}
+                    الصلاحية: {selectedUser.role === 'admin' ? 'مدير محل (كامل الصلاحيات)' : 'كاشير (شاشة البيع فقط)'}
                   </span>
                 )}
               </div>
@@ -304,7 +304,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     <svg className="w-5 h-5 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
-                    <span>الحساب مقفل: انتظر {lockoutSec} ثانية</span>
+                    <span>الحساب موقوف مؤقتاً: استنى {lockoutSec} ثانية</span>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2.5" dir="ltr">
@@ -390,13 +390,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               className="w-full mt-2 py-3 bg-brand hover:bg-brand-hover active:bg-brand-dark text-white font-bold text-base rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {loading ? (
-                <span>جاري التحقق...</span>
+                <span>بيتم التحقق...</span>
               ) : (
                 <>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                   </svg>
-                  <span>دخول النظام (Enter)</span>
+                  <span>دخول وبدء البيع (Enter)</span>
                 </>
               )}
             </button>
@@ -404,14 +404,14 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         </div>
 
         {/* Footer Guidance */}
-        <div className="px-6 py-3 bg-slate-50 border-t border-slate-200/80 flex items-center justify-between text-xs text-slate-500">
-          <div className="flex items-center gap-1.5 font-medium text-emerald-800">
-            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>تسجيل دخول مشفر ومحمي بنظام الصلاحيات</span>
+        <div className="px-6 py-3 bg-surface-2 border-t border-line flex items-center justify-between text-xs text-ink-muted">
+          <div className="flex items-center gap-1.5 font-medium text-paid">
+            <ShieldCheck className="w-4 h-4 text-paid shrink-0" />
+            <span>تسجيل دخول آمن ومحمي بالصلاحيات</span>
           </div>
-          <div className="flex items-center gap-1.5 font-medium text-slate-500">
-            <Keyboard className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            <span>يدعم لوحة الأرقام (Numpad) وزر Enter</span>
+          <div className="flex items-center gap-1.5 font-medium text-ink-muted">
+            <Keyboard className="w-3.5 h-3.5 text-ink-muted shrink-0" />
+            <span>يدعم أرقام الكيبورد وزر Enter مباشرة</span>
           </div>
         </div>
       </div>

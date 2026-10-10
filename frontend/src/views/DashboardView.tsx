@@ -14,7 +14,8 @@ import {
   Flame,
   Lock,
   Scale,
-  Boxes
+  Boxes,
+  Receipt
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
@@ -23,7 +24,10 @@ import { useFeatures } from '../context/useFeatures';
 import { DailyClosingModal } from '../components/DailyClosingModal';
 import { LowStockReportModal } from '../components/LowStockReportModal';
 import { DebtorsReportModal } from '../components/DebtorsReportModal';
+import { ExpenseModal } from '../components/ExpenseModal';
 import { formatArabicCurrency } from '../utils/money';
+import { RafiqLoadingState } from '../components/RafiqLoadingState';
+import { useSmoothLoading } from '../utils/useSmoothLoading';
 
 
 
@@ -46,6 +50,7 @@ export function DashboardView({
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [unclosedAlert, setUnclosedAlert] = useState<UnclosedDayAlert | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const showLoading = useSmoothLoading(isLoading, 300);
   const [lastRefreshed, setLastRefreshed] = useState<string>('');
   const [batchSummary, setBatchSummary] = useState<BatchSummary | null>(null);
   const [hourlyData, setHourlyData] = useState<HourlyIntensityReport | null>(null);
@@ -55,6 +60,7 @@ export function DashboardView({
   const [closingTargetDate, setClosingTargetDate] = useState<string | undefined>(undefined);
   const [isLowStockModalOpen, setIsLowStockModalOpen] = useState(false);
   const [isDebtorsModalOpen, setIsDebtorsModalOpen] = useState(false);
+  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -84,9 +90,20 @@ export function DashboardView({
     void loadData();
   }, [loadData]);
 
-  useDataSubscription(['sales', 'dashboard', 'purchases', 'all'], () => {
+  useDataSubscription(['sales', 'dashboard', 'purchases'], () => {
     void loadData();
   });
+
+  if (showLoading && !summary) {
+    return (
+      <div className="flex flex-col h-full w-full bg-canvas items-center justify-center select-none p-5" dir="rtl">
+        <RafiqLoadingState
+          label="جاري تحميل لوحة اليوم والتشغيل..."
+          sublabel="استرجاع مؤشرات المبيعات، الأرباح، الوردية، والتنبيهات الحية من قاعدة البيانات"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full w-full bg-canvas select-none overflow-y-auto p-5 gap-4 font-sans text-ink" dir="rtl">
@@ -94,9 +111,9 @@ export function DashboardView({
       {/* 1. TOP HEADER & COMMAND CENTER CONTROLS */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0 bg-surface p-3 sm:p-3.5 rounded-xl border border-line shadow-2xs">
         <div>
-          <h2 className="text-lg sm:text-xl font-black text-ink">لوحة اليوم والتشغيل</h2>
+          <h2 className="text-lg sm:text-xl font-black text-ink">لوحة تحكم اليوم والوردية</h2>
           <p className="text-xs text-ink-muted mt-0.5">
-            موجز وردية اليوم، حركة الدرج، والتنبيهات التشغيلية الحية
+            ملخص حركة الوردية النهاردة، كاش الدرج، وكل اللي بيحصل في المحل
           </p>
         </div>
 
@@ -111,9 +128,19 @@ export function DashboardView({
             onClick={() => void loadData()}
             disabled={isLoading}
             className="flex items-center justify-center h-9 w-9 bg-surface border border-line hover:bg-surface-2 rounded-lg text-xs font-bold text-ink transition-colors shadow-2xs disabled:opacity-50 cursor-pointer active:translate-y-0.5"
-            title="تحديث البيانات اللحظية"
+            title="تحديث البيانات دلوقتي"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-paid' : 'text-ink-muted'}`} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsExpenseModalOpen(true)}
+            className="flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-bold bg-surface hover:bg-rose-50 text-danger border border-line hover:border-danger/40 transition-all shadow-2xs cursor-pointer active:translate-y-0.5"
+            title="تسجيل مصاريف ونثريات طلعت من درج الكاشير"
+          >
+            <Receipt className="w-3.5 h-3.5" />
+            <span>تسجيل مصروف</span>
           </button>
 
           <button
@@ -122,11 +149,24 @@ export function DashboardView({
               setClosingTargetDate(undefined);
               setIsClosingModalOpen(true);
             }}
-            className="flex items-center gap-1.5 h-9 px-3.5 bg-brand hover:bg-brand-dark active:bg-brand-dark text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer active:translate-y-0.5"
-            title="إقفال اليومية ومطابقة النقدية"
+            className={`flex items-center gap-1.5 h-9 px-3.5 rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer active:translate-y-0.5 ${
+              summary?.isDayClosed
+                ? 'bg-paid hover:bg-paid/90 text-white border border-paid/30'
+                : 'bg-brand hover:bg-brand-dark active:bg-brand-dark text-white'
+            }`}
+            title={summary?.isDayClosed ? 'اليومية مقفولة ومعتمدة - اضغط لعرض التقرير والطباعة' : 'تقفيل اليومية ومطابقة كاش الدرج'}
           >
-            <Lock className="w-4 h-4 text-emerald-300" />
-            <span>قفل اليومية</span>
+            {summary?.isDayClosed ? (
+              <>
+                <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+                <span>اليومية مقفولة (#{summary.closingNumber})</span>
+              </>
+            ) : (
+              <>
+                <Lock className="w-4 h-4 text-emerald-300" />
+                <span>تقفيل اليومية</span>
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -142,17 +182,14 @@ export function DashboardView({
               <Flame className="w-3.5 h-3.5" />
             </div>
             <div>
-              <span className="font-bold text-ink">ساعة الذروة الكبرى اليوم: </span>
+              <span className="font-bold text-ink">أكتر وقت كان فيه بيع وزحمة النهاردة: </span>
               <span className="font-mono font-bold text-amber-800">{hourlyData.peakHourLabel}</span>
               <span className="text-ink-muted mr-2">
                 ({hourlyData.peakHourInvoicesCount} فاتورة — {formatArabicCurrency(hourlyData.peakHourSalesPiasters)})
               </span>
             </div>
           </div>
-          <span className="text-amber-800 font-bold flex items-center gap-0.5 group-hover:underline">
-            <span>تحليل ساعات الذروة والشلال المالي</span>
-            <ChevronLeft className="w-3.5 h-3.5" />
-          </span>
+          <ChevronLeft className="w-4 h-4 text-amber-700 group-hover:-translate-x-1 transition-transform shrink-0" />
         </div>
       )}
 
@@ -165,15 +202,15 @@ export function DashboardView({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h4 className="font-bold text-sm text-[#14181A]">
-                  تنبيه إقفال اليومية: يوم العمل السابق ({unclosedAlert.unclosedDate}) لم يُقفل بعد!
+                <h4 className="font-bold text-sm text-ink">
+                  تنبيه تقفيل اليومية: اليوم اللي فات ({unclosedAlert.unclosedDate}) لسه ما اتقفلش!
                 </h4>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-white">
-                  مطلوب الإقفال
+                  محتاج تقفيل
                 </span>
               </div>
-              <p className="text-xs text-[#5B6664] mt-0.5">
-                يوجد <strong>{unclosedAlert.unclosedSalesCount}</strong> فاتورة بإجمالي <strong>{formatArabicCurrency(unclosedAlert.unclosedSalesTotalPiasters)}</strong> لم يتم ترحيلها في تقرير إقفال رسمي. يرجى تصفية الوردية السابقة لضمان صحة دفاتر المحل.
+              <p className="text-xs text-ink-muted mt-0.5">
+                فيه <strong>{unclosedAlert.unclosedSalesCount}</strong> فاتورة بمبلغ <strong>{formatArabicCurrency(unclosedAlert.unclosedSalesTotalPiasters)}</strong> لسه ما اتقفلتش في تقفيل رسمي. قفل الوردية اللي فاتت عشان حسابات ودفاتر المحل تبقى مظبوطة بالمليم.
               </p>
             </div>
           </div>
@@ -186,7 +223,7 @@ export function DashboardView({
             className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition shadow-xs shrink-0 cursor-pointer active:translate-y-0.5 flex items-center gap-1.5 justify-center"
           >
             <Lock className="w-3.5 h-3.5" />
-            <span>إقفال يومية {unclosedAlert.unclosedDate} الآن</span>
+            <span>تقفيل يومية {unclosedAlert.unclosedDate} دلوقتي</span>
           </button>
         </div>
       )}
@@ -208,19 +245,19 @@ export function DashboardView({
               <div className="flex items-center gap-2">
                 <h4 className="font-bold text-sm text-[#14181A]">
                   {batchSummary.expiredCount > 0
-                    ? `تنبيه تواريخ الصلاحية: يوجد ${batchSummary.expiredCount} دفعة منتهية الصلاحية!`
-                    : `تنبيه الصلاحية: يوجد ${batchSummary.expiringSoonCount} دفعة أوشكت على الانتهاء`}
+                    ? `تنبيه الصلاحية: فيه ${batchSummary.expiredCount} دفعة بضاعة صلاحيتها انتهت خلاص!`
+                    : `تنبيه الصلاحية: فيه ${batchSummary.expiringSoonCount} دفعة بضاعة قربت تخلص صلاحيتها`}
                 </h4>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold text-white ${
                   batchSummary.expiredCount > 0 ? 'bg-rose-600' : 'bg-amber-600'
                 }`}>
-                  {batchSummary.expiredCount > 0 ? 'هالك محتمل' : 'متابعة مطلوبة'}
+                  {batchSummary.expiredCount > 0 ? 'بضاعة هلكت' : 'محتاجة تتلحق'}
                 </span>
               </div>
               <p className="text-xs text-[#5B6664] mt-0.5">
                 {batchSummary.expiredCount > 0
-                  ? `يوجد دفعات منتهية الصلاحية بقيمة تقديرية ${formatArabicCurrency(batchSummary.expiredValuePiasters)}. يرجى إتلافها أو تسويتها لمنع بيعها.`
-                  : `يوجد ${batchSummary.expiringSoonCount} دفعة تقترب من تاريخ الانتهاء بقيمة ${formatArabicCurrency(batchSummary.expiringSoonValuePiasters)}. تُصرف تلقائياً حسب الأقرب انتهاءً.`}
+                  ? `فيه دفعات صلاحيتها انتهت قيمتها حوالي ${formatArabicCurrency(batchSummary.expiredValuePiasters)}. يرجى استبعادها أو عمل إتلاف ليها عشان ما تتباعش.`
+                  : `فيه ${batchSummary.expiringSoonCount} دفعة مقربة من تاريخ الانتهاء بقيمة ${formatArabicCurrency(batchSummary.expiringSoonValuePiasters)}. السيستم بيصرف تلقائي الأقرب انتهاءً الأول.`}
               </p>
             </div>
           </div>
@@ -234,7 +271,7 @@ export function DashboardView({
             }`}
           >
             <Clock className="w-3.5 h-3.5" />
-            <span>عرض الدفعات وتواريخ الصلاحية</span>
+            <span>شوف البضاعة وتواريخ الصلاحية</span>
           </button>
         </div>
       )}
@@ -247,11 +284,11 @@ export function DashboardView({
             if (onNavigateSubTab) onNavigateSubTab('revenue');
           }}
           className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 shadow-2xs hover:border-paid hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[120px] cursor-pointer group"
-          title="عرض تحليلات الإيرادات التفصيلية"
+          title="عرض كشف تحليلات المبيعات التفصيلي"
         >
           <div>
             <div className="flex items-center justify-between text-xs text-ink-muted mb-1.5">
-              <span className="font-bold text-ink text-xs">مبيعات اليوم</span>
+              <span className="font-bold text-ink text-xs">مبيعات النهاردة</span>
               <div className="w-7 h-7 rounded-lg bg-paid-soft text-paid border border-paid/20 flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
                 <ShoppingCart className="w-3.5 h-3.5 stroke-[2.5]" />
               </div>
@@ -264,9 +301,13 @@ export function DashboardView({
             </div>
           </div>
           <div className="pt-2 mt-2 border-t border-line/60 flex items-center justify-between text-[11px] text-ink-muted">
-            <span>نقدي: <strong className="text-ink font-mono tabular-nums">{summary ? (summary.todayCashPiasters / 100).toFixed(0) : '0'}</strong></span>
+            <div className="flex items-center gap-1.5 font-mono text-[10px]">
+              <span>كاش: <strong className="text-ink font-bold">{summary ? (summary.todayCashPiasters / 100).toFixed(0) : '0'}</strong></span>
+              <span className="text-line">•</span>
+              <span>فيزا: <strong className="text-brand font-bold">{summary ? ((summary.todayCardPiasters || 0) / 100).toFixed(0) : '0'}</strong></span>
+            </div>
             <span className="text-paid font-bold text-[11px] flex items-center gap-0.5 group-hover:underline">
-              التحليلات
+              كشف الحساب
               <ChevronLeft className="w-3 h-3" />
             </span>
           </div>
@@ -291,7 +332,7 @@ export function DashboardView({
               <div>
                 <div className="flex items-center justify-between text-xs text-ink-muted mb-1.5">
                   <span className={`font-bold text-xs ${isLoss ? 'text-danger' : 'text-ink'}`}>
-                    {isLoss ? 'صافي خسائر اليوم' : 'صافي أرباح اليوم'}
+                    {isLoss ? 'خسائر النهاردة' : 'أرباح النهاردة الصافية'}
                   </span>
                   <div className={`w-7 h-7 rounded-lg flex items-center justify-center shadow-2xs border ${
                     isLoss ? 'bg-rose-50 text-danger border-rose-200' : 'bg-paid-soft text-paid border-paid/20'
@@ -317,7 +358,7 @@ export function DashboardView({
                 <span className={`font-bold font-mono text-[10px] px-1.5 py-0.2 rounded-md border ${
                   isLoss ? 'bg-rose-50 text-danger border-rose-200' : 'bg-paid-soft text-paid border-paid/20'
                 }`}>
-                  {isLoss ? 'عجز وتالف' : 'فعلي'}
+                  {isLoss ? 'بعد التوالف' : 'ربح صافي'}
                 </span>
               </div>
             </div>
@@ -334,7 +375,7 @@ export function DashboardView({
         >
           <div>
             <div className="flex items-center justify-between text-xs text-ink-muted mb-1.5">
-              <span className="font-bold text-ink text-xs">عجز وتالف الجرد</span>
+              <span className="font-bold text-ink text-xs">توالف وعجز الجرد</span>
               <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 flex items-center justify-center group-hover:scale-105 transition-transform shadow-2xs">
                 <Scale className="w-3.5 h-3.5" />
               </div>
@@ -351,9 +392,9 @@ export function DashboardView({
             </div>
           </div>
           <div className="pt-2 mt-2 border-t border-line/60 flex items-center justify-between text-[11px] text-ink-muted">
-            <span>التسويات: <strong className="text-ink font-mono tabular-nums">{summary?.todayAdjustmentsCount || 0}</strong></span>
+            <span>حركات الجرد: <strong className="text-ink font-mono tabular-nums">{summary?.todayAdjustmentsCount || 0}</strong></span>
             <span className="text-paid font-bold text-[11px] flex items-center gap-0.5 group-hover:underline">
-              تحليل الفاقد
+              كشف التوالف
               <ChevronLeft className="w-3 h-3" />
             </span>
           </div>
@@ -363,7 +404,7 @@ export function DashboardView({
         <div className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 shadow-2xs hover:border-brand hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[120px]">
           <div>
             <div className="flex items-center justify-between text-xs text-ink-muted mb-1.5">
-              <span className="font-bold text-ink text-xs">فواتير الكاشير اليوم</span>
+              <span className="font-bold text-ink text-xs">فواتير البيع النهاردة</span>
               <div className="w-7 h-7 rounded-lg bg-paid-soft text-paid border border-paid/20 flex items-center justify-center shadow-2xs">
                 <DollarSign className="w-3.5 h-3.5 stroke-[2.5]" />
               </div>
@@ -376,16 +417,16 @@ export function DashboardView({
             </div>
           </div>
           <div className="pt-2 mt-2 border-t border-line/60 flex items-center justify-between text-[11px] text-ink-muted">
-            <span>متوسط: <strong className="text-ink font-bold font-mono tabular-nums">{summary && summary.todayInvoicesCount > 0 ? ((summary.todaySalesPiasters / summary.todayInvoicesCount) / 100).toFixed(0) : '0'}</strong> ج.م</span>
+            <span>متوسط الفاتورة: <strong className="text-ink font-bold font-mono tabular-nums">{summary && summary.todayInvoicesCount > 0 ? ((summary.todaySalesPiasters / summary.todayInvoicesCount) / 100).toFixed(0) : '0'}</strong> ج.م</span>
             <div className="flex items-center gap-1.5 font-bold text-[10px]">
               {summary && (summary.todayCancelledCount || 0) > 0 && (
-                <span className="text-danger bg-rose-50 px-1.5 py-0.2 rounded-md border border-rose-200" title="فواتير ملغاة اليوم">
-                  {summary.todayCancelledCount} ملغاة
+                <span className="text-danger bg-rose-50 px-1.5 py-0.2 rounded-md border border-rose-200" title="فواتير اتلغت النهاردة">
+                  {summary.todayCancelledCount} اتلغت
                 </span>
               )}
               {summary && (summary.todayReturnsCount || 0) > 0 && (
-                <span className="text-warn bg-amber-50 px-1.5 py-0.2 rounded-md border border-amber-200" title="عمليات مرتجع اليوم">
-                  {summary.todayReturnsCount} مرتجع
+                <span className="text-warn bg-amber-50 px-1.5 py-0.2 rounded-md border border-amber-200" title="عمليات مرتجع النهاردة">
+                  {summary.todayReturnsCount} رجعت
                 </span>
               )}
             </div>
@@ -396,7 +437,7 @@ export function DashboardView({
         <div className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 shadow-2xs hover:border-brand hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[120px]">
           <div>
             <div className="flex items-center justify-between text-xs text-ink-muted mb-1.5">
-              <span className="font-bold text-ink text-xs">نقدي في الدرج</span>
+              <span className="font-bold text-ink text-xs">كاش الدرج دلوقتي</span>
               <div className="w-7 h-7 rounded-lg bg-paid-soft text-paid border border-paid/20 flex items-center justify-center shadow-2xs">
                 <Wallet className="w-3.5 h-3.5 stroke-[2.5]" />
               </div>
@@ -409,17 +450,24 @@ export function DashboardView({
             </div>
           </div>
           <div className="pt-2 mt-2 border-t border-line/60 flex items-center justify-between text-[11px] text-ink-muted">
-            <span>نقدية: <strong className="text-ink font-mono tabular-nums">{summary ? (summary.todayCashPiasters / 100).toFixed(0) : '0'}</strong></span>
-            {summary && (summary.todayReturnsPiasters || 0) > 0 && (
-              <span className="text-amber-800 font-bold font-mono text-[10px]" title="مخصوم مبالغ مرتجعات نقدية">
-                -{((summary.todayReturnsPiasters || 0) / 100).toFixed(0)} مرتجع
-              </span>
-            )}
-            {summary && (summary.todayDebtPaymentsPiasters || 0) > 0 && (
-              <span className="text-paid font-bold font-mono text-[10px]">
-                +{((summary.todayDebtPaymentsPiasters || 0) / 100).toFixed(0)} سداد
-              </span>
-            )}
+            <span>مبيعات كاش: <strong className="text-ink font-mono tabular-nums">{summary ? (summary.todayCashPiasters / 100).toFixed(0) : '0'}</strong></span>
+            <div className="flex items-center gap-1 font-mono text-[10px]">
+              {summary && (summary.todayExpensesPiasters || 0) > 0 && (
+                <span className="text-danger font-bold" title="مصاريف طلعت كاش من الدرج">
+                  -{((summary.todayExpensesPiasters || 0) / 100).toFixed(0)} مصاريف
+                </span>
+              )}
+              {summary && (summary.todayReturnsPiasters || 0) > 0 && (
+                <span className="text-amber-800 font-bold" title="فلوس رجعت للزبون كاش">
+                  -{((summary.todayReturnsPiasters || 0) / 100).toFixed(0)} مرتجع
+                </span>
+              )}
+              {summary && (summary.todayDebtPaymentsPiasters || 0) > 0 && (
+                <span className="text-paid font-bold" title="زبون سدد حسابه كاش في الدرج">
+                  +{((summary.todayDebtPaymentsPiasters || 0) / 100).toFixed(0)} سداد شكك
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -433,7 +481,7 @@ export function DashboardView({
         >
           <div>
             <div className="flex items-center justify-between text-xs text-ink-muted mb-1.5">
-              <span className="font-bold text-ink text-xs">ديون العملاء (الآجل)</span>
+              <span className="font-bold text-ink text-xs">فلوس برة (حسابات الشكك)</span>
               <div className="w-7 h-7 rounded-lg bg-rose-50 text-danger border border-rose-200 flex items-center justify-center shadow-2xs">
                 <Users className="w-3.5 h-3.5" />
               </div>
@@ -448,9 +496,9 @@ export function DashboardView({
             </div>
           </div>
           <div className="pt-2 mt-2 border-t border-line/60 flex items-center justify-between text-[11px] text-ink-muted">
-            <span>المدينون: <strong className="text-danger font-mono tabular-nums">{summary?.debtorsCount || 0}</strong></span>
+            <span>عليهم حساب: <strong className="text-danger font-mono tabular-nums">{summary?.debtorsCount || 0}</strong></span>
             <span className="text-paid font-bold text-[11px] flex items-center gap-0.5 hover:underline">
-              تحليل الآجل
+              دفتر الشكك
               <ChevronLeft className="w-3 h-3" />
             </span>
           </div>
@@ -468,9 +516,9 @@ export function DashboardView({
             <div className="h-10 bg-surface-2 border-b border-line px-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2 text-xs font-bold text-ink">
                 <Flame className="w-4 h-4 text-paid" />
-                <span>الأصناف الأكثر طلباً ومبيعاً اليوم</span>
+                <span>أكتر بضاعة اتباعت النهاردة</span>
               </div>
-              <span className="text-[11px] text-ink-muted font-medium font-mono">مرتبة تنازلياً حسب الكمية</span>
+              <span className="text-[11px] text-ink-muted font-medium font-mono">مترتبة من الأكتر للأقل</span>
             </div>
 
             <div className="p-0 overflow-y-auto max-h-[260px]">
@@ -481,7 +529,7 @@ export function DashboardView({
                       <th className="py-2 px-3 font-medium w-12 text-center">الترتيب</th>
                       <th className="py-2 px-3 font-medium">اسم الصنف</th>
                       <th className="py-2 px-3 font-medium text-center">الكمية المباعة</th>
-                      <th className="py-2 px-3 font-medium text-left pl-5">إجمالي الإيراد</th>
+                      <th className="py-2 px-3 font-medium text-left pl-5">إجمالي المبلغ</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
@@ -512,7 +560,7 @@ export function DashboardView({
               ) : (
                 <div className="py-10 text-center text-ink-muted text-xs flex flex-col items-center justify-center gap-1.5">
                   <ShoppingCart className="w-7 h-7 text-line stroke-1" />
-                  <span>لا توجد مبيعات مسجلة حتى الآن اليوم</span>
+                  <span>لسه ما فيش مبيعات اتسجلت النهاردة</span>
                 </div>
               )}
             </div>
@@ -523,7 +571,7 @@ export function DashboardView({
             <div className="h-10 bg-surface-2 border-b border-line px-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2 text-xs font-bold text-ink">
                 <Scale className="w-4 h-4 text-warn" />
-                <span>تسويات وعجز وتوالف المخزون اليوم</span>
+                <span>توالف وعجز بضاعة المخزن النهاردة</span>
                 <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-50 text-warn border border-amber-200 font-mono tabular-nums">
                   {summary?.recentAdjustments?.length || 0} حركة
                 </span>
@@ -534,7 +582,7 @@ export function DashboardView({
                 className="px-2.5 py-0.5 rounded bg-surface hover:bg-surface-2 text-brand-dark text-[11px] font-bold flex items-center gap-1 border border-line shadow-2xs transition-colors cursor-pointer"
               >
                 <Boxes className="w-3 h-3 text-brand" />
-                <span>دفتر حركات المخزون</span>
+                <span>دفتر حركة البضاعة</span>
                 <ChevronLeft className="w-3 h-3" />
               </button>
             </div>
@@ -546,9 +594,9 @@ export function DashboardView({
                     <tr>
                       <th className="py-2 px-3 font-medium">اسم الصنف</th>
                       <th className="py-2 px-3 font-medium text-center">فرق الرصيد</th>
-                      <th className="py-2 px-3 font-medium text-center">تكلفة الوحدة</th>
+                      <th className="py-2 px-3 font-medium text-center">تكلفة القطعة</th>
                       <th className="py-2 px-3 font-medium text-left pl-5">الأثر المالي</th>
-                      <th className="py-2 px-3 font-medium">السبب الموثق</th>
+                      <th className="py-2 px-3 font-medium">السبب المكتوب</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
@@ -581,7 +629,7 @@ export function DashboardView({
                           </td>
                           <td className="py-2 px-3 text-ink text-[11px]">
                             <span className="px-1.5 py-0.2 rounded bg-surface-2 border border-line text-ink-muted">
-                              {adj.reason || 'تسوية جردية'}
+                              {adj.reason || 'تسوية جرد'}
                             </span>
                           </td>
                         </tr>
@@ -592,8 +640,8 @@ export function DashboardView({
               ) : (
                 <div className="py-8 text-center text-ink-muted text-xs flex flex-col items-center justify-center gap-1">
                   <CheckCircle2 className="w-6 h-6 text-paid" />
-                  <span className="font-bold text-ink">لم يتم تسجيل أي عجز أو تالف بالمخزن اليوم</span>
-                  <span className="text-[11px] text-ink-muted">كافة الأرصدة مطابقة بدون فروق جردية</span>
+                  <span className="font-bold text-ink">الحمد لله، مفيش أي عجز أو توالف اتسجلت النهاردة</span>
+                  <span className="text-[11px] text-ink-muted">كل بضاعة المخزن مظبوطة بالمليم</span>
                 </div>
               )}
             </div>
@@ -604,14 +652,12 @@ export function DashboardView({
         {/* LEFT COLUMN (1/3 width): System Alerts & Stock Thresholds */}
         <div className="flex flex-col gap-4">
           
-
-
           {/* Low Stock Alerts (Story 79 / Task 36-2) */}
           <div className="bg-surface rounded-xl border border-line flex flex-col overflow-hidden shadow-2xs">
             <div className="h-10 bg-surface-2 border-b border-line px-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2 text-danger font-bold text-xs">
                 <AlertTriangle className="w-4 h-4 animate-pulse" />
-                <span>تنبيهات النواقص بالمخزن</span>
+                <span>بضاعة قربت تخلص (النواقص)</span>
                 {summary && (summary.lowStockCount ?? summary.lowStockProducts?.length) > 0 && (
                   <span className="px-1.5 py-0.2 rounded-md bg-rose-50 text-danger text-[10px] font-mono font-bold border border-rose-200">
                     {summary.lowStockCount ?? summary.lowStockProducts.length} صنف
@@ -622,15 +668,15 @@ export function DashboardView({
                 <button 
                   onClick={() => onNavigateSubTab ? onNavigateSubTab('inventory') : setIsLowStockModalOpen(true)}
                   className="px-2 py-0.5 rounded bg-brand text-white hover:bg-brand-dark text-[11px] font-bold transition-all shadow-2xs cursor-pointer"
-                  title="تحليل النواقص وأمر الشراء"
+                  title="تحليل النواقص وعمل طلب شراء"
                 >
-                  أمر الشراء
+                  طلب بضاعة
                 </button>
                 <button 
                   onClick={() => onNavigateToProducts('catalog', 'lowStock')}
                   className="px-2 py-0.5 rounded bg-surface hover:bg-surface-2 text-ink text-[11px] font-bold transition-all shadow-2xs border border-line cursor-pointer"
                 >
-                  عرض الكل
+                  كل النواقص
                 </button>
               </div>
             </div>
@@ -642,14 +688,14 @@ export function DashboardView({
                     key={p.productId} 
                     onClick={() => onNavigateToProducts('catalog', 'lowStock')}
                     className="py-2 flex items-center justify-between gap-3 text-xs hover:bg-surface-2 -mx-1 px-1 rounded transition-colors cursor-pointer"
-                    title="انقر لفتح الصنف في إدارة المخزن"
+                    title="اضغط عشان تفتح الصنف في إدارة المخزن"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="font-bold text-ink truncate whitespace-nowrap" title={p.productName}>{p.productName}</div>
                       <div className="text-[10px] text-ink-muted whitespace-nowrap flex items-center gap-1.5 mt-0.5">
-                        <span>وحدة: {p.unit === 'kg' ? 'كيلوجرام' : 'قطعة'}</span>
+                        <span>وحدة: {p.unit === 'kg' ? 'كيلو' : 'قطعة'}</span>
                         <span className="text-line">•</span>
-                        <span>حد الطلب: {p.minStock ?? 5}</span>
+                        <span>حد الأمان: {p.minStock ?? 5}</span>
                       </div>
                     </div>
                     <span className={`shrink-0 px-2 py-0.5 rounded text-[11px] font-mono font-bold tabular-nums whitespace-nowrap border ${
@@ -657,14 +703,14 @@ export function DashboardView({
                         ? 'bg-rose-50 text-danger border-rose-200' 
                         : 'bg-amber-50 text-warn border-amber-200'
                     }`}>
-                      {p.currentStock <= 0 ? 'نافد (0)' : `متبقي: ${p.currentStock}`}
+                      {p.currentStock <= 0 ? 'خلصت خالص (0)' : `متبقي: ${p.currentStock}`}
                     </span>
                   </div>
                 ))
               ) : (
                 <div className="py-6 text-center text-ink-muted text-xs">
                   <CheckCircle2 className="w-5 h-5 text-paid mx-auto mb-1" />
-                  جميع الأصناف بمستويات مخزون آمنة
+                  كل البضاعة في المخزن متوفرة ومظبوطة
                 </div>
               )}
             </div>
@@ -675,15 +721,15 @@ export function DashboardView({
             <div className="h-10 bg-surface-2 border-b border-line px-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-1.5 text-ink font-bold text-xs">
                 <Users className="w-4 h-4 text-paid" />
-                <span>أعلى العملاء مديونية (الآجل)</span>
+                <span>أكتر زباين عليهم حساب (شكك)</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <button 
                   onClick={() => onNavigateSubTab ? onNavigateSubTab('customers') : setIsDebtorsModalOpen(true)}
                   className="px-2 py-0.5 rounded bg-brand text-white hover:bg-brand-dark text-[11px] font-bold transition-all shadow-2xs cursor-pointer"
-                  title="تحليل ديون العملاء الكامل"
+                  title="كشف حسابات وديون الزباين بالتفصيل"
                 >
-                  كشف التحليلات
+                  كشف الحسابات
                 </button>
               </div>
             </div>
@@ -706,7 +752,7 @@ export function DashboardView({
               ) : (
                 <div className="py-4 text-center text-ink-muted text-xs">
                   <CheckCircle2 className="w-4 h-4 text-paid mx-auto mb-1" />
-                  لا توجد ديون مستحقة على العملاء حالياً
+                  مفيش أي زباين عليهم حسابات شكك حالياً
                 </div>
               )}
             </div>
@@ -724,6 +770,7 @@ export function DashboardView({
         onClose={() => {
           setIsClosingModalOpen(false);
           setClosingTargetDate(undefined);
+          void loadData();
         }}
         targetDate={closingTargetDate}
         onClosingCompleted={() => {
@@ -743,6 +790,14 @@ export function DashboardView({
         onClose={() => setIsDebtorsModalOpen(false)}
       />
 
+      {/* Cash Drawer Expense Modal */}
+      <ExpenseModal
+        isOpen={isExpenseModalOpen}
+        onClose={() => setIsExpenseModalOpen(false)}
+        onExpenseAdded={() => {
+          void loadData();
+        }}
+      />
 
     </div>
   );

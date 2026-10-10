@@ -2,12 +2,12 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import type { FormEvent } from 'react';
 import { 
   Banknote, 
-  CreditCard, 
   UserCheck, 
   Split, 
   X, 
   Printer, 
-  ArrowRight
+  ArrowRight,
+  Sparkles
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { Customer, SalePayment } from '../types/models';
@@ -17,7 +17,6 @@ import { MoneyInput } from './MoneyInput';
 import { CustomSelect } from './CustomSelect';
 
 import { CashPaymentSection } from './payment/CashPaymentSection';
-import { CardPaymentSection } from './payment/CardPaymentSection';
 import { CreditPaymentSection } from './payment/CreditPaymentSection';
 import { MultiPaymentSection } from './payment/MultiPaymentSection';
 
@@ -57,7 +56,7 @@ export const PaymentModal = ({
   netTotalPiasters,
   selectedCustomerId,
   onCustomerChange,
-  showCredit = true,
+  showCredit: _showCredit = true,
   customers,
   onConfirmPayment,
   loading = false,
@@ -71,6 +70,8 @@ export const PaymentModal = ({
   const [quickName, setQuickName] = useState('');
   const [quickPhone, setQuickPhone] = useState('');
   const [quickSaving, setQuickSaving] = useState(false);
+  const [isFullCreditMode, setIsFullCreditMode] = useState(false);
+  const [saveChangeToCustomerAccount, setSaveChangeToCustomerAccount] = useState(false);
 
   const localCustomers = useMemo(() => {
     return [...customers, ...newlyAddedCustomers];
@@ -91,6 +92,8 @@ export const PaymentModal = ({
       setActiveTab('cash');
       setReceivedInput('0');
       setReceivedPiasters(0);
+      setIsFullCreditMode(false);
+      setSaveChangeToCustomerAccount(false);
       setCurrentCustomerId(selectedCustomerId || null);
       setShowQuickAdd(false);
       setQuickName('');
@@ -162,13 +165,58 @@ export const PaymentModal = ({
     setReceivedInput(normalized);
     const piasters = poundsToPiasters(normalized);
     setReceivedPiasters(piasters);
+    if (piasters > 0) {
+      setIsFullCreditMode(false);
+    }
   };
 
   const setPresetReceived = (amountPounds: number) => {
     const piasters = amountPounds * 100;
     setReceivedPiasters(piasters);
     setReceivedInput(amountPounds.toString());
+    setIsFullCreditMode(false);
     receivedInputRef.current?.focus();
+  };
+
+  const handleQuickFullCredit = async () => {
+    if (!currentCustomerId || currentCustomerId === 'cust_general_cash') {
+      await rafiqAlert({
+        title: 'اختار العميل الأول',
+        message: 'عشان تسجل الفاتورة على الحساب، اختار اسم العميل من القائمة فوق أو اضغط «+ إضافة عميل سريع» الأول.',
+        variant: 'warning',
+      });
+      return;
+    }
+
+    const targetCust = localCustomers.find(c => c.id === currentCustomerId);
+    if (targetCust) {
+      if (targetCust.balancePiasters < 0) {
+        const creditAvail = Math.abs(targetCust.balancePiasters);
+        if (creditAvail >= netTotalPiasters) {
+          await rafiqAlert({
+            title: 'خصم الفاتورة من الفلوس اللي سايبها العميل',
+            message: `العميل «${targetCust.name}» سايب فلوس في المحل: ${formatArabicCurrency(creditAvail)}.\n\nالفاتورة (${formatArabicCurrency(netTotalPiasters)}) هتتخصم كلها من الفلوس اللي سايبها، وهيفضل له في حسابه بالمحل: ${formatArabicCurrency(creditAvail - netTotalPiasters)}.`,
+            variant: 'info',
+          });
+        } else {
+          await rafiqAlert({
+            title: 'خصم الفلوس اللي سايبها والباقي على الحساب',
+            message: `العميل «${targetCust.name}» سايب فلوس في المحل: ${formatArabicCurrency(creditAvail)}.\n\nالفلوس اللي كان سايبها هتتخصم كلها (${formatArabicCurrency(creditAvail)})، والباقي (${formatArabicCurrency(netTotalPiasters - creditAvail)}) هيتسجل عليه في حسابه بالنوتة.`,
+            variant: 'info',
+          });
+        }
+      } else {
+        await rafiqAlert({
+          title: 'تأكيد تسجيل الفاتورة على الحساب',
+          message: `مستلمتش كاش: 0.00 ج.م (مفيش فلوس اتدفعت كاش).\n\nالفاتورة كلها (${formatArabicCurrency(netTotalPiasters)}) هتتسجل على حساب العميل «${targetCust.name}» في النوتة.\nإجمالي اللي عليه بعد الفاتورة دي: ${formatArabicCurrency(targetCust.balancePiasters + netTotalPiasters)}.`,
+          variant: 'info',
+        });
+      }
+    }
+
+    setReceivedInput('0');
+    setReceivedPiasters(0);
+    setIsFullCreditMode(true);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -183,6 +231,50 @@ export const PaymentModal = ({
 
   const handleConfirm = async () => {
     if (activeTab === 'cash') {
+      const hasRegisteredCustomer = !!(selectedCustomer && selectedCustomer.id !== 'cust_general_cash');
+      const isCreditSubmission = isFullCreditMode || (receivedPiasters === 0 && hasRegisteredCustomer);
+
+      if (isCreditSubmission) {
+        if (!hasRegisteredCustomer || !selectedCustomer) {
+          await rafiqAlert({
+            title: 'يجب اختيار عميل أولاً',
+            message: 'لتسجيل الفاتورة كآجل بالكامل على الحساب، يرجى اختيار عميل من القائمة أعلاه أو الضغط على «+ إضافة عميل سريع» أولاً.',
+            variant: 'warning',
+          });
+          return;
+        }
+
+        if (selectedCustomer.creditLimitPiasters > 0) {
+          const newProjectedBalance = selectedCustomer.balancePiasters + netTotalPiasters;
+          if (newProjectedBalance > selectedCustomer.creditLimitPiasters) {
+            const confirmExceeded = await rafiqConfirm({
+              title: 'تنبيه: العميل عدى الحد المسموح بيه للشكك',
+              message: `اللي على العميل دلوقتي: ${formatArabicCurrency(selectedCustomer.balancePiasters)}\nقيمة الفاتورة دي: ${formatArabicCurrency(netTotalPiasters)}\nإجمالي اللي هيبقى عليه بعد الفاتورة: ${formatArabicCurrency(newProjectedBalance)}\nأعلى حد مسموح بيه: ${formatArabicCurrency(selectedCustomer.creditLimitPiasters)}\n\nعاوز تكمل العملية وتسجل الفاتورة في حسابه؟`,
+              confirmText: 'متابعة وتجاوز الحد',
+              cancelText: 'إلغاء وتعديل',
+              variant: 'danger',
+            });
+            if (!confirmExceeded) return;
+          }
+        }
+
+        const payments: SalePayment[] = [
+          {
+            amountPiasters: 0,
+            method: 'credit',
+          },
+        ];
+
+        onConfirmPayment({
+          paymentMethod: 'credit',
+          paidPiasters: 0,
+          payments,
+          changeDuePiasters: 0,
+          customerId: currentCustomerId,
+        });
+        return;
+      }
+
       if (receivedPiasters === 0) {
         const confirmExact = await rafiqConfirm({
           title: 'تأكيد الدفع نقداً بالكامل',
@@ -211,7 +303,7 @@ export const PaymentModal = ({
       }
 
       if (isShortPayment) {
-        if (!currentCustomerId) {
+        if (!currentCustomerId || currentCustomerId === 'cust_general_cash') {
           await rafiqAlert({
             title: 'لا يمكن إتمام دفع جزئي لعميل مجهول',
             message: `المبلغ المدفوع (${formatArabicCurrency(receivedPiasters)}) أقل من قيمة الفاتورة (${formatArabicCurrency(netTotalPiasters)}) بفارق ${formatArabicCurrency(shortAmountPiasters)}.\n\nلتسجيل باقي الحساب كدين آجل، يرجى اختيار عميل من القائمة أعلاه أو الضغط على «إضافة عميل سريع» أولاً.`,
@@ -267,6 +359,24 @@ export const PaymentModal = ({
         return;
       }
 
+      if (saveChangeToCustomerAccount && changeDuePiasters > 0 && hasRegisteredCustomer) {
+        const payments: SalePayment[] = [
+          {
+            amountPiasters: receivedPiasters,
+            method: 'cash',
+          },
+        ];
+
+        onConfirmPayment({
+          paymentMethod: 'cash',
+          paidPiasters: receivedPiasters,
+          payments,
+          changeDuePiasters: 0,
+          customerId: currentCustomerId,
+        });
+        return;
+      }
+
       const payments: SalePayment[] = [
         {
           amountPiasters: Math.min(receivedPiasters, netTotalPiasters),
@@ -281,6 +391,7 @@ export const PaymentModal = ({
         changeDuePiasters,
         customerId: currentCustomerId,
       });
+      return;
     } else if (activeTab === 'card') {
       const payments: SalePayment[] = [
         {
@@ -299,8 +410,8 @@ export const PaymentModal = ({
     } else if (activeTab === 'credit') {
       if (!currentCustomerId) {
         await rafiqAlert({
-          title: 'تنبيه البيع بالآجل',
-          message: 'يجب اختيار عميل من دفتر الآجل لإتمام البيع بالآجل!',
+          title: 'تنبيه حساب الشكك',
+          message: 'لازم تختار الزبون من الدفتر عشان تسجل الفاتورة عليه شكك!',
           variant: 'warning',
         });
         return;
@@ -311,10 +422,10 @@ export const PaymentModal = ({
           (selectedCustomer.balancePiasters + netTotalPiasters > selectedCustomer.creditLimitPiasters);
         if (isExceeded) {
           const confirmProceed = await rafiqConfirm({
-            title: 'تحذير تجاوز الحد الائتماني للعميل',
-            message: `دين العميل الحالي: ${formatArabicCurrency(selectedCustomer.balancePiasters)}\nإجمالي الدين بعد الفاتورة: ${formatArabicCurrency(selectedCustomer.balancePiasters + netTotalPiasters)}\nالحد الائتماني المسموح به: ${formatArabicCurrency(selectedCustomer.creditLimitPiasters)}\n\nهل تريد تأكيد إتمام البيع بالآجل وتجاوز الحد الائتماني؟`,
-            confirmText: 'متابعة وتجاوز الحد',
-            cancelText: 'إلغاء العملية',
+            title: 'تحذير: الزبون عدى سقف الشكك المسموح!',
+            message: `حساب الزبون القديم: ${formatArabicCurrency(selectedCustomer.balancePiasters)}\nإجمالي حسابه بعد الفاتورة دي: ${formatArabicCurrency(selectedCustomer.balancePiasters + netTotalPiasters)}\nأعلى حد شكك مسموح له بيه: ${formatArabicCurrency(selectedCustomer.creditLimitPiasters)}\n\nعاوز تكمل البيع على الحساب وتعدي السقف ده؟`,
+            confirmText: 'كمل عادي وسجلها شكك',
+            cancelText: 'إلغاء وما تسجلش',
             variant: 'danger',
           });
           if (!confirmProceed) return;
@@ -338,8 +449,8 @@ export const PaymentModal = ({
     } else if (activeTab === 'multi') {
       if (splitRemainingPiasters !== 0) {
         await rafiqAlert({
-          title: 'عدم تطابق مبالغ الدفع المجزأ',
-          message: `مجموع الدفعات المجزأة (${formatArabicCurrency(splitTotalPaid)}) يجب أن يساوي تماماً إجمالي الفاتورة (${formatArabicCurrency(netTotalPiasters)})!\nالفارق المتبقي: ${formatArabicCurrency(Math.abs(splitRemainingPiasters))}`,
+          title: 'الفلوس مش متطابقة مع إجمالي الفاتورة',
+          message: `مجموع الدفعات المتفرقة (${formatArabicCurrency(splitTotalPaid)}) لازم يساوي بالضبط حساب الفاتورة (${formatArabicCurrency(netTotalPiasters)})!\nالفارق المتبقي: ${formatArabicCurrency(Math.abs(splitRemainingPiasters))}`,
           variant: 'warning',
         });
         return;
@@ -348,8 +459,8 @@ export const PaymentModal = ({
       const hasCreditRow = splitRows.some((r) => r.method === 'credit');
       if (hasCreditRow && !currentCustomerId) {
         await rafiqAlert({
-          title: 'تنبيه البيع بالآجل',
-          message: 'يوجد جزء مدفوع بالآجل! يجب اختيار عميل لتسجيل المتبقي عليه في حسابه.',
+          title: 'تنبيه حساب الشكك',
+          message: 'فيه جزء شكك على الحساب! لازم تختار الزبون عشان الباقي يتسجل عليه في الدفتر.',
           variant: 'warning',
         });
         return;
@@ -363,10 +474,10 @@ export const PaymentModal = ({
           (selectedCustomer.balancePiasters + creditPart > selectedCustomer.creditLimitPiasters);
         if (isExceeded) {
           const confirmProceed = await rafiqConfirm({
-            title: 'تحذير تجاوز الحد الائتماني للعميل',
-            message: `دين العميل الحالي: ${formatArabicCurrency(selectedCustomer.balancePiasters)}\nالجزء الآجل في هذه الفاتورة: ${formatArabicCurrency(creditPart)}\nإجمالي الدين بعد هذه العملية: ${formatArabicCurrency(selectedCustomer.balancePiasters + creditPart)}\nالحد الائتماني المسموح به: ${formatArabicCurrency(selectedCustomer.creditLimitPiasters)}\n\nهل تريد تأكيد إتمام الدفع المختلط وتجاوز الحد الائتماني؟`,
-            confirmText: 'متابعة وتجاوز الحد',
-            cancelText: 'إلغاء العملية',
+            title: 'تحذير: الزبون عدى سقف الشكك المسموح!',
+            message: `حساب الزبون القديم: ${formatArabicCurrency(selectedCustomer.balancePiasters)}\nالجزء الشكك في الفاتورة دي: ${formatArabicCurrency(creditPart)}\nإجمالي حسابه بعد العملية دي: ${formatArabicCurrency(selectedCustomer.balancePiasters + creditPart)}\nأعلى حد شكك مسموح له بيه: ${formatArabicCurrency(selectedCustomer.creditLimitPiasters)}\n\nعاوز تكمل الدفع المشكل وتعدي السقف ده؟`,
+            confirmText: 'كمل عادي وسجلها شكك',
+            cancelText: 'إلغاء وما تسجلش',
             variant: 'danger',
           });
           if (!confirmProceed) return;
@@ -417,10 +528,10 @@ export const PaymentModal = ({
             </div>
             <div>
               <h2 className="text-[16px] font-bold text-ink leading-tight m-0">
-                نافذة الدفع وحساب الباقي (Checkout & Change)
+                حساب الفاتورة واستلام الفلوس والباقي
               </h2>
               <p className="text-[11px] text-ink-muted m-0">
-                ميزة #27: حساب الباقي الفوري، الدفع المتعدد، وتسجيل الفاتورة ذرياً بضغطة زر
+                استلمت كام من الزبون، احسب الباقي، وسجل الفاتورة بضغطة زر واحدة
               </p>
             </div>
           </div>
@@ -450,12 +561,12 @@ export const PaymentModal = ({
 
                 {/* Items and Pieces Count */}
                 <div className="text-[11px] text-[#52605d] font-medium bg-white px-2.5 py-0.5 rounded-md border border-[#dce1dc]">
-                  {itemCount} أصناف ({totalItemCount} قطعة)
+                  {itemCount} صنف ({totalItemCount} حتة)
                 </div>
 
                 {/* Subtotal */}
                 <div className="flex items-center gap-1 text-xs">
-                  <span className="text-[#52605d]">المجموع:</span>
+                  <span className="text-[#52605d]">إجمالي السلة:</span>
                   <span className="font-bold text-[#0f172a] font-mono tabular-nums">
                     {formatArabicCurrency(subtotalPiasters)}
                   </span>
@@ -478,7 +589,7 @@ export const PaymentModal = ({
 
               {/* Grand Total Hero Box */}
               <div className="flex items-center gap-2.5 bg-gradient-to-br from-[#00372d] to-[#004d3f] text-white px-3.5 py-1.5 rounded-xl shadow-xs">
-                <span className="text-xs text-[#83bfaf] font-semibold">المطلوب سداده:</span>
+                <span className="text-xs text-[#83bfaf] font-semibold">المطلوب دفعه:</span>
                 <span className="text-xl sm:text-2xl font-black font-mono tabular-nums tracking-tight">
                   {formatArabicCurrency(netTotalPiasters)}
                 </span>
@@ -490,7 +601,7 @@ export const PaymentModal = ({
               <div className="flex items-center gap-2 flex-1 min-w-[280px]">
                 <div className="flex items-center gap-1.5 text-xs text-[#006d41] font-bold shrink-0">
                   <UserCheck className="w-4 h-4" />
-                  <span>العميل:</span>
+                  <span>الزبون:</span>
                 </div>
 
                 <div className="flex-1 min-w-0">
@@ -501,10 +612,16 @@ export const PaymentModal = ({
                       if (onCustomerChange) onCustomerChange(val);
                     }}
                     options={[
-                      { value: '', label: 'عميل نقدي عام (بدون حساب)' },
+                      { value: '', label: 'زبون عادي كاش (بدون حساب)' },
                       ...localCustomers.filter(c => c.id !== 'cust_general_cash').map((c) => ({
                         value: c.id,
-                        label: `${c.name} ${c.phone ? `(${c.phone})` : ''} ${c.balancePiasters > 0 ? `[دين: ${(c.balancePiasters / 100).toFixed(0)} ج.م]` : ''}`,
+                        label: `${c.name} ${c.phone ? `(${c.phone})` : ''} ${
+                          c.balancePiasters > 0
+                            ? `[عليه: ${(c.balancePiasters / 100).toFixed(0)} ج.م]`
+                            : c.balancePiasters < 0
+                            ? `[له: ${(Math.abs(c.balancePiasters) / 100).toFixed(0)} ج.م]`
+                            : ''
+                        }`,
                       })),
                     ]}
                     className="w-full"
@@ -517,16 +634,23 @@ export const PaymentModal = ({
                   type="button"
                   onClick={() => setShowQuickAdd(true)}
                   className="px-2.5 py-1.5 text-xs font-bold text-[#006d41] bg-[#eaf5ee] hover:bg-[#d8edd0] border border-[#c4e3d0] rounded-lg transition-colors shrink-0 shadow-2xs cursor-pointer active:scale-95"
-                  title="تسجيل عميل جديد وحفظه في دفتر العملاء فوراً"
+                  title="تسجيل زبون جديد في النوتة فوراً"
                 >
-                  + إضافة عميل سريع
+                  + تسجيل زبون جديد
                 </button>
               </div>
 
-              {selectedCustomer && selectedCustomer.balancePiasters > 0 && (
-                <span className="text-xs text-[#b23a2e] font-mono font-bold bg-[#fdf3f2] px-2.5 py-1 rounded-lg border border-[#f6cbc6] shrink-0">
-                  دين سابق على العميل: {formatArabicCurrency(selectedCustomer.balancePiasters)}
-                </span>
+              {selectedCustomer && (
+                selectedCustomer.balancePiasters > 0 ? (
+                  <span className="text-xs text-[#b23a2e] font-mono font-bold bg-[#fdf3f2] px-2.5 py-1 rounded-lg border border-[#f6cbc6] shrink-0">
+                    عليه فلوس قديمة: {formatArabicCurrency(selectedCustomer.balancePiasters)}
+                  </span>
+                ) : selectedCustomer.balancePiasters < 0 ? (
+                  <span className="text-xs text-paid font-mono font-bold bg-paid-soft px-2.5 py-1 rounded-lg border border-paid-border shrink-0 flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-paid shrink-0" />
+                    <span>سايب فلوس في المحل: {formatArabicCurrency(Math.abs(selectedCustomer.balancePiasters))} (له رصيد)</span>
+                  </span>
+                ) : null
               )}
             </div>
 
@@ -535,7 +659,7 @@ export const PaymentModal = ({
               <form onSubmit={handleQuickAddCustomer} className="p-3 bg-white rounded-xl border border-[#c4e3d0] flex flex-wrap items-center gap-2 shadow-2xs mt-1">
                 <input
                   type="text"
-                  placeholder="اسم العميل *"
+                  placeholder="اسم الزبون *"
                   value={quickName}
                   onChange={(e) => setQuickName(e.target.value)}
                   className="flex-1 min-w-[140px] h-8 text-xs px-2.5 rounded-lg border border-[#dce1dc] focus:border-[#006d41] outline-none"
@@ -543,7 +667,7 @@ export const PaymentModal = ({
                 />
                 <input
                   type="text"
-                  placeholder="رقم الهاتف"
+                  placeholder="رقم الموبايل"
                   value={quickPhone}
                   onChange={(e) => setQuickPhone(e.target.value)}
                   className="flex-1 min-w-[120px] h-8 text-xs px-2.5 rounded-lg border border-[#dce1dc] focus:border-[#006d41] outline-none font-mono"
@@ -553,7 +677,7 @@ export const PaymentModal = ({
                   disabled={quickSaving || !quickName.trim()}
                   className="px-3 h-8 bg-[#006d41] hover:bg-[#005230] text-white text-xs font-bold rounded-lg disabled:opacity-50 cursor-pointer"
                 >
-                  {quickSaving ? 'جارٍ الحفظ...' : 'حفظ واختيار'}
+                  {quickSaving ? 'ثواني بنحفظ...' : 'حفظ واختيار الزبون'}
                 </button>
                 <button
                   type="button"
@@ -564,14 +688,14 @@ export const PaymentModal = ({
                 </button>
                 {duplicateQuickCustomer && (
                   <span className="text-[11px] text-[#b23a2e] w-full font-semibold">
-                    تنبيه: هذا الرقم مسجل بالفعل للعميل «{duplicateQuickCustomer.name}»
+                    تنبيه: الرقم ده متسجل قبل كده باسم الزبون «{duplicateQuickCustomer.name}»
                   </span>
                 )}
               </form>
             )}
           </div>
 
-          {/* 2. Payment Method Tabs */}
+          {/* 2. Payment Method Tabs (Credit is accessed directly via quick button) */}
           <div className="flex items-center gap-2 bg-surface-2 p-1.5 rounded-lg border border-line">
             <button
               type="button"
@@ -588,34 +712,6 @@ export const PaymentModal = ({
 
             <button
               type="button"
-              onClick={() => setActiveTab('card')}
-              className={`flex-1 py-2 rounded-md text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                activeTab === 'card'
-                  ? 'bg-brand text-white shadow-xs'
-                  : 'text-ink-muted hover:text-ink hover:bg-surface'
-              }`}
-            >
-              <CreditCard className="w-4 h-4" />
-              <span>فيزا / كارت</span>
-            </button>
-
-            {showCredit && (
-              <button
-                type="button"
-                onClick={() => setActiveTab('credit')}
-                className={`flex-1 py-2 rounded-md text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                  activeTab === 'credit'
-                    ? 'bg-brand text-white shadow-xs'
-                    : 'text-ink-muted hover:text-ink hover:bg-surface'
-                }`}
-              >
-                <UserCheck className="w-4 h-4" />
-                <span>آجل (على الحساب)</span>
-              </button>
-            )}
-
-            <button
-              type="button"
               onClick={() => setActiveTab('multi')}
               className={`flex-1 py-2 rounded-md text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                 activeTab === 'multi'
@@ -624,7 +720,7 @@ export const PaymentModal = ({
               }`}
             >
               <Split className="w-4 h-4" />
-              <span>دفع مجزأ / متعدد</span>
+              <span>دفع مشكل (كاش + فيزا + شكك)</span>
             </button>
           </div>
 
@@ -643,11 +739,11 @@ export const PaymentModal = ({
               shortAmountPiasters={shortAmountPiasters}
               receivedPiasters={receivedPiasters}
               changeDuePiasters={changeDuePiasters}
+              onQuickFullCredit={handleQuickFullCredit}
+              isFullCreditMode={isFullCreditMode}
+              saveChangeToCustomerAccount={saveChangeToCustomerAccount}
+              onToggleSaveChangeToCustomerAccount={setSaveChangeToCustomerAccount}
             />
-          )}
-
-          {activeTab === 'card' && (
-            <CardPaymentSection netTotalPiasters={netTotalPiasters} />
           )}
 
           {activeTab === 'credit' && (
@@ -711,7 +807,7 @@ export const PaymentModal = ({
             onClick={onClose}
             className="px-4 py-2 rounded-md text-xs font-semibold text-ink-muted hover:text-ink hover:bg-surface border border-line transition-colors cursor-pointer"
           >
-            رجوع للسلة [Esc]
+            رجوع لفاتورة البيع [Esc]
           </button>
 
           <button
@@ -721,7 +817,7 @@ export const PaymentModal = ({
             className="px-6 py-2.5 rounded-lg text-sm font-bold bg-brand hover:bg-brand-hover text-white flex items-center gap-2 shadow-sm transition-all disabled:opacity-50 cursor-pointer"
           >
             <Printer className="w-4 h-4" />
-            <span>{loading ? 'جاري الحفظ والطباعة...' : 'تأكيد الدفع وطباعة الفاتورة [Enter]'}</span>
+            <span>{loading ? 'ثواني، بنسجل الفاتورة وبنطبع...' : 'حفظ الفاتورة وطباعة الوصل [Enter]'}</span>
             <ArrowRight className="w-4 h-4 rotate-180" />
           </button>
         </div>

@@ -134,17 +134,27 @@ export const PurchaseDetailsModal: React.FC<PurchaseDetailsModalProps> = ({ purc
             <div>
               <span className="text-ink-muted">حالة السداد: </span>
               <span className="font-bold text-ink">
-                {purchase.paymentStatus === 'PAID' && 'مسددة بالكامل'}
+                {purchase.paymentStatus === 'PAID' && 'مسددة بالكامل (نقدي)'}
+                {purchase.paymentStatus === 'OVERPAID' && 'سداد بزيادة (تحت الحساب)'}
                 {purchase.paymentStatus === 'CREDIT' && 'آجلة على المورد'}
                 {purchase.paymentStatus === 'PARTIAL' && 'سداد جزئي'}
               </span>
             </div>
-            <div>
-              <span className="text-ink-muted">المبلغ المتبقي: </span>
-              <span className="font-mono font-bold text-sm text-danger">
-                {formatMoney(purchase.remainingAmountPiasters)}
-              </span>
-            </div>
+            {purchase.paidAmountPiasters > purchase.netCostPiasters ? (
+              <div>
+                <span className="text-ink-muted">الزيادة المسددة (تحت الحساب): </span>
+                <span className="font-mono font-bold text-sm text-paid">
+                  +{formatMoney(purchase.paidAmountPiasters - purchase.netCostPiasters)}
+                </span>
+              </div>
+            ) : (
+              <div>
+                <span className="text-ink-muted">المبلغ المتبقي: </span>
+                <span className="font-mono font-bold text-sm text-danger">
+                  {formatMoney(purchase.remainingAmountPiasters)}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 

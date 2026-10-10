@@ -100,10 +100,28 @@ const pendingRequests = new Map<string, {
 }>();
 
 function dispatchAutoTopicsForAction(action: string) {
+  // CRITICAL SENIOR SAFEGUARD:
+  // Never dispatch data changes for read/query actions (get, list, search, check, preview, summary, print, calculate, export, test).
+  // Doing so causes infinite loop cycles where views fetching data re-trigger event listeners endlessly.
+  const isQuery = 
+    action.includes(':get') || 
+    action.includes(':list') || 
+    action.includes(':search') || 
+    action.includes(':check') || 
+    action.includes(':preview') || 
+    action.includes(':summary') || 
+    action.includes(':print') ||
+    action.includes(':calculate') ||
+    action.includes(':export') ||
+    action.includes(':runTests') ||
+    action.includes(':isFirstRunNeeded');
+
+  if (isQuery) return;
+
   if (
     action.startsWith('sales:create') || 
     action.startsWith('sales:cancel') || 
-    action.startsWith('returns:') || 
+    action.startsWith('returns:create') || 
     action.startsWith('sales:return')
   ) {
     emitDataChanged(['sales', 'products', 'customers', 'dashboard']);
@@ -112,8 +130,12 @@ function dispatchAutoTopicsForAction(action: string) {
     action.startsWith('products:delete') || 
     action.startsWith('products:bulk') || 
     action.startsWith('products:import') || 
-    action.startsWith('inventory:') || 
-    action.startsWith('productUnits:') ||
+    action.startsWith('inventory:adjust') || 
+    action.startsWith('inventory:recordPurchase') || 
+    action.startsWith('inventory:recalculate') || 
+    action.startsWith('productUnits:save') ||
+    action.startsWith('productUnits:delete') ||
+    action.startsWith('productUnits:setBase') ||
     action.startsWith('excel:importProducts')
   ) {
     emitDataChanged(['products', 'dashboard']);
@@ -144,16 +166,33 @@ function dispatchAutoTopicsForAction(action: string) {
     emitDataChanged(['suppliers', 'purchases']);
   } else if (
     action.startsWith('settings:save') ||
-    action.startsWith('templates:')
+    action.startsWith('templates:apply') ||
+    action.startsWith('templates:seedProducts')
   ) {
     emitDataChanged(['settings', 'all']);
   } else if (
-    action.startsWith('heldSales:') || 
-    action.startsWith('held:')
+    action.startsWith('closing:save')
   ) {
-    emitDataChanged(['held_sales']);
+    emitDataChanged(['dashboard', 'sales']);
   } else if (
-    action.startsWith('demo:') || 
+    action.startsWith('sales:hold') ||
+    action.startsWith('sales:recallHeld') ||
+    action.startsWith('sales:deleteHeld') ||
+    action.startsWith('heldSales:save') || 
+    action.startsWith('heldSales:delete')
+  ) {
+    emitDataChanged(['held_sales', 'dashboard']);
+  } else if (
+    action.startsWith('batch:save') ||
+    action.startsWith('batch:adjust') ||
+    action.startsWith('batch:disposeExpired') ||
+    action.startsWith('variants:save') ||
+    action.startsWith('variants:delete')
+  ) {
+    emitDataChanged(['products', 'dashboard']);
+  } else if (
+    action.startsWith('demo:seed') || 
+    action.startsWith('demo:clear') || 
     action.startsWith('system:restore') || 
     action.startsWith('system:vacuum')
   ) {
@@ -261,6 +300,9 @@ async function mockHandler(action: string, payload: any): Promise<any> {
   await new Promise((r) => setTimeout(r, 150)); // simulate latency
 
   switch (action) {
+    case 'system:appReady':
+      return { ready: true };
+
     case 'system:getInfo':
       return {
         appName: 'رفيق نقاط البيع',

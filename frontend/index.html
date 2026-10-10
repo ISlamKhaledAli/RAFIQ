@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" style="background-color: #f8fafc; height: 100%; margin: 0; padding: 0;">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -10,9 +10,141 @@
     <meta name="copyright" content="Copyright © 2026 ISlam Khaled Ali. All rights reserved." />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <title>رفيق POS — ISlam Khaled Ali</title>
+    <style>
+      /* Clean Light Canvas Reset */
+      html, body {
+        background-color: #f8fafc;
+        color: #0f172a;
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden;
+        font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+      }
+      #root {
+        height: 100%;
+        width: 100%;
+      }
+      /* Instant Branded HTML Splash Screen (Light Luxury Brand) */
+      .initial-splash {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        width: 100vw;
+        background: #f8fafc;
+        user-select: none;
+      }
+      .initial-splash-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 36px 44px;
+        background: #ffffff;
+        border: 1px solid #dce1dc;
+        border-top: 4px solid #006d41;
+        border-radius: 20px;
+        box-shadow: 0 16px 36px rgba(0, 55, 45, 0.08);
+        max-width: 460px;
+        width: 90%;
+        text-align: center;
+      }
+      .initial-splash-logo {
+        height: 60px;
+        max-width: 240px;
+        object-fit: contain;
+        margin-bottom: 14px;
+      }
+      .initial-splash-title {
+        font-size: 22px;
+        font-weight: 800;
+        color: #00372d;
+        margin: 0;
+        letter-spacing: -0.5px;
+      }
+      .initial-splash-sub {
+        font-size: 13px;
+        color: #006d41;
+        margin-top: 6px;
+        font-weight: 600;
+      }
+      .initial-spinner-wrap {
+        position: relative;
+        width: 40px;
+        height: 40px;
+        margin: 20px 0 10px 0;
+      }
+      .initial-spinner-ring {
+        position: absolute;
+        inset: 0;
+        border: 3px solid rgba(0, 109, 65, 0.12);
+        border-top-color: #006d41;
+        border-right-color: #34d399;
+        border-radius: 50%;
+        animation: initialSpin 0.9s cubic-bezier(0.55, 0.15, 0.45, 0.85) infinite;
+      }
+      .initial-progress-bar {
+        width: 200px;
+        height: 4px;
+        background: #f1f5f4;
+        border-radius: 999px;
+        overflow: hidden;
+        margin-top: 10px;
+      }
+      .initial-progress-fill {
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, #004d3f, #006d41, #34d399);
+        background-size: 200% 100%;
+        animation: initialShimmer 1.5s linear infinite;
+        border-radius: 999px;
+      }
+      .initial-splash-status {
+        font-size: 12px;
+        color: #52605d;
+        margin-top: 16px;
+        margin-bottom: 0;
+        font-weight: 500;
+      }
+      .initial-splash-badge {
+        display: inline-block;
+        margin-top: 20px;
+        padding: 5px 14px;
+        background: #eaf5ee;
+        color: #006d41;
+        font-size: 11px;
+        font-weight: 700;
+        border-radius: 999px;
+        border: 1px solid rgba(0, 109, 65, 0.15);
+      }
+      @keyframes initialSpin {
+        to { transform: rotate(360deg); }
+      }
+      @keyframes initialShimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
+    </style>
   </head>
   <body class="bg-canvas text-ink select-none antialiased">
-    <div id="root"></div>
+    <div id="root">
+      <div class="initial-splash">
+        <div class="initial-splash-card">
+          <img src="/logo_full.png" onerror="this.onerror=null;this.src='/logo.png';" alt="رفيق POS" class="initial-splash-logo" />
+          <h1 class="initial-splash-title">رفيق POS</h1>
+          <p class="initial-splash-sub">نظام نقاط البيع وإدارة المتاجر ومحلات التجزئة</p>
+          <div class="initial-spinner-wrap">
+            <div class="initial-spinner-ring"></div>
+          </div>
+          <div class="initial-progress-bar">
+            <div class="initial-progress-fill"></div>
+          </div>
+          <p class="initial-splash-status">جاري تشغيل مساحة العمل والاتصال بالسجلات المحلية...</p>
+          <span class="initial-splash-badge">نظام أوفلاين معتمد • إصدار التجزئة الاحترافي</span>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -27,6 +27,7 @@ import { ReturnModal } from '../components/ReturnModal';
 import { ProductVariantPickerModal } from '../components/ProductVariantPickerModal';
 import { ProductVariantMatrixModal } from '../components/ProductVariantMatrixModal';
 import { ProductUnitPickerModal } from '../components/ProductUnitPickerModal';
+import { ExpenseModal } from '../components/ExpenseModal';
 import { 
   convertArabicLayoutToBarcode,
   loadScannerSettings,
@@ -86,6 +87,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
   const [heldSalesCount, setHeldSalesCount] = useState<number>(0);
   const [isHeldSalesModalOpen, setIsHeldSalesModalOpen] = useState(false);
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [unregisteredBarcode, setUnregisteredBarcode] = useState('');
   const [scannerSettings, setScannerSettings] = useState<BarcodeScannerSettings>(DEFAULT_SCANNER_SETTINGS);
   const [draftPrompt, setDraftPrompt] = useState<{
@@ -508,6 +510,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
       const cust = customers.find(c => c.id === selectedCustomerId);
       await invoke('sales:hold', {
         items: cart,
+        cartJson: JSON.stringify(cart),
+        itemsCount: cart.length,
+        subtotalPiasters,
         discountPiasters,
         customerId: selectedCustomerId || undefined,
         customerName: cust?.name,
@@ -530,7 +535,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
       setLoading(false);
       barcodeInputRef.current?.focus();
     }
-  }, [cart, discountPiasters, selectedCustomerId, customers, netTotalPiasters, loadHeldSalesCount, showStatus]);
+  }, [cart, subtotalPiasters, discountPiasters, selectedCustomerId, customers, netTotalPiasters, loadHeldSalesCount, showStatus]);
 
   const handleRecallHeldSale = useCallback((heldSale: HeldSale) => {
     let itemsToRestore: CartItem[] = [];
@@ -1218,6 +1223,21 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
     });
   }, [cart.length, paymentMethod, selectedCustomerId, netTotalPiasters, handleConfirmPayment, showStatus]);
 
+  // Fast direct card/visa checkout (F10)
+  const handleFastCardCheckout = useCallback(async () => {
+    if (cart.length === 0) {
+      showStatus('سلة البيع فارغة! أضف أصنافاً أولاً للبيع (F2)', 'warning');
+      return;
+    }
+    await handleConfirmPayment({
+      paymentMethod: 'card',
+      paidPiasters: netTotalPiasters,
+      payments: [{ method: 'card', amountPiasters: netTotalPiasters }],
+      changeDuePiasters: 0,
+      customerId: selectedCustomerId || undefined
+    });
+  }, [cart.length, netTotalPiasters, selectedCustomerId, handleConfirmPayment, showStatus]);
+
   // Hook 2: Cashier Keyboard Shortcuts & Hardware Scanner Listener (F1 to F12)
   usePosShortcuts({
     isActive,
@@ -1226,7 +1246,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
     lastCompletedSale,
     scannerSettings,
     requestClearCart,
+    handleOpenCheckout,
     handleFastCashCheckout,
+    handleFastCardCheckout,
     handleFastBarcodeScan,
     openWeightEditorForCartItem,
     handleHoldCurrentSale,
@@ -1354,6 +1376,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
             netTotalPiasters={netTotalPiasters}
             loading={loading}
             handleOpenCheckout={handleOpenCheckout}
+            handleFastCardCheckout={handleFastCardCheckout}
             requestClearCart={requestClearCart}
             lastCompletedSale={lastCompletedSale}
             onOpenReceipt={() => setIsReceiptOpen(true)}
@@ -1361,6 +1384,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
             heldSalesCount={heldSalesCount}
             onOpenHeldSales={() => setIsHeldSalesModalOpen(true)}
             onOpenReturnModal={() => setIsReturnModalOpen(true)}
+            onSelectCustomer={setSelectedCustomerId}
+            onChangePaymentMethod={setPaymentMethod}
+            onOpenExpenseModal={() => setIsExpenseModalOpen(true)}
           />
         </section>
 
@@ -1680,6 +1706,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
         isOpen={isHeldSalesModalOpen}
         onClose={() => {
           setIsHeldSalesModalOpen(false);
+          void loadHeldSalesCount();
           barcodeInputRef.current?.focus();
         }}
         onRecall={handleRecallHeldSale}
@@ -1761,6 +1788,18 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
           }}
         />
       )}
+
+      {/* 19. CASH DRAWER EXPENSE MODAL */}
+      <ExpenseModal
+        isOpen={isExpenseModalOpen}
+        onClose={() => {
+          setIsExpenseModalOpen(false);
+          barcodeInputRef.current?.focus();
+        }}
+        onExpenseAdded={() => {
+          showStatus('تم تسجيل المصروف وخصمه من الدرج بنجاح', 'success');
+        }}
+      />
     </div>
   );
 };

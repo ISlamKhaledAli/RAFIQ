@@ -374,6 +374,40 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, new { resealedCount = resealedCount, verification = newCheck });
                     return true;
 
+                case "expenses:create":
+                    JObject expPayload = request.Payload as JObject;
+                    if (expPayload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات المصروف فارغة");
+                        return true;
+                    }
+                    CreateExpenseRequest expReq = expPayload.ToObject<CreateExpenseRequest>();
+                    var createdExp = DatabaseService.Expenses.CreateExpense(expReq);
+                    response = BridgeResponse.Ok(request.Id, createdExp);
+                    return true;
+
+                case "expenses:getToday":
+                    string expDate = null;
+                    JObject expDateObj = request.Payload as JObject;
+                    if (expDateObj != null && expDateObj["businessDate"] != null)
+                    {
+                        expDate = expDateObj["businessDate"].ToString();
+                    }
+                    var todayExpenses = DatabaseService.Expenses.GetExpenses(expDate);
+                    response = BridgeResponse.Ok(request.Id, todayExpenses);
+                    return true;
+
+                case "expenses:getRecent":
+                    int expLimit = 50;
+                    JObject expLimitObj = request.Payload as JObject;
+                    if (expLimitObj != null && expLimitObj["limit"] != null)
+                    {
+                        expLimit = expLimitObj["limit"].Value<int>();
+                    }
+                    var recentExpenses = DatabaseService.Expenses.GetRecentExpenses(expLimit);
+                    response = BridgeResponse.Ok(request.Id, recentExpenses);
+                    return true;
+
                 default:
                     return false;
             }

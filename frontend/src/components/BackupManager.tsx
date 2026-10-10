@@ -273,10 +273,10 @@ export const BackupManager = () => {
             type="button"
             onClick={() => void handleCreateBackup()}
             disabled={loading}
-            className="shrink-0 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-[12px] font-bold transition-colors flex items-center gap-1.5 shadow-sm"
+            className="shrink-0 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-[12px] font-bold transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
           >
             <Database className="w-3.5 h-3.5" />
-            <span>خذ نسخة الآن</span>
+            <span>خذ نسخة دلوقتي</span>
           </button>
         </div>
       )}
@@ -316,8 +316,8 @@ export const BackupManager = () => {
               <Database className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-[14px] font-bold text-ink m-0">حالة النسخ الاحتياطي وحماية قاعدة البيانات</h3>
-              <p className="text-[11px] text-ink-muted m-0">نسخ حي مباشر وآمن للبيانات في الخلفية دون الحاجة لإيقاف البيع</p>
+              <h3 className="text-[14px] font-bold text-ink m-0">حالة النسخ الاحتياطي وحماية بيانات المحل</h3>
+              <p className="text-[11px] text-ink-muted m-0">نسخ حي مباشر وآمن للبيانات في الخلفية من غير ما توقف البيع</p>
             </div>
           </div>
 
@@ -328,7 +328,7 @@ export const BackupManager = () => {
                 void fetchBackupStatus();
                 void fetchDrives();
               }}
-              className="p-2 rounded bg-surface-2 hover:bg-surface border border-line text-ink-muted hover:text-ink transition-colors"
+              className="p-2 rounded bg-surface-2 hover:bg-surface border border-line text-ink-muted hover:text-ink transition-colors cursor-pointer"
               title="تحديث الحالة والأقراص المتصلة"
             >
               <RefreshCw className="w-3.5 h-3.5" />
@@ -338,7 +338,7 @@ export const BackupManager = () => {
               type="button"
               onClick={() => setIsMigrationModalOpen(true)}
               className="h-[38px] px-3.5 bg-brand-soft hover:bg-brand-soft/80 border border-brand/30 text-brand rounded text-[12.5px] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
-              title="نقل البرنامج والبيانات إلى جهاز جديد مع مقارنة الأرقام (فيتشر #139)"
+              title="نقل البرنامج والبيانات إلى جهاز جديد مع مقارنة الأرقام"
             >
               <Laptop className="w-4 h-4 text-brand" />
               <span>نقل لجهاز جديد</span>
@@ -348,7 +348,7 @@ export const BackupManager = () => {
               type="button"
               onClick={() => void handleCreateBackup()}
               disabled={loading}
-              className="h-[38px] px-4 bg-brand hover:bg-brand-hover disabled:bg-surface-2 disabled:text-ink-muted text-white rounded text-[12.5px] font-bold flex items-center justify-center gap-2 transition-colors shadow-sm"
+              className="h-[38px] px-4 bg-brand hover:bg-brand-hover disabled:bg-surface-2 disabled:text-ink-muted text-white rounded text-[12.5px] font-bold flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer"
             >
               {loading ? (
                 <>
@@ -358,7 +358,7 @@ export const BackupManager = () => {
               ) : (
                 <>
                   <Database className="w-4 h-4" />
-                  <span>خذ نسخة احتياطية الآن</span>
+                  <span>خذ نسخة احتياطية دلوقتي</span>
                 </>
               )}
             </button>
@@ -491,7 +491,7 @@ export const BackupManager = () => {
             </button>
           </div>
           <p className="text-[11px] text-ink-muted mt-1 leading-relaxed font-sans">
-            ملاحظة: في حالة سحب الفلاشة أو تعذر الكتابة في المسار، يقوم النظام تلقائياً بالحفظ الآمن في المجلد الداخلي للنظام حتى لا تتعطل المبيعات.
+            ملاحظة: لو الفلاشة اتفصلت أو تعذر الحفظ فيها، النظام بيحفظ تلقائياً في مجلد آمن داخل الجهاز عشان البيع ما يقفش أبداً.
           </p>
         </div>
 
@@ -506,7 +506,7 @@ export const BackupManager = () => {
                 onChange={(e) => void handleToggleAutoOnClose(e.target.checked)}
                 className="w-4 h-4 accent-brand rounded cursor-pointer"
               />
-              <span>أخذ نسخة احتياطية تلقائياً عند إغلاق البرنامج (موصى به)</span>
+              <span>أخذ نسخة احتياطية تلقائياً عند قفل البرنامج (موصى به جداً)</span>
             </label>
 
             <label className="flex items-center gap-2 cursor-pointer font-medium text-ink">
@@ -516,7 +516,7 @@ export const BackupManager = () => {
                 onChange={(e) => void handleToggleAutoDaily(e.target.checked)}
                 className="w-4 h-4 accent-brand rounded cursor-pointer"
               />
-              <span>تفعيل الجدولة اليومية الآلية للنسخ الاحتياطي</span>
+              <span>تفعيل النسخ الاحتياطي اليومي التلقائي</span>
             </label>
           </div>
 
@@ -572,7 +572,7 @@ export const BackupManager = () => {
               </div>
             </div>
             <p className="text-[10.5px] text-ink-muted font-sans m-0 leading-relaxed">
-              * محرك الاستبقاء فائق الأمان: يدمج نسخ اليوم الواحد السابقة لمنع تراكم الملفات عند إغلاق البرنامج، ويحتفظ دائماً بـ 3 نسخ سليمة كحد أدنى مضمون مهما كانت الظروف.
+              * محرك الاستبقاء الآمن: بيدمج نسخ نفس اليوم لمنع تراكم الملفات عند قفل البرنامج وفتحه، وبيحتفظ دائماً بـ 3 نسخ سليمة كحد أدنى مضمون مهما حصل.
             </p>
           </div>
         </div>
@@ -580,7 +580,7 @@ export const BackupManager = () => {
         <button
           type="button"
           onClick={() => void handleSavePolicy()}
-          className="self-end mt-1 px-4 h-[36px] bg-brand hover:bg-brand-hover text-white rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors shadow-sm"
+          className="self-end mt-1 px-4 h-[36px] bg-brand hover:bg-brand-hover text-white rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
         >
           <Save className="w-3.5 h-3.5" />
           <span>حفظ وتطبيق سياسة النسخ</span>

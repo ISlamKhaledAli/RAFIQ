@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   ArrowUpRight,
   ArrowDownLeft,
+  Sparkles,
 } from 'lucide-react';
 import type { Customer, CustomerLedgerEntry, CustomerBalanceVerification } from '../../types/models';
 import { CustomSelect } from '../../components/CustomSelect';
@@ -35,6 +36,7 @@ export interface CustomerStatementModalProps {
     openingBalancePiasters: number;
     periodDebitsPiasters: number;
     periodCreditsPiasters: number;
+    periodRefundsPiasters?: number;
     closingBalancePiasters: number;
   };
   isStatementLoading: boolean;
@@ -90,7 +92,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
             <div className="flex items-center gap-2">
               <FileText className="w-4 h-4 text-brand" />
               <span className="text-sm font-bold text-ink">
-                كشف حساب العميل: {selectedCustomer.name}
+                كشف حساب الزبون: {selectedCustomer.name}
               </span>
               <span className={`text-[11px] px-2.5 py-0.5 rounded font-bold border ${
                 selectedCustomer.balancePiasters > 0
@@ -100,23 +102,23 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                   : 'bg-surface-2 text-ink-muted border-line'
               }`}>
                 {selectedCustomer.balancePiasters > 0
-                  ? `عليه دين: ${(selectedCustomer.balancePiasters / 100).toFixed(2)} ج.م`
+                  ? `عليه فلوس: ${(selectedCustomer.balancePiasters / 100).toFixed(2)} ج.م`
                   : selectedCustomer.balancePiasters < 0
-                  ? `له رصيد: ${(Math.abs(selectedCustomer.balancePiasters) / 100).toFixed(2)} ج.م`
-                  : 'الحساب خالص (0.00 ج.م)'}
+                  ? `سايب فلوس في المحل: ${(Math.abs(selectedCustomer.balancePiasters) / 100).toFixed(2)} ج.م`
+                  : 'حسابه خالص تماماً (0.00 ج.م)'}
               </span>
               <button
                 type="button"
                 onClick={() => void onVerifyBalance(selectedCustomer.id)}
                 disabled={isVerifyingBalance || isFixingBalance}
-                className="h-6 px-2 bg-surface hover:bg-surface-2 border border-line text-ink rounded text-[10.5px] font-bold flex items-center gap-1 transition-colors disabled:opacity-50"
+                className="h-6 px-2 bg-surface hover:bg-surface-2 border border-line text-ink rounded text-[10.5px] font-bold flex items-center gap-1 transition-colors disabled:opacity-50 cursor-pointer"
                 title="مراجعة وتدقيق مطابقة الرصيد الحالي مع مجموع حركات الديون والمدفوعات"
               >
                 <ShieldCheck className={`w-3.5 h-3.5 text-brand ${isVerifyingBalance ? 'animate-spin' : ''}`} />
-                <span>{isVerifyingBalance ? 'جاري التدقيق...' : 'تدقيق ومطابقة الرصيد'}</span>
+                <span>{isVerifyingBalance ? 'بنطابق الحساب...' : 'مطابقة الرصيد وتدقيقه'}</span>
               </button>
             </div>
-            <button onClick={onClose} className="text-ink-muted hover:text-ink">
+            <button onClick={onClose} className="text-ink-muted hover:text-ink cursor-pointer">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -132,7 +134,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                 <ShieldCheck className="w-4 h-4 shrink-0" />
                 <span>
                   {balanceVerification.isBalanced
-                    ? `الرصيد سليم ومطابق 100% لسجل القيود (${balanceVerification.totalEntriesCount} حركة مالية مسجلة).`
+                    ? `الرصيد سليم ومطابق 100% لسجل القيود (${balanceVerification.totalEntriesCount} حركة مسجلة بالدفتر).`
                     : `تنبيه عدم تطابق: الرصيد المسجل (${(balanceVerification.storedBalancePiasters / 100).toFixed(2)} ج.م) يختلف عن مجموع الحركات (${(balanceVerification.calculatedBalancePiasters / 100).toFixed(2)} ج.م). الفارق: ${(Math.abs(balanceVerification.discrepancyPiasters) / 100).toFixed(2)} ج.م.`
                   }
                 </span>
@@ -142,7 +144,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                   type="button"
                   onClick={() => void onFixBalance(selectedCustomer.id)}
                   disabled={isFixingBalance}
-                  className="px-2.5 py-1 bg-danger hover:bg-danger/90 text-white rounded text-[11px] font-bold flex items-center gap-1 transition-colors disabled:opacity-50 shrink-0"
+                  className="px-2.5 py-1 bg-danger hover:bg-danger/90 text-white rounded text-[11px] font-bold flex items-center gap-1 transition-colors disabled:opacity-50 shrink-0 cursor-pointer"
                 >
                   <span>{isFixingBalance ? 'جاري التصحيح...' : 'إعادة حساب وتصحيح الرصيد'}</span>
                 </button>
@@ -161,7 +163,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
           {/* Filter Bar & Quick Dates (Story 69 / Feature #43) */}
           <div className="bg-surface-2 hairline-b px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0">
             <div className="flex items-center gap-2">
-              <span className="text-ink-muted text-[11px] font-semibold">تصفية التاريخ:</span>
+              <span className="text-ink-muted text-[11px] font-semibold">الفترة:</span>
               <CustomDateRangePicker
                 startDate={statementStartDate}
                 endDate={statementEndDate}
@@ -177,7 +179,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               <button
                 type="button"
                 onClick={() => { setStatementStartDate(''); setStatementEndDate(''); }}
-                className="px-2 py-1 rounded text-[11px] bg-canvas border border-line hover:bg-surface text-ink font-medium"
+                className="px-2 py-1 rounded text-[11px] bg-canvas border border-line hover:bg-surface text-ink font-medium cursor-pointer"
               >
                 الكل
               </button>
@@ -188,9 +190,9 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                   setStatementStartDate(todayStr);
                   setStatementEndDate(todayStr);
                 }}
-                className="px-2 py-1 rounded text-[11px] bg-canvas border border-line hover:bg-surface text-ink font-medium"
+                className="px-2 py-1 rounded text-[11px] bg-canvas border border-line hover:bg-surface text-ink font-medium cursor-pointer"
               >
-                اليوم
+                النهاردة
               </button>
               <button
                 type="button"
@@ -200,9 +202,9 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                   setStatementStartDate(d.toISOString().slice(0, 10));
                   setStatementEndDate(new Date().toISOString().slice(0, 10));
                 }}
-                className="px-2 py-1 rounded text-[11px] bg-canvas border border-line hover:bg-surface text-ink font-medium"
+                className="px-2 py-1 rounded text-[11px] bg-canvas border border-line hover:bg-surface text-ink font-medium cursor-pointer"
               >
-                آخر 7 أيام
+                آخر أسبوع
               </button>
               <button
                 type="button"
@@ -212,9 +214,9 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                   setStatementStartDate(d.toISOString().slice(0, 10));
                   setStatementEndDate(new Date().toISOString().slice(0, 10));
                 }}
-                className="px-2 py-1 rounded text-[11px] bg-canvas border border-line hover:bg-surface text-ink font-medium"
+                className="px-2 py-1 rounded text-[11px] bg-canvas border border-line hover:bg-surface text-ink font-medium cursor-pointer"
               >
-                هذا الشهر
+                الشهر ده
               </button>
             </div>
           </div>
@@ -242,10 +244,10 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold text-ink">
                     {statementPeriodSummary.closingBalancePiasters > 0
-                      ? 'الوضع المالي: عليه دين للمحل'
+                      ? 'حساب الزبون: عليه فلوس للمحل (شكك)'
                       : statementPeriodSummary.closingBalancePiasters < 0
-                      ? 'الوضع المالي: له رصيد عند المحل'
-                      : 'الوضع المالي: الحساب خالص بالكامل'}
+                      ? 'حساب الزبون: سايب فلوس في المحل (له رصيد)'
+                      : 'حساب الزبون: حسابه خالص بالمليم (0.00 ج.م)'}
                   </span>
                   <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
                     statementPeriodSummary.closingBalancePiasters > 0
@@ -255,9 +257,9 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                       : 'bg-surface border border-line text-ink-muted'
                   }`}>
                     {statementPeriodSummary.closingBalancePiasters > 0
-                      ? 'عليه دين'
+                      ? 'عليه فلوس'
                       : statementPeriodSummary.closingBalancePiasters < 0
-                      ? 'له رصيد'
+                      ? 'له فلوس'
                       : 'خالص'}
                   </span>
                 </div>
@@ -270,31 +272,41 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
             {/* Simplified Period Details */}
             <div className="flex items-center gap-2 shrink-0">
               {/* Period Purchases */}
-              <div className="px-3 py-1.5 rounded-lg bg-surface-2 border border-line text-right min-w-[120px]">
-                <span className="block text-[10px] text-ink-muted font-medium">مسحوبات آجل</span>
+              <div className="px-3 py-1.5 rounded-lg bg-surface-2 border border-line text-right min-w-[130px]">
+                <span className="block text-[10px] text-ink-muted font-bold">أخد بضاعة (على الحساب)</span>
                 <span className="font-mono text-xs font-bold text-danger">
                   {(statementPeriodSummary.periodDebitsPiasters / 100).toFixed(2)} ج.م
                 </span>
               </div>
 
               {/* Period Payments */}
-              <div className="px-3 py-1.5 rounded-lg bg-surface-2 border border-line text-right min-w-[120px]">
-                <span className="block text-[10px] text-ink-muted font-medium">سداد نقدي</span>
+              <div className="px-3 py-1.5 rounded-lg bg-surface-2 border border-line text-right min-w-[130px]">
+                <span className="block text-[10px] text-ink-muted font-bold">سدد فلوس (دفع كاش)</span>
                 <span className="font-mono text-xs font-bold text-paid">
                   {(statementPeriodSummary.periodCreditsPiasters / 100).toFixed(2)} ج.م
                 </span>
               </div>
 
+              {/* Period Refunds if any */}
+              {Boolean(statementPeriodSummary.periodRefundsPiasters && statementPeriodSummary.periodRefundsPiasters > 0) && (
+                <div className="px-3 py-1.5 rounded-lg bg-surface-2 border border-line text-right min-w-[130px]">
+                  <span className="block text-[10px] text-ink-muted font-bold">مرتجع بضاعة (خصم)</span>
+                  <span className="font-mono text-xs font-bold text-paid">
+                    -{(statementPeriodSummary.periodRefundsPiasters! / 100).toFixed(2)} ج.م
+                  </span>
+                </div>
+              )}
+
               {/* Prior Balance */}
-              <div className="px-3 py-1.5 rounded-lg bg-surface-2 border border-line text-right min-w-[130px]">
-                <span className="block text-[10px] text-ink-muted font-medium">رصيد ما قبل الفترة</span>
+              <div className="px-3 py-1.5 rounded-lg bg-surface-2 border border-line text-right min-w-[135px]">
+                <span className="block text-[10px] text-ink-muted font-bold">حسابه القديم (اللي فات)</span>
                 <span className="font-mono text-xs font-bold text-ink">
                   {(Math.abs(statementPeriodSummary.openingBalancePiasters) / 100).toFixed(2)} ج.م
                   {statementPeriodSummary.openingBalancePiasters > 0 && (
                     <span className="text-[9px] text-danger mr-1 font-sans font-medium">(كان عليه)</span>
                   )}
                   {statementPeriodSummary.openingBalancePiasters < 0 && (
-                    <span className="text-[9px] text-paid mr-1 font-sans font-medium">(كان له)</span>
+                    <span className="text-[9px] text-paid mr-1 font-sans font-medium">(كان سايب فلوس)</span>
                   )}
                 </span>
               </div>
@@ -305,31 +317,33 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
           <div className="flex-1 overflow-auto p-4 bg-canvas">
             {isStatementLoading ? (
               <div className="py-12 text-center text-ink-muted text-xs">
-                جاري جلب كشف الحساب من قاعدة البيانات...
+                بنحمّل حركات كشف الحساب من الدفتر...
               </div>
             ) : filteredStatementEntries.length === 0 ? (
               <div className="py-12 text-center text-ink-muted text-xs">
                 <AlertCircle className="w-6 h-6 text-ink-muted/40 mx-auto mb-2" />
-                لا توجد حركات مسجلة خلال الفترة المحددة.
+                مفيش حركات مسجلة خلال الفترة دي.
               </div>
             ) : (
               <div className="bg-surface rounded border border-line overflow-hidden shadow-xs">
                 <table className="w-full text-right text-xs">
                   <thead>
                     <tr className="h-8 bg-surface-2 hairline-b text-ink-muted font-bold text-[11px]">
-                      <th className="px-3">التاريخ والوقت</th>
+                      <th className="px-3">الوقت والتاريخ</th>
                       <th className="px-3">نوع الحركة</th>
                       <th className="px-3">المبلغ</th>
-                      <th className="px-3">الرصيد بعدها</th>
-                      <th className="px-3">البيان / الملاحظات</th>
-                      <th className="px-3 text-center">إجراءات</th>
+                      <th className="px-3">الحساب بعد الحركة</th>
+                      <th className="px-3">تفاصيل وملاحظات</th>
+                      <th className="px-3 text-center">العملية</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
                     {filteredStatementEntries.map((entry) => {
                       const isPayment = entry.type === 'payment';
+                      const isDeposit = entry.type === 'deposit';
                       const isSale = entry.type === 'sale';
                       const isCancel = entry.type === 'payment_cancel';
+                      const isRefund = entry.type === 'refund';
                       const alreadyCancelled = isPayment && isEntryCancelled(entry.id);
 
                       return (
@@ -348,36 +362,46 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                             {isPayment ? (
                               alreadyCancelled ? (
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-2 text-ink-muted line-through text-[10px] font-bold border border-line">
-                                  سداد ملغى بقيد معاكس
+                                  سداد اتلغى
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-paid-soft text-paid text-[10px] font-bold border border-paid-border">
-                                  سداد نقدي
+                                  سداد كاش
                                 </span>
                               )
                             ) : isCancel ? (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-warn-soft text-warn text-[10px] font-bold border border-warn-border">
                                 <RotateCcw className="w-3 h-3" />
-                                قيد معاكس (إلغاء سداد)
+                                إلغاء سداد (قيد عكسي)
+                              </span>
+                            ) : isDeposit ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-paid-soft text-paid text-[10px] font-bold border border-paid-border">
+                                <Sparkles className="w-3 h-3 text-paid" />
+                                سايب فلوس تحت الحساب
                               </span>
                             ) : isSale ? (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-danger-soft text-danger text-[10px] font-bold border border-danger-border">
                                 <Receipt className="w-3 h-3" />
-                                فاتورة آجل
+                                فاتورة شكك (على النوتة)
+                              </span>
+                            ) : isRefund ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-paid-soft text-paid text-[10px] font-bold border border-paid-border">
+                                <RotateCcw className="w-3 h-3 text-paid" />
+                                مرتجع بضاعة (خصم)
                               </span>
                             ) : (
                               <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-surface-2 text-ink-muted text-[10px] font-bold border border-line">
-                                رصيد افتتاحي
+                                حساب قديم (رصيد افتتاحي)
                               </span>
                             )}
                           </td>
 
                           <td className={`px-3 font-mono font-bold ${
                             alreadyCancelled ? 'text-ink-muted line-through' :
-                            isPayment ? 'text-paid' :
+                            (isPayment || isDeposit || isRefund) ? 'text-paid' :
                             isCancel ? 'text-warn' : 'text-danger'
                           }`}>
-                            {isPayment ? '-' : '+'}{(entry.amountPiasters / 100).toFixed(2)} ج.م
+                            {(isPayment || isDeposit || isRefund) ? '-' : '+'}{(Math.abs(entry.amountPiasters) / 100).toFixed(2)} ج.م
                           </td>
 
                           <td className="px-3 font-mono font-semibold text-ink">
@@ -393,11 +417,11 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                               <button
                                 type="button"
                                 onClick={() => setCancellingEntry(entry)}
-                                className="inline-flex items-center gap-1 text-[11px] text-danger hover:text-red-700 hover:underline font-semibold"
+                                className="inline-flex items-center gap-1 text-[11px] text-danger hover:text-red-700 hover:underline font-semibold cursor-pointer"
                                 title="إلغاء دفعة السداد بقيد معاكس دون حذف"
                               >
                                 <RotateCcw className="w-3 h-3" />
-                                <span>إلغاء الدفعة</span>
+                                <span>إلغاء السداد</span>
                               </button>
                             )}
                           </td>
@@ -420,7 +444,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               <button
                 type="button"
                 onClick={onOpenPrintStatement}
-                className="px-3.5 py-1.5 rounded bg-brand text-white text-xs font-bold hover:bg-brand-hover flex items-center gap-1.5 shadow-xs"
+                className="px-3.5 py-1.5 rounded bg-brand text-white text-xs font-bold hover:bg-brand-hover flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
                 <Printer className="w-3.5 h-3.5" />
                 <span>طباعة كشف الحساب</span>
@@ -428,9 +452,9 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-1.5 rounded bg-surface border border-line text-xs font-semibold text-ink hover:bg-surface-2"
+                className="px-4 py-1.5 rounded bg-surface border border-line text-xs font-semibold text-ink hover:bg-surface-2 cursor-pointer"
               >
-                إغلاق
+                رجوع
               </button>
             </div>
           </div>
@@ -444,9 +468,9 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
             <div className="h-12 bg-danger-soft hairline-b px-4 flex items-center justify-between shrink-0 text-danger font-bold text-sm">
               <div className="flex items-center gap-2">
                 <RotateCcw className="w-4 h-4" />
-                <span>إلغاء دفعة سداد (قيد معاكس)</span>
+                <span>إلغاء سداد بالخطأ (قيد عكسي)</span>
               </div>
-              <button onClick={() => setCancellingEntry(null)} className="text-danger hover:opacity-75">
+              <button onClick={() => setCancellingEntry(null)} className="text-danger hover:opacity-75 cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -454,17 +478,17 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
             <div className="p-4 space-y-3.5 text-xs">
               <div className="p-3 bg-surface-2 rounded border border-line space-y-1.5">
                 <div className="flex justify-between text-ink">
-                  <span className="text-ink-muted font-medium">العميل:</span>
+                  <span className="text-ink-muted font-medium">الزبون:</span>
                   <span className="font-bold">{selectedCustomer.name}</span>
                 </div>
                 <div className="flex justify-between text-ink">
-                  <span className="text-ink-muted font-medium">مبلغ الدفعة المراد إلغاؤها:</span>
+                  <span className="text-ink-muted font-medium">المبلغ اللي هيتلغى:</span>
                   <span className="font-bold font-mono text-danger text-[13px]">
                     {(cancellingEntry.amountPiasters / 100).toFixed(2)} ج.م
                   </span>
                 </div>
                 <div className="flex justify-between text-ink">
-                  <span className="text-ink-muted font-medium">تاريخ الدفعة:</span>
+                  <span className="text-ink-muted font-medium">وقت السداد:</span>
                   <span className="font-mono text-[11px]">
                     {new Date(cancellingEntry.createdAt).toLocaleString('ar-EG-u-nu-latn')}
                   </span>
@@ -475,7 +499,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded flex items-start gap-2 text-amber-700 dark:text-amber-300">
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
                 <div className="text-[11px] leading-relaxed">
-                  <strong>قيد محاسبي معاكس:</strong> لن يتم حذف أي سجل من قاعدة البيانات، بل سيتم تسجيل قيد معاكس يُعيد رصيد دين العميل كما كان فوراً (
+                  <strong>ملاحظة أمان:</strong> السيستم مش هيمسح الحركة من الدفاتر، بس هيسجل قيد عكسي عشان يرجع الفلوس على حساب الزبون فوراً زي ما كانت بالظبط (
                   <span className="font-bold font-mono">
                     {((selectedCustomer.balancePiasters + cancellingEntry.amountPiasters) / 100).toFixed(2)} ج.م
                   </span>
@@ -484,17 +508,17 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               </div>
 
               <div className="mb-2">
-                <label className="block text-ink font-semibold mb-1">سبب إلغاء الدفعة *</label>
+                <label className="block text-ink font-semibold mb-1">سبب إلغاء السداد *</label>
                 <CustomSelect
                   value={cancelReasonPreset}
                   onChange={(val) => setCancelReasonPreset(val)}
                   size="sm"
                   options={[
-                    { value: 'سجلت بالخطأ', label: 'سجلت بالخطأ' },
-                    { value: 'سجلت بمبلغ خاطئ', label: 'سجلت بمبلغ خاطئ' },
-                    { value: 'سجلت لحساب عميل آخر بالخطأ', label: 'سجلت لحساب عميل آخر بالخطأ' },
-                    { value: 'شيك أو تحويل مرتجع بدون رصيد', label: 'شيك أو تحويل مرتجع بدون رصيد' },
-                    { value: 'أخرى', label: 'سبب آخر...' },
+                    { value: 'سجلت بالخطأ', label: 'اتسجلت بالخطأ' },
+                    { value: 'سجلت بمبلغ خاطئ', label: 'المبلغ اتكتب غلط' },
+                    { value: 'سجلت لحساب عميل آخر بالخطأ', label: 'اتسجلت لزبون تاني بالغلط' },
+                    { value: 'شيك أو تحويل مرتجع بدون رصيد', label: 'تحويل أو شيك رجع' },
+                    { value: 'أخرى', label: 'سبب تاني...' },
                   ]}
                 />
 
@@ -503,7 +527,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                     type="text"
                     value={customCancelReason}
                     onChange={(e) => setCustomCancelReason(e.target.value)}
-                    placeholder="اكتب سبب الإلغاء بالتفصيل..."
+                    placeholder="اكتب سبب الإلغاء هنا..."
                     className="w-full h-8 px-3 mt-2 bg-canvas border border-line rounded focus:outline-none focus:border-brand text-ink text-xs"
                     autoFocus
                   />
@@ -515,18 +539,18 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                   type="button"
                   onClick={() => setCancellingEntry(null)}
                   disabled={isCancellingPayment}
-                  className="px-4 py-1.5 rounded bg-surface border border-line hover:bg-surface-2 text-ink font-medium"
+                  className="px-4 py-1.5 rounded bg-surface border border-line hover:bg-surface-2 text-ink font-medium cursor-pointer"
                 >
-                  تراجع
+                  رجوع
                 </button>
                 <button
                   type="button"
                   onClick={onConfirmCancelPayment}
                   disabled={isCancellingPayment}
-                  className="px-5 py-1.5 rounded bg-danger text-white hover:bg-red-700 font-bold flex items-center gap-1.5 disabled:opacity-50"
+                  className="px-5 py-1.5 rounded bg-danger text-white hover:bg-red-700 font-bold flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  <span>{isCancellingPayment ? 'جاري الإلغاء...' : 'تأكيد إلغاء السداد'}</span>
+                  <span>{isCancellingPayment ? 'بنلغي السداد...' : 'تأكيد إلغاء السداد'}</span>
                 </button>
               </div>
             </div>

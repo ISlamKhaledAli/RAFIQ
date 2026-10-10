@@ -13,6 +13,7 @@ import {
 import { invoke } from '../bridge/ipc';
 import { CustomSelect } from './CustomSelect';
 import { MoneyInput } from './MoneyInput';
+import { normalizeArabicNumerals } from '../utils/money';
 import type { Category, VariantMatrixCell, CreateVariantMatrixRequest, ParentProductWithVariants } from '../types/models';
 
 interface ProductVariantMatrixModalProps {
@@ -618,19 +619,22 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
                             </td>
                             <td className="p-3">
                               <input
-                                type="number"
-                                step="0.5"
-                                min="0"
-                                value={cell.pricePiasters / 100 || ''}
-                                onChange={(e) =>
-                                  setMatrixCells((prev) => ({
-                                    ...prev,
-                                    [key]: {
-                                      ...prev[key],
-                                      pricePiasters: Math.round((parseFloat(e.target.value) || 0) * 100),
-                                    },
-                                  }))
-                                }
+                                type="text"
+                                inputMode="decimal"
+                                value={cell.pricePiasters > 0 ? (cell.pricePiasters / 100).toString() : ''}
+                                onChange={(e) => {
+                                  const norm = normalizeArabicNumerals(e.target.value);
+                                  if (/^[0-9]*\.?[0-9]{0,2}$/.test(norm)) {
+                                    setMatrixCells((prev) => ({
+                                      ...prev,
+                                      [key]: {
+                                        ...prev[key],
+                                        pricePiasters: Math.round((parseFloat(norm) || 0) * 100),
+                                      },
+                                    }));
+                                  }
+                                }}
+                                onFocus={(e) => e.target.select()}
                                 placeholder="0.00"
                                 disabled={!isEnabled}
                                 className="w-full h-8 px-2 rounded border border-line bg-surface text-ink text-xs focus:border-brand outline-none"
@@ -638,19 +642,22 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
                             </td>
                             <td className="p-3">
                               <input
-                                type="number"
-                                step="0.5"
-                                min="0"
-                                value={cell.costPiasters / 100 || ''}
-                                onChange={(e) =>
-                                  setMatrixCells((prev) => ({
-                                    ...prev,
-                                    [key]: {
-                                      ...prev[key],
-                                      costPiasters: Math.round((parseFloat(e.target.value) || 0) * 100),
-                                    },
-                                  }))
-                                }
+                                type="text"
+                                inputMode="decimal"
+                                value={cell.costPiasters > 0 ? (cell.costPiasters / 100).toString() : ''}
+                                onChange={(e) => {
+                                  const norm = normalizeArabicNumerals(e.target.value);
+                                  if (/^[0-9]*\.?[0-9]{0,2}$/.test(norm)) {
+                                    setMatrixCells((prev) => ({
+                                      ...prev,
+                                      [key]: {
+                                        ...prev[key],
+                                        costPiasters: Math.round((parseFloat(norm) || 0) * 100),
+                                      },
+                                    }));
+                                  }
+                                }}
+                                onFocus={(e) => e.target.select()}
                                 placeholder="0.00"
                                 disabled={!isEnabled}
                                 className="w-full h-8 px-2 rounded border border-line bg-surface text-ink text-xs focus:border-brand outline-none"

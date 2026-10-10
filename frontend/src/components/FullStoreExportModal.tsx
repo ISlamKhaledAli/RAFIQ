@@ -128,13 +128,13 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
         {/* Modal Header */}
         <div className="bg-brand-dark px-6 py-4 flex items-center justify-between text-white border-b border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-emerald-400">
+            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-paid">
               <FileSpreadsheet className="w-6 h-6" />
             </div>
             <div>
               <h2 className="text-lg font-bold">تصدير كل بيانات المحل بضغطة واحدة</h2>
               <p className="text-xs text-white/70">
-                بياناتك ملكك بالكامل 100% بتنسيق Excel قياسي ومفتوح
+                بياناتك ملكك 100% في ملفات إكسل مفتوحة بدون أي قيود
               </p>
             </div>
           </div>
@@ -154,58 +154,58 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
             <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5" />
             <div>
               <strong className="block text-sm font-bold text-paid mb-1">
-                التزام رفيق الصارم بحرية الملكية الرقمية:
+                بياناتك ملكك بالكامل (حرية تامة 100%):
               </strong>
-              يحق لك في أي وقت استخراج كافة سجلات محلك (المنتجات، العملاء، الديون، الموردين، فواتير المبيعات، وحركات المخزون) في ملفات إكسل منسقة وجاهزة بدون أي تشفير أو احتكار أو رسوم خروج.
+              تقدر في أي وقت تستخرج كل بيانات وسجلات محلك (البضاعة، الزبائن، الشكك والديون، الموردين، فواتير البيع، وحركات المخزن) في ملفات إكسل جاهزة ومنظمة، بدون أي تشفير أو رسوم خروج.
             </div>
           </div>
 
           {/* Files Summary Grid */}
           <div className="bg-surface-2 p-4 rounded-xl border border-line space-y-3">
             <h4 className="text-xs font-bold text-ink-muted uppercase tracking-wider">
-              حزمة الملفات التي سيتم إنشاؤها في مجلد واحد:
+              الملفات اللي هتتعمل في المجلد ده:
             </h4>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs text-ink font-medium">
               <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-line">
                 <Package className="w-4 h-4 text-brand shrink-0" />
-                <span>01. المنتجات والمخزون</span>
+                <span>01. البضاعة والمخزن</span>
               </div>
               <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-line">
                 <Users className="w-4 h-4 text-paid shrink-0" />
-                <span>02. العملاء والديون</span>
+                <span>02. الزبائن وحسابات الشكك</span>
               </div>
               <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-line">
-                <Truck className="w-4 h-4 text-amber-600 shrink-0" />
+                <Truck className="w-4 h-4 text-warn shrink-0" />
                 <span>03. الموردين والأرصدة</span>
               </div>
               <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-line">
-                <Receipt className="w-4 h-4 text-blue-600 shrink-0" />
-                <span>04. فواتير المبيعات</span>
+                <Receipt className="w-4 h-4 text-brand-dark shrink-0" />
+                <span>04. فواتير وحركات البيع</span>
               </div>
               <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-line">
-                <Database className="w-4 h-4 text-indigo-600 shrink-0" />
-                <span>05. حركات المخزون</span>
+                <Database className="w-4 h-4 text-brand shrink-0" />
+                <span>05. حركات المخزن</span>
               </div>
               <div className="flex items-center gap-2 p-2 bg-surface rounded-lg border border-line">
-                <Layers className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>06. الورديات والإغلاق</span>
+                <Layers className="w-4 h-4 text-paid shrink-0" />
+                <span>06. الورديات والتقفيل اليومي</span>
               </div>
             </div>
             <p className="text-[11px] text-ink-muted font-normal pt-1">
-              بالإضافة إلى ملف <strong className="font-mono">00_بيانات_المحل_الشاملة.xlsx</strong> الجامع لكافة الشيتات، ووثيقة ملكية رسمية بصيغة نصية.
+              معاهم شيت مجمّع فيه كل البيانات في ملف واحد، ووثيقة رسمية بملكية البيانات.
             </p>
           </div>
 
           {/* Export Destination Folder Picker */}
           <div className="space-y-2">
             <label className="text-xs font-bold text-ink">
-              مكان حفظ مجلد التصدير (المجلد أو الفلاشة):
+              عاوز تحفظ الملفات فين؟ (مجلد على الجهاز أو فلاشة):
             </label>
             <div className="flex items-center gap-2">
               <input
                 type="text"
                 readOnly
-                value={selectedFolder || 'سطح المكتب تلقائياً (Desktop / RafiqExport)'}
+                value={selectedFolder || 'على سطح المكتب تلقائياً (Desktop / RafiqExport)'}
                 className="flex-1 px-3.5 py-2.5 rounded-xl bg-surface-2 border border-line text-xs font-mono text-ink-muted select-all"
                 dir="ltr"
               />
@@ -234,16 +234,16 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
                   className="px-3 py-1.5 rounded-lg bg-paid text-white text-xs font-bold flex items-center gap-1.5 hover:bg-paid/90 transition-all shadow-xs"
                 >
                   <FolderOpen className="w-3.5 h-3.5" />
-                  <span>فتح المجلد الآن</span>
+                  <span>فتح المجلد دلوقتي</span>
                 </button>
               </div>
 
               <div className="grid grid-cols-3 gap-2 text-xs font-medium text-ink pt-1 border-t border-paid/20">
                 <div className="p-2 bg-surface rounded-lg">
-                  الأصناف: <strong>{exportResult.productsCount}</strong>
+                  أصناف البضاعة: <strong>{exportResult.productsCount}</strong>
                 </div>
                 <div className="p-2 bg-surface rounded-lg">
-                  العملاء: <strong>{exportResult.customersCount}</strong>
+                  الزبائن: <strong>{exportResult.customersCount}</strong>
                 </div>
                 <div className="p-2 bg-surface rounded-lg">
                   الفواتير: <strong>{exportResult.salesCount}</strong>
@@ -266,8 +266,8 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
             className="px-3.5 py-2 rounded-xl bg-surface border border-line hover:border-line-hover text-ink-muted hover:text-ink text-xs font-medium transition-all disabled:opacity-50 flex items-center gap-1.5"
             title="فحص مطابقة عدد الصفوف والمجاميع بين إكسل وقاعدة البيانات"
           >
-            <FileCheck className="w-4 h-4 text-emerald-600" />
-            <span>فحص مطابقة المجاميع</span>
+            <FileCheck className="w-4 h-4 text-paid" />
+            <span>مطابقة الأرقام والإجمالي</span>
           </button>
 
           <div className="flex items-center gap-2">
@@ -285,7 +285,7 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
               className="px-5 py-2 rounded-xl bg-brand hover:bg-brand-dark text-white text-xs font-bold flex items-center gap-2 shadow-sm transition-all disabled:opacity-50"
             >
               <FolderDown className="w-4 h-4" />
-              <span>{isExporting ? 'جاري تجهيز وتصدير الملفات...' : 'تصدير كل البيانات بضغطة واحدة'}</span>
+              <span>{isExporting ? 'بيتم تجهيز وتصدير كل الملفات دلوقتي...' : 'تصدير كل البيانات بضغطة واحدة'}</span>
             </button>
           </div>
         </div>

@@ -538,13 +538,13 @@ namespace RafiqPOS.Repositories
                         {
                             entriesCount++;
                             string type = reader["type"].ToString().ToLowerInvariant();
-                            long amount = Convert.ToInt64(reader["amount_piasters"]);
+                            long amount = Math.Abs(Convert.ToInt64(reader["amount_piasters"]));
 
                             if (type == "opening_balance" || type == "sale" || type == "debt_increase" || type == "payment_cancel")
                             {
                                 calculatedBalance += amount;
                             }
-                            else if (type == "payment" || type == "refund" || type == "cancellation" || type == "debt_decrease")
+                            else if (type == "payment" || type == "refund" || type == "cancellation" || type == "debt_decrease" || type == "deposit")
                             {
                                 calculatedBalance -= amount;
                             }

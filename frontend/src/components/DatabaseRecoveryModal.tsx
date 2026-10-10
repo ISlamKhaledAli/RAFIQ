@@ -100,19 +100,19 @@ export const DatabaseRecoveryModal = ({
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 font-sans select-none animate-in fade-in duration-200">
       <div className="w-full max-w-xl bg-surface rounded-[8px] shadow-2xl border border-red-300 overflow-hidden flex flex-col text-right">
         {/* 1. Modal Top Banner */}
-        <div className="p-4 bg-red-600 text-white flex items-center justify-between">
+        <div className="p-4 bg-danger text-white flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center shrink-0">
               <AlertTriangle className="w-5 h-5 text-white" />
             </div>
             <div>
               <h3 className="text-[15px] font-bold m-0 leading-tight">
-                {status.isCorrupt ? 'معالج استرجاع البيانات الموجه (تنبيه سلامة)' : 'استرجاع نسخة احتياطية للنظام'}
+                {status.isCorrupt ? 'استرجاع قاعدة البيانات (طوارئ سلامة البيانات)' : 'استرجاع نسخة احتياطية للمحل'}
               </h3>
               <p className="text-[11px] text-white/90 m-0 mt-0.5">
                 {status.isCorrupt 
-                  ? 'تم إيقاف الكتابة مؤقتاً لحماية الحسابات والمبيعات'
-                  : 'استعادة ملف قاعدة البيانات من نسخة احتياطية معتمدة'}
+                  ? 'وقفنا التسجيل مؤقتاً لحماية حسابات وفواتير المحل'
+                  : 'استرجاع بيانات المحل من نسخة احتياطية سليمة'}
               </p>
             </div>
           </div>
@@ -135,13 +135,13 @@ export const DatabaseRecoveryModal = ({
             <span className="font-bold block mb-1">تفاصيل الحالة الفنية:</span>
             {status.isCorrupt ? (
               <>
-                تم اكتشاف خلل في اتساق ملف قاعدة البيانات (مثل انقطاع مفاجئ للكهرباء أثناء الكتابة).
+                حصل خلل في ملف قاعدة البيانات (زي انقطاع الكهرباء فجأة والجهاز شغال بيسجل).
                 <div className="mt-1 font-mono text-[11px] bg-red-100/60 p-1.5 rounded text-red-800 break-all">
                   سبب التنبيه: {status.message}
                 </div>
               </>
             ) : (
-              'سيؤدي استرجاع النسخة الاحتياطية إلى استبدال البيانات الحالية بالبيانات المحفوظة في ملف النسخة المحددة.'
+              'استرجاع النسخة الاحتياطية هيرجع كل البيانات للوقت اللي اتسجلت فيه النسخة دي.'
             )}
           </div>
 
@@ -150,8 +150,8 @@ export const DatabaseRecoveryModal = ({
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-[6px] flex items-start gap-2.5 text-amber-900 text-[11.5px]">
               <FileArchive className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
               <div>
-                <span className="font-bold block">اطمئن، لم يتم حذف أي ملف:</span>
-                تم حفظ نسخة معزولة بالكامل من الملف في المسار التالي لمراجعتها عند الحاجة:
+                <span className="font-bold block">اطمن، مفيش أي بيانات ضاعت:</span>
+                شيلنا نسخة معزولة ومحفوظة بالكامل من الملف الحالي في المسار ده لو احتجتها:
                 <div className="mt-0.5 font-mono text-[10.5px] text-amber-800 break-all select-text">
                   {status.corruptBackupSavedPath}
                 </div>
@@ -179,7 +179,7 @@ export const DatabaseRecoveryModal = ({
               <div className="flex items-center justify-between border-b border-line pb-2">
                 <span className="font-bold text-brand text-[13px] flex items-center gap-1.5">
                   <ShieldCheck className="w-4 h-4" />
-                  <span>آخر نسخة احتياطية سليمة متوفرة:</span>
+                  <span>أحدث نسخة احتياطية سليمة ومضمونة:</span>
                 </span>
                 <span className="text-[10.5px] font-bold text-paid bg-paid-soft px-2 py-0.5 rounded border border-paid-border">
                   تم التحقق من سلامتها
@@ -205,7 +205,7 @@ export const DatabaseRecoveryModal = ({
               <div className="p-2.5 bg-surface border border-line rounded flex flex-col gap-1.5">
                 <label className="text-[11.5px] font-bold text-ink flex items-center gap-1.5">
                   <Lock className="w-3.5 h-3.5 text-brand" />
-                  <span>تأكيد الإذن: أدخل الرقم السري للمشرف للمتابعة:</span>
+                  <span>أدخل الرقم السري للمدير لتأكيد الاسترجاع:</span>
                 </label>
                 <input
                   type="password"
@@ -225,19 +225,19 @@ export const DatabaseRecoveryModal = ({
                 {restoring ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>جاري فحص واسترجاع النسخة الاحتياطية...</span>
+                    <span>بيتم فحص واسترجاع النسخة الاحتياطية دلوقتي...</span>
                   </>
                 ) : (
                   <>
                     <RotateCcw className="w-4 h-4" />
-                    <span>استرجاع هذه النسخة السليمة تلقائياً الآن</span>
+                    <span>استرجاع النسخة السليمة دي دلوقتي</span>
                   </>
                 )}
               </button>
             </div>
           ) : (
             <div className="p-4 bg-surface-2 rounded border border-line text-center text-ink-muted">
-              لم يتم العثور على نسخ احتياطية تلقائية في المجلد الافتراضي. يمكنك إدخال مسار ملف نسخة خارجية أدناه.
+              ملقناش نسخ احتياطية في المجلد المعتاد. تقدر تختار ملف نسخة احتياطية من فلاشة أو مسار تاني تحت.
             </div>
           )}
 
@@ -249,7 +249,7 @@ export const DatabaseRecoveryModal = ({
               className="text-brand hover:underline font-semibold text-[12px] flex items-center gap-1 self-start"
             >
               <FolderOpen className="w-3.5 h-3.5" />
-              <span>{useCustomFile ? 'إخفاء تحديد الملف يدوياً' : 'أو تحديد ملف نسخة احتياطية من فلاشة أو مسار آخر يدوياً'}</span>
+              <span>{useCustomFile ? 'إخفاء تحديد الملف يدوياً' : 'أو اختر ملف نسخة احتياطية من فلاشة يدوياً'}</span>
             </button>
 
             {useCustomFile && (
@@ -268,7 +268,7 @@ export const DatabaseRecoveryModal = ({
                   className="h-[36px] bg-surface-2 hover:bg-surface disabled:opacity-50 border border-line text-ink rounded font-bold flex items-center justify-center gap-1.5 transition-colors self-end px-4"
                 >
                   <RotateCcw className="w-3.5 h-3.5 text-brand" />
-                  <span>استرجاع من هذا المسار</span>
+                  <span>استرجاع من الملف ده</span>
                 </button>
               </div>
             )}
@@ -278,8 +278,8 @@ export const DatabaseRecoveryModal = ({
         {/* 3. Modal Footer */}
         <div className="p-3 bg-surface-2 border-t border-line flex items-center justify-between text-[11px] text-ink-muted">
           <span className="flex items-center gap-1.5">
-            <span>يتم أخذ نسخة أمان للحالة الحالية دائماً قبل أي استرجاع • للدعم الفني الطارئ:</span>
-            <a href="tel:01097782965" className="font-mono font-bold text-[#006d41] hover:underline" dir="ltr">01097782965</a>
+            <span>بنحفظ نسخة أمان من الوضع الحالي قبل أي استرجاع • للدعم الفني المباشر:</span>
+            <a href="tel:01097782965" className="font-mono font-bold text-paid hover:underline" dir="ltr">01097782965</a>
           </span>
           {!status.isCorrupt && onDismiss && !isStandaloneDialog && (
             <button

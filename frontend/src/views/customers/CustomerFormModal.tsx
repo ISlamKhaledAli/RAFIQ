@@ -48,30 +48,30 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       <div className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         <div className="h-12 bg-surface-2 hairline-b px-4 flex items-center justify-between shrink-0">
           <span className="text-sm font-bold text-ink">
-            {editingCustomer ? 'تعديل بيانات العميل' : 'إضافة عميل جديد بالدفتر'}
+            {editingCustomer ? 'تعديل بيانات الزبون' : 'تسجيل زبون جديد في النوتة'}
           </span>
-          <button onClick={onClose} className="text-ink-muted hover:text-ink">
+          <button onClick={onClose} className="text-ink-muted hover:text-ink cursor-pointer">
             <X className="w-4 h-4" />
           </button>
         </div>
 
         <form onSubmit={onSave} className="p-4 space-y-3.5 text-xs flex-1 min-h-0 overflow-y-auto">
           <div>
-            <label className="block text-ink font-semibold mb-1">اسم العميل *</label>
+            <label className="block text-ink font-semibold mb-1">اسم الزبون *</label>
             <input 
               type="text"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="مثال: أحمد محمود"
+              placeholder="مثال: الحاج أحمد محمود"
               className="w-full h-8 px-3 bg-canvas border border-line rounded focus:outline-none focus:border-brand text-ink"
             />
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-ink font-semibold">رقم الهاتف</label>
-              {isCheckingPhone && <span className="text-[10px] text-ink-muted">جاري فحص الرقم...</span>}
+              <label className="block text-ink font-semibold">رقم الموبايل</label>
+              {isCheckingPhone && <span className="text-[10px] text-ink-muted">بنتأكد من الرقم...</span>}
             </div>
             <input 
               type="text"
@@ -92,8 +92,8 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                 <div className="flex items-start gap-1.5">
                   <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-bold">تنبيه تكرار رقم الهاتف:</span> هذا الرقم مسجل بالفعل باسم{' '}
-                    <strong className="underline font-bold">{duplicateCustomer.name}</strong> (الرصيد الحقيقي:{' '}
+                    <span className="font-bold">تنبيه: الرقم ده متسجل قبل كده!</span> رقم الموبايل ده متسجل للزبون{' '}
+                    <strong className="underline font-bold">{duplicateCustomer.name}</strong> (حسابه في المحل:{' '}
                     <span className="font-mono font-bold">{(duplicateCustomer.balancePiasters / 100).toFixed(2)} ج.م</span>).
                   </div>
                 </div>
@@ -104,9 +104,9 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                       onClose();
                       onOpenStatementForDuplicate(duplicateCustomer);
                     }}
-                    className="text-[11px] text-brand font-bold hover:underline"
+                    className="text-[11px] text-brand font-bold hover:underline cursor-pointer"
                   >
-                    عرض كشف حساب العميل المسجل ←
+                    افتح كشف حساب الزبون ده ←
                   </button>
                 </div>
               </div>
@@ -114,7 +114,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-ink font-semibold mb-1">الحد الائتماني (أقصى مديونية مسموحة)</label>
+            <label className="block text-ink font-semibold mb-1">سقف الشكك المسموح (أقصى مبلغ شكك)</label>
             <MoneyInput 
               valuePiasters={creditLimitPiasters}
               onChangePiasters={setCreditLimitPiasters}
@@ -123,12 +123,12 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
           {!editingCustomer && (
             <div>
-              <label className="block text-ink font-semibold mb-1">الرصيد الافتتاحي (مديونية سابقة إن وجدت)</label>
+              <label className="block text-ink font-semibold mb-1">حساب قديم عليه قبل ما تسجله (إن وجد)</label>
               <MoneyInput 
                 valuePiasters={initialBalancePiasters}
                 onChangePiasters={setInitialBalancePiasters}
               />
-              <p className="text-[10px] text-ink-muted mt-1">اتركه صفر إذا كان العميل جديداً بدون ديون قديمة.</p>
+              <p className="text-[10px] text-ink-muted mt-1">سيبه صفر لو زبون جديد ومفيش عليه أي حساب قديم.</p>
             </div>
           )}
 
@@ -136,15 +136,15 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-1.5 rounded bg-surface border border-line hover:bg-surface-2 text-ink font-medium"
+              className="px-4 py-1.5 rounded bg-surface border border-line hover:bg-surface-2 text-ink font-medium cursor-pointer"
             >
-              إلغاء
+              رجوع
             </button>
             <button
               type="submit"
-              className="px-5 py-1.5 rounded bg-brand text-white hover:bg-brand-hover font-bold"
+              className="px-5 py-1.5 rounded bg-brand text-white hover:bg-brand-hover font-bold cursor-pointer"
             >
-              حفظ البيانات
+              حفظ الزبون
             </button>
           </div>
         </form>

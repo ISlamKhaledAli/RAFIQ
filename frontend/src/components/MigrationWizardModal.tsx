@@ -271,10 +271,10 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
             </div>
             <div>
               <h2 className="text-base font-bold text-ink m-0">
-                مرشد نقل البرنامج والبيانات إلى جهاز جديد
+                مرشد نقل البرنامج وبيانات المحل لجهاز جديد
               </h2>
               <p className="text-[11.5px] text-ink-muted m-0 mt-0.5">
-                نقل المحل بالكامل (الأصناف، العملاء، الفواتير، المخزون) بخطوة واحدة مع مطابقة الأرقام بنسبة 100%
+                نقل المحل بالكامل (البضاعة، الزبائن، الفواتير، المخزن) بخطوة واحدة ومطابقة الأرقام 100%
               </p>
             </div>
           </div>
@@ -302,11 +302,11 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
             <div className="space-y-6 animate-in fade-in">
               <div className="text-center max-w-lg mx-auto space-y-2">
                 <span className="inline-block px-3 py-1 rounded-full bg-brand-soft text-brand text-xs font-bold">
-                  فيتشر #139 — رحلة العميل والدعم
+                  نقل البرنامج والأجهزة
                 </span>
-                <h3 className="text-lg font-bold text-ink m-0">ماذا تريد أن تفعل على هذا الجهاز؟</h3>
+                <h3 className="text-lg font-bold text-ink m-0">عاوز تعمل إيه على الجهاز ده دلوقتي؟</h3>
                 <p className="text-xs text-ink-muted leading-relaxed m-0">
-                  سواء كنت تريد نقل المحل من هذا الجهاز لجهاز آخر جديد، أو استلام وتثبيت بيانات المحل على هذا الجهاز، اختر العملية المناسبة:
+                  سواء عاوز تنقل بيانات المحل من الجهاز ده لجهاز جديد، أو عاوز تستلم وتثبت بيانات المحل هنا، اختار الخطوة المناسبة:
                 </p>
               </div>
 
@@ -322,9 +322,9 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                       <Download className="w-6 h-6 text-brand" />
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-ink m-0">1. على الجهاز القديم (تصدير الحزمة)</h4>
+                      <h4 className="text-sm font-bold text-ink m-0">1. على الجهاز القديم (تجهيز ونقل الحزمة)</h4>
                       <p className="text-xs text-ink-muted mt-1 leading-relaxed m-0">
-                        إنشاء حزمة نقل مجمعة مشفرة ومفحوصة (<span className="font-mono text-brand">.rafiqpkg</span>) بضغطة زر واحدة لحفظها على فلاشة USB ونقلها للجهاز الجديد.
+                        تجهيز حزمة مجمعة ومفحوصة (<span className="font-mono text-brand">.rafiqpkg</span>) بضغطة زر لحفظها على فلاشة USB ونقلها للجهاز الجديد.
                       </p>
                     </div>
                   </div>
@@ -345,9 +345,9 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                       <Upload className="w-6 h-6 text-paid" />
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-ink m-0">2. على الجهاز الجديد (استيراد وفحص)</h4>
+                      <h4 className="text-sm font-bold text-ink m-0">2. على الجهاز الجديد (استلام وتثبيت البيانات)</h4>
                       <p className="text-xs text-ink-muted mt-1 leading-relaxed m-0">
-                        استرجاع بيانات المحل وتثبيتها من فلاشة USB مع مقارنة الأرقام قبل النقل وبعده للتأكد من عدم ضياع أي قرش أو صنف.
+                        استرجاع وتثبيت بيانات المحل من فلاشة USB مع مراجعة ومطابقة الأرقام للتأكد إن مفيش ولا قرش ولا صنف ضاع.
                       </p>
                     </div>
                   </div>
@@ -362,16 +362,16 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
               {currentMetrics && (
                 <div className="p-4 rounded-xl bg-surface-2 border border-line space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-ink">بيانات هذا الجهاز الحالية:</span>
+                    <span className="text-xs font-bold text-ink">بيانات المحل المسجلة على الجهاز ده حالياً:</span>
                     <span className="text-[11px] text-ink-muted">قاعدة البيانات المحلية النشطة</span>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                     <div className="p-2 rounded bg-surface border border-line/50">
-                      <span className="text-ink-muted block text-[10px]">الأصناف النشطة</span>
+                      <span className="text-ink-muted block text-[10px]">أصناف البضاعة</span>
                       <span className="font-bold text-ink">{currentMetrics.productsCount} صنف</span>
                     </div>
                     <div className="p-2 rounded bg-surface border border-line/50">
-                      <span className="text-ink-muted block text-[10px]">العملاء المسجلون</span>
+                      <span className="text-ink-muted block text-[10px]">الزبائن المسجلين</span>
                       <span className="font-bold text-ink">{currentMetrics.customersCount} عميل</span>
                     </div>
                     <div className="p-2 rounded bg-surface border border-line/50">
@@ -379,7 +379,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                       <span className="font-bold text-ink">{currentMetrics.invoicesCount} فاتورة</span>
                     </div>
                     <div className="p-2 rounded bg-surface border border-line/50">
-                      <span className="text-ink-muted block text-[10px]">إجمالي ديون العملاء</span>
+                      <span className="text-ink-muted block text-[10px]">إجمالي حسابات الشكك والديون</span>
                       <span className="font-bold text-paid">{formatPiasters(currentMetrics.totalCustomerDebtPiasters)}</span>
                     </div>
                   </div>
@@ -393,9 +393,9 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
             <div className="space-y-5 animate-in fade-in">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-bold text-ink m-0">تصدير حزمة نقل النظام بالكامل</h3>
+                  <h3 className="text-sm font-bold text-ink m-0">تجهيز حزمة نقل المحل بالكامل</h3>
                   <p className="text-xs text-ink-muted m-0 mt-0.5">
-                    اختر الفلاشة أو المجلد ثم اضغط زر التصدير لإنشاء ملف الحزمة.
+                    اختار الفلاشة أو المجلد واضغط زر التصدير لتجهيز ملف الحزمة.
                   </p>
                 </div>
                 <button
@@ -404,14 +404,14 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                   className="flex items-center gap-1 text-xs text-ink-muted hover:text-ink transition-colors cursor-pointer"
                 >
                   <ArrowRight className="w-3.5 h-3.5" />
-                  <span>العودة للخيارات</span>
+                  <span>رجوع للاختيارات</span>
                 </button>
               </div>
 
               {/* Connected Drives Selection */}
               <div>
                 <label className="block text-ink font-semibold text-xs mb-2">
-                  الأقراص والفلاشات المتصلة بالجهاز (اختر الفلاشة بضغطة زر):
+                  الفلاشات والأقراص المتوصلة بالجهاز (اختار الفلاشة بضغطة زر):
                 </label>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                   {drives.map((d) => (
@@ -451,7 +451,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
               {/* Target folder input */}
               <div>
                 <label className="block text-ink font-semibold text-xs mb-1.5">
-                  مسار مجلد الحفظ:
+                  مكان حفظ الحزمة:
                 </label>
                 <div className="flex gap-2">
                   <input
@@ -483,12 +483,12 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                   {loading ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>جاري إنشاء الحزمة...</span>
+                      <span>بيتم تجهيز حزمة النقل دلوقتي...</span>
                     </>
                   ) : (
                     <>
                       <Download className="w-4 h-4" />
-                      <span>إنشاء حزمة النقل (.rafiqpkg)</span>
+                      <span>تجهيز وحفظ حزمة النقل (.rafiqpkg)</span>
                     </>
                   )}
                 </button>
@@ -499,7 +499,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                 <div className="p-4 rounded-xl bg-paid-soft border border-paid/30 space-y-3 animate-in fade-in">
                   <div className="flex items-center gap-2 text-paid font-bold text-xs">
                     <CheckCircle2 className="w-4 h-4 text-paid" />
-                    <span>تم إنشاء حزمة النقل بنجاح!</span>
+                    <span>تم تجهيز حزمة النقل بنجاح!</span>
                   </div>
                   <div className="bg-surface p-3 rounded-lg border border-line space-y-1.5 text-xs font-mono">
                     <div className="flex justify-between">
@@ -519,7 +519,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                   </div>
                   <div className="p-2.5 rounded bg-paid/10 text-paid text-[11.5px] leading-relaxed flex items-center gap-2">
                     <Info className="w-4 h-4 text-paid shrink-0" />
-                    <span><strong>الخطوة التالية:</strong> انسخ هذا الملف إلى فلاشة USB، ثم ضعه على الجهاز الجديد وافتح نفس الشاشة واختر «على الجهاز الجديد (استيراد وفحص)».</span>
+                    <span><strong>الخطوة التالية:</strong> انسخ الملف ده على فلاشة USB، وركّبها في الجهاز الجديد وافتح الشاشة دي واختار «على الجهاز الجديد (استلام وتثبيت البيانات)».</span>
                   </div>
                 </div>
               )}
@@ -531,9 +531,9 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
             <div className="space-y-5 animate-in fade-in">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-bold text-ink m-0">استيراد حزمة النقل على الجهاز الجديد</h3>
+                  <h3 className="text-sm font-bold text-ink m-0">استلام وتثبيت حزمة النقل على الجهاز الجديد</h3>
                   <p className="text-xs text-ink-muted m-0 mt-0.5">
-                    اختر ملف الحزمة من الفلاشة لفحصها ومطابقة محتوياتها قبل الاسترجاع.
+                    اختار ملف الحزمة من الفلاشة لفحصها والتأكد من كل أرقامها قبل التثبيت.
                   </p>
                 </div>
                 <button
@@ -542,7 +542,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                   className="flex items-center gap-1 text-xs text-ink-muted hover:text-ink transition-colors cursor-pointer"
                 >
                   <ArrowRight className="w-3.5 h-3.5" />
-                  <span>العودة للخيارات</span>
+                  <span>رجوع للاختيارات</span>
                 </button>
               </div>
 
@@ -568,7 +568,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                     className="px-4 h-10 bg-surface-2 border border-line hover:border-line-hover rounded-xl text-xs font-bold text-ink flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <FolderOpen className="w-4 h-4 text-brand" />
-                    <span>استعراض...</span>
+                    <span>اختيار ملف...</span>
                   </button>
                   <button
                     type="button"
@@ -604,11 +604,11 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                   {/* Numbers in package */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                     <div className="p-2.5 rounded bg-surface border border-line/60">
-                      <span className="text-ink-muted text-[10px] block">الأصناف النشطة</span>
+                      <span className="text-ink-muted text-[10px] block">أصناف البضاعة</span>
                       <span className="font-bold text-ink">{inspectResult.manifest.metrics.productsCount} صنف</span>
                     </div>
                     <div className="p-2.5 rounded bg-surface border border-line/60">
-                      <span className="text-ink-muted text-[10px] block">العملاء المسجلون</span>
+                      <span className="text-ink-muted text-[10px] block">الزبائن المسجلين</span>
                       <span className="font-bold text-ink">{inspectResult.manifest.metrics.customersCount} عميل</span>
                     </div>
                     <div className="p-2.5 rounded bg-surface border border-line/60">
@@ -616,7 +616,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                       <span className="font-bold text-ink">{inspectResult.manifest.metrics.invoicesCount} فاتورة</span>
                     </div>
                     <div className="p-2.5 rounded bg-surface border border-line/60">
-                      <span className="text-ink-muted text-[10px] block">ديون وآجل العملاء</span>
+                      <span className="text-ink-muted text-[10px] block">حسابات الشكك والديون</span>
                       <span className="font-bold text-paid">{formatPiasters(inspectResult.manifest.metrics.totalCustomerDebtPiasters)}</span>
                     </div>
                   </div>
@@ -625,23 +625,23 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                   <div className="p-2.5 rounded bg-brand-soft/50 border border-brand/20 text-ink text-[11px] flex items-center justify-between gap-2">
                     <span className="flex items-center gap-1.5">
                       <ShieldCheck className="w-4 h-4 text-brand shrink-0" />
-                      <span><strong>حماية أوتوماتيكية:</strong> سيتم أخذ نسخة أمان احتياطية من قاعدة البيانات الحالية قبل الاستبدال لتفادي أي فقد بيانات.</span>
+                      <span><strong>أمان وحماية تلقائية:</strong> بناخد نسخة احتياطية من البيانات الحالية قبل أي تغيير عشان مفيش حاجة تضيع.</span>
                     </span>
                     <button
                       type="button"
                       onClick={() => void handleRestorePackage()}
                       disabled={loading}
-                      className="px-5 py-2 rounded-xl bg-paid hover:bg-[#005734] text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50 shrink-0"
+                      className="px-5 py-2 rounded-xl bg-paid hover:bg-brand-dark text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50 shrink-0"
                     >
                       {loading ? (
                         <>
                           <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          <span>جاري الاسترجاع والمطابقة...</span>
+                          <span>بيتم التثبيت ومطابقة الأرقام دلوقتي...</span>
                         </>
                       ) : (
                         <>
                           <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>بدء الاسترجاع والاعتماد</span>
+                          <span>تثبيت واعتماد البيانات دلوقتي</span>
                         </>
                       )}
                     </button>
@@ -660,10 +660,10 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-paid m-0">
-                    تم استرجاع بيانات المحل وتثبيتها بنجاح على هذا الجهاز!
+                    تم تثبيت بيانات المحل بنجاح على الجهاز الجديد!
                   </h3>
                   <p className="text-xs text-ink-muted m-0 mt-0.5">
-                    مقارنة دقيقة ومباشرة بين أرقام الجهاز القديم والأرقام المسترجعة فعلياً على هذا الجهاز:
+                    مطابقة مباشرة بين أرقام الجهاز القديم والأرقام المتسجلة على الجهاز ده:
                   </p>
                 </div>
               </div>
@@ -714,7 +714,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
               {/* Final Success Call to Action */}
               <div className="p-4 rounded-xl bg-surface-2 border border-line flex items-center justify-between gap-4">
                 <span className="text-xs text-ink-muted">
-                  تم الانتهاء بنجاح ويمكنك البدء في عمليات البيع والتشغيل فوراً.
+                  كل الأرقام مطابقة 100%، تقدر تفتح شاشة البيع وتبدأ الشغل فوراً!
                 </span>
                 <button
                   type="button"
@@ -722,7 +722,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                   className="px-6 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-sm"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>اعتماد وإنهاء النقل</span>
+                  <span>اعتماد وبدء الشغل</span>
                 </button>
               </div>
             </div>

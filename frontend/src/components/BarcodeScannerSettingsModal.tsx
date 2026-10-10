@@ -201,17 +201,17 @@ export const BarcodeScannerSettingsModal = ({
             </div>
             <div>
               <h2 className="text-[16px] font-bold text-ink leading-tight m-0">
-                إعدادات واختبار قارئ الباركود (Barcode Scanner Wedge)
+                إعدادات واختبار قارئ الباركود (Barcode Scanner)
               </h2>
               <p className="text-[11px] text-ink-muted m-0">
-                ميزة #131: ضمان قراءة الأكواد بنسبة 100% مع لوحة المفاتيح العربية والإنجليزية واكتشاف القارئ السريع
+                قراءة الباركود شغالة 100% حتى لو الكيبورد بيكتب عربي مع التقاط تلقائي وسريع للأصناف
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded hover:bg-surface flex items-center justify-center text-ink-muted hover:text-ink transition-colors"
+            className="w-8 h-8 rounded hover:bg-surface flex items-center justify-center text-ink-muted hover:text-ink transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -224,18 +224,18 @@ export const BarcodeScannerSettingsModal = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Zap className="w-4 h-4 text-brand" />
-                <span className="text-[13px] font-bold text-ink">شاشة الفحص والتجربة الحية (Live Testing Sandbox)</span>
+                <span className="text-[13px] font-bold text-ink">شاشة الفحص وتجربة القارئ الحية</span>
               </div>
               <div className="flex items-center gap-2">
                 {lastDelta !== null && (
                   <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-surface border border-line text-ink">
-                    آخر سرعة نبضة: <strong className={lastDelta <= settings.speedThresholdMs ? 'text-paid' : 'text-amber-600'}>{lastDelta}ms</strong>
+                    سرعة النبضة: <strong className={lastDelta <= settings.speedThresholdMs ? 'text-paid' : 'text-amber-600'}>{lastDelta}ms</strong>
                   </span>
                 )}
                 <button
                   type="button"
                   onClick={clearLogs}
-                  className="text-[11px] text-ink-muted hover:text-danger flex items-center gap-1 transition-colors px-2 py-1 rounded hover:bg-surface"
+                  className="text-[11px] text-ink-muted hover:text-danger flex items-center gap-1 transition-colors px-2 py-1 rounded hover:bg-surface cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>مسح السجل</span>
@@ -251,7 +251,7 @@ export const BarcodeScannerSettingsModal = ({
                 value={currentBuffer}
                 onChange={() => {}} // Controlled by onKeyDown
                 onKeyDown={handleTestKeyDown}
-                placeholder="اضغط هنا ثم امسح أي باركود بالماسح أو اكتب لتجربة القارئ..."
+                placeholder="اضغط هنا وجرب امسح أي باركود بالقارئ أو اكتب لتجربة السرعة..."
                 className="w-full h-[46px] px-4 pl-24 bg-surface border-2 border-brand/50 focus:border-brand rounded-md font-mono text-[15px] text-ink placeholder:text-ink-muted/60 focus:outline-none"
               />
               <div className="absolute left-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[11px] font-bold text-ink-muted bg-surface-2 px-2 py-1 rounded border border-line">
@@ -281,15 +281,15 @@ export const BarcodeScannerSettingsModal = ({
             <div className="border border-line rounded bg-surface overflow-hidden">
               <div className="h-[32px] bg-surface-2 hairline-b flex items-center px-3 text-[11px] font-bold text-ink-muted">
                 <div className="w-[12%] text-center">الوقت</div>
-                <div className="w-[38%] text-right">الباركود المفكوك والمنظف</div>
+                <div className="w-[38%] text-right">الباركود المقروء والمترجم</div>
                 <div className="w-[20%] text-center">السرعة المتوسطة</div>
-                <div className="w-[30%] text-center">نوع الإدخال المكتشف</div>
+                <div className="w-[30%] text-center">نوع الإدخال</div>
               </div>
 
               <div className="max-h-[140px] overflow-y-auto divide-y divide-line text-[12px]">
                 {diagnosticLogs.length === 0 ? (
                   <div className="py-6 text-center text-ink-muted text-xs">
-                    لم يتم مسح أي باركود تجريبي بعد. قم بالمسح الآن لرؤية النتيجة والتحليل الفوري.
+                    لسه مفيش أي باركود اتمسح. جرب امسح صنف دلوقتي عشان تشوف التحليل وسرعة النبضة فوراً.
                   </div>
                 ) : (
                   diagnosticLogs.map((log) => (
@@ -314,7 +314,7 @@ export const BarcodeScannerSettingsModal = ({
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 border border-amber-300 text-amber-800">
                             <Keyboard className="w-3 h-3" />
-                            <span>كتابة يدوية</span>
+                            <span>كتابة يدوية بالكيبورد</span>
                           </span>
                         )}
                       </div>
@@ -329,7 +329,7 @@ export const BarcodeScannerSettingsModal = ({
           <div className="bg-surface p-4 rounded-lg border border-line flex flex-col gap-4">
             <div className="flex items-center gap-2 hairline-b pb-2">
               <Settings className="w-4 h-4 text-brand" />
-              <span className="text-[13px] font-bold text-ink">معايير ضبط وتكوين القارئ (Wedge Settings)</span>
+              <span className="text-[13px] font-bold text-ink">معايير ضبط وسرعة القارئ (Wedge Settings)</span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -345,25 +345,25 @@ export const BarcodeScannerSettingsModal = ({
                       key={speed}
                       type="button"
                       onClick={() => setSettings((s) => ({ ...s, speedThresholdMs: speed }))}
-                      className={`flex-1 py-1.5 rounded text-xs font-bold border transition-colors ${
+                      className={`flex-1 py-1.5 rounded text-xs font-bold border transition-colors cursor-pointer ${
                         settings.speedThresholdMs === speed
                           ? 'bg-brand text-white border-brand'
                           : 'bg-surface-2 text-ink border-line hover:border-brand/40'
                       }`}
                     >
-                      {speed}ms {speed === 65 && '(موصى به)'}
+                      {speed}ms {speed === 65 && '(الموصى به)'}
                     </button>
                   ))}
                 </div>
                 <p className="text-[10px] text-ink-muted m-0">
-                  إذا وصلت الحروف أسرع من هذا الزمن تُعتبر ماسحاً ضوئياً وتُضاف مباشرة للسلة، وإلا تُعامل كبحث يدوي.
+                  لو الحروف وصلت أسرع من الوقت ده بتعتبر قارئ باركود وتنزل السلة فوراً، وإلا بتتعامل كبحث يدوي.
                 </p>
               </div>
 
               {/* Suffix Configuration */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-bold text-ink">
-                  لاحقة القارئ (Scanner Suffix):
+                  لاحقة القارئ بعد المسح (Scanner Suffix):
                 </label>
                 <div className="flex items-center gap-2">
                   {(['Enter', 'Tab', 'None'] as const).map((suf) => (
@@ -371,7 +371,7 @@ export const BarcodeScannerSettingsModal = ({
                       key={suf}
                       type="button"
                       onClick={() => setSettings((s) => ({ ...s, suffix: suf }))}
-                      className={`flex-1 py-1.5 rounded text-xs font-bold border transition-colors ${
+                      className={`flex-1 py-1.5 rounded text-xs font-bold border transition-colors cursor-pointer ${
                         settings.suffix === suf
                           ? 'bg-brand text-white border-brand'
                           : 'bg-surface-2 text-ink border-line hover:border-brand/40'
@@ -382,7 +382,7 @@ export const BarcodeScannerSettingsModal = ({
                   ))}
                 </div>
                 <p className="text-[10px] text-ink-muted m-0">
-                  99% من قارئات الباركود مبرمجة على إرسال مفتاح Enter بعد إتمام المسح تلقائياً.
+                  99% من قارئات الباركود بتبعت زرار Enter تلقائياً بعد ما تقرأ الكود.
                 </p>
               </div>
 
@@ -395,18 +395,18 @@ export const BarcodeScannerSettingsModal = ({
                   type="text"
                   value={settings.prefix}
                   onChange={(e) => setSettings((s) => ({ ...s, prefix: e.target.value }))}
-                  placeholder="اتركه فارغاً إلا إذا كان القارئ يرسل رمزاً ثابتاً في البداية"
+                  placeholder="سيبها فاضية إلا لو كان القارئ بيبعت حرف أو رمز ثابت في الأول"
                   className="h-[34px] px-3 bg-surface-2 border border-line rounded text-xs font-mono text-ink focus:outline-none focus:border-brand"
                 />
                 <p className="text-[10px] text-ink-muted m-0">
-                  يتم إزالة هذا الرمز تلقائياً من بداية الباركود الممسوح إن وجد.
+                  النظام بيمسح الرمز ده تلقائياً من بداية الباركود الممسوح لو موجود.
                 </p>
               </div>
 
               {/* Minimum Length */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-bold text-ink">
-                  الحد الأدنى لطول الباركود الصالح:
+                  أقل طول للباركود المقبول:
                 </label>
                 <input
                   type="number"
@@ -417,16 +417,16 @@ export const BarcodeScannerSettingsModal = ({
                   className="h-[34px] px-3 bg-surface-2 border border-line rounded text-xs font-mono text-ink focus:outline-none focus:border-brand"
                 />
                 <p className="text-[10px] text-ink-muted m-0">
-                  يتجاهل الإدخالات القصيرة لتجنب التقاط ضغطات المفاتيح الفردية العرضية.
+                  بيتجاهل أي ضغطة مفتاح قصيرة بالخطأ عشان ما يضيفش حاجة غلط.
                 </p>
               </div>
             </div>
 
             {/* Invariant Note */}
-            <div className="bg-brand-soft/20 border border-brand/20 p-2.5 rounded text-[11px] text-ink flex items-start gap-2">
-              <ShieldCheck className="w-4 h-4 text-brand shrink-0 mt-0.5" />
+            <div className="bg-paid-soft border border-line p-2.5 rounded text-[11px] text-ink flex items-start gap-2">
+              <ShieldCheck className="w-4 h-4 text-paid shrink-0 mt-0.5" />
               <span>
-                <strong>التوافقية المطلقة:</strong> النظام يعتمد خريطة أكواد المفاتيح الفعلية (DOM Code Mapping)؛ فلن يتأثر مسح الباركود نهائياً حتى لو نسي الكاشير لوحة مفاتيح ويندوز على اللغة العربية أو تم تشغيل قفل الحروف الكبيرة (Caps Lock).
+                <strong>حماية تامة من الكيبورد العربي:</strong> النظام بيقرأ الزرار الفيزيائي نفسه؛ عشان كده مسح الباركود شغال تمام ومفيش أي كود هيبوظ حتى لو الكاشير نسي الكيبورد بيكتب عربي أو Caps Lock شغال.
               </span>
             </div>
           </div>

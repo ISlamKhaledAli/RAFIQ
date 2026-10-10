@@ -104,6 +104,8 @@ namespace RafiqPOS.Services
         public static PurchaseService Purchases { get; private set; }
         public static DailyClosingRepository DailyClosingRepo { get; private set; }
         public static DailyClosingService DailyClosing { get; private set; }
+        public static ExpenseRepository ExpenseRepo { get; private set; }
+        public static ExpenseService Expenses { get; private set; }
         public static MigrationService Migration { get; private set; }
         public static ProductBatchRepository ProductBatchRepo { get; private set; }
         public static ProductBatchService ProductBatches { get; private set; }
@@ -207,6 +209,8 @@ namespace RafiqPOS.Services
 
             DailyClosingRepo = new DailyClosingRepository(_connectionString);
             DailyClosing = new DailyClosingService(_connectionString, DailyClosingRepo, CounterRepo, AuditRepo, SettingsRepo);
+            ExpenseRepo = new ExpenseRepository(_connectionString);
+            Expenses = new ExpenseService(ExpenseRepo, DailyClosing);
             Migration = new MigrationService(_connectionString, _dbPath, SettingsRepo, AuditRepo);
             Updates = new AppUpdateService(SettingsRepo, Backup, Audit);
             BarcodeLabels = new BarcodeLabelService(Settings, Printer);

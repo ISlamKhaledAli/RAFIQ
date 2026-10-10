@@ -52,6 +52,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
 
   // Purchases State
   const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
   const [purchaseSearchQuery, setPurchaseSearchQuery] = useState<string>('');
   const [purchasePaymentFilter, setPurchasePaymentFilter] = useState<string>('all');
   const [selectedPurchaseDetails, setSelectedPurchaseDetails] = useState<Purchase | null>(null);
@@ -110,6 +111,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
 
   // Fetch Suppliers
   const loadSuppliers = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await invoke<Supplier[]>('suppliers:getAll', { includeInactive: showArchivedSuppliers });
       if (res) {
@@ -117,11 +119,14 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
       }
     } catch {
       showToast('تعذر تحميل بيانات الموردين', 'error');
+    } finally {
+      setLoading(false);
     }
   }, [showArchivedSuppliers, showToast]);
 
   // Fetch Purchases
   const loadPurchases = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await invoke<Purchase[]>('purchases:getAll', { limit: 150 });
       if (res) {
@@ -129,12 +134,15 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
       }
     } catch {
       showToast('تعذر تحميل فواتير الشراء', 'error');
+    } finally {
+      setLoading(false);
     }
   }, [showToast]);
 
   useEffect(() => {
     let isMounted = true;
     const fetchInitialData = async () => {
+      setLoading(true);
       try {
         const [sups, purs] = await Promise.all([
           invoke<Supplier[]>('suppliers:getAll', { includeInactive: showArchivedSuppliers }),
@@ -146,6 +154,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
         }
       } catch {
         if (isMounted) showToast('تعذر تحميل بيانات المشتريات والموردين', 'error');
+      } finally {
+        if (isMounted) setLoading(false);
       }
     };
     void fetchInitialData();
@@ -256,9 +266,11 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
   }, [totalCostPiasters, discountPiasters]);
 
   const paidAmountPiasters = useMemo(() => {
-    if (paymentMode === 'PAID') return netCostPiasters;
+    if (paymentMode === 'PAID') {
+      return customPaidAmountPiasters > 0 ? customPaidAmountPiasters : netCostPiasters;
+    }
     if (paymentMode === 'CREDIT') return 0;
-    return Math.min(netCostPiasters, Math.max(0, customPaidAmountPiasters));
+    return Math.max(0, customPaidAmountPiasters);
   }, [paymentMode, netCostPiasters, customPaidAmountPiasters]);
 
   const remainingAmountPiasters = useMemo(() => {
@@ -274,6 +286,11 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
 
     if (remainingAmountPiasters > 0 && !selectedSupplierId) {
       showToast('يجب اختيار المورد أولاً لتسجيل الفاتورة الآجلة أو السداد الجزئي', 'error');
+      return;
+    }
+
+    if (paidAmountPiasters > netCostPiasters && !selectedSupplierId) {
+      showToast('يجب اختيار المورد أولاً لتسجيل المبلغ المسدد بالزيادة تحت حسابه', 'error');
       return;
     }
 
@@ -313,7 +330,14 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
           netCostPiasters,
           paidAmountPiasters,
           remainingAmountPiasters,
-          paymentStatus: remainingAmountPiasters === 0 ? 'PAID' : paidAmountPiasters > 0 ? 'PARTIAL' : 'CREDIT',
+          paymentStatus:
+            paidAmountPiasters > netCostPiasters
+              ? 'OVERPAID'
+              : remainingAmountPiasters === 0
+              ? 'PAID'
+              : paidAmountPiasters > 0
+              ? 'PARTIAL'
+              : 'CREDIT',
           status: 'COMPLETED',
           notes: purchaseNotes.trim() || null,
           items: itemsPayload,
@@ -491,6 +515,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
     return suppliers.reduce((sum, s) => sum + Math.max(0, s.balancePiasters), 0);
   }, [suppliers]);
 
+  const totalSupplierCreditsAmount = useMemo(() => {
+    return suppliers.reduce((sum, s) => sum + (s.balancePiasters < 0 ? Math.abs(s.balancePiasters) : 0), 0);
+  }, [suppliers]);
+
   return (
     <div className="flex-1 flex flex-col h-full bg-canvas overflow-hidden text-ink">
       {/* Toast Notification */}
@@ -564,7 +592,9 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
         {activeTab === 'invoices' && (
           <PurchasesInvoicesTab
             purchases={purchases}
+            loading={loading}
             totalSupplierDebtsAmount={totalSupplierDebtsAmount}
+            totalSupplierCreditsAmount={totalSupplierCreditsAmount}
             purchaseSearchQuery={purchaseSearchQuery}
             setPurchaseSearchQuery={setPurchaseSearchQuery}
             purchasePaymentFilter={purchasePaymentFilter}
@@ -614,6 +644,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
         {activeTab === 'suppliers' && (
           <SuppliersTab
             suppliers={suppliers}
+            loading={loading}
             supplierSearchQuery={supplierSearchQuery}
             setSupplierSearchQuery={setSupplierSearchQuery}
             showArchivedSuppliers={showArchivedSuppliers}

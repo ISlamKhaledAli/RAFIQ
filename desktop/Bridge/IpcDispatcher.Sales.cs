@@ -179,6 +179,23 @@ namespace RafiqPOS.Bridge
                         return true;
                     }
                     var heldToSave = JsonConvert.DeserializeObject<HeldSale>(request.Payload.ToString());
+                    JObject holdPayloadObj = request.Payload as JObject;
+                    if (holdPayloadObj != null)
+                    {
+                        if (string.IsNullOrEmpty(heldToSave.CartJson) && holdPayloadObj["items"] != null)
+                        {
+                            heldToSave.CartJson = holdPayloadObj["items"].ToString();
+                        }
+                        JArray itemsArr = holdPayloadObj["items"] as JArray;
+                        if (heldToSave.ItemsCount == 0 && itemsArr != null)
+                        {
+                            heldToSave.ItemsCount = itemsArr.Count;
+                        }
+                        if (heldToSave.SubtotalPiasters == 0 && holdPayloadObj["subtotalPiasters"] != null)
+                        {
+                            heldToSave.SubtotalPiasters = holdPayloadObj["subtotalPiasters"].Value<long>();
+                        }
+                    }
                     var savedHeld = DatabaseService.HeldSales.HoldSale(heldToSave);
                     response = BridgeResponse.Ok(request.Id, savedHeld);
                     return true;

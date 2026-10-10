@@ -284,8 +284,8 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
               <TrendingUp className="w-4 h-4 text-emerald-400" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white leading-tight">تعديل الأسعار والتكلفة بالجملة</h2>
-              <p className="text-[11px] text-emerald-100/70">تحديث أسعار البيع والتكلفة بنسبة مئوية أو بمبلغ ثابت أو ملف إكسل</p>
+              <h2 className="text-sm font-bold text-white leading-tight">تعديل أسعار وتكلفة البضاعة بالجملة</h2>
+              <p className="text-[11px] text-emerald-100/70">تغيير أسعار البيع والتكلفة بنسبة مئوية أو بمبلغ ثابت أو من شيت إكسل دفعة واحدة</p>
             </div>
           </div>
           <button
@@ -303,7 +303,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
           {/* Scope Selection */}
           <div className="flex flex-col gap-1.5">
             <label className="font-bold text-ink flex items-center gap-1.5">
-              <span>نطاق التطبيق</span>
+              <span>البضاعة المستهدفة للتعديل</span>
               {selectedProductIds.length > 0 && (
                 <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-paid-soft text-paid font-bold">
                   {selectedProductIds.length} محدد
@@ -317,8 +317,8 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                 ...(selectedProductIds.length > 0
                   ? [{ value: 'selected', label: `الأصناف المحددة في الجدول (${selectedProductIds.length})` }]
                   : []),
-                { value: 'all', label: 'جميع أصناف الكتالوج' },
-                { value: 'category', label: 'أصناف قسم محدد' },
+                { value: 'all', label: 'كل بضاعة وأصناف المحل' },
+                { value: 'category', label: 'أصناف قسم معين في المحل' },
               ]}
               size="sm"
             />
@@ -336,14 +336,14 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
 
           {/* Target Field & Method */}
           <div className="flex flex-col gap-1.5">
-            <label className="font-bold text-ink">الحقل المستهدف</label>
+            <label className="font-bold text-ink">عاوز تعدل إيه؟</label>
             <CustomSelect
               value={targetField}
               onChange={(val) => setTargetField(val as 'price' | 'cost' | 'both')}
               options={[
-                { value: 'price', label: 'سعر البيع فقط' },
-                { value: 'cost', label: 'سعر التكلفة فقط' },
-                { value: 'both', label: 'سعر البيع والتكلفة معاً' },
+                { value: 'price', label: 'سعر البيع للزبون فقط' },
+                { value: 'cost', label: 'سعر الشراء (التكلفة) فقط' },
+                { value: 'both', label: 'سعر البيع والتكلفة مع بعض' },
               ]}
               size="sm"
             />
@@ -382,7 +382,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                 }`}
               >
                 <FileSpreadsheet className="w-3 h-3" />
-                <span>إكسل</span>
+                <span>شيت إكسل</span>
               </button>
             </div>
           </div>
@@ -391,7 +391,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
           <div className="flex flex-col gap-1.5">
             {method === 'percentage' && (
               <>
-                <label className="font-bold text-ink">نسبة التعديل (+ للزيادة، - للخصم)</label>
+                <label className="font-bold text-ink">نسبة التغيير (+ زيادة، - تخفيض)</label>
                 <div className="relative flex items-center">
                   <input
                     type="text"
@@ -407,7 +407,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
 
             {method === 'fixed_amount' && (
               <>
-                <label className="font-bold text-ink">مبلغ التعديل بالجنيه (+/-)</label>
+                <label className="font-bold text-ink">المبلغ بالجنيه (+ زيادة، - تخفيض)</label>
                 <div className="relative flex items-center">
                   <input
                     type="text"
@@ -423,11 +423,11 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
 
             {method === 'excel' && (
               <>
-                <label className="font-bold text-ink">ملف CSV / إكسل للأسعار</label>
+                <label className="font-bold text-ink">ملف إكسل أو CSV للأسعار</label>
                 <div className="flex items-center gap-2">
                   <label className="h-8 px-3 rounded-xl border border-brand bg-brand-soft text-brand text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer hover:bg-brand-soft/80">
                     <FileSpreadsheet className="w-3.5 h-3.5" />
-                    <span>{excelFileName ? 'تغيير الملف' : 'رفع ملف'}</span>
+                    <span>{excelFileName ? 'تغيير الملف' : 'رفع شيت الأسعار'}</span>
                     <input type="file" accept=".csv,.txt" onChange={handleFileUpload} className="hidden" />
                   </label>
                   {excelFileName && (
@@ -443,7 +443,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                 type="text"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="سبب التعديل (يسجل في تاريخ السعر)"
+                placeholder="سبب تغيير الأسعار (بيتسجل في تاريخ الصنف)"
                 className="w-full h-7 px-2.5 text-[11px] rounded-lg border border-line bg-surface-2 text-ink focus:bg-surface focus:border-brand focus:outline-none"
               />
             </div>
@@ -457,13 +457,13 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                 value={roundingRule}
                 onChange={(val) => setRoundingRule(val as typeof roundingRule)}
                 options={[
-                  { value: 'none', label: 'بدون تقريب (بالقروش الأصلية)' },
-                  { value: 'half_pound', label: 'لأقرب نصف جنيه (0.50 ج.م)' },
-                  { value: 'one_pound', label: 'لأقرب جنيه كامل (1.00 ج.م)' },
-                  { value: 'five_pounds', label: 'لأقرب 5 جنيهات' },
-                  { value: 'ceil_pound', label: 'تقريب لأعلى دائماً (سقف للجنيه)' },
-                  { value: 'psychological_95', label: 'تسويقي ينتهي بـ .95 (مثلاً 24.95)' },
-                  { value: 'psychological_50', label: 'تسويقي ينتهي بـ .50 (مثلاً 24.50)' },
+                  { value: 'none', label: 'بدون تقريب (بالقروش الأصلية زي ما هي)' },
+                  { value: 'half_pound', label: 'لأقرب نص جنيه (0.50 ج.م)' },
+                  { value: 'one_pound', label: 'لأقرب جنيه سليم (1.00 ج.م)' },
+                  { value: 'five_pounds', label: 'لأقرب 5 جنيه' },
+                  { value: 'ceil_pound', label: 'تقريب لفوق دايماً (سقف لأقرب جنيه)' },
+                  { value: 'psychological_95', label: 'تسويقي ينتهي بـ 95 قرش (زي 24.95)' },
+                  { value: 'psychological_50', label: 'تسويقي ينتهي بـ 50 قرش (زي 24.50)' },
                 ]}
                 size="sm"
               />
@@ -476,7 +476,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
               className="h-8 px-4 bg-brand-soft text-brand hover:bg-brand hover:text-white border border-brand/30 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-98"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${previewLoading ? 'animate-spin' : ''}`} />
-              <span>{previewLoading ? 'جاري المعاينة...' : 'تحديث المعاينة'}</span>
+              <span>{previewLoading ? 'جاري الحساب والمعاينة...' : 'تحديث ومعاينة الأسعار'}</span>
             </button>
           </div>
         </div>
@@ -492,12 +492,12 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
               </span>
 
               <span className="flex items-center gap-1.5 text-ink">
-                <span>المحدد للتنفيذ:</span>
+                <span>جاهز للتعديل:</span>
                 <span className="font-mono text-paid font-black">{activeSelectedCount}</span>
               </span>
 
               <span className="flex items-center gap-1.5 text-ink">
-                <span>متوسط التغير:</span>
+                <span>متوسط التغيير:</span>
                 <span className={`font-mono font-black ${previewResult.averageIncreasePercent >= 0 ? 'text-paid' : 'text-danger'}`}>
                   {previewResult.averageIncreasePercent > 0 ? `+${previewResult.averageIncreasePercent}%` : `${previewResult.averageIncreasePercent}%`}
                 </span>
@@ -506,7 +506,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
               {activeBelowCostCount > 0 && (
                 <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[11px] animate-pulse">
                   <AlertTriangle className="w-3 h-3 text-amber-700" />
-                  <span>{activeBelowCostCount} صنف سعر بيعه أقل من التكلفة!</span>
+                  <span>{activeBelowCostCount} صنف سعر بيعه هيبقى أقل من التكلفة (خسارة)!</span>
                 </span>
               )}
             </div>
@@ -518,7 +518,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                 type="text"
                 value={previewSearch}
                 onChange={(e) => setPreviewSearch(normalizeArabicNumerals(e.target.value))}
-                placeholder="تصفية نتائج المعاينة..."
+                placeholder="دور في البضاعة المعروضة..."
                 className="w-full bg-transparent border-none text-[11px] text-ink placeholder:text-ink-muted focus:outline-none"
               />
               {previewSearch && (
@@ -550,10 +550,10 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
               <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
               <div>
                 <p className="m-0 text-[12px] font-black text-amber-900">
-                  تنبيه: يوجد {activeBelowCostCount} صنف سيكون سعر بيعه الجديد أقل من سعر التكلفة!
+                  تنبيه: فيه {activeBelowCostCount} صنف سعر بيعهم الجديد هيكون أقل من سعر التكلفة (بيع بالخسارة)!
                 </p>
                 <p className="m-0 text-[11px] text-amber-800 font-normal">
-                  هل تريد بالتأكيد الاستمرار وتطبيق هذه الأسعار بالخسارة لهذه الأصناف؟
+                  متأكد إنك عاوز تكمل وتطبق الأسعار دي بالخسارة للأصناف المحددة؟
                 </p>
               </div>
             </div>
@@ -563,14 +563,14 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                 onClick={() => setConfirmBelowCostWarning(false)}
                 className="px-3 py-1 bg-surface border border-line text-ink rounded-lg text-xs font-bold hover:bg-surface-2 cursor-pointer"
               >
-                إلغاء ومراجعة
+                إلغاء ومراجعة الأسعار
               </button>
               <button
                 type="button"
                 onClick={() => void handleApplyChanges()}
                 className="px-3 py-1 bg-amber-700 hover:bg-amber-800 text-white rounded-lg text-xs font-bold cursor-pointer shadow-xs"
               >
-                نعم، اعتمد رغم الخسارة
+                أيوه، اعتمد الأسعار رغم الخسارة
               </button>
             </div>
           </div>
@@ -601,7 +601,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                 <ArrowLeft className="w-3 h-3 text-ink-muted" />
                 <span>الجديد</span>
               </span>
-              <span className="col-span-1 text-center">التغير</span>
+              <span className="col-span-1 text-center">نسبة الفرق</span>
               <span className="col-span-2 text-center flex items-center justify-center gap-1">
                 <span>التكلفة الحالية</span>
                 <ArrowLeft className="w-3 h-3 text-ink-muted" />
@@ -620,8 +620,8 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
               ) : filteredPreviewItems.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center gap-2 text-ink-muted p-8">
                   <Search className="w-8 h-8 text-line-hover" />
-                  <p className="text-xs font-bold m-0 text-ink">لا توجد أصناف مطابقة لمعايير التحديد أو البحث</p>
-                  <p className="text-[11px] text-ink-muted m-0">تأكد من اختيار نطاق أصناف صحيح أو قم بتعديل نسبة التعديل</p>
+                  <p className="text-xs font-bold m-0 text-ink">مافيش أصناف مطابقة لبحثك أو للنطاق المختار</p>
+                  <p className="text-[11px] text-ink-muted m-0">اتأكد من اختيار القسم أو الأصناف الصح واضغط 'تحديث ومعاينة'</p>
                 </div>
               ) : (
                 filteredPreviewItems.map((item) => {
@@ -712,14 +712,14 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                             title="سعر البيع الجديد أقل من سعر التكلفة"
                           >
                             <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
-                            <span>خسارة</span>
+                            <span>بيع بخسارة</span>
                           </span>
                         ) : hasPriceChange || hasCostChange ? (
                           <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-paid text-[10px] font-bold border border-paid/20">
-                            معدل
+                            هيتغير
                           </span>
                         ) : (
-                          <span className="text-ink-muted text-[10px]">دون تغيير</span>
+                          <span className="text-ink-muted text-[10px]">ثابت زي ما هو</span>
                         )}
                       </div>
                     </div>
@@ -734,7 +734,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
         <div className="h-14 px-5 bg-surface border-t border-line flex items-center justify-between shrink-0 select-none">
           <div className="flex items-center gap-2 text-ink-muted text-xs font-semibold">
             <CheckCircle2 className="w-4 h-4 text-paid" />
-            <span>سيتم تسجيل كافة التعديلات في جدول تاريخ الأسعار (Price History) وسجل العمليات الحساسة فوراً.</span>
+            <span>كل تغيير في الأسعار بيتسجل تلقائياً في سجل وتاريخ الأسعار في النظام بدون إنترنت.</span>
           </div>
 
           <div className="flex items-center gap-2.5">
@@ -755,8 +755,8 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
               <Check className="w-4 h-4 text-emerald-300" />
               <span>
                 {applying
-                  ? 'جاري حفظ التعديلات...'
-                  : `اعتماد وتطبيق الأسعار (${activeSelectedCount} صنف)`}
+                  ? 'جاري حفظ الأسعار الجديدة...'
+                  : `اعتماد وتطبيق الأسعار الجديدة (${activeSelectedCount} صنف)`}
               </span>
             </button>
           </div>

@@ -75,9 +75,9 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
 
   // Determine display label for the active category/tab
   const getActiveTabLabel = () => {
-    if (activeCatalogTab === '__ALL__') return 'جميع الأصناف';
-    if (activeCatalogTab === '__POPULAR__') return 'الأكثر طلباً ومبيعاً';
-    if (activeCatalogTab === '__CUSTOM__') return 'الأصناف المفضلة والسريعة';
+    if (activeCatalogTab === '__ALL__') return 'كل الأصناف';
+    if (activeCatalogTab === '__POPULAR__') return 'أكتر بضاعة بتتباع';
+    if (activeCatalogTab === '__CUSTOM__') return 'أصنافي السريعة';
     const foundCat = categories.find((c) => c.id === activeCatalogTab || c.name === activeCatalogTab);
     return `قسم: ${foundCat ? foundCat.name : activeCatalogTab}`;
   };
@@ -92,12 +92,12 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className="text-xs sm:text-sm font-bold text-ink truncate">أصناف المحل والمنتجات</span>
+              <span className="text-xs sm:text-sm font-bold text-ink truncate">أصناف وبضاعة المحل</span>
               <span className="text-[10px] font-mono bg-brand-soft text-brand-dark font-bold px-1.5 py-0.2 rounded-full shrink-0">
                 {smartItems.length}
               </span>
             </div>
-            <div className="text-[10px] text-ink-muted truncate">انقر على أي صنف لإضافته مباشرة للسلة</div>
+            <div className="text-[10px] text-ink-muted truncate">اضغط على أي صنف عشان ينزل علطول في الفاتورة</div>
           </div>
         </div>
 
@@ -117,7 +117,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
             type="button"
             onClick={onOpenQuickFastItemModal}
             className="flex items-center gap-1 text-[11px] font-bold text-white bg-paid hover:bg-paid-hover active:bg-brand-dark px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:translate-y-0.5"
-            title="إضافة صنف سريع جديد يظهر في أزرار المحل بدون مخزن"
+            title="إضافة صنف سريع يظهر في أزرار المحل بدون مخزن"
           >
             <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
             <span> صنف سريع</span>
@@ -148,7 +148,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
               type="button"
               onClick={() => setActiveCatalogTab('__ALL__')}
               className="text-ink-muted hover:text-danger mr-1 p-0.5 rounded cursor-pointer"
-              title="إلغاء التصفية وعرض الكل"
+              title="عرض كل الأصناف"
             >
               <X className="w-3 h-3" />
             </button>
@@ -162,7 +162,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
             type="text"
             value={catalogSearchQuery}
             onChange={(e) => setCatalogSearchQuery(e.target.value)}
-            placeholder="بحث فوري في الأصناف..."
+            placeholder="دور على صنف بالاسم أو الباركود..."
             className="w-full h-8 pr-8 pl-7 text-xs bg-surface rounded-lg border border-line focus:border-brand focus:ring-1 focus:ring-brand/30 outline-none transition-all placeholder:text-ink-muted/70 text-ink font-medium shadow-2xs"
           />
           {catalogSearchQuery && (
@@ -357,22 +357,22 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
             <Sparkles className="w-8 h-8 mb-2 opacity-30 text-brand" />
             {activeCatalogTab === '__POPULAR__' ? (
               <p className="text-xs font-medium leading-relaxed">
-                لم تسجل أي عمليات بيع بعد لحساب الأكثر طلباً.<br />
-                ستظهر الأصناف الأكثر مبيعاً هنا تلقائياً بمجرد إتمام الفواتير.
+                لسه مفيش مبيعات اتسجلت عشان نحسب أكتر بضاعة بتتباع.<br />
+                الأصناف الأكثر مبيعاً هتظهر هنا تلقائياً أول ما تبيعها في الفواتير.
               </p>
             ) : activeCatalogTab === '__CUSTOM__' ? (
               <p className="text-xs font-medium leading-relaxed">
-                لم تقم بتخصيص أزرار سريعة بعد.<br />
+                لسه ما عملتش أزرار سريعة لأصنافك المفضلة.<br />
                 اضغط على «تخصيص» بالأسفل لإنشاء أزرارك السريعة.
               </p>
             ) : (
               <div>
                 <p className="text-xs font-medium text-ink">
-                  {totalCatalogProductsCount === 0 ? 'قائمة الأصناف فارغة حالياً' : 'لا توجد أصناف تطابق هذا البحث أو القسم'}
+                  {totalCatalogProductsCount === 0 ? 'مفيش أصناف متسجلة في المحل حالياً' : 'مفيش أصناف مطابقة للبحث أو القسم ده'}
                 </p>
                 {totalCatalogProductsCount === 0 && (
                   <p className="text-[11px] text-ink-muted mt-1 leading-relaxed">
-                    يمكنك إضافة أصنافك الأولى من شاشة «إدارة الأصناف» أو استيراد ملف إكسل جاهز.
+                    تقدر تضيف بضاعتك من شاشة «الأصناف والمخزن» أو تستورد ملف إكسل جاهز.
                   </p>
                 )}
               </div>
@@ -384,7 +384,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                 className="mt-3 px-3.5 py-1.5 bg-paid hover:bg-paid-hover text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>+ إضافة أول صنف سريع الآن</span>
+                <span>+ ضيف أول صنف سريع دلوقتي</span>
               </button>
             )}
           </div>
@@ -399,7 +399,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
           className="flex items-center gap-1 font-bold text-paid hover:underline cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-          <span>إضافة صنف سريع بدون مخزون</span>
+          <span>+ صنف سريع ملوش مخزن (خدمة/توصيل)</span>
         </button>
         <button
           type="button"
@@ -408,7 +408,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
           title="تخصيص وترتيب الأصناف السريعة"
         >
           <Settings className="w-3.5 h-3.5 text-brand" />
-          <span className="font-mono text-[10px]">{customItemsCount} صنف مخصص</span>
+          <span className="font-mono text-[10px]">{customItemsCount} صنف سريع جاهز</span>
         </button>
       </div>
     </section>

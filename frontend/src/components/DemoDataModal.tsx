@@ -197,19 +197,19 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
       <div
-        className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]"
         dir="rtl"
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-emerald-800 to-teal-900 text-white px-6 py-5 flex items-center justify-between">
+        <div className="bg-brand text-white px-6 py-5 flex items-center justify-between border-b border-brand-dark">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center text-2xl">
               <FlaskConical className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-black">البيانات التجريبية والتدريب</h2>
-              <p className="text-xs text-emerald-200 mt-0.5">
-                تجربة النظام وتدريب الموظفين دون المساس ببيانات المحل الحقيقية
+              <h2 className="text-xl font-black">البيانات التجريبية وتدريب الكاشير</h2>
+              <p className="text-xs text-white/80 mt-0.5">
+                جرب النظام ودرب الموظفين براحتك من غير ما تلمس أي بضاعة أو فواتير حقيقية في المحل
               </p>
             </div>
           </div>
@@ -222,40 +222,40 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
         </div>
 
         {/* Content Body */}
-        <div className="p-6 overflow-y-auto space-y-5 flex-1">
+        <div className="p-6 overflow-y-auto space-y-5 flex-1 bg-canvas">
           {clearSuccessInfo && (
-            <div className="bg-emerald-50 border-2 border-emerald-500 rounded-2xl p-5 text-center space-y-3.5 animate-fadeIn shadow-md">
-              <div className="w-14 h-14 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto shadow-inner">
+            <div className="bg-paid-soft border-2 border-paid rounded-2xl p-5 text-center space-y-3.5 animate-fadeIn shadow-md">
+              <div className="w-14 h-14 bg-surface text-paid rounded-full flex items-center justify-center mx-auto shadow-inner border border-line">
                 <CheckCircle2 className="w-8 h-8" />
               </div>
               <div>
-                <h3 className="text-base font-black text-emerald-950">تم مسح كافة البيانات التجريبية بنجاح!</h3>
-                <p className="text-xs text-emerald-800 mt-1 font-bold leading-relaxed">
+                <h3 className="text-base font-black text-brand-dark">تم مسح كل البيانات التجريبية بنجاح!</h3>
+                <p className="text-xs text-paid mt-1 font-bold leading-relaxed">
                   {clearSuccessInfo.message}
                 </p>
               </div>
               <div className="grid grid-cols-3 gap-2.5 max-w-sm mx-auto">
-                <div className="bg-white border border-emerald-200 rounded-xl p-2.5 shadow-2xs">
-                  <span className="block text-2xl font-black text-emerald-900">{clearSuccessInfo.deletedProducts}</span>
-                  <span className="text-[11px] font-bold text-slate-500">أصناف محذوفة</span>
+                <div className="bg-surface border border-line rounded-xl p-2.5 shadow-2xs">
+                  <span className="block text-2xl font-black text-ink">{clearSuccessInfo.deletedProducts}</span>
+                  <span className="text-[11px] font-bold text-ink-muted">أصناف اتحذفت</span>
                 </div>
-                <div className="bg-white border border-emerald-200 rounded-xl p-2.5 shadow-2xs">
-                  <span className="block text-2xl font-black text-emerald-900">{clearSuccessInfo.deletedSales}</span>
-                  <span className="text-[11px] font-bold text-slate-500">فواتير محذوفة</span>
+                <div className="bg-surface border border-line rounded-xl p-2.5 shadow-2xs">
+                  <span className="block text-2xl font-black text-ink">{clearSuccessInfo.deletedSales}</span>
+                  <span className="text-[11px] font-bold text-ink-muted">فواتير اتحذفت</span>
                 </div>
-                <div className="bg-white border border-emerald-200 rounded-xl p-2.5 shadow-2xs">
-                  <span className="block text-2xl font-black text-emerald-900">{clearSuccessInfo.deletedCustomers}</span>
-                  <span className="text-[11px] font-bold text-slate-500">عملاء محذوفين</span>
+                <div className="bg-surface border border-line rounded-xl p-2.5 shadow-2xs">
+                  <span className="block text-2xl font-black text-ink">{clearSuccessInfo.deletedCustomers}</span>
+                  <span className="text-[11px] font-bold text-ink-muted">زبائن اتحذفوا</span>
                 </div>
               </div>
               <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2">
                 <button
                   type="button"
                   onClick={() => window.location.reload()}
-                  className="w-full sm:w-auto px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold text-xs shadow transition-all cursor-pointer flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto px-5 py-2.5 bg-paid hover:bg-paid/90 text-white rounded-xl font-bold text-xs shadow transition-all cursor-pointer flex items-center justify-center gap-2"
                 >
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>تحديث الشاشة الآن لتطبيق التغييرات</span>
+                  <span>تحديث الشاشة دلوقتي لتطبيق التغييرات</span>
                 </button>
                 <button
                   type="button"
@@ -263,13 +263,13 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                     setClearSuccessInfo(null);
                     onClose();
                   }}
-                  className="w-full sm:w-auto px-4 py-2.5 bg-white border border-emerald-300 text-emerald-900 hover:bg-emerald-50 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2.5 bg-surface border border-line text-ink hover:bg-surface-2 rounded-xl font-bold text-xs transition-colors cursor-pointer"
                 >
                   إغلاق النافذة
                 </button>
               </div>
-              <p className="text-[11px] text-emerald-700 font-semibold animate-pulse">
-                سيتم إعادة تحميل الشاشة وتحديث الكتالوج خلال لحظات تلقائياً...
+              <p className="text-[11px] text-paid font-semibold animate-pulse">
+                الشاشة هتحدث نفسها والكتالوج هيتجدد تلقائياً حالا...
               </p>
             </div>
           )}
@@ -278,68 +278,67 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
             <div
               className={`p-3.5 rounded-xl text-sm font-semibold flex items-center gap-2.5 ${
                 message.type === 'success'
-                  ? 'bg-emerald-50 text-emerald-900 border border-emerald-300'
-                  : 'bg-red-50 text-red-900 border border-red-300'
+                  ? 'bg-paid-soft text-paid border border-paid-border'
+                  : 'bg-danger-soft text-danger border border-danger-border'
               }`}
             >
               {message.type === 'success' ? (
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <CheckCircle2 className="w-5 h-5 text-paid shrink-0" />
               ) : (
-                <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+                <AlertCircle className="w-5 h-5 text-danger shrink-0" />
               )}
               <span>{message.text}</span>
             </div>
           )}
 
           {/* Safety Guarantee Callout */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-start gap-3">
-            <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+          <div className="bg-surface border border-line rounded-xl p-4 flex items-start gap-3">
+            <div className="w-9 h-9 rounded-lg bg-paid-soft text-paid flex items-center justify-center shrink-0">
               <Shield className="w-5 h-5" />
             </div>
             <div className="text-xs space-y-1">
-              <span className="font-bold text-slate-800 block text-sm">عزل آمن للبيانات التجريبية</span>
-              <p className="text-slate-600 leading-relaxed">
-                جميع الأصناف والعملاء والفواتير التجريبية تحمل وسماً خاصاً بها داخل قاعدة البيانات. عند طلب مسح البيانات
-                التجريبية، يتم حذف العناصر ذات الوسم فقط ولن تمس أي فواتير أو أصناف حقيقية أضفتها بنفسك.
+              <span className="font-bold text-ink block text-sm">أمان تام وعزل لبضاعة وفلوس المحل الحقيقية</span>
+              <p className="text-ink-muted leading-relaxed">
+                كل الأصناف والزبائن والفواتير التجريبية متعلمة بكود خاص في النظام. لما تمسحها، بيتم حذف السجلات التجريبية دي بس، وفواتيرك وبضاعتك وزبائنك الحقيقيين اللي سجلتهم بيفضلوا محفوظين وسليمة 100%.
               </p>
             </div>
           </div>
 
           {/* Current Status Box */}
-          <div className="border border-slate-200 rounded-xl p-4 space-y-3">
+          <div className="border border-line rounded-xl p-4 space-y-3 bg-surface">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">حالة البيانات الحالية</span>
+              <span className="text-xs font-bold text-ink-muted tracking-wider">حالة البيانات التجريبية دلوقتي</span>
               {status.hasDemoData ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-900 border border-amber-300">
-                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                  مفعلة في النظام
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-warn-soft text-warn border border-warn-border">
+                  <span className="w-2 h-2 rounded-full bg-warn animate-pulse" />
+                  شغالة ومحملة في النظام
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-surface-2 text-ink-muted border border-line">
                   <MinusCircle className="w-3.5 h-3.5" />
-                  غير محملة
+                  مش محملة
                 </span>
               )}
             </div>
 
             {status.hasDemoData ? (
               <div className="grid grid-cols-3 gap-3 pt-2">
-                <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl p-3 text-center">
-                  <span className="text-2xl font-black text-amber-900 block">{status.demoProductsCount}</span>
-                  <span className="text-xs font-bold text-amber-700">أصناف تجريبية</span>
+                <div className="bg-canvas border border-line rounded-xl p-3 text-center">
+                  <span className="text-2xl font-black text-ink block">{status.demoProductsCount}</span>
+                  <span className="text-xs font-bold text-ink-muted">صنف تجريبي</span>
                 </div>
-                <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl p-3 text-center">
-                  <span className="text-2xl font-black text-amber-900 block">{status.demoCustomersCount}</span>
-                  <span className="text-xs font-bold text-amber-700">عملاء تجريبيين</span>
+                <div className="bg-canvas border border-line rounded-xl p-3 text-center">
+                  <span className="text-2xl font-black text-ink block">{status.demoCustomersCount}</span>
+                  <span className="text-xs font-bold text-ink-muted">زبون تجريبي</span>
                 </div>
-                <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl p-3 text-center">
-                  <span className="text-2xl font-black text-amber-900 block">{status.demoSalesCount}</span>
-                  <span className="text-xs font-bold text-amber-700">فواتير تجريبية</span>
+                <div className="bg-canvas border border-line rounded-xl p-3 text-center">
+                  <span className="text-2xl font-black text-ink block">{status.demoSalesCount}</span>
+                  <span className="text-xs font-bold text-ink-muted">فاتورة تجريبية</span>
                 </div>
               </div>
             ) : (
-              <p className="text-xs text-slate-500 font-medium">
-                لا توجد بيانات تجريبية محملة حالياً. يمكنك تحميل باقة أصناف نموذجية لتجربة البيع والتدريب.
+              <p className="text-xs text-ink-muted font-medium">
+                مفيش بيانات تجريبية محملة دلوقتي. تقدر تنزل بضاعة وفواتير نموذجية لتجربة البيع وتدريب الكاشير.
               </p>
             )}
           </div>
@@ -348,18 +347,18 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
           {!status.hasDemoData && (
             <div className="space-y-3">
               {/* Remembered Active Activity Banner */}
-              <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+              <div className="flex items-center justify-between p-3.5 bg-surface border border-line rounded-xl text-xs">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                  <div className="w-8 h-8 rounded-lg bg-brand/10 text-brand flex items-center justify-center shrink-0">
                     {(() => {
                       const opt = STORE_TYPE_OPTIONS.find(o => o.id === selectedStoreType) || STORE_TYPE_OPTIONS[0];
                       const Icon = opt.icon;
-                      return <Icon className="w-4 h-4 text-emerald-700" />;
+                      return <Icon className="w-4 h-4 text-brand" />;
                     })()}
                   </div>
                   <div>
-                    <span className="text-[11px] text-slate-500 font-semibold block">نشاط المحل المعتمد تلقائياً:</span>
-                    <span className="font-bold text-slate-900 text-xs">
+                    <span className="text-[11px] text-ink-muted font-semibold block">نشاط المحل المعتمد تلقائياً:</span>
+                    <span className="font-bold text-ink text-xs">
                       {(STORE_TYPE_OPTIONS.find(o => o.id === selectedStoreType) || STORE_TYPE_OPTIONS[0]).label}
                     </span>
                   </div>
@@ -368,7 +367,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowTypeSelector(prev => !prev)}
-                  className="px-2.5 py-1 text-[11px] font-bold text-emerald-800 hover:text-emerald-950 bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 rounded-lg transition-colors cursor-pointer"
+                  className="px-2.5 py-1 text-[11px] font-bold text-brand hover:text-brand-dark bg-canvas hover:bg-surface-2 border border-line rounded-lg transition-colors cursor-pointer"
                 >
                   {showTypeSelector ? 'إخفاء الخيارات' : 'تغيير النشاط'}
                 </button>
@@ -376,9 +375,9 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
 
               {/* Show the selection grid ONLY if the user clicks "تغيير النشاط" */}
               {showTypeSelector && (
-                <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2 animate-fadeIn">
-                  <label className="block text-xs font-bold text-slate-700">
-                    اختر نشاط المتجر لتحميل أصناف ملائمة له:
+                <div className="p-3 bg-surface border border-line rounded-xl space-y-2 animate-fadeIn">
+                  <label className="block text-xs font-bold text-ink">
+                    اختر نشاط المحل عشان ننزل أصناف مناسبة ليه:
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     {STORE_TYPE_OPTIONS.map(opt => {
@@ -395,11 +394,11 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                           }}
                           className={`p-2.5 rounded-lg border text-right transition-all flex items-center gap-2.5 cursor-pointer ${
                             isSelected
-                              ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold shadow-2xs ring-1 ring-emerald-500'
-                              : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                              ? 'border-brand bg-brand/10 text-brand font-bold shadow-2xs ring-1 ring-brand'
+                              : 'border-line bg-surface hover:bg-surface-2 text-ink'
                           }`}
                         >
-                          <Icon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-emerald-700' : 'text-slate-400'}`} />
+                          <Icon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-brand' : 'text-ink-muted'}`} />
                           <span className="text-xs font-bold">{opt.label}</span>
                         </button>
                       );
@@ -412,17 +411,17 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                 type="button"
                 onClick={handleLoadDemo}
                 disabled={loading}
-                className="w-full py-3 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white rounded-xl font-bold shadow hover:shadow-md transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-50 cursor-pointer"
+                className="w-full py-3 bg-brand hover:bg-brand-dark text-white rounded-xl font-bold shadow-xs hover:shadow transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-50 cursor-pointer"
               >
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    جاري تحميل البيانات...
+                    جاري تنزيل البيانات...
                   </>
                 ) : (
                   <>
                     <Download className="w-4 h-4" />
-                    <span>تحميل أصناف تجريبية لـ «{(STORE_TYPE_OPTIONS.find(o => o.id === selectedStoreType) || STORE_TYPE_OPTIONS[0]).label}»</span>
+                    <span>تنزيل أصناف تجريبية لـ «{(STORE_TYPE_OPTIONS.find(o => o.id === selectedStoreType) || STORE_TYPE_OPTIONS[0]).label}»</span>
                   </>
                 )}
               </button>
@@ -437,20 +436,20 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                   type="button"
                   onClick={() => setShowClearConfirm(true)}
                   disabled={loading}
-                  className="w-full py-2.5 bg-red-50 hover:bg-red-100 text-red-700 hover:text-red-800 border border-red-200 rounded-xl font-bold transition-colors flex items-center justify-center gap-2 text-xs cursor-pointer"
+                  className="w-full py-2.5 bg-danger-soft hover:bg-danger-soft/80 text-danger border border-danger-border rounded-xl font-bold transition-colors flex items-center justify-center gap-2 text-xs cursor-pointer"
                 >
                   <Trash2 className="w-4 h-4" />
-                  <span>{status.hasDemoData ? 'مسح كافة البيانات التجريبية واختبارات الحمل' : 'مسح وقائي لأي بيانات أو أصناف تجريبية متبقية'}</span>
+                  <span>{status.hasDemoData ? 'مسح كل البيانات التجريبية واختبارات الحمل' : 'مسح وقائي لأي بيانات أو أصناف تجريبية متبقية'}</span>
                 </button>
               ) : (
-                <div className="bg-red-50 border-2 border-red-300 rounded-xl p-4 space-y-3 animate-fadeIn shadow-sm">
+                <div className="bg-danger-soft border-2 border-danger-border rounded-xl p-4 space-y-3 animate-fadeIn shadow-sm">
                   <div className="flex items-start gap-3">
-                    <AlertTriangle className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
+                    <AlertTriangle className="w-6 h-6 text-danger shrink-0 mt-0.5" />
                     <div>
-                      <h4 className="text-sm font-bold text-red-900">تأكيد مسح كافة البيانات التجريبية واختبارات الحمل؟</h4>
-                      <p className="text-xs text-red-800 mt-1 leading-relaxed font-medium">
-                        سيقوم النظام بفحص قاعدة البيانات بالكامل، وحذف أي أصناف تجريبية (بما فيها أصناف اختبار الحمل والتدريب)
-                        والفواتير والعملاء التجريبيين بأمان تام، ولن تمس أي فواتير أو أصناف حقيقية أنشأتها بنفسك.
+                      <h4 className="text-sm font-bold text-danger">متأكد إنك عاوز تمسح كل البيانات التجريبية واختبارات الحمل؟</h4>
+                      <p className="text-xs text-ink mt-1 leading-relaxed font-medium">
+                        النظام هيفحص قاعدة البيانات بالكامل، ويمسح أي أصناف تجريبية (بما فيها أصناف اختبار الحمل والتدريب)
+                        والفواتير والزبائن التجريبيين بأمان تام، ومش هيلمس أي فواتير أو أصناف حقيقية أنشأتها بنفسك.
                       </p>
                     </div>
                   </div>
@@ -460,7 +459,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                       type="button"
                       onClick={() => setShowClearConfirm(false)}
                       disabled={loading}
-                      className="px-3.5 py-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+                      className="px-3.5 py-1.5 text-xs font-bold text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 transition-colors cursor-pointer"
                     >
                       إلغاء
                     </button>
@@ -468,7 +467,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                       type="button"
                       onClick={handleClearDemo}
                       disabled={loading}
-                      className="px-5 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-lg shadow-md transition-colors flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                      className="px-5 py-2 text-xs font-bold text-white bg-danger hover:bg-danger/90 rounded-lg shadow-md transition-colors flex items-center gap-2 disabled:opacity-50 cursor-pointer"
                     >
                       {loading ? (
                         <>
@@ -478,7 +477,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                       ) : (
                         <>
                           <Check className="w-4 h-4" />
-                          <span>نعم، امسح كافة البيانات التجريبية</span>
+                          <span>أيوه، امسح كل البيانات التجريبية</span>
                         </>
                       )}
                     </button>
@@ -489,16 +488,16 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
           )}
 
           {/* Start First Run Setup Wizard */}
-          <div className="border-t border-slate-200 pt-4 flex items-center justify-between">
+          <div className="border-t border-line pt-4 flex items-center justify-between">
             <div>
-              <span className="text-xs font-bold text-slate-800 block">بدء الإعداد الأولي للمحل من الصفر</span>
-              <span className="text-[11px] text-slate-500">تحديد اسم المحل، النشاط، الفئات، ونظام البيع كأول تشغيل</span>
+              <span className="text-xs font-bold text-ink block">إعادة ضبط وإعداد المحل من الصفر</span>
+              <span className="text-[11px] text-ink-muted">تحديد اسم المحل، النشاط، الفئات، ونظام البيع كأول تشغيل</span>
             </div>
             <button
               type="button"
               onClick={handleStartWizardFresh}
               disabled={isTriggeringWizard}
-              className="px-3.5 py-2 text-xs font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-300 rounded-xl transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+              className="px-3.5 py-2 text-xs font-bold text-brand bg-brand-soft hover:bg-brand/20 border border-brand/30 rounded-xl transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
             >
               {isTriggeringWizard ? (
                 <>
@@ -516,10 +515,10 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
 
           {/* Start Tour Button */}
           {onStartTour && (
-            <div className="border-t border-slate-200 pt-4 flex items-center justify-between">
+            <div className="border-t border-line pt-4 flex items-center justify-between">
               <div>
-                <span className="text-xs font-bold text-slate-800 block">الجولة التعريفية التفاعلية</span>
-                <span className="text-[11px] text-slate-500">جولة من 5 خطوات تشرح كافة شاشات البرنامج والاختصارات</span>
+                <span className="text-xs font-bold text-ink block">الجولة السريعة لشرح النظام</span>
+                <span className="text-[11px] text-ink-muted">جولة من 5 خطوات تشرح شاشات البرنامج وأزرار البيع</span>
               </div>
               <button
                 type="button"
@@ -527,21 +526,21 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
                   onClose();
                   onStartTour();
                 }}
-                className="px-3.5 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+                className="px-3.5 py-2 text-xs font-bold text-paid bg-paid-soft hover:bg-paid-soft/80 border border-paid-border rounded-xl transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
               >
                 <Compass className="w-4 h-4" />
-                بدء الجولة الآن
+                بدء الجولة دلوقتي
               </button>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="bg-slate-50 border-t border-slate-200 px-6 py-3.5 flex justify-end">
+        <div className="bg-surface border-t border-line px-6 py-3.5 flex justify-end">
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2 text-sm font-bold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-100 transition-colors shadow-sm"
+            className="px-5 py-2 text-sm font-bold text-ink bg-surface border border-line rounded-xl hover:bg-surface-2 transition-colors shadow-sm cursor-pointer"
           >
             إغلاق
           </button>

@@ -9,7 +9,9 @@ import {
   TrendingUp, 
   X, 
   Calendar,
-  AlertCircle
+  AlertCircle,
+  CreditCard,
+  Receipt
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { DailyClosing, DailyClosingPreview } from '../types/models';
@@ -39,6 +41,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
   const [confirmSuspiciousDate, setConfirmSuspiciousDate] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [savedClosing, setSavedClosing] = useState<DailyClosing | null>(null);
+  const [showPrintPrompt, setShowPrintPrompt] = useState<boolean>(false);
   const [isPrinting, setIsPrinting] = useState<boolean>(false);
   const [printFeedback, setPrintFeedback] = useState<string | null>(null);
 
@@ -78,6 +81,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
     if (isOpen) {
       setPrintFeedback(null);
       setSavedClosing(null);
+      setShowPrintPrompt(false);
       setConfirmSuspiciousDate(false);
       void loadPreview();
     }
@@ -118,11 +122,11 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
 
       if (closingResult) {
         setSavedClosing(closingResult);
+        setShowPrintPrompt(true);
         if (onClosingCompleted) {
           onClosingCompleted(closingResult);
         }
-        // Auto print closing receipt
-        handlePrintReceipt(closingResult);
+        await loadPreview();
       }
     } catch (err: unknown) {
       console.error(err);
@@ -158,9 +162,19 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
 
   if (!isOpen) return null;
 
+  // Check if this date is already sealed/closed
+  const isAlreadyClosed = Boolean(preview?.isAlreadyClosed && preview?.existingClosing);
+  const closedRecord = preview?.existingClosing || savedClosing;
+
   // Expected vs counted difference calculation
-  const expectedCash = preview ? preview.expectedCashPiasters : 0;
-  const differencePiasters = actualCashPiasters - expectedCash;
+  const expectedCash = isAlreadyClosed && closedRecord
+    ? closedRecord.expectedCashPiasters
+    : (preview ? preview.expectedCashPiasters : 0);
+
+  const differencePiasters = isAlreadyClosed && closedRecord
+    ? closedRecord.differencePiasters
+    : (actualCashPiasters - expectedCash);
+
   const isMatch = differencePiasters === 0;
   const isShortage = differencePiasters < 0;
 
@@ -176,7 +190,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold tracking-tight">إقفال الوردية واليومية</h2>
+                <h2 className="text-xl font-bold tracking-tight">تقفيل الوردية وحساب اليومية</h2>
                 {savedClosing && (
                   <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-paid text-white">
                     معتمد #{savedClosing.closingNumber}
@@ -184,7 +198,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                 )}
               </div>
               <p className="text-xs text-white/80 mt-0.5">
-                تصفية الخزينة وحساب مبيعات اليوم وربط العهدة بسجل إقفال لا يمكن حذفه أو تعديله
+                جرد الدرج وحساب مبيعات ومصاريف الوردية والتقفيل النهائي لليومية
               </p>
             </div>
           </div>
@@ -201,7 +215,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
               className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/15 hover:bg-white/25 text-white transition flex items-center gap-1.5"
             >
               <History className="w-4 h-4" />
-              <span>{showHistory ? 'العودة لليومية الحالية' : 'سجل الإقفالات السابقة'}</span>
+              <span>{showHistory ? 'الرجوع لليومية الحالية' : 'سجل الورديات المقفولة'}</span>
             </button>
             <button
               onClick={onClose}
@@ -218,7 +232,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
           {loading ? (
             <div className="py-20 flex flex-col items-center justify-center gap-3 text-ink-muted">
               <div className="w-8 h-8 border-3 border-brand border-t-transparent rounded-full animate-spin" />
-              <p className="text-sm font-medium">جاري احتساب أرقام المبيعات والعهد من قاعدة البيانات...</p>
+              <p className="text-sm font-medium">بنحسب أرقام المبيعات وفلوس الدرج من الداتابيز...</p>
             </div>
           ) : showHistory ? (
             /* History Subview */
@@ -242,6 +256,8 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                         <th className="p-3">يوم العمل</th>
                         <th className="p-3">وقت الإقفال</th>
                         <th className="p-3">إجمالي المبيعات</th>
+                        <th className="p-3">فيزا / بنك</th>
+                        <th className="p-3">مصروفات الدرج</th>
                         <th className="p-3">المتوقع بالدرج</th>
                         <th className="p-3">النقد الفعلي</th>
                         <th className="p-3">الفرق</th>
@@ -257,6 +273,8 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                             <td className="p-3">{h.businessDate}</td>
                             <td className="p-3 text-xs text-ink-muted" dir="ltr">{h.closedAt ? h.closedAt.substring(0, 16) : '-'}</td>
                             <td className="p-3 font-semibold text-ink">{formatArabicCurrency(h.totalSalesPiasters)}</td>
+                            <td className="p-3 text-brand font-medium">{formatArabicCurrency(h.cardSalesPiasters || 0)}</td>
+                            <td className="p-3 text-danger font-medium">{formatArabicCurrency(h.expensesPiasters || 0)}</td>
                             <td className="p-3 text-ink-muted">{formatArabicCurrency(h.expectedCashPiasters)}</td>
                             <td className="p-3 font-semibold text-brand">{formatArabicCurrency(h.actualCashPiasters)}</td>
                             <td className="p-3">
@@ -315,25 +333,39 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
               )}
 
               {/* Already Closed Notice */}
-              {savedClosing && (
-                <div className="p-4 rounded-xl bg-paid-soft border border-paid/20 text-paid flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle2 className="w-6 h-6 shrink-0" />
-                    <div>
-                      <h4 className="font-bold text-sm">اليومية معتمدة ومقفلة رسمياً (إقفال #{savedClosing.closingNumber})</h4>
-                      <p className="text-xs opacity-90">
-                        تم قفل اليومية في {savedClosing.closedAt ? savedClosing.closedAt.substring(0, 16) : ''} بواسطة {savedClosing.cashierName || 'المشرف'}. هذا السجل محمي ضد أي تعديل أو حذف.
-                      </p>
+              {savedClosing && !showPrintPrompt && (
+                <div className="p-4 rounded-xl bg-paid-soft border border-paid/20 text-paid space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <CheckCircle2 className="w-6 h-6 shrink-0" />
+                      <div>
+                        <h4 className="font-bold text-sm">اليومية اتقفلت واعتمدت خلاص (تقفيل #{savedClosing.closingNumber})</h4>
+                        <p className="text-xs opacity-90">
+                          اتقفلت اليومية في {savedClosing.closedAt ? savedClosing.closedAt.substring(0, 16) : ''} بواسطة {savedClosing.cashierName || 'المشرف'}. السجل ده معتمد ومحمي تماماً.
+                        </p>
+                      </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => handlePrintReceipt()}
+                      disabled={isPrinting}
+                      className="px-4 py-2 rounded-xl bg-paid text-white hover:bg-paid/90 font-medium text-xs flex items-center gap-2 shadow-xs transition cursor-pointer shrink-0"
+                    >
+                      <Printer className="w-4 h-4" />
+                      <span>{isPrinting ? 'بنطبع...' : 'طباعة وصل التقفيل'}</span>
+                    </button>
                   </div>
-                  <button
-                    onClick={() => handlePrintReceipt()}
-                    disabled={isPrinting}
-                    className="px-4 py-2 rounded-xl bg-paid text-white hover:bg-paid/90 font-medium text-xs flex items-center gap-2 shadow-xs transition"
-                  >
-                    <Printer className="w-4 h-4" />
-                    <span>{isPrinting ? 'جاري الطباعة...' : 'طباعة إيصال الإقفال'}</span>
-                  </button>
+
+                  {preview?.postClosingSalesCount && preview.postClosingSalesCount > 0 ? (
+                    <div className="p-2.5 rounded-lg bg-surface border border-line text-ink text-xs flex items-center justify-between">
+                      <span className="font-medium text-ink-muted">
+                        مبيعات مسجلة بعد موعد هذا الإقفال: <strong className="text-ink">{preview.postClosingSalesCount} فاتورة</strong> بقيمة <strong className="text-brand">{formatArabicCurrency(preview.postClosingSalesPiasters || 0)}</strong>
+                      </span>
+                      <span className="text-[11px] text-brand bg-brand-soft px-2 py-0.5 rounded-md font-medium">
+                        تُحسب في الوردية التالية تلقائياً
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
               )}
 
@@ -352,14 +384,37 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
               </div>
 
               {/* Financial Metrics Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                 <div className="bg-surface p-3.5 rounded-xl border border-line shadow-xs">
                   <span className="text-xs text-ink-muted block mb-1">إجمالي المبيعات</span>
                   <span className="text-lg font-bold text-ink">
                     {formatArabicCurrency(preview.totalSalesPiasters)}
                   </span>
-                  <div className="text-[11px] text-ink-muted mt-1 flex justify-between">
-                    <span>نقدي: {formatArabicCurrency(preview.cashSalesPiasters)}</span>
+                  <div className="text-[11px] text-ink-muted mt-1">
+                    {preview.invoicesCount} فاتورة
+                  </div>
+                </div>
+
+                <div className="bg-surface p-3.5 rounded-xl border border-line shadow-xs">
+                  <span className="text-xs text-ink-muted block mb-1">مبيعات كاش (الدرج)</span>
+                  <span className="text-lg font-bold text-brand">
+                    {formatArabicCurrency(preview.cashSalesPiasters)}
+                  </span>
+                  <div className="text-[11px] text-brand/80 mt-1">
+                    نقد سائل بالدرج
+                  </div>
+                </div>
+
+                <div className="bg-surface p-3.5 rounded-xl border border-line shadow-xs relative overflow-hidden">
+                  <span className="text-xs text-ink-muted flex items-center justify-between mb-1">
+                    <span>فيزا / ماكينة POS</span>
+                    <CreditCard className="w-3.5 h-3.5 text-brand" />
+                  </span>
+                  <span className="text-lg font-bold text-ink">
+                    {formatArabicCurrency(preview.cardSalesPiasters || 0)}
+                  </span>
+                  <div className="text-[11px] text-ink-muted mt-1">
+                    حساب بنكي (خارج الدرج)
                   </div>
                 </div>
 
@@ -373,36 +428,46 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                   </div>
                 </div>
 
-                <div className="bg-surface p-3.5 rounded-xl border border-line shadow-xs">
-                  <span className="text-xs text-ink-muted block mb-1">المرتجعات والملغاة</span>
-                  <span className="text-lg font-bold text-danger">
-                    {formatArabicCurrency(preview.returnsTotalPiasters)}
+                <div className="bg-surface p-3.5 rounded-xl border border-line shadow-xs relative overflow-hidden">
+                  <span className="text-xs text-ink-muted flex items-center justify-between mb-1">
+                    <span>مصروفات الدرج</span>
+                    <Receipt className="w-3.5 h-3.5 text-danger" />
                   </span>
-                  <div className="text-[11px] text-ink-muted mt-1">
-                    {preview.returnsCount} مرتجع • {preview.cancelledCount} ملغاة
+                  <span className="text-lg font-bold text-danger">
+                    {formatArabicCurrency(preview.expensesPiasters || 0)}
+                  </span>
+                  <div className="text-[11px] text-danger/80 mt-1">
+                    {preview.expensesCount || 0} إيصالات نثريات
                   </div>
                 </div>
 
                 <div className="bg-surface p-3.5 rounded-xl border border-line shadow-xs">
-                  <span className="text-xs text-ink-muted block mb-1">سداد عملاء (نقد مقبوض)</span>
+                  <span className="text-xs text-ink-muted block mb-1">سداد عملاء (نقدي)</span>
                   <span className="text-lg font-bold text-paid">
                     {formatArabicCurrency(preview.debtPaymentsPiasters)}
                   </span>
-                  <div className="text-[11px] text-ink-muted mt-1">
+                  <div className="text-[11px] text-paid/80 mt-1">
                     تحصيل ديون بالخزينة
                   </div>
                 </div>
               </div>
+
+              {preview.returnsTotalPiasters > 0 && (
+                <div className="p-2.5 rounded-lg bg-red-50/70 border border-red-200/60 text-danger text-xs flex items-center justify-between">
+                  <span>إجمالي المرتجعات المخصومة من الخزينة: <strong>{formatArabicCurrency(preview.returnsCashPiasters)}</strong> ({preview.returnsCount} عمليات مرتجع)</span>
+                  {preview.cancelledCount > 0 && <span>فواتير ملغاة: {preview.cancelledCount}</span>}
+                </div>
+              )}
 
               {/* Drawer Cash Reconciliation Section (The Core of Feature #49) */}
               <div className="bg-surface p-5 rounded-2xl border-2 border-line shadow-xs space-y-4">
                 <div className="flex items-center justify-between border-b border-line pb-3">
                   <div className="flex items-center gap-2">
                     <Coins className="w-5 h-5 text-brand" />
-                    <h3 className="font-bold text-ink text-base">تصفية الدرج ومطابقة النقدية الفعلية</h3>
+                    <h3 className="font-bold text-ink text-base">جرد ومطابقة الفلوس اللي في الدرج</h3>
                   </div>
                   <span className="text-xs text-ink-muted">
-                    معادلة الدرج = مبيعات كاش + سداد ديون − مرتجعات كاش
+                    حسبة الدرج = مبيعات الكاش + سداد الديون − المرتجعات − مصاريف الدرج (مبيعات الفيزا بتدخل البنك ومش في الدرج)
                   </span>
                 </div>
 
@@ -410,28 +475,28 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                   
                   {/* Expected Cash in Drawer */}
                   <div className="p-4 rounded-xl bg-surface-2 border border-line">
-                    <span className="text-xs text-ink-muted block mb-1 font-medium">النقد المتوقع في الدرج</span>
+                    <span className="text-xs text-ink-muted block mb-1 font-medium">المفروض يكون في الدرج</span>
                     <span className="text-2xl font-black text-ink block">
                       {formatArabicCurrency(expectedCash)}
                     </span>
                     <span className="text-[11px] text-ink-muted mt-1 block">
-                      محسوب آلياً من حركات الصندوق
+                      محسوب تلقائياً من فواتير ومصاريف الوردية
                     </span>
                   </div>
 
                   {/* Actual Counted Cash (Input) */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-ink flex items-center justify-between">
-                      <span>النقد المعدود فعلياً في الدرج *</span>
-                      <span className="text-[11px] text-brand font-medium">أدخل المبلغ الفعلي</span>
+                      <span>الفلوس اللي عديتها في الدرج بإيدك *</span>
+                      <span className="text-[11px] text-brand font-medium">اكتب الفلوس اللي عديتها</span>
                     </label>
                     <MoneyInput
-                      valuePiasters={actualCashPiasters}
+                      valuePiasters={isAlreadyClosed && closedRecord ? closedRecord.actualCashPiasters : actualCashPiasters}
                       onChangePiasters={setActualCashPiasters}
                       placeholder="0.00"
-                      disabled={Boolean(savedClosing) || isSubmitting}
+                      disabled={Boolean(savedClosing) || isAlreadyClosed || isSubmitting}
                       className="text-xl font-bold bg-white"
-                      autoFocus={!savedClosing}
+                      autoFocus={!savedClosing && !isAlreadyClosed}
                     />
                   </div>
 
@@ -444,17 +509,17 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                         : 'bg-amber-50 border-amber-200 text-warn'
                   }`}>
                     <span className="text-xs font-bold block mb-1">
-                      {isMatch ? 'حالة المطابقة' : isShortage ? 'عجز في الخزينة' : 'زيادة في الخزينة'}
+                      {isMatch ? 'حالة الدرج' : isShortage ? 'عجز ونقص في الدرج' : 'زيادة وفائض في الدرج'}
                     </span>
                     <span className="text-xl font-black">
-                      {isMatch ? 'مطابق تماماً (0.00)' : formatArabicCurrency(Math.abs(differencePiasters))}
+                      {isMatch ? 'الدرج مظبوط بالمليم (0.00)' : formatArabicCurrency(Math.abs(differencePiasters))}
                     </span>
                     <span className="text-[11px] opacity-80 mt-1">
                       {isMatch 
-                        ? 'الدرج متطابق مع النظام بدون فروق' 
+                        ? 'الفلوس اللي في الدرج قد اللي على السيستم بالظبط' 
                         : isShortage 
-                          ? 'المعدود أقل من المتوقع بالنظام' 
-                          : 'المعدود أكثر من المتوقع بالنظام'}
+                          ? 'الفلوس اللي عديتها أقل من المفروض في الدرج' 
+                          : 'الفلوس اللي عديتها أكتر من المفروض في الدرج'}
                     </span>
                   </div>
 
@@ -463,14 +528,14 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                 {/* Notes Input */}
                 <div className="pt-2">
                   <label className="text-xs font-medium text-ink-muted block mb-1">
-                    ملاحظات أو مبررات الفرق (تُحفظ في السجل الدائم):
+                    ملاحظات أو سبب الفرق لو فيه عجز أو زيادة (بتتسجل في السجل):
                   </label>
                   <input
                     type="text"
-                    value={notes}
+                    value={isAlreadyClosed && closedRecord ? (closedRecord.notes || '') : notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    disabled={Boolean(savedClosing) || isSubmitting}
-                    placeholder="مثال: تم سداد مصاريف نقل من الدرج بموجب إيصال، أو متبقي عهدة فكة..."
+                    disabled={Boolean(savedClosing) || isAlreadyClosed || isSubmitting}
+                    placeholder="مثال: دفعنا مصاريف نقل أو فكة زيادة باقية في الدرج..."
                     className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-line bg-white text-ink focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand disabled:bg-surface-2"
                   />
                 </div>
@@ -532,29 +597,118 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
               إلغاء
             </button>
 
-            {savedClosing ? (
+            {savedClosing || isAlreadyClosed ? (
               <button
                 onClick={() => handlePrintReceipt()}
                 disabled={isPrinting}
-                className="px-5 py-2.5 text-xs font-bold text-white bg-paid hover:bg-paid/90 rounded-xl transition flex items-center gap-2 shadow-xs"
+                className="px-5 py-2.5 text-xs font-bold text-white bg-paid hover:bg-paid/90 rounded-xl transition flex items-center gap-2 shadow-xs cursor-pointer"
               >
                 <Printer className="w-4 h-4" />
-                <span>{isPrinting ? 'جاري الإرسال للطابعة...' : 'طباعة إيصال الإقفال'}</span>
+                <span>{isPrinting ? 'بنطبع...' : 'طباعة وصل التقفيل'}</span>
               </button>
             ) : (
               <button
                 onClick={handleSaveClosing}
                 disabled={isSubmitting || (preview?.isDateSuspicious && !confirmSuspiciousDate)}
-                className="px-5 py-2.5 text-xs font-bold text-white bg-brand hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition flex items-center gap-2 shadow-xs"
+                className="px-5 py-2.5 text-xs font-bold text-white bg-brand hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition flex items-center gap-2 shadow-xs cursor-pointer"
               >
                 <Lock className="w-4 h-4" />
-                <span>{isSubmitting ? 'جاري الاعتماد...' : 'اعتماد وقفل اليومية نهائياً'}</span>
+                <span>{isSubmitting ? 'بنقفل اليومية...' : 'اعتماد وتقفيل اليومية رسمياً'}</span>
               </button>
             )}
           </div>
         </div>
 
       </div>
+
+      {/* Modal-over-Modal: Post-closing confirmation & Print Z-Report Prompt */}
+      {showPrintPrompt && savedClosing && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 text-center space-y-4">
+              
+              {/* Success Badge */}
+              <div className="w-16 h-16 rounded-2xl bg-paid-soft text-paid border border-paid/20 flex items-center justify-center mx-auto shadow-xs">
+                <CheckCircle2 className="w-8 h-8 text-paid" />
+              </div>
+
+              <div>
+                <h3 className="text-xl font-bold text-ink">تم تقفيل اليومية والوردية بنجاح</h3>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 mt-2 rounded-full text-xs font-semibold bg-paid-soft text-paid border border-paid/20">
+                  <span>تقفيل معتمد #{savedClosing.closingNumber}</span>
+                  <span>•</span>
+                  <span>{savedClosing.businessDate}</span>
+                </div>
+              </div>
+
+              {/* Financial Snapshot */}
+              <div className="grid grid-cols-3 gap-2.5 p-3.5 bg-surface-2 rounded-xl border border-line text-right">
+                <div>
+                  <span className="text-[11px] text-ink-muted block">إجمالي المبيعات</span>
+                  <span className="text-sm font-bold text-ink">{formatArabicCurrency(savedClosing.totalSalesPiasters)}</span>
+                </div>
+                <div>
+                  <span className="text-[11px] text-ink-muted block">الفلوس اللي في الدرج</span>
+                  <span className="text-sm font-bold text-brand">{formatArabicCurrency(savedClosing.actualCashPiasters)}</span>
+                </div>
+                <div>
+                  <span className="text-[11px] text-ink-muted block">حالة الدرج</span>
+                  <span className={`text-xs font-bold ${
+                    savedClosing.differencePiasters === 0 
+                      ? 'text-paid' 
+                      : savedClosing.differencePiasters < 0 
+                        ? 'text-danger' 
+                        : 'text-warn'
+                  }`}>
+                    {savedClosing.differencePiasters === 0 
+                      ? 'الدرج مظبوط تماماً' 
+                      : savedClosing.differencePiasters < 0 
+                        ? `عجز ${formatArabicCurrency(Math.abs(savedClosing.differencePiasters))}`
+                        : `زيادة ${formatArabicCurrency(savedClosing.differencePiasters)}`}
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-xs text-ink-muted leading-relaxed">
+                اتقفلت اليومية واتحفظت في الداتابيز بنجاح. تحب نطبع وصل التقفيل للوردية دلوقتي؟
+              </p>
+
+              {printFeedback && (
+                <div className="p-3 rounded-xl bg-paid-soft border border-paid/20 text-xs text-paid font-medium flex items-center justify-center gap-2">
+                  <Printer className="w-4 h-4 shrink-0" />
+                  <span>{printFeedback}</span>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex items-center gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await handlePrintReceipt(savedClosing);
+                  }}
+                  disabled={isPrinting}
+                  className="flex-1 py-2.5 px-4 bg-paid hover:bg-paid/90 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>{isPrinting ? 'بنطبع...' : 'أيوه، اطبع وصل التقفيل دلوقتي'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPrintPrompt(false);
+                    onClose();
+                  }}
+                  className="py-2.5 px-4 bg-surface hover:bg-surface-2 border border-line text-ink font-semibold text-xs rounded-xl transition-colors cursor-pointer"
+                >
+                  <span>إنهاء ومتابعة الشغل</span>
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

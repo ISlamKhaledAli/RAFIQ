@@ -59,8 +59,8 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
               <Zap className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-[16px] font-bold text-ink">فحص سرعة البحث وقارئ الباركود (Task 22-5)</h2>
-              <p className="text-[12px] text-ink-muted">قياس الاستجابة على 5000 صنف وتوحيد الحروف العربية</p>
+              <h2 className="text-[16px] font-bold text-ink">فحص سرعة البحث وقارئ الباركود (Benchmark)</h2>
+              <p className="text-[12px] text-ink-muted">قياس سرعة استجابة البحث على 5000 صنف وتوحيد الحروف العربي</p>
             </div>
           </div>
         </div>
@@ -70,11 +70,11 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
           {/* Intro Card */}
           <div className="p-4 rounded-lg bg-surface-2/60 border hairline-all text-[13px] leading-relaxed text-ink-muted">
             <p>
-              يقوم هذا الاختبار بإنشاء وفهرسة <span className="font-bold text-ink">5000 منتج متنوع</span> في قاعدة البيانات، وقياس متوسط زمن استجابة البحث بالباركود والاسم بجزء من الكلمة، والتحقق التام من توحيد الحروف العربية (أ/إ/آ ← ا، ة ← ه، ى ← ي، وحذف التشكيل)، ومحاكاة سرعة قارئ الباركود الواقعي.
+              الاختبار ده بيعمل ويفهرس <span className="font-bold text-ink">5000 صنف متنوع</span> في قاعدة البيانات، ويقيس سرعة البحث بالباركود والاسم بجزء من الكلمة، ويتأكد إن توحيد الحروف العربي شغال تمام (أ/إ/آ ← ا، ة ← ه، ى ← ي، وحذف التشكيل)، ويحاكي سرعة قارئ الباركود الواقعي.
             </p>
             <div className="mt-2 text-[12px] text-brand font-semibold flex items-center gap-1.5">
               <ShieldCheck className="w-4 h-4" />
-              <span>معيار القبول الصارم (SLA): الاستجابة الفورية في أقل من 100 مللي ثانية (&lt; 0.1 ثانية)</span>
+              <span>معيار السرعة: استجابة فورية في أقل من 100 مللي ثانية (&lt; 0.1 ثانية)</span>
             </div>
           </div>
 
@@ -105,7 +105,7 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
                 <div className="p-3 bg-surface-2 rounded-lg border hairline-all text-center">
                   <div className="text-[11px] font-bold text-ink-muted mb-1 flex items-center justify-center gap-1">
                     <ShieldCheck className="w-3.5 h-3.5 text-secondary" />
-                    <span>توحيد الحروف العربية</span>
+                    <span>توحيد الحروف العربي</span>
                   </div>
                   <div className="text-[18px] font-bold text-ink">
                     {normPassed ? 'ناجح 100%' : 'فشل'}
@@ -142,14 +142,14 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
                 )}
                 <span>
                   {isSuccess 
-                    ? `اجتاز النظام جميع معايير الأداء والسرعة بنجاح فائق على ${totalCount} صنف!`
-                    : 'لم يجتز النظام أحد معايير الأداء المحددة.'}
+                    ? `النظام اجتاز كل اختبارات السرعة بنجاح فائق على ${totalCount} صنف!`
+                    : 'النظام مجتازش أحد اختبارات السرعة المحددة.'}
                 </span>
               </div>
 
               {/* Detailed Test Logs */}
               <div>
-                <h4 className="text-[12px] font-bold text-ink-muted mb-2">سجل الخطوات والتحقق الآلي:</h4>
+                <h4 className="text-[12px] font-bold text-ink-muted mb-2">سجل الخطوات والفحص الآلي:</h4>
                 <div className="bg-canvas border hairline-all rounded-lg p-3 space-y-1.5 max-h-[160px] overflow-y-auto text-[11px] font-mono text-ink">
                   {testLogs.map((log, idx) => (
                     <div key={idx} className="flex items-start gap-1.5">
@@ -175,7 +175,7 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
           <button
             onClick={handleRun}
             disabled={running}
-            className="px-5 py-2 rounded-lg bg-brand hover:bg-brand-hover disabled:opacity-50 text-white text-[13px] font-bold flex items-center gap-2 shadow-sm transition-colors"
+            className="px-5 py-2 rounded-lg bg-brand hover:bg-brand-hover disabled:opacity-50 text-white text-[13px] font-bold flex items-center gap-2 shadow-sm transition-colors cursor-pointer"
           >
             {running ? (
               <>
@@ -185,7 +185,7 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
             ) : (
               <>
                 <Play className="w-4 h-4" />
-                <span>{benchmarkResult ? 'إعادة تشغيل الفحص' : 'بدء فحص 5000 صنف الآن'}</span>
+                <span>{benchmarkResult ? 'إعادة تشغيل الفحص' : 'بدء فحص 5000 صنف دلوقتي'}</span>
               </>
             )}
           </button>

@@ -29,8 +29,17 @@ namespace RafiqPOS.Models
         [JsonProperty("cashSalesPiasters")]
         public long CashSalesPiasters { get; set; }
 
+        [JsonProperty("cardSalesPiasters")]
+        public long CardSalesPiasters { get; set; }
+
         [JsonProperty("creditSalesPiasters")]
         public long CreditSalesPiasters { get; set; }
+
+        [JsonProperty("expensesPiasters")]
+        public long ExpensesPiasters { get; set; }
+
+        [JsonProperty("expensesCount")]
+        public int ExpensesCount { get; set; }
 
         [JsonProperty("returnsTotalPiasters")]
         public long ReturnsTotalPiasters { get; set; }
@@ -86,6 +95,18 @@ namespace RafiqPOS.Models
             get { return (CashSalesPiasters / 100.0).ToString("N2"); }
         }
 
+        [JsonProperty("cardSalesFormatted")]
+        public string CardSalesFormatted
+        {
+            get { return (CardSalesPiasters / 100.0).ToString("N2"); }
+        }
+
+        [JsonProperty("expensesFormatted")]
+        public string ExpensesFormatted
+        {
+            get { return (ExpensesPiasters / 100.0).ToString("N2"); }
+        }
+
         [JsonProperty("creditSalesFormatted")]
         public string CreditSalesFormatted
         {
@@ -125,8 +146,17 @@ namespace RafiqPOS.Models
         [JsonProperty("cashSalesPiasters")]
         public long CashSalesPiasters { get; set; }
 
+        [JsonProperty("cardSalesPiasters")]
+        public long CardSalesPiasters { get; set; }
+
         [JsonProperty("creditSalesPiasters")]
         public long CreditSalesPiasters { get; set; }
+
+        [JsonProperty("expensesPiasters")]
+        public long ExpensesPiasters { get; set; }
+
+        [JsonProperty("expensesCount")]
+        public int ExpensesCount { get; set; }
 
         [JsonProperty("returnsTotalPiasters")]
         public long ReturnsTotalPiasters { get; set; }
@@ -163,6 +193,12 @@ namespace RafiqPOS.Models
 
         [JsonProperty("existingClosing")]
         public DailyClosing ExistingClosing { get; set; }
+
+        [JsonProperty("postClosingSalesCount")]
+        public int PostClosingSalesCount { get; set; }
+
+        [JsonProperty("postClosingSalesPiasters")]
+        public long PostClosingSalesPiasters { get; set; }
 
         [JsonProperty("isDateSuspicious")]
         public bool IsDateSuspicious { get; set; }

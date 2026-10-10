@@ -24,6 +24,15 @@ namespace RafiqPOS.Models
             get { return Common.Money.FormatPiasters(this.TodayCashPiasters); }
         }
 
+        [JsonProperty("todayCardPiasters")]
+        public long TodayCardPiasters { get; set; }
+
+        [JsonProperty("todayCardFormatted")]
+        public string TodayCardFormatted
+        {
+            get { return Common.Money.FormatPiasters(this.TodayCardPiasters); }
+        }
+
         [JsonProperty("todayCreditPiasters")]
         public long TodayCreditPiasters { get; set; }
 
@@ -31,6 +40,15 @@ namespace RafiqPOS.Models
         public string TodayCreditFormatted
         {
             get { return Common.Money.FormatPiasters(this.TodayCreditPiasters); }
+        }
+
+        [JsonProperty("todayExpensesPiasters")]
+        public long TodayExpensesPiasters { get; set; }
+
+        [JsonProperty("todayExpensesFormatted")]
+        public string TodayExpensesFormatted
+        {
+            get { return Common.Money.FormatPiasters(this.TodayExpensesPiasters); }
         }
 
         [JsonProperty("todayProfitsPiasters")]
@@ -137,6 +155,15 @@ namespace RafiqPOS.Models
 
         [JsonProperty("todayReturnsCount")]
         public int TodayReturnsCount { get; set; }
+
+        [JsonProperty("isDayClosed")]
+        public bool IsDayClosed { get; set; }
+
+        [JsonProperty("closingNumber")]
+        public int? ClosingNumber { get; set; }
+
+        [JsonProperty("closedAt")]
+        public string ClosedAt { get; set; }
 
         [JsonProperty("recentAdjustments")]
         public List<StockAdjustmentSummaryItem> RecentAdjustments { get; set; }

@@ -398,38 +398,38 @@ export const SettingsView = ({
 
   const SUB_TAB_CONFIG: Record<SettingsSubTab, { title: string; subtitle: string; icon: React.ComponentType<{ className?: string }> }> = {
     profile: {
-      title: 'بيانات المحل وتخصيص الفاتورة',
-      subtitle: 'اسم المتجر، رقم الهاتف، العنوان، الرقم الضريبي، وترويسة وتذييل إيصال الكاشير',
+      title: 'بيانات المحل وتفاصيل الفاتورة',
+      subtitle: 'اسم المحل، التليفون، العنوان، الرقم الضريبي، وشكل وصل الكاشير الحراري',
       icon: Store,
     },
     backup: {
       title: 'النسخ الاحتياطي وحماية البيانات',
-      subtitle: 'أخذ نسخة احتياطية محلية، جدول التنبيه الدوري، واستعادة البيانات بأمان',
+      subtitle: 'حفظ نسخة من بيانات المحل على فلاشة أو قرص خارجي، واسترجاعها بأمان بدون إنترنت',
       icon: HardDrive,
     },
     printer: {
-      title: 'إعدادات الطابعة ومقاس الورق',
-      subtitle: 'تحديد طابعة الإيصالات الحرارية، مقاس بكرة الورق (80mm/57mm)، والطباعة التلقائية',
+      title: 'إعدادات طابعة الفواتير والدرج',
+      subtitle: 'اختيار طابعة الكاشير الحرارية، مقاس البكرة (80مم / 57مم)، وفتح درج النقدية تلقائياً',
       icon: Printer,
     },
     system: {
-      title: 'مفاتيح الميزات وفحص النظام',
-      subtitle: 'فحص سرعة النظام وسلامة البيانات، وتفعيل الميزات المتقدمة',
+      title: 'فحص سرعة النظام ومفاتيح الميزات',
+      subtitle: 'اختبار سرعة الجهاز وقاعدة البيانات وتفعيل ميزات المحل الإضافية',
       icon: Activity,
     },
     scanner: {
       title: 'قارئ الباركود والماسح الضوئي',
-      subtitle: 'فحص استجابة القارئ السلكي أو اللاسلكي وضبط سرعة الالتقاط والبادئة واللاحقة',
+      subtitle: 'فحص استجابة قارئ الباركود وضبط سرعة الالتقاط والمسح السريع',
       icon: Barcode,
     },
     security: {
-      title: 'أمان النظام وقفل الشاشات الحساسة',
-      subtitle: 'حماية تعديل الأسعار، تقارير الأرباح، تسوية المخزون، واسترجاع الطوارئ بالرمز',
+      title: 'أمان النظام وأرقام السر (PIN)',
+      subtitle: 'حماية تعديل الأسعار، ومسح الفواتير، وتقارير الأرباح، وحسابات المستخدمين برقم سري',
       icon: KeyRound,
     },
     demo: {
-      title: 'البيانات التجريبية والتدريب',
-      subtitle: 'تجربة البرنامج وتدريب الكاشير ببيانات نموذجية ومسحها ذرياً دون المساس بالبيانات الحقيقية',
+      title: 'بيانات تجريبية وتدريب الكاشير',
+      subtitle: 'تجربة برنامج رفيق وتدريب الكاشير ببيانات وهمية جاهزة ومسحها بضغطة زر دون لمس الحسابات الحقيقية',
       icon: FlaskConical,
     },
   };
@@ -442,18 +442,18 @@ export const SettingsView = ({
       {/* 1. Top Header */}
       <div className="h-16 bg-surface border border-line shadow-xs rounded-2xl px-5 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#006D41] border border-emerald-200/80 flex items-center justify-center font-bold shrink-0 shadow-2xs">
-            <TabIcon className="w-5 h-5 text-[#006D41]" />
+          <div className="w-10 h-10 rounded-xl bg-paid-soft text-paid border border-paid/20 flex items-center justify-center font-bold shrink-0 shadow-2xs">
+            <TabIcon className="w-5 h-5 text-paid" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-[#52605D]">إعدادات المحل والصيانة</span>
-              <span className="text-[#52605D]/40 font-bold">/</span>
-              <h2 className="text-sm font-black text-[#0F172A] leading-tight m-0">
+              <span className="text-[11px] font-bold text-ink-muted">إعدادات المحل والنظام</span>
+              <span className="text-ink-muted/40 font-bold">/</span>
+              <h2 className="text-sm font-black text-ink leading-tight m-0">
                 {currentTabConfig.title}
               </h2>
             </div>
-            <p className="text-[11px] text-[#52605D] m-0 mt-0.5">
+            <p className="text-[11px] text-ink-muted m-0 mt-0.5">
               {currentTabConfig.subtitle}
             </p>
           </div>
@@ -461,9 +461,9 @@ export const SettingsView = ({
 
         <div className="flex items-center gap-2">
           {saved && (
-            <div className="flex items-center gap-1.5 text-xs text-[#006D41] font-bold bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 rounded-xl animate-in fade-in shadow-2xs">
-              <CheckCircle className="w-4 h-4 text-[#006D41]" />
-              <span>تم حفظ الإعدادات بنجاح</span>
+            <div className="flex items-center gap-1.5 text-xs text-paid font-bold bg-paid-soft border border-paid/30 px-3.5 py-1.5 rounded-xl animate-in fade-in shadow-2xs">
+              <CheckCircle className="w-4 h-4 text-paid" />
+              <span>تم حفظ بيانات المحل بنجاح</span>
             </div>
           )}
         </div>

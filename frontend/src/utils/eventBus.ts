@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 export type RafiqDataTopic = 
   | 'products' 
@@ -19,19 +19,37 @@ interface RafiqDataEventDetail {
 
 const EVENT_NAME = 'rafiq:data-changed';
 
+let emitTimer: ReturnType<typeof setTimeout> | null = null;
+const queuedTopics = new Set<RafiqDataTopic>();
+
 /**
- * Emit a data change notification to all subscribed views in the system
+ * Emit a data change notification to all subscribed views in the system.
+ * Uses a 50ms batching debounce to eliminate rapid thrashing and prevent recursive event cascading loops.
  */
 export function emitDataChanged(topicOrTopics: RafiqDataTopic | RafiqDataTopic[]): void {
   const topics = Array.isArray(topicOrTopics) ? topicOrTopics : [topicOrTopics];
   if (typeof window === 'undefined') return;
 
-  const detail: RafiqDataEventDetail = {
-    topics,
-    timestamp: Date.now(),
-  };
+  for (let i = 0; i < topics.length; i++) {
+    queuedTopics.add(topics[i]);
+  }
 
-  window.dispatchEvent(new CustomEvent<RafiqDataEventDetail>(EVENT_NAME, { detail }));
+  if (emitTimer) return;
+
+  emitTimer = setTimeout(() => {
+    emitTimer = null;
+    const finalTopics = Array.from(queuedTopics);
+    queuedTopics.clear();
+
+    if (finalTopics.length === 0) return;
+
+    const detail: RafiqDataEventDetail = {
+      topics: finalTopics,
+      timestamp: Date.now(),
+    };
+
+    window.dispatchEvent(new CustomEvent<RafiqDataEventDetail>(EVENT_NAME, { detail }));
+  }, 50);
 }
 
 /**
@@ -70,16 +88,28 @@ export function onDataChanged(
 }
 
 /**
- * React hook to auto-subscribe and auto-cleanup data change listeners
+ * React hook to auto-subscribe and auto-cleanup data change listeners.
+ * Uses a ref to ensure the callback is always fresh without thrashing subscriptions.
  */
 export function useDataSubscription(
   topics: RafiqDataTopic | RafiqDataTopic[] | '*',
   callback: () => void
 ): void {
+  const cbRef = useRef(callback);
+
   useEffect(() => {
-    const unsubscribe = onDataChanged(topics, callback);
+    cbRef.current = callback;
+  });
+
+  const topicsKey = Array.isArray(topics) ? topics.join(',') : topics;
+
+  useEffect(() => {
+    const list: RafiqDataTopic[] | '*' = topicsKey === '*' ? '*' : (topicsKey.split(',') as RafiqDataTopic[]);
+    const unsubscribe = onDataChanged(list, () => {
+      cbRef.current();
+    });
     return () => {
       unsubscribe();
     };
-  }, [topics, callback]);
+  }, [topicsKey]);
 }

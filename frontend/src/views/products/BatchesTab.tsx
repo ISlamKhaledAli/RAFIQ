@@ -21,6 +21,8 @@ import { ConfirmModal } from '../../components/ConfirmModal';
 import { PaginationBar } from '../../components/PaginationBar';
 import { useClientPagination } from '../../utils/usePagination';
 import { rafiqAlert } from '../../utils/dialogService';
+import { RafiqLoadingState } from '../../components/RafiqLoadingState';
+import { useSmoothLoading } from '../../utils/useSmoothLoading';
 
 export interface BatchesTabProps {
   onBatchChanged?: () => void;
@@ -31,6 +33,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
   const [batches, setBatches] = useState<ProductBatch[]>([]);
   const [summary, setSummary] = useState<BatchSummary | null>(null);
   const [loading, setLoading] = useState(false);
+  const showLoading = useSmoothLoading(loading, 300);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || '');
   const [statusFilter, setStatusFilter] = useState<'all' | 'expiring' | 'expired' | 'active'>('all');
   const [alertDays, setAlertDays] = useState<number>(30);
@@ -517,7 +520,12 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
         </div>
 
         <div className="flex-1 overflow-y-auto divide-y divide-line">
-          {filteredBatches.length === 0 ? (
+          {showLoading ? (
+            <RafiqLoadingState 
+              label="جاري فحص وتحديث تواريخ الصلاحية والدفعات..." 
+              sublabel="الاتصال بقاعدة البيانات ومطابقة المهل الزمنية وحساب الهالك" 
+            />
+          ) : filteredBatches.length === 0 ? (
             <div className="h-64 flex flex-col items-center justify-center text-ink-muted gap-2">
               <Calendar className="w-10 h-10 opacity-30" />
               <span className="text-sm font-semibold">لا توجد دفعات مطابقة للمعايير المحددة</span>

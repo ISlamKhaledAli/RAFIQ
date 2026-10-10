@@ -214,6 +214,23 @@ namespace RafiqPOS
                         }
                         return;
                     }
+                    if (args[i] == "--run-customer-tests")
+                    {
+                        try
+                        {
+                            var res = Services.CustomerLedgerTestRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "customer_test_output.json"), json);
+                            Environment.Exit(res.Success ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Customer test error: " + ex.ToString());
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
                     if (args[i] == "--run-batch-tests")
                     {
                         try

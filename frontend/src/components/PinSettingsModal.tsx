@@ -227,9 +227,9 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
               <KeyRound className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h3 className="font-bold text-base">إعدادات أمان الرقم السري</h3>
+              <h3 className="font-bold text-base">الرقم السري وأمان النظام</h3>
               <p className="text-xs text-white/80">
-                حماية العمليات والشاشات الحساسة لمنع التلاعب غير المصرح به
+                حماية الشاشات والعمليات الحساسة في المحل لمنع أي تلاعب غير مصرح به
               </p>
             </div>
           </div>
@@ -263,10 +263,10 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
             <div className="p-4 bg-warn-soft border border-warn-border rounded-2xl space-y-3">
               <div className="flex items-center gap-2 text-warn font-bold text-sm">
                 <ShieldAlert className="w-5 h-5 text-warn" />
-                <span>رمز استرجاع الطوارئ (يظهر مرة واحدة فقط)</span>
+                <span>كود استرجاع الطوارئ (بيظهر مرة واحدة بس!)</span>
               </div>
               <p className="text-xs text-ink-muted leading-relaxed">
-                احفظ هذا الرمز في مكان سري وآمن أو التقط له صورة! في حال نسيت الرقم السري، سيمكّنك هذا الرمز من فتح النظام وإعادة ضبط الرقم دون فقدان أي بيانات.
+                احفظ الكود ده في مكان أمين أو صوره بالموبايل! لو نسيت الرقم السري في أي وقت، هتقدر تفتح بيه النظام وترجع تضبط الرقم من غير ما تخسر أي بيانات أو فواتير.
               </p>
               <div className="p-3 bg-surface rounded-xl border border-warn-border flex items-center justify-between">
                 <span className="font-mono text-base font-extrabold text-warn tracking-wider">
@@ -291,7 +291,7 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
               <div>
                 <span className="font-bold text-sm block text-ink">حالة قفل النظام:</span>
                 <span className="text-xs text-ink-muted">
-                  {!isPinSet ? 'لم يتم تعيين رقم سري بعد' : (isEnabled ? 'مفعل ويعمل على العمليات المحددة' : 'معطل مؤقتاً')}
+                  {!isPinSet ? 'لسه مفيش رقم سري متعين' : (isEnabled ? 'شغال وبيحمي العمليات المحددة' : 'موقوف مؤقتاً')}
                 </span>
               </div>
             </div>
@@ -321,11 +321,11 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
               {[
                 { id: 'settings', label: 'شاشة الإعدادات العامة وقاعدة البيانات' },
-                { id: 'reports', label: 'شاشة التقارير وحسابات الأرباح' },
-                { id: 'product_edit', label: 'تعديل أسعار المنتجات وحذفها' },
-                { id: 'stock_adjust', label: 'التسوية اليدوية لكميات المخزون' },
+                { id: 'reports', label: 'شاشة التقارير وحسابات الأرباح والخزينة' },
+                { id: 'product_edit', label: 'تعديل أسعار البضاعة وحذف الأصناف' },
+                { id: 'stock_adjust', label: 'تسوية وجرد كميات بضاعة المخزن' },
                 { id: 'db_recovery', label: 'استعادة وتصفير قاعدة البيانات' },
-                { id: 'discounts', label: 'تطبيق الخصم اليدوي في شاشة البيع' },
+                { id: 'discounts', label: 'تطبيق خصم يدوي على فاتورة البيع' },
               ].map((act) => (
                 <label 
                   key={act.id} 
@@ -349,7 +349,7 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
           <form onSubmit={handleSavePin} className="space-y-3 pt-2 border-t border-line">
             <h4 className="font-bold text-xs text-ink flex items-center gap-1.5">
               <Lock className="w-3.5 h-3.5 text-brand" />
-              <span>{isPinSet ? 'تغيير الرقم السري الحالي' : 'إنشاء رقم سري جديد'}</span>
+              <span>{isPinSet ? 'تغيير الرقم السري' : 'عمل رقم سري جديد'}</span>
             </h4>
 
             {isPinSet && (
@@ -409,7 +409,7 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
               className="w-full py-2.5 bg-brand hover:bg-brand-hover text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 shadow-xs"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-              <span>{isPinSet ? 'تحديث الرقم السري وتوليد رمز استرجاع' : 'حفظ الرقم وتوليد رمز استرجاع'}</span>
+              <span>{isPinSet ? 'تحديث الرقم السري وتوليد كود استرجاع' : 'حفظ الرقم السري وتوليد كود استرجاع'}</span>
             </button>
           </form>
         </div>
@@ -434,7 +434,7 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
             </div>
             <form onSubmit={submitToggleEnable} className="p-5 space-y-4 bg-canvas">
               <p className="text-xs text-ink-muted font-medium leading-relaxed">
-                أدخل الرقم السري الحالي لتأكيد {isEnabled ? 'إيقاف تفعيل' : 'تفعيل'} نظام حماية الشاشات:
+                اكتب الرقم السري الحالي لتأكيد {isEnabled ? 'إيقاف' : 'تشغيل'} نظام حماية الشاشات:
               </p>
               <div>
                 <input

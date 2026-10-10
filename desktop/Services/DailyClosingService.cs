@@ -83,17 +83,62 @@ namespace RafiqPOS.Services
             {
                 preview.IsAlreadyClosed = true;
                 preview.ExistingClosing = existing;
+                preview.TotalSalesPiasters = existing.TotalSalesPiasters;
+                preview.CashSalesPiasters = existing.CashSalesPiasters;
+                preview.CreditSalesPiasters = existing.CreditSalesPiasters;
+                preview.ReturnsTotalPiasters = existing.ReturnsTotalPiasters;
+                preview.ReturnsCashPiasters = existing.ReturnsCashPiasters;
+                preview.ReturnsCount = existing.ReturnsCount;
+                preview.CancelledTotalPiasters = existing.CancelledTotalPiasters;
+                preview.CancelledCount = existing.CancelledCount;
+                preview.DebtPaymentsPiasters = existing.DebtPaymentsPiasters;
+                preview.ExpectedCashPiasters = existing.ExpectedCashPiasters;
+                preview.GrossProfitPiasters = existing.GrossProfitPiasters;
+                preview.InvoicesCount = existing.InvoicesCount;
+
+                // Detect any sales registered after the closing was sealed
+                using (var conn = new SQLiteConnection(_connectionString))
+                {
+                    conn.Open();
+                    string postSalesSql = @"
+                        SELECT COUNT(*), COALESCE(SUM(total_piasters), 0)
+                        FROM sales
+                        WHERE created_at > @closedAt
+                          AND date(datetime(created_at, 'localtime', '-' || @cutoff || ' hours')) = @bdate
+                          AND status != 'cancelled'
+                          AND id NOT LIKE 'demo_%'
+                          AND id NOT LIKE 'stress_%';
+                    ";
+                    using (var cmd = new SQLiteCommand(postSalesSql, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@closedAt", existing.ClosedAt);
+                        cmd.Parameters.AddWithValue("@cutoff", cutoff);
+                        cmd.Parameters.AddWithValue("@bdate", businessDate);
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                preview.PostClosingSalesCount = Convert.ToInt32(reader[0]);
+                                preview.PostClosingSalesPiasters = Convert.ToInt64(reader[1]);
+                            }
+                        }
+                    }
+                }
+
+                return preview;
             }
 
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
 
-                // 3. Sales totals (excluding cancelled and demo sales)
+                // 3. Sales totals (Excluding cancelled and demo sales - strictly isolating cash, card, and credit)
                 string salesSql = @"
                     SELECT 
                         COALESCE(SUM(total_piasters), 0) AS total_sales,
-                        COALESCE(SUM(paid_piasters), 0) AS cash_sales,
+                        COALESCE(SUM(CASE WHEN payment_method = 'cash' THEN paid_piasters ELSE 0 END), 0) AS cash_sales,
+                        COALESCE(SUM(CASE WHEN payment_method = 'card' THEN paid_piasters ELSE 0 END), 0) AS card_sales,
+                        COALESCE(SUM(CASE WHEN payment_method = 'credit' THEN (total_piasters - paid_piasters) ELSE 0 END), 0) AS credit_sales,
                         COUNT(*) AS inv_count
                     FROM sales
                     WHERE date(datetime(created_at, 'localtime', '-' || @cutoff || ' hours')) = @bdate
@@ -111,9 +156,9 @@ namespace RafiqPOS.Services
                         {
                             preview.TotalSalesPiasters = Convert.ToInt64(reader["total_sales"]);
                             preview.CashSalesPiasters = Convert.ToInt64(reader["cash_sales"]);
+                            preview.CardSalesPiasters = Convert.ToInt64(reader["card_sales"]);
+                            preview.CreditSalesPiasters = Convert.ToInt64(reader["credit_sales"]);
                             preview.InvoicesCount = Convert.ToInt32(reader["inv_count"]);
-                            preview.CreditSalesPiasters = preview.TotalSalesPiasters - preview.CashSalesPiasters;
-                            if (preview.CreditSalesPiasters < 0) preview.CreditSalesPiasters = 0;
                         }
                     }
                 }
@@ -218,8 +263,29 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // Expected Cash in Drawer = Cash Sales - Cash Refunds + Cash Debt Collections
-                preview.ExpectedCashPiasters = preview.CashSalesPiasters - preview.ReturnsCashPiasters + preview.DebtPaymentsPiasters;
+                // 7. Cash Drawer Expenses for the business date
+                string expensesSql = @"
+                    SELECT 
+                        COALESCE(SUM(amount_piasters), 0) AS total_expenses,
+                        COUNT(*) AS expenses_count
+                    FROM expenses
+                    WHERE business_date = @bdate;
+                ";
+                using (var cmd = new SQLiteCommand(expensesSql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@bdate", businessDate);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            preview.ExpensesPiasters = Convert.ToInt64(reader["total_expenses"]);
+                            preview.ExpensesCount = Convert.ToInt32(reader["expenses_count"]);
+                        }
+                    }
+                }
+
+                // Expected Cash in Drawer = Cash Sales - Cash Refunds + Cash Debt Collections - Expenses
+                preview.ExpectedCashPiasters = preview.CashSalesPiasters - preview.ReturnsCashPiasters + preview.DebtPaymentsPiasters - preview.ExpensesPiasters;
                 if (preview.ExpectedCashPiasters < 0) preview.ExpectedCashPiasters = 0;
             }
 
@@ -266,7 +332,9 @@ namespace RafiqPOS.Services
                 CashierName = request.CashierName ?? "الكاشير",
                 TotalSalesPiasters = preview.TotalSalesPiasters,
                 CashSalesPiasters = preview.CashSalesPiasters,
+                CardSalesPiasters = preview.CardSalesPiasters,
                 CreditSalesPiasters = preview.CreditSalesPiasters,
+                ExpensesPiasters = preview.ExpensesPiasters,
                 ReturnsTotalPiasters = preview.ReturnsTotalPiasters,
                 ReturnsCashPiasters = preview.ReturnsCashPiasters,
                 CancelledTotalPiasters = preview.CancelledTotalPiasters,

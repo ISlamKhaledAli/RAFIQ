@@ -16,10 +16,14 @@ import { useClientPagination } from '../../utils/usePagination';
 import { openHelpCenter } from '../../utils/helpService';
 import type { Purchase } from '../../types/models';
 import { formatMoney } from './types';
+import { RafiqLoadingState } from '../../components/RafiqLoadingState';
+import { useSmoothLoading } from '../../utils/useSmoothLoading';
 
 interface PurchasesInvoicesTabProps {
   purchases: Purchase[];
+  loading?: boolean;
   totalSupplierDebtsAmount: number;
+  totalSupplierCreditsAmount: number;
   purchaseSearchQuery: string;
   setPurchaseSearchQuery: (val: string) => void;
   purchasePaymentFilter: string;
@@ -30,7 +34,9 @@ interface PurchasesInvoicesTabProps {
 
 export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
   purchases,
+  loading = false,
   totalSupplierDebtsAmount,
+  totalSupplierCreditsAmount,
   purchaseSearchQuery,
   setPurchaseSearchQuery,
   purchasePaymentFilter,
@@ -38,6 +44,7 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
   onOpenNewInvoice,
   onSelectPurchase,
 }) => {
+  const showLoading = useSmoothLoading(loading, 300);
   const filteredPurchases = useMemo(() => {
     const q = purchaseSearchQuery.trim().toLowerCase();
     return purchases.filter((p) => {
@@ -60,6 +67,7 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
     return purchases.filter((p) => p.paymentStatus === 'CREDIT' || p.paymentStatus === 'PARTIAL').length;
   }, [purchases]);
 
+
   const {
     currentPage,
     setCurrentPage,
@@ -74,7 +82,7 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 shrink-0">
         <div className="bg-surface border border-line rounded-xl p-3 sm:p-3.5 flex items-center justify-between shadow-2xs">
           <div>
-            <span className="text-[11px] text-ink-muted font-bold block">إجمالي المشتريات المسجلة</span>
+            <span className="text-[11px] text-ink-muted font-bold block">إجمالي فواتير شراء البضاعة</span>
             <span className="text-lg sm:text-xl font-bold font-mono text-ink mt-0.5 block">
               {formatMoney(totalPurchasesAmount)}
             </span>
@@ -86,7 +94,7 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
 
         <div className="bg-surface border border-line rounded-xl p-3 sm:p-3.5 flex items-center justify-between shadow-2xs">
           <div>
-            <span className="text-[11px] text-ink-muted font-bold block">فواتير غير مسددة بالكامل</span>
+            <span className="text-[11px] text-ink-muted font-bold block">فواتير لسه ما كملتش دفع</span>
             <span className="text-lg sm:text-xl font-bold font-mono text-danger mt-0.5 block">
               {totalUnpaidPurchasesCount} فاتورة
             </span>
@@ -98,10 +106,19 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
 
         <div className="bg-surface border border-line rounded-xl p-3 sm:p-3.5 flex items-center justify-between shadow-2xs">
           <div>
-            <span className="text-[11px] text-ink-muted font-bold block">إجمالي مديونية الموردين</span>
-            <span className="text-lg sm:text-xl font-bold font-mono text-warn mt-0.5 block">
-              {formatMoney(totalSupplierDebtsAmount)}
+            <span className="text-[11px] text-ink-muted font-bold block">
+              {totalSupplierCreditsAmount > 0 ? 'فلوس علينا للموردين / رصيد لنا' : 'فلوس علينا للموردين والشركات'}
             </span>
+            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+              <span className="text-lg sm:text-xl font-bold font-mono text-warn">
+                {formatMoney(totalSupplierDebtsAmount)}
+              </span>
+              {totalSupplierCreditsAmount > 0 && (
+                <span className="text-[10px] font-mono font-bold text-paid bg-paid-soft px-1.5 py-0.5 rounded border border-paid/20" title="رصيد لصالحنا عند الموردين تحت الحساب">
+                  +{formatMoney(totalSupplierCreditsAmount)} لنا
+                </span>
+              )}
+            </div>
           </div>
           <div className="w-9 h-9 rounded-xl bg-warn-soft flex items-center justify-center text-warn border border-warn-border shadow-2xs">
             <Building2 className="w-4 h-4" />
@@ -116,7 +133,7 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
             <Search className="w-4 h-4 text-ink-muted absolute right-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="ابحث برقم الفاتورة أو اسم المورد أو رقم فاتورة المورد..."
+              placeholder="دور برقم الفاتورة، اسم الشركة، أو رقم فاتورة المورد..."
               value={purchaseSearchQuery}
               onChange={(e) => setPurchaseSearchQuery(e.target.value)}
               className="w-full h-10 pr-9 pl-3 bg-surface-2 border border-line rounded-xl text-xs text-ink focus:outline-none focus:border-brand focus:bg-surface transition-colors"
@@ -125,15 +142,16 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
 
           <div className="flex items-center gap-1.5 text-xs text-ink-muted">
             <Filter className="w-3.5 h-3.5 text-ink-muted" />
-            <span>حالة الدفع:</span>
+            <span>طريقة السداد:</span>
             <CustomSelect
               value={purchasePaymentFilter}
               onChange={(val) => setPurchasePaymentFilter(val)}
               options={[
-                { value: 'all', label: 'كافة الفواتير' },
-                { value: 'PAID', label: 'مسددة بالكامل (نقدي)' },
-                { value: 'CREDIT', label: 'آجلة (على الحساب)' },
-                { value: 'PARTIAL', label: 'سداد جزئي' },
+                { value: 'all', label: 'كل الفواتير' },
+                { value: 'PAID', label: 'خالصة ومدفوعة بالكامل (كاش)' },
+                { value: 'OVERPAID', label: 'مدفوع بزيادة (رصيد لنا)' },
+                { value: 'CREDIT', label: 'آجل (على الحساب)' },
+                { value: 'PARTIAL', label: 'مدفوع جزء منها والباقي آجل' },
               ]}
               className="w-44"
               size="md"
@@ -166,20 +184,25 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
       <div className="flex-1 bg-surface border border-line rounded-xl overflow-hidden flex flex-col shadow-2xs">
         <div className="h-11 bg-surface-2 border-b border-line grid grid-cols-12 px-4 items-center text-xs font-bold text-ink-muted">
           <div className="col-span-1">رقم الفاتورة</div>
-          <div className="col-span-2">تاريخ الاستلام</div>
-          <div className="col-span-3">المورد</div>
-          <div className="col-span-2 text-center">رقم فاتورة المورد</div>
-          <div className="col-span-1 text-center">الصافي</div>
-          <div className="col-span-1 text-center">المتبقي</div>
-          <div className="col-span-1 text-center">حالة السداد</div>
-          <div className="col-span-1 text-left">التفاصيل</div>
+          <div className="col-span-2">تاريخ استلام البضاعة</div>
+          <div className="col-span-3">المورد / الشركة</div>
+          <div className="col-span-2 text-center">رقم وصل المورد</div>
+          <div className="col-span-1 text-center">إجمالي الفاتورة</div>
+          <div className="col-span-1 text-center">الباقي علينا</div>
+          <div className="col-span-1 text-center">حالة الدفع</div>
+          <div className="col-span-1 text-left">تفاصيل</div>
         </div>
 
         <div className="flex-1 overflow-y-auto divide-y divide-line">
-          {filteredPurchases.length === 0 ? (
+          {showLoading ? (
+            <RafiqLoadingState
+              label="بنحمّل فواتير الشراء والبضاعة اللي دخلت..."
+              sublabel="جاري جلب فواتير التوريد وحسابات الشركات من قاعدة البيانات"
+            />
+          ) : filteredPurchases.length === 0 ? (
             <div className="h-48 flex flex-col items-center justify-center text-ink-muted gap-2">
               <ShoppingCart className="w-8 h-8 opacity-30" />
-              <span className="text-sm font-medium">لا توجد فواتير شراء مسجلة مطابقة للبحث</span>
+              <span className="text-sm font-medium">مفيش فواتير شراء مطابقة للي بتدور عليه</span>
             </div>
           ) : (
             pagedPurchases.map((pur) => (
@@ -218,17 +241,22 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
                 <div className="col-span-1 text-center">
                   {pur.paymentStatus === 'PAID' && (
                     <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-paid-soft text-paid border border-paid/20">
-                      مسددة
+                      خالصة
+                    </span>
+                  )}
+                  {pur.paymentStatus === 'OVERPAID' && (
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-paid text-white border border-paid shadow-2xs">
+                      زيادة
                     </span>
                   )}
                   {pur.paymentStatus === 'CREDIT' && (
                     <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-danger-soft text-danger border border-danger-border">
-                      آجلة
+                      آجل
                     </span>
                   )}
                   {pur.paymentStatus === 'PARTIAL' && (
                     <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-warn-soft text-warn border border-warn-border">
-                      جزئي
+                      جزء مدفوع
                     </span>
                   )}
                 </div>

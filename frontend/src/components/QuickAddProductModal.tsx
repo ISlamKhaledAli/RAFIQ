@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { Zap, X, Barcode, Check, AlertCircle, Layers, Calendar } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { Product, Category } from '../types/models';
-import { poundsToPiasters } from '../utils/money';
+import { poundsToPiasters, normalizeArabicNumerals } from '../utils/money';
 import { CustomSelect } from './CustomSelect';
 import { CustomDatePicker } from './CustomDatePicker';
 import { useFeatures } from '../context/useFeatures';
@@ -217,11 +217,16 @@ export function QuickAddProductModal({
                 سعر البيع (ج.م) <span className="text-danger">*</span>
               </label>
               <input
-                type="number"
-                step="0.25"
-                min="0.25"
+                type="text"
+                inputMode="decimal"
                 value={priceEgp}
-                onChange={(e) => setPriceEgp(e.target.value)}
+                onChange={(e) => {
+                  const norm = normalizeArabicNumerals(e.target.value);
+                  if (/^[0-9]*\.?[0-9]{0,2}$/.test(norm)) {
+                    setPriceEgp(norm);
+                  }
+                }}
+                onFocus={(e) => e.target.select()}
                 placeholder="0.00"
                 className="w-full h-9 px-3 text-xs bg-canvas rounded-lg border border-line text-ink placeholder:text-ink-muted focus:outline-none focus:border-brand font-mono font-bold text-left"
                 required
@@ -233,11 +238,16 @@ export function QuickAddProductModal({
                 سعر التكلفة (اختياري)
               </label>
               <input
-                type="number"
-                step="0.25"
-                min="0"
+                type="text"
+                inputMode="decimal"
                 value={costEgp}
-                onChange={(e) => setCostEgp(e.target.value)}
+                onChange={(e) => {
+                  const norm = normalizeArabicNumerals(e.target.value);
+                  if (/^[0-9]*\.?[0-9]{0,2}$/.test(norm)) {
+                    setCostEgp(norm);
+                  }
+                }}
+                onFocus={(e) => e.target.select()}
                 placeholder="0.00"
                 className="w-full h-9 px-3 text-xs bg-canvas rounded-lg border border-line text-ink placeholder:text-ink-muted focus:outline-none focus:border-brand font-mono text-left"
               />

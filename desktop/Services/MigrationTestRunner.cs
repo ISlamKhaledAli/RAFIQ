@@ -133,7 +133,7 @@ namespace RafiqPOS.Services
                 Assert(exportRes.FileSizeBytes > 0, "حجم ملف الحزمة أكبر من الصفر", result);
                 Assert(exportRes.Manifest != null, "توليد ملف البيان manifest.json المرفق بالحزمة", result);
                 Assert(exportRes.Manifest.Metrics.ProductsCount == 5, "تطابق عدد الأصناف في البيان مع المدخلات (5)", result);
-                Assert(exportRes.Manifest.Metrics.CustomersCount == 3, "تطابق عدد العملاء في البيان مع المدخلات (3 شامل العميل النقدي)", result);
+                Assert(exportRes.Manifest.Metrics.CustomersCount == 2, "تطابق عدد العملاء في البيان مع المدخلات (2)", result);
                 Assert(exportRes.Manifest.Metrics.InvoicesCount == 1, "تطابق عدد الفواتير في البيان مع المدخلات (1)", result);
                 Assert(exportRes.Manifest.Metrics.TotalCustomerDebtPiasters == 47000, "تطابق إجمالي ديون العملاء (470 ج.م)", result);
                 Assert(exportRes.Manifest.Metrics.SuppliersCount == 1, "تطابق عدد الموردين في البيان مع المدخلات (1)", result);

@@ -278,7 +278,7 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
-                        // 5. If sale has a customer and unpaid debt, record in customer_ledger atomically
+                        // 5. If sale has a customer and unpaid debt or excess change, record in customer_ledger atomically
                         if (!string.IsNullOrWhiteSpace(sale.CustomerId))
                         {
                             long debtAmount = sale.TotalPiasters - sale.PaidPiasters;
@@ -317,6 +317,26 @@ namespace RafiqPOS.Repositories
                                     uCmd.ExecuteNonQuery();
                                 }
 
+                                string ledgerNote;
+                                if (currentBal < 0)
+                                {
+                                    if (newBal <= 0)
+                                    {
+                                        ledgerNote = string.Format("فاتورة رقم #{0} (خصم بالكامل من رصيد العميل المسبق المتاح)", sale.InvoiceNumber);
+                                    }
+                                    else
+                                    {
+                                        ledgerNote = string.Format("فاتورة رقم #{0} (خصم {1} من الرصيد المسبق والباقي {2} دين آجل)",
+                                            sale.InvoiceNumber,
+                                            Common.Money.FormatPiasters(Math.Abs(currentBal)),
+                                            Common.Money.FormatPiasters(newBal));
+                                    }
+                                }
+                                else
+                                {
+                                    ledgerNote = string.Format("فاتورة آجل رقم #{0}", sale.InvoiceNumber);
+                                }
+
                                 string insLedgerSql = @"
                                     INSERT INTO customer_ledger (id, customer_id, type, sale_id, amount_piasters, balance_after_piasters, notes, created_at)
                                     VALUES (@lid, @cid, 'sale', @sid, @amt, @after, @notes, @cat);
@@ -328,7 +348,48 @@ namespace RafiqPOS.Repositories
                                     lCmd.Parameters.AddWithValue("@sid", sale.Id);
                                     lCmd.Parameters.AddWithValue("@amt", debtAmount);
                                     lCmd.Parameters.AddWithValue("@after", newBal);
-                                    lCmd.Parameters.AddWithValue("@notes", string.Format("فاتورة آجل رقم #{0}", sale.InvoiceNumber));
+                                    lCmd.Parameters.AddWithValue("@notes", ledgerNote);
+                                    lCmd.Parameters.AddWithValue("@cat", sale.CreatedAt ?? DateTime.UtcNow.ToString("o"));
+                                    lCmd.ExecuteNonQuery();
+                                }
+                            }
+                            else if (debtAmount < 0)
+                            {
+                                long excessAmount = Math.Abs(debtAmount);
+                                long currentBal = 0;
+                                string getCustSql = "SELECT balance_piasters FROM customers WHERE id = @cid LIMIT 1;";
+                                using (var cCmd = new SQLiteCommand(getCustSql, conn, trans))
+                                {
+                                    cCmd.Parameters.AddWithValue("@cid", sale.CustomerId);
+                                    using (var cReader = cCmd.ExecuteReader())
+                                    {
+                                        if (cReader.Read())
+                                        {
+                                            currentBal = Convert.ToInt64(cReader["balance_piasters"]);
+                                        }
+                                    }
+                                }
+                                long newBal = currentBal - excessAmount;
+                                string upCustSql = "UPDATE customers SET balance_piasters = @newBal WHERE id = @cid;";
+                                using (var uCmd = new SQLiteCommand(upCustSql, conn, trans))
+                                {
+                                    uCmd.Parameters.AddWithValue("@newBal", newBal);
+                                    uCmd.Parameters.AddWithValue("@cid", sale.CustomerId);
+                                    uCmd.ExecuteNonQuery();
+                                }
+
+                                string insLedgerSql = @"
+                                    INSERT INTO customer_ledger (id, customer_id, type, sale_id, amount_piasters, balance_after_piasters, notes, created_at)
+                                    VALUES (@lid, @cid, 'deposit', @sid, @amt, @after, @notes, @cat);
+                                ";
+                                using (var lCmd = new SQLiteCommand(insLedgerSql, conn, trans))
+                                {
+                                    lCmd.Parameters.AddWithValue("@lid", "led_" + Guid.NewGuid().ToString("N").Substring(0, 12));
+                                    lCmd.Parameters.AddWithValue("@cid", sale.CustomerId);
+                                    lCmd.Parameters.AddWithValue("@sid", sale.Id);
+                                    lCmd.Parameters.AddWithValue("@amt", excessAmount);
+                                    lCmd.Parameters.AddWithValue("@after", newBal);
+                                    lCmd.Parameters.AddWithValue("@notes", string.Format("مبلغ متبقي تحت الحساب (أمانات) من فاتورة رقم #{0}", sale.InvoiceNumber));
                                     lCmd.Parameters.AddWithValue("@cat", sale.CreatedAt ?? DateTime.UtcNow.ToString("o"));
                                     lCmd.ExecuteNonQuery();
                                 }

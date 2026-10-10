@@ -21,39 +21,39 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
       title: 'البحث والباركود',
       icon: <Search className="w-4 h-4 text-brand" />,
       shortcuts: [
-        { key: 'F2', label: 'تركيز البحث والباركود', desc: 'تحديد خانة البحث للبدء بكتابة اسم الصنف أو مسح الباركود' },
-        { key: 'Enter', label: 'إضافة الصنف', desc: 'إدخال الباركود الممسوح أو الصنف المختار في السلة' },
-        { key: 'Esc', label: 'إلغاء البحث / إغلاق النوافذ', desc: 'إغلاق القوائم المنسدلة والنوافذ والعودة لخانة البحث' }
+        { key: 'F2', label: 'الوقوف في خانة البحث', desc: 'الوقوف في خانة البحث عشان تكتب اسم الصنف أو تقرأ الباركود' },
+        { key: 'Enter', label: 'إضافة الصنف للسلة', desc: 'إضافة الصنف الممسوح أو المختار لسلة الفاتورة' },
+        { key: 'Esc', label: 'إلغاء / قفل النوافذ', desc: 'قفل أي نافذة أو قائمة مفتوحة والرجوع للبحث' }
       ]
     },
     {
       title: 'إدارة السلة والأصناف',
       icon: <ShoppingCart className="w-4 h-4 text-brand" />,
       shortcuts: [
-        { key: 'F3', label: 'تعديل كمية الصنف', desc: 'تعديل كمية أو وزن آخر صنف تمت إضافته للسلة' },
-        { key: '+ / -', label: 'زيادة أو إنقاص الكمية', desc: 'زيادة أو إنقاص كمية الصنف الأخير بوحدة واحدة' },
-        { key: 'Del', label: 'حذف صنف من السلة', desc: 'حذف آخر صنف تمت إضافته من السلة' }
+        { key: 'F3', label: 'تعديل كمية الصنف', desc: 'تغيير كمية أو وزن آخر صنف نزل في الفاتورة' },
+        { key: '+ / -', label: 'تزويد أو تقليل الكمية', desc: 'تزويد أو تقليل كمية الصنف الأخير بوحدة واحدة' },
+        { key: 'Del', label: 'مسح صنف من الفاتورة', desc: 'مسح آخر صنف نزل في الفاتورة' }
       ]
     },
     {
       title: 'المالية والعمليات السريعة',
       icon: <DollarSign className="w-4 h-4 text-brand" />,
       shortcuts: [
-        { key: 'F4', label: 'خصم الفاتورة', desc: 'تطبيق خصم مالي مباشر على إجمالي الفاتورة' },
-        { key: 'F6', label: 'تعليق / استرجاع الفاتورة', desc: 'حفظ الفاتورة الحالية كمسودة واسترجاعها لاحقاً' },
-        { key: 'F7', label: 'فاتورة جديدة', desc: 'مسح السلة الحالية والبدء من جديد مع رسالة تأكيد' },
-        { key: 'F10', label: 'البيع الآجل والعملاء', desc: 'التحويل بين الدفع النقدي والبيع الآجل على الحساب' }
+        { key: 'F4', label: 'خصم على الفاتورة', desc: 'عمل خصم بالجنيه على إجمالي الفاتورة' },
+        { key: 'F6', label: 'تعليق / استرجاع الفاتورة', desc: 'تعليق الفاتورة الحالية لخدمة زبون تاني واسترجاعها بعدين' },
+        { key: 'F7', label: 'فاتورة جديدة', desc: 'إلغاء الفاتورة الحالية والبدء من جديد بعد التأكيد' },
+        { key: 'F10', label: 'سداد فوري بالفيزا / الكارت', desc: 'دفع سريع بالفيزا/الكارت وطباعة الوصل فوراً' }
       ]
     },
     {
       title: 'السداد والطباعة',
       icon: <Printer className="w-4 h-4 text-brand" />,
       shortcuts: [
-        { key: 'F12', label: 'سداد نقدي فوري', desc: 'إنهاء الفاتورة نقدياً وطباعة الإيصال دون لمس الماوس' },
-        { key: 'F11', label: 'مرتجع مبيعات', desc: 'فتح نافذة تسجيل مرتجع للعميل برقم الفاتورة أو بدونها' },
-        { key: 'Space', label: 'نافذة الدفع المتعدد', desc: 'فتح شاشة الدفع لتسجيل مدفوعات نقدية أو بطاقات' },
-        { key: 'F9', label: 'إعادة طباعة آخر إيصال', desc: 'فتح ومعاينة آخر فاتورة مكتملة وطباعة نسخة منها' },
-        { key: 'F8', label: 'إعدادات القارئ', desc: 'ضبط ومحاذاة قارئ الباركود ومفتاح الإدخال' }
+        { key: 'F9', label: 'الدفع الكاش وحساب الباقي', desc: 'فتح شاشة الدفع الكاش وحساب باقي الزبون بالضبط' },
+        { key: 'F12', label: 'سداد كاش فوري', desc: 'تقفيل الفاتورة كاش وطباعة الوصل فوراً بدون ماوس' },
+        { key: 'F11', label: 'مرتجع مبيعات', desc: 'تسجيل بضاعة مرتجعة للزبون بفاتورة أو بدونها' },
+        { key: 'Space', label: 'شاشة الدفع المتعدد', desc: 'فتح شاشة الدفع لاختيار طريقة الدفع (كاش/فيزا/آجل)' },
+        { key: 'F8', label: 'ضبط قارئ الباركود', desc: 'ضبط وتجربة قارئ الباركود وسرعة المسح' }
       ]
     }
   ];
@@ -72,7 +72,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
           <div className="flex items-center gap-2">
             <Keyboard className="w-5 h-5 text-brand" />
             <h3 className="text-[14px] font-bold text-ink m-0">
-              دليل اختصارات لوحة المفاتيح للكاشير (F1 - F12)
+              دليل اختصارات الكيبورد السريعة للكاشير (F1 - F12)
             </h3>
           </div>
           <button
@@ -113,7 +113,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
         {/* Footer */}
         <div className="h-[44px] bg-surface-2 hairline-t px-4 flex items-center justify-between shrink-0 text-xs">
           <span className="text-ink-muted">
-            مصمم لتمكين الكاشير من البيع بنسبة 100% بدون استخدام الماوس
+            تقدر تبيع وتقفل الفاتورة 100% من الكيبورد بدون ما تلمس الماوس
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -122,7 +122,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
                 onClose();
                 openHelpCenter('pos');
               }}
-              className="h-8 px-3 rounded bg-emerald-50 hover:bg-emerald-100 text-[#006d41] border border-emerald-300 font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="h-8 px-3 rounded bg-paid-soft hover:bg-paid-soft/80 text-paid border border-paid-border font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <HelpCircle className="w-3.5 h-3.5" />
               <span>دليل الكاشير والأسئلة الشائعة والدعم</span>
@@ -131,7 +131,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
               onClick={onClose}
               className="h-8 px-4 bg-brand hover:bg-brand-hover text-white rounded font-bold flex items-center gap-1 transition-colors cursor-pointer"
             >
-              <span>فهمت</span>
+              <span>تمام، فهمت</span>
               <ArrowLeft className="w-3.5 h-3.5" />
             </button>
           </div>

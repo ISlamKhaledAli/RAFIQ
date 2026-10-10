@@ -24,6 +24,8 @@ import type { SelectOption } from '../../components/CustomSelect';
 import { CustomDateRangePicker } from '../../components/CustomDatePicker';
 import { formatArabicCurrency } from '../../utils/money';
 import { DeadStockRadar } from '../../components/analytics/DeadStockRadar';
+import { RafiqLoadingState } from '../../components/RafiqLoadingState';
+import { useSmoothLoading } from '../../utils/useSmoothLoading';
 import type {
   InventoryOverviewReport,
   ShrinkageAnalysisReport,
@@ -59,6 +61,7 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
   const [customTo, setCustomTo] = useState<string>(() => new Date().toISOString().split('T')[0]);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const showLoading = useSmoothLoading(isLoading, 300);
   const [overview, setOverview] = useState<InventoryOverviewReport | null>(null);
   const [shrinkage, setShrinkage] = useState<ShrinkageAnalysisReport | null>(null);
   const [purchases, setPurchases] = useState<PurchaseAnalysisReport | null>(null);
@@ -109,6 +112,17 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
   const handlePrint = () => {
     window.print();
   };
+
+  if (showLoading && !overview) {
+    return (
+      <div className="flex-1 flex flex-col h-full bg-canvas items-center justify-center select-none p-5" dir="rtl">
+        <RafiqLoadingState
+          label="جاري تجميع تحليلات حركة المخزون والفاقد..."
+          sublabel="فحص أرصدة المستودع، التوالف، فروق الجرد، ومشتريات الموردين"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col h-full bg-canvas text-ink overflow-y-auto select-none p-3 sm:p-5" dir="rtl">

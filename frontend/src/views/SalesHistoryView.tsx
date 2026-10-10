@@ -28,6 +28,8 @@ import { ReturnModal } from '../components/ReturnModal';
 import { CustomDatePicker } from '../components/CustomDatePicker';
 import { PaginationBar } from '../components/PaginationBar';
 import { useClientPagination } from '../utils/usePagination';
+import { RafiqLoadingState } from '../components/RafiqLoadingState';
+import { useSmoothLoading } from '../utils/useSmoothLoading';
 
 export interface SalesHistoryViewProps {
   isActive?: boolean;
@@ -36,6 +38,7 @@ export interface SalesHistoryViewProps {
 export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = true }) => {
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(false);
+  const showLoading = useSmoothLoading(loading, 300);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -337,11 +340,11 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
         {/* Card 1: Total Sales */}
         <div className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 flex items-center justify-between shadow-xs">
           <div>
-            <span className="text-[11px] font-bold text-ink-muted block mb-1">إجمالي المبيعات النشطة</span>
+            <span className="text-[11px] font-bold text-ink-muted block mb-1">إجمالي مبيعات الفترة</span>
             <div className="text-xl sm:text-2xl font-black font-mono text-paid tabular-nums tracking-tight">
               {formatArabicCurrency(totalSalesPiasters)}
             </div>
-            <span className="text-[10px] text-ink-muted block mt-0.5">الفواتير غير الملغاة</span>
+            <span className="text-[10px] text-ink-muted block mt-0.5">فواتير سليمة مش ملغية</span>
           </div>
           <div className="w-10 h-10 rounded-xl bg-paid-soft text-paid border border-paid/20 flex items-center justify-center shadow-2xs">
             <TrendingUp className="w-5 h-5" />
@@ -351,12 +354,12 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
         {/* Card 2: Invoice Count */}
         <div className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 flex items-center justify-between shadow-xs">
           <div>
-            <span className="text-[11px] font-bold text-ink-muted block mb-1">عدد الفواتير المعروضة</span>
+            <span className="text-[11px] font-bold text-ink-muted block mb-1">عدد الفواتير</span>
             <div className="text-xl sm:text-2xl font-black font-mono text-ink tabular-nums tracking-tight">
               {invoiceCount}
               <span className="text-xs font-bold text-ink-muted mr-1">فاتورة</span>
             </div>
-            <span className="text-[10px] text-ink-muted block mt-0.5">وفق معايير التصفية</span>
+            <span className="text-[10px] text-ink-muted block mt-0.5">حسب التصفية والبحث</span>
           </div>
           <div className="w-10 h-10 rounded-xl bg-surface-2 text-ink-muted border border-line flex items-center justify-center shadow-2xs">
             <Receipt className="w-5 h-5" />
@@ -366,11 +369,11 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
         {/* Card 3: Average Ticket */}
         <div className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 flex items-center justify-between shadow-xs">
           <div>
-            <span className="text-[11px] font-bold text-ink-muted block mb-1">متوسط قيمة الفاتورة</span>
+            <span className="text-[11px] font-bold text-ink-muted block mb-1">متوسط الفاتورة الواحدة</span>
             <div className="text-xl sm:text-2xl font-black font-mono text-brand-dark tabular-nums tracking-tight">
               {formatArabicCurrency(averageInvoicePiasters)}
             </div>
-            <span className="text-[10px] text-ink-muted block mt-0.5">لكل عملية بيع</span>
+            <span className="text-[10px] text-ink-muted block mt-0.5">لكل زبون اشترى</span>
           </div>
           <div className="w-10 h-10 rounded-xl bg-brand-soft text-brand-dark border border-brand/20 flex items-center justify-center shadow-2xs">
             <FileText className="w-5 h-5" />
@@ -380,12 +383,12 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
         {/* Card 4: Actions & Refresh */}
         <div className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 flex items-center justify-between shadow-xs">
           <div>
-            <span className="text-[11px] font-bold text-ink-muted block mb-1">سجل الفواتير والعمليات</span>
+            <span className="text-[11px] font-bold text-ink-muted block mb-1">دفتر وسجل الفواتير</span>
             <div className="text-xs font-bold text-ink mt-1 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-paid animate-pulse"></span>
-              <span>سجل محفوظ ومؤمن</span>
+              <span>محفوظ ومأمن في السيستم</span>
             </div>
-            <span className="text-[10px] text-ink-muted block mt-0.5">حفظ محلي فوري وتلقائي</span>
+            <span className="text-[10px] text-ink-muted block mt-0.5">شغال أوفلاين بدون نت</span>
           </div>
           <div className="flex items-center gap-1.5">
             <button
@@ -422,7 +425,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                 void handleSearchInvoice();
               }
             }}
-            placeholder="بحث برقم الفاتورة، اسم العميل، ملاحظات، أو المبلغ..."
+            placeholder="ابحث برقم الفاتورة، اسم الزبون، المبلغ، أو ملاحظة..."
             className="w-full h-9 pr-9 pl-8 text-xs bg-surface-2 rounded-xl border border-line text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-paid/20 focus:border-paid transition-all"
           />
           {searchQuery && (
@@ -459,7 +462,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                 : 'text-ink-muted hover:text-brand-dark hover:bg-surface/60'
             }`}
           >
-            اليوم
+            النهاردة
           </button>
           <button
             onClick={() => setDateFilter('yesterday')}
@@ -469,7 +472,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                 : 'text-ink-muted hover:text-brand-dark hover:bg-surface/60'
             }`}
           >
-            الأمس
+            إمبارح
           </button>
           <button
             onClick={() => setDateFilter('week')}
@@ -479,7 +482,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                 : 'text-ink-muted hover:text-brand-dark hover:bg-surface/60'
             }`}
           >
-            آخر 7 أيام
+            آخر أسبوع
           </button>
           <button
             onClick={() => setDateFilter('custom')}
@@ -491,7 +494,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
             title="تحديد تاريخ معين"
           >
             <Calendar className="w-3.5 h-3.5" />
-            <span>تاريخ</span>
+            <span>يوم محدد</span>
           </button>
         </div>
 
@@ -525,7 +528,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                 : 'text-ink-muted hover:text-paid hover:bg-surface/60'
             }`}
           >
-            سليمة
+            فواتير سليمة
           </button>
           <button
             onClick={() => setStatusFilter('cancelled')}
@@ -535,7 +538,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                 : 'text-ink-muted hover:text-danger hover:bg-surface/60'
             }`}
           >
-            ملغاة
+            فواتير ملغية
           </button>
           <button
             onClick={() => setStatusFilter('refunded')}
@@ -545,7 +548,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                 : 'text-ink-muted hover:text-warn hover:bg-surface/60'
             }`}
           >
-            مرتجع
+            فيها مرتجع
           </button>
         </div>
 
@@ -562,26 +565,31 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
         {/* Table Header */}
         <div className="h-10 bg-surface-2 border-b border-line px-4 grid grid-cols-12 items-center text-xs font-bold text-ink-muted shrink-0 select-none">
           <span className="col-span-2">رقم الفاتورة</span>
-          <span className="col-span-2">تاريخ ووقت البيع</span>
-          <span className="col-span-2">العميل</span>
-          <span className="col-span-2 text-center">الحالة والدفع</span>
-          <span className="col-span-2 text-center">الخصم المالي</span>
+          <span className="col-span-2">وقت وتاريخ الفاتورة</span>
+          <span className="col-span-2">الزبون</span>
+          <span className="col-span-2 text-center">طريقة الدفع والحالة</span>
+          <span className="col-span-2 text-center">الخصم</span>
           <span className="col-span-1 text-left pl-2">الإجمالي</span>
-          <span className="col-span-1 text-center">معاينة</span>
+          <span className="col-span-1 text-center">تفاصيل</span>
         </div>
 
         {/* Table Body */}
         <div className="flex-1 overflow-y-auto divide-y divide-line">
-          {filteredSales.length === 0 ? (
+          {showLoading ? (
+            <RafiqLoadingState
+              label="بنحمّل فواتير البيع من السيستم..."
+              sublabel="جاري جلب الفواتير وحسابات السداد والمرتجعات من قاعدة البيانات المحلية"
+            />
+          ) : filteredSales.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-ink-muted gap-2 p-6">
               <Clock className="w-12 h-12 stroke-[1.2] text-ink-muted opacity-40" />
               <p className="text-[14px] font-semibold text-ink m-0">
                 {searchQuery || statusFilter !== 'all' || dateFilter !== 'all' 
-                  ? 'لا توجد فواتير مطابقة لمعايير البحث والتصفية المحددة' 
-                  : 'لم تسجل أي فواتير مبيعات بعد'}
+                  ? 'مفيش فواتير مطابقة للي بتدور عليه' 
+                  : 'لسه مفيش فواتير بيع اتسجلت'}
               </p>
               <p className="text-[12px] text-ink-muted m-0">
-                {searchQuery ? 'تأكد من رقم الفاتورة أو الاسم واضغط Enter للبحث' : 'توجه لشاشة البيع لتسجيل الفواتير'}
+                {searchQuery ? 'اتأكد من رقم الفاتورة أو اسم الزبون واضغط Enter' : 'روح لشاشة الكاشير عشان تفتح فاتورة وتبيع'}
               </p>
             </div>
           ) : (
@@ -601,7 +609,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                     isCancelled ? 'text-danger line-through' : 'text-brand-dark'
                   }`}>
                     <span>#{sale.invoiceNumber}</span>
-                    {isCancelled && <span className="text-[10px] text-danger no-underline font-normal">(ملغاة)</span>}
+                    {isCancelled && <span className="text-[10px] text-danger no-underline font-normal">(ملغية)</span>}
                   </span>
 
                   {/* Date / Time */}
@@ -610,14 +618,14 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                   </span>
 
                   {/* Customer */}
-                  <span className="col-span-2 text-ink text-xs truncate" title={sale.customerName || 'عميل نقدي'}>
+                  <span className="col-span-2 text-ink text-xs truncate" title={sale.customerName || 'زبون عادي كاش'}>
                     {sale.customerName ? (
                       <span className="flex items-center gap-1 font-bold text-ink">
                         <User className="w-3.5 h-3.5 text-paid shrink-0" />
                         <span className="truncate">{sale.customerName}</span>
                       </span>
                     ) : (
-                      <span className="text-ink-muted/70">عميل نقدي عام</span>
+                      <span className="text-ink-muted/70">زبون عادي (كاش)</span>
                     )}
                   </span>
 
@@ -626,15 +634,15 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                     {isCancelled ? (
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-danger border border-rose-200 flex items-center gap-1">
                         <Ban className="w-3 h-3" />
-                        <span>ملغاة</span>
+                        <span>ملغية</span>
                       </span>
                     ) : isRefunded ? (
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-warn border border-amber-200">
-                        مرتجع
+                        فيها مرتجع
                       </span>
                     ) : (
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-paid-soft text-paid border border-paid/20">
-                        {sale.paymentMethod === 'cash' ? 'نقدي' : sale.paymentMethod === 'credit' ? 'آجل' : 'بطاقة'}
+                        {sale.paymentMethod === 'cash' ? 'كاش' : sale.paymentMethod === 'credit' ? 'شكك' : 'فيزا'}
                       </span>
                     )}
                   </div>
@@ -699,16 +707,16 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
               <div className="flex items-center gap-2">
                 <Receipt className="w-4 h-4 text-[#004D3F]" />
                 <h3 className="text-sm font-bold text-[#0F172A] m-0">
-                  تفاصيل الفاتورة #{selectedSale.invoiceNumber}
+                  تفاصيل وبيانات فاتورة #{selectedSale.invoiceNumber}
                 </h3>
                 {selectedSale.status === 'cancelled' && (
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-700 text-white">
-                    ملغاة
+                    فاتورة ملغية
                   </span>
                 )}
                 {selectedSale.status === 'refunded' && (
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-600 text-white">
-                    بها مرتجع
+                    فيها مرتجع
                   </span>
                 )}
               </div>
@@ -728,9 +736,9 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                 <div className="bg-danger-soft border border-danger/30 rounded p-2.5 flex items-start gap-2 text-danger">
                   <Ban className="w-4 h-4 shrink-0 mt-0.5" />
                   <div>
-                    <div className="font-bold text-xs">تم إلغاء هذه الفاتورة رسمياً</div>
+                    <div className="font-bold text-xs">الفاتورة دي ملغية وبضاعتها رجعت للمخزن</div>
                     <div className="text-[11px] mt-0.5 text-danger/90">
-                      {selectedSale.notes || 'تم الإلغاء بناء على طلب الكاشير وتصحيح المخزون.'}
+                      {selectedSale.notes || 'اتلغت ورجعت البضاعة للرصيد عشان الحسابات تظبط.'}
                     </div>
                   </div>
                 </div>
@@ -746,16 +754,16 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                       </div>
                       <div>
                         <div className="font-bold text-xs flex items-center gap-2">
-                          <span>تم تسجيل مرتجع رسمي على هذه الفاتورة</span>
+                          <span>اتسجل مرتجع بضاعة على الفاتورة دي</span>
                           <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 font-bold">
-                            {saleReturns.length} {saleReturns.length === 1 ? 'إشعار مرتجع' : 'إشعارات'}
+                            {saleReturns.length} {saleReturns.length === 1 ? 'وصل مرتجع' : 'وصولات مرتجع'}
                           </span>
                         </div>
                         <div className="text-[11px] text-amber-800 font-medium mt-0.5">
-                          إجمالي المبالغ المستردة للعميل: <strong className="font-bold font-mono text-amber-900">{formatArabicCurrency(totalRefundedPiasters)}</strong>
+                          إجمالي الفلوس اللي رجعت للزبون: <strong className="font-bold font-mono text-amber-900">{formatArabicCurrency(totalRefundedPiasters)}</strong>
                           {saleReturns[0] && (
                             <span className="mr-2 text-amber-700/80">
-                              (طريقة الرد: {saleReturns[0].refundMethod === 'credit' ? 'تخفيض من مديونية الآجل' : 'نقداً من الدرج'})
+                              (طريقة الرد: {saleReturns[0].refundMethod === 'credit' ? 'خصم من حسابه الشكك' : 'كاش من الدرج'})
                             </span>
                           )}
                         </div>
@@ -779,7 +787,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
               {/* Meta Grid */}
               <div className="grid grid-cols-2 gap-2 bg-canvas p-3 rounded hairline-all text-[12px]">
                 <div>
-                  <span className="text-ink-muted text-[11px]">تاريخ ووقت البيع: </span>
+                  <span className="text-ink-muted text-[11px]">وقت الفاتورة: </span>
                   <span className="text-ink font-bold tabular-nums">
                     {selectedSale.createdAt ? new Date(selectedSale.createdAt).toLocaleString('ar-EG-u-nu-latn') : '—'}
                   </span>
@@ -787,13 +795,13 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                 <div>
                   <span className="text-ink-muted text-[11px]">طريقة الدفع: </span>
                   <span className="text-ink font-bold">
-                    {selectedSale.paymentMethod === 'cash' ? 'نقدي (كاش)' : selectedSale.paymentMethod === 'credit' ? 'آجل' : 'بطاقة دفع'}
+                    {selectedSale.paymentMethod === 'cash' ? 'كاش' : selectedSale.paymentMethod === 'credit' ? 'شكك (على النوتة)' : 'فيزا / كارت'}
                   </span>
                 </div>
                 <div>
-                  <span className="text-ink-muted text-[11px]">العميل: </span>
+                  <span className="text-ink-muted text-[11px]">الزبون: </span>
                   <span className="text-ink font-bold">
-                    {selectedSale.customerName || 'عميل نقدي عام'}
+                    {selectedSale.customerName || 'زبون عادي (كاش)'}
                   </span>
                   {selectedSale.customerPhone && (
                     <span className="text-ink-muted text-[11px] mr-1">({selectedSale.customerPhone})</span>
@@ -801,16 +809,16 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                 </div>
                 <div>
                   <span className="text-ink-muted text-[11px]">الكاشير: </span>
-                  <span className="text-ink font-bold">{selectedSale.cashierId || 'الكاشير الرئيسي'}</span>
+                  <span className="text-ink font-bold">{selectedSale.cashierId || 'الكاشير'}</span>
                 </div>
               </div>
 
               {/* Items Breakdown Table */}
               <div className="border border-line rounded overflow-hidden">
                 <div className="bg-surface-2 px-3 py-1.5 text-[11px] font-bold text-ink-muted grid grid-cols-12">
-                  <span className="col-span-5">الصنف</span>
-                  <span className="col-span-2 text-center">الكمية</span>
-                  <span className="col-span-2 text-center">سعر الوحدة</span>
+                  <span className="col-span-5">اسم الصنف</span>
+                  <span className="col-span-2 text-center">العدد / الوزن</span>
+                  <span className="col-span-2 text-center">سعر البيع</span>
                   <span className="col-span-3 text-left pl-1">الإجمالي</span>
                 </div>
 
@@ -818,13 +826,13 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                   {loadingDetails ? (
                     <div className="p-4 text-center text-ink-muted flex items-center justify-center gap-2">
                       <RefreshCw className="w-4 h-4 animate-spin text-brand" />
-                      <span>جاري تحميل بنود الفاتورة من قاعدة البيانات...</span>
+                      <span>بنحمّل أصناف الفاتورة...</span>
                     </div>
                   ) : selectedSale.items && selectedSale.items.length > 0 ? (
                     selectedSale.items.map((item, idx) => {
                       const retInfo = returnedInfoByProduct[item.productId];
                       const origQty = item.unit === 'kg' ? item.quantityMilli / 1000 : Math.round(item.quantityMilli / 1000);
-                      const unitStr = item.unit === 'kg' ? 'كجم' : 'قطعة';
+                      const unitStr = item.unit === 'kg' ? 'كجم' : 'حتة';
                       const remainingQty = retInfo ? Math.max(0, origQty - retInfo.returnedPieces) : origQty;
                       const netLineTotal = Math.round(remainingQty * item.unitPricePiasters);
 
@@ -838,7 +846,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                               {item.barcode && <span>{item.barcode}</span>}
                               {retInfo && (
                                 <span className="text-amber-800 font-bold bg-amber-100 px-1.5 py-0.2 rounded">
-                                  مرتجع منه {retInfo.returnedPieces} {unitStr}
+                                  رجع منه {retInfo.returnedPieces} {unitStr}
                                   {retInfo.hasDamaged && ' (تالف)'}
                                 </span>
                               )}
@@ -875,7 +883,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                     })
                   ) : (
                     <div className="p-3 text-center text-ink-muted text-xs">
-                      تم حفظ تفاصيل البنود في قاعدة بيانات المتجر
+                      أصناف الفاتورة محفوظة ومسجلة في السيستم
                     </div>
                   )}
                 </div>
@@ -901,9 +909,9 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                       <div key={ret.id || idx} className="bg-white border border-amber-200/90 rounded-md p-2.5 flex flex-col gap-1.5 shadow-2xs text-xs">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2 font-bold text-amber-900">
-                            <span className="font-mono">إشعار مرتجع #{ret.returnNumber}</span>
+                            <span className="font-mono">وصل مرتجع #{ret.returnNumber}</span>
                             <span className="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-800">
-                              {ret.refundMethod === 'credit' ? 'خصم من حساب الآجل' : 'نقداً من الدرج'}
+                              {ret.refundMethod === 'credit' ? 'خصم من حسابه الشكك' : 'كاش من الدرج'}
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
@@ -917,7 +925,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                               title="طباعة إيصال هذا المرتجع"
                             >
                               <Printer className="w-3 h-3" />
-                              <span>طباعة إيصال</span>
+                              <span>طباعة وصل</span>
                             </button>
                           </div>
                         </div>
@@ -933,7 +941,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                             {ret.items.map((ritem, rIdx) => (
                               <div key={ritem.id || rIdx} className="flex justify-between items-center text-ink">
                                 <span className="font-medium">
-                                  • {ritem.productName} × {ritem.unit === 'kg' ? (ritem.quantityMilli / 1000).toFixed(3) : ritem.quantityMilli / 1000} {ritem.unit === 'kg' ? 'كجم' : 'قطعة'}
+                                  • {ritem.productName} × {ritem.unit === 'kg' ? (ritem.quantityMilli / 1000).toFixed(3) : ritem.quantityMilli / 1000} {ritem.unit === 'kg' ? 'كجم' : 'حتة'}
                                   {ritem.isDamaged && <span className="text-danger mr-1 font-bold">(تالف)</span>}
                                 </span>
                                 <span className="font-mono font-bold text-amber-800">
@@ -952,40 +960,40 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
               {/* Financial Totals */}
               <div className="bg-canvas p-3 rounded hairline-all flex flex-col gap-1.5 text-[12px]">
                 <div className="flex justify-between text-ink-muted">
-                  <span>المجموع الفرعي الأصلي:</span>
+                  <span>إجمالي الأصناف قبل الخصم:</span>
                   <span className="text-ink tabular-nums">{formatArabicCurrency(selectedSale.subtotalPiasters)}</span>
                 </div>
                 {selectedSale.discountPiasters > 0 && (
                   <div className="flex justify-between text-danger font-semibold">
-                    <span>الخصم الممنوح:</span>
+                    <span>الخصم:</span>
                     <span className="tabular-nums">−{formatArabicCurrency(selectedSale.discountPiasters)}</span>
                   </div>
                 )}
                 {selectedSale.taxPiasters > 0 && (
                   <div className="flex justify-between text-ink-muted">
-                    <span>ضريبة القيمة المضافة:</span>
+                    <span>الضريبة:</span>
                     <span className="tabular-nums">{formatArabicCurrency(selectedSale.taxPiasters)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-ink-muted pt-1 border-t border-line/60">
-                  <span>إجمالي قيمة الفاتورة الأصلية:</span>
+                  <span>إجمالي الفاتورة:</span>
                   <span className="text-ink font-bold tabular-nums">{formatArabicCurrency(selectedSale.totalPiasters)}</span>
                 </div>
 
                 {totalRefundedPiasters > 0 && (
                   <div className="flex justify-between text-warn font-bold">
-                    <span>إجمالي المرتجع المسترد:</span>
+                    <span>فلوس المرتجع اللي رجعت:</span>
                     <span className="tabular-nums font-mono">−{formatArabicCurrency(totalRefundedPiasters)}</span>
                   </div>
                 )}
 
                 <div className="flex justify-between font-black text-[15px] text-brand pt-2 border-t border-line">
-                  <span>{totalRefundedPiasters > 0 ? 'الصافي الفعلي بعد المرتجع:' : 'الصافي المستحق:'}</span>
+                  <span>{totalRefundedPiasters > 0 ? 'الصافي بعد المرتجع:' : 'المطلوب دفعه:'}</span>
                   <span className="tabular-nums">{formatArabicCurrency(netSalePiasters)}</span>
                 </div>
 
                 <div className="flex justify-between text-ink-muted text-[11px] pt-1 border-t border-line/60">
-                  <span>المبلغ المسدد من العميل:</span>
+                  <span>الفلوس اللي دفعها الزبون:</span>
                   <span className="text-ink font-semibold tabular-nums">{formatArabicCurrency(selectedSale.paidPiasters)}</span>
                 </div>
               </div>
@@ -1003,7 +1011,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
             <div className="h-[52px] bg-surface-2 hairline-t px-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
                 <span className="text-[11px] text-ink-muted">
-                  اضغط <kbd className="bg-surface px-1.5 py-0.5 rounded border border-line text-ink font-mono">F9</kbd> لطباعة نسخة
+                  اضغط <kbd className="bg-surface px-1.5 py-0.5 rounded border border-line text-ink font-mono">F9</kbd> عشان تطبع وصل تاني
                 </span>
                 {selectedSale.status !== 'cancelled' && (
                   <div className="flex items-center gap-1.5">
@@ -1014,7 +1022,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                       title="تسجيل مرتجع جزئي أو كلي لهذه الفاتورة"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
-                      <span>عمل مرتجع</span>
+                      <span>مرتجع بضاعة</span>
                     </button>
                     <button
                       type="button"
@@ -1035,7 +1043,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                   onClick={() => setSelectedSale(null)}
                   className="h-[36px] px-4 bg-surface hover:bg-surface-2 border border-line text-ink rounded text-[12px] font-semibold transition-colors"
                 >
-                  إغلاق (Esc)
+                  رجوع [Esc]
                 </button>
                 <button
                   type="button"
@@ -1045,7 +1053,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                   title="طباعة إيصال يحمل علامة نسخة طبق الأصل وتوثيقه في السجل"
                 >
                   <Printer className={`w-4 h-4 ${isReprinting ? 'animate-spin' : ''}`} />
-                  <span>{isReprinting ? 'جاري الطباعة...' : 'إعادة طباعة نسخة (F9)'}</span>
+                  <span>{isReprinting ? 'جاري الطباعة...' : 'طباعة وصل تاني [F9]'}</span>
                 </button>
               </div>
             </div>

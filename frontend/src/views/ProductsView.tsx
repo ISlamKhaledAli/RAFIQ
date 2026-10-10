@@ -553,8 +553,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       setMissingBarcodeCount(count);
       if (count === 0) {
         await rafiqAlert({
-          title: 'اكتملت الباركودات',
-          message: 'جميع الأصناف النشطة في الكتالوج لديها باركود مسجل بالفعل.',
+          title: 'الباركودات تمام',
+          message: 'كل بضاعة وأصناف المحل ليها باركود متسجل بالفعل ومافيش نواقص.',
           variant: 'info'
         });
       } else {
@@ -580,14 +580,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       if (res && res.success) {
         await loadProducts(searchQuery, currentPage, pageSize);
         await rafiqAlert({
-          title: 'تم التوليد بنجاح',
-          message: `تم بنجاح توليد وتعيين باركود داخلي قياسي (EAN-13) لـ ${res.count} صنف! يمكنك الآن طباعة ملصقات الباركود لها من زر طباعة الملصقات (F8).`,
+          title: 'تم عمل الباركودات بنجاح',
+          message: `تم بنجاح عمل وتثبيت باركود داخلي قياسي (EAN-13) لـ ${res.count} صنف! تقدر دلوقتي تطبع استيكرات الباركود ليهم من زرار طباعة الاستيكرات (F8).`,
           variant: 'success'
         });
       } else {
         await rafiqAlert({
           title: 'تنبيه',
-          message: res?.message || 'فشلت عملية التوليد الجماعي للباركودات.',
+          message: res?.message || 'فشلت عملية عمل الباركودات الجماعية.',
           variant: 'warning'
         });
       }
@@ -595,7 +595,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       const msg = err instanceof Error ? err.message : String(err);
       await rafiqAlert({
         title: 'خطأ في العملية',
-        message: `حدث خطأ أثناء التوليد الجماعي: ${msg}`,
+        message: `حصل خطأ أثناء عمل الباركودات: ${msg}`,
         variant: 'error'
       });
     } finally {
@@ -756,15 +756,15 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-black text-ink leading-tight">كتالوج الأصناف والأسعار</h2>
+                  <h2 className="text-sm font-black text-ink leading-tight">أصناف وبضاعة المحل</h2>
                   <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-surface-2 text-ink font-bold border border-line tabular-nums">
                     {totalCount > products.length
-                      ? `عرض ${products.length} من ${totalCount.toLocaleString('en-US')} صنف`
+                      ? `معروض ${products.length} من أصل ${totalCount.toLocaleString('en-US')} صنف`
                       : `${products.length} صنف`
                     }
                   </span>
                 </div>
-                <p className="text-[11px] text-ink-muted">إدارة المنتجات، الأسعار، الباركود، ومستويات حد الطلب</p>
+                <p className="text-[11px] text-ink-muted">أسعار البضاعة، الباركود، رصيد المخزن، وتنبيهات النواقص</p>
               </div>
             </div>
           ) : activeSubView === 'movements' ? (
@@ -774,17 +774,17 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-black text-ink leading-tight">دفتر حركات وجرد المخزون</h2>
+                  <h2 className="text-sm font-black text-ink leading-tight">دفتر حركة وجرد بضاعة المخزن</h2>
                   <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-surface-2 text-ink font-bold border border-line tabular-nums">
                     {allMovements.length} حركة
                   </span>
                   {discrepancies.length > 0 && (
                     <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 animate-pulse">
-                      {discrepancies.length} صنف بحاجة لمطابقة
+                      {discrepancies.length} صنف محتاج مطابقة وعدّ في المخزن
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-ink-muted">سجل الوارد والمنصرف، المبيعات، المرتجعات، والتسويات الجردية</p>
+                <p className="text-[11px] text-ink-muted">سجل الوارد والمبيعات والمرتجعات وتسويات وعدّ بضاعة المحل</p>
               </div>
             </div>
           ) : (
@@ -794,12 +794,12 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-black text-ink leading-tight">تواريخ الصلاحية والدفعات</h2>
+                  <h2 className="text-sm font-black text-ink leading-tight">تواريخ الصلاحية والتشغيلات</h2>
                   <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-paid-soft text-paid font-bold border border-paid/20">
-                    الأقرب انتهاءً يصرف أولاً
+                    اللي قرب ينتهي يتباع الأول
                   </span>
                 </div>
-                <p className="text-[11px] text-ink-muted">مراقبة تواريخ الانتهاء، تنبيهات الهالك الوشيك، وإتلاف الدفعات المنتهية</p>
+                <p className="text-[11px] text-ink-muted">متابعة صلاحية البضاعة، تنبيهات قرب الانتهاء، وتوالف الصلاحية</p>
               </div>
             </div>
           )}
@@ -814,7 +814,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   <Search className="w-4 h-4 text-ink-muted ml-2 shrink-0 pointer-events-none" />
                   <input
                     type="text"
-                    placeholder="ابحث بالاسم أو الباركود..."
+                    placeholder="اكتب اسم الصنف أو اضرب الباركود..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(normalizeArabicNumerals(e.target.value))}
                     className="w-full bg-transparent border-none text-xs text-ink placeholder:text-ink-muted focus:outline-none"
@@ -862,7 +862,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   title="العمليات المتقدمة، الاستيراد والتصدير، والباركود"
                 >
                   <Tag className="w-4 h-4 text-brand" />
-                  <span>أدوات الكتالوج</span>
+                  <span>أدوات وبضاعة المحل</span>
                   <ChevronDown className={`w-3.5 h-3.5 text-ink-muted transition-transform duration-150 ${isToolsDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
@@ -882,7 +882,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                         className="w-full px-3 py-2 text-right text-xs font-bold text-ink hover:bg-surface-2 flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
                         <FileSpreadsheet className="w-4 h-4 text-brand" />
-                        <span>استيراد وتحديث من إكسل</span>
+                        <span>استيراد بضاعة من شيت إكسل</span>
                       </button>
 
                       <button
@@ -895,7 +895,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                         className="w-full px-3 py-2 text-right text-xs font-bold text-ink hover:bg-surface-2 flex items-center gap-2.5 transition-colors cursor-pointer disabled:opacity-50"
                       >
                         <Download className="w-4 h-4 text-brand" />
-                        <span>تصدير الكتالوج إلى إكسل</span>
+                        <span>تصدير كل البضاعة لملف إكسل</span>
                       </button>
 
                       <div className="h-px bg-line my-1" />
@@ -910,7 +910,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                         className="w-full px-3 py-2 text-right text-xs font-bold text-ink hover:bg-surface-2 flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
                         <Tag className="w-4 h-4 text-brand" />
-                        <span>طباعة ملصقات الباركود والأسعار (F8)</span>
+                        <span>طباعة استيكرات الباركود والأسعار (F8)</span>
                       </button>
 
                       <button
@@ -923,7 +923,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                         className="w-full px-3 py-2 text-right text-xs font-bold text-ink hover:bg-surface-2 flex items-center gap-2.5 transition-colors cursor-pointer disabled:opacity-50"
                       >
                         <Barcode className="w-4 h-4 text-brand" />
-                        <span>توليد باركود تلقائي للنواقص</span>
+                        <span>عمل باركود تلقائي للأصناف اللي من غير كود</span>
                       </button>
 
                       <button
@@ -935,7 +935,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                         className="w-full px-3 py-2 text-right text-xs font-bold text-ink hover:bg-surface-2 flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
                         <TrendingUp className="w-4 h-4 text-brand" />
-                        <span>تعديل الأسعار والتكاليف بالجملة</span>
+                        <span>تعديل أسعار وتكلفة البضاعة بالجملة</span>
                       </button>
 
                       <button
@@ -947,7 +947,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                         className="w-full px-3 py-2 text-right text-xs font-bold text-ink hover:bg-surface-2 flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
                         <Layers className="w-4 h-4 text-brand" />
-                        <span>جدول المقاسات والألوان</span>
+                        <span>جدول المقاسات والألوان (الأصناف المتفرعة)</span>
                       </button>
 
                       <div className="h-px bg-line my-1" />
@@ -961,7 +961,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                         className="w-full px-3 py-2 text-right text-xs font-bold text-paid hover:bg-paid-soft flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
                         <ShieldCheck className="w-4 h-4 text-paid" />
-                        <span>فحص وتدقيق جودة البيانات</span>
+                        <span>فحص وتدقيق بيانات وأسعار الأصناف</span>
                       </button>
                     </div>
                   </>
@@ -994,7 +994,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 className="h-9 px-3.5 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-[0.98] shrink-0"
               >
                 <Plus className="w-4 h-4" />
-                <span>إضافة صنف</span>
+                <span>+ صنف جديد</span>
               </button>
             </>
           ) : (
@@ -1053,7 +1053,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                     : 'text-ink-muted hover:text-ink hover:bg-surface'
                 }`}
               >
-                <span>كافة الأصناف</span>
+                <span>كل الأصناف</span>
                 {totalCount > 0 && (
                   <span className="font-mono text-[11px] mr-1.5 opacity-90 tabular-nums">
                     ({totalCount.toLocaleString('en-US')})
@@ -1074,7 +1074,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 }`}
               >
                 <AlertTriangle className="w-3.5 h-3.5" />
-                <span>النواقص وحد الطلب</span>
+                <span>بضاعة قربت تخلص (النواقص)</span>
                 <span className="font-mono text-[11px] mr-0.5 opacity-95 tabular-nums">
                   ({totalLowStockCount.toLocaleString('en-US')})
                 </span>
@@ -1092,7 +1092,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                     : 'text-rose-800 hover:bg-rose-50'
                 }`}
               >
-                <span>النافد من المخزن</span>
+                <span>خلصان من المخزن</span>
                 <span className="font-mono text-[11px] mr-0.5 opacity-95 tabular-nums">
                   ({totalOutOfStockCount.toLocaleString('en-US')})
                 </span>
@@ -1115,7 +1115,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                       : 'bg-surface-2 text-ink-muted border border-line hover:text-brand hover:border-brand'
                   }`}
                 >
-                  جميع الأقسام
+                  كل الأقسام
                 </button>
                 {categories.map((cat) => {
                   const isSelected = selectedCategoryFilter === cat.id;
@@ -1149,7 +1149,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 title="إضافة وتعديل وأرشفة وترتيب أقسام السلع"
               >
                 <Tags className="w-3.5 h-3.5 text-brand" />
-                <span>إدارة التصنيفات</span>
+                <span>إدارة أقسام المحل</span>
               </button>
             </div>
           </div>
@@ -1161,8 +1161,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                 <span>
                   {stockStatusFilter === 'lowStock'
-                    ? `تصفية النواقص: يتم عرض الأصناف التي كميتها أقل من أو تساوي حد الطلب (${totalCount.toLocaleString('en-US')} صنف)`
-                    : `تصفية النافد: يتم عرض الأصناف التي نفدت تماماً من المخزن (${totalCount.toLocaleString('en-US')} صنف)`}
+                    ? `تصفية النواقص: معروض دلوقتي الأصناف اللي كميتها قربت تخلص في المخزن (${totalCount.toLocaleString('en-US')} صنف)`
+                    : `تصفية الخلصان: معروض دلوقتي الأصناف اللي رصيدها صفر وخلصانة تماماً من المخزن (${totalCount.toLocaleString('en-US')} صنف)`}
                 </span>
               </div>
               <button
@@ -1175,7 +1175,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 }}
                 className="px-2 py-0.5 rounded bg-white hover:bg-amber-100 border border-amber-300 text-amber-800 text-[11px] font-bold transition-colors cursor-pointer"
               >
-                إلغاء الفلتر وعرض الكل
+                إلغاء التصفية وعرض كل البضاعة
               </button>
             </div>
           )}
@@ -1183,6 +1183,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           {/* 2. Products Data Table Subcomponent */}
           <ProductsTable
             products={displayedProducts}
+            loading={loading}
             selectedCategoryFilter={selectedCategoryFilter}
             selectedProductIds={selectedProductIds}
             onToggleSelectAll={toggleSelectAll}
@@ -1325,10 +1326,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       {/* Confirm Product Delete Modal (Feature #112 / Task 112-2) */}
       <ConfirmModal
         isOpen={!!productToDelete}
-        title="حذف صنف من الكتالوج"
-        message={`هل أنت متأكد من رغبتك في حذف الصنف "${productToDelete?.name}" من الكتالوج؟`}
-        consequence="سيتم إيقاف ظهور الصنف في شاشة البيع، مع الاحتفاظ ببيانات الفواتير القديمة بأمان."
-        confirmText="نعم، حذف الصنف"
+        title="مسح صنف من المحل"
+        message={`متأكد إنك عايز تمسح الصنف "${productToDelete?.name}" من المحل؟`}
+        consequence="الصنف مش هيظهر في شاشة البيع، وفواتيره القديمة هتفضل محفوظة زي ما هي بأمان."
+        confirmText="أيوه، امسح الصنف"
         cancelText="إلغاء وتراجع"
         isDanger={true}
         onConfirm={() => void confirmDeleteProduct()}
@@ -1338,10 +1339,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       {/* Confirm Bulk Product Delete Modal */}
       <ConfirmModal
         isOpen={showBulkDeleteConfirm}
-        title="حذف جماعي للأصناف المحددة"
-        message={`هل أنت متأكد من رغبتك في حذف ${selectedProductIds.length} صنف دفعة واحدة من الكتالوج؟`}
-        consequence="سيتم إيقاف ظهور هذه الأصناف في شاشة البيع، مع الاحتفاظ ببيانات الفواتير القديمة بأمان."
-        confirmText={`نعم، حذف (${selectedProductIds.length}) صنف`}
+        title="مسح الأصناف المحددة دفعة واحدة"
+        message={`متأكد إنك عايز تمسح ${selectedProductIds.length} صنف دفعة واحدة من المحل؟`}
+        consequence="الأصناف دي مش هتظهر في شاشة البيع، وفواتيرها القديمة هتفضل محفوظة زي ما هي بأمان."
+        confirmText={`أيوه، امسح (${selectedProductIds.length}) صنف`}
         cancelText="إلغاء وتراجع"
         isDanger={true}
         onConfirm={() => void confirmBulkDelete()}
@@ -1517,10 +1518,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       {/* Confirm Bulk Barcode Generation Modal (Feature #119 / Story 108) */}
       <ConfirmModal
         isOpen={showBulkBarcodeConfirm}
-        title="توليد باركود داخلي قياسي للأصناف الناقصة"
-        message={`تم العثور على ${missingBarcodeCount} صنف نشط بدون باركود في الكتالوج. هل تريد توليد باركودات داخلية قياسية موحدة (EAN-13 مع بادئة 200) لها جميعاً دفعة واحدة؟`}
-        consequence="سيتم تعيين باركود فريد لكل صنف تلقائياً، ويمكنك طباعة ملصقات الباركود فور الانتهاء."
-        confirmText={`توليد الباركودات (${missingBarcodeCount} صنف)`}
+        title="عمل باركود داخلي للأصناف اللي ملهاش كود"
+        message={`لقينا ${missingBarcodeCount} صنف شغالين في المحل من غير باركود. تحب نعملهم باركودات داخلية قياسية موحدة (EAN-13 بتبدأ بـ 200) دفعة واحدة عشان تقدر تضربهم بالاسكانر وتطبعلهم استيكرات؟`}
+        consequence="السيستم هيعمل كود فريد لكل صنف تلقائياً، وهتقدر تطبع استيكرات الباركود فوراً أول ما يخلص."
+        confirmText={`أيوه، اعمل الباركودات (${missingBarcodeCount} صنف)`}
         cancelText="إلغاء وتراجع"
         isDanger={false}
         onConfirm={() => void handleConfirmBulkBarcodeGeneration()}

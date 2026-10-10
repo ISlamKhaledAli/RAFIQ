@@ -241,26 +241,26 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
         <div className="h-1.5 w-full bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-600" />
 
         {/* Modern Clean Header */}
-        <div className="bg-white px-6 py-4 flex items-center justify-between border-b border-slate-200/80">
+        <div className="bg-surface px-6 py-4 flex items-center justify-between border-b border-line">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 text-[#006D41] flex items-center justify-center shrink-0 shadow-2xs">
-              <svg className="w-5 h-5 text-[#006D41]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="w-10 h-10 rounded-xl bg-brand/10 border border-brand/20 text-brand flex items-center justify-center shrink-0 shadow-2xs">
+              <svg className="w-5 h-5 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-black text-slate-900">إدارة حسابات الموظفين ونقاط البيع</h2>
-                <span className="bg-emerald-50 text-[#006D41] text-[11px] px-2.5 py-0.5 rounded-full font-bold border border-emerald-200 shadow-2xs">
-                  صلاحيات مدير النظام
+                <h2 className="text-lg font-black text-ink">إدارة حسابات الكاشير والموظفين</h2>
+                <span className="bg-brand/10 text-brand text-[11px] px-2.5 py-0.5 rounded-full font-bold border border-brand/20 shadow-2xs">
+                  صلاحيات مدير المحل
                 </span>
               </div>
-              <p className="text-xs text-slate-500 font-medium">إضافة وتعديل الكاشيرات، وتعيين الأرقام السرية بصلاحيات محمية</p>
+              <p className="text-xs text-ink-muted font-medium">إضافة وتعديل حسابات الكاشير، وضبط الأرقام السرية بصلاحيات محمية</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface-2 transition-colors cursor-pointer"
             title="إغلاق"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -299,8 +299,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-base font-bold text-ink">الموظفون المسجلون في النظام</h3>
-                  <p className="text-xs text-ink-muted">يمكنك إضافة كاشير جديد، تعديل الأسماء، أو إعادة تعيين الأرقام السرية</p>
+                  <h3 className="text-base font-bold text-ink">الموظفون والكاشير المسجلون في المحل</h3>
+                  <p className="text-xs text-ink-muted">تقدر تضيف كاشير جديد، تعدل الأسماء، أو تعيد تعيين الأرقام السرية</p>
                 </div>
                 <button
                   onClick={handleStartAdd}
@@ -320,7 +320,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                     <tr>
                       <th className="px-4 py-3 whitespace-nowrap">الموظف</th>
                       <th className="px-4 py-3 whitespace-nowrap">اسم الدخول</th>
-                      <th className="px-4 py-3 whitespace-nowrap">الدور / الصلاحية</th>
+                      <th className="px-4 py-3 whitespace-nowrap">الدور والصلاحية</th>
                       <th className="px-4 py-3 whitespace-nowrap">الحالة</th>
                       <th className="px-4 py-3 whitespace-nowrap">آخر تسجيل دخول</th>
                       <th className="px-4 py-3 text-center whitespace-nowrap">الإجراءات</th>
@@ -373,7 +373,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                                     : 'bg-paid-soft text-paid border border-paid-border'
                                 }`}
                               >
-                                {isAdmin ? 'مدير نظام (كامل الصلاحيات)' : 'كاشير (نقطة البيع)'}
+                                {isAdmin ? 'مدير محل (كامل الصلاحيات)' : 'كاشير (شاشة البيع فقط)'}
                               </span>
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
@@ -385,7 +385,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                                 }`}
                               >
                                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${u.isActive ? 'bg-paid' : 'bg-danger'}`} />
-                                <span className="whitespace-nowrap">{u.isActive ? 'نشط' : 'معطّل'}</span>
+                                <span className="whitespace-nowrap">{u.isActive ? 'شغال' : 'موقوف'}</span>
                               </span>
                             </td>
                             <td className="px-4 py-3 text-ink-muted text-xs font-mono whitespace-nowrap">
@@ -408,7 +408,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                                       ? 'bg-warn-soft hover:bg-warn-soft/80 text-warn border-warn-border'
                                       : 'bg-surface hover:bg-surface-2 text-brand border-line'
                                   }`}
-                                  title={isAdmin ? 'تغيير الرقم السري للمدير (يتطلب الرقم الحالي)' : 'إعادة ضبط الرقم السري للكاشير'}
+                                  title={isAdmin ? 'تغيير الرقم السري لمدير المحل (يتطلب الرقم الحالي)' : 'إعادة ضبط الرقم السري للكاشير'}
                                 >
                                   {isAdmin ? 'تغيير PIN المدير' : 'تغيير PIN'}
                                 </button>
@@ -460,13 +460,13 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                   required
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="مثال: أحمد عبد الله (أو كاشير 2)"
+                  placeholder="مثال: أحمد عبد الله (أو كاشير الوردية الصباحية)"
                   className="w-full bg-surface border border-line rounded-xl px-3.5 py-2.5 text-ink text-sm focus:outline-none focus:border-brand"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-ink-muted mb-1">اسم المستخدم (للتسجيل والدخول)</label>
+                <label className="block text-xs font-semibold text-ink-muted mb-1">اسم المستخدم (للدخول السريع)</label>
                 <input
                   type="text"
                   required
@@ -489,8 +489,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                         : 'bg-surface border-line hover:border-brand/40'
                     }`}
                   >
-                    <div className="font-bold text-ink text-sm">كاشير (نقطة البيع)</div>
-                    <div className="text-[11px] text-ink-muted mt-0.5">البيع، إضافة العملاء والبحث. لا يملك الوصول للتقارير أو الإعدادات أو تعديل الأسعار.</div>
+                    <div className="font-bold text-ink text-sm">كاشير (شاشة البيع فقط)</div>
+                    <div className="text-[11px] text-ink-muted mt-0.5">البيع، إضافة الزبائن، والبحث في البضاعة. ملوش صلاحية يشوف التقارير أو الإعدادات أو يعدل أسعار البيع والشراء.</div>
                   </button>
                   <button
                     type="button"
@@ -501,13 +501,13 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                         : 'bg-surface border-line hover:border-warn/40'
                     }`}
                   >
-                    <div className="font-bold text-ink text-sm">مدير نظام</div>
-                    <div className="text-[11px] text-ink-muted mt-0.5">كامل الصلاحيات: التقارير، السلع والمخزن، الإعدادات، وإدارة حسابات الموظفين.</div>
+                    <div className="font-bold text-ink text-sm">مدير محل</div>
+                    <div className="text-[11px] text-ink-muted mt-0.5">كامل الصلاحيات: التقارير، الخزينة، إضافة وتعديل البضاعة والمخزن، الإعدادات، وإدارة حسابات الموظفين.</div>
                   </button>
                 </div>
                 {role === 'admin' && (
                   <p className="text-[11px] text-warn mt-2 bg-warn-soft p-2 rounded-lg border border-warn-border">
-                    تنبيه: حساب مدير النظام يمتلك صلاحيات كاملة على الخزينة والأسعار وحذف السجلات.
+                    تنبيه: حساب مدير المحل عنده صلاحيات كاملة على الخزينة والأسعار وحذف السجلات.
                   </p>
                 )}
               </div>
@@ -750,8 +750,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
 
         {/* Footer */}
         <div className="px-6 py-3 bg-surface-2 border-t border-line flex items-center justify-between text-xs text-ink-muted">
-          <span>حماية متعددة الموظفين — تشفير أمني مشدد ومستقل لكل حساب</span>
-          <span>يتطلب النظام بقاء مدير نظام نشط واحد على الأقل</span>
+          <span>أمان تام ومستقل لكل حساب كاشير — تشفير محلي بدون نت</span>
+          <span>لازم يفضل حساب مدير محل نشط واحد على الأقل في النظام</span>
         </div>
       </div>
     </div>

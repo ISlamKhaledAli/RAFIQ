@@ -814,7 +814,13 @@ namespace RafiqPOS.Services
 
             drawRow(string.Format("إجمالي المبيعات ({0} فواتير):", closing.InvoicesCount), (closing.TotalSalesPiasters / 100.0).ToString("N2") + " ج.م", true);
             drawRow("  • مبيعات نقدية:", (closing.CashSalesPiasters / 100.0).ToString("N2") + " ج.م", false);
+            drawRow("  • مبيعات فيزا / بنك (POS):", (closing.CardSalesPiasters / 100.0).ToString("N2") + " ج.م", false);
             drawRow("  • مبيعات آجلة:", (closing.CreditSalesPiasters / 100.0).ToString("N2") + " ج.م", false);
+
+            if (closing.ExpensesPiasters > 0)
+            {
+                drawRow(string.Format("مصروفات الدرج ({0} إيصالات):", closing.ExpensesCount), "-" + (closing.ExpensesPiasters / 100.0).ToString("N2") + " ج.م", false);
+            }
 
             if (closing.ReturnsTotalPiasters > 0)
             {

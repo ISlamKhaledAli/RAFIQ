@@ -45,7 +45,7 @@ export const CreditPaymentSection = ({
       <div className="flex items-center justify-between hairline-b pb-2">
         <label className="text-xs font-bold text-ink flex items-center gap-1.5">
           <UserCheck className="w-4 h-4 text-brand" />
-          <span>اختيار عميل الحساب الآجل:</span>
+          <span>اختار الزبون اللي هيتسجل عليه الحساب (شكك):</span>
         </label>
         <button
           type="button"
@@ -53,7 +53,7 @@ export const CreditPaymentSection = ({
           className="text-xs text-brand font-bold flex items-center gap-1 hover:underline cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5" />
-          <span>{showQuickAdd ? 'إغلاق الإضافة السريعة' : 'إضافة عميل جديد سريع'}</span>
+          <span>{showQuickAdd ? 'إغلاق الإضافة السريعة' : '+ تسجيل زبون جديد في النوتة'}</span>
         </button>
       </div>
 
@@ -76,13 +76,13 @@ export const CreditPaymentSection = ({
         value={currentCustomerId || ''}
         onChange={(val) => setCurrentCustomerId(val || null)}
         options={[
-          { value: '', label: '-- اختر العميل لتسجيل المديونية عليه --' },
+          { value: '', label: '-- اختار الزبون عشان تسجل الحساب عليه --' },
           ...localCustomers.filter(c => c.id !== 'cust_general_cash').map((c) => ({
             value: c.id,
-            label: `${c.name} ${c.phone ? `(${c.phone})` : ''} - الرصيد الحالي: ${formatArabicCurrency(c.balancePiasters)}`
+            label: `${c.name} ${c.phone ? `(${c.phone})` : ''} - حسابه الحالي: ${formatArabicCurrency(c.balancePiasters)}`
           }))
         ]}
-        placeholder="-- اختر العميل لتسجيل المديونية عليه --"
+        placeholder="-- اختار الزبون عشان تسجل الحساب عليه --"
         size="lg"
         searchable
       />
@@ -96,17 +96,17 @@ export const CreditPaymentSection = ({
           <div className="flex flex-col gap-2">
             <div className="p-3 bg-surface-2 border border-line rounded-md grid grid-cols-3 gap-2 text-xs font-mono">
               <div>
-                <span className="text-ink-muted block text-[10px]">الرصيد السابق:</span>
+                <span className="text-ink-muted block text-[10px]">حسابه القديم:</span>
                 <strong className="text-ink">{formatArabicCurrency(selectedCustomer.balancePiasters)}</strong>
               </div>
               <div>
-                <span className="text-ink-muted block text-[10px]">الحد الائتماني:</span>
+                <span className="text-ink-muted block text-[10px]">سقف الشكك المسموح:</span>
                 <strong className="text-ink">
-                  {selectedCustomer.creditLimitPiasters > 0 ? formatArabicCurrency(selectedCustomer.creditLimitPiasters) : 'غير محدد'}
+                  {selectedCustomer.creditLimitPiasters > 0 ? formatArabicCurrency(selectedCustomer.creditLimitPiasters) : 'مفتوح (غير محدد)'}
                 </strong>
               </div>
               <div>
-                <span className="text-ink-muted block text-[10px]">الرصيد بعد الفاتورة:</span>
+                <span className="text-ink-muted block text-[10px]">إجمالي اللي عليه بعد الفاتورة:</span>
                 <strong className={isOverLimit ? 'text-danger font-black' : 'text-brand font-bold'}>
                   {formatArabicCurrency(totalDebtAfterPiasters)}
                 </strong>
@@ -124,17 +124,17 @@ export const CreditPaymentSection = ({
                 <div className="flex-1 flex flex-col gap-0.5">
                   <span className="font-bold">
                     {isOverLimit 
-                      ? 'تحذير حرج: تجاوز الحد الائتماني المسموح به للعميل!' 
-                      : 'تنبيه: العميل عليه مديونية سابقة مرتفعة!'}
+                      ? 'تحذير: الزبون عدى سقف الشكك المسموح بيه!' 
+                      : 'تنبيه: الزبون عليه فلوس قديمة كتير!'}
                   </span>
                   <p className="m-0 text-[11px] leading-relaxed">
                     {isOverLimit ? (
                       <>
-                        رصيد الدين سيزيد عن الحد الائتماني المحدد ({formatArabicCurrency(selectedCustomer.creditLimitPiasters)}) بمقدار <strong className="font-mono">{formatArabicCurrency(totalDebtAfterPiasters - selectedCustomer.creditLimitPiasters)}</strong>. يرجى توخي الحذر أو طلب سداد نقدي جزئي.
+                        الحساب هيزيد عن السقف المتفق عليه ({formatArabicCurrency(selectedCustomer.creditLimitPiasters)}) بمقدار <strong className="font-mono">{formatArabicCurrency(totalDebtAfterPiasters - selectedCustomer.creditLimitPiasters)}</strong>. الأفضل تطلب منه يدفع جزء كاش الأول.
                       </>
                     ) : (
                       <>
-                        العميل مسجل عليه مديونية سابقة بقيمة <strong className="font-mono">{formatArabicCurrency(selectedCustomer.balancePiasters)}</strong>.
+                        الزبون ده عليه حساب قديم مسجل بمبلغ <strong className="font-mono">{formatArabicCurrency(selectedCustomer.balancePiasters)}</strong>.
                       </>
                     )}
                   </p>

@@ -507,6 +507,19 @@ namespace RafiqPOS.Database
                         }
                     }
 
+                    // 3.5. Health check for customer_ledger table: Ensure all amount_piasters are positive absolute magnitudes
+                    using (var checkLedgerCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='customer_ledger';", conn, trans))
+                    {
+                        var tbl = checkLedgerCmd.ExecuteScalar();
+                        if (tbl != null)
+                        {
+                            using (var fixNegCmd = new SQLiteCommand("UPDATE customer_ledger SET amount_piasters = ABS(amount_piasters) WHERE amount_piasters < 0;", conn, trans))
+                            {
+                                fixNegCmd.ExecuteNonQuery();
+                            }
+                        }
+                    }
+
                     // 4. Health check for sales table
                     using (var checkSalesCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='sales';", conn, trans))
                     {
@@ -999,6 +1012,59 @@ namespace RafiqPOS.Database
                     ", conn, trans))
                     {
                         cleanDemoCmd.ExecuteNonQuery();
+                    }
+
+                    // 14. Health check for daily_closings table (card_sales_piasters and expenses_piasters)
+                    using (var checkClosingCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='daily_closings';", conn, trans))
+                    {
+                        if (checkClosingCmd.ExecuteScalar() != null)
+                        {
+                            var dcCols = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            using (var infoCmd = new SQLiteCommand("PRAGMA table_info(daily_closings);", conn, trans))
+                            using (var reader = infoCmd.ExecuteReader())
+                            {
+                                while (reader.Read())
+                                {
+                                    dcCols.Add(reader["name"].ToString());
+                                }
+                            }
+
+                            if (!dcCols.Contains("card_sales_piasters"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE daily_closings ADD COLUMN card_sales_piasters INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+
+                            if (!dcCols.Contains("expenses_piasters"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE daily_closings ADD COLUMN expenses_piasters INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+                        }
+                    }
+
+                    // 15. Health check for expenses table
+                    using (var createExpCmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS expenses (
+                            id TEXT PRIMARY KEY,
+                            expense_number INTEGER NOT NULL,
+                            amount_piasters INTEGER NOT NULL,
+                            category TEXT NOT NULL DEFAULT 'عام',
+                            notes TEXT,
+                            created_by TEXT,
+                            business_date TEXT NOT NULL,
+                            created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_expenses_bdate ON expenses(business_date);
+                        CREATE INDEX IF NOT EXISTS idx_expenses_created_at ON expenses(created_at);
+                        INSERT OR IGNORE INTO counters (name, current_value, updated_at) VALUES ('expense', 0, datetime('now'));
+                    ", conn, trans))
+                    {
+                        createExpCmd.ExecuteNonQuery();
                     }
 
                     trans.Commit();

@@ -14,7 +14,9 @@ interface UsePosShortcutsProps {
   lastCompletedSale: Sale | null;
   scannerSettings: BarcodeScannerSettings;
   requestClearCart: () => void;
+  handleOpenCheckout?: (forcedMethod?: 'cash' | 'credit') => void;
   handleFastCashCheckout: () => Promise<void>;
+  handleFastCardCheckout?: () => Promise<void>;
   handleFastBarcodeScan: (barcode: string) => Promise<void>;
   openWeightEditorForCartItem: (index: number) => void;
   handleHoldCurrentSale: () => Promise<void>;
@@ -38,7 +40,9 @@ export const usePosShortcuts = ({
   lastCompletedSale,
   scannerSettings,
   requestClearCart,
+  handleOpenCheckout,
   handleFastCashCheckout,
+  handleFastCardCheckout,
   handleFastBarcodeScan,
   openWeightEditorForCartItem,
   handleHoldCurrentSale,
@@ -130,10 +134,12 @@ export const usePosShortcuts = ({
         return;
       }
 
-      // F9: Preview / Print Last Receipt
+      // F9: Open Cash Checkout if cart has items, otherwise Preview / Print Last Receipt
       if (e.key === 'F9') {
         e.preventDefault();
-        if (lastCompletedSale) {
+        if (cart.length > 0 && !loading && handleOpenCheckout) {
+          handleOpenCheckout('cash');
+        } else if (lastCompletedSale) {
           setIsReceiptOpen(true);
         } else {
           showStatus('لا توجد فاتورة سابقة لإعادة طباعتها', 'warning');
@@ -141,14 +147,18 @@ export const usePosShortcuts = ({
         return;
       }
 
-      // F10: Toggle Credit / Cash
+      // F10: Fast Direct Card Pay if cart has items, otherwise Toggle Credit / Cash
       if (e.key === 'F10') {
         e.preventDefault();
-        setPaymentMethod((prev) => {
-          const next = prev === 'cash' ? 'credit' : 'cash';
-          showStatus(next === 'credit' ? 'تم التبديل إلى البيع الآجل (F10)' : 'تم التبديل إلى الدفع النقدي (F10)', 'success');
-          return next;
-        });
+        if (cart.length > 0 && !loading && handleFastCardCheckout) {
+          void handleFastCardCheckout();
+        } else {
+          setPaymentMethod((prev) => {
+            const next = prev === 'cash' ? 'credit' : 'cash';
+            showStatus(next === 'credit' ? 'تم التبديل إلى البيع الآجل (F10)' : 'تم التبديل إلى الدفع النقدي (F10)', 'success');
+            return next;
+          });
+        }
         return;
       }
 
@@ -215,7 +225,9 @@ export const usePosShortcuts = ({
     loading,
     lastCompletedSale,
     requestClearCart,
+    handleOpenCheckout,
     handleFastCashCheckout,
+    handleFastCardCheckout,
     scannerSettings,
     handleFastBarcodeScan,
     openWeightEditorForCartItem,

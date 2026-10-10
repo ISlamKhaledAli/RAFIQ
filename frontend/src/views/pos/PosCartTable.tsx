@@ -62,10 +62,10 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
             <AlertCircle className="w-5 h-5 text-amber-700 shrink-0" />
             <div className="min-w-0">
               <div className="text-xs font-bold text-ink truncate">
-                توجد فاتورة سابقة مفتوحة لم تكتمل (حُفظت تلقائياً قبل إغلاق النظام أو انقطاع الكهرباء):
+                لقينا فاتورة كانت مفتوحة قبل ما السيستم يقفل أو النور يقطع:
               </div>
               <div className="text-[11px] text-ink-muted mt-0.5 truncate">
-                عدد الأصناف: {draftPrompt.items.length} — الإجمالي: {formatArabicCurrency(draftPrompt.items.reduce((sum, i) => sum + i.totalPiasters, 0) - (draftPrompt.discountPiasters || 0))} — تم الحفظ: {new Date(draftPrompt.savedAt).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })}
+                فيها {draftPrompt.items.length} صنف — حسابها: {formatArabicCurrency(draftPrompt.items.reduce((sum, i) => sum + i.totalPiasters, 0) - (draftPrompt.discountPiasters || 0))} — اتحفظت الساعة: {new Date(draftPrompt.savedAt).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })}
               </div>
             </div>
           </div>
@@ -75,14 +75,14 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
               onClick={onRestoreDraft}
               className="px-2.5 py-1 bg-brand hover:bg-brand-hover text-white rounded-lg text-xs font-bold transition-colors shadow-2xs cursor-pointer"
             >
-              استرجاع
+              رجع الفاتورة
             </button>
             <button
               type="button"
               onClick={onDiscardDraft}
               className="px-2 py-1 bg-surface hover:bg-surface-2 border border-line text-ink-muted hover:text-ink rounded-lg text-xs transition-colors cursor-pointer"
             >
-              تجاهل
+              تجاهل وابدأ جديدة
             </button>
           </div>
         </div>
@@ -111,12 +111,12 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
         {/* Table Column Headers */}
         <div className="h-8 sm:h-9 bg-surface-2 border-b border-line flex items-center px-2 sm:px-3 text-xs font-bold text-ink-muted select-none shrink-0 w-full">
           <div className="w-5 shrink-0 text-center font-mono">#</div>
-          <div className="flex-1 min-w-[90px] text-right font-bold pr-1.5 truncate">الصنف / الباركود</div>
+          <div className="flex-1 min-w-[90px] text-right font-bold pr-1.5 truncate">اسم الصنف / الباركود</div>
           <div className="w-14 sm:w-16 shrink-0 text-left tabular-nums font-bold">السعر</div>
-          <div className="w-18 sm:w-20 shrink-0 text-center font-bold">الكمية</div>
+          <div className="w-18 sm:w-20 shrink-0 text-center font-bold">العدد / الوزن</div>
           <div className="w-10 sm:w-11 shrink-0 text-center font-bold">خصم</div>
           <div className="w-14 sm:w-16 shrink-0 text-left tabular-nums font-bold">الإجمالي</div>
-          <div className="w-6 sm:w-7 shrink-0 text-center font-bold">حذف</div>
+          <div className="w-6 sm:w-7 shrink-0 text-center font-bold">مسح</div>
         </div>
 
         {/* Cart Items List */}
@@ -127,14 +127,14 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                 <ShoppingBag className="w-7 h-7 text-ink-muted/60 stroke-[1.5]" />
               </div>
               <div className="text-center">
-                <p className="text-sm sm:text-base font-extrabold text-ink m-0">سلة البيع فارغة</p>
+                <p className="text-sm sm:text-base font-extrabold text-ink m-0">السلة فاضية</p>
                 <p className="text-xs text-ink-muted m-0 mt-0.5 font-medium">
-                  امسح الباركود، أو اختر من قائمة الأصناف السريعة على اليسار لبدء الفاتورة
+                  اضرب الباركود بالاسكانر أو اختار الصنف من الشاشة لبدء الفاتورة
                 </p>
               </div>
               {lastInvoiceNumber && (
                 <span className="text-xs font-mono font-bold text-paid bg-paid-soft border border-paid-border px-3 py-1 rounded-xl shadow-2xs">
-                  آخر فاتورة تم حفظها: #{lastInvoiceNumber}
+                  آخر فاتورة طلعت: #{lastInvoiceNumber}
                 </span>
               )}
             </div>
@@ -196,10 +196,11 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                   {editingPriceIndex === index ? (
                     <div className="flex items-center gap-0.5">
                       <input
-                        type="number"
-                        step="0.25"
+                        type="text"
+                        inputMode="decimal"
                         autoFocus
                         defaultValue={(item.unitPricePiasters / 100).toFixed(2)}
+                        onFocus={(e) => e.target.select()}
                         onBlur={(e) => {
                           const val = parseFloat(normalizeArabicNumerals(e.target.value));
                           if (!isNaN(val) && val >= 0) {

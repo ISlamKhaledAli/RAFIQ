@@ -39,6 +39,16 @@
     font-feature-settings: "lnum" 1, "tnum" 1, "locl" 0, "anum" 0;
   }
 
+  /* Disable browser native number spinners globally */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none !important;
+    margin: 0 !important;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield !important;
+  }
+
   /* High-clarity Arabic placeholder font & letter-spacing fix */
   input::placeholder, textarea::placeholder {
     font-family: 'IBM Plex Sans Arabic', 'Cairo', 'Tajawal', 'Segoe UI', Tahoma, sans-serif !important;

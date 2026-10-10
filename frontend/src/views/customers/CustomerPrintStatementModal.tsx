@@ -12,11 +12,13 @@ export interface CustomerPrintStatementModalProps {
     openingBalancePiasters: number;
     periodDebitsPiasters: number;
     periodCreditsPiasters: number;
+    periodRefundsPiasters?: number;
     closingBalancePiasters: number;
   };
   filteredStatementEntries: CustomerLedgerEntry[];
   statementPrintMode: 'thermal' | 'a4';
   setStatementPrintMode: (mode: 'thermal' | 'a4') => void;
+  isEntryCancelled?: (entryId: string) => boolean;
   onExecutePrint: () => void;
 }
 
@@ -30,6 +32,7 @@ export const CustomerPrintStatementModal: React.FC<CustomerPrintStatementModalPr
   filteredStatementEntries,
   statementPrintMode,
   setStatementPrintMode,
+  isEntryCancelled,
   onExecutePrint,
 }) => {
   if (!isOpen || !selectedCustomer) return null;
@@ -41,7 +44,7 @@ export const CustomerPrintStatementModal: React.FC<CustomerPrintStatementModalPr
         <div className="h-12 bg-surface-2 hairline-b px-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <Printer className="w-4 h-4 text-brand" />
-            <span className="text-sm font-bold text-ink">معاينة طباعة كشف الحساب</span>
+            <span className="text-sm font-bold text-ink">معاينة وصل كشف الحساب قبل الطباعة</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -49,24 +52,24 @@ export const CustomerPrintStatementModal: React.FC<CustomerPrintStatementModalPr
               <button
                 type="button"
                 onClick={() => setStatementPrintMode('thermal')}
-                className={`px-2.5 py-1 rounded font-semibold text-[11px] ${
+                className={`px-2.5 py-1 rounded font-semibold text-[11px] cursor-pointer ${
                   statementPrintMode === 'thermal' ? 'bg-surface text-brand shadow-xs' : 'text-ink-muted'
                 }`}
               >
-                حراري (80 مم)
+                وصل حراري (بون كاشير)
               </button>
               <button
                 type="button"
                 onClick={() => setStatementPrintMode('a4')}
-                className={`px-2.5 py-1 rounded font-semibold text-[11px] ${
+                className={`px-2.5 py-1 rounded font-semibold text-[11px] cursor-pointer ${
                   statementPrintMode === 'a4' ? 'bg-surface text-brand shadow-xs' : 'text-ink-muted'
                 }`}
               >
-                ورق كبير (A4)
+                ورقة كبيرة (A4)
               </button>
             </div>
 
-            <button onClick={onClose} className="text-ink-muted hover:text-ink">
+            <button onClick={onClose} className="text-ink-muted hover:text-ink cursor-pointer">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -82,7 +85,7 @@ export const CustomerPrintStatementModal: React.FC<CustomerPrintStatementModalPr
             {/* Store Header */}
             <div className="text-center pb-3 border-b border-black mb-3">
               <h2 className="text-base font-extrabold mb-0.5">رفيق لنقاط البيع وإدارة المتاجر</h2>
-              <p className="text-[11px] text-neutral-600 font-semibold">كشف حساب عميل تفصيلي</p>
+              <p className="text-[11px] text-neutral-600 font-semibold">كشف حساب زبون تفصيلي</p>
               <p className="text-[10px] text-neutral-500 font-mono mt-0.5">
                 تاريخ الاستخراج: {new Date().toLocaleString('ar-EG-u-nu-latn')}
               </p>
@@ -91,12 +94,12 @@ export const CustomerPrintStatementModal: React.FC<CustomerPrintStatementModalPr
             {/* Customer Details Box */}
             <div className="bg-neutral-50 p-2.5 rounded border border-neutral-200 text-xs mb-3 space-y-1">
               <div className="flex justify-between">
-                <span className="font-semibold text-neutral-600">اسم العميل:</span>
+                <span className="font-semibold text-neutral-600">اسم الزبون:</span>
                 <span className="font-bold">{selectedCustomer.name}</span>
               </div>
               {selectedCustomer.phone && (
                 <div className="flex justify-between">
-                  <span className="font-semibold text-neutral-600">رقم الهاتف:</span>
+                  <span className="font-semibold text-neutral-600">رقم الموبايل:</span>
                   <span className="font-mono">{selectedCustomer.phone}</span>
                 </div>
               )}
@@ -114,33 +117,41 @@ export const CustomerPrintStatementModal: React.FC<CustomerPrintStatementModalPr
               <div className="flex items-center justify-between border-b border-neutral-200 pb-1.5 mb-1.5">
                 <span className="font-bold text-neutral-800">
                   {statementPeriodSummary.closingBalancePiasters > 0
-                    ? 'الرصيد المطلوب سداده (عليه دين):'
+                    ? 'حساب الزبون (عليه فلوس للمحل):'
                     : statementPeriodSummary.closingBalancePiasters < 0
-                    ? 'رصيد زائد للعميل (له مستحق):'
-                    : 'الوضع المالي للعميل (خالص):'}
+                    ? 'حساب الزبون (له رصيد في المحل):'
+                    : 'حساب الزبون (خالص تماماً):'}
                 </span>
                 <span className="font-bold font-mono text-sm text-neutral-900">
                   {(Math.abs(statementPeriodSummary.closingBalancePiasters) / 100).toFixed(2)} ج.م
-                  {statementPeriodSummary.closingBalancePiasters > 0 && ' (عليه)'}
-                  {statementPeriodSummary.closingBalancePiasters < 0 && ' (له)'}
+                  {statementPeriodSummary.closingBalancePiasters > 0 && ' (عليه فلوس)'}
+                  {statementPeriodSummary.closingBalancePiasters < 0 && ' (له فلوس)'}
                   {statementPeriodSummary.closingBalancePiasters === 0 && ' (خالص)'}
                 </span>
               </div>
-              <div className="grid grid-cols-3 gap-1 text-[10px] text-neutral-600 pt-0.5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 text-[10px] text-neutral-600 pt-0.5">
                 <div>
-                  <span>مسحوبات آجل: </span>
+                  <span className="font-bold">أخد بضاعة (على الحساب): </span>
                   <span className="font-bold font-mono text-neutral-800">
                     {(statementPeriodSummary.periodDebitsPiasters / 100).toFixed(2)} ج.م
                   </span>
                 </div>
                 <div>
-                  <span>سداد نقدي: </span>
+                  <span className="font-bold">سدد فلوس (كاش): </span>
                   <span className="font-bold font-mono text-neutral-800">
                     {(statementPeriodSummary.periodCreditsPiasters / 100).toFixed(2)} ج.م
                   </span>
                 </div>
+                {statementPeriodSummary.periodRefundsPiasters !== undefined && statementPeriodSummary.periodRefundsPiasters > 0 && (
+                  <div>
+                    <span className="font-bold">مرتجع بضاعة (خصم): </span>
+                    <span className="font-bold font-mono text-neutral-800">
+                      -{(statementPeriodSummary.periodRefundsPiasters / 100).toFixed(2)} ج.م
+                    </span>
+                  </div>
+                )}
                 <div>
-                  <span>رصيد سابق: </span>
+                  <span className="font-bold">حسابه القديم (اللي فات): </span>
                   <span className="font-bold font-mono text-neutral-800">
                     {(Math.abs(statementPeriodSummary.openingBalancePiasters) / 100).toFixed(2)} ج.م
                   </span>
@@ -161,16 +172,33 @@ export const CustomerPrintStatementModal: React.FC<CustomerPrintStatementModalPr
               <tbody className="divide-y divide-neutral-200">
                 {filteredStatementEntries.map((entry) => {
                   const isPayment = entry.type === 'payment';
+                  const isDeposit = entry.type === 'deposit';
+                  const isRefund = entry.type === 'refund';
+                  const isCancel = entry.type === 'payment_cancel';
+                  const alreadyCancelled = isPayment && isEntryCancelled && isEntryCancelled(entry.id);
+                  const isCreditReduction = isPayment || isDeposit || isRefund;
+                  const absAmt = (Math.abs(entry.amountPiasters) / 100).toFixed(2);
+
+                  let label = entry.notes;
+                  if (!label) {
+                    if (isPayment) label = alreadyCancelled ? 'سداد اتلغى' : 'سداد كاش';
+                    else if (isCancel) label = 'إلغاء سداد (قيد عكسي)';
+                    else if (isRefund) label = 'مرتجع بضاعة (خصم)';
+                    else if (isDeposit) label = 'سايب فلوس تحت الحساب';
+                    else if (entry.type === 'sale') label = 'فاتورة على الحساب';
+                    else label = 'رصيد افتتاحي';
+                  }
+
                   return (
-                    <tr key={entry.id} className="py-1">
+                    <tr key={entry.id} className={`py-1 ${alreadyCancelled ? 'text-neutral-400 line-through' : ''}`}>
                       <td className="py-1 text-[10px] font-mono text-neutral-600">
                         {new Date(entry.createdAt).toLocaleDateString('ar-EG-u-nu-latn')}
                       </td>
                       <td className="py-1">
-                        <span className="font-semibold block">{entry.notes || (isPayment ? 'سداد نقدي' : 'فاتورة آجل')}</span>
+                        <span className="font-semibold block">{label}</span>
                       </td>
                       <td className="py-1 text-center font-mono font-bold">
-                        {isPayment ? '-' : '+'}{(entry.amountPiasters / 100).toFixed(2)}
+                        {isCreditReduction ? '-' : '+'}{absAmt}
                       </td>
                       <td className="py-1 text-left font-mono font-bold text-neutral-800">
                         {(entry.balanceAfterPiasters / 100).toFixed(2)}
@@ -194,18 +222,18 @@ export const CustomerPrintStatementModal: React.FC<CustomerPrintStatementModalPr
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-1.5 rounded bg-surface border border-line text-xs font-semibold text-ink hover:bg-surface-2"
+            className="px-4 py-1.5 rounded bg-surface border border-line text-xs font-semibold text-ink hover:bg-surface-2 cursor-pointer"
           >
-            إلغاء
+            رجوع
           </button>
 
           <button
             type="button"
             onClick={onExecutePrint}
-            className="px-5 py-2 rounded bg-brand hover:bg-brand-hover text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors"
+            className="px-5 py-2 rounded bg-brand hover:bg-brand-hover text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
           >
             <Printer className="w-4 h-4" />
-            <span>طباعة الآن ({statementPrintMode === 'thermal' ? 'طابعة حرارية' : 'طابعة مكتبية'})</span>
+            <span>اطبع دلوقتي ({statementPrintMode === 'thermal' ? 'طابعة الكاشير' : 'طابعة A4'})</span>
           </button>
         </div>
       </div>

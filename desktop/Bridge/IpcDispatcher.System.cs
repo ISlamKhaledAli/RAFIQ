@@ -16,6 +16,14 @@ namespace RafiqPOS.Bridge
             response = null;
             switch (request.Action)
             {
+                case "system:appReady":
+                    if (RafiqPOS.MainForm.Instance != null)
+                    {
+                        RafiqPOS.MainForm.Instance.NotifyAppReady();
+                    }
+                    response = BridgeResponse.Ok(request.Id, new { ready = true });
+                    return true;
+
                 case "system:getInfo":
                     string osDetails = RafiqPOS.Common.OsDetector.GetOsFriendlyName() + (Environment.Is64BitOperatingSystem ? " (64-bit)" : " (32-bit)");
                     response = BridgeResponse.Ok(request.Id, new

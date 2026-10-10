@@ -42,7 +42,7 @@ import {
 } from './components/NotificationCenter';
 import { useSystemNotifications } from './utils/useSystemNotifications';
 import { invoke } from './bridge/ipc';
-import { useDataSubscription, emitDataChanged } from './utils/eventBus';
+import { useDataSubscription } from './utils/eventBus';
 import { PosView } from './views/PosView';
 import { DashboardView } from './views/DashboardView';
 import { RevenueAnalyticsView } from './views/analytics/RevenueAnalyticsView';
@@ -440,6 +440,7 @@ export default function App() {
       }
     };
     void loadInfo();
+    void invoke('system:appReady').catch(() => {});
 
     const checkClock = async () => {
       try {
@@ -625,10 +626,9 @@ export default function App() {
         return;
       }
 
-      // 4. F5 or Ctrl+R for instant live soft data refresh across all views
-      if (e.key === 'F5' || (e.ctrlKey && e.key.toLowerCase() === 'r')) {
-        e.preventDefault();
-        emitDataChanged('all');
+      // 4. Ctrl+R or F5: Universal refresh / reload (restores full application reload)
+      if (e.key === 'F5' || (e.ctrlKey && (e.key.toLowerCase() === 'r' || e.code === 'KeyR'))) {
+        window.location.reload();
         return;
       }
     };
@@ -673,31 +673,31 @@ export default function App() {
   };
 
   const dashboardTreeItems = [
-    { id: 'today' as DashboardSubTab, label: 'لوحة اليوم والتشغيل', icon: LayoutDashboard },
-    { id: 'revenue' as DashboardSubTab, label: 'تحليل الإيرادات والأرباح', icon: TrendingUp },
-    { id: 'inventory' as DashboardSubTab, label: 'حركة المخزون والفاقد', icon: Boxes },
-    { id: 'customers' as DashboardSubTab, label: 'العملاء والآجل والديون', icon: Users },
+    { id: 'today' as DashboardSubTab, label: 'لوحة اليوم والوردية', icon: LayoutDashboard },
+    { id: 'revenue' as DashboardSubTab, label: 'حساب الإيرادات والأرباح', icon: TrendingUp },
+    { id: 'inventory' as DashboardSubTab, label: 'حركة المخزن والتوالف', icon: Boxes },
+    { id: 'customers' as DashboardSubTab, label: 'العملاء وحسابات الشكك', icon: Users },
   ];
 
   const settingsTreeItems = [
-    { id: 'profile' as SettingsSubTab, label: 'بيانات المتجر والفاتورة', icon: Store },
-    { id: 'backup' as SettingsSubTab, label: 'النسخ الاحتياطي وحماية البيانات', icon: HardDrive },
+    { id: 'profile' as SettingsSubTab, label: 'بيانات المحل والفاتورة', icon: Store },
+    { id: 'backup' as SettingsSubTab, label: 'نسخة احتياطية وحماية البيانات', icon: HardDrive },
     { id: 'printer' as SettingsSubTab, label: 'إعدادات الطابعة والورق', icon: Printer },
-    { id: 'system' as SettingsSubTab, label: 'مفاتيح الميزات وفحص النظام', icon: Activity },
-    { id: 'scanner' as SettingsSubTab, label: 'قارئ الباركود والماسح', icon: Barcode },
+    { id: 'system' as SettingsSubTab, label: 'مفاتيح الميزات وفحص السيستم', icon: Activity },
+    { id: 'scanner' as SettingsSubTab, label: 'قارئ الباركود والاسكانر', icon: Barcode },
     { id: 'security' as SettingsSubTab, label: 'الرقم السري وأمان الشاشات', icon: KeyRound },
-    { id: 'demo' as SettingsSubTab, label: 'البيانات التجريبية والتدريب', icon: FlaskConical },
+    { id: 'demo' as SettingsSubTab, label: 'بيانات تجريبية وتدريب', icon: FlaskConical },
   ];
 
   const allNavItems = [
-    { id: 'pos' as TabType, label: 'نقطة البيع', icon: ShoppingCart, shortcut: 'F1 / Alt+1' },
-    { id: 'dashboard' as TabType, label: 'لوحة اليوم والمتابعة', icon: LayoutDashboard, shortcut: 'Alt+2' },
-    { id: 'customers' as TabType, label: 'العملاء والآجل', icon: Users, shortcut: 'Alt+3' },
-    { id: 'products' as TabType, label: 'السلع والمخزن', icon: Package, shortcut: 'Alt+4' },
-    { id: 'purchases' as TabType, label: 'المشتريات والموردين', icon: Truck, shortcut: 'Alt+5' },
-    { id: 'sales' as TabType, label: 'سجل الفواتير', icon: FileText, shortcut: 'Alt+6' },
-    { id: 'audit' as TabType, label: 'سجل العمليات الحساسة', icon: ShieldAlert, shortcut: 'Alt+7' },
-    { id: 'settings' as TabType, label: 'إعدادات المتجر والصيانة', icon: Settings, shortcut: 'Alt+8' },
+    { id: 'pos' as TabType, label: 'الكاشير وشاشة البيع', icon: ShoppingCart, shortcut: 'F1 / Alt+1' },
+    { id: 'dashboard' as TabType, label: 'لوحة اليوم والوردية', icon: LayoutDashboard, shortcut: 'Alt+2' },
+    { id: 'customers' as TabType, label: 'العملاء وحسابات الشكك', icon: Users, shortcut: 'Alt+3' },
+    { id: 'products' as TabType, label: 'الأصناف والمخزن', icon: Package, shortcut: 'Alt+4' },
+    { id: 'purchases' as TabType, label: 'فواتير الشراء والموردين', icon: Truck, shortcut: 'Alt+5' },
+    { id: 'sales' as TabType, label: 'سجل وفواتير البيع', icon: FileText, shortcut: 'Alt+6' },
+    { id: 'audit' as TabType, label: 'سجل المراقبة والأمان', icon: ShieldAlert, shortcut: 'Alt+7' },
+    { id: 'settings' as TabType, label: 'إعدادات المحل والسيستم', icon: Settings, shortcut: 'Alt+8' },
   ];
 
   const navItems = currentUser?.role === 'cashier'
@@ -1061,11 +1061,11 @@ export default function App() {
                             ? 'bg-paid text-white font-bold shadow-2xs'
                             : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
                         }`}
-                        title="كتالوج الأصناف"
+                        title="كتالوج الأصناف والأسعار"
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <Tag className="w-3.5 h-3.5 shrink-0" />
-                          <span className="truncate whitespace-nowrap">كتالوج الأصناف</span>
+                          <span className="truncate whitespace-nowrap">كتالوج الأصناف والأسعار</span>
                         </div>
                       </button>
 
@@ -1080,11 +1080,11 @@ export default function App() {
                             ? 'bg-paid text-white font-bold shadow-2xs'
                             : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
                         }`}
-                        title="حركات وجرد المخزون"
+                        title="حركات وجرد المخزن"
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <Boxes className="w-3.5 h-3.5 shrink-0" />
-                          <span className="truncate whitespace-nowrap">حركات وجرد المخزون</span>
+                          <span className="truncate whitespace-nowrap">حركات وجرد المخزن</span>
                         </div>
                       </button>
 
@@ -1125,7 +1125,7 @@ export default function App() {
                             ? 'bg-paid text-white font-bold shadow-2xs'
                             : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
                         }`}
-                        title="فاتورة شراء جديدة"
+                        title="فاتورة شراء بضاعة جديدة"
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <Plus className="w-3.5 h-3.5 shrink-0" />
@@ -1144,11 +1144,11 @@ export default function App() {
                             ? 'bg-paid text-white font-bold shadow-2xs'
                             : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
                         }`}
-                        title="فواتير المشتريات"
+                        title="سجل فواتير الشراء"
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <Receipt className="w-3.5 h-3.5 shrink-0" />
-                          <span className="truncate whitespace-nowrap">فواتير المشتريات</span>
+                          <span className="truncate whitespace-nowrap">سجل فواتير الشراء</span>
                         </div>
                       </button>
 
@@ -1163,11 +1163,11 @@ export default function App() {
                             ? 'bg-paid text-white font-bold shadow-2xs'
                             : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
                         }`}
-                        title="دليل الموردين"
+                        title="دليل الموردين والشركات"
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <Building2 className="w-3.5 h-3.5 shrink-0" />
-                          <span className="truncate whitespace-nowrap">دليل الموردين</span>
+                          <span className="truncate whitespace-nowrap">دليل الموردين والشركات</span>
                         </div>
                       </button>
                     </div>

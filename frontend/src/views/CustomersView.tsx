@@ -25,12 +25,15 @@ import { CustomerPrintStatementModal } from './customers/CustomerPrintStatementM
 import { CustomerImportExcelModal } from './customers/CustomerImportExcelModal';
 import { PaginationBar } from '../components/PaginationBar';
 import { useClientPagination } from '../utils/usePagination';
+import { RafiqTableLoading } from '../components/RafiqLoadingState';
+import { useSmoothLoading } from '../utils/useSmoothLoading';
 
 export function CustomersView() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'debtors' | 'settled'>('all');
   const [isLoading, setIsLoading] = useState(false);
+  const showLoading = useSmoothLoading(isLoading, 300);
 
   // Modals state
   const [isAddEditOpen, setIsAddEditOpen] = useState(false);
@@ -211,7 +214,7 @@ export function CustomersView() {
     void loadCustomers();
   }, [loadCustomers]);
 
-  useDataSubscription(['customers', 'sales', 'all'], () => {
+  useDataSubscription(['customers', 'sales'], () => {
     void loadCustomers();
   });
 
@@ -451,14 +454,35 @@ export function CustomersView() {
   }, [statementEntries, statementStartDate, statementEndDate]);
 
   const statementPeriodSummary = useMemo(() => {
-    let debits = 0;
-    let credits = 0;
+    let salesDebits = 0;
+    let activeCashPayments = 0;
+    let refundsCredits = 0;
+
     filteredStatementEntries.forEach(entry => {
       const t = entry.type.toLowerCase();
-      if (t === 'sale' || t === 'opening_balance' || t === 'debt_increase' || t === 'payment_cancel') {
-        debits += entry.amountPiasters;
-      } else if (t === 'payment' || t === 'refund' || t === 'cancellation' || t === 'debt_decrease') {
-        credits += entry.amountPiasters;
+      const amt = Math.abs(entry.amountPiasters);
+
+      if (t === 'sale') {
+        salesDebits += amt;
+      } else if (t === 'opening_balance') {
+        if (entry.amountPiasters >= 0) {
+          salesDebits += amt;
+        } else {
+          activeCashPayments += amt;
+        }
+      } else if (t === 'debt_increase') {
+        salesDebits += amt;
+      } else if (t === 'payment') {
+        // Only count as active cash payment if NOT cancelled
+        if (!isEntryCancelled(entry.id)) {
+          activeCashPayments += amt;
+        }
+      } else if (t === 'payment_cancel') {
+        // Contra entry reversing an annulled payment: already offsets the payment, do NOT inflate sales
+      } else if (t === 'refund' || t === 'debt_decrease') {
+        refundsCredits += amt;
+      } else if (t === 'deposit') {
+        activeCashPayments += amt;
       }
     });
 
@@ -468,25 +492,28 @@ export function CustomersView() {
         const d = entry.createdAt.slice(0, 10);
         if (d < statementStartDate) {
           const t = entry.type.toLowerCase();
-          if (t === 'sale' || t === 'opening_balance' || t === 'debt_increase' || t === 'payment_cancel') {
-            priorBal += entry.amountPiasters;
-          } else if (t === 'payment' || t === 'refund' || t === 'cancellation' || t === 'debt_decrease') {
-            priorBal -= entry.amountPiasters;
+          const amt = Math.abs(entry.amountPiasters);
+          if (t === 'sale' || (t === 'opening_balance' && entry.amountPiasters >= 0) || t === 'debt_increase' || t === 'payment_cancel') {
+            priorBal += amt;
+          } else if (t === 'payment' || t === 'refund' || t === 'cancellation' || t === 'debt_decrease' || t === 'deposit' || (t === 'opening_balance' && entry.amountPiasters < 0)) {
+            priorBal -= amt;
           }
         }
       });
     }
 
     const currentCustomerBalance = selectedCustomer?.balancePiasters || 0;
-    const closingBal = statementStartDate ? (priorBal + debits - credits) : currentCustomerBalance;
+    const netPeriodChange = salesDebits - activeCashPayments - refundsCredits;
+    const closingBal = statementStartDate ? (priorBal + netPeriodChange) : currentCustomerBalance;
 
     return {
-      periodDebitsPiasters: debits,
-      periodCreditsPiasters: credits,
+      periodDebitsPiasters: salesDebits,
+      periodCreditsPiasters: activeCashPayments,
+      periodRefundsPiasters: refundsCredits,
       openingBalancePiasters: priorBal,
       closingBalancePiasters: closingBal
     };
-  }, [filteredStatementEntries, statementEntries, statementStartDate, selectedCustomer]);
+  }, [filteredStatementEntries, statementEntries, statementStartDate, selectedCustomer, isEntryCancelled]);
 
   const handleConfirmCancelPayment = async () => {
     if (!selectedCustomer || !cancellingEntry) return;
@@ -567,14 +594,14 @@ export function CustomersView() {
         {/* Card 1: Total Debts */}
         <div className="bg-surface rounded-xl border border-line p-3 flex items-center justify-between shadow-2xs hover:border-danger/40 transition-colors">
           <div className="min-w-0">
-            <span className="text-[11px] text-ink-muted font-bold block mb-0.5 truncate">إجمالي الديون المستحقة</span>
+            <span className="text-[11px] text-ink-muted font-bold block mb-0.5 truncate">إجمالي الفلوس اللي برة (عند الزباين)</span>
             <div className="flex items-baseline gap-1">
               <span className="text-xl sm:text-2xl font-black font-mono text-danger tabular-nums tracking-tight">
                 {(totalDebtsPiasters / 100).toFixed(2)}
               </span>
               <span className="text-xs font-bold text-ink-muted">ج.م</span>
             </div>
-            <span className="text-[10px] text-danger font-medium block mt-0.5">آجل مستحق للتحصيل</span>
+            <span className="text-[10px] text-danger font-medium block mt-0.5">فلوس لسه ما اتسددتش</span>
           </div>
           <div className="w-9 h-9 rounded-xl bg-danger-soft border border-danger-border flex items-center justify-center text-danger shadow-2xs shrink-0">
             <CreditCard className="w-4.5 h-4.5" />
@@ -584,14 +611,14 @@ export function CustomersView() {
         {/* Card 2: Debtor count */}
         <div className="bg-surface rounded-xl border border-line p-3 flex items-center justify-between shadow-2xs hover:border-warn/40 transition-colors">
           <div className="min-w-0">
-            <span className="text-[11px] text-ink-muted font-bold block mb-0.5 truncate">العملاء المدينون</span>
+            <span className="text-[11px] text-ink-muted font-bold block mb-0.5 truncate">الزبائن اللي عليهم فلوس</span>
             <div className="flex items-baseline gap-1">
               <span className="text-xl sm:text-2xl font-black font-mono text-ink tabular-nums tracking-tight">
                 {debtorsCount}
               </span>
               <span className="text-xs font-bold text-ink-muted">عميل</span>
             </div>
-            <span className="text-[10px] text-warn font-bold block mt-0.5">عليهم حسابات آجلة</span>
+            <span className="text-[10px] text-warn font-bold block mt-0.5">عليهم حساب في النوتة</span>
           </div>
           <div className="w-9 h-9 rounded-xl bg-warn-soft border border-warn-border flex items-center justify-center text-warn shadow-2xs shrink-0">
             <AlertTriangle className="w-4.5 h-4.5" />
@@ -601,14 +628,14 @@ export function CustomersView() {
         {/* Card 3: Total Credit Limit */}
         <div className="bg-surface rounded-xl border border-line p-3 flex items-center justify-between shadow-2xs hover:border-line-hover transition-colors">
           <div className="min-w-0">
-            <span className="text-[11px] text-ink-muted font-bold block mb-0.5 truncate">سقف الائتمان الإجمالي</span>
+            <span className="text-[11px] text-ink-muted font-bold block mb-0.5 truncate">أعلى حد للشكك مسموح بيه</span>
             <div className="flex items-baseline gap-1">
               <span className="text-xl sm:text-2xl font-black font-mono text-ink tabular-nums tracking-tight">
                 {(totalCreditLimitPiasters / 100).toFixed(2)}
               </span>
               <span className="text-xs font-bold text-ink-muted">ج.م</span>
             </div>
-            <span className="text-[10px] text-ink-muted block mt-0.5">الحد الأقصى المسموح</span>
+            <span className="text-[10px] text-ink-muted block mt-0.5">سقف الديون المسموح</span>
           </div>
           <div className="w-9 h-9 rounded-xl bg-surface-2 border border-line flex items-center justify-center text-ink-muted shadow-2xs shrink-0">
             <FileText className="w-4.5 h-4.5" />
@@ -618,14 +645,14 @@ export function CustomersView() {
         {/* Card 4: Total customers count */}
         <div className="bg-surface rounded-xl border border-line p-3 flex items-center justify-between shadow-2xs hover:border-paid/40 transition-colors">
           <div className="min-w-0">
-            <span className="text-[11px] text-ink-muted font-bold block mb-0.5 truncate">إجمالي عملاء الدفتر</span>
+            <span className="text-[11px] text-ink-muted font-bold block mb-0.5 truncate">إجمالي الزبائن المسجلين</span>
             <div className="flex items-baseline gap-1">
               <span className="text-xl sm:text-2xl font-black font-mono text-paid tabular-nums tracking-tight">
                 {customers.length}
               </span>
               <span className="text-xs font-bold text-ink-muted">عميل</span>
             </div>
-            <span className="text-[10px] text-paid font-bold block mt-0.5">مسجلون في النظام</span>
+            <span className="text-[10px] text-paid font-bold block mt-0.5">مسجلين في الدفتر</span>
           </div>
           <div className="w-9 h-9 rounded-xl bg-paid-soft border border-paid-border flex items-center justify-center text-paid shadow-2xs shrink-0">
             <Users className="w-4.5 h-4.5" />
@@ -675,7 +702,7 @@ export function CustomersView() {
                   : 'text-ink-muted hover:text-danger hover:bg-surface'
               }`}
             >
-              عليهم دين ({debtorsCount})
+              عليهم فلوس ({debtorsCount})
             </button>
             <button
               onClick={() => setFilterType('settled')}
@@ -685,7 +712,7 @@ export function CustomersView() {
                   : 'text-ink-muted hover:text-paid hover:bg-surface'
               }`}
             >
-              مسددون ({customers.length - debtorsCount})
+              حسابهم خالص ({customers.length - debtorsCount})
             </button>
           </div>
 
@@ -738,12 +765,12 @@ export function CustomersView() {
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={6} className="py-16 text-center text-[#52605D]">
-                    جاري تحميل دفتر العملاء...
-                  </td>
-                </tr>
+              {showLoading ? (
+                <RafiqTableLoading
+                  colSpan={6}
+                  label="جاري تحميل سجل العملاء والذمم المالية..."
+                  sublabel="استرجاع الحسابات ومطابقة أرصدة الديون والحدود الائتمانية"
+                />
               ) : filteredCustomers.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-16 text-center text-[#52605D]">
@@ -784,11 +811,11 @@ export function CustomersView() {
                         }`}>
                           {(Math.abs(cust.balancePiasters) / 100).toFixed(2)} ج.م
                           {cust.balancePiasters > 0 ? (
-                            <span className="mr-1 text-[10px] font-sans font-bold text-rose-700">(عليه)</span>
+                            <span className="mr-1 text-[10px] font-sans font-bold text-rose-700">(عليه فلوس)</span>
                           ) : cust.balancePiasters < 0 ? (
-                            <span className="mr-1 text-[10px] font-sans font-bold text-[#006D41]">(له)</span>
+                            <span className="mr-1 text-[10px] font-sans font-bold text-[#006D41]">(سايب فلوس)</span>
                           ) : (
-                            <span className="mr-1 text-[10px] font-sans font-normal">(خالص)</span>
+                            <span className="mr-1 text-[10px] font-sans font-normal">(حسابه خالص)</span>
                           )}
                         </span>
                       </td>
@@ -800,10 +827,10 @@ export function CustomersView() {
                           {cust.creditLimitPiasters > 0 && cust.balancePiasters > cust.creditLimitPiasters && (
                             <span 
                               className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-sans font-bold bg-amber-50 text-amber-700 border border-amber-200"
-                              title={`تجاوز الحد بمقدار ${((cust.balancePiasters - cust.creditLimitPiasters) / 100).toFixed(2)} ج.م`}
+                              title={`عدى الحد المسموح بيه بـ ${((cust.balancePiasters - cust.creditLimitPiasters) / 100).toFixed(2)} ج.م`}
                             >
                               <AlertTriangle className="w-3 h-3" />
-                              <span>تجاوز الحد</span>
+                              <span>عدى الحد</span>
                             </span>
                           )}
                         </div>
@@ -817,19 +844,14 @@ export function CustomersView() {
                       {/* Actions */}
                       <td className="px-4 text-center">
                         <div className="flex items-center justify-center gap-1.5">
-                          {/* Settle Debt Button */}
+                          {/* Settle Debt or Deposit Advance Button */}
                           <button
                             onClick={() => openPaymentModal(cust)}
-                            disabled={!hasDebt}
-                            title={hasDebt ? "تسجيل دفعة سداد نقدية" : "لا يوجد دين مستحق"}
-                            className={`flex items-center gap-1 h-7.5 px-3 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer ${
-                              hasDebt 
-                                ? 'bg-paid-soft text-paid hover:bg-paid hover:text-white border border-paid/20' 
-                                : 'opacity-30 cursor-not-allowed bg-surface-2 text-ink-muted border border-line'
-                            }`}
+                            title={hasDebt ? "تسجيل دفعة سداد دين" : "إيداع دفعة نقدية تحت الحساب (أمانات)"}
+                            className="flex items-center gap-1 h-7.5 px-3 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer bg-paid-soft text-paid hover:bg-paid hover:text-white border border-paid/20 active:scale-95"
                           >
                             <CreditCard className="w-3.5 h-3.5" />
-                            <span>سداد</span>
+                            <span>{hasDebt ? 'سداد' : 'إيداع'}</span>
                           </button>
 
                           {/* Statement Button */}
@@ -960,6 +982,7 @@ export function CustomersView() {
         filteredStatementEntries={filteredStatementEntries}
         statementPrintMode={statementPrintMode}
         setStatementPrintMode={setStatementPrintMode}
+        isEntryCancelled={isEntryCancelled}
         onExecutePrint={() => window.print()}
       />
 

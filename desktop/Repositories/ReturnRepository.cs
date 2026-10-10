@@ -259,7 +259,7 @@ namespace RafiqPOS.Repositories
                                 lCmd.Parameters.AddWithValue("@lid", "led_" + Guid.NewGuid().ToString("N").Substring(0, 12));
                                 lCmd.Parameters.AddWithValue("@cid", returnObj.CustomerId);
                                 lCmd.Parameters.AddWithValue("@sid", (object)returnObj.SaleId ?? DBNull.Value);
-                                lCmd.Parameters.AddWithValue("@amt", -returnObj.TotalPiasters);
+                                lCmd.Parameters.AddWithValue("@amt", returnObj.TotalPiasters);
                                 lCmd.Parameters.AddWithValue("@after", newBal);
                                 lCmd.Parameters.AddWithValue("@notes", string.Format("خصم مرتجع رقم #{0} من المديونية", returnObj.ReturnNumber));
                                 lCmd.Parameters.AddWithValue("@cat", returnObj.CreatedAt);

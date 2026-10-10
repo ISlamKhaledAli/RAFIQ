@@ -22,11 +22,13 @@ namespace RafiqPOS.Services
             {
                 conn.Open();
 
-                // 1. Sales totals & counts (Excluding demo sales for real reporting - Task 137-5)
+                // 1. Sales totals & counts (Excluding demo sales for real reporting - strictly isolating cash, card, credit)
                 string salesSql = @"
                     SELECT 
                         COALESCE(SUM(total_piasters), 0) AS total_sales,
-                        COALESCE(SUM(paid_piasters), 0) AS cash_sales,
+                        COALESCE(SUM(CASE WHEN payment_method = 'cash' THEN paid_piasters ELSE 0 END), 0) AS cash_sales,
+                        COALESCE(SUM(CASE WHEN payment_method = 'card' THEN paid_piasters ELSE 0 END), 0) AS card_sales,
+                        COALESCE(SUM(CASE WHEN payment_method = 'credit' THEN (total_piasters - paid_piasters) ELSE 0 END), 0) AS credit_sales,
                         COUNT(*) AS inv_count
                     FROM sales 
                     WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now')) 
@@ -42,9 +44,9 @@ namespace RafiqPOS.Services
                         {
                             summary.TodaySalesPiasters = Convert.ToInt64(reader["total_sales"]);
                             summary.TodayCashPiasters = Convert.ToInt64(reader["cash_sales"]);
+                            summary.TodayCardPiasters = Convert.ToInt64(reader["card_sales"]);
+                            summary.TodayCreditPiasters = Convert.ToInt64(reader["credit_sales"]);
                             summary.TodayInvoicesCount = Convert.ToInt32(reader["inv_count"]);
-                            summary.TodayCreditPiasters = summary.TodaySalesPiasters - summary.TodayCashPiasters;
-                            if (summary.TodayCreditPiasters < 0) summary.TodayCreditPiasters = 0;
                             summary.CashDrawerPiasters = summary.TodayCashPiasters;
                         }
                     }
@@ -116,6 +118,26 @@ namespace RafiqPOS.Services
                         summary.CashDrawerPiasters += summary.TodayDebtPaymentsPiasters;
                     }
                 }
+
+                // 2b. Cash Drawer Expenses today
+                try
+                {
+                    string expenseSql = @"
+                        SELECT COALESCE(SUM(amount_piasters), 0) FROM expenses
+                        WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'));
+                    ";
+                    using (var cmd = new SQLiteCommand(expenseSql, conn))
+                    {
+                        object res = cmd.ExecuteScalar();
+                        if (res != null && res != DBNull.Value)
+                        {
+                            summary.TodayExpensesPiasters = Convert.ToInt64(res);
+                            summary.CashDrawerPiasters -= summary.TodayExpensesPiasters;
+                            if (summary.CashDrawerPiasters < 0) summary.CashDrawerPiasters = 0;
+                        }
+                    }
+                }
+                catch { }
 
                 // 3. Profit calculation from sales (Total sale price - Total cost)
                 string profitSql = @"
@@ -331,6 +353,19 @@ namespace RafiqPOS.Services
                         }
                     }
                 }
+
+                // 10. Check if today's shift is officially closed
+                string checkClosingSql = "SELECT closing_number, closed_at FROM daily_closings WHERE (business_date = date('now', 'localtime') OR business_date = date('now')) LIMIT 1;";
+                using (var cmd = new SQLiteCommand(checkClosingSql, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        summary.IsDayClosed = true;
+                        summary.ClosingNumber = Convert.ToInt32(reader["closing_number"]);
+                        summary.ClosedAt = reader["closed_at"].ToString();
+                    }
+                }
             }
 
             return summary;
@@ -384,12 +419,13 @@ namespace RafiqPOS.Services
             {
                 conn.Open();
 
-                // 1. Sales totals & payments breakdown
+                // 1. Sales totals & payments breakdown (isolating cash, card, credit)
                 string salesSql = string.Format(@"
                     SELECT 
                         COALESCE(SUM(total_piasters), 0) AS total_sales,
-                        COALESCE(SUM(paid_piasters), 0) AS cash_sales,
+                        COALESCE(SUM(CASE WHEN payment_method = 'cash' THEN paid_piasters ELSE 0 END), 0) AS cash_sales,
                         COALESCE(SUM(CASE WHEN payment_method = 'card' THEN paid_piasters ELSE 0 END), 0) AS card_sales,
+                        COALESCE(SUM(CASE WHEN payment_method = 'credit' THEN (total_piasters - paid_piasters) ELSE 0 END), 0) AS credit_sales,
                         COUNT(*) AS inv_count
                     FROM sales 
                     WHERE {0}
@@ -412,9 +448,8 @@ namespace RafiqPOS.Services
                             report.TotalSalesPiasters = Convert.ToInt64(reader["total_sales"]);
                             report.CashSalesPiasters = Convert.ToInt64(reader["cash_sales"]);
                             report.CardSalesPiasters = Convert.ToInt64(reader["card_sales"]);
+                            report.CreditSalesPiasters = Convert.ToInt64(reader["credit_sales"]);
                             report.InvoicesCount = Convert.ToInt32(reader["inv_count"]);
-                            report.CreditSalesPiasters = report.TotalSalesPiasters - report.CashSalesPiasters;
-                            if (report.CreditSalesPiasters < 0) report.CreditSalesPiasters = 0;
                         }
                     }
                 }

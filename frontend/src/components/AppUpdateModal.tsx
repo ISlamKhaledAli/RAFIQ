@@ -34,18 +34,18 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
       setUpdateInfo(res);
       if (res.hasUpdate) {
         setStatusMessage({
-          text: `يوجد إصدار جديد متاح (${res.latestVersion}) يتضمن تحسينات وميزات مهمة!`,
+          text: `فيه تحديث جديد نزل (${res.latestVersion}) فيه ميزات وتحسينات جديدة!`,
           type: 'info'
         });
       } else {
         setStatusMessage({
-          text: 'النظام محدث بالكامل إلى أحدث إصدار متاح.',
+          text: 'برنامجك متحدث لآخر إصدار وكل حاجة تمام.',
           type: 'success'
         });
       }
     } catch (err: any) {
       setStatusMessage({
-        text: err?.message || 'تعذر الاتصال بسيرفر التحديثات، تحقق من الاتصال بالإنترنت.',
+        text: err?.message || 'مش عارفين نوصل لسيرفر التحديثات، اتأكد من النت وجرب تاني.',
         type: 'error'
       });
     } finally {
@@ -76,7 +76,7 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
     setIsApplying(true);
     setApplyProgress(15);
     setStatusMessage({
-      text: 'جاري أخذ نسخة احتياطية إجبارية من قاعدة البيانات لضمان أمان البيانات 100%...',
+      text: 'بناخد نسخة احتياطية أمان تلقائياً من بيانات المحل لحمايتها 100%...',
       type: 'info'
     });
 
@@ -84,14 +84,14 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
       await new Promise((r) => setTimeout(r, 600));
       setApplyProgress(45);
       setStatusMessage({
-        text: 'جاري فحص تطابق التوقيع الرقمي ومطابقة الهاش (SHA-256)...',
+        text: 'بيتم فحص بصمة الأمان والتأكد من سلامة ملف التحديث...',
         type: 'info'
       });
 
       await new Promise((r) => setTimeout(r, 600));
       setApplyProgress(80);
       setStatusMessage({
-        text: 'جاري فك وتجهيز ملفات الإصدار الجديد مع تفعيل آلية التراجع التلقائي...',
+        text: 'بيتم تجهيز وتثبيت ملفات الإصدار الجديد بأمان تام...',
         type: 'info'
       });
 
@@ -104,24 +104,24 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
 
       if (res.success) {
         setStatusMessage({
-          text: res.message || 'تم تحديث البرنامج بنجاح! تم أخذ نسخة احتياطية تلقائياً.',
+          text: res.message || 'تم تحديث البرنامج بنجاح! واحتفظنا بنسخة احتياطية من بياناتك.',
           type: 'success'
         });
         await rafiqAlert({
           title: 'نجاح التحديث',
-          message: 'تم تحديث نظام رفيق بنجاح مع تأمين كامل البيانات بنسخة احتياطية فورية. سيتم تطبيق التغييرات.',
+          message: 'تم تحديث رفيق بنجاح وأمّنا كل بيانات محلك. هتطبق التغييرات دلوقتي.',
           variant: 'success'
         });
         onClose();
       } else {
         setStatusMessage({
-          text: res.message || 'تعذر التحديث، وتم التراجع التلقائي بنجاح.',
+          text: res.message || 'حصلت مشكلة أثناء التحديث، ورجعنا للنسخة السابقة بأمان ومفيش أي بيانات اتأثرت.',
           type: 'error'
         });
       }
     } catch (err: any) {
       setStatusMessage({
-        text: err?.message || 'حدث خطأ أثناء تطبيق التحديث وتم التراجع بأمان.',
+        text: err?.message || 'حصل خطأ أثناء التحديث ورجعنا للوضع السليم بأمان.',
         type: 'error'
       });
     } finally {
@@ -169,7 +169,7 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
               <DownloadCloud className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-lg font-bold">تحديثات نظام رفيق (Rafiq Update)</h2>
+              <h2 className="text-lg font-bold">تحديثات برنامج رفيق</h2>
               <p className="text-xs text-white/70">
                 إصدارك الحالي: <span className="font-mono font-semibold">{updateInfo?.currentVersion || '1.0.0'}</span>
               </p>
@@ -228,10 +228,10 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
               {/* Changelog */}
               <div>
                 <h4 className="text-xs font-bold text-ink-muted uppercase tracking-wider mb-2">
-                  أبرز المميزات والتحسينات في هذا الإصدار:
+                  إيه الجديد في التحديث ده:
                 </h4>
                 <div className="bg-surface p-3.5 rounded-lg border border-line text-sm text-ink leading-relaxed whitespace-pre-line font-normal">
-                  {updateInfo.changelog || 'تحسينات عامة في استقرار النظام وزيادة سرعة الاستجابة.'}
+                  {updateInfo.changelog || 'تحسينات عامة في سرعة استجابة البرنامج واستقراره.'}
                 </div>
               </div>
 
@@ -239,7 +239,7 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
               <div className="flex items-start gap-3 p-3 bg-brand-soft rounded-lg text-xs text-brand-dark border border-brand/20">
                 <ShieldCheck className="w-5 h-5 shrink-0 text-paid" />
                 <div className="leading-relaxed">
-                  <strong>أمان بياناتك مضمون 100%:</strong> قبل تثبيت أي تحديث، يقوم النظام بأخذ نسخة احتياطية إجبارية من قاعدة البيانات والملفات، مع ميزة التراجع التلقائي الفوري (Automatic Rollback) في حال تعذر اكتمال التحديث.
+                  <strong>بياناتك وفلوسك في أمان 100%:</strong> قبل ما نثبت أي تحديث، بناخد نسخة احتياطية أوتوماتيك من قاعدة البيانات والملفات، ولو حصل أي عطل بنرجع فورا للنسخة اللي شغالة بدون ما تفقد أي حاجة.
                 </div>
               </div>
 
@@ -247,7 +247,7 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
               {isApplying && (
                 <div className="space-y-2 pt-2">
                   <div className="flex justify-between text-xs font-semibold text-ink">
-                    <span>جاري التثبيت والتأمين...</span>
+                    <span>بيتم التثبيت وتأمين البيانات...</span>
                     <span>{applyProgress}%</span>
                   </div>
                   <div className="w-full h-2.5 bg-line rounded-full overflow-hidden">
@@ -264,9 +264,9 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
               <div className="w-14 h-14 rounded-full bg-paid-soft text-paid flex items-center justify-center mx-auto">
                 <CheckCircle2 className="w-8 h-8" />
               </div>
-              <h3 className="text-base font-bold text-ink">أنت تعمل بأحدث إصدار من رفيق</h3>
+              <h3 className="text-base font-bold text-ink">أنت شغال بأحدث إصدار من رفيق</h3>
               <p className="text-xs text-ink-muted max-w-sm mx-auto">
-                جميع ملفات النظام وقواعد البيانات متوافقة تماماً وتعمل بأعلى درجات الكفاءة والأمان.
+                كل ملفات البرنامج وقاعدة البيانات متوافقة وشغالة بأعلى سرعة وأمان.
               </p>
             </div>
           )}
@@ -281,7 +281,7 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
               className="px-3.5 py-2 rounded-xl bg-surface border border-line hover:border-line-hover text-ink text-xs font-semibold flex items-center gap-2 transition-all disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isChecking ? 'animate-spin' : ''}`} />
-              <span>فحص مجدداً</span>
+              <span>فحص تاني</span>
             </button>
             <button
               onClick={handleRunVerificationTests}
@@ -289,7 +289,7 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
               className="px-3 py-2 rounded-xl bg-surface border border-line hover:border-line-hover text-ink-muted hover:text-ink text-xs font-medium transition-all disabled:opacity-50"
               title="فحص سيناريوهات التحقق والتراجع التلقائي"
             >
-              فحص الأمان
+              فحص الأمان والتراجع
             </button>
           </div>
 
@@ -299,7 +299,7 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
               disabled={isApplying}
               className="px-4 py-2 rounded-xl border border-line text-ink-muted hover:text-ink text-xs font-semibold hover:bg-surface transition-all disabled:opacity-50"
             >
-              تذكيري لاحقاً
+              فكرني بعدين
             </button>
 
             {updateInfo?.hasUpdate && (
@@ -309,7 +309,7 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
                 className="px-5 py-2 rounded-xl bg-paid hover:bg-paid/90 text-white text-xs font-bold flex items-center gap-2 shadow-sm transition-all disabled:opacity-50"
               >
                 <HardDriveDownload className="w-4 h-4" />
-                <span>{isApplying ? 'جاري التحديث...' : 'تحديث وتثبيت الآن'}</span>
+                <span>{isApplying ? 'جاري التحديث...' : 'تحديث وتثبيت دلوقتي'}</span>
               </button>
             )}
           </div>

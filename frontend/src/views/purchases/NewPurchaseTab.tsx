@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { CustomSelect } from '../../components/CustomSelect';
 import { CustomDatePicker } from '../../components/CustomDatePicker';
+import { MoneyInput } from '../../components/MoneyInput';
 import { useFeatures } from '../../context/useFeatures';
 import type { Supplier, Product } from '../../types/models';
 import { formatMoney, type NewPurchaseLineItem } from './types';
@@ -127,7 +128,8 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
   };
 
   const handleCartonsChange = (idx: number, val: string) => {
-    const clean = normalizeArabicNumerals(val);
+    const digitsOnly = normalizeArabicNumerals(val).replace(/[^\d]/g, '');
+    const clean = digitsOnly.length > 1 ? digitsOnly.replace(/^0+/, '') || '0' : digitsOnly;
     const updated = [...lineItems];
     const item = { ...updated[idx] };
 
@@ -155,7 +157,8 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
   };
 
   const handlePackSizeChange = (idx: number, val: string) => {
-    const clean = normalizeArabicNumerals(val);
+    const digitsOnly = normalizeArabicNumerals(val).replace(/[^\d]/g, '');
+    const clean = digitsOnly.length > 1 ? digitsOnly.replace(/^0+/, '') || '0' : digitsOnly;
     const updated = [...lineItems];
     const item = { ...updated[idx] };
 
@@ -183,7 +186,8 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
   };
 
   const handleLoosePiecesChange = (idx: number, val: string) => {
-    const clean = normalizeArabicNumerals(val);
+    const digitsOnly = normalizeArabicNumerals(val).replace(/[^\d]/g, '');
+    const clean = digitsOnly.length > 1 ? digitsOnly.replace(/^0+/, '') || '0' : digitsOnly;
     const updated = [...lineItems];
     const item = { ...updated[idx] };
 
@@ -211,7 +215,8 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
   };
 
   const handleDirectStockChange = (idx: number, val: string) => {
-    const clean = normalizeArabicNumerals(val);
+    const digitsOnly = normalizeArabicNumerals(val).replace(/[^\d]/g, '');
+    const clean = digitsOnly.length > 1 ? digitsOnly.replace(/^0+/, '') || '0' : digitsOnly;
     const updated = [...lineItems];
     const item = { ...updated[idx] };
 
@@ -221,7 +226,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
       item.cartonsInput = '';
       item.looseInput = '';
     } else {
-      const total = parseFloat(clean);
+      const total = parseInt(clean, 10);
       const totalVal = isNaN(total) ? 0 : Math.max(0, total);
       item.quantityUnits = totalVal;
 
@@ -294,14 +299,34 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
     return Math.max(0, totalCostPiasters - discountPiasters);
   }, [totalCostPiasters, discountPiasters]);
 
+  const selectedSupplier = useMemo(() => {
+    return suppliers.find((s) => s.id === selectedSupplierId);
+  }, [suppliers, selectedSupplierId]);
+
+  const advanceCreditPiasters = useMemo(() => {
+    if (!selectedSupplier || selectedSupplier.balancePiasters >= 0) return 0;
+    return Math.abs(selectedSupplier.balancePiasters);
+  }, [selectedSupplier]);
+
+  const supplierDebtPiasters = useMemo(() => {
+    if (!selectedSupplier || selectedSupplier.balancePiasters <= 0) return 0;
+    return selectedSupplier.balancePiasters;
+  }, [selectedSupplier]);
+
   const paidAmountPiasters = useMemo(() => {
-    if (paymentMode === 'PAID') return netCostPiasters;
+    if (paymentMode === 'PAID') {
+      return customPaidAmountPiasters > 0 ? customPaidAmountPiasters : netCostPiasters;
+    }
     if (paymentMode === 'CREDIT') return 0;
-    return Math.min(netCostPiasters, Math.max(0, customPaidAmountPiasters));
+    return Math.max(0, customPaidAmountPiasters);
   }, [paymentMode, netCostPiasters, customPaidAmountPiasters]);
 
   const remainingAmountPiasters = useMemo(() => {
     return Math.max(0, netCostPiasters - paidAmountPiasters);
+  }, [netCostPiasters, paidAmountPiasters]);
+
+  const excessPaidPiasters = useMemo(() => {
+    return Math.max(0, paidAmountPiasters - netCostPiasters);
   }, [netCostPiasters, paidAmountPiasters]);
 
   return (
@@ -322,13 +347,18 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                   onChange={(val) => setSelectedSupplierId(val)}
                   placeholder="-- اختر مورد الفاتورة --"
                   options={[
-                    { value: '', label: '-- اختر مورد الفاتورة --' },
+                    { value: '', label: '-- اختار مورد الفاتورة / الشركة --' },
                     ...suppliers
                       .filter((s) => s.isActive)
                       .map((s) => ({
                         value: s.id,
                         label: s.name,
-                        badge: s.balancePiasters > 0 ? `مديونية: ${(s.balancePiasters / 100).toFixed(2)} ج.م` : undefined,
+                        badge:
+                          s.balancePiasters > 0
+                            ? `مديونية علينا: ${(s.balancePiasters / 100).toFixed(2)} ج.م`
+                            : s.balancePiasters < 0
+                            ? `لنا رصيد: ${Math.abs(s.balancePiasters / 100).toFixed(2)} ج.م`
+                            : undefined,
                       })),
                   ]}
                   className="flex-1 min-w-0"
@@ -342,7 +372,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                   title="إضافة مورد جديد سريعاً"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>مورد جديد</span>
+                  <span>+ مورد جديد</span>
                 </button>
               </div>
             </div>
@@ -350,7 +380,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
             {/* Supplier Invoice Number */}
             <div className="col-span-6 sm:col-span-3 md:col-span-3">
               <label className="text-[11px] font-bold text-ink-muted block mb-1">
-                رقم فاتورة المورد الورقية
+                رقم فاتورة المورد (الورقية)
               </label>
               <input
                 type="text"
@@ -372,20 +402,20 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                   >
                     <Info className="w-3 h-3 text-ink-muted hover:text-brand transition-colors" />
                     <div className="absolute bottom-full mb-1 right-0 hidden group-hover:block w-56 p-2 bg-ink text-surface text-[10px] rounded-lg shadow-lg z-50 pointer-events-none leading-relaxed">
-                      • <b>آخر سعر شراء:</b> يجعل تكلفة الصنف مساوية لسعر هذه الفاتورة مباشرة (المعتاد للتجزئة).<br />
-                      • <b>متوسط التكلفة:</b> يدمج تكلفة الرصيد القديم مع الشحنة الجديدة كمتوسط حسابي مرجح.
+                      • <b>آخر سعر شراء:</b> يثبت تكلفة الصنف على سعر الفاتورة دي فوراً (المتعارف عليه في المحلات).<br />
+                      • <b>متوسط التكلفة:</b> يحسب متوسط سعر البضاعة القديمة مع الشحنة الجديدة.
                     </div>
                   </div>
                 </label>
                 <span className="text-[10px] font-bold text-brand px-1 rounded bg-brand-soft border border-brand/20">
-                  {costingMethod === 'LATEST' ? 'استبدال مباشر' : 'متوسط مرجح'}
+                  {costingMethod === 'LATEST' ? 'آخر سعر شراء' : 'متوسط مرجح'}
                 </span>
               </div>
               <CustomSelect
                 value={costingMethod}
                 onChange={(val) => setCostingMethod(val as 'LATEST' | 'WEIGHTED_AVERAGE')}
                 options={[
-                  { value: 'LATEST', label: 'آخر سعر شراء (المعتاد للتجزئة)' },
+                  { value: 'LATEST', label: 'آخر سعر شراء (المعتاد للمحلات)' },
                   { value: 'WEIGHTED_AVERAGE', label: 'متوسط التكلفة (محاسبي دقيق)' },
                 ]}
                 className="w-full"
@@ -409,7 +439,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
             <Search className="w-4 h-4 text-ink-muted" />
             <input
               type="text"
-              placeholder="امسح باركود المنتج (قارئ الباركود) أو اكتب اسم الصنف للإضافة للفاتورة..."
+              placeholder="اضرب باركود الصنف بالاسكانر أو اكتب اسمه عشان ينزل في الفاتورة..."
               value={productSearchQuery}
               onChange={(e) => setProductSearchQuery(e.target.value)}
               onKeyDown={handleSearchKeyDown}
@@ -417,7 +447,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
               autoFocus
             />
             {isSearchingProduct && (
-              <span className="text-xs text-ink-muted animate-pulse">جاري البحث...</span>
+              <span className="text-xs text-ink-muted animate-pulse">بندور على الصنف...</span>
             )}
           </div>
 
@@ -472,20 +502,20 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
         <div className="flex-1 bg-surface border border-line rounded-xl overflow-hidden flex flex-col shadow-2xs">
           {/* Table Header */}
           <div className="h-9 bg-surface-2 border-b border-line grid grid-cols-12 px-3 sm:px-4 items-center text-xs font-bold text-ink-muted shrink-0">
-            <div className="col-span-12 sm:col-span-3">اسم الصنف والباركود</div>
-            <div className="col-span-4 sm:col-span-2 text-center">الكمية المشتراة</div>
-            <div className="col-span-4 sm:col-span-2 text-center">سعر الشراء للوحدة</div>
-            <div className="col-span-4 sm:col-span-2 text-center">سعر البيع الجديد</div>
+            <div className="col-span-12 sm:col-span-3">اسم الصنف / الباركود</div>
+            <div className="col-span-4 sm:col-span-2 text-center">العدد اللي دخل</div>
+            <div className="col-span-4 sm:col-span-2 text-center">سعر الشراء (التكلفة)</div>
+            <div className="col-span-4 sm:col-span-2 text-center">سعر البيع للزبون</div>
             <div className="hidden sm:block sm:col-span-2 text-center">الإجمالي</div>
-            <div className="col-span-12 sm:col-span-1 text-left sm:text-left">إجراء</div>
+            <div className="col-span-12 sm:col-span-1 text-left sm:text-left">مسح</div>
           </div>
 
           <div className="flex-1 overflow-y-auto divide-y divide-line p-2 sm:p-2.5 space-y-2">
             {lineItems.length === 0 ? (
               <div className="h-56 flex flex-col items-center justify-center text-ink-muted gap-2">
                 <ShoppingCart className="w-10 h-10 opacity-30" />
-                <span className="text-sm font-semibold">لم تتم إضافة أي أصناف إلى الفاتورة بعد</span>
-                <span className="text-xs text-ink-muted">استخدم شريط البحث بالأعلى لإضافة الأصناف بالباركود أو الاسم</span>
+                <span className="text-sm font-semibold">لسه ما ضفتش أصناف للفاتورة</span>
+                <span className="text-xs text-ink-muted">اضرب الباركود بالاسكانر أو اكتب اسم الصنف فوق عشان ينزل هنا</span>
               </div>
             ) : (
               lineItems.map((item, idx) => {
@@ -566,29 +596,47 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                           <button
                             type="button"
                             onClick={() => {
-                              const curr = parseFloat(item.quantityInput ?? String(item.quantityUnits)) || 0;
+                              const curr = parseInt(item.quantityInput || String(item.quantityUnits), 10) || 0;
                               if (curr > 0) {
                                 handleDirectStockChange(idx, String(curr - 1));
                               }
                             }}
                             className="w-6 h-6 rounded-lg bg-surface-2 hover:bg-line flex items-center justify-center text-xs font-bold text-ink transition-colors cursor-pointer"
+                            title="إنقاص الكمية"
                           >
                             -
                           </button>
                           <input
                             type="text"
+                            inputMode="numeric"
                             value={item.quantityInput !== undefined ? item.quantityInput : (item.quantityUnits > 0 ? String(item.quantityUnits) : '')}
                             onChange={(e) => handleDirectStockChange(idx, e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            onKeyDown={(e) => {
+                              if (e.key === 'ArrowUp') {
+                                e.preventDefault();
+                                const curr = parseInt(item.quantityInput || String(item.quantityUnits), 10) || 0;
+                                handleDirectStockChange(idx, String(curr + 1));
+                              } else if (e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                const curr = parseInt(item.quantityInput || String(item.quantityUnits), 10) || 0;
+                                if (curr > 0) {
+                                  handleDirectStockChange(idx, String(curr - 1));
+                                }
+                              }
+                            }}
                             placeholder="0"
-                            className="w-14 h-7 text-center font-mono font-bold bg-brand-soft border border-brand/30 rounded-lg text-xs text-brand focus:outline-none focus:border-brand"
+                            className="w-16 h-7 text-center font-mono font-bold bg-brand-soft border border-brand/30 rounded-lg text-xs text-brand focus:outline-none focus:border-brand"
+                            title="الكمية المشتراة (اكتب مباشرة أو استخدم الأسهم)"
                           />
                           <button
                             type="button"
                             onClick={() => {
-                              const curr = parseFloat(item.quantityInput ?? String(item.quantityUnits)) || 0;
+                              const curr = parseInt(item.quantityInput || String(item.quantityUnits), 10) || 0;
                               handleDirectStockChange(idx, String(curr + 1));
                             }}
                             className="w-6 h-6 rounded-lg bg-surface-2 hover:bg-line flex items-center justify-center text-xs font-bold text-ink transition-colors cursor-pointer"
+                            title="زيادة الكمية"
                           >
                             +
                           </button>
@@ -604,17 +652,15 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                       {/* 3. Unit Cost (col-span-2) */}
                       <div className="col-span-4 sm:col-span-2 flex flex-col items-center justify-center gap-0.5">
                         <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            step="0.25"
-                            value={(item.unitCostPiasters / 100).toFixed(2)}
-                            onChange={(e) => {
-                              const valEGP = parseFloat(e.target.value) || 0;
+                          <MoneyInput
+                            valuePiasters={item.unitCostPiasters}
+                            onChangePiasters={(p) => {
                               const updated = [...lineItems];
-                              updated[idx].unitCostPiasters = Math.round(valEGP * 100);
+                              updated[idx].unitCostPiasters = p;
                               setLineItems(updated);
                             }}
-                            className="w-20 h-7 text-center font-mono font-bold bg-surface-2 border border-line rounded-lg text-xs text-ink focus:outline-none focus:border-brand"
+                            hideCurrency
+                            className="!w-20 !h-7 !px-1.5 !py-0 !text-center !text-xs !bg-surface-2 !border-line !rounded-lg"
                           />
                           <span className="text-[10px] text-ink-muted font-bold">ج.م</span>
                         </div>
@@ -651,18 +697,15 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                       {/* 4. New Selling Price & Profit Margin (col-span-2) */}
                       <div className="col-span-4 sm:col-span-2 flex flex-col items-center justify-center gap-0.5">
                         <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            step="0.5"
-                            value={(item.newSellingPricePiasters / 100).toFixed(2)}
-                            onChange={(e) => {
-                              const valEGP = parseFloat(e.target.value) || 0;
+                          <MoneyInput
+                            valuePiasters={item.newSellingPricePiasters}
+                            onChangePiasters={(p) => {
                               const updated = [...lineItems];
-                              updated[idx].newSellingPricePiasters = Math.round(valEGP * 100);
+                              updated[idx].newSellingPricePiasters = p;
                               setLineItems(updated);
                             }}
-                            className="w-20 h-7 text-center font-mono font-bold text-xs text-ink bg-surface-2 border border-line rounded-lg focus:outline-none focus:border-brand"
-                            title="تحديث سعر البيع في الكتالوج"
+                            hideCurrency
+                            className="!w-20 !h-7 !px-1.5 !py-0 !text-center !text-xs !bg-surface-2 !border-line !rounded-lg"
                           />
                           <span className="text-[10px] text-ink-muted font-bold">ج.م</span>
                         </div>
@@ -730,12 +773,25 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                         {/* عدد الكراتين */}
                         <div>
                           <label className="block text-[10px] font-bold text-ink-muted mb-0.5">
-                            عدد الكراتين:
+                            عدد الكراتين / الشكاير:
                           </label>
                           <input
                             type="text"
+                            inputMode="numeric"
                             value={item.cartonsInput ?? ''}
                             onChange={(e) => handleCartonsChange(idx, e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            onKeyDown={(e) => {
+                              if (e.key === 'ArrowUp') {
+                                e.preventDefault();
+                                const curr = parseInt(item.cartonsInput || '0', 10) || 0;
+                                handleCartonsChange(idx, String(curr + 1));
+                              } else if (e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                const curr = parseInt(item.cartonsInput || '0', 10) || 0;
+                                if (curr > 0) handleCartonsChange(idx, String(curr - 1));
+                              }
+                            }}
                             placeholder="0"
                             className="w-full bg-surface border border-line rounded h-7 px-2 text-xs font-mono text-center font-bold text-brand focus:outline-none focus:border-brand"
                           />
@@ -744,12 +800,25 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                         {/* سعة الكرتونة */}
                         <div>
                           <label className="block text-[10px] font-bold text-ink-muted mb-0.5">
-                            × سعة الكرتونة:
+                            × الكرتونة فيها كام حتة:
                           </label>
                           <input
                             type="text"
+                            inputMode="numeric"
                             value={item.packSizeInput ?? ''}
                             onChange={(e) => handlePackSizeChange(idx, e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            onKeyDown={(e) => {
+                              if (e.key === 'ArrowUp') {
+                                e.preventDefault();
+                                const curr = parseInt(item.packSizeInput || '0', 10) || 0;
+                                handlePackSizeChange(idx, String(curr + 1));
+                              } else if (e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                const curr = parseInt(item.packSizeInput || '0', 10) || 0;
+                                if (curr > 0) handlePackSizeChange(idx, String(curr - 1));
+                              }
+                            }}
                             placeholder="0"
                             className="w-full bg-surface border border-line rounded h-7 px-2 text-xs font-mono text-center font-bold text-ink focus:outline-none focus:border-brand"
                           />
@@ -758,12 +827,25 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                         {/* قطع فرط */}
                         <div>
                           <label className="block text-[10px] font-bold text-ink-muted mb-0.5">
-                            + قطع فرط:
+                            + حتت فرط:
                           </label>
                           <input
                             type="text"
+                            inputMode="numeric"
                             value={item.looseInput ?? ''}
                             onChange={(e) => handleLoosePiecesChange(idx, e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            onKeyDown={(e) => {
+                              if (e.key === 'ArrowUp') {
+                                e.preventDefault();
+                                const curr = parseInt(item.looseInput || '0', 10) || 0;
+                                handleLoosePiecesChange(idx, String(curr + 1));
+                              } else if (e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                const curr = parseInt(item.looseInput || '0', 10) || 0;
+                                if (curr > 0) handleLoosePiecesChange(idx, String(curr - 1));
+                              }
+                            }}
                             placeholder="0"
                             className="w-full bg-surface border border-line rounded h-7 px-2 text-xs font-mono text-center font-bold text-ink focus:outline-none focus:border-brand"
                           />
@@ -772,14 +854,27 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                         {/* الرصيد الفعلي الإجمالي */}
                         <div>
                           <label className="block text-[10px] font-bold text-brand mb-0.5">
-                            = الرصيد الفعلي (قطعة) *:
+                            = إجمالي القطع اللي هتدخل المخزن *:
                           </label>
                           <input
                             type="text"
+                            inputMode="numeric"
                             value={item.quantityInput !== undefined ? item.quantityInput : (item.quantityUnits > 0 ? String(item.quantityUnits) : '')}
                             onChange={(e) => handleDirectStockChange(idx, e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            onKeyDown={(e) => {
+                              if (e.key === 'ArrowUp') {
+                                e.preventDefault();
+                                const curr = parseInt(item.quantityInput || String(item.quantityUnits), 10) || 0;
+                                handleDirectStockChange(idx, String(curr + 1));
+                              } else if (e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                const curr = parseInt(item.quantityInput || String(item.quantityUnits), 10) || 0;
+                                if (curr > 0) handleDirectStockChange(idx, String(curr - 1));
+                              }
+                            }}
                             placeholder="0"
-                            className="w-full bg-brand-soft border border-brand/40 rounded h-7 px-2 text-xs font-mono text-center font-extrabold text-brand focus:outline-none"
+                            className="w-full bg-brand-soft border border-brand/40 rounded h-7 px-2 text-xs font-mono text-center font-extrabold text-brand focus:outline-none focus:border-brand"
                           />
                         </div>
                       </div>
@@ -794,7 +889,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                             ) : (
                               <Calculator className="w-3 h-3 text-brand" />
                             )}
-                            <span>أثر التكلفة بالكتالوج:</span>
+                            <span>التكلفة بعد الحسبة:</span>
                           </span>
                           <span className="font-mono font-bold text-brand bg-brand-soft px-1.5 py-0.2 rounded border border-brand/20 text-[11px]">
                             {(projectedCostPiasters / 100).toFixed(2)} ج.م
@@ -873,35 +968,30 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
           <div className="pb-2.5 border-b border-line flex items-center justify-between">
             <div className="flex items-center gap-1.5">
               <Receipt className="w-4 h-4 text-brand" />
-              <h2 className="text-[13px] font-bold text-ink">ملخص الفاتورة</h2>
+              <h2 className="text-[13px] font-bold text-ink">حساب الفاتورة</h2>
             </div>
             <span className="text-[10px] font-mono font-bold bg-brand-soft text-brand-dark px-2 py-0.5 rounded-full border border-brand/20">
-              {lineItems.length} صنف • {totalItemsPieces} قطعة
+              {lineItems.length} صنف ({totalItemsPieces} حتة)
             </span>
           </div>
 
           {/* Totals Breakdown */}
           <div className="space-y-2 text-xs">
             <div className="flex justify-between items-center text-ink-muted">
-              <span className="text-[11.5px]">إجمالي التكلفة:</span>
+              <span className="text-[11.5px]">إجمالي الأصناف:</span>
               <span className="font-mono font-bold text-ink text-xs">
                 {formatMoney(totalCostPiasters)}
               </span>
             </div>
 
             <div className="flex items-center justify-between text-ink-muted">
-              <span className="text-[11.5px]">الخصم التجاري:</span>
+              <span className="text-[11.5px]">خصم المورد:</span>
               <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={(discountPiasters / 100).toFixed(2)}
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value) || 0;
-                    setDiscountPiasters(Math.round(val * 100));
-                  }}
-                  className="w-16 h-6 text-center font-mono font-bold bg-surface-2 border border-line rounded-lg text-xs text-ink focus:outline-none focus:border-brand"
+                <MoneyInput
+                  valuePiasters={discountPiasters}
+                  onChangePiasters={setDiscountPiasters}
+                  hideCurrency
+                  className="!w-16 !h-6 !px-1.5 !py-0 !text-center !text-xs !bg-surface-2 !border-line !rounded-lg"
                 />
                 <span className="text-[10.5px]">ج.م</span>
               </div>
@@ -910,25 +1000,65 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
             {/* Net Payable Highlight Card */}
             <div className="p-2.5 rounded-xl bg-paid-soft/80 border border-paid/20 flex flex-col gap-0.5">
               <div className="flex justify-between items-baseline">
-                <span className="font-bold text-[11.5px] text-paid-dark">الصافي المستحق:</span>
+                <span className="font-bold text-[11.5px] text-paid-dark">المطلوب دفعه للشركة:</span>
                 <span className="text-base font-extrabold font-mono text-paid-dark">
                   {formatMoney(netCostPiasters)}
                 </span>
               </div>
               <div className="flex justify-between text-[10px] text-paid font-medium">
                 <span>حالة السداد:</span>
-                <span>{paymentMode === 'PAID' ? 'سداد نقدي كامل' : paymentMode === 'CREDIT' ? 'آجل على المورد' : 'سداد جزئي'}</span>
+                <span>
+                  {paymentMode === 'PAID'
+                    ? excessPaidPiasters > 0
+                      ? 'مدفوع زيادة (تحت الحساب)'
+                      : 'مدفوع كاش بالكامل'
+                    : paymentMode === 'CREDIT'
+                    ? advanceCreditPiasters > 0
+                      ? 'خصم من رصيدنا السابق'
+                      : 'آجل على الحساب'
+                    : excessPaidPiasters > 0
+                    ? 'مدفوع زيادة (تحت الحساب)'
+                    : 'سداد جزء من الفاتورة'}
+                </span>
               </div>
             </div>
+
+            {/* Advance Credit Notice for Selected Supplier */}
+            {advanceCreditPiasters > 0 && (
+              <div className="p-2.5 rounded-xl bg-paid-soft border border-paid/30 flex flex-col gap-1 text-[11px] text-paid-dark">
+                <div className="flex items-center justify-between font-bold">
+                  <span className="flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-paid shrink-0" />
+                    <span>رصيد متاح لنا عند الشركة:</span>
+                  </span>
+                  <span className="font-mono text-paid font-extrabold text-xs">{formatMoney(advanceCreditPiasters)}</span>
+                </div>
+                <p className="text-[10px] text-paid leading-tight">
+                  {netCostPiasters <= advanceCreditPiasters
+                    ? `رصيدنا السابق يغطي الفاتورة بالكامل، وهيتبقى لنا ${formatMoney(advanceCreditPiasters - netCostPiasters)} تحت الحساب.`
+                    : `هيغطي من رصيدنا ${formatMoney(advanceCreditPiasters)}، والباقي ندفعه ${formatMoney(netCostPiasters - advanceCreditPiasters)}.`}
+                </p>
+              </div>
+            )}
+
+            {supplierDebtPiasters > 0 && (
+              <div className="p-2 rounded-xl bg-warn-soft border border-warn/20 flex items-center justify-between text-[11px]">
+                <span className="font-bold text-warn-dark">حساب قديم علينا للمورد:</span>
+                <span className="font-mono font-bold text-warn-dark">{formatMoney(supplierDebtPiasters)}</span>
+              </div>
+            )}
           </div>
 
           {/* Payment Options */}
           <div className="pt-2 border-t border-line space-y-1.5">
-            <label className="text-[11px] font-bold text-ink-muted block">طريقة السداد للمورد</label>
+            <label className="text-[11px] font-bold text-ink-muted block">هتدفع للمورد إزاي؟</label>
             <div className="grid grid-cols-3 gap-1 bg-surface-2 p-1 rounded-xl border border-line">
               <button
                 type="button"
-                onClick={() => setPaymentMode('PAID')}
+                onClick={() => {
+                  setPaymentMode('PAID');
+                  setCustomPaidAmountPiasters(0);
+                }}
                 className={`h-7 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
                   paymentMode === 'PAID'
                     ? 'bg-paid text-white shadow-2xs'
@@ -936,11 +1066,14 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                 }`}
               >
                 <Banknote className="w-3 h-3" />
-                <span>نقداً</span>
+                <span>كاش</span>
               </button>
               <button
                 type="button"
-                onClick={() => setPaymentMode('CREDIT')}
+                onClick={() => {
+                  setPaymentMode('CREDIT');
+                  setCustomPaidAmountPiasters(0);
+                }}
                 className={`h-7 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
                   paymentMode === 'CREDIT'
                     ? 'bg-warn text-white shadow-2xs'
@@ -948,7 +1081,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                 }`}
               >
                 <CreditCard className="w-3 h-3" />
-                <span>آجل</span>
+                <span>{advanceCreditPiasters > 0 ? 'من رصيدنا' : 'آجل'}</span>
               </button>
               <button
                 type="button"
@@ -959,50 +1092,119 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                     : 'text-ink-muted hover:text-ink'
                 }`}
               >
-                <span>جزئي</span>
+                <span>دفع مشكل</span>
               </button>
             </div>
 
-            {paymentMode === 'PARTIAL' && (
-              <div className="p-2 bg-surface-2 border border-line rounded-lg space-y-1.5 mt-1.5 text-[11px]">
+            {paymentMode === 'PAID' && (
+              <div className="p-2 bg-surface-2 border border-line rounded-lg space-y-1 mt-1 text-[11px]">
                 <div className="flex justify-between items-center">
-                  <span className="text-ink-muted">المدفوع نقداً:</span>
+                  <span className="text-ink-muted">المبلغ اللي دفعته كاش:</span>
                   <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      min="0"
-                      step="10"
-                      value={(customPaidAmountPiasters / 100).toFixed(2)}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value) || 0;
-                        setCustomPaidAmountPiasters(Math.round(val * 100));
-                      }}
-                      className="w-20 h-6 text-center font-mono font-bold bg-surface border border-line rounded text-xs text-ink focus:outline-none focus:border-brand"
+                    <MoneyInput
+                      valuePiasters={customPaidAmountPiasters > 0 ? customPaidAmountPiasters : netCostPiasters}
+                      onChangePiasters={setCustomPaidAmountPiasters}
+                      hideCurrency
+                      className="!w-20 !h-6 !px-1.5 !py-0 !text-center !text-xs !bg-surface !border-line !rounded"
                     />
                     <span className="text-[10px] text-ink-muted">ج.م</span>
                   </div>
                 </div>
-                <div className="flex justify-between text-danger font-bold text-[10.5px]">
-                  <span>المتبقي آجل:</span>
-                  <span className="font-mono">{formatMoney(remainingAmountPiasters)}</span>
-                </div>
+                {excessPaidPiasters > 0 && (
+                  <div className="p-1.5 bg-paid-soft border border-paid/30 rounded-lg text-paid-dark text-[10px] flex flex-col gap-0.5">
+                    <div className="flex justify-between items-center font-bold">
+                      <span className="flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-paid" />
+                        <span>فلوس زيادة سايبينها تحت الحساب:</span>
+                      </span>
+                      <span className="font-mono font-extrabold text-paid">+{formatMoney(excessPaidPiasters)}</span>
+                    </div>
+                    <span className="leading-tight">
+                      {supplierDebtPiasters > 0
+                        ? 'الزيادة هتتخصم علطول من الحساب القديم، والباقي يترحل رصيد لنا.'
+                        : 'الزيادة هتتسجل كرصيد لنا عند الشركة تتخصم من فواتير البضاعة اللي جاية.'}
+                    </span>
+                  </div>
+                )}
+                {paidAmountPiasters < netCostPiasters && (
+                  <div className="flex justify-between text-danger font-bold text-[10.5px]">
+                    <span>الباقي علينا آجل:</span>
+                    <span className="font-mono">{formatMoney(remainingAmountPiasters)}</span>
+                  </div>
+                )}
               </div>
             )}
 
             {paymentMode === 'CREDIT' && (
-              <div className="p-1.5 bg-danger-soft border border-danger/20 text-danger rounded-lg text-[10.5px] flex items-center gap-1.5">
-                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                <span>يُسجل بالكامل في دفتر آجل المورد.</span>
+              <div className="p-1.5 bg-surface-2 border border-line rounded-lg text-[10.5px] mt-1 space-y-1">
+                {advanceCreditPiasters > 0 ? (
+                  <div className="p-1.5 bg-paid-soft border border-paid/20 text-paid-dark rounded flex flex-col gap-0.5">
+                    <div className="flex items-center gap-1 font-bold">
+                      <Sparkles className="w-3 h-3 text-paid shrink-0" />
+                      <span>خصم تلقائي من رصيدنا السابق:</span>
+                    </div>
+                    <span className="leading-tight">
+                      {netCostPiasters <= advanceCreditPiasters
+                        ? `الفاتورة هتتخصم بالكامل من رصيدنا. المتبقي لنا بعد الخصم: ${formatMoney(advanceCreditPiasters - netCostPiasters)}.`
+                        : `هيتم استهلاك رصيدنا بالكامل (${formatMoney(advanceCreditPiasters)})، والباقي (${formatMoney(netCostPiasters - advanceCreditPiasters)}) هيتسجل دين علينا للمورد.`}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="p-1.5 bg-danger-soft border border-danger/20 text-danger rounded flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>هيتسجل المبلغ كله في دفتر حساب المورد الآجل ({formatMoney(netCostPiasters)}).</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {paymentMode === 'PARTIAL' && (
+              <div className="p-2 bg-surface-2 border border-line rounded-lg space-y-1.5 mt-1 text-[11px]">
+                <div className="flex justify-between items-center">
+                  <span className="text-ink-muted">المدفوع كاش:</span>
+                  <div className="flex items-center gap-1">
+                    <MoneyInput
+                      valuePiasters={customPaidAmountPiasters}
+                      onChangePiasters={setCustomPaidAmountPiasters}
+                      hideCurrency
+                      className="!w-20 !h-6 !px-1.5 !py-0 !text-center !text-xs !bg-surface !border-line !rounded"
+                    />
+                    <span className="text-[10px] text-ink-muted">ج.م</span>
+                  </div>
+                </div>
+                {excessPaidPiasters > 0 ? (
+                  <div className="p-1.5 bg-paid-soft border border-paid/30 rounded-lg text-paid-dark text-[10px] flex flex-col gap-0.5">
+                    <div className="flex justify-between items-center font-bold">
+                      <span className="flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-paid" />
+                        <span>فلوس زيادة سايبينها تحت الحساب:</span>
+                      </span>
+                      <span className="font-mono font-extrabold text-paid">+{formatMoney(excessPaidPiasters)}</span>
+                    </div>
+                    <span className="leading-tight">الزيادة هتتسجل كرصيد لنا عند الشركة تتخصم من فواتير البضاعة اللي جاية.</span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between text-danger font-bold text-[10.5px]">
+                    <span>الباقي علينا آجل:</span>
+                    <span className="font-mono">{formatMoney(remainingAmountPiasters)}</span>
+                  </div>
+                )}
+                {remainingAmountPiasters > 0 && advanceCreditPiasters > 0 && (
+                  <div className="text-[10px] text-paid bg-paid-soft p-1.5 rounded border border-paid/20 leading-tight flex items-center gap-1">
+                    <Info className="w-3.5 h-3.5 text-paid shrink-0" />
+                    <span>المتبقي ده هيتخصم تلقائياً من رصيدنا المتاح عند الشركة ({formatMoney(advanceCreditPiasters)}).</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
 
           {/* Notes Input */}
           <div className="pt-2">
-            <label className="text-[10.5px] font-bold text-ink-muted block mb-1">ملاحظات الفاتورة</label>
+            <label className="text-[10.5px] font-bold text-ink-muted block mb-1">ملاحظات على الفاتورة</label>
             <input
               type="text"
-              placeholder="ملاحظات أو رقم إذن الاستلام..."
+              placeholder="اكتب أي ملاحظة أو رقم إذن الاستلام..."
               value={purchaseNotes}
               onChange={(e) => setPurchaseNotes(e.target.value)}
               className="w-full h-8 px-2.5 bg-surface-2 border border-line rounded-lg text-xs text-ink focus:outline-none focus:border-brand focus:bg-surface transition-colors"
@@ -1019,14 +1221,14 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
             className="w-full h-10 bg-paid hover:bg-paid-hover disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
           >
             <Receipt className="w-4 h-4" />
-            <span>اعتماد الفاتورة وإضافة المخزون</span>
+            <span>حفظ الفاتورة وتزويد رصيد البضاعة</span>
           </button>
           <button
             type="button"
             onClick={onRequestCancel}
             className="w-full h-8 bg-surface hover:bg-surface-2 border border-line text-ink-muted hover:text-ink rounded-lg text-xs font-semibold transition-colors cursor-pointer"
           >
-            إلغاء والتراجع
+            إلغاء وتراجع
           </button>
         </div>
       </div>

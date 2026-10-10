@@ -190,7 +190,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
   // When user edits cartons:
   const handleCartonsChange = (val: string) => {
-    const clean = normalizeArabicNumerals(val);
+    const digitsOnly = normalizeArabicNumerals(val).replace(/[^\d]/g, '');
+    const clean = digitsOnly.length > 1 ? digitsOnly.replace(/^0+/, '') || '0' : digitsOnly;
     setCartonsInput(clean);
     const c = parseInt(clean, 10);
     const cVal = isNaN(c) ? 0 : c;
@@ -200,7 +201,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
   // When user edits pack size:
   const handlePackSizeChange = (val: string) => {
-    const clean = normalizeArabicNumerals(val);
+    const digitsOnly = normalizeArabicNumerals(val).replace(/[^\d]/g, '');
+    const clean = digitsOnly.length > 1 ? digitsOnly.replace(/^0+/, '') || '0' : digitsOnly;
     setPackSizeInput(clean);
     const p = parseInt(clean, 10);
     const pVal = isNaN(p) ? 0 : p;
@@ -210,7 +212,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
   // When user edits loose pieces:
   const handleLoosePiecesChange = (val: string) => {
-    const clean = normalizeArabicNumerals(val);
+    const digitsOnly = normalizeArabicNumerals(val).replace(/[^\d]/g, '');
+    const clean = digitsOnly.length > 1 ? digitsOnly.replace(/^0+/, '') || '0' : digitsOnly;
     setLooseInput(clean);
     const l = parseInt(clean, 10);
     const lVal = isNaN(l) ? 0 : l;
@@ -220,7 +223,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
   // When user types directly into stockInput:
   const handleDirectStockChange = (val: string) => {
-    const clean = normalizeArabicNumerals(val);
+    const digitsOnly = normalizeArabicNumerals(val).replace(/[^\d]/g, '');
+    const clean = digitsOnly.length > 1 ? digitsOnly.replace(/^0+/, '') || '0' : digitsOnly;
     setStockInput(clean);
     const total = parseFloat(clean) || 0;
     if (packSizeNum > 0) {
@@ -285,7 +289,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
           <div className="flex items-center gap-2">
             <Package className="w-4 h-4 text-brand" />
             <h3 className="text-[14px] font-bold text-ink m-0">
-              {editingId ? 'تعديل بيانات الصنف' : 'إضافة صنف جديد للكتالوج'}
+              {editingId ? 'تعديل بيانات الصنف' : 'إضافة صنف جديد لبضاعة المحل'}
             </h3>
             {editingId && (
               <button
@@ -295,7 +299,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 title="عرض تاريخ وتعديلات أسعار هذا الصنف"
               >
                 <History className="w-3 h-3" />
-                <span>سجل الأسعار</span>
+                <span>سجل وتاريخ الأسعار</span>
               </button>
             )}
           </div>
@@ -330,19 +334,18 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     onClick={() => setSimilarWarning(null)}
                     className="px-2.5 py-1 bg-white hover:bg-surface border border-line text-ink rounded text-[11px] font-bold transition-colors"
                   >
-                    تعديل الاسم
+                    تعديل اسم الصنف
                   </button>
                   <button
                     type="button"
                     onClick={() => void onSave(undefined, true)}
                     className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-[11px] font-bold flex items-center gap-1 shadow-xs transition-colors"
                   >
-                    <span>تجاهل وتأكيد الحفظ</span>
+                    <span>عادي، احفظ الصنف برضه</span>
                   </button>
                 </div>
               </div>
             )}
-
 
             {/* Matrix Variants Quick Action (Feature #114) */}
             {!editingId && onOpenVariantMatrix && isEnabled('feature_matrix_variants') && (
@@ -352,8 +355,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     <Layers className="w-4 h-4 text-purple-700" />
                   </div>
                   <div>
-                    <div className="text-purple-950">هل يحتوي هذا الصنف على مقاسات وألوان متعددة (ملابس / أحذية)؟</div>
-                    <div className="text-[11px] text-purple-700 font-normal">أنشئ مصفوفة سريعة (مقاس × لون) بباركود ورصيد وسعر لكل خيار بدفعة واحدة</div>
+                    <div className="text-purple-950">هل الصنف ده فيه منه مقاسات وألوان مختلفة (زي الهدوم والأحذية)؟</div>
+                    <div className="text-[11px] text-purple-700 font-normal">اعمل مصفوفة سريعة (مقاس × لون) بباركود وسعر ورصيد لكل خيار بدفعة واحدة</div>
                   </div>
                 </div>
                 <button
@@ -361,7 +364,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   onClick={onOpenVariantMatrix}
                   className="px-3 py-1.5 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-lg transition-colors shrink-0 text-xs shadow-xs cursor-pointer active:scale-95"
                 >
-                  + إنشاء مصفوفة مقاسات وألوان
+                  + عمل مقاسات وألوان للصنف
                 </button>
               </div>
             )}
@@ -371,7 +374,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               <label className="block text-ink font-semibold mb-1">اسم الصنف *</label>
               <input
                 type="text"
-                placeholder="مثال: شاي العروسة 250 جم"
+                placeholder="مثلاً: شاي العروسة 250 جم"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="w-full bg-surface border border-line rounded h-[38px] px-3 text-[13px] text-ink focus:outline-none focus:border-brand font-sans"
@@ -389,12 +392,12 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   className="text-[11px] text-brand hover:underline font-semibold flex items-center gap-1"
                 >
                   <Barcode className="w-3.5 h-3.5" />
-                  <span>توليد كود تلقائي</span>
+                  <span>عمل باركود تلقائي</span>
                 </button>
               </div>
               <input
                 type="text"
-                placeholder="امسح الباركود الرئيسي أو اضغط توليد كود تلقائي"
+                placeholder="اضرب الباركود بالقارئ أو دوس عمل كود تلقائي"
                 value={barcode}
                 onChange={(e) => setBarcode(normalizeArabicNumerals(e.target.value))}
                 className="w-full bg-surface border border-line rounded h-[38px] px-3 text-[13px] text-ink focus:outline-none focus:border-brand font-mono"
@@ -404,7 +407,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             {/* Multiple Additional Barcodes Editor (Feature #15 / Task 15-3) */}
             <div className="p-3 bg-surface-2/60 border border-line rounded flex flex-col gap-2">
               <div className="flex items-center justify-between text-[11.5px] font-semibold text-ink">
-                <span>باركودات إضافية لنفس الصنف (مسح سريع بالقارئ):</span>
+                <span>باركودات إضافية لنفس الصنف (تسهيل الضرب بالقارئ):</span>
                 <span className="text-[10.5px] text-ink-muted font-mono font-normal">
                   {additionalBarcodes.length} باركود إضافي
                 </span>
@@ -412,7 +415,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               <div className="flex items-center gap-2">
                 <input
                   type="text"
-                  placeholder="امسح بالباركود واضغط Enter للإضافة..."
+                  placeholder="اضرب الباركود ودوس Enter للإضافة..."
                   value={newBarcodeInput}
                   onChange={(e) => setNewBarcodeInput(normalizeArabicNumerals(e.target.value))}
                   onKeyDown={(e) => {
@@ -429,7 +432,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   disabled={!newBarcodeInput.trim()}
                   className="px-3 h-[34px] bg-brand hover:bg-brand-hover disabled:bg-surface disabled:text-ink-muted text-white rounded text-[11.5px] font-bold transition-colors shadow-xs"
                 >
-                  + إضافة
+                  + إضافة كود
                 </button>
               </div>
 
@@ -446,7 +449,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         type="button"
                         onClick={() => onRemoveBarcode(idx)}
                         className="text-ink-muted hover:text-danger hover:bg-danger-soft rounded p-0.5 cursor-pointer"
-                        title="حذف هذا الباركود"
+                        title="مسح هذا الباركود"
                       >
                         <X className="w-3 h-3" />
                       </button>
@@ -475,7 +478,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 options={
                   categories.length > 0
                     ? categories.map((cat) => ({ value: cat.id, label: cat.name }))
-                    : [{ value: 'cat_general', label: 'عام / متنوع' }]
+                    : [{ value: 'cat_general', label: 'عام / تشكيلة متنوعة' }]
                 }
                 size="md"
                 searchable
@@ -484,7 +487,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
             {/* Unit Selection: Piece vs Weight (Feature #19 / Tasks 19-1 & 19-2) */}
             <div>
-              <label className="block text-ink font-semibold mb-1">نوع بيع الصنف (الوحدة) *</label>
+              <label className="block text-ink font-semibold mb-1">طريقة بيع الصنف (الوحدة) *</label>
               <div className="grid grid-cols-2 gap-2 p-1 bg-surface-2 rounded border border-line">
                 <button
                   type="button"
@@ -499,7 +502,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   }`}
                 >
                   <Package className="w-3.5 h-3.5" />
-                  <span>بالقطعة / بالعدد (قطعة)</span>
+                  <span>بالقطعة / بالواحدة (قطعة)</span>
                 </button>
                 <button
                   type="button"
@@ -525,7 +528,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-purple-950 font-bold text-[12px]">
                     <Layers className="w-4 h-4 text-purple-700" />
-                    <span>المقاس واللون للصنف (اختياري)</span>
+                    <span>المقاس واللون (اختياري)</span>
                   </div>
                   {!editingId && onOpenVariantMatrix && (
                     <button
@@ -533,7 +536,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       onClick={onOpenVariantMatrix}
                       className="text-[11px] text-purple-700 hover:text-purple-900 font-bold hover:underline flex items-center gap-1 cursor-pointer"
                     >
-                      <span>+ توليد مصفوفة متعددة (مقاس × لون)</span>
+                      <span>+ عمل مصفوفة سريعة (مقاس × لون)</span>
                     </button>
                   )}
                 </div>
@@ -542,7 +545,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     <label className="block text-[11px] font-semibold text-ink-muted mb-1">المقاس</label>
                     <input
                       type="text"
-                      placeholder="مثال: L أو 42 أو 2XL"
+                      placeholder="مثلاً: L أو 42 أو 2XL"
                       value={variantSize}
                       onChange={(e) => setVariantSize?.(e.target.value)}
                       className="w-full bg-surface border border-line rounded h-[36px] px-3 text-[12px] font-mono text-ink focus:outline-none focus:border-brand"
@@ -552,7 +555,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     <label className="block text-[11px] font-semibold text-ink-muted mb-1">اللون</label>
                     <input
                       type="text"
-                      placeholder="مثال: كحلي أو أبيض أو أسود"
+                      placeholder="مثلاً: كحلي أو أبيض أو أسود"
                       value={variantColor}
                       onChange={(e) => setVariantColor?.(e.target.value)}
                       className="w-full bg-surface border border-line rounded h-[36px] px-3 text-[12px] text-ink focus:outline-none focus:border-brand"
@@ -568,7 +571,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-amber-950 font-bold text-[12px]">
                     <Calendar className="w-4 h-4 text-amber-700" />
-                    <span>تاريخ الصلاحية وشحنة البضاعة (اختياري)</span>
+                    <span>تاريخ الصلاحية ورقم الشحنة (اختياري)</span>
                   </div>
                   <span className="text-[10px] text-amber-700 font-medium">تسجيل تلقائي لرصيد أول المدة بالمخزن</span>
                 </div>
@@ -584,11 +587,11 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   </div>
                   <div>
                     <label className="block text-[11px] font-semibold text-ink-muted mb-1">
-                      كود الشحنة أو الفاتورة (اختياري)
+                      رقم الشحنة أو إذن الاستلام (اختياري)
                     </label>
                     <input
                       type="text"
-                      placeholder="مثلاً: شحنة 1 أو رقم الفاتورة (تلقائي لو فارغ)"
+                      placeholder="مثلاً: شحنة 1 أو رقم الفاتورة (هيتعمل تلقائي لو سبته فاضي)"
                       value={initialBatchNumber}
                       onChange={(e) => setInitialBatchNumber?.(e.target.value)}
                       className="w-full bg-surface border border-line rounded h-[34px] px-3 text-[12px] font-mono text-ink focus:outline-none focus:border-brand shadow-2xs"
@@ -606,7 +609,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   <Boxes className="w-4 h-4 text-brand" />
                   <span className="text-[13px] font-bold text-ink">رصيد المخزن وجرد الكراتين *</span>
                   <span className="px-1.5 py-0.5 bg-brand-soft text-brand border border-brand/20 rounded text-[10px] font-bold">
-                    حساب ديناميكي فوري
+                    حساب فوري ولحظي
                   </span>
                 </div>
                 {unit === 'piece' && (
@@ -618,7 +621,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   ) : (
                     <div className="flex items-center gap-1 text-[11px] font-semibold text-ink-muted bg-white px-2 py-0.5 rounded-md border border-line shadow-2xs">
                       <Package className="w-3.5 h-3.5 text-ink-muted" />
-                      <span>قطع فردية (بدون كراتين)</span>
+                      <span>قطع فرط فرداني (من غير كراتين)</span>
                     </div>
                   )
                 )}
@@ -636,8 +639,10 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       </label>
                       <input
                         type="text"
+                        inputMode="numeric"
                         value={cartonsInput}
                         onChange={(e) => handleCartonsChange(e.target.value)}
+                        onFocus={(e) => e.target.select()}
                         placeholder="0"
                         className="w-full bg-surface-2 border border-line rounded h-[36px] px-2 text-[13px] font-mono text-center font-bold text-brand focus:outline-none focus:border-brand"
                       />
@@ -646,14 +651,16 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     {/* Pack Size */}
                     <div className="flex-1 relative">
                       <label className="block text-[11px] font-bold text-ink mb-1">
-                        سعة {packName} (قطعة):
+                        سعة الـ {packName} (فيها كام حتة):
                       </label>
                       <div className="relative flex items-center">
                         <span className="absolute right-2 text-ink-muted text-xs font-bold pointer-events-none select-none">×</span>
                         <input
                           type="text"
+                          inputMode="numeric"
                           value={packSizeInput}
                           onChange={(e) => handlePackSizeChange(e.target.value)}
+                          onFocus={(e) => e.target.select()}
                           placeholder="0"
                           className="w-full bg-surface-2 border border-line rounded h-[36px] pr-5 pl-2 text-[13px] font-mono text-center font-bold text-ink focus:outline-none focus:border-brand"
                         />
@@ -663,14 +670,16 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     {/* Loose Pieces */}
                     <div className="flex-1 relative">
                       <label className="block text-[11px] font-bold text-ink mb-1">
-                        قطع فرط (فردي):
+                        قطع فرط (فرداني):
                       </label>
                       <div className="relative flex items-center">
                         <span className="absolute right-2 text-ink-muted text-xs font-bold pointer-events-none select-none">+</span>
                         <input
                           type="text"
+                          inputMode="numeric"
                           value={looseInput}
                           onChange={(e) => handleLoosePiecesChange(e.target.value)}
+                          onFocus={(e) => e.target.select()}
                           placeholder="0"
                           className="w-full bg-surface-2 border border-line rounded h-[36px] pr-5 pl-2 text-[13px] font-mono text-center font-bold text-ink focus:outline-none focus:border-brand"
                         />
@@ -680,14 +689,16 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     {/* Total Stock Pieces */}
                     <div className="flex-1 relative">
                       <label className="block text-[11px] font-bold text-brand mb-1">
-                        الرصيد الفعلي (بالقطعة) *
+                        إجمالي الرصيد (بالقطعة) *
                       </label>
                       <div className="relative flex items-center">
                         <span className="absolute right-2 text-brand text-xs font-bold pointer-events-none select-none">=</span>
                         <input
                           type="text"
+                          inputMode="numeric"
                           value={stockInput}
                           onChange={(e) => handleDirectStockChange(e.target.value)}
+                          onFocus={(e) => e.target.select()}
                           placeholder="0"
                           className="w-full bg-brand-soft border-2 border-brand rounded h-[36px] pr-5 pl-2 text-[13px] font-mono text-center font-extrabold text-brand focus:outline-none"
                         />
@@ -698,16 +709,21 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   {/* Min Stock Reorder Alert Input */}
                   <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-line shadow-2xs">
                     <label className="text-[11.5px] font-semibold text-ink shrink-0">
-                      حد التنبيه بالنواقص (قطعة):
+                      حد تنبيه النواقص (قطعة):
                     </label>
                     <input
                       type="text"
+                      inputMode="numeric"
                       value={minStockInput}
-                      onChange={(e) => setMinStockInput(normalizeArabicNumerals(e.target.value))}
+                      onChange={(e) => {
+                        const clean = normalizeArabicNumerals(e.target.value).replace(/[^\d]/g, '');
+                        setMinStockInput(clean.length > 1 ? clean.replace(/^0+/, '') || '0' : clean);
+                      }}
+                      onFocus={(e) => e.target.select()}
                       placeholder="0"
                       className="w-32 bg-surface-2 border border-line rounded h-[30px] px-2 text-[12px] font-mono text-center text-ink focus:outline-none focus:border-brand"
                     />
-                    <span className="text-[10.5px] text-ink-muted">ينبهك النظام تلقائياً عند هبوط الرصيد الفعلي لشراء بضاعة جديدة</span>
+                    <span className="text-[10.5px] text-ink-muted">النظام هينبهك تلقائياً أول ما الرصيد يقل عن كده عشان تطلب بضاعة من الموردين</span>
                   </div>
 
                   {/* Dynamic Equation Live Breakdown Banner */}
@@ -717,17 +733,17 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       <span>
                         {packSizeNum > 0 && cartonsNum > 0 ? (
                           <>
-                            الناتج المحسوب: {cartonsNum} {packName} × {packSizeNum} قطعة
-                            {looseNum > 0 ? ` + ${looseNum} قطع فرط` : ''}
+                            الناتج المحسوب: {cartonsNum} {packName} × {packSizeNum} حتة
+                            {looseNum > 0 ? ` + ${looseNum} فرط` : ''}
                             {' = '}
-                            {totalStockNum} قطعة رصيد فعلي بالمخزن
+                            {totalStockNum} حتة رصيد فعلي في المحل
                           </>
                         ) : totalStockNum > 0 ? (
                           <>
-                            الناتج المحسوب: {totalStockNum} قطعة رصيد فعلي بالمخزن (بيع بالقطع الفردية)
+                            الناتج المحسوب: {totalStockNum} حتة رصيد فعلي في المحل (بيع بالقطعة الفردية)
                           </>
                         ) : (
-                          <>الرصيد الفعلي بالمخزن: 0 قطعة</>
+                          <>الرصيد الفعلي في المحل: 0 قطعة</>
                         )}
                       </span>
                     </div>
@@ -740,7 +756,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                     <span className="text-[11px] font-semibold text-ink-muted ml-1 flex items-center gap-1">
                       <Layers className="w-3.5 h-3.5 text-ink-muted" />
-                      <span>إضافة سريعة:</span>
+                      <span>تزويد سريع:</span>
                     </span>
                     {packSizeNum > 0 && (
                       <button
@@ -827,12 +843,12 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         placeholder="مثلاً: 12.5 كجم"
                         className="w-full bg-white border border-line rounded h-[38px] px-3 text-[13px] text-ink focus:outline-none focus:border-brand font-mono font-bold"
                       />
-                      <p className="text-[10.5px] text-ink-muted mt-1 leading-tight">الوزن الإجمالي المتوفر حالياً على الرف</p>
+                      <p className="text-[10.5px] text-ink-muted mt-1 leading-tight">الوزن الإجمالي المتوفر حالياً على الرف أو في المحل</p>
                     </div>
 
                     <div>
                       <label className="block text-ink font-semibold mb-1 text-[12px]">
-                        حد التنبيه بالنواقص (كجم)
+                        حد تنبيه النواقص (كجم)
                       </label>
                       <input
                         type="text"
@@ -841,7 +857,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         placeholder="تنبيه عند: 5 كجم"
                         className="w-full bg-white border border-line rounded h-[38px] px-3 text-[13px] text-ink focus:outline-none focus:border-brand font-mono"
                       />
-                      <p className="text-[10.5px] text-ink-muted mt-1 leading-tight">ينبهك النظام تلقائياً عند هبوط الرصيد لطلب بضاعة</p>
+                      <p className="text-[10.5px] text-ink-muted mt-1 leading-tight">النظام هينبهك تلقائياً أول ما الوزن يقل عن كده عشان تشتري بضاعة</p>
                     </div>
                   </div>
 
@@ -849,7 +865,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                     <span className="text-[11px] font-semibold text-ink-muted ml-1 flex items-center gap-1">
                       <Layers className="w-3.5 h-3.5 text-ink-muted" />
-                      <span>إضافة سريعة:</span>
+                      <span>تزويد سريع:</span>
                     </span>
                     <button
                       type="button"
@@ -901,7 +917,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 <div className="px-2.5 py-1.5 bg-white border border-brand/20 rounded text-[11px] text-ink-muted flex items-center justify-between shadow-2xs">
                   <div className="flex items-center gap-1.5">
                     <Coins className="w-4 h-4 text-brand" />
-                    <span>إجمالي رأس المال المجمد في المخزون (بسعر التكلفة):</span>
+                    <span>إجمالي فلوس البضاعة المركونة في المخزن (بسعر التكلفة):</span>
                   </div>
                   <span className="font-mono font-bold text-brand text-[12px]">
                     {formatArabicCurrency(Math.round(parseFloat(stockInput) * costPiasters))}
@@ -934,7 +950,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-ink font-semibold mb-1">
-                  {unit === 'kg' ? 'سعر بيع الكيلو للجمهور *' : 'سعر البيع للجمهور (للقطعة) *'}
+                  {unit === 'kg' ? 'سعر بيع الكيلو للزبون *' : 'سعر البيع للزبون (للقطعة) *'}
                 </label>
                 <MoneyInput
                   valuePiasters={pricePiasters}
@@ -946,7 +962,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-ink font-semibold">
-                    {unit === 'kg' ? 'تكلفة شراء الكيلو من المورد' : 'تكلفة الشراء من المورد (للقطعة)'}
+                    {unit === 'kg' ? 'تكلفة شراء الكيلو من المورد' : 'تكلفة الشراء من الشركات والموردين (للقطعة)'}
                   </label>
                   <button
                     type="button"
@@ -966,7 +982,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         ? 'bg-brand text-white border-brand shadow-xs'
                         : 'bg-brand-soft text-brand hover:bg-brand/15 border-brand/20'
                     }`}
-                    title="حاسبة ذكية لحساب تكلفة شراء القطعة من سعر الكرتونة أو إجمالي الفاتورة"
+                    title="حاسبة لحساب تكلفة شراء القطعة من سعر الكرتونة أو إجمالي الفاتورة"
                   >
                     <Calculator className="w-3.5 h-3.5" />
                     <span>حاسبة التكلفة</span>
@@ -986,7 +1002,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 <div className="flex items-center justify-between border-b border-brand/15 pb-2">
                   <div className="flex items-center gap-1.5">
                     <Calculator className="w-4 h-4 text-brand" />
-                    <span className="text-[12px] font-bold text-ink">حاسبة تكلفة الشراء من المورد:</span>
+                    <span className="text-[12px] font-bold text-ink">حاسبة تكلفة الشراء من الشركات والموردين:</span>
                   </div>
                   <div className="flex items-center gap-1 bg-surface p-0.5 rounded-md border border-line">
                     <button
@@ -1011,7 +1027,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       }`}
                     >
                       <Receipt className="w-3 h-3" />
-                      <span>من إجمالي الفاتورة</span>
+                      <span>من إجمالي فاتورة الشراء</span>
                     </button>
                   </div>
                 </div>
@@ -1031,7 +1047,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     </div>
                     <div>
                       <label className="block text-[11px] font-bold text-ink mb-1">
-                        سعة الكرتونة (عدد القطع داخلها):
+                        سعة الكرتونة (فيها كام حتة):
                       </label>
                       <input
                         type="text"
@@ -1046,7 +1062,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-end">
                     <div>
                       <label className="block text-[11px] font-bold text-ink mb-1">
-                        إجمالي المبلغ المدفوع في الفاتورة:
+                        إجمالي المبلغ المدفوع في فاتورة المورد:
                       </label>
                       <MoneyInput
                         valuePiasters={calcInvoiceTotalPiasters}
@@ -1057,7 +1073,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     </div>
                     <div>
                       <label className="block text-[11px] font-bold text-ink mb-1">
-                        {unit === 'kg' ? 'إجمالي الوزن المستلم (كجم):' : 'إجمالي عدد القطع المستلمة:'}
+                        {unit === 'kg' ? 'إجمالي الوزن المستلم (كجم):' : 'إجمالي عدد القطع المستلمة في الفاتورة:'}
                       </label>
                       <input
                         type="text"
@@ -1118,7 +1134,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     <div className="flex items-center justify-between font-bold">
                       <span className="flex items-center gap-1.5">
                         <AlertTriangle className="w-3.5 h-3.5 text-danger shrink-0" />
-                        <span>تنبيه: سعر البيع أقل من التكلفة (بيع بالخسارة)</span>
+                        <span>تنبيه: سعر البيع أقل من التكلفة (هتبيع بخسارة!)</span>
                       </span>
                       <span className="font-mono text-[12px]">
                         -{formatArabicCurrency(Math.abs(profitPiasters))}
@@ -1135,8 +1151,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               if (isBreakEven) {
                 return (
                   <div className="p-2 rounded bg-surface-2 border border-line text-ink-muted text-[11px] flex items-center justify-between font-mono">
-                    <span>هامش الربح: 0.00 ج.م (رأس برأس)</span>
-                    <span>سعر البيع يطابق سعر الشراء تماماً</span>
+                    <span>مكسب القطعة: 0.00 ج.م (رأس برأس من غير مكسب)</span>
+                    <span>سعر البيع نفس سعر الشراء بالظبط</span>
                   </div>
                 );
               }
@@ -1146,15 +1162,15 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   <div className="flex items-center justify-between font-bold">
                     <span className="flex items-center gap-1.5">
                       <TrendingUp className="w-3.5 h-3.5 text-brand shrink-0" />
-                      <span>{unit === 'kg' ? 'الربح الصافي للكيلو:' : 'الربح الصافي للقطعة:'}</span>
+                      <span>{unit === 'kg' ? 'المكسب الصافي للكيلو:' : 'المكسب الصافي للقطعة:'}</span>
                     </span>
                     <span className="font-mono text-[12px] font-bold">
                       +{formatArabicCurrency(profitPiasters)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between font-mono text-[10.5px] text-brand/80">
-                    <span>نسبة الربح من التكلفة (Markup): +{markupPercent.toFixed(1)}%</span>
-                    <span>هامش المبيعات (Margin): {marginPercent.toFixed(1)}%</span>
+                    <span>نسبة الزيادة على التكلفة (Markup): +{markupPercent.toFixed(1)}%</span>
+                    <span>هامش الربح من البيع (Margin): {marginPercent.toFixed(1)}%</span>
                   </div>
                 </div>
               );
@@ -1167,7 +1183,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
                   <div>
                     <p>سعر البيع ({formatArabicCurrency(belowCostWarning.pricePiasters)}) أقل من سعر التكلفة ({formatArabicCurrency(belowCostWarning.costPiasters)}).</p>
-                    <p className="text-[11px] font-normal text-ink-muted mt-0.5">هل تريد بالتأكيد المتابعة وحفظ المنتج بالخسارة؟</p>
+                    <p className="text-[11px] font-normal text-ink-muted mt-0.5">متأكد إنك عاوز تكمل وتحفظ الصنف بسعر بيع فيه خسارة للمحل؟</p>
                   </div>
                 </div>
                 <div className="flex items-center justify-end gap-2 pt-1 border-t border-amber-500/20">
@@ -1176,14 +1192,14 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     onClick={() => setBelowCostWarning(null)}
                     className="px-2.5 h-6 bg-surface hover:bg-surface-2 border border-line rounded text-[11px] font-semibold text-ink transition-colors"
                   >
-                    تعديل الأسعار
+                    تعديل الأسعار والتكلفة
                   </button>
                   <button
                     type="button"
                     onClick={() => void onSave(undefined, false, true)}
                     className="px-2.5 h-6 bg-amber-600 hover:bg-amber-700 text-white rounded text-[11px] font-bold transition-colors shadow-xs"
                   >
-                    نعم، تأكيد الحفظ بالخسارة
+                    أيوه، احفظ الصنف بالخسارة عادي
                   </button>
                 </div>
               </div>
@@ -1204,7 +1220,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   />
                   <Percent className="w-3.5 h-3.5 text-ink-muted absolute left-2 pointer-events-none" />
                 </div>
-                <p className="text-[9.5px] text-ink-muted mt-0.5 leading-tight">اكتب 0 للأصناف المعفية</p>
+                <p className="text-[9.5px] text-ink-muted mt-0.5 leading-tight">اكتب 0 لو الصنف معفي من الضريبة</p>
               </div>
 
               <div>
@@ -1226,7 +1242,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 </label>
                 <input
                   type="text"
-                  placeholder="اختياري - للضرائب"
+                  placeholder="اختياري - لمنظومة الضرائب"
                   value={taxCategoryCode}
                   onChange={(e) => setTaxCategoryCode(e.target.value)}
                   className="w-full bg-surface border border-line rounded h-[34px] px-2.5 text-[12px] text-ink focus:outline-none focus:border-brand font-mono"
@@ -1251,7 +1267,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               className="h-[36px] px-5 bg-brand hover:bg-brand-hover text-white rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors shadow-sm"
             >
               <Check className="w-4 h-4" />
-              <span>{editingId ? 'حفظ التعديلات' : 'حفظ الصنف في قاعدة البيانات'}</span>
+              <span>{editingId ? 'حفظ التعديلات' : 'حفظ الصنف في المحل'}</span>
             </button>
           </div>
         </form>
