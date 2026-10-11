@@ -33,9 +33,9 @@ interface PosCartCheckoutBarProps {
   customers: Customer[];
   netTotalPiasters: number;
   loading: boolean;
-  handleOpenCheckout: (forcedMethod?: 'cash' | 'credit') => void;
-  handleInstapayCheckout: () => Promise<void>;
-  handleVodafoneCashCheckout: () => Promise<void>;
+  handleOpenCheckout: (forcedMethod?: 'cash' | 'credit' | 'instapay' | 'vodafone_cash') => void;
+  handleInstapayCheckout?: () => Promise<void>;
+  handleVodafoneCashCheckout?: () => Promise<void>;
   requestClearCart: () => void;
   lastCompletedSale: Sale | null;
   onOpenReceipt: () => void;
@@ -63,8 +63,8 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
   netTotalPiasters,
   loading,
   handleOpenCheckout,
-  handleInstapayCheckout,
-  handleVodafoneCashCheckout,
+  handleInstapayCheckout: _handleInstapayCheckout,
+  handleVodafoneCashCheckout: _handleVodafoneCashCheckout,
   requestClearCart,
   lastCompletedSale,
   onOpenReceipt,
@@ -128,7 +128,7 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
           </div>
 
           <span className="text-[10px] sm:text-[11px] text-ink-muted font-semibold bg-surface-2 px-1.5 py-0.5 rounded-md border border-line whitespace-nowrap">
-            {cart.length} صنف ({totalItemCount} حتة)
+            {cart.length} صنف ({totalItemCount} قطعة)
           </span>
 
           {discountPiasters > 0 && (
@@ -321,10 +321,10 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
               {/* انستاباي */}
               <button 
                 type="button"
-                onClick={() => void handleInstapayCheckout()}
+                onClick={() => handleOpenCheckout('instapay')}
                 disabled={loading || cart.length === 0}
                 className="flex-1 min-w-0 h-full bg-[#582C83] hover:bg-[#462269] active:bg-[#371954] disabled:bg-surface-2 disabled:text-ink-muted/50 text-white rounded-xl px-2 py-1 flex flex-col justify-center items-center gap-0.5 transition-all shadow-sm active:scale-[0.98] cursor-pointer"
-                title="سداد فوري عبر انستاباي (F10)"
+                title="سداد عبر تطبيق انستاباي"
               >
                 <Smartphone className="w-3.5 h-3.5 shrink-0 text-white/90" />
                 <span className="text-[11px] sm:text-xs font-black truncate text-center leading-none">
@@ -332,17 +332,17 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
                 </span>
               </button>
 
-              {/* فودافون كاش ومحافظ */}
+              {/* محفظة إلكترونية (فودافون، أورانج، اتصالات، وي) */}
               <button 
                 type="button"
-                onClick={() => void handleVodafoneCashCheckout()}
+                onClick={() => handleOpenCheckout('vodafone_cash')}
                 disabled={loading || cart.length === 0}
                 className="flex-1 min-w-0 h-full bg-[#e60000] hover:bg-[#cc0000] active:bg-[#b30000] disabled:bg-surface-2 disabled:text-ink-muted/50 text-white rounded-xl px-2 py-1 flex flex-col justify-center items-center gap-0.5 transition-all shadow-sm active:scale-[0.98] cursor-pointer"
-                title="سداد عبر فودافون كاش والمحافظ الإلكترونية"
+                title="سداد عبر المحفظة الإلكترونية (فودافون كاش، أورانج، اتصالات، وي)"
               >
                 <Wallet className="w-3.5 h-3.5 shrink-0 text-white/90" />
                 <span className="text-[11px] sm:text-xs font-black truncate text-center leading-none">
-                  فودافون كاش
+                  محفظة
                 </span>
               </button>
             </>

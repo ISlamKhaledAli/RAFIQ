@@ -222,7 +222,7 @@ export function ReceiptModal({
                     : sale.paymentMethod === 'instapay'
                     ? 'انستاباي'
                     : sale.paymentMethod === 'vodafone_cash'
-                    ? 'فودافون كاش'
+                    ? 'محفظة إلكترونية'
                     : 'نقداً'
                 }):</span>
                 <span className="font-mono font-bold">{(sale.paidPiasters / 100).toFixed(2)} ج.م</span>

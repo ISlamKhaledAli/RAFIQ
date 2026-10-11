@@ -644,7 +644,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                       </span>
                     ) : (
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-paid-soft text-paid border border-paid/20">
-                        {sale.paymentMethod === 'cash' ? 'كاش' : sale.paymentMethod === 'credit' ? 'شكك' : sale.paymentMethod === 'instapay' ? 'انستاباي' : sale.paymentMethod === 'vodafone_cash' ? 'فودافون كاش' : 'إلكتروني'}
+                        {sale.paymentMethod === 'cash' ? 'كاش' : sale.paymentMethod === 'credit' ? 'شكك' : sale.paymentMethod === 'instapay' ? 'انستاباي' : sale.paymentMethod === 'vodafone_cash' ? 'محفظة' : 'إلكتروني'}
                       </span>
                     )}
                   </div>
@@ -797,7 +797,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                 <div>
                   <span className="text-ink-muted text-[11px]">طريقة الدفع: </span>
                   <span className="text-ink font-bold">
-                    {selectedSale.paymentMethod === 'cash' ? 'كاش' : selectedSale.paymentMethod === 'credit' ? 'شكك (على النوتة)' : selectedSale.paymentMethod === 'instapay' ? 'انستاباي (InstaPay)' : selectedSale.paymentMethod === 'vodafone_cash' ? 'فودافون كاش ومحافظ' : 'إلكتروني'}
+                    {selectedSale.paymentMethod === 'cash' ? 'كاش' : selectedSale.paymentMethod === 'credit' ? 'شكك (على النوتة)' : selectedSale.paymentMethod === 'instapay' ? 'انستاباي (InstaPay)' : selectedSale.paymentMethod === 'vodafone_cash' ? 'محفظة إلكترونية' : 'إلكتروني'}
                   </span>
                 </div>
                 <div>
@@ -817,7 +817,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
 
               {/* Items Breakdown Table */}
               <div className="border border-line rounded overflow-hidden">
-                <div className="bg-surface-2 px-3 py-1.5 text-[11px] font-bold text-ink-muted grid grid-cols-12">
+                <div className="bg-surface-2 px-3 py-1.5 text-[11px] font-bold text-ink-muted grid grid-cols-12 gap-2">
                   <span className="col-span-5">اسم الصنف</span>
                   <span className="col-span-2 text-center">العدد / الوزن</span>
                   <span className="col-span-2 text-center">سعر البيع</span>
@@ -834,12 +834,12 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                     selectedSale.items.map((item, idx) => {
                       const retInfo = returnedInfoByProduct[item.productId];
                       const origQty = item.unit === 'kg' ? item.quantityMilli / 1000 : Math.round(item.quantityMilli / 1000);
-                      const unitStr = item.unit === 'kg' ? 'كجم' : 'حتة';
+                      const unitStr = item.unit === 'kg' ? 'كجم' : 'قطعة';
                       const remainingQty = retInfo ? Math.max(0, origQty - retInfo.returnedPieces) : origQty;
                       const netLineTotal = Math.round(remainingQty * item.unitPricePiasters);
 
                       return (
-                        <div key={item.id || idx} className={`px-3 py-2 text-[12px] grid grid-cols-12 items-center ${
+                        <div key={item.id || idx} className={`px-3 py-2 text-[12px] grid grid-cols-12 items-center gap-2 ${
                           retInfo ? 'bg-amber-50/30' : ''
                         }`}>
                           <div className="col-span-5">
@@ -943,7 +943,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                             {ret.items.map((ritem, rIdx) => (
                               <div key={ritem.id || rIdx} className="flex justify-between items-center text-ink">
                                 <span className="font-medium">
-                                  • {ritem.productName} × {ritem.unit === 'kg' ? (ritem.quantityMilli / 1000).toFixed(3) : ritem.quantityMilli / 1000} {ritem.unit === 'kg' ? 'كجم' : 'حتة'}
+                                  • {ritem.productName} × {ritem.unit === 'kg' ? (ritem.quantityMilli / 1000).toFixed(3) : ritem.quantityMilli / 1000} {ritem.unit === 'kg' ? 'كجم' : 'قطعة'}
                                   {ritem.isDamaged && <span className="text-danger mr-1 font-bold">(تالف)</span>}
                                 </span>
                                 <span className="font-mono font-bold text-amber-800">

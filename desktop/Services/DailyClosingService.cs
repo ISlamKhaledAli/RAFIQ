@@ -348,8 +348,8 @@ namespace RafiqPOS.Services
                         string epaySql = @"
                             SELECT 
                                 (SELECT COALESCE(SUM(balance_piasters), 0) FROM epay_terminals WHERE is_active = 1) AS terminals_balance,
-                                COALESCE(SUM(CASE WHEN payment_channel = 'terminal_till' THEN total_received_piasters ELSE 0 END), 0) AS till_cash,
-                                COALESCE(SUM(CASE WHEN payment_channel = 'cash_drawer' THEN total_received_piasters ELSE 0 END), 0) AS drawer_cash,
+                                COALESCE(SUM(CASE WHEN payment_channel = 'terminal_till' THEN (CASE WHEN service_type = 'cash_out' THEN (customer_fee_piasters - bill_amount_piasters) ELSE total_received_piasters END) ELSE 0 END), 0) AS till_cash,
+                                COALESCE(SUM(CASE WHEN payment_channel = 'cash_drawer' THEN (CASE WHEN service_type = 'cash_out' THEN (customer_fee_piasters - bill_amount_piasters) ELSE total_received_piasters END) ELSE 0 END), 0) AS drawer_cash,
                                 COALESCE(SUM(net_profit_piasters), 0) AS net_profit
                             FROM epay_transactions
                             WHERE date(datetime(created_at, 'localtime', '-' || @cutoff || ' hours')) = @bdate

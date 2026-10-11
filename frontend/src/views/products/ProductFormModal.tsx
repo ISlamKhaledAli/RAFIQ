@@ -651,7 +651,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     {/* Pack Size */}
                     <div className="flex-1 relative">
                       <label className="block text-[11px] font-bold text-ink mb-1">
-                        سعة الـ {packName} (فيها كام حتة):
+                        سعة الـ {packName} (فيها كام قطعة):
                       </label>
                       <div className="relative flex items-center">
                         <span className="absolute right-2 text-ink-muted text-xs font-bold pointer-events-none select-none">×</span>
@@ -733,14 +733,14 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                       <span>
                         {packSizeNum > 0 && cartonsNum > 0 ? (
                           <>
-                            الناتج المحسوب: {cartonsNum} {packName} × {packSizeNum} حتة
+                            الناتج المحسوب: {cartonsNum} {packName} × {packSizeNum} قطعة
                             {looseNum > 0 ? ` + ${looseNum} فرط` : ''}
                             {' = '}
-                            {totalStockNum} حتة رصيد فعلي في المحل
+                            {totalStockNum} قطعة رصيد فعلي في المحل
                           </>
                         ) : totalStockNum > 0 ? (
                           <>
-                            الناتج المحسوب: {totalStockNum} حتة رصيد فعلي في المحل (بيع بالقطعة الفردية)
+                            الناتج المحسوب: {totalStockNum} قطعة رصيد فعلي في المحل (بيع بالقطعة الفردية)
                           </>
                         ) : (
                           <>الرصيد الفعلي في المحل: 0 قطعة</>
@@ -1047,7 +1047,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     </div>
                     <div>
                       <label className="block text-[11px] font-bold text-ink mb-1">
-                        سعة الكرتونة (فيها كام حتة):
+                        سعة الكرتونة (فيها كام قطعة):
                       </label>
                       <input
                         type="text"

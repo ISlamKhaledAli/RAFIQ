@@ -78,6 +78,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'credit'>('cash');
+  const [paymentInitialMethod, setPaymentInitialMethod] = useState<'cash' | 'instapay' | 'vodafone_cash'>('cash');
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [lastCompletedSale, setLastCompletedSale] = useState<Sale | null>(null);
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
@@ -555,7 +556,11 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const loadCustomers = useCallback(async () => {
     try {
       const data = await invoke<Customer[]>('customers:getAll', { limit: 100 });
-      setCustomers(data || []);
+      const map = new Map<string, Customer>();
+      for (const c of data || []) {
+        if (c && c.id) map.set(c.id, c);
+      }
+      setCustomers(Array.from(map.values()));
     } catch {
       // Offline fallback
     }
@@ -712,12 +717,20 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     }
   }, [cart, discountPiasters, selectedCustomerId]);
 
-  const handleOpenCheckout = useCallback((forcedMethod?: 'cash' | 'credit') => {
+  const handleOpenCheckout = useCallback((forcedMethod?: 'cash' | 'credit' | 'instapay' | 'vodafone_cash') => {
     if (cart.length === 0) {
       showStatus('سلة البيع فارغة! يرجى إضافة أصناف أولاً.', 'error');
       return;
     }
-    if (forcedMethod) setPaymentMethod(forcedMethod);
+    if (forcedMethod === 'vodafone_cash' || forcedMethod === 'instapay') {
+      setPaymentInitialMethod(forcedMethod);
+      setPaymentMethod('cash');
+    } else if (forcedMethod) {
+      setPaymentInitialMethod('cash');
+      setPaymentMethod(forcedMethod);
+    } else {
+      setPaymentInitialMethod('cash');
+    }
     setIsPaymentModalOpen(true);
   }, [cart.length, showStatus]);
 
@@ -816,38 +829,44 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       return;
     }
     setCart((prev) => {
-      const updated = [...prev];
-      if (updated[index]) {
-        const item = updated[index];
-        const factor = item.conversionFactor && item.conversionFactor > 0 ? item.conversionFactor : 1;
+      const item = prev[index];
+      if (!item) return prev;
+      const factor = item.conversionFactor && item.conversionFactor > 0 ? item.conversionFactor : 1;
 
-        if (!allowNegativeStock) {
-          const otherCartBaseMilli = prev.reduce((sum, it, i) => {
-            if (i !== index && it.productId === item.productId) {
-              const itFactor = it.conversionFactor && it.conversionFactor > 0 ? it.conversionFactor : 1;
-              return sum + (it.quantityMilli * itFactor);
-            }
-            return sum;
-          }, 0);
-
-          const neededBaseMilli = newQtyPieces * 1000 * factor;
-          const availableStockMilli = item.stockQuantityMilli ?? 0;
-
-          if (otherCartBaseMilli + neededBaseMilli > availableStockMilli) {
-            const maxRemainingBaseMilli = Math.max(0, availableStockMilli - otherCartBaseMilli);
-            const maxPossibleUnits = Math.floor(maxRemainingBaseMilli / (factor * 1000));
-            showStatus(
-              `الكمية المطلوبة (${newQtyPieces}) تتجاوز رصيد المخزن المتاح (${maxPossibleUnits} ${item.unitName || 'قطعة'})!`,
-              'error'
-            );
-            return prev;
+      if (!allowNegativeStock) {
+        const otherCartBaseMilli = prev.reduce((sum, it, i) => {
+          if (i !== index && it.productId === item.productId) {
+            const itFactor = it.conversionFactor && it.conversionFactor > 0 ? it.conversionFactor : 1;
+            return sum + (it.quantityMilli * itFactor);
           }
-        }
+          return sum;
+        }, 0);
 
-        item.quantityMilli = newQtyPieces * 1000;
-        item.totalPiasters = calculateLineTotal(item.unitPricePiasters, item.quantityMilli, item.discountPiasters);
-        item.taxPiasters = calculateTaxPiasters(item.totalPiasters, item.taxRatePercent || 0, true);
+        const neededBaseMilli = newQtyPieces * 1000 * factor;
+        const availableStockMilli = item.stockQuantityMilli ?? 0;
+
+        if (otherCartBaseMilli + neededBaseMilli > availableStockMilli) {
+          const maxRemainingBaseMilli = Math.max(0, availableStockMilli - otherCartBaseMilli);
+          const maxPossibleUnits = Math.floor(maxRemainingBaseMilli / (factor * 1000));
+          showStatus(
+            `الكمية المطلوبة (${newQtyPieces}) تتجاوز رصيد المخزن المتاح (${maxPossibleUnits} ${item.unitName || 'قطعة'})!`,
+            'error'
+          );
+          return prev;
+        }
       }
+
+      const newQuantityMilli = newQtyPieces * 1000;
+      const newTotalPiasters = calculateLineTotal(item.unitPricePiasters, newQuantityMilli, item.discountPiasters);
+      const newTaxPiasters = calculateTaxPiasters(newTotalPiasters, item.taxRatePercent || 0, true);
+
+      const updated = [...prev];
+      updated[index] = {
+        ...item,
+        quantityMilli: newQuantityMilli,
+        totalPiasters: newTotalPiasters,
+        taxPiasters: newTaxPiasters,
+      };
       return updated;
     });
   }, [allowNegativeStock, showStatus]);
@@ -1137,10 +1156,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
 
   const updateQuantity = useCallback((index: number, deltaPieces: number) => {
     setCart((prev) => {
-      const updated = [...prev];
-      const item = updated[index];
+      const item = prev[index];
       if (!item) return prev;
-      const currentPieces = item.quantityMilli / 1000;
+      const currentPieces = Math.round(item.quantityMilli / 1000);
       const newPieces = Math.max(1, currentPieces + deltaPieces);
       const factor = item.conversionFactor && item.conversionFactor > 0 ? item.conversionFactor : 1;
 
@@ -1167,9 +1185,17 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         }
       }
 
-      item.quantityMilli = newPieces * 1000;
-      item.totalPiasters = calculateLineTotal(item.unitPricePiasters, item.quantityMilli, item.discountPiasters);
-      item.taxPiasters = calculateTaxPiasters(item.totalPiasters, item.taxRatePercent || 0, true);
+      const newQuantityMilli = newPieces * 1000;
+      const newTotalPiasters = calculateLineTotal(item.unitPricePiasters, newQuantityMilli, item.discountPiasters);
+      const newTaxPiasters = calculateTaxPiasters(newTotalPiasters, item.taxRatePercent || 0, true);
+
+      const updated = [...prev];
+      updated[index] = {
+        ...item,
+        quantityMilli: newQuantityMilli,
+        totalPiasters: newTotalPiasters,
+        taxPiasters: newTaxPiasters,
+      };
       return updated;
     });
   }, [allowNegativeStock, showStatus]);
@@ -1232,7 +1258,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     const feePercent = isInstapay ? instapayFeePercent : vodafoneCashFeePercent;
     const feePiasters = Math.round(netTotalPiasters * (feePercent / 100));
     const finalTotalPiasters = netTotalPiasters + feePiasters;
-    const methodName = isInstapay ? 'انستاباي (InstaPay)' : 'فودافون كاش ومحافظ المحمول';
+    const methodName = isInstapay ? 'انستاباي (InstaPay)' : 'محفظة إلكترونية (فودافون، أورانج، اتصالات، وي)';
 
     const proceed = await rafiqConfirm({
       title: `تأكيد التحويل الإلكتروني - ${methodName}`,
@@ -1256,7 +1282,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       changeDuePiasters: 0,
       customerId: selectedCustomerId || undefined,
       serviceFeeNote: feePiasters > 0 
-        ? `رسوم خدمة إلكترونية (${isInstapay ? 'انستاباي' : 'فودافون كاش'} ${feePercent}%): +${(feePiasters / 100).toFixed(2)} ج.م` 
+        ? `رسوم خدمة إلكترونية (${isInstapay ? 'انستاباي' : 'محفظة إلكترونية'} ${feePercent}%): +${(feePiasters / 100).toFixed(2)} ج.م` 
         : undefined,
     });
   }, [cart.length, instapayFeePercent, vodafoneCashFeePercent, netTotalPiasters, selectedCustomerId, handleConfirmPayment, showStatus]);
@@ -1565,6 +1591,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         instapayFeePercent={instapayFeePercent}
         vodafoneCashFeePercent={vodafoneCashFeePercent}
         loading={loading}
+        initialMethod={paymentInitialMethod}
       />
 
       {/* 11. BARCODE SCANNER SETTINGS & LIVE DIAGNOSTIC MODAL (Feature #131) */}

@@ -3092,15 +3092,20 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       const billAmt = Number(txData.billAmountPiasters) || 0;
       const custFee = Number(txData.customerFeePiasters) || 0;
       const provComm = Number(txData.providerCommissionPiasters) || 0;
-      const deducted = billAmt;
+      const isCashOut = txData.serviceType === 'cash_out';
+      const deducted = isCashOut ? 0 : billAmt;
       const totalRecv = billAmt + custFee;
       const netProfit = custFee + provComm;
 
-      if (terminal.balancePiasters < deducted) {
+      if (!isCashOut && terminal.balancePiasters < deducted) {
         throw new Error(`رصيد الماكينة غير كافٍ. المتاح: ${(terminal.balancePiasters / 100).toFixed(2)} ج.م والمطلوب: ${(deducted / 100).toFixed(2)} ج.م`);
       }
 
-      terminal.balancePiasters -= deducted;
+      if (isCashOut) {
+        terminal.balancePiasters += billAmt;
+      } else {
+        terminal.balancePiasters -= deducted;
+      }
       terminal.balanceFormatted = (terminal.balancePiasters / 100).toFixed(2) + ' ج.م';
       terminal.isLowBalance = terminal.balancePiasters <= terminal.lowBalanceAlertPiasters;
       terminal.updatedAt = new Date().toISOString();

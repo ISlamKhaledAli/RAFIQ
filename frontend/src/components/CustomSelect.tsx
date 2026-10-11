@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { ChevronDown, Check, Plus } from 'lucide-react';
 
 export interface SelectOption {
@@ -40,14 +40,22 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Normalize options
-  const normalizedOptions: SelectOption[] = options.map((opt) => {
-    if (typeof opt === 'string') {
-      const isAction = opt.startsWith('+') || opt.includes('إضافة');
-      return { value: opt, label: opt, isAction };
+  // Normalize options and ensure distinct values (prevent duplicate rendering)
+  const normalizedOptions: SelectOption[] = useMemo(() => {
+    const seen = new Set<string>();
+    const list: SelectOption[] = [];
+    for (const opt of options) {
+      const normalized: SelectOption =
+        typeof opt === 'string'
+          ? { value: opt, label: opt, isAction: opt.startsWith('+') || opt.includes('إضافة') }
+          : opt;
+      if (!seen.has(normalized.value)) {
+        seen.add(normalized.value);
+        list.push(normalized);
+      }
     }
-    return opt;
-  });
+    return list;
+  }, [options]);
 
   const isSearchEnabled = searchable ?? (normalizedOptions.length > 7);
 

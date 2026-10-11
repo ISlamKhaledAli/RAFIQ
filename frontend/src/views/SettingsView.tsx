@@ -22,6 +22,8 @@ import { DemoDataModal } from '../components/DemoDataModal';
 import { GuidedTourModal } from '../components/GuidedTourModal';
 import { SearchBenchmarkModal } from '../components/SearchBenchmarkModal';
 
+import { PinSettingsModal } from '../components/PinSettingsModal';
+
 import { StoreProfileTab } from './settings/StoreProfileTab';
 import { PrinterSettingsTab } from './settings/PrinterSettingsTab';
 import { ScannerSettingsTab } from './settings/ScannerSettingsTab';
@@ -43,9 +45,10 @@ export const SettingsView = ({
 }: SettingsViewProps) => {
   const { flags, toggleFlag } = useFeatures();
   const { isRoot } = useAuth();
-  const allowedSubTabs = isRoot ? ['profile', 'backup', 'printer', 'system', 'scanner', 'demo'] : ['profile', 'backup', 'printer'];
+  const allowedSubTabs = isRoot ? ['profile', 'backup', 'printer', 'system', 'scanner', 'security', 'demo'] : ['profile', 'backup', 'printer'];
   const subTab = allowedSubTabs.includes(activeSubTab) ? activeSubTab : 'profile';
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
   const [isTourModalOpen, setIsTourModalOpen] = useState(false);
@@ -544,6 +547,35 @@ export const SettingsView = ({
         />
       )}
 
+      {isRoot && subTab === 'security' && (
+        <div className="bg-surface border border-line rounded-2xl p-6 flex flex-col gap-4 shadow-xs animate-in fade-in">
+          <div className="flex items-center justify-between border-b border-line pb-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-paid-soft text-paid border border-paid/20 flex items-center justify-center font-bold shrink-0 shadow-2xs">
+                <KeyRound className="w-5 h-5 text-paid" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-ink m-0">حماية الشاشات والعمليات الحساسة بالرقم السري (PIN)</h3>
+                <p className="text-xs text-ink-muted m-0 mt-0.5">
+                  قفل تعديل الأسعار، ومسح الفواتير، والتقارير المالية، واسترجاع قاعدة البيانات برقم سري مشفر.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsPinModalOpen(true)}
+              className="px-4 py-2 bg-paid hover:bg-paid-dark text-white rounded-xl text-xs font-bold transition-all shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer flex items-center gap-2"
+            >
+              <KeyRound className="w-4 h-4" />
+              <span>إعدادات وتغيير الرقم السري</span>
+            </button>
+          </div>
+          <p className="text-xs text-ink-muted leading-relaxed">
+            يمكنك تفعيل أو تعطيل الحماية واختيار العمليات المحمية وتوليد كود الطوارئ لحماية متجرك من التلاعب غير المصرح به.
+          </p>
+        </div>
+      )}
+
       {isRoot && subTab === 'demo' && (
         <DemoDataTab
           demoStatus={demoStatus}
@@ -553,6 +585,11 @@ export const SettingsView = ({
       )}
 
       {/* Modals */}
+      <PinSettingsModal
+        isOpen={isPinModalOpen}
+        onClose={() => setIsPinModalOpen(false)}
+      />
+
       <BarcodeScannerSettingsModal
         isOpen={isScannerModalOpen}
         onClose={() => setIsScannerModalOpen(false)}

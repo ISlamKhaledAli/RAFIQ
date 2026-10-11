@@ -224,7 +224,11 @@ namespace RafiqPOS.Repositories
             tx.NetProfitPiasters = tx.CustomerFeePiasters + tx.ProviderCommissionPiasters;
 
             // Machine deducted amount: usually bill amount minus provider commission (or bill amount)
-            if (tx.MachineDeductedPiasters <= 0)
+            if (tx.ServiceType == "cash_out")
+            {
+                tx.MachineDeductedPiasters = 0;
+            }
+            else if (tx.MachineDeductedPiasters <= 0)
             {
                 tx.MachineDeductedPiasters = Math.Max(0, tx.BillAmountPiasters - tx.ProviderCommissionPiasters);
             }

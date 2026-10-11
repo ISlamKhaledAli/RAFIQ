@@ -35,6 +35,7 @@ import {
   CreditCard,
   Smartphone,
   Layers,
+  KeyRound,
 } from 'lucide-react';
 import { 
   NotificationBellButton, 
@@ -697,6 +698,7 @@ export default function App() {
       items.push(
         { id: 'system' as SettingsSubTab, label: 'مفاتيح الميزات وفحص السيستم', icon: Activity },
         { id: 'scanner' as SettingsSubTab, label: 'قارئ الباركود والاسكانر', icon: Barcode },
+        { id: 'security' as SettingsSubTab, label: 'حماية وأرقام السر (PIN)', icon: KeyRound },
         { id: 'demo' as SettingsSubTab, label: 'بيانات تجريبية وتدريب', icon: FlaskConical },
       );
     }

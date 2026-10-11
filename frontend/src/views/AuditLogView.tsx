@@ -163,9 +163,9 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
         return (
           <div className="flex items-center gap-1.5 text-xs font-mono">
             <span className="font-sans text-ink font-semibold">{String(details.productName || '')}:</span>
-            <span className="text-ink-muted">{oldS} حتة</span>
+            <span className="text-ink-muted">{oldS} قطعة</span>
             <ArrowRightLeft className="w-3 h-3 text-ink-muted" />
-            <span className="text-brand font-bold">{newS} حتة</span>
+            <span className="text-brand font-bold">{newS} قطعة</span>
           </div>
         );
       }

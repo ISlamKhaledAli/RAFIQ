@@ -260,7 +260,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                         <th className="p-3">وقت الإقفال</th>
                         <th className="p-3">إجمالي المبيعات</th>
                         <th className="p-3">انستاباي</th>
-                        <th className="p-3">فودافون كاش</th>
+                        <th className="p-3">المحافظ</th>
                         <th className="p-3">مصروفات الدرج</th>
                         <th className="p-3">المتوقع بالدرج</th>
                         <th className="p-3">النقد الفعلي</th>
@@ -425,7 +425,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
 
                 <div className="bg-surface p-3.5 rounded-xl border border-line shadow-xs relative overflow-hidden">
                   <span className="text-xs text-ink-muted flex items-center justify-between mb-1">
-                    <span>فودافون كاش ومحافظ</span>
+                    <span>محافظ إلكترونية</span>
                     <Wallet className="w-3.5 h-3.5 text-[#e60000]" />
                   </span>
                   <span className="text-lg font-bold text-[#e60000]">

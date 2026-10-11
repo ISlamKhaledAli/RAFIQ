@@ -268,8 +268,8 @@ export const StoreProfileTab = ({
                     <Wallet className="w-4 h-4" />
                   </div>
                   <div className="flex flex-col min-w-0">
-                    <span className="font-bold text-ink text-xs truncate">زيادة فودافون كاش ومحافظ</span>
-                    <span className="text-[10px] text-ink-muted">نسبة التحصيل من العميل</span>
+                    <span className="font-bold text-ink text-xs truncate">زيادة المحافظ الإلكترونية</span>
+                    <span className="text-[10px] text-ink-muted">فودافون، أورانج، اتصالات، وي</span>
                   </div>
                 </div>
                 <div className="w-20 shrink-0 flex items-center gap-1">

@@ -231,8 +231,8 @@ export const EpayView: React.FC<EpayViewProps> = ({
   }, [billAmountPiasters, customerFeePiasters]);
 
   const deductedBalancePiasters = useMemo(() => {
-    return billAmountPiasters;
-  }, [billAmountPiasters]);
+    return serviceType === 'cash_out' ? 0 : billAmountPiasters;
+  }, [serviceType, billAmountPiasters]);
 
   const netProfitPiasters = useMemo(() => {
     return customerFeePiasters + providerCommissionPiasters;
@@ -240,8 +240,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
   const isBalanceInsufficient = useMemo(() => {
     if (!currentTerminal) return false;
+    if (serviceType === 'cash_out') return false; // cash_out adds credit to machine, doesn't deduct
     return currentTerminal.balancePiasters < deductedBalancePiasters;
-  }, [currentTerminal, deductedBalancePiasters]);
+  }, [currentTerminal, serviceType, deductedBalancePiasters]);
 
   // Helper to compute fee or commission from terminal settings
   const computeFeeOrCommission = useCallback((
