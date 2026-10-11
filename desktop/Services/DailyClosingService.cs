@@ -142,7 +142,7 @@ namespace RafiqPOS.Services
                         COALESCE(SUM(s.total_piasters), 0) AS total_sales,
                         COALESCE(SUM(
                             CASE 
-                                WHEN s.payment_method = 'cash' THEN MIN(s.paid_piasters, s.total_piasters)
+                                WHEN s.payment_method IN ('cash', 'credit') THEN MIN(s.paid_piasters, s.total_piasters)
                                 WHEN s.payment_method = 'multi' THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 

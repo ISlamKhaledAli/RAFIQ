@@ -57,6 +57,8 @@ namespace RafiqPOS.Services
             string origExpires = settingsRepo.Get("license_expires_at", "");
             string origLastKnown = settingsRepo.Get("last_known_utc", "");
             string origRel = settingsRepo.Get("transfer_release_code", "");
+            string origConsumed = settingsRepo.Get("consumed_offline_codes", "");
+            settingsRepo.Set("consumed_offline_codes", "");
 
             try
             {
@@ -313,6 +315,7 @@ namespace RafiqPOS.Services
                 settingsRepo.Set("license_expires_at", origExpires);
                 settingsRepo.Set("last_known_utc", origLastKnown);
                 settingsRepo.Set("transfer_release_code", origRel);
+                settingsRepo.Set("consumed_offline_codes", origConsumed);
             }
         }
     }

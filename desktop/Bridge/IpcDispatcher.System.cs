@@ -94,6 +94,14 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, allSettings);
                     return true;
 
+                case "settings:getStoreProfile":
+                    var storeSettings = DatabaseService.Settings.GetAllSettings();
+                    string sName = storeSettings.ContainsKey("store_name") ? storeSettings["store_name"] : (storeSettings.ContainsKey("storeName") ? storeSettings["storeName"] : "رفيق POS");
+                    string sPhone = storeSettings.ContainsKey("store_phone") ? storeSettings["store_phone"] : "";
+                    string sAddr = storeSettings.ContainsKey("store_address") ? storeSettings["store_address"] : "";
+                    response = BridgeResponse.Ok(request.Id, new { storeName = sName, storePhone = sPhone, storeAddress = sAddr });
+                    return true;
+
                 case "settings:save":
                     if (request.Payload == null)
                     {
