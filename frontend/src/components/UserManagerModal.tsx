@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { UserDto } from '../bridge/ipc';
+import { useAuth } from '../context/useAuth';
 import { CustomSelect } from './CustomSelect';
 import type { SelectOption } from './CustomSelect';
 import { ToggleSwitch } from './ToggleSwitch';
@@ -201,8 +202,11 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
   onClose,
   onUsersChanged,
   supervisorPin,
-  currentUser,
+  currentUser: propCurrentUser,
 }) => {
+  const { currentUser: authUser, isRoot } = useAuth();
+  const currentUser = propCurrentUser || authUser;
+  const isRootSession = isRoot || currentUser?.role === 'root' || currentUser?.username === 'root';
   const [users, setUsers] = useState<UserDto[]>([]);
   const [userTree, setUserTree] = useState<UserDto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -236,8 +240,6 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
   // Tree expanded nodes
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
 
-  // Check if current user is root
-  const isRootSession = currentUser?.role === 'root';
 
   // Helper to construct local hierarchy if getTree returns flat
   const buildTreeFromFlat = (flatList: UserDto[]): UserDto[] => {
@@ -321,20 +323,35 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
   // Parent user for permission capping
   const activeParentUser = useMemo(() => {
     if (!parentId) {
-      return currentUser || users.find((u) => u.role === 'root') || null;
+      return currentUser || users.find((u) => u.role === 'root' || u.role === 'admin') || null;
     }
-    return findUserById(parentId) || null;
+    return findUserById(parentId) || currentUser || null;
   }, [parentId, currentUser, users, findUserById]);
 
   // Check if active parent holds a permission
   const parentHoldsPermission = useCallback(
     (permKey: string): boolean => {
-      if (!activeParentUser) return true;
-      if (activeParentUser.role === 'root') return true;
+      // 1. If currently logged in as Root, root holds all permissions unconditionally
+      if (isRootSession) return true;
+
+      // 2. If active parent is Root, root holds everything
+      if (activeParentUser && (activeParentUser.role === 'root' || activeParentUser.username === 'root')) {
+        return true;
+      }
+
+      // 3. Store Owner / Admin: holds all system permissions by default unless explicitly revoked by Root
+      if (!activeParentUser || isOwnerOrAdmin(activeParentUser)) {
+        if (activeParentUser?.permissions && activeParentUser.permissions[permKey] === false) {
+          return false;
+        }
+        return true;
+      }
+
+      // 4. Delegated sub-user (e.g. supervisor cashier): restricted to their assigned permissions
       if (!activeParentUser.permissions) return false;
       return !!activeParentUser.permissions[permKey];
     },
-    [activeParentUser]
+    [isRootSession, activeParentUser, isOwnerOrAdmin]
   );
 
   // Eligible Parents for creating a sub-user

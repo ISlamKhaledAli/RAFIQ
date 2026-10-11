@@ -1530,6 +1530,7 @@ export default function App() {
       {/* Employee & Role Management Modal (Task 166-4) */}
       <UserManagerModal
         isOpen={isUserManagerOpen}
+        currentUser={currentUser}
         onClose={() => setIsUserManagerOpen(false)}
         onUsersChanged={async () => {
           void refreshUser();
