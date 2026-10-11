@@ -1398,8 +1398,9 @@ namespace RafiqPOS.Services
             "settings.store", "settings.printer", "settings.barcode", "settings.features", "settings.backup", "settings.restore", "settings.license",
             "users.view", "users.create", "users.edit", "users.deactivate", "users.reset_pin", "users.delegate",
             "audit_log.view", "expenses.view", "expenses.create", "expenses.delete",
+            "epay.access", "epay.transact", "epay.fund", "epay.terminals_manage", "epay.analytics",
             // Legacy aliases
-            "pos", "customers", "products", "inventory", "reports", "settings", "users",
+            "pos", "customers", "products", "inventory", "reports", "settings", "users", "epay",
             "discounts", "price_edit", "stock_adjust", "db_recovery", "refunds", "cancel_sale"
         };
 
@@ -1477,6 +1478,9 @@ namespace RafiqPOS.Services
 
             if (p.ContainsKey("pos.price_override")) p["price_edit"] = p["pos.price_override"];
             else if (p.ContainsKey("price_edit")) p["pos.price_override"] = p["price_edit"];
+
+            if (p.ContainsKey("epay.access")) p["epay"] = p["epay.access"];
+            else if (p.ContainsKey("epay")) p["epay.access"] = p["epay"];
         }
 
         private static UserDto MapToDto(User u)
@@ -1604,6 +1608,13 @@ namespace RafiqPOS.Services
             p["expenses.view"] = isAdmin;
             p["expenses.create"] = isAdmin;
             p["expenses.delete"] = isAdmin;
+
+            // E-Pay & Payment Terminals
+            p["epay.access"] = true;
+            p["epay.transact"] = true;
+            p["epay.fund"] = isAdmin;
+            p["epay.terminals_manage"] = isAdmin;
+            p["epay.analytics"] = isAdmin;
 
             SyncPermissionAliases(p);
 

@@ -15,11 +15,7 @@ import {
 import { useAuth } from '../context/useAuth';
 import { invoke, type UserDto } from '../bridge/ipc';
 
-export interface LoginScreenProps {
-  onOpenWizard?: () => void;
-}
-
-export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenWizard }) => {
+export const LoginScreen: React.FC = () => {
   const { login } = useAuth();
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
@@ -358,22 +354,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenWizard }) => {
                 )}
               </button>
             </form>
-          </div>
-
-          <div className="pt-4 mt-6 border-t border-line text-center">
-            <p className="text-[11px] text-ink-muted">
-              تسجيل دخول آمن لنظام رفيق • كلمة المرور الافتراضية لصاحب المحل هي 1234 وللكاشير 0000
-            </p>
-            {onOpenWizard && (
-              <button
-                type="button"
-                onClick={onOpenWizard}
-                className="mt-3 text-xs font-bold text-brand hover:text-brand-dark hover:underline flex items-center justify-center gap-1.5 mx-auto transition-colors cursor-pointer"
-              >
-                <Store className="w-3.5 h-3.5 text-brand" />
-                <span>معالج اختيار نوع ونشاط المحل والتهيئة</span>
-              </button>
-            )}
           </div>
         </div>
       </div>

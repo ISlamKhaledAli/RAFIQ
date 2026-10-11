@@ -27,6 +27,7 @@ import {
 import { invoke } from '../../bridge/ipc';
 import { useDataSubscription } from '../../utils/eventBus';
 import { formatArabicCurrency } from '../../utils/money';
+import { useAuth } from '../../context/useAuth';
 import { MoneyInput } from '../../components/MoneyInput';
 import { CustomSelect } from '../../components/CustomSelect';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
@@ -81,6 +82,11 @@ export const EpayView: React.FC<EpayViewProps> = ({
   }, [activeSubTab]);
 
   const activeTab = activeSubTab || internalTab;
+  const { hasPermission, isRoot, isAdmin } = useAuth();
+  const canFund = isRoot || isAdmin || hasPermission('epay.fund');
+  const canManageTerminals = isRoot || isAdmin || hasPermission('epay.terminals_manage');
+  const canViewAnalytics = isRoot || isAdmin || hasPermission('epay.analytics');
+
   const [terminals, setTerminals] = useState<EpayTerminal[]>([]);
   const [transactions, setTransactions] = useState<EpayTransaction[]>([]);
   const [fundings, setFundings] = useState<EpayTerminalFunding[]>([]);
@@ -88,6 +94,30 @@ export const EpayView: React.FC<EpayViewProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Auto-dismiss success notification after 4 seconds
+  useEffect(() => {
+    if (!successMsg) return;
+    const timer = setTimeout(() => {
+      setSuccessMsg(null);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [successMsg]);
+
+  // Auto-dismiss error notification after 6 seconds
+  useEffect(() => {
+    if (!errorMsg) return;
+    const timer = setTimeout(() => {
+      setErrorMsg(null);
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [errorMsg]);
+
+  // Clear notifications on sub-tab navigation
+  useEffect(() => {
+    setSuccessMsg(null);
+    setErrorMsg(null);
+  }, [activeTab]);
 
   // Form State: New Transaction
   const [selectedTerminalId, setSelectedTerminalId] = useState<string>('');
@@ -542,32 +572,6 @@ export const EpayView: React.FC<EpayViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          {activeTab === 'terminals' && (
-            <button
-              type="button"
-              onClick={openNewTerminalModal}
-              className="px-3.5 py-2 bg-surface hover:bg-surface-2 text-ink border border-line rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
-            >
-              <PlusCircle className="w-3.5 h-3.5 text-paid" />
-              <span>إضافة ماكينة</span>
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => {
-              if (terminals.length > 0) {
-                setFundingTerminalId(terminals[0].id);
-                setFundingAmountPiasters(100000);
-                setIsFundingModalOpen(true);
-              }
-            }}
-            className="px-3.5 py-2 bg-paid hover:bg-paid-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
-          >
-            <Zap className="w-3.5 h-3.5" />
-            <span>تغذية رصيد الماكينة</span>
-          </button>
-
           <button
             type="button"
             onClick={loadData}
@@ -580,8 +584,8 @@ export const EpayView: React.FC<EpayViewProps> = ({
         </div>
       </header>
 
-      {/* 2. Top Summary 4-KPI Cards (Displayed on Terminals & Analytics tabs) */}
-      {(activeTab === 'terminals' || activeTab === 'analytics') && (
+      {/* 2. Top Summary 4-KPI Cards (Displayed only on Terminals tab) */}
+      {activeTab === 'terminals' && (
         <section className="px-4 sm:px-6 pt-3.5 shrink-0">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
             {/* Card 1: إجمالي رصيد الماكينات */}
@@ -653,24 +657,35 @@ export const EpayView: React.FC<EpayViewProps> = ({
       )}
 
       {/* Notifications Alert Banner */}
+      {/* Notifications */}
       {errorMsg && (
-        <div className="bg-danger/10 border-b border-danger/20 px-6 py-2.5 text-danger text-xs font-bold flex items-center justify-between shrink-0">
+        <div className="bg-danger/10 border-b border-danger/20 px-6 py-2.5 text-danger text-xs font-bold flex items-center justify-between shrink-0 animate-in fade-in slide-in-from-top-1 duration-200">
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-danger shrink-0" />
             <span>{errorMsg}</span>
           </div>
-          <button onClick={() => setErrorMsg(null)} className="text-danger/70 hover:text-danger cursor-pointer">
+          <button 
+            type="button"
+            onClick={() => setErrorMsg(null)} 
+            className="p-1 text-danger/70 hover:text-danger hover:bg-danger/10 rounded-lg transition-colors cursor-pointer"
+            title="إغلاق التنبيه"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
       {successMsg && (
-        <div className="bg-paid-soft border-b border-paid-border px-6 py-2.5 text-paid text-xs font-bold flex items-center justify-between shrink-0">
+        <div className="bg-paid-soft border-b border-paid-border px-6 py-2.5 text-paid text-xs font-bold flex items-center justify-between shrink-0 animate-in fade-in slide-in-from-top-1 duration-200">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-paid shrink-0" />
             <span>{successMsg}</span>
           </div>
-          <button onClick={() => setSuccessMsg(null)} className="text-paid/70 hover:text-paid cursor-pointer">
+          <button 
+            type="button"
+            onClick={() => setSuccessMsg(null)} 
+            className="p-1 text-paid/70 hover:text-paid hover:bg-paid/10 rounded-lg transition-colors cursor-pointer"
+            title="إغلاق التنبيه"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -1123,64 +1138,97 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 <h2 className="text-base sm:text-lg font-black text-ink">أرصدة ماكينات الدفع والخدمات</h2>
                 <p className="text-xs text-ink-muted mt-0.5">متابعة دقيقة للأرصدة المتوفرة وسجل التغذية والشحن لكل ماكينة</p>
               </div>
-              <button
-                onClick={openNewTerminalModal}
-                className="px-3.5 py-2 bg-paid hover:bg-paid-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
-              >
-                <PlusCircle className="w-3.5 h-3.5" />
-                <span>إضافة ماكينة جديدة</span>
-              </button>
+              {canManageTerminals && (
+                <button
+                  type="button"
+                  onClick={openNewTerminalModal}
+                  className="px-3.5 py-2 bg-paid hover:bg-paid-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  <span>إضافة ماكينة جديدة</span>
+                </button>
+              )}
             </div>
 
             {/* Terminals Cards Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-              {terminals.map((term) => (
-                <div key={term.id} className="bg-surface rounded-2xl border border-line shadow-2xs p-5 flex flex-col justify-between gap-4 hover:border-brand/40 transition-colors">
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-brand-soft text-brand border border-brand/20">
-                        {term.provider.toUpperCase()}
-                      </span>
-                      <button
-                        onClick={() => openEditTerminalModal(term)}
-                        className="text-ink-muted hover:text-ink p-1 rounded-lg hover:bg-surface-2 transition-colors cursor-pointer"
-                        title="تعديل الماكينة"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <h3 className="font-black text-base text-ink">{term.name}</h3>
-                    <p className="text-xs text-ink-muted font-mono mt-0.5">كود الماكينة: {term.terminalCode || '---'}</p>
-
-                    <div className="mt-4 p-3.5 rounded-xl bg-surface-2 border border-line">
-                      <span className="text-xs text-ink-muted block mb-1">الرصيد المتاح الحالي:</span>
-                      <span className={`text-2xl font-black font-mono block tabular-nums ${term.isLowBalance ? 'text-danger' : 'text-paid'}`}>
-                        {formatArabicCurrency(term.balancePiasters)}
-                      </span>
-                    </div>
-
-                    {term.isLowBalance && (
-                      <div className="mt-2.5 p-2 rounded-lg bg-danger/10 border border-danger/30 text-danger text-xs font-bold flex items-center gap-1.5">
-                        <AlertTriangle className="w-4 h-4 text-danger shrink-0" />
-                        رصيد الماكينة تحت حد التنبيه ({formatArabicCurrency(term.lowBalanceAlertPiasters)})
+            {terminals.length === 0 ? (
+              <div className="bg-surface rounded-2xl border border-dashed border-line p-8 flex flex-col items-center justify-center text-center gap-3 shadow-2xs">
+                <div className="w-12 h-12 rounded-2xl bg-surface-2 border border-line flex items-center justify-center text-ink-muted">
+                  <CreditCard className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-ink">لا توجد ماكينات دفع مسجلة حتى الآن</h3>
+                  <p className="text-xs text-ink-muted mt-1 max-w-sm">
+                    قم بإضافة ماكينات الدفع والخدمات الإلكترونية (فوري، أمان، بي، سداد...) لبدء تسجيل العمليات وشحن الأرصدة
+                  </p>
+                </div>
+                {canManageTerminals && (
+                  <button
+                    type="button"
+                    onClick={openNewTerminalModal}
+                    className="px-4 py-2 bg-paid hover:bg-paid-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95 mt-1"
+                  >
+                    <PlusCircle className="w-3.5 h-3.5" />
+                    <span>إضافة ماكينة جديدة</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                {terminals.map((term) => (
+                  <div key={term.id} className="bg-surface rounded-2xl border border-line shadow-2xs p-5 flex flex-col justify-between gap-4 hover:border-brand/40 transition-colors">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-brand-soft text-brand border border-brand/20">
+                          {term.provider.toUpperCase()}
+                        </span>
+                        {canManageTerminals && (
+                          <button
+                            type="button"
+                            onClick={() => openEditTerminalModal(term)}
+                            className="text-ink-muted hover:text-ink p-1 rounded-lg hover:bg-surface-2 transition-colors cursor-pointer"
+                            title="تعديل الماكينة"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
+                      <h3 className="font-black text-base text-ink">{term.name}</h3>
+                      <p className="text-xs text-ink-muted font-mono mt-0.5">كود الماكينة: {term.terminalCode || '---'}</p>
+
+                      <div className="mt-4 p-3.5 rounded-xl bg-surface-2 border border-line">
+                        <span className="text-xs text-ink-muted block mb-1">الرصيد المتاح الحالي:</span>
+                        <span className={`text-2xl font-black font-mono block tabular-nums ${term.isLowBalance ? 'text-danger' : 'text-paid'}`}>
+                          {formatArabicCurrency(term.balancePiasters)}
+                        </span>
+                      </div>
+
+                      {term.isLowBalance && (
+                        <div className="mt-2.5 p-2 rounded-lg bg-danger/10 border border-danger/30 text-danger text-xs font-bold flex items-center gap-1.5">
+                          <AlertTriangle className="w-4 h-4 text-danger shrink-0" />
+                          رصيد الماكينة تحت حد التنبيه ({formatArabicCurrency(term.lowBalanceAlertPiasters)})
+                        </div>
+                      )}
+                    </div>
+
+                    {canFund && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFundingTerminalId(term.id);
+                          setFundingAmountPiasters(100000);
+                          setIsFundingModalOpen(true);
+                        }}
+                        className="w-full py-2.5 bg-surface-2 hover:bg-surface border border-line hover:border-line-hover text-ink rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs active:scale-98"
+                      >
+                        <Zap className="w-4 h-4 text-paid" />
+                        <span>شحن وتغذية الرصيد</span>
+                      </button>
                     )}
                   </div>
-
-                  <button
-                    onClick={() => {
-                      setFundingTerminalId(term.id);
-                      setFundingAmountPiasters(100000);
-                      setIsFundingModalOpen(true);
-                    }}
-                    className="w-full py-2.5 bg-surface-2 hover:bg-surface border border-line hover:border-line-hover text-ink rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs active:scale-98"
-                  >
-                    <Zap className="w-4 h-4 text-paid" />
-                    <span>شحن وتغذية الرصيد</span>
-                  </button>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             {/* Fundings History Table */}
             <div className="bg-surface rounded-2xl border border-line shadow-2xs p-5 mt-1 flex flex-col gap-4">
@@ -1259,38 +1307,46 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     : 'لا توجد حركات شحن مطابقة لخيارات الفلترة المحددة.'}
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-right">
-                    <thead>
-                      <tr className="border-b border-line text-ink-muted text-xs font-bold">
-                        <th className="py-2.5 px-3">التاريخ والوقت</th>
-                        <th className="py-2.5 px-3">الماكينة</th>
-                        <th className="py-2.5 px-3">مصدر التغذية</th>
-                        <th className="py-2.5 px-3">المبلغ المشحون</th>
-                        <th className="py-2.5 px-3">الرصيد السابق</th>
-                        <th className="py-2.5 px-3">الرصيد بعد الشحن</th>
-                        <th className="py-2.5 px-3">ملاحظات</th>
+                <div className="overflow-x-auto rounded-xl border border-line/70">
+                  <table className="w-full text-xs text-right min-w-[850px] border-collapse">
+                    <thead className="bg-surface-2/80 border-b border-line text-ink-muted text-[11px] font-bold select-none">
+                      <tr>
+                        <th className="py-3 px-3.5 whitespace-nowrap">التاريخ والوقت</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap">الماكينة</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap">مصدر التغذية</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap">المبلغ المشحون</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap">الرصيد السابق</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap">الرصيد بعد الشحن</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap">ملاحظات</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-line/60">
+                    <tbody className="divide-y divide-line/60 bg-surface">
                       {pagedFundings.map((fnd) => (
-                        <tr key={fnd.id} className="hover:bg-surface-2 transition-colors">
-                          <td className="py-3 px-3 text-xs text-ink-muted font-mono">
+                        <tr key={fnd.id} className="hover:bg-surface-2/60 transition-colors">
+                          <td className="py-3.5 px-3.5 whitespace-nowrap text-xs text-ink-muted font-mono align-middle">
                             {new Date(fnd.createdAt).toLocaleString('ar-EG')}
                           </td>
-                          <td className="py-3 px-3 font-bold text-ink">{fnd.terminalName || fnd.terminalId}</td>
-                          <td className="py-3 px-3 text-xs">
-                            <span className="px-2 py-0.5 rounded bg-surface-2 text-ink-muted border border-line">
+                          <td className="py-3.5 px-3.5 whitespace-nowrap font-bold text-ink text-xs align-middle">
+                            {fnd.terminalName || fnd.terminalId}
+                          </td>
+                          <td className="py-3.5 px-3.5 whitespace-nowrap text-xs align-middle">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-surface-2 text-ink-muted border border-line">
                               {fnd.fundingSource === 'cash_drawer' ? 'درج كاشير المحل' :
                                fnd.fundingSource === 'bank_transfer' ? 'تحويل بنكي' : 'كاش خارجي'}
                             </span>
                           </td>
-                          <td className="py-3 px-3 font-black font-mono text-paid tabular-nums">
+                          <td className="py-3.5 px-3.5 whitespace-nowrap font-black font-mono text-paid tabular-nums align-middle">
                             +{formatArabicCurrency(fnd.amountPiasters)}
                           </td>
-                          <td className="py-3 px-3 text-ink-muted font-mono tabular-nums">{formatArabicCurrency(fnd.previousBalancePiasters)}</td>
-                          <td className="py-3 px-3 font-black text-ink font-mono tabular-nums">{formatArabicCurrency(fnd.newBalancePiasters)}</td>
-                          <td className="py-3 px-3 text-xs text-ink-muted">{fnd.notes || '---'}</td>
+                          <td className="py-3.5 px-3.5 whitespace-nowrap text-ink-muted font-mono tabular-nums align-middle">
+                            {formatArabicCurrency(fnd.previousBalancePiasters)}
+                          </td>
+                          <td className="py-3.5 px-3.5 whitespace-nowrap font-black text-ink font-mono tabular-nums align-middle">
+                            {formatArabicCurrency(fnd.newBalancePiasters)}
+                          </td>
+                          <td className="py-3.5 px-3.5 text-xs text-ink-muted align-middle">
+                            {fnd.notes || <span className="text-ink-muted/30">—</span>}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1424,51 +1480,68 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     : 'لا توجد عمليات دفع إلكتروني مطابقة لخيارات الفلترة والبحث.'}
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-right">
-                    <thead>
-                      <tr className="border-b border-line text-ink-muted text-xs font-bold">
-                        <th className="py-2.5 px-3">الوقت</th>
-                        <th className="py-2.5 px-3">الماكينة</th>
-                        <th className="py-2.5 px-3">الخدمة</th>
-                        <th className="py-2.5 px-3">رقم الهاتف / المرجع</th>
-                        <th className="py-2.5 px-3">قيمة الفاتورة</th>
-                        <th className="py-2.5 px-3">رسوم العميل</th>
-                        <th className="py-2.5 px-3">المستلم نقداً</th>
-                        <th className="py-2.5 px-3">صافي ربح المحل</th>
-                        <th className="py-2.5 px-3">وجهة النقدية</th>
-                        <th className="py-2.5 px-3">إجراءات</th>
+                <div className="overflow-x-auto rounded-xl border border-line/70">
+                  <table className="w-full text-xs text-right min-w-[960px] border-collapse">
+                    <thead className="bg-surface-2/80 border-b border-line text-ink-muted text-[11px] font-bold select-none">
+                      <tr>
+                        <th className="py-3 px-3.5 whitespace-nowrap">الوقت</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap">الماكينة</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap">الخدمة</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap">رقم الهاتف / المرجع</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap">قيمة الفاتورة</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap">رسوم العميل</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap">المستلم نقداً</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap text-center">صافي ربح المحل</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap text-center">وجهة النقدية</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap text-center">إجراءات</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-line/60">
+                    <tbody className="divide-y divide-line/60 bg-surface">
                       {pagedTransactions.map((tx) => (
-                        <tr key={tx.id} className="hover:bg-surface-2 transition-colors">
-                          <td className="py-3 px-3 text-xs text-ink-muted font-mono">
+                        <tr key={tx.id} className="hover:bg-surface-2/60 transition-colors">
+                          <td className="py-3.5 px-3.5 whitespace-nowrap text-xs text-ink-muted font-mono align-middle">
                             {new Date(tx.createdAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
                           </td>
-                          <td className="py-3 px-3 font-bold text-ink text-xs">{tx.terminalName}</td>
-                          <td className="py-3 px-3">
-                            <span className="font-bold text-ink text-xs block">{tx.serviceName}</span>
-                            <span className="text-[10px] text-ink-muted">{tx.serviceTypeArabic}</span>
+                          <td className="py-3.5 px-3.5 whitespace-nowrap font-bold text-ink text-xs align-middle">
+                            {tx.terminalName}
                           </td>
-                          <td className="py-3 px-3 text-xs font-mono">
-                            {tx.customerPhone && <div className="text-ink">{tx.customerPhone}</div>}
-                            {tx.referenceNumber && <div className="text-ink-muted">Ref: {tx.referenceNumber}</div>}
+                          <td className="py-3.5 px-3.5 align-middle max-w-[210px]">
+                            <span className="font-bold text-ink text-xs block leading-snug truncate" title={tx.serviceName}>
+                              {tx.serviceName}
+                            </span>
+                            {tx.serviceTypeArabic && (
+                              <span className="text-[10px] text-ink-muted block mt-0.5 truncate">
+                                {tx.serviceTypeArabic}
+                              </span>
+                            )}
                           </td>
-                          <td className="py-3 px-3 font-bold text-ink font-mono tabular-nums">
+                          <td className="py-3.5 px-3.5 whitespace-nowrap text-xs font-mono align-middle">
+                            {tx.customerPhone ? (
+                              <div className="text-ink font-semibold tracking-wide font-mono">{tx.customerPhone}</div>
+                            ) : null}
+                            {tx.referenceNumber ? (
+                              <div className="text-[10px] text-ink-muted font-mono">مرجع: {tx.referenceNumber}</div>
+                            ) : null}
+                            {!tx.customerPhone && !tx.referenceNumber && (
+                              <span className="text-ink-muted/30 font-mono text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-3.5 whitespace-nowrap font-bold text-ink font-mono tabular-nums align-middle">
                             {formatArabicCurrency(tx.billAmountPiasters)}
                           </td>
-                          <td className="py-3 px-3 text-paid font-mono tabular-nums font-bold">
+                          <td className="py-3.5 px-3.5 whitespace-nowrap text-paid font-mono tabular-nums font-bold align-middle">
                             +{formatArabicCurrency(tx.customerFeePiasters)}
                           </td>
-                          <td className="py-3 px-3 font-black text-ink font-mono tabular-nums">
+                          <td className="py-3.5 px-3.5 whitespace-nowrap font-black text-ink font-mono tabular-nums align-middle">
                             {formatArabicCurrency(tx.totalReceivedPiasters)}
                           </td>
-                          <td className="py-3 px-3 font-black text-brand bg-brand-soft/50 rounded-lg font-mono tabular-nums">
-                            {formatArabicCurrency(tx.netProfitPiasters)}
+                          <td className="py-3.5 px-3.5 whitespace-nowrap text-center align-middle">
+                            <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-md bg-paid-soft text-paid font-black font-mono text-xs tabular-nums border border-paid/20 shadow-2xs">
+                              +{formatArabicCurrency(tx.netProfitPiasters)}
+                            </span>
                           </td>
-                          <td className="py-3 px-3 text-xs">
-                            <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${
+                          <td className="py-3.5 px-3.5 whitespace-nowrap text-center align-middle">
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-bold border ${
                               tx.paymentDestination === 'cash_drawer'
                                 ? 'bg-surface-2 text-ink-muted border-line'
                                 : 'bg-brand-soft text-brand border-brand/20'
@@ -1476,10 +1549,10 @@ export const EpayView: React.FC<EpayViewProps> = ({
                               {tx.paymentDestination === 'cash_drawer' ? 'درج المحل' : 'درج الماكينة'}
                             </span>
                           </td>
-                          <td className="py-3 px-3">
+                          <td className="py-3.5 px-3.5 whitespace-nowrap text-center align-middle">
                             <button
                               onClick={() => setReceiptTx(tx)}
-                              className="p-1.5 text-ink-muted hover:text-brand hover:bg-brand-soft rounded-lg transition-colors cursor-pointer"
+                              className="p-1.5 text-ink-muted hover:text-brand hover:bg-brand-soft rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center"
                               title="طباعة إيصال"
                             >
                               <Printer className="w-4 h-4" />
@@ -1508,6 +1581,17 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
         {/* TAB 4: INDEPENDENT ANALYTICS */}
         {activeTab === 'analytics' && (
+          !canViewAnalytics ? (
+            <div className="max-w-md mx-auto my-16 p-8 bg-surface rounded-2xl border border-line text-center flex flex-col items-center gap-3.5 shadow-2xs">
+              <div className="w-12 h-12 rounded-2xl bg-warn/10 text-warn flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-warn" />
+              </div>
+              <h3 className="text-sm font-bold text-ink m-0">غير مصرح لك بعرض أرباح وتحليلات الماكينات</h3>
+              <p className="text-xs text-ink-muted m-0 leading-relaxed">
+                تحتاج لصلاحية الاطلاع على تحليلات وأرباح ماكينات الدفع والخدمات الإلكترونية من إدارة المحل.
+              </p>
+            </div>
+          ) : (
           <div className="max-w-6xl mx-auto flex flex-col gap-5">
             <div>
               <h2 className="text-base sm:text-lg font-black text-ink">تحليلات وأرباح ماكينات الدفع والخدمات الإلكترونية</h2>
@@ -1631,6 +1715,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
               </div>
             </div>
           </div>
+          )
         )}
       </div>
 

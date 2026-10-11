@@ -30,6 +30,7 @@ import {
   CreditCard,
   BarChart2,
   DollarSign,
+  Smartphone,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { UserDto } from '../bridge/ipc';
@@ -74,6 +75,18 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'pos.void_line', label: 'حذف سطر من الفاتورة', description: 'حذف منتج تم إدخاله في الفاتورة الحالية' },
       { key: 'pos.quick_add', label: 'إضافة صنف سريع', description: 'إضافة بند مباشر بدون كود مسبق' },
       { key: 'pos.reprint', label: 'إعادة طباعة الفاتورة', description: 'إعادة طباعة إيصالات العمليات السابقة' },
+    ],
+  },
+  {
+    id: 'epay',
+    name: 'خدمات وماكينات الدفع الإلكتروني',
+    icon: <Smartphone className="w-4 h-4 text-brand" />,
+    items: [
+      { key: 'epay.access', label: 'دخول خدمات وماكينات الدفع', description: 'السماح بفتح قسم الدفع والخدمات الإلكترونية' },
+      { key: 'epay.transact', label: 'تنفيذ عمليات الدفع وشحن الرصيد', description: 'تسجيل ودفع فواتير، كروت شحن، تحويل محافظ' },
+      { key: 'epay.fund', label: 'تغذية وشحن رصيد الماكينات', description: 'إضافة وشحن رصيد لماكينات الدفع من الدرج أو البنك' },
+      { key: 'epay.terminals_manage', label: 'إدارة وضبط ماكينات الدفع', description: 'إضافة وتعديل بيانات الماكينات وحساباتها والعمولات الافتراضية' },
+      { key: 'epay.analytics', label: 'الاطلاع على أرباح وتحليلات الماكينات', description: 'عرض تقارير صافي الربح وعمولات الشركات المستقلة' },
     ],
   },
   {
@@ -372,6 +385,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
     // Give basic cashier permissions by default
     initialPerms['pos.access'] = true;
     initialPerms['pos.sell'] = true;
+    initialPerms['epay.access'] = true;
+    initialPerms['epay.transact'] = true;
     initialPerms['invoices.view'] = true;
     initialPerms['products.view'] = true;
     initialPerms['customers.view'] = true;

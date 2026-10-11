@@ -677,13 +677,6 @@ export default function App() {
     if (subAction) subAction();
   };
 
-  const epayTreeItems = [
-    { id: 'pos' as EpaySubTab, label: 'تنفيذ عملية جديدة', icon: Smartphone },
-    { id: 'terminals' as EpaySubTab, label: 'أرصدة وماكينات الدفع', icon: Layers },
-    { id: 'history' as EpaySubTab, label: 'سجل العمليات والإيصالات', icon: Receipt },
-    { id: 'analytics' as EpaySubTab, label: 'التحليلات والأرباح المستقلة', icon: TrendingUp },
-  ];
-
   const dashboardTreeItems = [
     { id: 'today' as DashboardSubTab, label: 'لوحة اليوم والوردية', icon: LayoutDashboard },
     { id: 'revenue' as DashboardSubTab, label: 'حساب الإيرادات والأرباح', icon: TrendingUp },
@@ -727,6 +720,7 @@ export default function App() {
 
   const isOwnerOrAdmin = isRoot || isAdmin || currentUser?.username === 'admin';
   const canAccessPos = isOwnerOrAdmin || hasPermission('pos.access') || hasPermission('pos');
+  const canAccessEpay = isOwnerOrAdmin || hasPermission('epay.access') || hasPermission('epay');
   const canAccessDashboard = isOwnerOrAdmin || hasPermission('reports.sales') || hasPermission('reports');
   const canAccessCustomers = isOwnerOrAdmin || hasPermission('customers.view') || hasPermission('customers');
   const canAccessProducts = isOwnerOrAdmin || hasPermission('products.view') || hasPermission('products');
@@ -735,10 +729,22 @@ export default function App() {
   const canAccessAudit = isRoot && hasPermission('audit_log.view');
   const canAccessSettings = isOwnerOrAdmin || hasPermission('settings.store') || hasPermission('settings');
 
+  const epayTreeItems = useMemo(() => {
+    const items = [
+      { id: 'pos' as EpaySubTab, label: 'تنفيذ عملية جديدة', icon: Smartphone },
+      { id: 'terminals' as EpaySubTab, label: 'أرصدة وماكينات الدفع', icon: Layers },
+      { id: 'history' as EpaySubTab, label: 'سجل العمليات والإيصالات', icon: Receipt },
+    ];
+    if (isOwnerOrAdmin || hasPermission('epay.analytics')) {
+      items.push({ id: 'analytics' as EpaySubTab, label: 'التحليلات والأرباح المستقلة', icon: TrendingUp });
+    }
+    return items;
+  }, [isOwnerOrAdmin, hasPermission]);
+
   const navItems = allNavItems.filter((item) => {
     switch (item.id) {
       case 'pos': return canAccessPos;
-      case 'epay': return true;
+      case 'epay': return canAccessEpay;
       case 'dashboard': return canAccessDashboard;
       case 'customers': return canAccessCustomers;
       case 'products': return canAccessProducts;
@@ -777,7 +783,7 @@ export default function App() {
   if (!currentUser) {
     return (
       <div className="fixed inset-0 z-[9999] w-screen h-screen overflow-hidden select-none bg-canvas" dir="rtl">
-        <LoginScreen onOpenWizard={() => setIsFirstRunWizardOpen(true)} />
+        <LoginScreen />
         <RafiqDialogContainer />
       </div>
     );
@@ -1365,7 +1371,7 @@ export default function App() {
           </div>
 
           {/* E-Payment Terminals & Services View (SuperPay / Fawry / Aman) */}
-          {visitedTabs.has('epay') && (
+          {canAccessEpay && visitedTabs.has('epay') && (
             <div className={`h-full w-full ${effectiveActiveTab === 'epay' ? '' : 'hidden'}`}>
               <EpayView 
                 activeSubTab={epaySubTab}
