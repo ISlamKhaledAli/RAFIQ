@@ -295,6 +295,15 @@ namespace RafiqPOS.Services
                 sale.PaidPiasters = sale.TotalPiasters;
             }
 
+            if (sale.PaidPiasters > sale.TotalPiasters && string.Equals(sale.PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase))
+            {
+                sale.ChangePiasters = sale.PaidPiasters - sale.TotalPiasters;
+            }
+            else
+            {
+                sale.ChangePiasters = 0;
+            }
+
             if (sale.Payments != null && sale.Payments.Count > 0)
             {
                 long sumPayments = 0;

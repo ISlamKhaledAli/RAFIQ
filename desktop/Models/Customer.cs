@@ -18,6 +18,9 @@ namespace RafiqPOS.Models
         [JsonProperty("balancePiasters")]
         public long BalancePiasters { get; set; }
 
+        [JsonProperty("initialBalancePiasters")]
+        public long InitialBalancePiasters { get; set; }
+
         [JsonProperty("creditLimitPiasters")]
         public long CreditLimitPiasters { get; set; }
 

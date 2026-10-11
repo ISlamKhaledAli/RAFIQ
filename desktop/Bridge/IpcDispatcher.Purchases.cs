@@ -60,7 +60,7 @@ namespace RafiqPOS.Bridge
                     try
                     {
                         Purchase purchaseToCreate = null;
-                        string costingMethod = "LATEST";
+                        string costingMethod = "WEIGHTED_AVERAGE";
                         string userId = null;
 
                         JObject payloadObj = request.Payload as JObject;

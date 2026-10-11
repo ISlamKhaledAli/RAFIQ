@@ -151,6 +151,11 @@ namespace RafiqPOS.Repositories
                             }
                             customer.CreatedAt = now;
 
+                            if (customer.BalancePiasters == 0 && customer.InitialBalancePiasters != 0)
+                            {
+                                customer.BalancePiasters = customer.InitialBalancePiasters;
+                            }
+
                             string sqlInsert = @"
                                 INSERT INTO customers (id, name, phone, balance_piasters, credit_limit_piasters, created_at)
                                 VALUES (@id, @name, @phone, @balance, @limit, @created_at);
@@ -166,17 +171,17 @@ namespace RafiqPOS.Repositories
                                 cmd.ExecuteNonQuery();
                             }
 
-                            if (customer.BalancePiasters > 0)
+                            if (customer.BalancePiasters != 0)
                             {
                                 string ledgerSql = @"
                                     INSERT INTO customer_ledger (id, customer_id, type, sale_id, amount_piasters, balance_after_piasters, notes, created_at)
-                                    VALUES (@lid, @cid, 'opening_balance', NULL, @amt, @after, 'رصيد افتتاحي', @cat);
+                                    VALUES (@lid, @cid, 'opening_balance', NULL, @amt, @after, 'رصيد افتتاحي قديم', @cat);
                                 ";
                                 using (var lCmd = new SQLiteCommand(ledgerSql, conn, trans))
                                 {
                                     lCmd.Parameters.AddWithValue("@lid", "led_" + Guid.NewGuid().ToString("N").Substring(0, 12));
                                     lCmd.Parameters.AddWithValue("@cid", customer.Id);
-                                    lCmd.Parameters.AddWithValue("@amt", customer.BalancePiasters);
+                                    lCmd.Parameters.AddWithValue("@amt", Math.Abs(customer.BalancePiasters));
                                     lCmd.Parameters.AddWithValue("@after", customer.BalancePiasters);
                                     lCmd.Parameters.AddWithValue("@cat", now);
                                     lCmd.ExecuteNonQuery();

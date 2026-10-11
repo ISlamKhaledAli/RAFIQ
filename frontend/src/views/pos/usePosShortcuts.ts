@@ -16,7 +16,7 @@ interface UsePosShortcutsProps {
   requestClearCart: () => void;
   handleOpenCheckout?: (forcedMethod?: 'cash' | 'credit') => void;
   handleFastCashCheckout: () => Promise<void>;
-  handleFastCardCheckout?: () => Promise<void>;
+  handleInstapayCheckout?: () => Promise<void>;
   handleFastBarcodeScan: (barcode: string) => Promise<void>;
   openWeightEditorForCartItem: (index: number) => void;
   handleHoldCurrentSale: () => Promise<void>;
@@ -42,7 +42,7 @@ export const usePosShortcuts = ({
   requestClearCart,
   handleOpenCheckout,
   handleFastCashCheckout,
-  handleFastCardCheckout,
+  handleInstapayCheckout,
   handleFastBarcodeScan,
   openWeightEditorForCartItem,
   handleHoldCurrentSale,
@@ -147,11 +147,11 @@ export const usePosShortcuts = ({
         return;
       }
 
-      // F10: Fast Direct Card Pay if cart has items, otherwise Toggle Credit / Cash
+      // F10: Fast Direct InstaPay Pay if cart has items, otherwise Toggle Credit / Cash
       if (e.key === 'F10') {
         e.preventDefault();
-        if (cart.length > 0 && !loading && handleFastCardCheckout) {
-          void handleFastCardCheckout();
+        if (cart.length > 0 && !loading && handleInstapayCheckout) {
+          void handleInstapayCheckout();
         } else {
           setPaymentMethod((prev) => {
             const next = prev === 'cash' ? 'credit' : 'cash';
@@ -227,7 +227,7 @@ export const usePosShortcuts = ({
     requestClearCart,
     handleOpenCheckout,
     handleFastCashCheckout,
-    handleFastCardCheckout,
+    handleInstapayCheckout,
     scannerSettings,
     handleFastBarcodeScan,
     openWeightEditorForCartItem,

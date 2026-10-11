@@ -1,14 +1,17 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import type { FormEvent } from 'react';
 import { 
-  Banknote, 
+  Banknote,
   UserCheck, 
-  Split, 
   X, 
   Printer, 
-  ArrowRight,
-  Sparkles,
-  UserPlus
+  ArrowRight, 
+  Sparkles, 
+  UserPlus, 
+  AlertTriangle, 
+  CheckCircle,
+  Smartphone,
+  Wallet
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { Customer, SalePayment } from '../types/models';
@@ -18,8 +21,6 @@ import { MoneyInput } from './MoneyInput';
 import { CustomSelect } from './CustomSelect';
 
 import { CashPaymentSection } from './payment/CashPaymentSection';
-import { CreditPaymentSection } from './payment/CreditPaymentSection';
-import { MultiPaymentSection } from './payment/MultiPaymentSection';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -36,12 +37,16 @@ interface PaymentModalProps {
   showCredit?: boolean;
   customers: Customer[];
   onConfirmPayment: (paymentData: {
-    paymentMethod: 'cash' | 'credit' | 'card' | 'multi';
+    paymentMethod: 'cash' | 'credit' | 'card' | 'multi' | 'instapay' | 'vodafone_cash';
     paidPiasters: number;
     payments: SalePayment[];
     changeDuePiasters: number;
     customerId?: string | null;
+    totalPiastersOverride?: number;
+    serviceFeeNote?: string;
   }) => void;
+  instapayFeePercent?: number;
+  vodafoneCashFeePercent?: number;
   loading?: boolean;
 }
 
@@ -60,9 +65,11 @@ export const PaymentModal = ({
   showCredit: _showCredit = true,
   customers,
   onConfirmPayment,
+  instapayFeePercent = 1,
+  vodafoneCashFeePercent = 1,
   loading = false,
 }: PaymentModalProps) => {
-  const [activeTab, setActiveTab] = useState<'cash' | 'credit' | 'card' | 'multi'>('cash');
+  const [paymentMethodTab, setPaymentMethodTab] = useState<'cash' | 'instapay' | 'vodafone_cash'>('cash');
   const [receivedInput, setReceivedInput] = useState<string>(() => piastersToPounds(netTotalPiasters).toString());
   const [receivedPiasters, setReceivedPiasters] = useState<number>(() => netTotalPiasters);
   const [currentCustomerId, setCurrentCustomerId] = useState<string | null>(selectedCustomerId || null);
@@ -78,31 +85,21 @@ export const PaymentModal = ({
     return [...customers, ...newlyAddedCustomers];
   }, [customers, newlyAddedCustomers]);
 
-  // Multi-Payment rows state
-  const [splitRows, setSplitRows] = useState<Array<{ id: string; method: 'cash' | 'card' | 'credit'; amountPiasters: number }>>(() => [
-    { id: '1', method: 'cash', amountPiasters: Math.round(netTotalPiasters / 2) },
-    { id: '2', method: 'card', amountPiasters: netTotalPiasters - Math.round(netTotalPiasters / 2) },
-  ]);
-
   const receivedInputRef = useRef<HTMLInputElement>(null);
   const prevIsOpenRef = useRef(false);
 
   // Reset and synchronize all payment fields cleanly whenever modal opens (Feature #27 / Anti-leak)
   useEffect(() => {
     if (isOpen && !prevIsOpenRef.current) {
-      setActiveTab('cash');
       setReceivedInput('0');
       setReceivedPiasters(0);
+      setPaymentMethodTab('cash');
       setIsFullCreditMode(false);
       setSaveChangeToCustomerAccount(false);
       setCurrentCustomerId(selectedCustomerId || null);
       setShowQuickAdd(false);
       setQuickName('');
       setQuickPhone('');
-      setSplitRows([
-        { id: '1', method: 'cash', amountPiasters: Math.round(netTotalPiasters / 2) },
-        { id: '2', method: 'card', amountPiasters: netTotalPiasters - Math.round(netTotalPiasters / 2) },
-      ]);
       const timer = setTimeout(() => {
         receivedInputRef.current?.focus();
         receivedInputRef.current?.select();
@@ -156,10 +153,6 @@ export const PaymentModal = ({
   const changeDuePiasters = Math.max(0, receivedPiasters - netTotalPiasters);
   const isShortPayment = receivedPiasters > 0 && receivedPiasters < netTotalPiasters;
   const shortAmountPiasters = Math.max(0, netTotalPiasters - receivedPiasters);
-
-  // Calculations for Multi/Split payment
-  const splitTotalPaid = splitRows.reduce((sum, r) => sum + r.amountPiasters, 0);
-  const splitRemainingPiasters = netTotalPiasters - splitTotalPaid;
 
   const handleReceivedChange = (raw: string) => {
     const normalized = normalizeArabicNumerals(raw);
@@ -232,206 +225,99 @@ export const PaymentModal = ({
     }
   };
 
+  const instapayFeePiasters = Math.round(netTotalPiasters * ((instapayFeePercent ?? 1) / 100));
+  const instapayTotalPiasters = netTotalPiasters + instapayFeePiasters;
+
+  const vodafoneCashFeePiasters = Math.round(netTotalPiasters * ((vodafoneCashFeePercent ?? 1) / 100));
+  const vodafoneCashTotalPiasters = netTotalPiasters + vodafoneCashFeePiasters;
+
   const handleConfirm = async () => {
-    if (activeTab === 'cash') {
-      const hasRegisteredCustomer = !!(selectedCustomer && selectedCustomer.id !== 'cust_general_cash');
-      const isCreditSubmission = isFullCreditMode || (receivedPiasters === 0 && hasRegisteredCustomer);
-
-      if (isCreditSubmission) {
-        if (!hasRegisteredCustomer || !selectedCustomer) {
-          await rafiqAlert({
-            title: 'يجب اختيار عميل أولاً',
-            message: 'لتسجيل الفاتورة كآجل بالكامل على الحساب، يرجى اختيار عميل من القائمة أعلاه أو الضغط على «+ إضافة عميل سريع» أولاً.',
-            variant: 'warning',
-          });
-          return;
-        }
-
-        if (selectedCustomer.creditLimitPiasters > 0) {
-          const newProjectedBalance = selectedCustomer.balancePiasters + netTotalPiasters;
-          if (newProjectedBalance > selectedCustomer.creditLimitPiasters) {
-            const confirmExceeded = await rafiqConfirm({
-              title: 'تنبيه: العميل عدى الحد المسموح بيه للشكك',
-              message: `اللي على العميل دلوقتي: ${formatArabicCurrency(selectedCustomer.balancePiasters)}\nقيمة الفاتورة دي: ${formatArabicCurrency(netTotalPiasters)}\nإجمالي اللي هيبقى عليه بعد الفاتورة: ${formatArabicCurrency(newProjectedBalance)}\nأعلى حد مسموح بيه: ${formatArabicCurrency(selectedCustomer.creditLimitPiasters)}\n\nعاوز تكمل العملية وتسجل الفاتورة في حسابه؟`,
-              confirmText: 'متابعة وتجاوز الحد',
-              cancelText: 'إلغاء وتعديل',
-              variant: 'danger',
-            });
-            if (!confirmExceeded) return;
-          }
-        }
-
-        const payments: SalePayment[] = [
-          {
-            amountPiasters: 0,
-            method: 'credit',
-          },
-        ];
-
-        onConfirmPayment({
-          paymentMethod: 'credit',
-          paidPiasters: 0,
-          payments,
-          changeDuePiasters: 0,
-          customerId: currentCustomerId,
-        });
-        return;
-      }
-
-      if (receivedPiasters === 0) {
-        const confirmExact = await rafiqConfirm({
-          title: 'تأكيد الدفع نقداً بالكامل',
-          message: `المبلغ المستلم غير مدخل (0 ج.م).\nهل تم استلام كامل قيمة الفاتورة بالظبط (${formatArabicCurrency(netTotalPiasters)}) نقداً؟`,
-          confirmText: 'نعم، تم استلام المبلغ بالكامل',
-          cancelText: 'تراجع لكتابة المبلغ',
-          variant: 'info',
-        });
-        if (!confirmExact) return;
-
-        const payments: SalePayment[] = [
-          {
-            amountPiasters: netTotalPiasters,
-            method: 'cash',
-          },
-        ];
-
-        onConfirmPayment({
-          paymentMethod: 'cash',
-          paidPiasters: netTotalPiasters,
-          payments,
-          changeDuePiasters: 0,
-          customerId: currentCustomerId,
-        });
-        return;
-      }
-
-      if (isShortPayment) {
-        if (!currentCustomerId || currentCustomerId === 'cust_general_cash') {
-          await rafiqAlert({
-            title: 'لا يمكن إتمام دفع جزئي لعميل مجهول',
-            message: `المبلغ المدفوع (${formatArabicCurrency(receivedPiasters)}) أقل من قيمة الفاتورة (${formatArabicCurrency(netTotalPiasters)}) بفارق ${formatArabicCurrency(shortAmountPiasters)}.\n\nلتسجيل باقي الحساب كدين آجل، يرجى اختيار عميل من القائمة أعلاه أو الضغط على «إضافة عميل سريع» أولاً.`,
-            variant: 'warning',
-          });
-          return;
-        }
-
-        if (selectedCustomer) {
-          const isExceeded = selectedCustomer.creditLimitPiasters > 0 && 
-            (selectedCustomer.balancePiasters + shortAmountPiasters > selectedCustomer.creditLimitPiasters);
-          if (isExceeded) {
-            const confirmExceeded = await rafiqConfirm({
-              title: 'تحذير تجاوز الحد الائتماني للعميل',
-              message: `دين العميل الحالي: ${formatArabicCurrency(selectedCustomer.balancePiasters)}\nالمبلغ المتبقي كآجل: ${formatArabicCurrency(shortAmountPiasters)}\nإجمالي الدين بعد الفاتورة: ${formatArabicCurrency(selectedCustomer.balancePiasters + shortAmountPiasters)}\nالحد الائتماني المسموح: ${formatArabicCurrency(selectedCustomer.creditLimitPiasters)}\n\nهل تريد تأكيد العملية وتجاوز الحد الائتماني؟`,
-              confirmText: 'متابعة وتجاوز الحد',
-              cancelText: 'إلغاء وتعديل المبلغ',
-              variant: 'danger',
-            });
-            if (!confirmExceeded) return;
-          }
-        }
-
-        const proceed = await rafiqConfirm({
-          title: 'تأكيد الدفع الجزئي وتسجيل الباقي كآجل',
-          message: `تفاصيل العملية:\n• المدفوع كاش الآن: ${formatArabicCurrency(receivedPiasters)} (يُضاف لدرج الخزينة)\n• الباقي كدين آجل: ${formatArabicCurrency(shortAmountPiasters)} (يُقيد في دفتر العميل: ${selectedCustomer?.name || ''})\n\nهل تريد المتابعة وإتمام الفاتورة؟`,
-          confirmText: 'نعم، إتمام الفاتورة',
-          cancelText: 'تراجع وتعديل المبلغ',
-          variant: 'info',
-        });
-        if (!proceed) {
-          return;
-        }
-
-        const payments: SalePayment[] = [
-          {
-            amountPiasters: receivedPiasters,
-            method: 'cash',
-          },
-          {
-            amountPiasters: shortAmountPiasters,
-            method: 'credit',
-          }
-        ];
-
-        onConfirmPayment({
-          paymentMethod: 'multi',
-          paidPiasters: receivedPiasters,
-          payments,
-          changeDuePiasters: 0,
-          customerId: currentCustomerId,
-        });
-        return;
-      }
-
-      if (saveChangeToCustomerAccount && changeDuePiasters > 0 && hasRegisteredCustomer) {
-        const payments: SalePayment[] = [
-          {
-            amountPiasters: receivedPiasters,
-            method: 'cash',
-          },
-        ];
-
-        onConfirmPayment({
-          paymentMethod: 'cash',
-          paidPiasters: receivedPiasters,
-          payments,
-          changeDuePiasters: 0,
-          customerId: currentCustomerId,
-        });
-        return;
-      }
-
-      const payments: SalePayment[] = [
-        {
-          amountPiasters: Math.min(receivedPiasters, netTotalPiasters),
-          method: 'cash',
-        },
-      ];
-
-      onConfirmPayment({
-        paymentMethod: 'cash',
-        paidPiasters: Math.min(receivedPiasters, netTotalPiasters),
-        payments,
-        changeDuePiasters,
-        customerId: currentCustomerId,
+    if (paymentMethodTab === 'instapay') {
+      const proceed = await rafiqConfirm({
+        title: 'تأكيد استلام تحويل انستاباي',
+        message: `تفاصيل المعاملة الإلكترونية (خارج درج الكاش):\n` +
+          `• إجمالي الفاتورة الأصلي: ${formatArabicCurrency(netTotalPiasters)}\n` +
+          `• رسوم انستاباي (${instapayFeePercent}%): +${formatArabicCurrency(instapayFeePiasters)}\n` +
+          `• المطلوب استلامه بالتحويل: ${formatArabicCurrency(instapayTotalPiasters)}\n\n` +
+          `هل تم استلام التحويل بالكامل وتريد حفظ الفاتورة وطباعة الإيصال؟`,
+        confirmText: `تأكيد استلام ${formatArabicCurrency(instapayTotalPiasters)}`,
+        cancelText: 'تراجع',
+        variant: 'info',
       });
-      return;
-    } else if (activeTab === 'card') {
-      const payments: SalePayment[] = [
-        {
-          amountPiasters: netTotalPiasters,
-          method: 'card',
-        },
-      ];
+      if (!proceed) return;
 
       onConfirmPayment({
-        paymentMethod: 'card',
-        paidPiasters: netTotalPiasters,
-        payments,
+        paymentMethod: 'instapay',
+        paidPiasters: instapayTotalPiasters,
+        totalPiastersOverride: instapayTotalPiasters,
+        payments: [{
+          amountPiasters: instapayTotalPiasters,
+          method: 'instapay',
+        }],
         changeDuePiasters: 0,
         customerId: currentCustomerId,
+        serviceFeeNote: instapayFeePiasters > 0 
+          ? `رسوم خدمة انستاباي (${instapayFeePercent}%): +${(instapayFeePiasters / 100).toFixed(2)} ج.م` 
+          : undefined,
       });
-    } else if (activeTab === 'credit') {
-      if (!currentCustomerId) {
+      return;
+    }
+
+    if (paymentMethodTab === 'vodafone_cash') {
+      const proceed = await rafiqConfirm({
+        title: 'تأكيد استلام تحويل فودافون كاش والمحافظ',
+        message: `تفاصيل المعاملة الإلكترونية (خارج درج الكاش):\n` +
+          `• إجمالي الفاتورة الأصلي: ${formatArabicCurrency(netTotalPiasters)}\n` +
+          `• رسوم فودافون كاش (${vodafoneCashFeePercent}%): +${formatArabicCurrency(vodafoneCashFeePiasters)}\n` +
+          `• المطلوب استلامه بالتحويل: ${formatArabicCurrency(vodafoneCashTotalPiasters)}\n\n` +
+          `هل تم استلام التحويل بالكامل وتريد حفظ الفاتورة وطباعة الإيصال؟`,
+        confirmText: `تأكيد استلام ${formatArabicCurrency(vodafoneCashTotalPiasters)}`,
+        cancelText: 'تراجع',
+        variant: 'info',
+      });
+      if (!proceed) return;
+
+      onConfirmPayment({
+        paymentMethod: 'vodafone_cash',
+        paidPiasters: vodafoneCashTotalPiasters,
+        totalPiastersOverride: vodafoneCashTotalPiasters,
+        payments: [{
+          amountPiasters: vodafoneCashTotalPiasters,
+          method: 'vodafone_cash',
+        }],
+        changeDuePiasters: 0,
+        customerId: currentCustomerId,
+        serviceFeeNote: vodafoneCashFeePiasters > 0 
+          ? `رسوم خدمة فودافون كاش (${vodafoneCashFeePercent}%): +${(vodafoneCashFeePiasters / 100).toFixed(2)} ج.م` 
+          : undefined,
+      });
+      return;
+    }
+
+    const hasRegisteredCustomer = !!(selectedCustomer && selectedCustomer.id !== 'cust_general_cash');
+    const isCreditSubmission = isFullCreditMode || (receivedPiasters === 0 && hasRegisteredCustomer);
+
+    if (isCreditSubmission) {
+      if (!hasRegisteredCustomer || !selectedCustomer) {
         await rafiqAlert({
-          title: 'تنبيه حساب الشكك',
-          message: 'لازم تختار الزبون من الدفتر عشان تسجل الفاتورة عليه شكك!',
+          title: 'يجب اختيار عميل أولاً',
+          message: 'لتسجيل الفاتورة كآجل بالكامل على الحساب، يرجى اختيار عميل من القائمة أعلاه أو الضغط على «+ إضافة عميل سريع» أولاً.',
           variant: 'warning',
         });
         return;
       }
 
-      if (selectedCustomer) {
-        const isExceeded = selectedCustomer.creditLimitPiasters > 0 && 
-          (selectedCustomer.balancePiasters + netTotalPiasters > selectedCustomer.creditLimitPiasters);
-        if (isExceeded) {
-          const confirmProceed = await rafiqConfirm({
-            title: 'تحذير: الزبون عدى سقف الشكك المسموح!',
-            message: `حساب الزبون القديم: ${formatArabicCurrency(selectedCustomer.balancePiasters)}\nإجمالي حسابه بعد الفاتورة دي: ${formatArabicCurrency(selectedCustomer.balancePiasters + netTotalPiasters)}\nأعلى حد شكك مسموح له بيه: ${formatArabicCurrency(selectedCustomer.creditLimitPiasters)}\n\nعاوز تكمل البيع على الحساب وتعدي السقف ده؟`,
-            confirmText: 'كمل عادي وسجلها شكك',
-            cancelText: 'إلغاء وما تسجلش',
+      if (selectedCustomer.creditLimitPiasters > 0) {
+        const newProjectedBalance = selectedCustomer.balancePiasters + netTotalPiasters;
+        if (newProjectedBalance > selectedCustomer.creditLimitPiasters) {
+          const confirmExceeded = await rafiqConfirm({
+            title: 'تنبيه: العميل عدى الحد المسموح بيه للشكك',
+            message: `اللي على العميل دلوقتي: ${formatArabicCurrency(selectedCustomer.balancePiasters)}\nقيمة الفاتورة دي: ${formatArabicCurrency(netTotalPiasters)}\nإجمالي اللي هيبقى عليه بعد الفاتورة: ${formatArabicCurrency(newProjectedBalance)}\nأعلى حد مسموح بيه: ${formatArabicCurrency(selectedCustomer.creditLimitPiasters)}\n\nعاوز تكمل العملية وتسجل الفاتورة في حسابه؟`,
+            confirmText: 'متابعة وتجاوز الحد',
+            cancelText: 'إلغاء وتعديل',
             variant: 'danger',
           });
-          if (!confirmProceed) return;
+          if (!confirmExceeded) return;
         }
       }
 
@@ -449,61 +335,125 @@ export const PaymentModal = ({
         changeDuePiasters: 0,
         customerId: currentCustomerId,
       });
-    } else if (activeTab === 'multi') {
-      if (splitRemainingPiasters !== 0) {
-        await rafiqAlert({
-          title: 'الفلوس مش متطابقة مع إجمالي الفاتورة',
-          message: `مجموع الدفعات المتفرقة (${formatArabicCurrency(splitTotalPaid)}) لازم يساوي بالضبط حساب الفاتورة (${formatArabicCurrency(netTotalPiasters)})!\nالفارق المتبقي: ${formatArabicCurrency(Math.abs(splitRemainingPiasters))}`,
-          variant: 'warning',
-        });
-        return;
-      }
+      return;
+    }
 
-      const hasCreditRow = splitRows.some((r) => r.method === 'credit');
-      if (hasCreditRow && !currentCustomerId) {
-        await rafiqAlert({
-          title: 'تنبيه حساب الشكك',
-          message: 'فيه جزء شكك على الحساب! لازم تختار الزبون عشان الباقي يتسجل عليه في الدفتر.',
-          variant: 'warning',
-        });
-        return;
-      }
+    if (receivedPiasters === 0) {
+      const confirmExact = await rafiqConfirm({
+        title: 'تأكيد الدفع نقداً بالكامل',
+        message: `المبلغ المستلم غير مدخل (0 ج.م).\nهل تم استلام كامل قيمة الفاتورة بالظبط (${formatArabicCurrency(netTotalPiasters)}) نقداً؟`,
+        confirmText: 'نعم، تم استلام المبلغ بالكامل',
+        cancelText: 'تراجع لكتابة المبلغ',
+        variant: 'info',
+      });
+      if (!confirmExact) return;
 
-      if (hasCreditRow && selectedCustomer) {
-        const creditPart = splitRows
-          .filter((r) => r.method === 'credit')
-          .reduce((sum, r) => sum + r.amountPiasters, 0);
-        const isExceeded = selectedCustomer.creditLimitPiasters > 0 && 
-          (selectedCustomer.balancePiasters + creditPart > selectedCustomer.creditLimitPiasters);
-        if (isExceeded) {
-          const confirmProceed = await rafiqConfirm({
-            title: 'تحذير: الزبون عدى سقف الشكك المسموح!',
-            message: `حساب الزبون القديم: ${formatArabicCurrency(selectedCustomer.balancePiasters)}\nالجزء الشكك في الفاتورة دي: ${formatArabicCurrency(creditPart)}\nإجمالي حسابه بعد العملية دي: ${formatArabicCurrency(selectedCustomer.balancePiasters + creditPart)}\nأعلى حد شكك مسموح له بيه: ${formatArabicCurrency(selectedCustomer.creditLimitPiasters)}\n\nعاوز تكمل الدفع المشكل وتعدي السقف ده؟`,
-            confirmText: 'كمل عادي وسجلها شكك',
-            cancelText: 'إلغاء وما تسجلش',
-            variant: 'danger',
-          });
-          if (!confirmProceed) return;
-        }
-      }
-
-      const payments: SalePayment[] = splitRows.map((r) => ({
-        amountPiasters: r.amountPiasters,
-        method: r.method,
-      }));
-
-      const totalCashAndCardPaid = splitRows
-        .filter((r) => r.method !== 'credit')
-        .reduce((sum, r) => sum + r.amountPiasters, 0);
+      const payments: SalePayment[] = [
+        {
+          amountPiasters: netTotalPiasters,
+          method: 'cash',
+        },
+      ];
 
       onConfirmPayment({
-        paymentMethod: 'multi',
-        paidPiasters: totalCashAndCardPaid,
+        paymentMethod: 'cash',
+        paidPiasters: netTotalPiasters,
         payments,
         changeDuePiasters: 0,
         customerId: currentCustomerId,
       });
+      return;
     }
+
+    if (isShortPayment) {
+      if (!currentCustomerId || currentCustomerId === 'cust_general_cash') {
+        await rafiqAlert({
+          title: 'لا يمكن إتمام دفع جزئي لعميل مجهول',
+          message: `المبلغ المدفوع (${formatArabicCurrency(receivedPiasters)}) أقل من قيمة الفاتورة (${formatArabicCurrency(netTotalPiasters)}) بفارق ${formatArabicCurrency(shortAmountPiasters)}.\n\nلتسجيل باقي الحساب كدين آجل، يرجى اختيار عميل من القائمة أعلاه أو الضغط على «إضافة عميل سريع» أولاً.`,
+          variant: 'warning',
+        });
+        return;
+      }
+
+      if (selectedCustomer) {
+        const isExceeded = selectedCustomer.creditLimitPiasters > 0 && 
+          (selectedCustomer.balancePiasters + shortAmountPiasters > selectedCustomer.creditLimitPiasters);
+        if (isExceeded) {
+          const confirmExceeded = await rafiqConfirm({
+            title: 'تحذير تجاوز الحد الائتماني للعميل',
+            message: `دين العميل الحالي: ${formatArabicCurrency(selectedCustomer.balancePiasters)}\nالمبلغ المتبقي كآجل: ${formatArabicCurrency(shortAmountPiasters)}\nإجمالي الدين بعد الفاتورة: ${formatArabicCurrency(selectedCustomer.balancePiasters + shortAmountPiasters)}\nالحد الائتماني المسموح: ${formatArabicCurrency(selectedCustomer.creditLimitPiasters)}\n\nهل تريد تأكيد العملية وتجاوز الحد الائتماني؟`,
+            confirmText: 'متابعة وتجاوز الحد',
+            cancelText: 'إلغاء وتعديل المبلغ',
+            variant: 'danger',
+          });
+          if (!confirmExceeded) return;
+        }
+      }
+
+      const proceed = await rafiqConfirm({
+        title: 'تأكيد الدفع الجزئي وتسجيل الباقي كآجل',
+        message: `تفاصيل العملية:\n• المدفوع كاش الآن: ${formatArabicCurrency(receivedPiasters)} (يُضاف لدرج الخزينة)\n• الباقي كدين آجل: ${formatArabicCurrency(shortAmountPiasters)} (يُقيد في دفتر العميل: ${selectedCustomer?.name || ''})\n\nهل تريد المتابعة وإتمام الفاتورة؟`,
+        confirmText: 'نعم، إتمام الفاتورة',
+        cancelText: 'تراجع وتعديل المبلغ',
+        variant: 'info',
+      });
+      if (!proceed) {
+        return;
+      }
+
+      const payments: SalePayment[] = [
+        {
+          amountPiasters: receivedPiasters,
+          method: 'cash',
+        },
+        {
+          amountPiasters: shortAmountPiasters,
+          method: 'credit',
+        }
+      ];
+
+      onConfirmPayment({
+        paymentMethod: 'multi',
+        paidPiasters: receivedPiasters,
+        payments,
+        changeDuePiasters: 0,
+        customerId: currentCustomerId,
+      });
+      return;
+    }
+
+    if (saveChangeToCustomerAccount && changeDuePiasters > 0 && hasRegisteredCustomer) {
+      const payments: SalePayment[] = [
+        {
+          amountPiasters: receivedPiasters,
+          method: 'cash',
+        },
+      ];
+
+      onConfirmPayment({
+        paymentMethod: 'cash',
+        paidPiasters: receivedPiasters,
+        payments,
+        changeDuePiasters: 0,
+        customerId: currentCustomerId,
+      });
+      return;
+    }
+
+    const payments: SalePayment[] = [
+      {
+        amountPiasters: Math.min(receivedPiasters, netTotalPiasters),
+        method: 'cash',
+      },
+    ];
+
+    onConfirmPayment({
+      paymentMethod: 'cash',
+      paidPiasters: Math.min(receivedPiasters, netTotalPiasters),
+      payments,
+      changeDuePiasters,
+      customerId: currentCustomerId,
+    });
   };
 
   // Quick cash buttons generator (Exact, next 50, next 100, 200)
@@ -646,15 +596,27 @@ export const PaymentModal = ({
 
               {selectedCustomer && (
                 selectedCustomer.balancePiasters > 0 ? (
-                  <span className="text-xs text-[#b23a2e] font-mono font-bold bg-[#fdf3f2] px-2.5 py-1 rounded-lg border border-[#f6cbc6] shrink-0">
-                    عليه فلوس قديمة: {formatArabicCurrency(selectedCustomer.balancePiasters)}
-                  </span>
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-danger-soft/40 border-2 border-danger/60 text-danger font-bold text-xs shadow-xs shrink-0 animate-in fade-in">
+                    <AlertTriangle className="w-4 h-4 text-danger shrink-0 animate-pulse" />
+                    <span>تنبيه: عليه حساب قديم:</span>
+                    <span className="font-mono font-black text-sm tabular-nums text-danger">
+                      {formatArabicCurrency(selectedCustomer.balancePiasters)}
+                    </span>
+                  </div>
                 ) : selectedCustomer.balancePiasters < 0 ? (
-                  <span className="text-xs text-paid font-mono font-bold bg-paid-soft px-2.5 py-1 rounded-lg border border-paid-border shrink-0 flex items-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5 text-paid shrink-0" />
-                    <span>سايب فلوس في المحل: {formatArabicCurrency(Math.abs(selectedCustomer.balancePiasters))} (له رصيد)</span>
-                  </span>
-                ) : null
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-paid-soft border-2 border-paid/50 text-paid font-bold text-xs shadow-xs shrink-0 animate-in fade-in">
+                    <Sparkles className="w-4 h-4 text-paid shrink-0" />
+                    <span>له رصيد سابق في حسابه بالمحل:</span>
+                    <span className="font-mono font-black text-sm tabular-nums text-paid">
+                      {formatArabicCurrency(Math.abs(selectedCustomer.balancePiasters))}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-surface-2 border border-line text-ink-muted text-xs font-semibold shrink-0">
+                    <CheckCircle className="w-3.5 h-3.5 text-paid" />
+                    <span>حسابه خالص (0.00 ج.م)</span>
+                  </div>
+                )
               )}
             </div>
 
@@ -699,37 +661,50 @@ export const PaymentModal = ({
             )}
           </div>
 
-          {/* 2. Payment Method Tabs (Credit is accessed directly via quick button) */}
-          <div className="flex items-center gap-2 bg-surface-2 p-1.5 rounded-lg border border-line">
+          {/* Payment Method Selector Tabs */}
+          <div className="flex items-center gap-2 bg-surface-2 p-1.5 rounded-xl border border-line">
             <button
               type="button"
-              onClick={() => setActiveTab('cash')}
-              className={`flex-1 py-2 rounded-md text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                activeTab === 'cash'
+              onClick={() => setPaymentMethodTab('cash')}
+              className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                paymentMethodTab === 'cash'
                   ? 'bg-brand text-white shadow-xs'
                   : 'text-ink-muted hover:text-ink hover:bg-surface'
               }`}
             >
-              <Banknote className="w-4 h-4" />
-              <span>نقدي (كاش)</span>
+              <Banknote className="w-4 h-4 shrink-0" />
+              <span>نقداً (كاش في الدرج)</span>
             </button>
 
             <button
               type="button"
-              onClick={() => setActiveTab('multi')}
-              className={`flex-1 py-2 rounded-md text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                activeTab === 'multi'
-                  ? 'bg-brand text-white shadow-xs'
+              onClick={() => setPaymentMethodTab('instapay')}
+              className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                paymentMethodTab === 'instapay'
+                  ? 'bg-[#582C83] text-white shadow-xs'
                   : 'text-ink-muted hover:text-ink hover:bg-surface'
               }`}
             >
-              <Split className="w-4 h-4" />
-              <span>دفع مشكل (كاش + فيزا + شكك)</span>
+              <Smartphone className="w-4 h-4 shrink-0" />
+              <span>انستاباي (+{instapayFeePercent}%)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPaymentMethodTab('vodafone_cash')}
+              className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                paymentMethodTab === 'vodafone_cash'
+                  ? 'bg-[#e60000] text-white shadow-xs'
+                  : 'text-ink-muted hover:text-ink hover:bg-surface'
+              }`}
+            >
+              <Wallet className="w-4 h-4 shrink-0" />
+              <span>فودافون كاش (+{vodafoneCashFeePercent}%)</span>
             </button>
           </div>
 
-          {/* 3. Tab Contents */}
-          {activeTab === 'cash' && (
+          {/* 2. Cash or Digital Payment Section */}
+          {paymentMethodTab === 'cash' ? (
             <CashPaymentSection
               receivedInput={receivedInput}
               onReceivedChange={handleReceivedChange}
@@ -748,23 +723,67 @@ export const PaymentModal = ({
               saveChangeToCustomerAccount={saveChangeToCustomerAccount}
               onToggleSaveChangeToCustomerAccount={setSaveChangeToCustomerAccount}
             />
-          )}
+          ) : (
+            <div className={`p-4 rounded-xl border flex flex-col gap-3 ${
+              paymentMethodTab === 'instapay'
+                ? 'bg-purple-50/40 border-purple-200 text-purple-950'
+                : 'bg-red-50/40 border-red-200 text-red-950'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {paymentMethodTab === 'instapay' ? (
+                    <div className="w-8 h-8 rounded-lg bg-[#582C83] text-white flex items-center justify-center shadow-xs">
+                      <Smartphone className="w-4 h-4" />
+                    </div>
+                  ) : (
+                    <div className="w-8 h-8 rounded-lg bg-[#e60000] text-white flex items-center justify-center shadow-xs">
+                      <Wallet className="w-4 h-4" />
+                    </div>
+                  )}
+                  <div>
+                    <h4 className="font-bold text-sm">
+                      {paymentMethodTab === 'instapay' ? 'دفع عبر انستاباي (InstaPay)' : 'دفع عبر فودافون كاش ومحافظ المحمول'}
+                    </h4>
+                    <p className="text-[11px] opacity-80">
+                      معاملة إلكترونية فورية (لا تُضاف لدرج الكاش - تُحسب في تقرير مستقل)
+                    </p>
+                  </div>
+                </div>
 
-          {activeTab === 'credit' && (
-            <CreditPaymentSection
-              selectedCustomer={selectedCustomer}
-              netTotalPiasters={netTotalPiasters}
-            />
-          )}
+                <span className="text-xs font-bold px-2.5 py-1 rounded-md bg-white border border-line shadow-2xs">
+                  نسبة الزيادة: +{paymentMethodTab === 'instapay' ? instapayFeePercent : vodafoneCashFeePercent}%
+                </span>
+              </div>
 
-          {activeTab === 'multi' && (
-            <MultiPaymentSection
-              splitRows={splitRows}
-              setSplitRows={setSplitRows}
-              splitRemainingPiasters={splitRemainingPiasters}
-              netTotalPiasters={netTotalPiasters}
-              selectedCustomer={selectedCustomer}
-            />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-line/60">
+                <div className="bg-white p-3 rounded-lg border border-line flex flex-col">
+                  <span className="text-[11px] text-ink-muted">إجمالي الفاتورة الأساسي:</span>
+                  <span className="text-base font-bold font-mono tabular-nums text-ink mt-0.5">
+                    {formatArabicCurrency(netTotalPiasters)}
+                  </span>
+                </div>
+
+                <div className="bg-white p-3 rounded-lg border border-line flex flex-col">
+                  <span className="text-[11px] text-ink-muted">
+                    رسوم الخدمة (+{paymentMethodTab === 'instapay' ? instapayFeePercent : vodafoneCashFeePercent}%):
+                  </span>
+                  <span className="text-base font-bold font-mono tabular-nums text-danger mt-0.5">
+                    +{formatArabicCurrency(paymentMethodTab === 'instapay' ? instapayFeePiasters : vodafoneCashFeePiasters)}
+                  </span>
+                </div>
+
+                <div className={`p-3 rounded-lg border flex flex-col ${
+                  paymentMethodTab === 'instapay'
+                    ? 'bg-[#582C83] text-white border-[#462269]'
+                    : 'bg-[#e60000] text-white border-[#cc0000]'
+                }`}>
+                  <span className="text-[11px] text-white/80">المطلوب تحويله:</span>
+                  <span className="text-lg font-black font-mono tabular-nums text-white mt-0.5">
+                    {formatArabicCurrency(paymentMethodTab === 'instapay' ? instapayTotalPiasters : vodafoneCashTotalPiasters)}
+                  </span>
+                </div>
+              </div>
+            </div>
           )}
         </div>
 
@@ -781,7 +800,7 @@ export const PaymentModal = ({
           <button
             type="button"
             onClick={() => void handleConfirm()}
-            disabled={loading || (activeTab === 'multi' && splitRemainingPiasters !== 0)}
+            disabled={loading}
             className="px-6 py-2.5 rounded-lg text-sm font-bold bg-brand hover:bg-brand-hover text-white flex items-center gap-2 shadow-sm transition-all disabled:opacity-50 cursor-pointer"
           >
             <Printer className="w-4 h-4" />

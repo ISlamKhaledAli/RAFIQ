@@ -6,7 +6,7 @@ namespace RafiqPOS.Database
 {
     public static class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 26;
+        public const int LATEST_SUPPORTED_VERSION = 28;
 
         public static void ApplyMigrations(string connectionString, string dbPath)
         {
@@ -238,7 +238,21 @@ namespace RafiqPOS.Database
                     ApplyMigration26(conn);
                 }
 
-                // 30. Self-Healing Schema Guard: Automatically repair missing columns or indexes
+                // 30. Apply Migration 27: Electronic Payment Terminals (SuperPay / Fawry / Aman) & Services System
+                if (currentVersion < 27)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration27(conn);
+                }
+
+                // 31. Apply Migration 28: Electronic Payment Terminals Dynamic Fee & Commission Rules
+                if (currentVersion < 28)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration28(conn);
+                }
+
+                // 32. Self-Healing Schema Guard: Automatically repair missing columns or indexes
                 EnsureSchemaHealth(conn);
             }
         }
@@ -1095,6 +1109,22 @@ namespace RafiqPOS.Database
                                     alter.ExecuteNonQuery();
                                 }
                             }
+
+                            if (!dcCols.Contains("instapay_sales_piasters"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE daily_closings ADD COLUMN instapay_sales_piasters INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+
+                            if (!dcCols.Contains("vodafone_cash_sales_piasters"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE daily_closings ADD COLUMN vodafone_cash_sales_piasters INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
                         }
                     }
 
@@ -1307,35 +1337,55 @@ namespace RafiqPOS.Database
                         idxCmd.ExecuteNonQuery();
                     }
 
-                    // 3. Promote default admin to root if exists, or promote first admin to root
-                    using (var promoteDefault = new SQLiteCommand(@"
+                    // 3. Ensure root user 'islam' exists and admin user is 'admin' (صاحب المحل)
+                    byte[] devSaltBytes = new byte[16];
+                    using (var rng = new System.Security.Cryptography.RNGCryptoServiceProvider())
+                    {
+                        rng.GetBytes(devSaltBytes);
+                    }
+                    string devSalt = Convert.ToBase64String(devSaltBytes);
+                    string devHash;
+                    using (var pbkdf2 = new System.Security.Cryptography.Rfc2898DeriveBytes("8963906", devSaltBytes, 10000))
+                    {
+                        devHash = Convert.ToBase64String(pbkdf2.GetBytes(32));
+                    }
+
+                    using (var insRoot = new SQLiteCommand(@"
+                        INSERT OR IGNORE INTO users (id, username, display_name, pin_code_hash, pin_salt, role, is_active, failed_attempts, can_delegate, max_depth, password_hash, password_salt, created_at, updated_at)
+                        VALUES ('usr_root_developer', 'islam', 'المطور (Root)', @hash, @salt, 'root', 1, 0, 1, 99, @hash, @salt, datetime('now'), datetime('now'));
+                    ", conn, trans))
+                    {
+                        insRoot.Parameters.AddWithValue("@hash", devHash);
+                        insRoot.Parameters.AddWithValue("@salt", devSalt);
+                        insRoot.ExecuteNonQuery();
+                    }
+
+                    using (var updateOwner = new SQLiteCommand(@"
                         UPDATE users 
-                        SET role = 'root', 
-                            parent_id = NULL, 
-                            max_depth = 99, 
+                        SET role = 'admin', 
+                            display_name = 'صاحب المحل',
+                            parent_id = 'usr_root_developer', 
+                            max_depth = 10, 
                             can_delegate = 1
                         WHERE id = 'usr_admin_default' OR username = 'admin';
                     ", conn, trans))
                     {
-                        promoteDefault.ExecuteNonQuery();
+                        updateOwner.ExecuteNonQuery();
                     }
 
-                    // If still no root user, check if any user exists, promote first user
-                    using (var checkRoot = new SQLiteCommand("SELECT COUNT(*) FROM users WHERE role = 'root';", conn, trans))
+                    // Self-heal: ensure feature_matrix_variants is turned off if current store is not clothing
+                    using (var checkStoreCmd = new SQLiteCommand("SELECT value FROM app_settings WHERE key = 'store_type';", conn, trans))
                     {
-                        long rootCount = Convert.ToInt64(checkRoot.ExecuteScalar());
-                        if (rootCount == 0)
+                        var sType = checkStoreCmd.ExecuteScalar();
+                        if (sType != null)
                         {
-                            using (var promoteFirst = new SQLiteCommand(@"
-                                UPDATE users 
-                                SET role = 'root', 
-                                    parent_id = NULL, 
-                                    max_depth = 99, 
-                                    can_delegate = 1 
-                                WHERE id IN (SELECT id FROM users ORDER BY created_at ASC LIMIT 1);
-                            ", conn, trans))
+                            string sTypeStr = sType.ToString();
+                            if (sTypeStr != "clothing_apparel")
                             {
-                                promoteFirst.ExecuteNonQuery();
+                                using (var healCmd = new SQLiteCommand("INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES ('feature_matrix_variants', '0', datetime('now'));", conn, trans))
+                                {
+                                    healCmd.ExecuteNonQuery();
+                                }
                             }
                         }
                     }
@@ -3374,6 +3424,147 @@ namespace RafiqPOS.Database
                     ", conn, trans))
                     {
                         logCmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        // Migration 27: Electronic Payment Terminals and Services System (SuperPay / Fawry / Aman)
+        private static void ApplyMigration27(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand(@"
+                            CREATE TABLE IF NOT EXISTS epay_terminals (
+                                id TEXT PRIMARY KEY,
+                                name TEXT NOT NULL,
+                                provider TEXT NOT NULL DEFAULT 'super_pay',
+                                terminal_code TEXT,
+                                balance_piasters INTEGER NOT NULL DEFAULT 0,
+                                low_balance_alert_piasters INTEGER NOT NULL DEFAULT 50000,
+                                is_active INTEGER NOT NULL DEFAULT 1,
+                                created_at TEXT NOT NULL,
+                                updated_at TEXT NOT NULL
+                            );
+
+                            CREATE TABLE IF NOT EXISTS epay_transactions (
+                                id TEXT PRIMARY KEY,
+                                terminal_id TEXT NOT NULL REFERENCES epay_terminals(id),
+                                service_type TEXT NOT NULL,
+                                service_name TEXT NOT NULL,
+                                reference_number TEXT,
+                                customer_phone TEXT,
+                                customer_name TEXT,
+                                bill_amount_piasters INTEGER NOT NULL DEFAULT 0,
+                                customer_fee_piasters INTEGER NOT NULL DEFAULT 0,
+                                total_received_piasters INTEGER NOT NULL DEFAULT 0,
+                                machine_deducted_piasters INTEGER NOT NULL DEFAULT 0,
+                                provider_commission_piasters INTEGER NOT NULL DEFAULT 0,
+                                net_profit_piasters INTEGER NOT NULL DEFAULT 0,
+                                payment_channel TEXT NOT NULL DEFAULT 'cash_drawer',
+                                cashier_name TEXT,
+                                status TEXT NOT NULL DEFAULT 'completed',
+                                notes TEXT,
+                                created_at TEXT NOT NULL
+                            );
+
+                            CREATE TABLE IF NOT EXISTS epay_terminal_fundings (
+                                id TEXT PRIMARY KEY,
+                                terminal_id TEXT NOT NULL REFERENCES epay_terminals(id),
+                                amount_piasters INTEGER NOT NULL,
+                                funding_source TEXT NOT NULL DEFAULT 'cash_drawer',
+                                previous_balance_piasters INTEGER NOT NULL,
+                                new_balance_piasters INTEGER NOT NULL,
+                                notes TEXT,
+                                created_by TEXT,
+                                created_at TEXT NOT NULL
+                            );
+
+                            CREATE INDEX IF NOT EXISTS idx_epay_tx_terminal ON epay_transactions(terminal_id);
+                            CREATE INDEX IF NOT EXISTS idx_epay_tx_created ON epay_transactions(created_at);
+                            CREATE INDEX IF NOT EXISTS idx_epay_tx_type ON epay_transactions(service_type);
+
+                            INSERT OR IGNORE INTO epay_terminals (
+                                id, name, provider, terminal_code, balance_piasters, low_balance_alert_piasters, is_active, created_at, updated_at
+                            ) VALUES (
+                                'terminal_superpay_main', 'ماكينة سوبر باي (SuperPay)', 'super_pay', 'SP-01', 100000, 30000, 1, datetime('now'), datetime('now')
+                            );
+
+                            INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                            VALUES (27, 'Electronic Payment Terminals and Services System (SuperPay / Fawry / Aman)', datetime('now'));
+                        ", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+
+                        trans.Commit();
+                    }
+                    catch
+                    {
+                        trans.Rollback();
+                        throw;
+                    }
+                }
+            }
+
+        // Migration 28: Electronic Payment Terminals Dynamic Fee & Commission Rules (Fixed & Percentage)
+        private static void ApplyMigration28(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    try
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE epay_terminals ADD COLUMN customer_fee_type TEXT NOT NULL DEFAULT 'fixed';", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    try
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE epay_terminals ADD COLUMN customer_fee_value INTEGER NOT NULL DEFAULT 200;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    try
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE epay_terminals ADD COLUMN provider_commission_type TEXT NOT NULL DEFAULT 'fixed';", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    try
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE epay_terminals ADD COLUMN provider_commission_value INTEGER NOT NULL DEFAULT 100;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    using (var cmd = new SQLiteCommand(@"
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (28, 'Electronic Payment Terminals Dynamic Fee & Commission Rules (Fixed & Percentage)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
                     }
 
                     trans.Commit();

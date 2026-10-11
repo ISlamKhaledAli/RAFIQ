@@ -216,9 +216,23 @@ export function ReceiptModal({
               </div>
 
               <div className="flex justify-between text-[11px] pt-1">
-                <span>المدفوع ({sale.paymentMethod === 'credit' ? 'آجل' : 'نقداً'}):</span>
+                <span>المدفوع ({
+                  sale.paymentMethod === 'credit' 
+                    ? 'آجل' 
+                    : sale.paymentMethod === 'instapay'
+                    ? 'انستاباي'
+                    : sale.paymentMethod === 'vodafone_cash'
+                    ? 'فودافون كاش'
+                    : 'نقداً'
+                }):</span>
                 <span className="font-mono font-bold">{(sale.paidPiasters / 100).toFixed(2)} ج.م</span>
               </div>
+
+              {sale.notes && (
+                <div className="text-[10px] text-gray-700 font-sans pt-1 text-center">
+                  {sale.notes}
+                </div>
+              )}
 
               {changePiasters > 0 && (
                 <div className="flex justify-between text-[11px] font-bold text-emerald-800">

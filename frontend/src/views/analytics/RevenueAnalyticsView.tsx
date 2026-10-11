@@ -17,6 +17,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
+import { useDataSubscription } from '../../utils/eventBus';
 import { CustomSelect } from '../../components/CustomSelect';
 import type { SelectOption } from '../../components/CustomSelect';
 import { CustomDateRangePicker } from '../../components/CustomDatePicker';
@@ -47,7 +48,11 @@ const PERIOD_OPTIONS: SelectOption[] = [
   { value: 'custom', label: 'فترة مخصصة...' },
 ];
 
-export const RevenueAnalyticsView: FC = () => {
+export interface RevenueAnalyticsViewProps {
+  isActive?: boolean;
+}
+
+export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive = true }) => {
   const [period, setPeriod] = useState<string>('month');
   const [customFrom, setCustomFrom] = useState<string>(() => {
     const d = new Date();
@@ -107,8 +112,14 @@ export const RevenueAnalyticsView: FC = () => {
   }, [period, customFrom, customTo, itemsDirection]);
 
   useEffect(() => {
+    if (isActive) {
+      void loadData();
+    }
+  }, [isActive, loadData]);
+
+  useDataSubscription(['sales', 'dashboard', 'all'], () => {
     void loadData();
-  }, [loadData]);
+  });
 
   // Derived financial metrics
   const totalSales = salesReport?.totalSalesPiasters || 0;
@@ -123,10 +134,12 @@ export const RevenueAnalyticsView: FC = () => {
   // Payment breakdown percentages
   const cashSales = salesReport?.cashSalesPiasters || 0;
   const creditSales = salesReport?.creditSalesPiasters || 0;
-  const cardSales = salesReport?.cardSalesPiasters || 0;
+  const instapaySales = salesReport?.instapaySalesPiasters || 0;
+  const vodafoneCashSales = salesReport?.vodafoneCashSalesPiasters || 0;
   const cashPct = totalSales > 0 ? Math.round((cashSales * 100) / totalSales) : 0;
   const creditPct = totalSales > 0 ? Math.round((creditSales * 100) / totalSales) : 0;
-  const cardPct = totalSales > 0 ? Math.max(0, 100 - cashPct - creditPct) : 0;
+  const instapayPct = totalSales > 0 ? Math.round((instapaySales * 100) / totalSales) : 0;
+  const vodafoneCashPct = totalSales > 0 ? Math.max(0, 100 - cashPct - creditPct - instapayPct) : 0;
 
   // Composite Financial Health Score (0 - 100)
   const financialScore = Math.max(
@@ -455,17 +468,30 @@ export const RevenueAnalyticsView: FC = () => {
                         strokeDasharray={`${creditPct} ${100 - creditPct}`}
                         strokeDashoffset={`${-cashPct}`}
                       />
-                      {/* Card slice (Brand) */}
-                      {cardPct > 0 && (
+                      {/* InstaPay slice (Purple) */}
+                      {instapayPct > 0 && (
                         <circle
                           cx="18"
                           cy="18"
                           r="15.915"
                           fill="none"
-                          stroke="#004D3F"
+                          stroke="#582C83"
                           strokeWidth="4"
-                          strokeDasharray={`${cardPct} ${100 - cardPct}`}
+                          strokeDasharray={`${instapayPct} ${100 - instapayPct}`}
                           strokeDashoffset={`${-(cashPct + creditPct)}`}
+                        />
+                      )}
+                      {/* Vodafone Cash slice (Red) */}
+                      {vodafoneCashPct > 0 && (
+                        <circle
+                          cx="18"
+                          cy="18"
+                          r="15.915"
+                          fill="none"
+                          stroke="#e60000"
+                          strokeWidth="4"
+                          strokeDasharray={`${vodafoneCashPct} ${100 - vodafoneCashPct}`}
+                          strokeDashoffset={`${-(cashPct + creditPct + instapayPct)}`}
                         />
                       )}
                     </svg>
@@ -500,11 +526,21 @@ export const RevenueAnalyticsView: FC = () => {
 
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="w-3 h-3 rounded-full bg-brand shrink-0" />
-                      <span>بطاقات بنكية / إلكتروني:</span>
+                      <span className="w-3 h-3 rounded-full bg-[#582C83] shrink-0" />
+                      <span>انستاباي (InstaPay - خارج الدرج):</span>
                     </div>
-                    <div className="font-mono font-bold text-ink">
-                      {formatArabicCurrency(cardSales)} ({cardPct}%)
+                    <div className="font-mono font-bold text-[#582C83]">
+                      {formatArabicCurrency(instapaySales)} ({instapayPct}%)
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full bg-[#e60000] shrink-0" />
+                      <span>فودافون كاش ومحافظ (خارج الدرج):</span>
+                    </div>
+                    <div className="font-mono font-bold text-[#e60000]">
+                      {formatArabicCurrency(vodafoneCashSales)} ({vodafoneCashPct}%)
                     </div>
                   </div>
                 </div>

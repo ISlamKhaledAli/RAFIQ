@@ -83,14 +83,14 @@ namespace RafiqPOS.Repositories
             string sql = @"
                 INSERT INTO daily_closings (
                     id, closing_number, business_date, closed_at, cashier_id, cashier_name,
-                    total_sales_piasters, cash_sales_piasters, card_sales_piasters, credit_sales_piasters, expenses_piasters,
+                    total_sales_piasters, cash_sales_piasters, card_sales_piasters, instapay_sales_piasters, vodafone_cash_sales_piasters, credit_sales_piasters, expenses_piasters,
                     returns_total_piasters, returns_cash_piasters, cancelled_total_piasters,
                     debt_payments_piasters, expected_cash_piasters, actual_cash_piasters,
                     difference_piasters, gross_profit_piasters, invoices_count, returns_count,
                     cancelled_count, notes, summary_json, is_sealed
                 ) VALUES (
                     @id, @cnum, @bdate, @closedAt, @cashierId, @cashierName,
-                    @sales, @cash, @card, @credit, @expenses,
+                    @sales, @cash, @card, @instapay, @vodafone, @credit, @expenses,
                     @retTotal, @retCash, @cancTotal,
                     @debtPay, @expCash, @actCash,
                     @diff, @profit, @invCount, @retCount,
@@ -109,6 +109,8 @@ namespace RafiqPOS.Repositories
                 cmd.Parameters.AddWithValue("@sales", closing.TotalSalesPiasters);
                 cmd.Parameters.AddWithValue("@cash", closing.CashSalesPiasters);
                 cmd.Parameters.AddWithValue("@card", closing.CardSalesPiasters);
+                cmd.Parameters.AddWithValue("@instapay", closing.InstapaySalesPiasters);
+                cmd.Parameters.AddWithValue("@vodafone", closing.VodafoneCashSalesPiasters);
                 cmd.Parameters.AddWithValue("@credit", closing.CreditSalesPiasters);
                 cmd.Parameters.AddWithValue("@expenses", closing.ExpensesPiasters);
                 cmd.Parameters.AddWithValue("@retTotal", closing.ReturnsTotalPiasters);
@@ -152,6 +154,8 @@ namespace RafiqPOS.Repositories
                 TotalSalesPiasters = Convert.ToInt64(reader["total_sales_piasters"]),
                 CashSalesPiasters = Convert.ToInt64(reader["cash_sales_piasters"]),
                 CardSalesPiasters = HasColumn(reader, "card_sales_piasters") ? Convert.ToInt64(reader["card_sales_piasters"]) : 0,
+                InstapaySalesPiasters = HasColumn(reader, "instapay_sales_piasters") ? Convert.ToInt64(reader["instapay_sales_piasters"]) : 0,
+                VodafoneCashSalesPiasters = HasColumn(reader, "vodafone_cash_sales_piasters") ? Convert.ToInt64(reader["vodafone_cash_sales_piasters"]) : 0,
                 CreditSalesPiasters = Convert.ToInt64(reader["credit_sales_piasters"]),
                 ExpensesPiasters = HasColumn(reader, "expenses_piasters") ? Convert.ToInt64(reader["expenses_piasters"]) : 0,
                 ReturnsTotalPiasters = Convert.ToInt64(reader["returns_total_piasters"]),

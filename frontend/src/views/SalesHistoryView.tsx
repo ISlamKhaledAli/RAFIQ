@@ -129,8 +129,10 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
   };
 
   useEffect(() => {
-    void loadSales();
-  }, []);
+    if (isActive !== false) {
+      void loadSales();
+    }
+  }, [isActive]);
 
   useDataSubscription(['sales', 'all'], () => {
     void loadSales();
@@ -642,7 +644,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                       </span>
                     ) : (
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-paid-soft text-paid border border-paid/20">
-                        {sale.paymentMethod === 'cash' ? 'كاش' : sale.paymentMethod === 'credit' ? 'شكك' : 'فيزا'}
+                        {sale.paymentMethod === 'cash' ? 'كاش' : sale.paymentMethod === 'credit' ? 'شكك' : sale.paymentMethod === 'instapay' ? 'انستاباي' : sale.paymentMethod === 'vodafone_cash' ? 'فودافون كاش' : 'إلكتروني'}
                       </span>
                     )}
                   </div>
@@ -795,7 +797,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                 <div>
                   <span className="text-ink-muted text-[11px]">طريقة الدفع: </span>
                   <span className="text-ink font-bold">
-                    {selectedSale.paymentMethod === 'cash' ? 'كاش' : selectedSale.paymentMethod === 'credit' ? 'شكك (على النوتة)' : 'فيزا / كارت'}
+                    {selectedSale.paymentMethod === 'cash' ? 'كاش' : selectedSale.paymentMethod === 'credit' ? 'شكك (على النوتة)' : selectedSale.paymentMethod === 'instapay' ? 'انستاباي (InstaPay)' : selectedSale.paymentMethod === 'vodafone_cash' ? 'فودافون كاش ومحافظ' : 'إلكتروني'}
                   </span>
                 </div>
                 <div>

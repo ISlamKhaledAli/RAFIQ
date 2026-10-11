@@ -32,8 +32,29 @@ namespace RafiqPOS.Models
         [JsonProperty("cardSalesPiasters")]
         public long CardSalesPiasters { get; set; }
 
+        [JsonProperty("instapaySalesPiasters")]
+        public long InstapaySalesPiasters { get; set; }
+
+        [JsonProperty("vodafoneCashSalesPiasters")]
+        public long VodafoneCashSalesPiasters { get; set; }
+
         [JsonProperty("creditSalesPiasters")]
         public long CreditSalesPiasters { get; set; }
+
+        [JsonProperty("epayTerminalsBalancePiasters")]
+        public long EpayTerminalsBalancePiasters { get; set; }
+
+        [JsonProperty("epayTillCashPiasters")]
+        public long EpayTillCashPiasters { get; set; }
+
+        [JsonProperty("epayDrawerCashPiasters")]
+        public long EpayDrawerCashPiasters { get; set; }
+
+        [JsonProperty("epayDrawerFundingPiasters")]
+        public long EpayDrawerFundingPiasters { get; set; }
+
+        [JsonProperty("epayNetProfitPiasters")]
+        public long EpayNetProfitPiasters { get; set; }
 
         [JsonProperty("expensesPiasters")]
         public long ExpensesPiasters { get; set; }
@@ -101,6 +122,18 @@ namespace RafiqPOS.Models
             get { return (CardSalesPiasters / 100.0).ToString("N2"); }
         }
 
+        [JsonProperty("instapaySalesFormatted")]
+        public string InstapaySalesFormatted
+        {
+            get { return (InstapaySalesPiasters / 100.0).ToString("N2"); }
+        }
+
+        [JsonProperty("vodafoneCashSalesFormatted")]
+        public string VodafoneCashSalesFormatted
+        {
+            get { return (VodafoneCashSalesPiasters / 100.0).ToString("N2"); }
+        }
+
         [JsonProperty("expensesFormatted")]
         public string ExpensesFormatted
         {
@@ -149,8 +182,29 @@ namespace RafiqPOS.Models
         [JsonProperty("cardSalesPiasters")]
         public long CardSalesPiasters { get; set; }
 
+        [JsonProperty("instapaySalesPiasters")]
+        public long InstapaySalesPiasters { get; set; }
+
+        [JsonProperty("vodafoneCashSalesPiasters")]
+        public long VodafoneCashSalesPiasters { get; set; }
+
         [JsonProperty("creditSalesPiasters")]
         public long CreditSalesPiasters { get; set; }
+
+        [JsonProperty("epayTerminalsBalancePiasters")]
+        public long EpayTerminalsBalancePiasters { get; set; }
+
+        [JsonProperty("epayTillCashPiasters")]
+        public long EpayTillCashPiasters { get; set; }
+
+        [JsonProperty("epayDrawerCashPiasters")]
+        public long EpayDrawerCashPiasters { get; set; }
+
+        [JsonProperty("epayDrawerFundingPiasters")]
+        public long EpayDrawerFundingPiasters { get; set; }
+
+        [JsonProperty("epayNetProfitPiasters")]
+        public long EpayNetProfitPiasters { get; set; }
 
         [JsonProperty("expensesPiasters")]
         public long ExpensesPiasters { get; set; }

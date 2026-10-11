@@ -38,11 +38,11 @@ namespace RafiqPOS.Repositories
                             INSERT INTO sales (
                                 id, invoice_number, cashier_id, customer_id, subtotal_piasters,
                                 discount_piasters, tax_piasters, total_piasters, paid_piasters,
-                                payment_method, status, notes, created_at
+                                change_piasters, payment_method, status, notes, created_at
                             ) VALUES (
                                 @id, @invoiceNumber, @cashierId, @customerId, @subtotal,
                                 @discount, @tax, @total, @paid,
-                                @paymentMethod, @status, @notes, @createdAt
+                                @change, @paymentMethod, @status, @notes, @createdAt
                             );
                         ";
                         using (var cmd = new SQLiteCommand(insertSaleSql, conn, trans))
@@ -56,6 +56,7 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@tax", sale.TaxPiasters);
                             cmd.Parameters.AddWithValue("@total", sale.TotalPiasters);
                             cmd.Parameters.AddWithValue("@paid", sale.PaidPiasters);
+                            cmd.Parameters.AddWithValue("@change", sale.ChangePiasters);
                             cmd.Parameters.AddWithValue("@paymentMethod", sale.PaymentMethod ?? "cash");
                             cmd.Parameters.AddWithValue("@status", sale.Status ?? "completed");
                             cmd.Parameters.AddWithValue("@notes", (object)sale.Notes ?? DBNull.Value);
@@ -388,6 +389,25 @@ namespace RafiqPOS.Repositories
                                     uCmd.ExecuteNonQuery();
                                 }
 
+                                string depositNote;
+                                if (currentBal > 0)
+                                {
+                                    if (newBal >= 0)
+                                    {
+                                        depositNote = string.Format("سداد مديونية تحت الحساب من باقي فاتورة رقم #{0}", sale.InvoiceNumber);
+                                    }
+                                    else
+                                    {
+                                        depositNote = string.Format("سداد كامل المديونية وباقي {0} أمانات تحت الحساب من فاتورة رقم #{1}",
+                                            Common.Money.FormatPiasters(Math.Abs(newBal)),
+                                            sale.InvoiceNumber);
+                                    }
+                                }
+                                else
+                                {
+                                    depositNote = string.Format("مبلغ متبقي تحت الحساب (أمانات) من فاتورة رقم #{0}", sale.InvoiceNumber);
+                                }
+
                                 string insLedgerSql = @"
                                     INSERT INTO customer_ledger (id, customer_id, type, sale_id, amount_piasters, balance_after_piasters, notes, created_at)
                                     VALUES (@lid, @cid, 'deposit', @sid, @amt, @after, @notes, @cat);
@@ -399,7 +419,7 @@ namespace RafiqPOS.Repositories
                                     lCmd.Parameters.AddWithValue("@sid", sale.Id);
                                     lCmd.Parameters.AddWithValue("@amt", excessAmount);
                                     lCmd.Parameters.AddWithValue("@after", newBal);
-                                    lCmd.Parameters.AddWithValue("@notes", string.Format("مبلغ متبقي تحت الحساب (أمانات) من فاتورة رقم #{0}", sale.InvoiceNumber));
+                                    lCmd.Parameters.AddWithValue("@notes", depositNote);
                                     lCmd.Parameters.AddWithValue("@cat", sale.CreatedAt ?? DateTime.UtcNow.ToString("o"));
                                     lCmd.ExecuteNonQuery();
                                 }
@@ -464,6 +484,10 @@ namespace RafiqPOS.Repositories
                 else if (string.Equals(col, "customer_phone", StringComparison.OrdinalIgnoreCase))
                 {
                     sale.CustomerPhone = reader[i] != DBNull.Value ? reader[i].ToString() : null;
+                }
+                else if (string.Equals(col, "change_piasters", StringComparison.OrdinalIgnoreCase))
+                {
+                    sale.ChangePiasters = reader[i] != DBNull.Value ? Convert.ToInt64(reader[i]) : 0;
                 }
             }
 

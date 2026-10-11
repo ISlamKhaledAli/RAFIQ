@@ -33,6 +33,24 @@ namespace RafiqPOS.Models
             get { return Common.Money.FormatPiasters(this.TodayCardPiasters); }
         }
 
+        [JsonProperty("todayInstapayPiasters")]
+        public long TodayInstapayPiasters { get; set; }
+
+        [JsonProperty("todayInstapayFormatted")]
+        public string TodayInstapayFormatted
+        {
+            get { return Common.Money.FormatPiasters(this.TodayInstapayPiasters); }
+        }
+
+        [JsonProperty("todayVodafoneCashPiasters")]
+        public long TodayVodafoneCashPiasters { get; set; }
+
+        [JsonProperty("todayVodafoneCashFormatted")]
+        public string TodayVodafoneCashFormatted
+        {
+            get { return Common.Money.FormatPiasters(this.TodayVodafoneCashPiasters); }
+        }
+
         [JsonProperty("todayCreditPiasters")]
         public long TodayCreditPiasters { get; set; }
 
@@ -41,6 +59,15 @@ namespace RafiqPOS.Models
         {
             get { return Common.Money.FormatPiasters(this.TodayCreditPiasters); }
         }
+
+        [JsonProperty("todayEpayTillCashPiasters")]
+        public long TodayEpayTillCashPiasters { get; set; }
+
+        [JsonProperty("todayEpayNetProfitPiasters")]
+        public long TodayEpayNetProfitPiasters { get; set; }
+
+        [JsonProperty("todayEpayTerminalsBalancePiasters")]
+        public long TodayEpayTerminalsBalancePiasters { get; set; }
 
         [JsonProperty("todayExpensesPiasters")]
         public long TodayExpensesPiasters { get; set; }

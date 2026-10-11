@@ -99,6 +99,9 @@ namespace RafiqPOS.Models
         [JsonProperty("notes")]
         public string Notes { get; set; }
 
+        [JsonProperty("changePiasters")]
+        public long ChangePiasters { get; set; }
+
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
 

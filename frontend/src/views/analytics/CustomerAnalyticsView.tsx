@@ -17,6 +17,7 @@ import {
   Wallet
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
+import { useDataSubscription } from '../../utils/eventBus';
 import { CustomSelect } from '../../components/CustomSelect';
 import type { SelectOption } from '../../components/CustomSelect';
 import { CustomDateRangePicker } from '../../components/CustomDatePicker';
@@ -41,10 +42,12 @@ const PERIOD_OPTIONS: SelectOption[] = [
 ];
 
 interface CustomerAnalyticsViewProps {
+  isActive?: boolean;
   onNavigateToCustomers?: () => void;
 }
 
 export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
+  isActive = true,
   onNavigateToCustomers
 }) => {
   const [period, setPeriod] = useState<string>('month');
@@ -96,8 +99,14 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
   }, [period, customFrom, customTo]);
 
   useEffect(() => {
+    if (isActive) {
+      void loadData();
+    }
+  }, [isActive, loadData]);
+
+  useDataSubscription(['customers', 'sales', 'dashboard', 'all'], () => {
     void loadData();
-  }, [loadData]);
+  });
 
   // Filtered debtors list
   const filteredDebtors = debtors.filter((d) => {
@@ -695,11 +704,12 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
               <table className="w-full text-right text-xs">
                 <thead>
                   <tr className="bg-surface-2 border-y border-line text-ink-muted font-bold">
-                    <th className="py-2.5 px-3">تاريخ ووقت السداد</th>
+                    <th className="py-2.5 px-3">تاريخ ووقت الحركة</th>
                     <th className="py-2.5 px-3">اسم العميل</th>
-                    <th className="py-2.5 px-3">المبلغ المسدد</th>
+                    <th className="py-2.5 px-3">نوع الحركة</th>
+                    <th className="py-2.5 px-3">المبلغ</th>
                     <th className="py-2.5 px-3">الرصيد السابق</th>
-                    <th className="py-2.5 px-3">الرصيد بعد السداد</th>
+                    <th className="py-2.5 px-3">الرصيد بعد الحركة</th>
                     <th className="py-2.5 px-3">المستلم</th>
                     <th className="py-2.5 px-3">ملاحظات السند</th>
                   </tr>
@@ -707,30 +717,64 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
                 <tbody className="divide-y divide-line">
                   {paymentHistory.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-6 text-center text-ink-muted">
+                      <td colSpan={8} className="py-6 text-center text-ink-muted">
                         لا توجد حركات سداد مسجلة لهذه الفترة
                       </td>
                     </tr>
                   ) : (
-                    paymentHistory.map((p) => (
-                      <tr key={p.id} className="hover:bg-surface-2/60 transition-colors">
-                        <td className="py-2.5 px-3 font-mono text-ink-muted">{p.paymentDate}</td>
-                        <td className="py-2.5 px-3 font-bold text-ink">{p.customerName}</td>
-                        <td className="py-2.5 px-3 font-mono font-bold text-paid text-sm">
-                          {formatArabicCurrency(p.amountPiasters)}
-                        </td>
-                        <td className="py-2.5 px-3 font-mono text-ink-muted">
-                          {formatArabicCurrency(p.previousBalancePiasters)}
-                        </td>
-                        <td className="py-2.5 px-3 font-mono font-bold text-ink">
-                          {formatArabicCurrency(p.newBalancePiasters)}
-                        </td>
-                        <td className="py-2.5 px-3 text-ink-muted">{p.cashierName || 'المدير'}</td>
-                        <td className="py-2.5 px-3 text-ink-muted max-w-[180px] truncate" title={p.notes}>
-                          {p.notes || '—'}
-                        </td>
-                      </tr>
-                    ))
+                    paymentHistory.map((p) => {
+                      const isCancel = p.type === 'payment_cancel';
+                      const isDeposit = p.type === 'deposit';
+
+                      return (
+                        <tr key={p.id} className={`transition-colors ${isCancel ? 'bg-danger/5 hover:bg-danger/10' : 'hover:bg-surface-2/60'}`}>
+                          <td className="py-2.5 px-3 font-mono text-ink-muted text-[11px]">
+                            {new Date(p.paymentDate).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}
+                          </td>
+                          <td className="py-2.5 px-3 font-bold text-ink">{p.customerName}</td>
+                          <td className="py-2.5 px-3">
+                            {isCancel ? (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-danger/10 text-danger border border-danger/30">
+                                إلغاء سداد (قيد معاكس)
+                              </span>
+                            ) : isDeposit ? (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-brand-soft text-brand-dark border border-brand/20">
+                                تحت الحساب (فاتورة)
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-paid-soft text-paid border border-paid/20">
+                                سداد نقدي مباشر
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 font-mono font-bold text-sm">
+                            {isCancel ? (
+                              <span className="text-danger line-through">
+                                -{formatArabicCurrency(p.amountPiasters)}
+                              </span>
+                            ) : isDeposit ? (
+                              <span className="text-brand">
+                                +{formatArabicCurrency(p.amountPiasters)}
+                              </span>
+                            ) : (
+                              <span className="text-paid">
+                                +{formatArabicCurrency(p.amountPiasters)}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 font-mono text-ink-muted tabular-nums">
+                            {formatArabicCurrency(p.previousBalancePiasters)}
+                          </td>
+                          <td className="py-2.5 px-3 font-mono font-bold text-ink tabular-nums">
+                            {formatArabicCurrency(p.newBalancePiasters)}
+                          </td>
+                          <td className="py-2.5 px-3 text-ink-muted">{p.cashierName || 'المدير'}</td>
+                          <td className="py-2.5 px-3 text-ink-muted max-w-[200px] truncate" title={p.notes}>
+                            {p.notes || '—'}
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>

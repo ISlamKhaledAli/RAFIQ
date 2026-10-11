@@ -19,6 +19,7 @@ import {
   PackageX
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
+import { useDataSubscription } from '../../utils/eventBus';
 import { CustomSelect } from '../../components/CustomSelect';
 import type { SelectOption } from '../../components/CustomSelect';
 import { CustomDateRangePicker } from '../../components/CustomDatePicker';
@@ -44,11 +45,13 @@ const PERIOD_OPTIONS: SelectOption[] = [
 ];
 
 interface InventoryAnalyticsViewProps {
+  isActive?: boolean;
   onNavigateToProducts?: (subView?: 'catalog' | 'movements' | 'batches', filter?: 'all' | 'lowStock' | 'outOfStock') => void;
   onNavigateToPurchases?: () => void;
 }
 
 export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
+  isActive = true,
   onNavigateToProducts,
   onNavigateToPurchases
 }) => {
@@ -100,8 +103,14 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
   }, [period, customFrom, customTo]);
 
   useEffect(() => {
+    if (isActive) {
+      void loadData();
+    }
+  }, [isActive, loadData]);
+
+  useDataSubscription(['products', 'purchases', 'sales', 'dashboard', 'all'], () => {
     void loadData();
-  }, [loadData]);
+  });
 
   // Low stock budget estimate
   const totalSuggestedOrderBudget = lowStockItems.reduce(

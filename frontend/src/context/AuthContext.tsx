@@ -68,12 +68,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const hasPermission = useCallback((permKey: string): boolean => {
     if (!permKey) return true;
     if (!currentUser) return false;
-    if (currentUser.role === 'root') return true;
+    // Store owner and root ALWAYS have all permissions unconditionally
+    if (currentUser.role === 'root' || currentUser.role === 'admin' || currentUser.username === 'admin') {
+      return true;
+    }
     if (currentUser.permissions && currentUser.permissions[permKey] !== undefined) {
       return currentUser.permissions[permKey] === true;
     }
-    // Fallback for legacy roles
-    if (currentUser.role === 'admin') return true;
     return false;
   }, [currentUser]);
 

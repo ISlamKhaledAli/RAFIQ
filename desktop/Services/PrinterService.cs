@@ -434,6 +434,8 @@ namespace RafiqPOS.Services
 
                 string methodArabic = "نقداً";
                 if (sale.PaymentMethod == "credit") methodArabic = "آجل (على الحساب)";
+                else if (sale.PaymentMethod == "instapay") methodArabic = "انستاباي (InstaPay)";
+                else if (sale.PaymentMethod == "vodafone_cash") methodArabic = "فودافون كاش / محفظة";
                 else if (sale.PaymentMethod == "card") methodArabic = "بطاقة بنكية / فيزا";
                 else if (sale.PaymentMethod == "multi") methodArabic = "دفع مقسّم / متعدد";
 
@@ -813,8 +815,19 @@ namespace RafiqPOS.Services
             y += 18;
 
             drawRow(string.Format("إجمالي المبيعات ({0} فواتير):", closing.InvoicesCount), (closing.TotalSalesPiasters / 100.0).ToString("N2") + " ج.م", true);
-            drawRow("  • مبيعات نقدية:", (closing.CashSalesPiasters / 100.0).ToString("N2") + " ج.م", false);
-            drawRow("  • مبيعات فيزا / بنك (POS):", (closing.CardSalesPiasters / 100.0).ToString("N2") + " ج.م", false);
+            drawRow("  • مبيعات نقدية (بالدرج):", (closing.CashSalesPiasters / 100.0).ToString("N2") + " ج.م", false);
+            if (closing.InstapaySalesPiasters > 0)
+            {
+                drawRow("  • مبيعات انستاباي (خارج الدرج):", (closing.InstapaySalesPiasters / 100.0).ToString("N2") + " ج.م", false);
+            }
+            if (closing.VodafoneCashSalesPiasters > 0)
+            {
+                drawRow("  • مبيعات فودافون كاش (خارج الدرج):", (closing.VodafoneCashSalesPiasters / 100.0).ToString("N2") + " ج.م", false);
+            }
+            if (closing.CardSalesPiasters > 0)
+            {
+                drawRow("  • مبيعات فيزا سابقة:", (closing.CardSalesPiasters / 100.0).ToString("N2") + " ج.م", false);
+            }
             drawRow("  • مبيعات آجلة:", (closing.CreditSalesPiasters / 100.0).ToString("N2") + " ج.م", false);
 
             if (closing.ExpensesPiasters > 0)

@@ -23,11 +23,12 @@ import { normalizeArabicNumerals } from '../utils/money';
 export { type PurchasesSubView } from './purchases/types';
 
 interface PurchasesViewProps {
+  isActive?: boolean;
   subView?: PurchasesSubView;
   onSubViewChange?: (view: PurchasesSubView) => void;
 }
 
-export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubViewChange }) => {
+export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, subView, onSubViewChange }) => {
   const [internalTab, setInternalTab] = useState<PurchasesSubView>('new_invoice');
   const activeTab = subView ?? internalTab;
   const setActiveTab = (view: PurchasesSubView) => {
@@ -60,7 +61,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
   // New Purchase Form State
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('');
   const [supplierInvoiceNumber, setSupplierInvoiceNumber] = useState<string>('');
-  const [costingMethod, setCostingMethod] = useState<'LATEST' | 'WEIGHTED_AVERAGE'>('LATEST');
+  const [costingMethod, setCostingMethod] = useState<'LATEST' | 'WEIGHTED_AVERAGE'>('WEIGHTED_AVERAGE');
   const [purchaseNotes, setPurchaseNotes] = useState<string>('');
   const [discountPiasters, setDiscountPiasters] = useState<number>(0);
   const [paymentMode, setPaymentMode] = useState<'PAID' | 'CREDIT' | 'PARTIAL'>('PAID');
@@ -163,6 +164,13 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ subView, onSubView
       isMounted = false;
     };
   }, [showArchivedSuppliers, showToast]);
+
+  useEffect(() => {
+    if (isActive) {
+      void loadPurchases();
+      void loadSuppliers();
+    }
+  }, [isActive, loadPurchases, loadSuppliers]);
 
   useDataSubscription(['purchases', 'all'], () => {
     void loadPurchases();

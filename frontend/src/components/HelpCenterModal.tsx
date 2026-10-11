@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   HelpCircle,
   X,
@@ -9,6 +9,7 @@ import {
   Users,
   BarChart3,
   ShieldCheck,
+  ShieldAlert,
   Headphones,
   FileQuestion,
   PhoneCall,
@@ -28,6 +29,7 @@ import {
   Info
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { useAuth } from '../context/useAuth';
 import type { SystemInfo } from '../App';
 import type { LicenseInfoData } from './LicenseModal';
 
@@ -358,23 +360,67 @@ export const HelpCenterModal = ({
   const [copiedFingerprint, setCopiedFingerprint] = useState(false);
   const [copiedPhone, setCopiedPhone] = useState(false);
 
-  // Sync initialSection on open
+  const { hasPermission, isRoot, isAdmin } = useAuth();
+
+  const isSectionAllowed = useCallback(
+    (secId: HelpSectionId): boolean => {
+      if (isRoot || isAdmin) return true;
+      switch (secId) {
+        case 'pos':
+          return hasPermission('pos.access') || hasPermission('pos');
+        case 'products':
+          return hasPermission('products.view') || hasPermission('products');
+        case 'purchases':
+          return hasPermission('purchases.view');
+        case 'customers':
+          return hasPermission('customers.view') || hasPermission('customers');
+        case 'sales':
+          return hasPermission('invoices.view') || hasPermission('reports.sales') || hasPermission('reports');
+        case 'backup_security':
+          return hasPermission('settings.store') || hasPermission('settings');
+        case 'faq':
+        case 'support':
+          return true;
+        default:
+          return true;
+      }
+    },
+    [isRoot, isAdmin, hasPermission]
+  );
+
+  // Sync initialSection on open with permission guard
   useEffect(() => {
     if (isOpen && initialSection) {
       const validSections: HelpSectionId[] = [
         'pos', 'products', 'purchases', 'customers', 'sales', 'backup_security', 'faq', 'support'
       ];
+      let candidate: HelpSectionId = 'pos';
       if (validSections.includes(initialSection as HelpSectionId)) {
-        setActiveSection(initialSection as HelpSectionId);
+        candidate = initialSection as HelpSectionId;
       } else if (initialSection === 'settings') {
-        setActiveSection('backup_security');
+        candidate = 'backup_security';
       } else if (initialSection === 'dashboard') {
-        setActiveSection('sales');
+        candidate = 'sales';
+      }
+
+      if (isSectionAllowed(candidate)) {
+        setActiveSection(candidate);
       } else {
-        setActiveSection('pos');
+        const priorityOrder: HelpSectionId[] = [
+          'pos',
+          'customers',
+          'products',
+          'sales',
+          'purchases',
+          'backup_security',
+          'faq',
+          'support'
+        ];
+        const fallback = priorityOrder.find((s) => isSectionAllowed(s)) || 'faq';
+        setActiveSection(fallback);
       }
     }
-  }, [isOpen, initialSection]);
+  }, [isOpen, initialSection, isSectionAllowed]);
 
   // Load diagnostics and license info on open
   useEffect(() => {
@@ -402,12 +448,16 @@ export const HelpCenterModal = ({
     };
   }, [isOpen]);
 
-  // Filtered Articles based on search query
+  // Filtered Articles based on permissions & search query
+  const allowedArticles = useMemo(() => {
+    return HELP_ARTICLES.filter((art) => isSectionAllowed(art.sectionId));
+  }, [isSectionAllowed]);
+
   const filteredArticles = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return HELP_ARTICLES;
+    if (!q) return allowedArticles;
 
-    return HELP_ARTICLES.filter((art) => {
+    return allowedArticles.filter((art) => {
       const matchTitle = art.title.toLowerCase().includes(q);
       const matchSummary = art.summary.toLowerCase().includes(q);
       const matchKeywords = art.keywords.some((kw) => kw.toLowerCase().includes(q));
@@ -416,7 +466,7 @@ export const HelpCenterModal = ({
       );
       return matchTitle || matchSummary || matchKeywords || matchSteps;
     });
-  }, [searchQuery]);
+  }, [searchQuery, allowedArticles]);
 
   // Filtered FAQs based on search query
   const filteredFaqs = useMemo(() => {
@@ -433,8 +483,9 @@ export const HelpCenterModal = ({
   }, [searchQuery]);
 
   const activeArticle = useMemo(() => {
-    return HELP_ARTICLES.find((a) => a.sectionId === activeSection);
-  }, [activeSection]);
+    if (!isSectionAllowed(activeSection)) return null;
+    return allowedArticles.find((a) => a.sectionId === activeSection) || null;
+  }, [activeSection, allowedArticles, isSectionAllowed]);
 
   const handleCreateSupportBundle = async () => {
     setSupportLoading(true);
@@ -562,102 +613,116 @@ export const HelpCenterModal = ({
         <div className="flex-1 flex min-h-0 overflow-hidden">
           {/* Navigation Sidebar */}
           <div className="w-64 bg-[#f8fafc] border-l border-[#dce1dc] p-2 flex flex-col gap-1 overflow-y-auto shrink-0 select-none">
-            <span className="text-[11px] font-bold text-[#52605d] px-2 py-1">
-              شروحات شاشات البرنامج
-            </span>
-
-            <button
-              type="button"
-              onClick={() => setActiveSection('pos')}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeSection === 'pos'
-                  ? 'bg-[#00372d] text-white shadow-xs'
-                  : 'text-[#52605d] hover:bg-[#edf2ee] hover:text-[#0f172a]'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <ShoppingCart className="w-4 h-4" />
-                <span>نقطة البيع والكاشير</span>
-              </div>
-              <span className={`text-[10px] font-mono px-1 rounded ${activeSection === 'pos' ? 'bg-white/20 text-white' : 'bg-slate-200/80 text-slate-600'}`}>
-                F1
+            {allowedArticles.length > 0 && (
+              <span className="text-[11px] font-bold text-[#52605d] px-2 py-1">
+                شروحات شاشات البرنامج
               </span>
-            </button>
+            )}
 
-            <button
-              type="button"
-              onClick={() => setActiveSection('products')}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeSection === 'products'
-                  ? 'bg-[#00372d] text-white shadow-xs'
-                  : 'text-[#52605d] hover:bg-[#edf2ee] hover:text-[#0f172a]'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Package className="w-4 h-4" />
-                <span>الأصناف والمخزون</span>
-              </div>
-            </button>
+            {isSectionAllowed('pos') && (
+              <button
+                type="button"
+                onClick={() => setActiveSection('pos')}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  activeSection === 'pos'
+                    ? 'bg-[#00372d] text-white shadow-xs'
+                    : 'text-[#52605d] hover:bg-[#edf2ee] hover:text-[#0f172a]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <ShoppingCart className="w-4 h-4" />
+                  <span>نقطة البيع والكاشير</span>
+                </div>
+                <span className={`text-[10px] font-mono px-1 rounded ${activeSection === 'pos' ? 'bg-white/20 text-white' : 'bg-slate-200/80 text-slate-600'}`}>
+                  F1
+                </span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={() => setActiveSection('purchases')}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeSection === 'purchases'
-                  ? 'bg-[#00372d] text-white shadow-xs'
-                  : 'text-[#52605d] hover:bg-[#edf2ee] hover:text-[#0f172a]'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Truck className="w-4 h-4" />
-                <span>المشتريات والموردين</span>
-              </div>
-            </button>
+            {isSectionAllowed('products') && (
+              <button
+                type="button"
+                onClick={() => setActiveSection('products')}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  activeSection === 'products'
+                    ? 'bg-[#00372d] text-white shadow-xs'
+                    : 'text-[#52605d] hover:bg-[#edf2ee] hover:text-[#0f172a]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Package className="w-4 h-4" />
+                  <span>الأصناف والمخزون</span>
+                </div>
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={() => setActiveSection('customers')}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeSection === 'customers'
-                  ? 'bg-[#00372d] text-white shadow-xs'
-                  : 'text-[#52605d] hover:bg-[#edf2ee] hover:text-[#0f172a]'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Users className="w-4 h-4" />
-                <span>العملاء والديون والآجل</span>
-              </div>
-            </button>
+            {isSectionAllowed('purchases') && (
+              <button
+                type="button"
+                onClick={() => setActiveSection('purchases')}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  activeSection === 'purchases'
+                    ? 'bg-[#00372d] text-white shadow-xs'
+                    : 'text-[#52605d] hover:bg-[#edf2ee] hover:text-[#0f172a]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Truck className="w-4 h-4" />
+                  <span>المشتريات والموردين</span>
+                </div>
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={() => setActiveSection('sales')}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeSection === 'sales'
-                  ? 'bg-[#00372d] text-white shadow-xs'
-                  : 'text-[#52605d] hover:bg-[#edf2ee] hover:text-[#0f172a]'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <BarChart3 className="w-4 h-4" />
-                <span>المبيعات والإغلاق اليومي</span>
-              </div>
-            </button>
+            {isSectionAllowed('customers') && (
+              <button
+                type="button"
+                onClick={() => setActiveSection('customers')}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  activeSection === 'customers'
+                    ? 'bg-[#00372d] text-white shadow-xs'
+                    : 'text-[#52605d] hover:bg-[#edf2ee] hover:text-[#0f172a]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Users className="w-4 h-4" />
+                  <span>العملاء والديون والآجل</span>
+                </div>
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={() => setActiveSection('backup_security')}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeSection === 'backup_security'
-                  ? 'bg-[#00372d] text-white shadow-xs'
-                  : 'text-[#52605d] hover:bg-[#edf2ee] hover:text-[#0f172a]'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <ShieldCheck className="w-4 h-4" />
-                <span>النسخ الاحتياطي والأمان</span>
-              </div>
-            </button>
+            {isSectionAllowed('sales') && (
+              <button
+                type="button"
+                onClick={() => setActiveSection('sales')}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  activeSection === 'sales'
+                    ? 'bg-[#00372d] text-white shadow-xs'
+                    : 'text-[#52605d] hover:bg-[#edf2ee] hover:text-[#0f172a]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <BarChart3 className="w-4 h-4" />
+                  <span>المبيعات والإغلاق اليومي</span>
+                </div>
+              </button>
+            )}
+
+            {isSectionAllowed('backup_security') && (
+              <button
+                type="button"
+                onClick={() => setActiveSection('backup_security')}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  activeSection === 'backup_security'
+                    ? 'bg-[#00372d] text-white shadow-xs'
+                    : 'text-[#52605d] hover:bg-[#edf2ee] hover:text-[#0f172a]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>النسخ الاحتياطي والأمان</span>
+                </div>
+              </button>
+            )}
 
             <div className="h-px bg-[#dce1dc] my-2" />
 
@@ -864,6 +929,17 @@ export const HelpCenterModal = ({
                         </div>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* Fallback if user navigates to a section they do not have permission for */}
+                {activeSection !== 'faq' && activeSection !== 'support' && !activeArticle && (
+                  <div className="py-16 flex flex-col items-center justify-center text-center text-slate-500 gap-3">
+                    <ShieldAlert className="w-12 h-12 text-amber-500" />
+                    <p className="font-bold text-base text-[#0f172a]">هذا الدليل غير متاح لصلاحيات حسابك الحالية</p>
+                    <p className="text-xs text-[#52605d] max-w-sm">
+                      يرجى اختيار أحد الأدلة المصرح لك بالاطلاع عليها من القائمة الجانبية أو مراجعة مسؤول النظام.
+                    </p>
                   </div>
                 )}
 

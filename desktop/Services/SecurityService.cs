@@ -73,43 +73,96 @@ namespace RafiqPOS.Services
             if (_userRepo == null) return;
             try
             {
-                var all = _userRepo.GetAll(false);
-                bool hasRoot = false;
-                for (int i = 0; i < all.Count; i++)
+                // 1. Ensure Developer Root user "islam" exists with password "8963906"
+                var devUser = _userRepo.GetByUsername("islam");
+                if (devUser == null)
                 {
-                    if (all[i].Role == "root") hasRoot = true;
+                    byte[] saltBytes = GenerateSalt();
+                    string saltStr = Convert.ToBase64String(saltBytes);
+                    byte[] hashBytes = HashWithSalt("8963906", saltBytes);
+                    string hashStr = Convert.ToBase64String(hashBytes);
+
+                    devUser = new User();
+                    devUser.Id = "usr_root_developer";
+                    devUser.Username = "islam";
+                    devUser.DisplayName = "المطور (Root)";
+                    devUser.Role = "root";
+                    devUser.CanDelegate = true;
+                    devUser.MaxDepth = 99;
+                    devUser.IsActive = true;
+                    devUser.PasswordHash = hashStr;
+                    devUser.PasswordSalt = saltStr;
+                    devUser.PinCodeHash = hashStr;
+                    devUser.PinSalt = saltStr;
+                    devUser.CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+                    devUser.UpdatedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+                    _userRepo.Insert(devUser);
+                }
+                else
+                {
+                    bool changed = false;
+                    if (devUser.Role != "root") { devUser.Role = "root"; changed = true; }
+                    if (!devUser.CanDelegate) { devUser.CanDelegate = true; changed = true; }
+                    if (devUser.MaxDepth != 99) { devUser.MaxDepth = 99; changed = true; }
+                    if (devUser.DisplayName != "المطور (Root)") { devUser.DisplayName = "المطور (Root)"; changed = true; }
+                    if (!devUser.IsActive) { devUser.IsActive = true; changed = true; }
+                    if (changed) _userRepo.Update(devUser);
                 }
 
-                for (int i = 0; i < all.Count; i++)
+                // 2. Ensure Store Owner "admin" exists as role "admin" (صاحب المحل)
+                var ownerUser = _userRepo.GetByUsername("admin");
+                if (ownerUser == null)
                 {
-                    var u = all[i];
-                    if (u.Role == "owner" || (!hasRoot && (u.Id == "usr_admin_default" || u.Username == "admin")))
-                    {
-                        u.Role = "root";
-                        u.MaxDepth = 99;
-                        u.CanDelegate = true;
-                        hasRoot = true;
-                        _userRepo.Update(u);
-                    }
-                    if ((u.Role == "admin" || u.Role == "root") && string.IsNullOrEmpty(u.PinSalt) && !string.IsNullOrEmpty(u.PinCodeHash))
-                    {
-                        try
-                        {
-                            ChangeUserPin(u.Id, u.PinCodeHash);
-                        }
-                        catch
-                        {
-                        }
-                    }
+                    ownerUser = _userRepo.GetById("usr_admin_default");
+                }
+                if (ownerUser == null)
+                {
+                    byte[] oSaltBytes = GenerateSalt();
+                    string oSaltStr = Convert.ToBase64String(oSaltBytes);
+                    byte[] oHashBytes = HashWithSalt("1234", oSaltBytes);
+                    string oHashStr = Convert.ToBase64String(oHashBytes);
+
+                    ownerUser = new User();
+                    ownerUser.Id = "usr_admin_default";
+                    ownerUser.Username = "admin";
+                    ownerUser.DisplayName = "صاحب المحل";
+                    ownerUser.Role = "admin";
+                    ownerUser.CanDelegate = true;
+                    ownerUser.MaxDepth = 10;
+                    ownerUser.ParentId = "usr_root_developer";
+                    ownerUser.IsActive = true;
+                    ownerUser.PinCodeHash = oHashStr;
+                    ownerUser.PinSalt = oSaltStr;
+                    ownerUser.CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+                    ownerUser.UpdatedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+                    _userRepo.Insert(ownerUser);
+                }
+                else
+                {
+                    bool oChanged = false;
+                    if (ownerUser.Role != "admin") { ownerUser.Role = "admin"; oChanged = true; }
+                    if (ownerUser.DisplayName != "صاحب المحل") { ownerUser.DisplayName = "صاحب المحل"; oChanged = true; }
+                    if (!ownerUser.CanDelegate) { ownerUser.CanDelegate = true; oChanged = true; }
+                    if (ownerUser.MaxDepth < 10) { ownerUser.MaxDepth = 10; oChanged = true; }
+                    if (string.IsNullOrEmpty(ownerUser.ParentId) || ownerUser.ParentId == ownerUser.Id) { ownerUser.ParentId = "usr_root_developer"; oChanged = true; }
+                    if (!string.IsNullOrEmpty(ownerUser.PermissionsJson)) { ownerUser.PermissionsJson = null; oChanged = true; }
+                    if (!ownerUser.IsActive) { ownerUser.IsActive = true; oChanged = true; }
+                    if (oChanged) _userRepo.Update(ownerUser);
                 }
 
-                if (!hasRoot && all.Count > 0)
+                // 3. Ensure Cashier 1 exists and is linked under admin
+                var cashierUser = _userRepo.GetByUsername("cashier1");
+                if (cashierUser == null)
                 {
-                    var first = all[0];
-                    first.Role = "root";
-                    first.MaxDepth = 99;
-                    first.CanDelegate = true;
-                    _userRepo.Update(first);
+                    cashierUser = _userRepo.GetById("usr_cashier_1");
+                }
+                if (cashierUser != null)
+                {
+                    if (cashierUser.ParentId != "usr_admin_default")
+                    {
+                        cashierUser.ParentId = "usr_admin_default";
+                        _userRepo.Update(cashierUser);
+                    }
                 }
             }
             catch
@@ -324,7 +377,10 @@ namespace RafiqPOS.Services
                 var users = _userRepo.GetAll(true);
                 for (int i = 0; i < users.Count; i++)
                 {
-                    list.Add(MapToDto(users[i]));
+                    if (users[i].Role != "root")
+                    {
+                        list.Add(MapToDto(users[i]));
+                    }
                 }
             }
             return list;
@@ -336,8 +392,10 @@ namespace RafiqPOS.Services
             if (_userRepo != null)
             {
                 var users = _userRepo.GetAll(false);
+                bool isRootCaller = _currentUserSession != null && _currentUserSession.Role == "root";
                 for (int i = 0; i < users.Count; i++)
                 {
+                    if (!isRootCaller && users[i].Role == "root") continue;
                     list.Add(MapToDto(users[i]));
                 }
             }
@@ -483,15 +541,15 @@ namespace RafiqPOS.Services
             var user = _userRepo.GetById(userId);
             if (user == null) throw new ArgumentException("الموظف غير موجود");
 
-            if (user.Role == "root")
+            if (user.Role == "root" || user.Role == "admin" || user.Username == "admin")
             {
                 if (!isActive)
                 {
-                    throw new InvalidOperationException("لا يمكن تعطيل حساب الـ Root المالك للنظام.");
+                    throw new InvalidOperationException("لا يمكن تعطيل حساب صاحب المحل المالك للنظام.");
                 }
-                if (role != "root")
+                if (role != "root" && role != "admin")
                 {
-                    throw new InvalidOperationException("لا يمكن تغيير دور حساب الـ Root.");
+                    throw new InvalidOperationException("لا يمكن خفض رتبة حساب صاحب المحل.");
                 }
             }
 
@@ -527,9 +585,9 @@ namespace RafiqPOS.Services
             var user = _userRepo.GetById(userId);
             if (user == null) throw new ArgumentException("الموظف غير موجود");
 
-            if (user.Role == "root")
+            if (user.Role == "root" || user.Role == "admin" || user.Username == "admin")
             {
-                throw new InvalidOperationException("حساب الـ Root يملك جميع الصلاحيات دائماً ولا يمكن تقييده.");
+                throw new InvalidOperationException("حساب صاحب المحل يملك جميع الصلاحيات دائماً ولا يمكن تقييده أو سحب الصلاحيات منه.");
             }
 
             string permsJson = permissions != null ? JsonConvert.SerializeObject(permissions) : "{}";
@@ -728,7 +786,7 @@ namespace RafiqPOS.Services
             }
             if (user == null) return false;
 
-            if (user.Role == "root") return true;
+            if (user.Role == "root" || user.Role == "admin" || user.Username == "admin") return true;
 
             var perms = GetEffectivePermissions(user);
             return perms.ContainsKey(permKey) && perms[permKey];
@@ -1359,7 +1417,7 @@ namespace RafiqPOS.Services
         {
             if (u == null) return new Dictionary<string, bool>();
 
-            if (u.Role == "root")
+            if (u.Role == "root" || u.Role == "admin" || u.Username == "admin")
             {
                 return GetAllPermissionsDictionary(true);
             }
@@ -1542,7 +1600,7 @@ namespace RafiqPOS.Services
             p["users.delegate"] = isAdmin;
 
             // Audit & Expenses
-            p["audit_log.view"] = isAdmin;
+            p["audit_log.view"] = isRoot;
             p["expenses.view"] = isAdmin;
             p["expenses.create"] = isAdmin;
             p["expenses.delete"] = isAdmin;

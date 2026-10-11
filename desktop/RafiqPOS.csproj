@@ -202,6 +202,9 @@
     <Compile Include="Services\BulkPriceAdjustmentTestRunner.cs" />
     <Compile Include="Models\InternalBarcodeModels.cs" />
     <Compile Include="Services\InternalBarcodeTestRunner.cs" />
+    <Compile Include="Models\EpayModels.cs" />
+    <Compile Include="Repositories\EpayRepository.cs" />
+    <Compile Include="Bridge\IpcDispatcher.Epay.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

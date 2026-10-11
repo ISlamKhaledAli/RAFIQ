@@ -272,7 +272,19 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
     return Math.round((oldTotal + newTotal) / totalUnits);
   };
 
-  const getSuggestedSellingPrice = (item: NewPurchaseLineItem): number | null => {
+  // 1. Calculate suggested selling price based on weighted average cost (preserves historical profit margin across combined old + new inventory)
+  const getWeightedSuggestedSellingPrice = (item: NewPurchaseLineItem): number | null => {
+    if (item.currentCostPiasters <= 0 || item.currentPricePiasters <= item.currentCostPiasters) {
+      return null;
+    }
+    const markupRatio = item.currentPricePiasters / item.currentCostPiasters;
+    const projectedCost = calculateProjectedCost(item, 'WEIGHTED_AVERAGE');
+    const suggested = Math.round(projectedCost * markupRatio);
+    return suggested > projectedCost ? suggested : null;
+  };
+
+  // 2. Calculate suggested selling price based on latest unit cost (if priced according to newest shipment alone)
+  const getLatestSuggestedSellingPrice = (item: NewPurchaseLineItem): number | null => {
     if (item.currentCostPiasters <= 0 || item.currentPricePiasters <= item.currentCostPiasters) {
       return null;
     }
@@ -414,27 +426,29 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
               <div className="flex items-center justify-between mb-1">
                 <label className="text-[11px] font-bold text-ink-muted flex items-center gap-1">
                   <span>تحديث التكلفة</span>
-                  <div
-                    className="group relative inline-flex items-center justify-center cursor-help"
-                    title="طريقة تحديث سعر التكلفة في كارت الصنف عند حفظ الفاتورة"
-                  >
-                    <Info className="w-3 h-3 text-ink-muted hover:text-brand transition-colors" />
-                    <div className="absolute bottom-full mb-1 right-0 hidden group-hover:block w-56 p-2 bg-ink text-surface text-[10px] rounded-lg shadow-lg z-50 pointer-events-none leading-relaxed">
-                      • <b>آخر سعر شراء:</b> يثبت تكلفة الصنف على سعر الفاتورة دي فوراً (المتعارف عليه في المحلات).<br />
-                      • <b>متوسط التكلفة:</b> يحسب متوسط سعر البضاعة القديمة مع الشحنة الجديدة.
+                  <div className="group relative inline-flex items-center justify-center cursor-help">
+                    <Info className="w-3.5 h-3.5 text-ink-muted hover:text-brand transition-colors" />
+                    <div className="absolute top-full mt-1.5 right-0 hidden group-hover:block w-64 p-2.5 bg-ink text-white text-[10px] rounded-xl shadow-xl z-50 pointer-events-none leading-relaxed border border-white/10">
+                      <div className="font-bold text-emerald-300 mb-1 border-b border-white/10 pb-1">
+                        طريقة تحديث سعر التكلفة في كارت الصنف:
+                      </div>
+                      <div className="space-y-1">
+                        <p className="m-0">• <b className="text-white">آخر سعر شراء:</b> يثبت تكلفة الصنف على سعر الفاتورة دي فوراً (المتعارف عليه في المحلات).</p>
+                        <p className="m-0">• <b className="text-white">متوسط التكلفة:</b> يحسب متوسط سعر البضاعة القديمة مع الشحنة الجديدة بدقة محاسبية.</p>
+                      </div>
                     </div>
                   </div>
                 </label>
-                <span className="text-[10px] font-bold text-brand px-1 rounded bg-brand-soft border border-brand/20">
-                  {costingMethod === 'LATEST' ? 'آخر سعر شراء' : 'متوسط مرجح'}
+                <span className="text-xs font-bold text-brand px-1.5 py-0.5 rounded bg-brand-soft border border-brand/20">
+                  {costingMethod === 'WEIGHTED_AVERAGE' ? 'متوسط التكلفة (الافتراضي)' : 'آخر سعر شراء'}
                 </span>
               </div>
               <CustomSelect
                 value={costingMethod}
                 onChange={(val) => setCostingMethod(val as 'LATEST' | 'WEIGHTED_AVERAGE')}
                 options={[
-                  { value: 'LATEST', label: 'آخر سعر شراء (المعتاد للمحلات)' },
-                  { value: 'WEIGHTED_AVERAGE', label: 'متوسط التكلفة (محاسبي دقيق)' },
+                  { value: 'WEIGHTED_AVERAGE', label: 'متوسط التكلفة (محاسبي دقيق - الافتراضي والموصى به)' },
+                  { value: 'LATEST', label: 'آخر سعر شراء (تجاهل تكلفة البضاعة القديمة)' },
                 ]}
                 className="w-full"
                 size="md"
@@ -556,52 +570,59 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                 const marginPercent = effectiveSellingPricePiasters > 0
                   ? ((profitPiasters / effectiveSellingPricePiasters) * 100).toFixed(1)
                   : '0';
-                const suggestedPricePiasters = getSuggestedSellingPrice(item);
+                const markupPercent = item.unitCostPiasters > 0
+                  ? ((profitPiasters / item.unitCostPiasters) * 100).toFixed(1)
+                  : '0';
+                const totalBatchProfitPiasters = Math.round(incomingUnits * profitPiasters);
 
                 // 3. Projected Cost
                 const projectedCostPiasters = calculateProjectedCost(item, costingMethod);
 
+                // 4. Suggested Selling Prices (Weighted Average & Latest)
+                const weightedSuggestedPricePiasters = getWeightedSuggestedSellingPrice(item);
+                const latestSuggestedPricePiasters = getLatestSuggestedSellingPrice(item);
+
                 return (
                   <div
                     key={item.productId}
-                    className="bg-surface rounded-xl border border-line hover:border-brand/30 p-3 flex flex-col gap-2.5 shadow-2xs transition-colors"
+                    className="bg-surface rounded-xl border border-line hover:border-brand/40 p-3.5 flex flex-col gap-3 shadow-2xs transition-colors"
                   >
                     {/* Main Row: Core Columns */}
                     <div className="grid grid-cols-12 items-center gap-2 text-xs">
                       {/* 1. Product Name & Info (col-span-3) */}
                       <div className="col-span-12 sm:col-span-3">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-bold text-ink text-xs sm:text-[13px] block truncate">{item.productName}</span>
+                          <span className="font-extrabold text-ink text-sm sm:text-[14px] block truncate">{item.productName}</span>
                           {(item.variantColor || item.variantSize) && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-brand-soft border border-brand/20 text-brand text-[10px] font-bold shrink-0">
-                              <Layers className="w-2.5 h-2.5" />
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-brand-soft border border-brand/20 text-brand text-xs font-bold shrink-0">
+                              <Layers className="w-3 h-3" />
                               {item.variantColor && <span>{item.variantColor}</span>}
                               {item.variantColor && item.variantSize && <span>/</span>}
                               {item.variantSize && <span>{item.variantSize}</span>}
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                          <span className="text-[10px] font-mono text-ink-muted">
+                        <div className="flex items-center gap-2 flex-wrap mt-1">
+                          <span className="text-xs font-mono text-ink-muted">
                             كود: {item.barcode || '—'}
                           </span>
                           <span className="text-line">•</span>
-                          <span className="text-[10px] font-mono text-ink-muted">
-                            السابق: {(item.currentCostPiasters / 100).toFixed(2)} ج.م
+                          <span className="text-xs font-mono font-bold text-ink bg-surface-2 px-1.5 py-0.5 rounded border border-line">
+                            التكلفة السابقة: {(item.currentCostPiasters / 100).toFixed(2)} ج.م
                           </span>
                         </div>
                         {/* Stock Equation Badge */}
-                        <div className="mt-1">
+                        <div className="mt-1.5">
                           <div
-                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-2 border border-line text-[10px] font-mono"
+                            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-surface-2 border border-line text-xs font-mono"
                             title="الرصيد الحالي بالمخزن + الكمية المشتراة = إجمالي الرصيد القادم بالمخزن بعد الفاتورة"
                           >
-                            <span className="text-ink-muted">المخزن:</span>
-                            <span className="font-bold text-ink">{currentStockUnits.toFixed(0)}</span>
-                            <span className="text-ink-muted">+</span>
-                            <span className="font-bold text-brand">{incomingUnits.toFixed(0)} شراء</span>
-                            <span className="text-ink-muted">=</span>
-                            <span className="font-bold text-paid bg-paid-soft px-1 rounded border border-paid/20">
+                            <span className="text-ink-muted">المخزن الحالي:</span>
+                            <span className="font-extrabold text-ink">{currentStockUnits.toFixed(0)}</span>
+                            <span className="text-ink-muted font-bold">+</span>
+                            <span className="font-extrabold text-brand bg-brand-soft px-1.5 py-0.5 rounded border border-brand/20">{incomingUnits.toFixed(0)} شراء</span>
+                            <span className="text-ink-muted font-bold">=</span>
+                            <span className="font-extrabold text-paid bg-paid-soft px-1.5 py-0.5 rounded border border-paid/20">
                               {totalStockUnits.toFixed(0)} {getUnitLabel(item.unit)}
                             </span>
                           </div>
@@ -609,8 +630,8 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                       </div>
 
                       {/* 2. Quantity Control (col-span-2) */}
-                      <div className="col-span-4 sm:col-span-2 flex flex-col items-center justify-center gap-0.5">
-                        <div className="flex items-center gap-1">
+                      <div className="col-span-4 sm:col-span-2 flex flex-col items-center justify-center gap-1">
+                        <div className="flex items-center gap-1.5">
                           <button
                             type="button"
                             onClick={() => {
@@ -619,7 +640,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                 handleDirectStockChange(idx, String(curr - 1));
                               }
                             }}
-                            className="w-6 h-6 rounded-lg bg-surface-2 hover:bg-line flex items-center justify-center text-xs font-bold text-ink transition-colors cursor-pointer"
+                            className="w-7 h-7 rounded-lg bg-surface-2 hover:bg-line flex items-center justify-center text-sm font-bold text-ink transition-colors cursor-pointer"
                             title="إنقاص الكمية"
                           >
                             -
@@ -644,7 +665,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               }
                             }}
                             placeholder="0"
-                            className="w-16 h-7 text-center font-mono font-bold bg-brand-soft border border-brand/30 rounded-lg text-xs text-brand focus:outline-none focus:border-brand"
+                            className="w-18 h-8 text-center font-mono font-bold bg-brand-soft border border-brand/30 rounded-lg text-sm text-brand focus:outline-none focus:border-brand"
                             title="الكمية المشتراة (اكتب مباشرة أو استخدم الأسهم)"
                           />
                           <button
@@ -653,14 +674,14 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               const curr = parseInt(item.quantityInput || String(item.quantityUnits), 10) || 0;
                               handleDirectStockChange(idx, String(curr + 1));
                             }}
-                            className="w-6 h-6 rounded-lg bg-surface-2 hover:bg-line flex items-center justify-center text-xs font-bold text-ink transition-colors cursor-pointer"
+                            className="w-7 h-7 rounded-lg bg-surface-2 hover:bg-line flex items-center justify-center text-sm font-bold text-ink transition-colors cursor-pointer"
                             title="زيادة الكمية"
                           >
                             +
                           </button>
                         </div>
                         {((item.cartonsInput && parseInt(item.cartonsInput, 10) > 0) || (item.looseInput && parseInt(item.looseInput, 10) > 0)) && (
-                          <span className="text-[9.5px] font-mono text-ink-muted text-center mt-0.5">
+                          <span className="text-xs font-mono text-ink-muted text-center mt-0.5">
                             {parseInt(item.cartonsInput || '0', 10) > 0 ? `${item.cartonsInput} كرتونة ` : ''}
                             {parseInt(item.looseInput || '0', 10) > 0 ? `+ ${item.looseInput} فرط` : ''}
                           </span>
@@ -668,7 +689,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                       </div>
 
                       {/* 3. Unit Cost (col-span-2) */}
-                      <div className="col-span-4 sm:col-span-2 flex flex-col items-center justify-center gap-0.5">
+                      <div className="col-span-4 sm:col-span-2 flex flex-col items-center justify-center gap-1">
                         <div className="flex items-center gap-1">
                           <MoneyInput
                             valuePiasters={item.unitCostPiasters}
@@ -678,42 +699,42 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               setLineItems(updated);
                             }}
                             hideCurrency
-                            className="!w-20 !h-7 !px-1.5 !py-0 !text-center !text-xs !bg-surface-2 !border-line !rounded-lg"
+                            className="!w-24 !h-8 !px-2 !py-0 !text-center !text-sm !font-bold !bg-surface-2 !border-line !rounded-lg"
                           />
-                          <span className="text-[10px] text-ink-muted font-bold">ج.م</span>
+                          <span className="text-xs text-ink-muted font-bold">ج.م</span>
                         </div>
 
                         {/* Price Change Indicator */}
                         {hasPrevCost ? (
                           costDiffPiasters > 0 ? (
                             <div
-                              className="flex items-center gap-1 text-[9.5px] text-danger font-bold bg-danger-soft px-1.5 py-0.2 rounded border border-danger/20"
+                              className="flex items-center gap-1 text-xs text-danger font-extrabold bg-danger-soft px-2 py-0.5 rounded-md border border-danger/20"
                               title="ارتفاع في سعر الشراء مقارنة بآخر شراء مسجل"
                             >
-                              <TrendingUp className="w-2.5 h-2.5 shrink-0" />
+                              <TrendingUp className="w-3.5 h-3.5 shrink-0" />
                               <span>ارتفع +{(costDiffPiasters / 100).toFixed(2)} (+{costDiffPercent}%)</span>
                             </div>
                           ) : costDiffPiasters < 0 ? (
                             <div
-                              className="flex items-center gap-1 text-[9.5px] text-paid font-bold bg-paid-soft px-1.5 py-0.2 rounded border border-paid/20"
+                              className="flex items-center gap-1 text-xs text-paid font-extrabold bg-paid-soft px-2 py-0.5 rounded-md border border-paid/20"
                               title="انخفاض في سعر الشراء (وفر)"
                             >
-                              <TrendingDown className="w-2.5 h-2.5 shrink-0" />
+                              <TrendingDown className="w-3.5 h-3.5 shrink-0" />
                               <span>انخفض -{(Math.abs(costDiffPiasters) / 100).toFixed(2)} ({costDiffPercent}%)</span>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-1 text-[9.5px] text-ink-muted bg-surface-2 px-1.5 py-0.2 rounded border border-line">
-                              <Minus className="w-2.5 h-2.5 shrink-0" />
+                            <div className="flex items-center gap-1 text-xs text-ink-muted bg-surface-2 px-2 py-0.5 rounded-md border border-line">
+                              <Minus className="w-3.5 h-3.5 shrink-0" />
                               <span>نفس التكلفة</span>
                             </div>
                           )
                         ) : (
-                          <span className="text-[9.5px] text-brand font-medium">تكلفة أول مرة</span>
+                          <span className="text-xs text-brand font-bold bg-brand-soft px-2 py-0.5 rounded-md border border-brand/20">تكلفة أول مرة</span>
                         )}
                       </div>
 
                       {/* 4. New Selling Price & Profit Margin (col-span-2) */}
-                      <div className="col-span-4 sm:col-span-2 flex flex-col items-center justify-center gap-0.5">
+                      <div className="col-span-4 sm:col-span-2 flex flex-col items-center justify-center gap-1">
                         <div className="flex items-center gap-1">
                           <MoneyInput
                             valuePiasters={item.newSellingPricePiasters}
@@ -723,48 +744,52 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               setLineItems(updated);
                             }}
                             hideCurrency
-                            className="!w-20 !h-7 !px-1.5 !py-0 !text-center !text-xs !bg-surface-2 !border-line !rounded-lg"
+                            className="!w-24 !h-8 !px-2 !py-0 !text-center !text-sm !font-bold !bg-surface-2 !border-line !rounded-lg"
                           />
-                          <span className="text-[10px] text-ink-muted font-bold">ج.م</span>
+                          <span className="text-xs text-ink-muted font-bold">ج.م</span>
                         </div>
 
                         {/* Profit margin badge */}
                         {profitPiasters < 0 ? (
-                          <div className="flex items-center gap-1 text-[9.5px] text-danger font-bold bg-danger-soft px-1.5 py-0.2 rounded border border-danger/20">
-                            <AlertCircle className="w-2.5 h-2.5 shrink-0" />
+                          <div className="flex items-center gap-1 text-xs text-danger font-extrabold bg-danger-soft px-2 py-0.5 rounded-md border border-danger/20">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                             <span>خسارة: {(profitPiasters / 100).toFixed(2)}</span>
                           </div>
                         ) : profitPiasters === 0 ? (
-                          <div className="text-[9.5px] text-amber-700 font-bold bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                          <div className="text-xs text-warn font-extrabold bg-warn/10 px-2 py-0.5 rounded-md border border-warn/30">
                             <span>بيع = تكلفة</span>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-1 text-[9.5px] text-paid font-bold bg-paid-soft px-1.5 py-0.2 rounded border border-paid/20">
-                            <span>الربح: +{(profitPiasters / 100).toFixed(2)} ({marginPercent}%)</span>
+                          <div
+                            className="flex items-center gap-1 text-xs text-paid font-extrabold bg-paid-soft px-2 py-0.5 rounded-md border border-paid/20"
+                            title={`هامش مجمل الربح: ${marginPercent}% من سعر البيع | نسبة الزيادة عن التكلفة (مارك أب): ${markupPercent}%`}
+                          >
+                            <span>الربح: +{(profitPiasters / 100).toFixed(2)}</span>
+                            <span className="text-[11px] opacity-80">({marginPercent}%)</span>
                           </div>
                         )}
 
                         {/* Suggested Selling Price Button */}
-                        {suggestedPricePiasters !== null &&
-                          Math.abs(suggestedPricePiasters - item.newSellingPricePiasters) > 50 && (
+                        {weightedSuggestedPricePiasters !== null &&
+                          Math.abs(weightedSuggestedPricePiasters - item.newSellingPricePiasters) > 50 && (
                             <button
                               type="button"
-                              onClick={() => handleApplySuggestedPrice(idx, suggestedPricePiasters)}
-                              className="text-[9px] font-bold text-brand hover:text-brand-dark flex items-center gap-1 bg-brand-soft hover:bg-brand/20 px-1.5 py-0.2 rounded border border-brand/20 transition-colors cursor-pointer"
-                              title="تعديل سعر البيع للحفاظ على نفس نسبة الربح السابقة للصنف"
+                              onClick={() => handleApplySuggestedPrice(idx, weightedSuggestedPricePiasters)}
+                              className="text-[11px] font-bold text-brand hover:text-brand-dark flex items-center gap-1 bg-brand-soft hover:bg-brand/20 px-2 py-0.5 rounded-md border border-brand/20 transition-colors cursor-pointer mt-0.5"
+                              title="تعديل سعر البيع للحفاظ على نفس نسبة الربح السابقة للصنف مع احتساب متوسط التكلفة"
                             >
-                              <Sparkles className="w-2.5 h-2.5 text-brand shrink-0" />
-                              <span>اقتراح: {(suggestedPricePiasters / 100).toFixed(2)}</span>
+                              <Sparkles className="w-3 h-3 text-brand shrink-0" />
+                              <span>متوسط مقترح: {(weightedSuggestedPricePiasters / 100).toFixed(2)}</span>
                             </button>
                           )}
                       </div>
 
                       {/* 5. Line Total (col-span-2) */}
                       <div className="col-span-6 sm:col-span-2 text-center">
-                        <div className="font-mono font-bold text-ink text-xs sm:text-sm">
+                        <div className="font-mono font-extrabold text-ink text-sm sm:text-base">
                           {formatMoney(lineTotal)}
                         </div>
-                        <span className="text-[9.5px] font-mono text-ink-muted block mt-0.5">
+                        <span className="text-xs font-mono text-ink-muted block mt-0.5">
                           {item.quantityUnits} × {(item.unitCostPiasters / 100).toFixed(2)} ج.م
                         </span>
                       </div>
@@ -784,13 +809,13 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                       </div>
                     </div>
 
-                    {/* Integrated Sub-Tools: Compact Cartons Calculator & Cost Policy Strip */}
-                    <div className="bg-surface-2/60 border border-line rounded-lg p-2 flex flex-col gap-2">
+                    {/* Integrated Sub-Tools: Cartons Calculator & Smart Pricing Strip */}
+                    <div className="bg-surface-2/60 border border-line rounded-lg p-2.5 flex flex-col gap-2.5">
                       {/* 1. Cartons & Loose Breakdown Row */}
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-center text-xs">
                         {/* عدد الكراتين */}
                         <div>
-                          <label className="block text-[10px] font-bold text-ink-muted mb-0.5">
+                          <label className="block text-xs font-bold text-ink-muted mb-1">
                             عدد الكراتين / الشكاير:
                           </label>
                           <input
@@ -811,13 +836,13 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               }
                             }}
                             placeholder="0"
-                            className="w-full bg-surface border border-line rounded h-7 px-2 text-xs font-mono text-center font-bold text-brand focus:outline-none focus:border-brand"
+                            className="w-full bg-surface border border-line rounded-lg h-8 px-2.5 text-xs font-mono text-center font-bold text-brand focus:outline-none focus:border-brand"
                           />
                         </div>
 
                         {/* سعة الكرتونة */}
                         <div>
-                          <label className="block text-[10px] font-bold text-ink-muted mb-0.5">
+                          <label className="block text-xs font-bold text-ink-muted mb-1">
                             × الكرتونة فيها كام حتة:
                           </label>
                           <input
@@ -838,13 +863,13 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               }
                             }}
                             placeholder="0"
-                            className="w-full bg-surface border border-line rounded h-7 px-2 text-xs font-mono text-center font-bold text-ink focus:outline-none focus:border-brand"
+                            className="w-full bg-surface border border-line rounded-lg h-8 px-2.5 text-xs font-mono text-center font-bold text-ink focus:outline-none focus:border-brand"
                           />
                         </div>
 
                         {/* قطع فرط */}
                         <div>
-                          <label className="block text-[10px] font-bold text-ink-muted mb-0.5">
+                          <label className="block text-xs font-bold text-ink-muted mb-1">
                             + حتت فرط:
                           </label>
                           <input
@@ -865,13 +890,13 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               }
                             }}
                             placeholder="0"
-                            className="w-full bg-surface border border-line rounded h-7 px-2 text-xs font-mono text-center font-bold text-ink focus:outline-none focus:border-brand"
+                            className="w-full bg-surface border border-line rounded-lg h-8 px-2.5 text-xs font-mono text-center font-bold text-ink focus:outline-none focus:border-brand"
                           />
                         </div>
 
                         {/* الرصيد الفعلي الإجمالي */}
                         <div>
-                          <label className="block text-[10px] font-bold text-brand mb-0.5">
+                          <label className="block text-xs font-bold text-brand mb-1">
                             = إجمالي القطع اللي هتدخل المخزن *:
                           </label>
                           <input
@@ -892,38 +917,116 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               }
                             }}
                             placeholder="0"
-                            className="w-full bg-brand-soft border border-brand/40 rounded h-7 px-2 text-xs font-mono text-center font-extrabold text-brand focus:outline-none focus:border-brand"
+                            className="w-full bg-brand-soft border border-brand/40 rounded-lg h-8 px-2.5 text-xs font-mono text-center font-extrabold text-brand focus:outline-none focus:border-brand"
                           />
                         </div>
                       </div>
 
-                      {/* 2. Projected Cost Impact & Batch/Expiry Row */}
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1.5 border-t border-line/60 text-[11px]">
-                        {/* Cost Impact */}
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-bold text-ink flex items-center gap-1">
-                            {costingMethod === 'LATEST' ? (
-                              <Zap className="w-3 h-3 text-brand" />
-                            ) : (
-                              <Calculator className="w-3 h-3 text-brand" />
-                            )}
-                            <span>التكلفة بعد الحسبة:</span>
-                          </span>
-                          <span className="font-mono font-bold text-brand bg-brand-soft px-1.5 py-0.2 rounded border border-brand/20 text-[11px]">
-                            {(projectedCostPiasters / 100).toFixed(2)} ج.م
-                          </span>
-                          <span className="text-ink-muted text-[10px]">
-                            {costingMethod === 'LATEST'
-                              ? '(آخر سعر شراء)'
-                              : `(متوسط مرجح: ${totalStockUnits.toFixed(0)} قطعة)`}
-                          </span>
+                      {/* 2. Smart Cost & Selling Price Analysis Cards */}
+                      <div className="flex flex-col gap-2 pt-2 border-t border-line/60">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 text-xs">
+                          {/* Card 1: Projected Cost */}
+                          <div className="bg-surface rounded-lg p-2.5 border border-line flex flex-col justify-between gap-1 shadow-2xs">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-ink flex items-center gap-1.5 text-xs">
+                                {costingMethod === 'LATEST' ? (
+                                  <Zap className="w-3.5 h-3.5 text-brand" />
+                                ) : (
+                                  <Calculator className="w-3.5 h-3.5 text-brand" />
+                                )}
+                                <span>متوسط التكلفة الجديد (للمخزن كله):</span>
+                              </span>
+                              <span className="font-mono font-extrabold text-brand bg-brand-soft px-2 py-0.5 rounded border border-brand/20 text-xs">
+                                {(projectedCostPiasters / 100).toFixed(2)} ج.م
+                              </span>
+                            </div>
+                            <span className="text-ink-muted text-[11px] leading-relaxed">
+                              {costingMethod === 'LATEST'
+                                ? 'يتم اعتماد سعر الشراء الأخير كتكلفة للمخزن.'
+                                : `متوسط مرجح بين ${currentStockUnits.toFixed(0)} حتة قديمة و ${incomingUnits.toFixed(0)} حتة جديدة (الإجمالي: ${totalStockUnits.toFixed(0)} قطعة).`}
+                            </span>
+                          </div>
+
+                          {/* Card 2: Weighted Selling Price (متوسط سعر البيع المقترح) */}
+                          <div className="bg-surface rounded-lg p-2.5 border border-line flex flex-col justify-between gap-1 shadow-2xs">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-ink flex items-center gap-1.5 text-xs">
+                                <Sparkles className="w-3.5 h-3.5 text-paid" />
+                                <span>متوسط سعر البيع المقترح:</span>
+                              </span>
+                              {weightedSuggestedPricePiasters ? (
+                                <span className="font-mono font-extrabold text-paid bg-paid-soft px-2 py-0.5 rounded border border-paid/20 text-xs">
+                                  {(weightedSuggestedPricePiasters / 100).toFixed(2)} ج.م
+                                </span>
+                              ) : (
+                                <span className="text-ink-muted text-xs font-mono">—</span>
+                              )}
+                            </div>
+                            <div className="flex items-center justify-between gap-2 mt-0.5">
+                              <span className="text-ink-muted text-[11px] truncate" title={weightedSuggestedPricePiasters ? 'سعر البيع العادل بعد خلط البضاعة القديمة بالجديدة للحفاظ على نسبة مكسبك السابقة' : ''}>
+                                {weightedSuggestedPricePiasters
+                                  ? 'يحافظ على نفس نسبة مكسبك السابقة بعد خلط الرصيدين.'
+                                  : 'لا توجد بيانات سابقة لاحتساب المتوسط.'}
+                              </span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {weightedSuggestedPricePiasters && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleApplySuggestedPrice(idx, weightedSuggestedPricePiasters)}
+                                    className="px-2.5 py-1 bg-paid text-white hover:bg-paid/90 rounded-md text-[11px] font-bold transition-colors cursor-pointer shadow-2xs"
+                                    title="تطبيق متوسط سعر البيع المقترح فوراً في خانة سعر البيع"
+                                  >
+                                    تطبيق متوسط البيع
+                                  </button>
+                                )}
+                                {latestSuggestedPricePiasters &&
+                                  latestSuggestedPricePiasters !== weightedSuggestedPricePiasters && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleApplySuggestedPrice(idx, latestSuggestedPricePiasters)}
+                                      className="px-2 py-1 bg-brand-soft text-brand hover:bg-brand/20 rounded-md text-[10.5px] font-bold border border-brand/20 transition-colors cursor-pointer"
+                                      title="تسعير الصنف مباشرة بناءً على أحدث فاتورة شراء فقط"
+                                    >
+                                      بسعر اليوم: {(latestSuggestedPricePiasters / 100).toFixed(2)}
+                                    </button>
+                                  )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Card 3: Batch Profit & Unit Margin */}
+                          <div className="bg-surface rounded-lg p-2.5 border border-line flex flex-col justify-between gap-1 shadow-2xs">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-ink flex items-center gap-1.5 text-xs">
+                                <Banknote className="w-3.5 h-3.5 text-brand" />
+                                <span>إجمالي مكسب الشحنة:</span>
+                              </span>
+                              <span
+                                className={`font-mono font-extrabold px-2 py-0.5 rounded text-xs ${
+                                  totalBatchProfitPiasters > 0
+                                    ? 'text-paid bg-paid-soft border border-paid/20'
+                                    : totalBatchProfitPiasters < 0
+                                    ? 'text-danger bg-danger-soft border border-danger/20'
+                                    : 'text-ink-muted bg-surface-2 border border-line'
+                                }`}
+                              >
+                                {totalBatchProfitPiasters > 0 ? '+' : ''}
+                                {(totalBatchProfitPiasters / 100).toFixed(2)} ج.م
+                              </span>
+                            </div>
+                            <span className="text-ink-muted text-[11px] leading-relaxed">
+                              {incomingUnits > 0
+                                ? `مكسب ${incomingUnits.toFixed(0)} حتة جديدة (ربح القطعة: ${(profitPiasters / 100).toFixed(2)} ج.م | هامش الربح: ${marginPercent}%).`
+                                : 'حدد الكمية لحساب إجمالي المكسب.'}
+                            </span>
+                          </div>
                         </div>
 
-                        {/* Batch & Expiry Dates */}
+                        {/* Batch & Expiry Dates (if enabled) */}
                         {isEnabled('feature_expiry_dates') && (
-                          <div className="flex items-center gap-2 flex-wrap text-[10.5px]">
-                            <div className="flex items-center gap-1">
-                              <span className="text-ink-muted">الشحنة:</span>
+                          <div className="flex items-center gap-3 flex-wrap text-xs pt-1.5 border-t border-line/40">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-ink-muted font-bold">رقم الشحنة:</span>
                               <input
                                 type="text"
                                 placeholder="رقم الشحنة"
@@ -933,11 +1036,11 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                   updated[idx].batchNumber = e.target.value;
                                   setLineItems(updated);
                                 }}
-                                className="h-6 w-20 px-1.5 bg-surface border border-line rounded text-[10.5px] font-mono focus:border-brand focus:outline-none"
+                                className="h-7 w-28 px-2 bg-surface border border-line rounded text-xs font-mono focus:border-brand focus:outline-none"
                               />
                             </div>
-                            <div className="flex items-center gap-1">
-                              <span className="text-ink-muted">الانتهاء:</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-ink-muted font-bold">تاريخ الانتهاء:</span>
                               <CustomDatePicker
                                 value={item.expiryDate || ''}
                                 onChange={(val) => {
@@ -948,11 +1051,11 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                 placeholder="الصلاحية"
                                 size="sm"
                                 placement="top"
-                                className="w-[110px]"
+                                className="w-[120px]"
                               />
                             </div>
-                            <div className="flex items-center gap-1">
-                              <span className="text-ink-muted">الإنتاج:</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-ink-muted font-bold">تاريخ الإنتاج:</span>
                               <CustomDatePicker
                                 value={item.productionDate || ''}
                                 onChange={(val) => {
@@ -964,7 +1067,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                 size="sm"
                                 placement="top"
                                 align="left"
-                                className="w-[110px]"
+                                className="w-[120px]"
                               />
                             </div>
                           </div>
@@ -980,8 +1083,8 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
       </div>
 
       {/* Right: Settlement & Totals Dock */}
-      <div className="w-[260px] sm:w-[275px] xl:w-[290px] bg-surface border border-line rounded-xl p-3 flex flex-col justify-between shrink-0 shadow-2xs overflow-hidden">
-        <div className="space-y-3">
+      <div className="w-[280px] sm:w-[300px] xl:w-[320px] bg-surface border border-line rounded-xl flex flex-col h-full min-h-0 shrink-0 shadow-2xs overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3 custom-scrollbar">
           {/* Header */}
           <div className="pb-2.5 border-b border-line flex items-center justify-between">
             <div className="flex items-center gap-1.5">
@@ -1369,8 +1472,8 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="space-y-1.5 pt-3 border-t border-line">
+        {/* Action Buttons (Pinned Bottom) */}
+        <div className="p-3 border-t border-line bg-surface shrink-0 space-y-1.5 shadow-[0_-4px_10px_rgba(0,0,0,0.03)]">
           <button
             type="button"
             onClick={onSavePurchase}

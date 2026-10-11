@@ -181,7 +181,8 @@ namespace RafiqPOS.Repositories
                 conn.Open();
                 string sql = @"
                     UPDATE users 
-                    SET display_name = @displayName,
+                    SET username = @username,
+                        display_name = @displayName,
                         role = @role,
                         is_active = @isActive,
                         permissions_json = @permissionsJson,
@@ -194,6 +195,7 @@ namespace RafiqPOS.Repositories
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@id", user.Id);
+                    cmd.Parameters.AddWithValue("@username", user.Username);
                     cmd.Parameters.AddWithValue("@displayName", user.DisplayName);
                     cmd.Parameters.AddWithValue("@role", user.Role ?? "cashier");
                     cmd.Parameters.AddWithValue("@isActive", user.IsActive ? 1 : 0);

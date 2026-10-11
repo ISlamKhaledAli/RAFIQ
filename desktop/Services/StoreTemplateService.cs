@@ -36,6 +36,14 @@ namespace RafiqPOS.Services
             return completed != "1" && completed.ToLower() != "true";
         }
 
+        public void ResetFirstRun()
+        {
+            if (_settingsRepo != null)
+            {
+                _settingsRepo.Set("first_run_completed", "0");
+            }
+        }
+
         public List<StoreTemplate> GetAllTemplates()
         {
             var list = new List<StoreTemplate>();
@@ -205,13 +213,27 @@ namespace RafiqPOS.Services
                 if (!string.IsNullOrWhiteSpace(req.BackupFolder))
                     settingsBatch["backup_target_folder"] = req.BackupFolder.Trim();
 
-                // Apply template feature flags
-                if (template.FeatureFlags != null)
+                // Apply template feature flags with strict isolation (guarantee non-template features are turned off)
+                string[] allKnownFlags = new string[]
                 {
-                    foreach (var kvp in template.FeatureFlags)
+                    "feature_scale_weight",
+                    "feature_credit_debts",
+                    "feature_fast_buttons",
+                    "feature_taxes",
+                    "feature_expiry_dates",
+                    "feature_multi_units",
+                    "feature_matrix_variants"
+                };
+
+                for (int f = 0; f < allKnownFlags.Length; f++)
+                {
+                    string flagKey = allKnownFlags[f];
+                    bool flagVal = false;
+                    if (template.FeatureFlags != null && template.FeatureFlags.ContainsKey(flagKey))
                     {
-                        settingsBatch[kvp.Key] = kvp.Value ? "1" : "0";
+                        flagVal = template.FeatureFlags[flagKey];
                     }
+                    settingsBatch[flagKey] = flagVal ? "1" : "0";
                 }
 
                 // Apply template default settings

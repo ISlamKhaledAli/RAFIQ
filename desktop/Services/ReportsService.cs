@@ -28,7 +28,7 @@ namespace RafiqPOS.Services
                         COALESCE(SUM(s.total_piasters), 0) AS total_sales,
                         COALESCE(SUM(
                             CASE 
-                                WHEN s.payment_method = 'cash' THEN s.paid_piasters
+                                WHEN s.payment_method = 'cash' THEN MIN(s.paid_piasters, s.total_piasters)
                                 WHEN s.payment_method = 'multi' THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
@@ -37,6 +37,28 @@ namespace RafiqPOS.Services
                                 ELSE 0 
                             END
                         ), 0) AS cash_sales,
+                        COALESCE(SUM(
+                            CASE 
+                                WHEN s.payment_method = 'instapay' THEN s.paid_piasters
+                                WHEN s.payment_method = 'multi' THEN (
+                                    SELECT COALESCE(SUM(p.amount_piasters), 0) 
+                                    FROM payments p 
+                                    WHERE p.sale_id = s.id AND p.method = 'instapay'
+                                )
+                                ELSE 0 
+                            END
+                        ), 0) AS instapay_sales,
+                        COALESCE(SUM(
+                            CASE 
+                                WHEN s.payment_method = 'vodafone_cash' THEN s.paid_piasters
+                                WHEN s.payment_method = 'multi' THEN (
+                                    SELECT COALESCE(SUM(p.amount_piasters), 0) 
+                                    FROM payments p 
+                                    WHERE p.sale_id = s.id AND p.method = 'vodafone_cash'
+                                )
+                                ELSE 0 
+                            END
+                        ), 0) AS vodafone_cash_sales,
                         COALESCE(SUM(
                             CASE 
                                 WHEN s.payment_method = 'card' THEN s.paid_piasters
@@ -64,6 +86,8 @@ namespace RafiqPOS.Services
                         {
                             summary.TodaySalesPiasters = Convert.ToInt64(reader["total_sales"]);
                             summary.TodayCashPiasters = Convert.ToInt64(reader["cash_sales"]);
+                            summary.TodayInstapayPiasters = Convert.ToInt64(reader["instapay_sales"]);
+                            summary.TodayVodafoneCashPiasters = Convert.ToInt64(reader["vodafone_cash_sales"]);
                             summary.TodayCardPiasters = Convert.ToInt64(reader["card_sales"]);
                             summary.TodayCreditPiasters = Convert.ToInt64(reader["credit_sales"]);
                             summary.TodayInvoicesCount = Convert.ToInt32(reader["inv_count"]);
@@ -121,11 +145,18 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // 2. Customer Debt Collections (Cash received from old debts today)
+                // 2. Customer Debt Collections (Cash received from old debts today, net of cancellations, excluding sale deposits already counted in cash sales)
                 string debtPaymentSql = @"
-                    SELECT COALESCE(SUM(amount_piasters), 0) AS total_debt_payments
+                    SELECT COALESCE(SUM(
+                        CASE 
+                            WHEN type = 'payment' THEN amount_piasters 
+                            WHEN type = 'payment_cancel' THEN -amount_piasters 
+                            ELSE 0 
+                        END
+                    ), 0) AS total_debt_payments
                     FROM customer_ledger
-                    WHERE type = 'payment' 
+                    WHERE type IN ('payment', 'payment_cancel')
+                      AND sale_id IS NULL
                       AND (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'))
                       AND customer_id NOT LIKE 'demo_%';
                 ";
@@ -135,6 +166,7 @@ namespace RafiqPOS.Services
                     if (res != null && res != DBNull.Value)
                     {
                         summary.TodayDebtPaymentsPiasters = Convert.ToInt64(res);
+                        if (summary.TodayDebtPaymentsPiasters < 0) summary.TodayDebtPaymentsPiasters = 0;
                         summary.CashDrawerPiasters += summary.TodayDebtPaymentsPiasters;
                     }
                 }
@@ -154,6 +186,62 @@ namespace RafiqPOS.Services
                             summary.TodayExpensesPiasters = Convert.ToInt64(res);
                             summary.CashDrawerPiasters -= summary.TodayExpensesPiasters;
                             if (summary.CashDrawerPiasters < 0) summary.CashDrawerPiasters = 0;
+                        }
+                    }
+                }
+                catch { }
+
+                // 2c. Electronic Payment Terminals & Services today (SuperPay / Fawry / Aman)
+                try
+                {
+                    using (var checkEpayCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='epay_transactions';", conn))
+                    {
+                        if (checkEpayCmd.ExecuteScalar() != null)
+                        {
+                            string epaySql = @"
+                                SELECT 
+                                    (SELECT COALESCE(SUM(balance_piasters), 0) FROM epay_terminals WHERE is_active = 1) AS terminals_balance,
+                                    COALESCE(SUM(CASE WHEN payment_channel = 'terminal_till' THEN total_received_piasters ELSE 0 END), 0) AS till_cash,
+                                    COALESCE(SUM(CASE WHEN payment_channel = 'cash_drawer' THEN total_received_piasters ELSE 0 END), 0) AS drawer_cash,
+                                    COALESCE(SUM(net_profit_piasters), 0) AS net_profit
+                                FROM epay_transactions
+                                WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'))
+                                  AND status = 'completed';
+                            ";
+                            using (var epayCmd = new SQLiteCommand(epaySql, conn))
+                            using (var epayReader = epayCmd.ExecuteReader())
+                            {
+                                if (epayReader.Read())
+                                {
+                                    summary.TodayEpayTerminalsBalancePiasters = Convert.ToInt64(epayReader["terminals_balance"]);
+                                    summary.TodayEpayTillCashPiasters = Convert.ToInt64(epayReader["till_cash"]);
+                                    summary.TodayEpayNetProfitPiasters = Convert.ToInt64(epayReader["net_profit"]);
+                                    long drawerEpayCash = Convert.ToInt64(epayReader["drawer_cash"]);
+                                    if (drawerEpayCash > 0)
+                                    {
+                                        summary.CashDrawerPiasters += drawerEpayCash;
+                                    }
+                                }
+                            }
+
+                            string fundingSql = @"
+                                SELECT COALESCE(SUM(amount_piasters), 0)
+                                FROM epay_terminal_fundings
+                                WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'))
+                                  AND funding_source = 'cash_drawer';
+                            ";
+                            using (var fundCmd = new SQLiteCommand(fundingSql, conn))
+                            {
+                                object fundRes = fundCmd.ExecuteScalar();
+                                if (fundRes != null && fundRes != DBNull.Value)
+                                {
+                                    long drawerFunded = Convert.ToInt64(fundRes);
+                                    if (drawerFunded > 0)
+                                    {
+                                        summary.CashDrawerPiasters = Math.Max(0, summary.CashDrawerPiasters - drawerFunded);
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -445,7 +533,7 @@ namespace RafiqPOS.Services
                         COALESCE(SUM(s.total_piasters), 0) AS total_sales,
                         COALESCE(SUM(
                             CASE 
-                                WHEN s.payment_method = 'cash' THEN s.paid_piasters
+                                WHEN s.payment_method = 'cash' THEN MIN(s.paid_piasters, s.total_piasters)
                                 WHEN s.payment_method = 'multi' THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
@@ -454,6 +542,28 @@ namespace RafiqPOS.Services
                                 ELSE 0 
                             END
                         ), 0) AS cash_sales,
+                        COALESCE(SUM(
+                            CASE 
+                                WHEN s.payment_method = 'instapay' THEN s.paid_piasters
+                                WHEN s.payment_method = 'multi' THEN (
+                                    SELECT COALESCE(SUM(p.amount_piasters), 0) 
+                                    FROM payments p 
+                                    WHERE p.sale_id = s.id AND p.method = 'instapay'
+                                )
+                                ELSE 0 
+                            END
+                        ), 0) AS instapay_sales,
+                        COALESCE(SUM(
+                            CASE 
+                                WHEN s.payment_method = 'vodafone_cash' THEN s.paid_piasters
+                                WHEN s.payment_method = 'multi' THEN (
+                                    SELECT COALESCE(SUM(p.amount_piasters), 0) 
+                                    FROM payments p 
+                                    WHERE p.sale_id = s.id AND p.method = 'vodafone_cash'
+                                )
+                                ELSE 0 
+                            END
+                        ), 0) AS vodafone_cash_sales,
                         COALESCE(SUM(
                             CASE 
                                 WHEN s.payment_method = 'card' THEN s.paid_piasters
@@ -487,6 +597,8 @@ namespace RafiqPOS.Services
                         {
                             report.TotalSalesPiasters = Convert.ToInt64(reader["total_sales"]);
                             report.CashSalesPiasters = Convert.ToInt64(reader["cash_sales"]);
+                            report.InstapaySalesPiasters = Convert.ToInt64(reader["instapay_sales"]);
+                            report.VodafoneCashSalesPiasters = Convert.ToInt64(reader["vodafone_cash_sales"]);
                             report.CardSalesPiasters = Convert.ToInt64(reader["card_sales"]);
                             report.CreditSalesPiasters = Convert.ToInt64(reader["credit_sales"]);
                             report.InvoicesCount = Convert.ToInt32(reader["inv_count"]);
@@ -1920,16 +2032,24 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // 2. Repayments in period
+                // 2. Repayments in period (taking payments + deposits from sales - cancelled payments)
                 string repaySql = string.Format(@"
-                    SELECT COALESCE(SUM(cl.amount_piasters), 0)
+                    SELECT COALESCE(SUM(
+                        CASE 
+                            WHEN cl.type = 'payment' THEN cl.amount_piasters
+                            WHEN cl.type = 'payment_cancel' THEN -cl.amount_piasters
+                            WHEN cl.type = 'deposit' THEN cl.amount_piasters
+                            ELSE 0
+                        END
+                    ), 0)
                     FROM customer_ledger cl
-                    WHERE cl.type = 'payment' AND {0};
+                    WHERE cl.type IN ('payment', 'payment_cancel', 'deposit') AND {0};
                 ", dateClause);
                 using (var cmd = new SQLiteCommand(repaySql, conn))
                 {
                     BindCustomDates(cmd, period, customFrom, customTo);
                     report.PeriodRepaymentsPiasters = Convert.ToInt64(cmd.ExecuteScalar() ?? 0);
+                    if (report.PeriodRepaymentsPiasters < 0) report.PeriodRepaymentsPiasters = 0;
                 }
 
                 // 3. New credit sales in period
@@ -2076,20 +2196,28 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // Top payers
+                // Top payers (net payments and deposits)
                 string paySql = string.Format(@"
                     SELECT 
                         c.id AS customer_id,
                         c.name AS customer_name,
                         COALESCE(c.phone, '') AS phone,
-                        COALESCE(SUM(cl.amount_piasters), 0) AS total_paid,
-                        COUNT(cl.id) AS pay_count,
+                        COALESCE(SUM(
+                            CASE 
+                                WHEN cl.type = 'payment' THEN cl.amount_piasters
+                                WHEN cl.type = 'payment_cancel' THEN -cl.amount_piasters
+                                WHEN cl.type = 'deposit' THEN cl.amount_piasters
+                                ELSE 0
+                            END
+                        ), 0) AS total_paid,
+                        COUNT(CASE WHEN cl.type IN ('payment', 'deposit') THEN 1 END) AS pay_count,
                         c.balance_piasters,
                         MAX(cl.created_at) AS last_act
                     FROM customer_ledger cl
                     INNER JOIN customers c ON cl.customer_id = c.id
-                    WHERE cl.type = 'payment' AND c.id NOT LIKE 'demo_%' AND {0}
+                    WHERE cl.type IN ('payment', 'payment_cancel', 'deposit') AND c.id NOT LIKE 'demo_%' AND {0}
                     GROUP BY c.id, c.name
+                    HAVING total_paid > 0
                     ORDER BY total_paid DESC
                     LIMIT 10;
                 ", dateClause.Replace("s.created_at", "cl.created_at"));
@@ -2184,13 +2312,14 @@ namespace RafiqPOS.Services
                         cl.id,
                         cl.customer_id,
                         COALESCE(c.name, 'عميل') AS customer_name,
+                        cl.type,
                         cl.amount_piasters,
                         cl.balance_after_piasters,
                         COALESCE(cl.notes, '') AS notes,
                         cl.created_at
                     FROM customer_ledger cl
                     LEFT JOIN customers c ON cl.customer_id = c.id
-                    WHERE cl.type = 'payment' AND {0}
+                    WHERE cl.type IN ('payment', 'payment_cancel', 'deposit') AND {0}
                     ORDER BY cl.created_at DESC
                     LIMIT 100;
                 ", filterClause);
@@ -2208,16 +2337,28 @@ namespace RafiqPOS.Services
                         {
                             long amt = Convert.ToInt64(reader["amount_piasters"]);
                             long balAfter = Convert.ToInt64(reader["balance_after_piasters"]);
+                            string entryType = reader["type"].ToString();
+                            long prevBal;
+                            if (entryType == "payment_cancel")
+                            {
+                                prevBal = balAfter - amt;
+                            }
+                            else
+                            {
+                                prevBal = balAfter + amt;
+                            }
+
                             list.Add(new PaymentHistoryRecord
                             {
                                 Id = reader["id"].ToString(),
                                 CustomerId = reader["customer_id"].ToString(),
                                 CustomerName = reader["customer_name"].ToString(),
+                                Type = entryType,
                                 AmountPiasters = amt,
                                 PaymentDate = reader["created_at"].ToString(),
                                 Notes = reader["notes"].ToString(),
                                 CashierName = "المدير",
-                                PreviousBalancePiasters = balAfter + amt,
+                                PreviousBalancePiasters = prevBal,
                                 NewBalancePiasters = balAfter
                             });
                         }

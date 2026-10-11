@@ -49,6 +49,12 @@
     -moz-appearance: textfield !important;
   }
 
+  /* Disable Edge/IE native password reveal and clear buttons to prevent duplicate eye icons */
+  input::-ms-reveal,
+  input::-ms-clear {
+    display: none !important;
+  }
+
   /* High-clarity Arabic placeholder font & letter-spacing fix */
   input::placeholder, textarea::placeholder {
     font-family: 'IBM Plex Sans Arabic', 'Cairo', 'Tajawal', 'Segoe UI', Tahoma, sans-serif !important;

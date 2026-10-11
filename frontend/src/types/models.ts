@@ -199,7 +199,7 @@ export interface SalePayment {
   id?: string;
   saleId?: string;
   amountPiasters: number;
-  method: 'cash' | 'credit' | 'card';
+  method: 'cash' | 'credit' | 'card' | 'instapay' | 'vodafone_cash';
   createdAt?: string;
 }
 
@@ -208,6 +208,7 @@ export interface Customer {
   name: string;
   phone: string;
   balancePiasters: number;
+  initialBalancePiasters?: number;
   creditLimitPiasters: number;
   createdAt: string;
   balanceFormatted?: string;
@@ -334,9 +335,16 @@ export interface DashboardSummary {
   todayInvoicesCount: number;
   todayCardPiasters?: number;
   todayCardFormatted?: string;
+  todayInstapayPiasters?: number;
+  todayInstapayFormatted?: string;
+  todayVodafoneCashPiasters?: number;
+  todayVodafoneCashFormatted?: string;
   todayExpensesPiasters?: number;
   todayExpensesFormatted?: string;
   todayExpensesCount?: number;
+  todayEpayTillCashPiasters?: number;
+  todayEpayNetProfitPiasters?: number;
+  todayEpayTerminalsBalancePiasters?: number;
   cashDrawerPiasters: number;
   cashDrawerFormatted?: string;
   topSellingProducts: TopSellingItem[];
@@ -572,11 +580,18 @@ export interface DailyClosing {
   totalSalesPiasters: number;
   cashSalesPiasters: number;
   cardSalesPiasters?: number;
+  instapaySalesPiasters?: number;
+  vodafoneCashSalesPiasters?: number;
   creditSalesPiasters: number;
   returnsTotalPiasters: number;
   returnsCashPiasters: number;
   expensesPiasters?: number;
   expensesCount?: number;
+  epayTerminalsBalancePiasters?: number;
+  epayTillCashPiasters?: number;
+  epayDrawerCashPiasters?: number;
+  epayDrawerFundingPiasters?: number;
+  epayNetProfitPiasters?: number;
   cancelledTotalPiasters: number;
   debtPaymentsPiasters: number;
   expectedCashPiasters: number;
@@ -604,11 +619,18 @@ export interface DailyClosingPreview {
   totalSalesPiasters: number;
   cashSalesPiasters: number;
   cardSalesPiasters?: number;
+  instapaySalesPiasters?: number;
+  vodafoneCashSalesPiasters?: number;
   creditSalesPiasters: number;
   returnsTotalPiasters: number;
   returnsCashPiasters: number;
   expensesPiasters?: number;
   expensesCount?: number;
+  epayTerminalsBalancePiasters?: number;
+  epayTillCashPiasters?: number;
+  epayDrawerCashPiasters?: number;
+  epayDrawerFundingPiasters?: number;
+  epayNetProfitPiasters?: number;
   cancelledTotalPiasters: number;
   debtPaymentsPiasters: number;
   expectedCashPiasters: number;
@@ -659,6 +681,8 @@ export interface PeriodSalesReport {
   cashSalesPiasters: number;
   creditSalesPiasters: number;
   cardSalesPiasters: number;
+  instapaySalesPiasters?: number;
+  vodafoneCashSalesPiasters?: number;
   returnsTotalPiasters: number;
   cancelledTotalPiasters: number;
   netSalesPiasters: number;
@@ -1038,6 +1062,7 @@ export interface PaymentHistoryRecord {
   id: string;
   customerId: string;
   customerName: string;
+  type?: string;
   amountPiasters: number;
   paymentDate: string;
   notes?: string;
@@ -1114,5 +1139,91 @@ export function extractProducts(res: unknown): Product[] {
   }
   return [];
 }
+
+export type EpayServiceType = 'mobile_recharge' | 'utility_bill' | 'cash_in' | 'cash_out' | 'wallet_transfer' | 'other';
+export type EpayPaymentDestination = 'cash_drawer' | 'terminal_till';
+
+export interface EpayTerminal {
+  id: string;
+  name: string;
+  provider: string;
+  terminalCode?: string;
+  balancePiasters: number;
+  lowBalanceAlertPiasters: number;
+  isActive: boolean;
+  customerFeeType?: 'fixed' | 'percent';
+  customerFeeValue?: number; // piasters if fixed; basis points if percent (100 = 1%)
+  providerCommissionType?: 'fixed' | 'percent';
+  providerCommissionValue?: number; // piasters if fixed; basis points if percent (50 = 0.5%)
+  customerFeeFormatted?: string;
+  providerCommissionFormatted?: string;
+  createdAt: string;
+  updatedAt: string;
+  balanceFormatted?: string;
+  isLowBalance?: boolean;
+}
+
+export interface EpayTransaction {
+  id: string;
+  terminalId: string;
+  terminalName?: string;
+  terminalProvider?: string;
+  serviceType: EpayServiceType;
+  serviceName: string;
+  referenceNumber?: string;
+  customerPhone?: string;
+  customerName?: string;
+  billAmountPiasters: number;
+  customerFeePiasters: number;
+  providerCommissionPiasters: number;
+  totalReceivedPiasters: number;
+  deductedBalancePiasters: number;
+  machineDeductedPiasters?: number;
+  netProfitPiasters: number;
+  paymentDestination: EpayPaymentDestination;
+  paymentChannel?: EpayPaymentDestination;
+  status: 'COMPLETED' | 'CANCELLED';
+  notes?: string;
+  createdBy?: string;
+  createdAt: string;
+  billAmountFormatted?: string;
+  customerFeeFormatted?: string;
+  providerCommissionFormatted?: string;
+  totalReceivedFormatted?: string;
+  netProfitFormatted?: string;
+  serviceTypeArabic?: string;
+}
+
+export interface EpayTerminalFunding {
+  id: string;
+  terminalId: string;
+  terminalName?: string;
+  amountPiasters: number;
+  fundingSource: 'cash_drawer' | 'bank_transfer' | 'external_cash';
+  previousBalancePiasters: number;
+  newBalancePiasters: number;
+  notes?: string;
+  createdBy?: string;
+  createdAt: string;
+  amountFormatted?: string;
+}
+
+export interface EpayAnalyticsSummary {
+  totalTransactionsCount: number;
+  totalVolumePiasters: number;
+  totalCustomerFeesPiasters: number;
+  totalCommissionsPiasters: number;
+  totalNetProfitPiasters: number;
+  totalInCashDrawerPiasters: number;
+  totalInTerminalTillPiasters: number;
+  activeTerminalsCount: number;
+  totalTerminalsBalancePiasters: number;
+  totalVolumeFormatted?: string;
+  totalNetProfitFormatted?: string;
+  totalCustomerFeesFormatted?: string;
+  totalCommissionsFormatted?: string;
+  totalTerminalsBalanceFormatted?: string;
+}
+
 
 

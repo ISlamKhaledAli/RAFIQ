@@ -28,7 +28,11 @@ import { useClientPagination } from '../utils/usePagination';
 import { RafiqTableLoading } from '../components/RafiqLoadingState';
 import { useSmoothLoading } from '../utils/useSmoothLoading';
 
-export function CustomersView() {
+export interface CustomersViewProps {
+  isActive?: boolean;
+}
+
+export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'debtors' | 'settled'>('all');
@@ -211,8 +215,10 @@ export function CustomersView() {
   }, []);
 
   useEffect(() => {
-    void loadCustomers();
-  }, [loadCustomers]);
+    if (isActive) {
+      void loadCustomers();
+    }
+  }, [isActive, loadCustomers]);
 
   useDataSubscription(['customers', 'sales'], () => {
     void loadCustomers();
@@ -329,6 +335,7 @@ export function CustomersView() {
         name: name.trim(),
         phone: phone.trim() || undefined,
         creditLimitPiasters,
+        balancePiasters: editingCustomer ? undefined : initialBalancePiasters,
         initialBalancePiasters: editingCustomer ? undefined : initialBalancePiasters,
       };
 

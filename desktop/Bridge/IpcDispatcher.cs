@@ -83,6 +83,7 @@ namespace RafiqPOS.Bridge
                 if (TryDispatchBackup(request, out response)) return response;
                 if (TryDispatchExcel(request, out response)) return response;
                 if (TryDispatchSystem(request, out response)) return response;
+                if (TryDispatchEpay(request, out response)) return response;
 
                 Logger.Warn("محاولة تنفيذ إجراء غير مسجل: " + request.Action);
                 return BridgeResponse.Fail(request.Id, "ACTION_NOT_FOUND", "الإجراء غير مسجل في النواة: " + request.Action);

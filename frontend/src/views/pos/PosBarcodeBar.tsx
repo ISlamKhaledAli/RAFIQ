@@ -21,6 +21,7 @@ interface PosBarcodeBarProps {
   selectedDropdownIndex: number;
   setSelectedDropdownIndex: (val: number) => void;
   onSelectProduct: (prod: Product, specificUnit?: ProductUnit) => void;
+  onNavigateToEpay?: () => void;
 }
 
 export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
@@ -93,6 +94,7 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
           <Barcode className="w-4 h-4 text-paid" />
           <span className="hidden sm:inline">فحص القارئ</span>
         </button>
+
       </form>
 
       {/* Live Search Floating Dropdown (Task 22-4) */}

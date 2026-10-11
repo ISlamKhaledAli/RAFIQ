@@ -15,7 +15,11 @@ import {
 import { useAuth } from '../context/useAuth';
 import { invoke, type UserDto } from '../bridge/ipc';
 
-export const LoginScreen: React.FC = () => {
+export interface LoginScreenProps {
+  onOpenWizard?: () => void;
+}
+
+export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenWizard }) => {
   const { login } = useAuth();
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
@@ -33,11 +37,11 @@ export const LoginScreen: React.FC = () => {
     // Load active users for fast cashier selection
     invoke<UserDto[]>('auth:getActiveUsers')
       .then((users: UserDto[]) => {
-        if (users && users.length > 0) {
-          setActiveUsers(users);
-          // Default to first user or root
-          const rootOrAdmin = users.find((u: UserDto) => u.role === 'root') || users[0];
-          setUsername(rootOrAdmin.username);
+        const nonRootUsers = (users || []).filter((u: UserDto) => u.role !== 'root');
+        if (nonRootUsers.length > 0) {
+          setActiveUsers(nonRootUsers);
+          const defaultUser = nonRootUsers.find((u: UserDto) => u.role === 'admin') || nonRootUsers[0];
+          setUsername(defaultUser.username);
         }
       })
       .catch(() => {});
@@ -235,9 +239,9 @@ export const LoginScreen: React.FC = () => {
                       >
                         <UserIcon className="w-3.5 h-3.5" />
                         <span>{u.displayName}</span>
-                        {u.role === 'root' && (
-                          <span className={`text-[10px] px-1 rounded ${isSelected ? 'bg-white/20 text-white' : 'bg-brand-soft text-brand'}`}>
-                            Root
+                        {u.role === 'admin' && (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${isSelected ? 'bg-white/20 text-white' : 'bg-paid-soft text-paid'}`}>
+                            صاحب المحل
                           </span>
                         )}
                       </button>
@@ -358,8 +362,18 @@ export const LoginScreen: React.FC = () => {
 
           <div className="pt-4 mt-6 border-t border-line text-center">
             <p className="text-[11px] text-ink-muted">
-              حساب الـ Root يملك كافة الصلاحيات • كلمة المرور الافتراضية للمدير الأول هي 1234 أو admin
+              تسجيل دخول آمن لنظام رفيق • كلمة المرور الافتراضية لصاحب المحل هي 1234 وللكاشير 0000
             </p>
+            {onOpenWizard && (
+              <button
+                type="button"
+                onClick={onOpenWizard}
+                className="mt-3 text-xs font-bold text-brand hover:text-brand-dark hover:underline flex items-center justify-center gap-1.5 mx-auto transition-colors cursor-pointer"
+              >
+                <Store className="w-3.5 h-3.5 text-brand" />
+                <span>معالج اختيار نوع ونشاط المحل والتهيئة</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

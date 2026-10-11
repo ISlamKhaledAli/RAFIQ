@@ -11,6 +11,7 @@ import {
 } from '../utils/money';
 import { ReceiptModal } from '../components/ReceiptModal';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { rafiqConfirm } from '../utils/dialogService';
 import { UndoToast } from '../components/UndoToast';
 import { WeightInputModal } from '../components/WeightInputModal';
 import { QuickItemsManagerModal } from '../components/QuickItemsManagerModal';
@@ -43,7 +44,6 @@ import { PosCartTable } from './pos/PosCartTable';
 import { PosCatalogPanel } from './pos/PosCatalogPanel';
 import { PosCartCheckoutBar } from './pos/PosCartCheckoutBar';
 import { PosCategoriesPanel } from './pos/PosCategoriesPanel';
-import { PosFooterBar } from './pos/PosFooterBar';
 import { OpenPriceModal } from './pos/OpenPriceModal';
 import { PosQuantityModal } from './pos/PosQuantityModal';
 import { PosInvoiceDiscountModal } from './pos/PosInvoiceDiscountModal';
@@ -52,9 +52,10 @@ import { usePosShortcuts } from './pos/usePosShortcuts';
 
 export interface PosViewProps {
   isActive?: boolean;
+  onNavigateToEpay?: () => void;
 }
 
-export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
+export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToEpay }) => {
   const { isEnabled } = useFeatures();
   const showFastItems = isEnabled('feature_fast_buttons');
   const showCredit = isEnabled('feature_credit_debts');
@@ -126,6 +127,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
   const [maxDiscountPercentCashier, setMaxDiscountPercentCashier] = useState(10);
   const [maxDiscountAmountCashierPiasters, setMaxDiscountAmountCashierPiasters] = useState(5000); // 50 EGP
+  const [instapayFeePercent, setInstapayFeePercent] = useState<number>(1);
+  const [vodafoneCashFeePercent, setVodafoneCashFeePercent] = useState<number>(1);
   const [currentUserRole, setCurrentUserRole] = useState<string>('cashier');
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
 
@@ -667,6 +670,12 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
           if (appSettings.allow_negative_stock !== undefined) {
             setAllowNegativeStock(appSettings.allow_negative_stock === '1' || appSettings.allow_negative_stock.toLowerCase() === 'true');
           }
+          if (appSettings.instapay_fee_percent !== undefined) {
+            setInstapayFeePercent(parseFloat(appSettings.instapay_fee_percent) || 0);
+          }
+          if (appSettings.vodafone_cash_fee_percent !== undefined) {
+            setVodafoneCashFeePercent(parseFloat(appSettings.vodafone_cash_fee_percent) || 0);
+          }
         }
         const cnt = await invoke<{ nextInvoiceNumber: number }>('counters:getNextExpectedInvoiceNumber');
         if (active && cnt && cnt.nextInvoiceNumber) {
@@ -713,11 +722,13 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
   }, [cart.length, showStatus]);
 
   const handleConfirmPayment = useCallback(async (paymentData: {
-    paymentMethod: 'cash' | 'credit' | 'card' | 'multi';
+    paymentMethod: 'cash' | 'credit' | 'card' | 'multi' | 'instapay' | 'vodafone_cash';
     paidPiasters: number;
     payments: SalePayment[];
     changeDuePiasters: number;
     customerId?: string | null;
+    totalPiastersOverride?: number;
+    serviceFeeNote?: string;
   }) => {
     setIsPaymentModalOpen(false);
     setLoading(true);
@@ -726,13 +737,14 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
         subtotalPiasters,
         discountPiasters,
         taxPiasters: totalTaxPiasters,
-        totalPiasters: netTotalPiasters,
+        totalPiasters: paymentData.totalPiastersOverride ?? netTotalPiasters,
         paidPiasters: paymentData.paidPiasters,
         paymentMethod: paymentData.paymentMethod,
         customerId: paymentData.customerId || selectedCustomerId || undefined,
         status: 'completed',
         items: cart,
         payments: paymentData.payments,
+        notes: paymentData.serviceFeeNote,
       };
 
       const completedSale = await invoke<Sale>('sales:create', salePayload);
@@ -1210,20 +1222,52 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
     });
   }, [cart.length, paymentMethod, selectedCustomerId, netTotalPiasters, handleConfirmPayment, showStatus]);
 
-  // Fast direct card/visa checkout (F10)
-  const handleFastCardCheckout = useCallback(async () => {
+  // Fast direct digital checkouts (InstaPay & Vodafone Cash)
+  const handleDigitalCheckout = useCallback(async (method: 'instapay' | 'vodafone_cash') => {
     if (cart.length === 0) {
       showStatus('سلة البيع فارغة! أضف أصنافاً أولاً للبيع (F2)', 'warning');
       return;
     }
-    await handleConfirmPayment({
-      paymentMethod: 'card',
-      paidPiasters: netTotalPiasters,
-      payments: [{ method: 'card', amountPiasters: netTotalPiasters }],
-      changeDuePiasters: 0,
-      customerId: selectedCustomerId || undefined
+    const isInstapay = method === 'instapay';
+    const feePercent = isInstapay ? instapayFeePercent : vodafoneCashFeePercent;
+    const feePiasters = Math.round(netTotalPiasters * (feePercent / 100));
+    const finalTotalPiasters = netTotalPiasters + feePiasters;
+    const methodName = isInstapay ? 'انستاباي (InstaPay)' : 'فودافون كاش ومحافظ المحمول';
+
+    const proceed = await rafiqConfirm({
+      title: `تأكيد التحويل الإلكتروني - ${methodName}`,
+      message: `تفاصيل المعاملة الإلكترونية (خارج درج الكاش):\n` +
+        `• إجمالي الأصناف المطلوب: ${formatArabicCurrency(netTotalPiasters)}\n` +
+        `• زيادة الخدمة الإلكترونية (${feePercent}%): +${formatArabicCurrency(feePiasters)}\n` +
+        `• المبلغ المطلوب تحويله على ${isInstapay ? 'انستاباي' : 'المحفظة'}: ${formatArabicCurrency(finalTotalPiasters)}\n\n` +
+        `هل تم استلام التحويل بالكامل وتريد حفظ الفاتورة وطباعة الإيصال؟`,
+      confirmText: `تأكيد استلام ${formatArabicCurrency(finalTotalPiasters)}`,
+      cancelText: 'تراجع',
+      variant: 'info',
     });
-  }, [cart.length, netTotalPiasters, selectedCustomerId, handleConfirmPayment, showStatus]);
+
+    if (!proceed) return;
+
+    await handleConfirmPayment({
+      paymentMethod: method,
+      paidPiasters: finalTotalPiasters,
+      totalPiastersOverride: finalTotalPiasters,
+      payments: [{ method, amountPiasters: finalTotalPiasters }],
+      changeDuePiasters: 0,
+      customerId: selectedCustomerId || undefined,
+      serviceFeeNote: feePiasters > 0 
+        ? `رسوم خدمة إلكترونية (${isInstapay ? 'انستاباي' : 'فودافون كاش'} ${feePercent}%): +${(feePiasters / 100).toFixed(2)} ج.م` 
+        : undefined,
+    });
+  }, [cart.length, instapayFeePercent, vodafoneCashFeePercent, netTotalPiasters, selectedCustomerId, handleConfirmPayment, showStatus]);
+
+  const handleInstapayCheckout = useCallback(async () => {
+    await handleDigitalCheckout('instapay');
+  }, [handleDigitalCheckout]);
+
+  const handleVodafoneCashCheckout = useCallback(async () => {
+    await handleDigitalCheckout('vodafone_cash');
+  }, [handleDigitalCheckout]);
 
   // Hook 2: Cashier Keyboard Shortcuts & Hardware Scanner Listener (F1 to F12)
   usePosShortcuts({
@@ -1235,7 +1279,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
     requestClearCart,
     handleOpenCheckout,
     handleFastCashCheckout,
-    handleFastCardCheckout,
+    handleInstapayCheckout,
     handleFastBarcodeScan,
     openWeightEditorForCartItem,
     handleHoldCurrentSale,
@@ -1313,6 +1357,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
               showStatus(`تمت إضافة: ${prod.name}${specificUnit ? ` (${specificUnit.unitName})` : ''}`, 'success');
               barcodeInputRef.current?.focus();
             }}
+            onNavigateToEpay={onNavigateToEpay}
           />
 
           <PosCartTable
@@ -1360,7 +1405,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
             netTotalPiasters={netTotalPiasters}
             loading={loading}
             handleOpenCheckout={handleOpenCheckout}
-            handleFastCardCheckout={handleFastCardCheckout}
+            handleInstapayCheckout={handleInstapayCheckout}
+            handleVodafoneCashCheckout={handleVodafoneCashCheckout}
             requestClearCart={requestClearCart}
             lastCompletedSale={lastCompletedSale}
             onOpenReceipt={() => setIsReceiptOpen(true)}
@@ -1409,68 +1455,6 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
         )}
       </div>
 
-      {/* 2. BOTTOM KEYBOARD & TOUCH ACTION STRIP */}
-      <PosFooterBar
-        onOpenHelp={() => setIsHelpModalOpen(true)}
-        onFocusSearch={() => {
-          barcodeInputRef.current?.focus();
-          barcodeInputRef.current?.select();
-        }}
-        onEditLastItemQuantity={() => {
-          if (cart.length > 0) {
-            const lastIdx = cart.length - 1;
-            const lastItem = cart[lastIdx];
-            if (lastItem.unit === 'kg') {
-              openWeightEditorForCartItem(lastIdx);
-            } else {
-              setQuantityModalItem({
-                index: lastIdx,
-                name: lastItem.productName,
-                currentQty: lastItem.quantityMilli / 1000
-              });
-              setQuantityInputVal(String(lastItem.quantityMilli / 1000));
-            }
-          } else {
-            showStatus('السلة فارغة. يرجى إضافة صنف أولاً لتعديل كميته', 'warning');
-          }
-        }}
-        onOpenDiscountModal={() => {
-          setIsDiscountModalOpen(true);
-        }}
-        onHoldOrShowHeld={() => {
-          if (cart.length > 0) {
-            void handleHoldCurrentSale();
-          } else {
-            setIsHeldSalesModalOpen(true);
-          }
-        }}
-        heldSalesCount={heldSalesCount}
-        onOpenReturnModal={() => setIsReturnModalOpen(true)}
-        onRequestClearCart={requestClearCart}
-        onOpenScannerModal={() => setIsScannerModalOpen(true)}
-        onShowLastReceipt={() => {
-          if (lastCompletedSale) {
-            setIsReceiptOpen(true);
-          } else {
-            showStatus('لا توجد فاتورة سابقة لإعادة طباعتها', 'warning');
-          }
-        }}
-        paymentMethod={paymentMethod}
-        onToggleCreditPayment={() => {
-          setPaymentMethod((prev) => {
-            const next = prev === 'cash' ? 'credit' : 'cash';
-            showStatus(next === 'credit' ? 'تم التبديل إلى البيع الآجل (F10)' : 'تم التبديل إلى الدفع النقدي (F10)', 'success');
-            return next;
-          });
-        }}
-        onFastCashCheckout={() => {
-          if (cart.length > 0 && !loading) {
-            void handleFastCashCheckout();
-          } else if (cart.length === 0) {
-            showStatus('السلة فارغة! أضف أصنافاً أولاً للبيع', 'warning');
-          }
-        }}
-      />
 
       {/* KEYBOARD SHORTCUTS HELP MODAL (Feature #32 / Task 32-1 & 32-2) */}
       <KeyboardShortcutsModal
@@ -1578,6 +1562,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true }) => {
         showCredit={showCredit}
         customers={customers}
         onConfirmPayment={handleConfirmPayment}
+        instapayFeePercent={instapayFeePercent}
+        vodafoneCashFeePercent={vodafoneCashFeePercent}
         loading={loading}
       />
 

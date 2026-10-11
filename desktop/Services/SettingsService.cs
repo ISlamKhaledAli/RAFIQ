@@ -58,7 +58,7 @@ namespace RafiqPOS.Services
             flags["feature_taxes"] = GetBool(settings, "feature_taxes", false);
             flags["feature_expiry_dates"] = GetBool(settings, "feature_expiry_dates", true);
             flags["feature_multi_units"] = GetBool(settings, "feature_multi_units", true);
-            flags["feature_matrix_variants"] = GetBool(settings, "feature_matrix_variants", true);
+            flags["feature_matrix_variants"] = GetBool(settings, "feature_matrix_variants", false);
 
             return flags;
         }

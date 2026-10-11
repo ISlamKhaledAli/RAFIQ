@@ -377,6 +377,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   });
 
   useEffect(() => {
+    if (isActive !== false) {
+      void loadProducts();
+      void fetchCategoriesList();
+    }
+  }, [isActive, loadProducts, fetchCategoriesList]);
+
+  useEffect(() => {
     let active = true;
     void (async () => {
       try {

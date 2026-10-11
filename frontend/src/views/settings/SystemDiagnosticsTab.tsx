@@ -36,12 +36,14 @@ interface SystemDiagnosticsTabProps {
   supportMessage: string | null;
   setSupportMessage: (msg: string | null) => void;
   runCreateSupportBundle: () => Promise<void>;
+  onOpenWizard?: () => void;
 }
 
 export const SystemDiagnosticsTab = ({
   sysInfo,
   flags,
   toggleFlag,
+  onOpenWizard,
   diagnosticsLoading,
   diagnosticResult,
   setDiagnosticResult,
@@ -71,7 +73,18 @@ export const SystemDiagnosticsTab = ({
               <span className="text-[11px] text-ink-muted">شغل أو عطل الميزات حسب طبيعة ونشاط محلك واحتياجك اليومي</span>
             </div>
           </div>
-          <span className="text-[11px] text-brand bg-brand/10 font-bold px-2 py-0.5 rounded">نظام مرن حسب محلك</span>
+          {onOpenWizard ? (
+            <button
+              type="button"
+              onClick={onOpenWizard}
+              className="text-xs text-brand hover:text-white bg-brand/10 hover:bg-brand font-bold px-3 py-1 rounded-lg border border-brand/20 transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>ضبط الميزات حسب نشاط المحل (معالج المتجر)</span>
+            </button>
+          ) : (
+            <span className="text-[11px] text-brand bg-brand/10 font-bold px-2 py-0.5 rounded">نظام مرن حسب محلك</span>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">

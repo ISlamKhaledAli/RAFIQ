@@ -261,13 +261,15 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
       const treePromise = invoke<UserDto[]>('users:getTree').catch(() => []);
 
       const [allList, treeList] = await Promise.all([allUsersPromise, treePromise]);
-      setUsers(allList || []);
+      const visibleUsers = (allList || []).filter((u) => isRootSession || u.role !== 'root');
+      setUsers(visibleUsers);
 
-      if (treeList && treeList.length > 0) {
+      const hasVisibleTree = treeList && treeList.length > 0 && (isRootSession || !treeList.some((t) => t.role === 'root'));
+      if (hasVisibleTree) {
         setUserTree(treeList);
       } else {
-        // Fallback: Build tree locally from parentId
-        const tree = buildTreeFromFlat(allList || []);
+        // Fallback: Build tree locally from visible users
+        const tree = buildTreeFromFlat(visibleUsers);
         setUserTree(tree);
       }
     } catch (err: any) {
@@ -275,7 +277,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [supervisorPin]);
+  }, [supervisorPin, isRootSession]);
 
   useEffect(() => {
     if (isOpen) {
@@ -296,6 +298,12 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
   const findUserById = useCallback((id: string): UserDto | undefined => {
     return users.find((u) => u.id === id);
   }, [users]);
+
+  // Check if user is Store Owner or protected Administrator (Cannot have permissions stripped or be deactivated)
+  const isOwnerOrAdmin = useCallback((u: UserDto | null | undefined): boolean => {
+    if (!u) return false;
+    return u.role === 'root' || u.role === 'admin' || u.username === 'admin';
+  }, []);
 
   // Parent user for permission capping
   const activeParentUser = useMemo(() => {
@@ -392,6 +400,10 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
 
   // Start Manage Permissions
   const handleStartPermissions = (user: UserDto) => {
+    if (isOwnerOrAdmin(user)) {
+      setError('حساب صاحب المحل يمتلك كافة صلاحيات النظام بشكل دائم وتلقائي، ولا يمكن تقييد أو سحب الصلاحيات منه.');
+      return;
+    }
     setSelectedUser(user);
     setParentId(user.parentId || '');
 
@@ -496,6 +508,17 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
       return;
     }
 
+    if (isOwnerOrAdmin(selectedUser)) {
+      if (!isActive) {
+        setError('حساب صاحب المحل محمي ولا يمكن تعطيله مطلقاً.');
+        return;
+      }
+      if (role !== 'admin') {
+        setError('لا يمكن خفض رتبة حساب صاحب المحل.');
+        return;
+      }
+    }
+
     if (selectedUser.role === 'root' && !isActive) {
       setError('حساب الروت الرئيسي محمي ولا يمكن تعطيله مطلقاً.');
       return;
@@ -538,8 +561,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
     e.preventDefault();
     if (!selectedUser) return;
 
-    if (selectedUser.role === 'root') {
-      setError('حساب الروت الرئيسي يمتلك كافة الصلاحيات بشكل دائم وغير قابل للتعديل.');
+    if (isOwnerOrAdmin(selectedUser)) {
+      setError('حساب صاحب المحل يمتلك كافة الصلاحيات بشكل دائم ولا يمكن تقييدها أو سحبها.');
       return;
     }
 
@@ -633,8 +656,12 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
 
   // Toggle user active status directly
   const handleToggleStatus = async (user: UserDto) => {
-    if (user.role === 'root') {
-      setError('حساب الروت الرئيسي محمي ضد التعطيل.');
+    if (isOwnerOrAdmin(user)) {
+      setError('حساب صاحب المحل محمي ضد التعطيل دائماً لضمان استمرارية عمل المتجر.');
+      return;
+    }
+    if (currentUser?.id === user.id) {
+      setError('لا يمكنك تعطيل حسابك الحالي المسجل دخوله.');
       return;
     }
 
@@ -723,7 +750,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-paid-soft text-paid border border-paid-border">
           <Shield className="w-3.5 h-3.5" />
-          <span>مدير نظام (Admin)</span>
+          <span>صاحب المحل / مدير</span>
         </span>
       );
     }
@@ -842,7 +869,15 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
             )}
 
             {/* Manage Permissions */}
-            {!isRoot && (
+            {isOwnerOrAdmin(node) ? (
+              <span
+                className="px-2.5 py-1.5 bg-paid-soft text-paid text-xs font-bold rounded-lg border border-paid-border flex items-center gap-1.5 shadow-2xs select-none"
+                title="صاحب المحل يمتلك كافة صلاحيات المنظومة بشكل دائم وتلقائي"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-paid shrink-0" />
+                <span>كامل الصلاحيات</span>
+              </span>
+            ) : (
               <button
                 type="button"
                 onClick={() => handleStartPermissions(node)}
@@ -877,7 +912,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
             </button>
 
             {/* Toggle Status (Active / Deactive) */}
-            {!isRoot && (
+            {!isOwnerOrAdmin(node) && !isSelf && (
               <button
                 type="button"
                 onClick={() => handleToggleStatus(node)}
@@ -1133,7 +1168,15 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                               </td>
                               <td className="px-4 py-3">
                                 <div className="flex items-center justify-center gap-1.5">
-                                  {!isRoot && (
+                                  {isOwnerOrAdmin(u) ? (
+                                    <span
+                                      className="px-2 py-1 bg-paid-soft text-paid rounded-lg text-xs font-bold border border-paid-border flex items-center gap-1 shadow-2xs select-none"
+                                      title="صاحب المحل يمتلك كافة صلاحيات النظام بشكل دائم"
+                                    >
+                                      <ShieldCheck className="w-3 h-3 text-paid shrink-0" />
+                                      <span>كامل الصلاحيات</span>
+                                    </span>
+                                  ) : (
                                     <button
                                       type="button"
                                       onClick={() => handleStartPermissions(u)}
@@ -1159,7 +1202,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                                   >
                                     تعديل
                                   </button>
-                                  {!isRoot && (
+                                  {!isOwnerOrAdmin(u) && !isSelf && (
                                     <button
                                       type="button"
                                       onClick={() => handleToggleStatus(u)}
@@ -1869,7 +1912,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
           <div className="flex items-center gap-3">
             <span>الحسابات المسجلة: {users.length}</span>
             <span>•</span>
-            <span>حساب الروت الرئيسي محمي دائمياً</span>
+            <span>حساب صاحب المحل والمدير محمي بكامل الصلاحيات دائماً</span>
           </div>
         </div>
       </div>

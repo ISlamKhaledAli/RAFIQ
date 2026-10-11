@@ -32,6 +32,7 @@ import { useSmoothLoading } from '../utils/useSmoothLoading';
 
 
 export interface DashboardViewProps {
+  isActive?: boolean;
   onNavigateToPos?: () => void;
   onNavigateToProducts: (subView?: 'catalog' | 'movements' | 'batches', filter?: 'all' | 'lowStock' | 'outOfStock') => void;
   onNavigateToSales?: () => void;
@@ -42,6 +43,7 @@ export interface DashboardViewProps {
 }
 
 export function DashboardView({ 
+  isActive = true,
   onNavigateToProducts,
   onNavigateToCustomers,
   onNavigateSubTab
@@ -87,8 +89,10 @@ export function DashboardView({
   }, [isEnabled]);
 
   useEffect(() => {
-    void loadData();
-  }, [loadData]);
+    if (isActive) {
+      void loadData();
+    }
+  }, [isActive, loadData]);
 
   useDataSubscription(['sales', 'dashboard', 'purchases'], () => {
     void loadData();
@@ -301,10 +305,12 @@ export function DashboardView({
             </div>
           </div>
           <div className="pt-2 mt-2 border-t border-line/60 flex items-center justify-between text-[11px] text-ink-muted">
-            <div className="flex items-center gap-1.5 font-mono text-[10px]">
-              <span>كاش: <strong className="text-ink font-bold">{summary ? (summary.todayCashPiasters / 100).toFixed(0) : '0'}</strong></span>
+            <div className="flex items-center gap-1.5 font-mono text-[10px] flex-wrap">
+              <span>كاش: <strong className="text-ink font-bold">{summary ? (summary.todayCashPiasters / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '0'}</strong></span>
               <span className="text-line">•</span>
-              <span>فيزا: <strong className="text-brand font-bold">{summary ? ((summary.todayCardPiasters || 0) / 100).toFixed(0) : '0'}</strong></span>
+              <span>انستاباي: <strong className="text-[#582C83] font-bold">{summary ? ((summary.todayInstapayPiasters || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '0'}</strong></span>
+              <span className="text-line">•</span>
+              <span>محافظ: <strong className="text-[#e60000] font-bold">{summary ? ((summary.todayVodafoneCashPiasters || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '0'}</strong></span>
             </div>
             <span className="text-paid font-bold text-[11px] flex items-center gap-0.5 group-hover:underline">
               كشف الحساب
@@ -450,7 +456,14 @@ export function DashboardView({
             </div>
           </div>
           <div className="pt-2 mt-2 border-t border-line/60 flex items-center justify-between text-[11px] text-ink-muted">
-            <span>مبيعات كاش: <strong className="text-ink font-mono tabular-nums">{summary ? (summary.todayCashPiasters / 100).toFixed(0) : '0'}</strong></span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span>مبيعات كاش: <strong className="text-ink font-mono tabular-nums">{summary ? (summary.todayCashPiasters / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '0'}</strong></span>
+              {summary && (summary.todayEpayTillCashPiasters || 0) > 0 && (
+                <span className="text-paid font-bold text-[10px] bg-paid-soft px-1.5 py-0.2 rounded-md border border-paid/20" title="نقدية محفظة ماكينة الدفع المحصلة (مستقلة عن الدرج)">
+                  عهدة المكنة: +{((summary.todayEpayTillCashPiasters || 0) / 100).toFixed(0)}
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-1 font-mono text-[10px]">
               {summary && (summary.todayExpensesPiasters || 0) > 0 && (
                 <span className="text-danger font-bold" title="مصاريف طلعت كاش من الدرج">

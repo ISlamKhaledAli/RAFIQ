@@ -27,6 +27,12 @@ namespace RafiqPOS.Models
         [JsonProperty("cardSalesPiasters")]
         public long CardSalesPiasters { get; set; }
 
+        [JsonProperty("instapaySalesPiasters")]
+        public long InstapaySalesPiasters { get; set; }
+
+        [JsonProperty("vodafoneCashSalesPiasters")]
+        public long VodafoneCashSalesPiasters { get; set; }
+
         [JsonProperty("returnsTotalPiasters")]
         public long ReturnsTotalPiasters { get; set; }
 
@@ -601,6 +607,9 @@ namespace RafiqPOS.Models
 
         [JsonProperty("amountPiasters")]
         public long AmountPiasters { get; set; }
+
+        [JsonProperty("type")]
+        public string Type { get; set; }
 
         [JsonProperty("paymentDate")]
         public string PaymentDate { get; set; }

@@ -23,6 +23,11 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, new { isNeeded = needed });
                     return true;
 
+                case "templates:resetFirstRun":
+                    DatabaseService.Templates.ResetFirstRun();
+                    response = BridgeResponse.Ok(request.Id, new { success = true });
+                    return true;
+
                 case "templates:apply":
                     if (request.Payload == null)
                     {

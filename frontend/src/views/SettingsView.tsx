@@ -12,22 +12,20 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useFeatures } from '../context/useFeatures';
+import { useAuth } from '../context/useAuth';
 import type { SystemInfo } from '../App';
 import { BackupManager } from '../components/BackupManager';
 import { rafiqAlert } from '../utils/dialogService';
 import { BarcodeScannerSettingsModal } from '../components/BarcodeScannerSettingsModal';
-import { PinSettingsModal } from '../components/PinSettingsModal';
 import { FirstRunWizardModal } from '../components/FirstRunWizardModal';
 import { DemoDataModal } from '../components/DemoDataModal';
 import { GuidedTourModal } from '../components/GuidedTourModal';
 import { SearchBenchmarkModal } from '../components/SearchBenchmarkModal';
-import { UserManagerModal } from '../components/UserManagerModal';
 
 import { StoreProfileTab } from './settings/StoreProfileTab';
 import { PrinterSettingsTab } from './settings/PrinterSettingsTab';
 import { ScannerSettingsTab } from './settings/ScannerSettingsTab';
 import { SystemDiagnosticsTab } from './settings/SystemDiagnosticsTab';
-import { SecuritySettingsTab } from './settings/SecuritySettingsTab';
 import { DemoDataTab } from './settings/DemoDataTab';
 
 export type SettingsSubTab = 'profile' | 'backup' | 'printer' | 'system' | 'scanner' | 'security' | 'demo';
@@ -44,15 +42,14 @@ export const SettingsView = ({
   activeSubTab = 'profile', 
 }: SettingsViewProps) => {
   const { flags, toggleFlag } = useFeatures();
-  const subTab = activeSubTab;
+  const { isRoot } = useAuth();
+  const allowedSubTabs = isRoot ? ['profile', 'backup', 'printer', 'system', 'scanner', 'demo'] : ['profile', 'backup', 'printer'];
+  const subTab = allowedSubTabs.includes(activeSubTab) ? activeSubTab : 'profile';
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
-  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
-  const [isUserManagerModalOpen, setIsUserManagerModalOpen] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
   const [isTourModalOpen, setIsTourModalOpen] = useState(false);
   const [isBenchmarkModalOpen, setIsBenchmarkModalOpen] = useState(false);
-  const [pinStatus, setPinStatus] = useState<any>(null);
   const [demoStatus, setDemoStatus] = useState<any>(null);
   const [storeName, setStoreName] = useState('متجر رفيق');
   const [cashierName, setCashierName] = useState('كاشير (1)');
@@ -63,6 +60,8 @@ export const SettingsView = ({
   const [receiptFooter, setReceiptFooter] = useState('شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل خلال 14 يوماً بموجب الفاتورة.');
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
   const [defaultCustomerCreditLimitEgp, setDefaultCustomerCreditLimitEgp] = useState(1000);
+  const [instapayFeePercent, setInstapayFeePercent] = useState<number>(1);
+  const [vodafoneCashFeePercent, setVodafoneCashFeePercent] = useState<number>(1);
   const [logoVariant, setLogoVariant] = useState<'classic' | 'modern'>(() => {
     try {
       const saved = localStorage.getItem('rafiq_logo_variant');
@@ -140,6 +139,14 @@ export const SettingsView = ({
             const lim = Number(settings.default_customer_credit_limit_egp);
             if (!isNaN(lim) && lim >= 0) setDefaultCustomerCreditLimitEgp(lim);
           }
+          if (settings.instapay_fee_percent !== undefined) {
+            const p = Number(settings.instapay_fee_percent);
+            if (!isNaN(p) && p >= 0) setInstapayFeePercent(p);
+          }
+          if (settings.vodafone_cash_fee_percent !== undefined) {
+            const p = Number(settings.vodafone_cash_fee_percent);
+            if (!isNaN(p) && p >= 0) setVodafoneCashFeePercent(p);
+          }
           if (settings.default_printer_name) setSelectedPrinter(settings.default_printer_name);
           if (settings.receipt_paper_width) setPaperWidth(settings.receipt_paper_width as '80mm' | '57mm' | 'a4');
           if (settings.printer_auto_print !== undefined) setAutoPrintOnSale(settings.printer_auto_print === '1');
@@ -160,11 +167,6 @@ export const SettingsView = ({
             const def = list.find((p) => p.isDefault);
             return def ? def.name : (list.length > 0 ? list[0].name : '');
           });
-        }
-
-        const secRes: any = await invoke('security:getStatus');
-        if (active && secRes) {
-          setPinStatus(secRes);
         }
 
         const dRes: any = await invoke('demo:getStatus');
@@ -191,23 +193,10 @@ export const SettingsView = ({
     }
   }, []);
 
-  const loadPinStatus = useCallback(async () => {
-    try {
-      const res: any = await invoke('security:getStatus');
-      setPinStatus(res);
-    } catch (err) {
-      console.error('Failed to load security status:', err);
-    }
-  }, []);
-
   // Auto-fetch data on subTab changes
   useEffect(() => {
     let isMounted = true;
-    if (subTab === 'security') {
-      void invoke('security:getStatus').then((res) => {
-        if (isMounted && res) setPinStatus(res);
-      }).catch(() => {});
-    } else if (subTab === 'demo') {
+    if (subTab === 'demo') {
       void invoke('demo:getStatus').then((res) => {
         if (isMounted && res) setDemoStatus(res);
       }).catch(() => {});
@@ -235,6 +224,8 @@ export const SettingsView = ({
         receipt_footer: receiptFooter.trim(),
         allow_negative_stock: allowNegativeStock ? '1' : '0',
         default_customer_credit_limit_egp: String(defaultCustomerCreditLimitEgp),
+        instapay_fee_percent: String(instapayFeePercent),
+        vodafone_cash_fee_percent: String(vodafoneCashFeePercent),
         logo_variant: logoVariant,
       };
       await invoke('settings:save', payload);
@@ -521,6 +512,10 @@ export const SettingsView = ({
           onToggleNegativeStock={handleToggleNegativeStock}
           defaultCustomerCreditLimitEgp={defaultCustomerCreditLimitEgp}
           setDefaultCustomerCreditLimitEgp={setDefaultCustomerCreditLimitEgp}
+          instapayFeePercent={instapayFeePercent}
+          setInstapayFeePercent={setInstapayFeePercent}
+          vodafoneCashFeePercent={vodafoneCashFeePercent}
+          setVodafoneCashFeePercent={setVodafoneCashFeePercent}
           logoVariant={logoVariant}
           setLogoVariant={handleLogoVariantChange}
           saveLoading={saveLoading}
@@ -529,7 +524,7 @@ export const SettingsView = ({
         />
       )}
 
-      {subTab === 'system' && (
+      {isRoot && subTab === 'system' && (
         <SystemDiagnosticsTab
           sysInfo={sysInfo}
           flags={flags}
@@ -545,18 +540,11 @@ export const SettingsView = ({
           supportMessage={supportMessage}
           setSupportMessage={setSupportMessage}
           runCreateSupportBundle={runCreateSupportBundle}
+          onOpenWizard={() => setIsWizardOpen(true)}
         />
       )}
 
-      {subTab === 'security' && (
-        <SecuritySettingsTab
-          pinStatus={pinStatus}
-          onOpenPinModal={() => setIsPinModalOpen(true)}
-          onOpenUserManagerModal={() => setIsUserManagerModalOpen(true)}
-        />
-      )}
-
-      {subTab === 'demo' && (
+      {isRoot && subTab === 'demo' && (
         <DemoDataTab
           demoStatus={demoStatus}
           onOpenTourModal={() => setIsTourModalOpen(true)}
@@ -570,18 +558,11 @@ export const SettingsView = ({
         onClose={() => setIsScannerModalOpen(false)}
       />
 
-      <PinSettingsModal
-        isOpen={isPinModalOpen}
-        onClose={() => setIsPinModalOpen(false)}
-        onStatusChanged={loadPinStatus}
-      />
-
       <FirstRunWizardModal
         isOpen={isWizardOpen}
         onClose={() => setIsWizardOpen(false)}
         onCompleted={() => {
           setIsWizardOpen(false);
-          void loadPinStatus();
           void loadDemoStatus();
           window.location.reload();
         }}
@@ -604,11 +585,6 @@ export const SettingsView = ({
       <SearchBenchmarkModal
         isOpen={isBenchmarkModalOpen}
         onClose={() => setIsBenchmarkModalOpen(false)}
-      />
-
-      <UserManagerModal
-        isOpen={isUserManagerModalOpen}
-        onClose={() => setIsUserManagerModalOpen(false)}
       />
 
     </div>

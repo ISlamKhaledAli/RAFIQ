@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, memo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import type { FC } from 'react';
 import { 
   ShoppingCart, 
@@ -6,7 +6,6 @@ import {
   FileText, 
   Settings, 
   Clock,
-  WifiOff,
   LayoutDashboard,
   Users,
   ShieldAlert,
@@ -34,6 +33,9 @@ import {
   Building2,
   HelpCircle,
   TrendingUp,
+  CreditCard,
+  Smartphone,
+  Layers,
 } from 'lucide-react';
 import { 
   NotificationBellButton, 
@@ -44,6 +46,7 @@ import { useSystemNotifications } from './utils/useSystemNotifications';
 import { invoke } from './bridge/ipc';
 import { useDataSubscription } from './utils/eventBus';
 import { PosView } from './views/PosView';
+import { EpayView, type EpaySubTab } from './views/epay/EpayView';
 import { DashboardView } from './views/DashboardView';
 import { RevenueAnalyticsView } from './views/analytics/RevenueAnalyticsView';
 import { InventoryAnalyticsView } from './views/analytics/InventoryAnalyticsView';
@@ -83,7 +86,7 @@ export interface SystemInfo {
   dbStatus: string;
 }
 
-export type TabType = 'pos' | 'dashboard' | 'customers' | 'products' | 'purchases' | 'sales' | 'audit' | 'settings';
+export type TabType = 'pos' | 'epay' | 'dashboard' | 'customers' | 'products' | 'purchases' | 'sales' | 'audit' | 'settings';
 
 
 
@@ -123,7 +126,7 @@ const HeaderClock: FC = memo(() => {
 });
 
 const ADMIN_ONLY_TABS: TabType[] = ['dashboard', 'products', 'purchases', 'sales', 'audit', 'settings'];
-const CASHIER_ALLOWED_TABS: TabType[] = ['pos', 'customers'];
+const CASHIER_ALLOWED_TABS: TabType[] = ['pos', 'epay', 'customers'];
 
 export default function App() {
   const { isEnabled } = useFeatures();
@@ -134,6 +137,8 @@ export default function App() {
 
   const [productsSubView, setProductsSubView] = useState<'catalog' | 'movements' | 'batches'>('catalog');
   const [isProductsMenuExpanded, setIsProductsMenuExpanded] = useState(false);
+  const [epaySubTab, setEpaySubTab] = useState<EpaySubTab>('pos');
+  const [isEpayMenuExpanded, setIsEpayMenuExpanded] = useState(false);
   const [dashboardSubTab, setDashboardSubTab] = useState<DashboardSubTab>('today');
   const [isDashboardMenuExpanded, setIsDashboardMenuExpanded] = useState(false);
   const [purchasesSubView, setPurchasesSubView] = useState<PurchasesSubView>('new_invoice');
@@ -580,27 +585,30 @@ export default function App() {
         if (e.key === '1') {
           e.preventDefault();
           setActiveTab('pos');
+        } else if (e.key === '2') {
+          e.preventDefault();
+          setActiveTab('epay');
         } else if (e.key === '3') {
           e.preventDefault();
           setActiveTab('customers');
         } else if (currentUser?.role !== 'cashier') {
-          if (e.key === '2') {
+          if (e.key === '4') {
             e.preventDefault();
             setActiveTab('dashboard');
-          } else if (e.key === '4') {
+          } else if (e.key === '5') {
             e.preventDefault();
             setActiveTab('products');
             setIsProductsMenuExpanded(true);
-          } else if (e.key === '5') {
-            e.preventDefault();
-            setActiveTab('purchases');
           } else if (e.key === '6') {
             e.preventDefault();
-            setActiveTab('sales');
+            setActiveTab('purchases');
           } else if (e.key === '7') {
             e.preventDefault();
-            setActiveTab('audit');
+            setActiveTab('sales');
           } else if (e.key === '8') {
+            e.preventDefault();
+            setActiveTab('audit');
+          } else if (e.key === '9') {
             e.preventDefault();
             setActiveTab('settings');
             setIsSettingsMenuExpanded(true);
@@ -669,6 +677,13 @@ export default function App() {
     if (subAction) subAction();
   };
 
+  const epayTreeItems = [
+    { id: 'pos' as EpaySubTab, label: 'تنفيذ عملية جديدة', icon: Smartphone },
+    { id: 'terminals' as EpaySubTab, label: 'أرصدة وماكينات الدفع', icon: Layers },
+    { id: 'history' as EpaySubTab, label: 'سجل العمليات والإيصالات', icon: Receipt },
+    { id: 'analytics' as EpaySubTab, label: 'التحليلات والأرباح المستقلة', icon: TrendingUp },
+  ];
+
   const dashboardTreeItems = [
     { id: 'today' as DashboardSubTab, label: 'لوحة اليوم والوردية', icon: LayoutDashboard },
     { id: 'revenue' as DashboardSubTab, label: 'حساب الإيرادات والأرباح', icon: TrendingUp },
@@ -676,39 +691,54 @@ export default function App() {
     { id: 'customers' as DashboardSubTab, label: 'العملاء وحسابات الشكك', icon: Users },
   ];
 
-  const settingsTreeItems = [
-    { id: 'profile' as SettingsSubTab, label: 'بيانات المحل والفاتورة', icon: Store },
-    { id: 'backup' as SettingsSubTab, label: 'نسخة احتياطية وحماية البيانات', icon: HardDrive },
-    { id: 'printer' as SettingsSubTab, label: 'إعدادات الطابعة والورق', icon: Printer },
-    { id: 'system' as SettingsSubTab, label: 'مفاتيح الميزات وفحص السيستم', icon: Activity },
-    { id: 'scanner' as SettingsSubTab, label: 'قارئ الباركود والاسكانر', icon: Barcode },
-    { id: 'security' as SettingsSubTab, label: 'الرقم السري وأمان الشاشات', icon: KeyRound },
-    { id: 'demo' as SettingsSubTab, label: 'بيانات تجريبية وتدريب', icon: FlaskConical },
-  ];
+  interface SettingsTreeItem {
+    id: SettingsSubTab;
+    label: string;
+    icon: any;
+  }
+
+  const settingsTreeItems = useMemo<SettingsTreeItem[]>(() => {
+    const items: SettingsTreeItem[] = [
+      { id: 'profile' as SettingsSubTab, label: 'بيانات المحل والفاتورة', icon: Store },
+      { id: 'backup' as SettingsSubTab, label: 'نسخة احتياطية وحماية البيانات', icon: HardDrive },
+      { id: 'printer' as SettingsSubTab, label: 'إعدادات الطابعة والورق', icon: Printer },
+    ];
+    if (isRoot) {
+      items.push(
+        { id: 'system' as SettingsSubTab, label: 'مفاتيح الميزات وفحص السيستم', icon: Activity },
+        { id: 'scanner' as SettingsSubTab, label: 'قارئ الباركود والاسكانر', icon: Barcode },
+        { id: 'demo' as SettingsSubTab, label: 'بيانات تجريبية وتدريب', icon: FlaskConical },
+      );
+    }
+    return items;
+  }, [isRoot]);
 
   const allNavItems = [
     { id: 'pos' as TabType, label: 'الكاشير وشاشة البيع', icon: ShoppingCart, shortcut: 'F1 / Alt+1' },
-    { id: 'dashboard' as TabType, label: 'لوحة اليوم والوردية', icon: LayoutDashboard, shortcut: 'Alt+2' },
-    { id: 'customers' as TabType, label: 'العملاء وحسابات الشكك', icon: Users, shortcut: 'Alt+3' },
-    { id: 'products' as TabType, label: 'الأصناف والمخزن', icon: Package, shortcut: 'Alt+4' },
-    { id: 'purchases' as TabType, label: 'فواتير الشراء والموردين', icon: Truck, shortcut: 'Alt+5' },
-    { id: 'sales' as TabType, label: 'سجل وفواتير البيع', icon: FileText, shortcut: 'Alt+6' },
-    { id: 'audit' as TabType, label: 'سجل المراقبة والأمان', icon: ShieldAlert, shortcut: 'Alt+7' },
-    { id: 'settings' as TabType, label: 'إعدادات المحل والسيستم', icon: Settings, shortcut: 'Alt+8' },
+    { id: 'epay' as TabType, label: 'خدمات وماكينات الدفع', icon: CreditCard, shortcut: 'Alt+2' },
+    { id: 'dashboard' as TabType, label: 'لوحة اليوم والوردية', icon: LayoutDashboard, shortcut: 'Alt+3' },
+    { id: 'customers' as TabType, label: 'العملاء وحسابات الشكك', icon: Users, shortcut: 'Alt+4' },
+    { id: 'products' as TabType, label: 'الأصناف والمخزن', icon: Package, shortcut: 'Alt+5' },
+    { id: 'purchases' as TabType, label: 'فواتير الشراء والموردين', icon: Truck, shortcut: 'Alt+6' },
+    { id: 'sales' as TabType, label: 'سجل وفواتير البيع', icon: FileText, shortcut: 'Alt+7' },
+    { id: 'audit' as TabType, label: 'سجل المراقبة والأمان', icon: ShieldAlert, shortcut: 'Alt+8' },
+    { id: 'settings' as TabType, label: 'إعدادات المحل والسيستم', icon: Settings, shortcut: 'Alt+9' },
   ];
 
-  const canAccessPos = hasPermission('pos.access') || hasPermission('pos');
-  const canAccessDashboard = hasPermission('reports.sales') || hasPermission('reports');
-  const canAccessCustomers = hasPermission('customers.view') || hasPermission('customers');
-  const canAccessProducts = hasPermission('products.view') || hasPermission('products');
-  const canAccessPurchases = hasPermission('purchases.view');
-  const canAccessSales = hasPermission('invoices.view');
-  const canAccessAudit = hasPermission('audit_log.view');
-  const canAccessSettings = hasPermission('settings.store') || hasPermission('settings');
+  const isOwnerOrAdmin = isRoot || isAdmin || currentUser?.username === 'admin';
+  const canAccessPos = isOwnerOrAdmin || hasPermission('pos.access') || hasPermission('pos');
+  const canAccessDashboard = isOwnerOrAdmin || hasPermission('reports.sales') || hasPermission('reports');
+  const canAccessCustomers = isOwnerOrAdmin || hasPermission('customers.view') || hasPermission('customers');
+  const canAccessProducts = isOwnerOrAdmin || hasPermission('products.view') || hasPermission('products');
+  const canAccessPurchases = isOwnerOrAdmin || hasPermission('purchases.view');
+  const canAccessSales = isOwnerOrAdmin || hasPermission('invoices.view');
+  const canAccessAudit = isRoot && hasPermission('audit_log.view');
+  const canAccessSettings = isOwnerOrAdmin || hasPermission('settings.store') || hasPermission('settings');
 
   const navItems = allNavItems.filter((item) => {
     switch (item.id) {
       case 'pos': return canAccessPos;
+      case 'epay': return true;
       case 'dashboard': return canAccessDashboard;
       case 'customers': return canAccessCustomers;
       case 'products': return canAccessProducts;
@@ -722,7 +752,7 @@ export default function App() {
 
   useEffect(() => {
     if (navItems.length > 0 && !navItems.some((n) => n.id === activeTab)) {
-      setActiveTab(navItems[0].id);
+      setActiveTab('pos');
     }
   }, [navItems, activeTab]);
 
@@ -747,7 +777,7 @@ export default function App() {
   if (!currentUser) {
     return (
       <div className="fixed inset-0 z-[9999] w-screen h-screen overflow-hidden select-none bg-canvas" dir="rtl">
-        <LoginScreen />
+        <LoginScreen onOpenWizard={() => setIsFirstRunWizardOpen(true)} />
         <RafiqDialogContainer />
       </div>
     );
@@ -782,16 +812,8 @@ export default function App() {
           </div>
         </div>
 
-        {/* Left Side: Offline status, Cashier Badge, Action Buttons, Date, Time */}
+        {/* Left Side: Cashier Badge, Action Buttons, Window Controls, Date & Time */}
         <div className="flex items-center gap-1.5 sm:gap-2 text-xs shrink-0">
-          {/* Offline Status Pill */}
-          <div className="flex items-center gap-1.5 bg-paid-soft border border-paid-border px-2 py-1 rounded-lg text-paid font-bold text-[11px] select-none shadow-2xs shrink-0">
-            <span className="w-2 h-2 rounded-full bg-paid animate-pulse"></span>
-            <span className="hidden sm:inline">أوفلاين • محلي</span>
-            <span className="sm:hidden">أوفلاين</span>
-            <WifiOff className="w-3.5 h-3.5 text-paid opacity-85 mr-0.5 shrink-0" />
-          </div>
-
           {/* Cashier / Employee Identity Badge */}
           <button
             type="button"
@@ -808,7 +830,7 @@ export default function App() {
             <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold shrink-0 ${
               isRoot ? 'bg-emerald-100 text-brand-dark border border-emerald-300' : isAdmin ? 'bg-amber-100 text-amber-900 border border-amber-200' : 'bg-surface-2 text-ink-muted border border-line'
             }`}>
-              {isRoot ? 'المالك (Root)' : isAdmin ? 'مدير' : (currentUser?.role || 'كاشير')}
+              {isRoot ? 'المطور (Root)' : isAdmin ? 'صاحب المحل' : (currentUser?.role || 'كاشير')}
             </span>
             <KeyRound className="w-3 h-3 text-ink-muted group-hover:text-paid transition-colors shrink-0" />
           </button>
@@ -826,6 +848,18 @@ export default function App() {
             </button>
           )}
 
+          {/* Readiness Checklist Button (Feature #137) - Root/Developer Only */}
+          {isRoot && (
+            <button
+              type="button"
+              onClick={() => setIsReadinessOpen(true)}
+              className="w-8 h-8 rounded-lg bg-surface hover:bg-paid-soft border border-line hover:border-paid text-paid flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
+              title="فحص جاهزية التشغيل والعتاد (Root)"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+            </button>
+          )}
+
           {/* Logout Button */}
           <button
             type="button"
@@ -840,58 +874,34 @@ export default function App() {
                 await logout();
               }
             }}
-            className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-surface hover:bg-danger/10 border border-line hover:border-danger/30 text-ink-muted hover:text-danger font-bold text-xs shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer shrink-0"
+            className="w-8 h-8 rounded-lg bg-surface hover:bg-danger/10 border border-line hover:border-danger/30 text-ink-muted hover:text-danger flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
             title="تسجيل الخروج وقفل النظام"
           >
-            <Power className="w-3.5 h-3.5 text-danger shrink-0" />
-            <span className="hidden xl:inline">خروج</span>
+            <Power className="w-4 h-4 text-danger" />
           </button>
-
-          {/* Readiness Checklist Button (Feature #137) - Admin Only */}
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={() => setIsReadinessOpen(true)}
-              className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-surface hover:bg-paid-soft border border-paid-border hover:border-paid text-paid font-bold text-xs shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer shrink-0"
-              title="فحص جاهزية النظام والعتاد قبل أول بيع"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5 text-paid shrink-0" />
-              <span className="hidden xl:inline">جاهزية التشغيل</span>
-            </button>
-          )}
 
           {/* Minimize Window Button */}
           <button
             type="button"
             onClick={handleMinimizeWindow}
-            className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-surface hover:bg-surface-2 border border-line hover:border-ink-muted text-ink font-bold text-xs shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer shrink-0"
+            className="w-8 h-8 rounded-lg bg-surface hover:bg-surface-2 border border-line hover:border-ink-muted text-ink-muted hover:text-ink flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
             title="تصغير التطبيق إلى شريط المهام"
           >
-            <Minus className="w-3.5 h-3.5 text-ink-muted shrink-0" />
-            <span className="hidden lg:inline">تصغير</span>
+            <Minus className="w-4 h-4" />
           </button>
 
           {/* Fullscreen Kiosk Mode Toggle */}
           <button
             type="button"
             onClick={handleToggleFullscreen}
-            className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-surface hover:bg-surface-2 border border-line hover:border-ink-muted text-ink font-bold text-xs shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer shrink-0"
-            title={isFullscreen ? 'الخروج من ملء الشاشة (F11)' : 'ملء الشاشة بالكامل وإخفاء شريط ويندوز (F11)'}
+            className="w-8 h-8 rounded-lg bg-surface hover:bg-surface-2 border border-line hover:border-ink-muted text-ink-muted hover:text-ink flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
+            title={isFullscreen ? 'الخروج من ملء الشاشة (F11)' : 'ملء الشاشة بالكامل (F11)'}
           >
             {isFullscreen ? (
-              <>
-                <Minimize2 className="w-3.5 h-3.5 text-ink-muted shrink-0" />
-                <span className="hidden lg:inline">نافذة</span>
-              </>
+              <Minimize2 className="w-4 h-4 text-ink-muted" />
             ) : (
-              <>
-                <Maximize2 className="w-3.5 h-3.5 text-paid shrink-0" />
-                <span className="hidden lg:inline">ملء الشاشة</span>
-              </>
+              <Maximize2 className="w-4 h-4 text-paid" />
             )}
-            <kbd className="hidden 2xl:inline-flex items-center justify-center px-1 py-0.2 rounded bg-surface-2 border border-line text-ink-muted font-mono text-[9px] font-bold">
-              F11
-            </kbd>
           </button>
 
           {/* Notification Bell Button with live Badge */}
@@ -969,6 +979,7 @@ export default function App() {
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = effectiveActiveTab === item.id;
+              const isEpayItem = item.id === 'epay';
               const isDashboardItem = item.id === 'dashboard';
               const isProductsItem = item.id === 'products';
               const isPurchasesItem = item.id === 'purchases';
@@ -981,6 +992,7 @@ export default function App() {
                     type="button"
                     onClick={() => {
                       handleNavClick(item.id, () => {
+                        if (isEpayItem) setEpaySubTab('pos');
                         if (isDashboardItem) setDashboardSubTab('today');
                         if (isProductsItem) setProductsSubView('catalog');
                         if (isPurchasesItem) setPurchasesSubView('invoices');
@@ -1010,7 +1022,13 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => {
-                      if (isDashboardItem) {
+                      if (isEpayItem) {
+                        if (effectiveActiveTab !== 'epay') {
+                          handleNavClick('epay', () => setIsEpayMenuExpanded(true));
+                        } else {
+                          setIsEpayMenuExpanded(!isEpayMenuExpanded);
+                        }
+                      } else if (isDashboardItem) {
                         if (effectiveActiveTab !== 'dashboard') {
                           handleNavClick('dashboard', () => setIsDashboardMenuExpanded(true));
                         } else {
@@ -1056,9 +1074,9 @@ export default function App() {
                       )}
                     </div>
 
-                    {(isDashboardItem || isProductsItem || isPurchasesItem || isSettingsItem) && (
+                    {(isEpayItem || isDashboardItem || isProductsItem || isPurchasesItem || isSettingsItem) && (
                       <span className={`shrink-0 ${isActive ? 'text-white/80' : 'text-[#52605d]'}`}>
-                        {(isDashboardItem ? isDashboardMenuExpanded : isProductsItem ? isProductsMenuExpanded : isPurchasesItem ? isPurchasesMenuExpanded : isSettingsMenuExpanded) ? (
+                        {(isEpayItem ? isEpayMenuExpanded : isDashboardItem ? isDashboardMenuExpanded : isProductsItem ? isProductsMenuExpanded : isPurchasesItem ? isPurchasesMenuExpanded : isSettingsMenuExpanded) ? (
                           <ChevronDown className="w-3.5 h-3.5" />
                         ) : (
                           <ChevronLeft className="w-3.5 h-3.5" />
@@ -1066,6 +1084,37 @@ export default function App() {
                       </span>
                     )}
                   </button>
+
+                  {/* Sub-tree for Epay (SuperPay / Terminals / POS / Analytics) */}
+                  {isEpayItem && isEpayMenuExpanded && (
+                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-[#00372d]/25 animate-in slide-in-from-top-1 duration-150">
+                      {epayTreeItems.map((sub) => {
+                        const SubIcon = sub.icon;
+                        const isSubActive = effectiveActiveTab === 'epay' && epaySubTab === sub.id;
+                        return (
+                          <button
+                            key={sub.id}
+                            type="button"
+                            title={sub.label}
+                            onClick={() => {
+                              setActiveTab('epay');
+                              setEpaySubTab(sub.id);
+                            }}
+                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
+                              isSubActive
+                                ? 'bg-[#006d41] text-white font-bold shadow-2xs'
+                                : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white' : 'text-[#52605d]'}`} />
+                              <span className="truncate">{sub.label}</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   {/* Sub-tree for Dashboard & Executive Analytics */}
                   {isDashboardItem && isDashboardMenuExpanded && (
@@ -1312,14 +1361,25 @@ export default function App() {
         <main className="flex-1 h-full overflow-hidden bg-canvas relative">
           {/* POS View is always mounted, kept alive, and instant */}
           <div className={`h-full w-full ${effectiveActiveTab === 'pos' ? '' : 'hidden'}`}>
-            <PosView isActive={effectiveActiveTab === 'pos'} />
+            <PosView isActive={effectiveActiveTab === 'pos'} onNavigateToEpay={() => { setActiveTab('epay'); setEpaySubTab('pos'); setIsEpayMenuExpanded(true); }} />
           </div>
+
+          {/* E-Payment Terminals & Services View (SuperPay / Fawry / Aman) */}
+          {visitedTabs.has('epay') && (
+            <div className={`h-full w-full ${effectiveActiveTab === 'epay' ? '' : 'hidden'}`}>
+              <EpayView 
+                activeSubTab={epaySubTab}
+                onSubTabChange={(tab) => setEpaySubTab(tab)}
+              />
+            </div>
+          )}
 
           {!isCashier && visitedTabs.has('dashboard') && (
             <div className={`h-full w-full overflow-hidden ${effectiveActiveTab === 'dashboard' ? '' : 'hidden'}`}>
               {visitedDashboardSubTabs.has('today') && (
                 <div className={`h-full w-full ${dashboardSubTab === 'today' ? '' : 'hidden'}`}>
                   <DashboardView 
+                    isActive={effectiveActiveTab === 'dashboard' && dashboardSubTab === 'today'}
                     onNavigateToPos={() => setActiveTab('pos')} 
                     onNavigateToProducts={(sub?: 'catalog' | 'movements' | 'batches', filter?: 'all' | 'lowStock' | 'outOfStock') => {
                       setActiveTab('products');
@@ -1340,17 +1400,22 @@ export default function App() {
               )}
               {visitedDashboardSubTabs.has('revenue') && (
                 <div className={`h-full w-full ${dashboardSubTab === 'revenue' ? '' : 'hidden'}`}>
-                  <RevenueAnalyticsView />
+                  <RevenueAnalyticsView isActive={effectiveActiveTab === 'dashboard' && dashboardSubTab === 'revenue'} />
                 </div>
               )}
               {visitedDashboardSubTabs.has('inventory') && (
                 <div className={`h-full w-full ${dashboardSubTab === 'inventory' ? '' : 'hidden'}`}>
-                  <InventoryAnalyticsView />
+                  <InventoryAnalyticsView 
+                    isActive={effectiveActiveTab === 'dashboard' && dashboardSubTab === 'inventory'}
+                  />
                 </div>
               )}
               {visitedDashboardSubTabs.has('customers') && (
                 <div className={`h-full w-full ${dashboardSubTab === 'customers' ? '' : 'hidden'}`}>
-                  <CustomerAnalyticsView onNavigateToCustomers={() => setActiveTab('customers')} />
+                  <CustomerAnalyticsView 
+                    isActive={effectiveActiveTab === 'dashboard' && dashboardSubTab === 'customers'}
+                    onNavigateToCustomers={() => setActiveTab('customers')} 
+                  />
                 </div>
               )}
             </div>
@@ -1358,7 +1423,7 @@ export default function App() {
 
           {visitedTabs.has('customers') && (
             <div className={`h-full w-full ${effectiveActiveTab === 'customers' ? '' : 'hidden'}`}>
-              <CustomersView />
+              <CustomersView isActive={effectiveActiveTab === 'customers'} />
             </div>
           )}
 
@@ -1377,6 +1442,7 @@ export default function App() {
           {!isCashier && visitedTabs.has('purchases') && (
             <div className={`h-full w-full ${effectiveActiveTab === 'purchases' ? '' : 'hidden'}`}>
               <PurchasesView 
+                isActive={effectiveActiveTab === 'purchases'}
                 subView={purchasesSubView} 
                 onSubViewChange={(tab) => setPurchasesSubView(tab)} 
               />
@@ -1391,7 +1457,7 @@ export default function App() {
 
           {!isCashier && visitedTabs.has('audit') && (
             <div className={`h-full w-full ${effectiveActiveTab === 'audit' ? '' : 'hidden'}`}>
-              <AuditLogView />
+              <AuditLogView isActive={effectiveActiveTab === 'audit'} />
             </div>
           )}
 
@@ -1452,10 +1518,7 @@ export default function App() {
           void refreshUser();
           setCashierName(user.displayName);
           setIsLoginModalOpen(false);
-          // Cashiers are guided to POS
-          if (user.role === 'cashier' && activeTab !== 'pos' && activeTab !== 'customers') {
-            setActiveTab('pos');
-          }
+          setActiveTab('pos');
         }}
       />
 

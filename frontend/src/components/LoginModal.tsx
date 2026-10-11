@@ -46,11 +46,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const fetchUsers = useCallback(async () => {
     try {
       const users: UserDto[] = await invoke('auth:getActiveUsers');
-      setActiveUsers(users || []);
-      if (users && users.length > 0) {
+      const filtered = (users || []).filter((u) => u.role !== 'root');
+      setActiveUsers(filtered);
+      if (filtered.length > 0) {
         setSelectedUser((current) => {
-          if (current && users.some((u) => u.id === current.id)) return current;
-          return users.find((u) => u.role === 'cashier') || users[0];
+          if (current && filtered.some((u) => u.id === current.id)) return current;
+          return filtered.find((u) => u.role === 'cashier') || filtered[0];
         });
       }
     } catch (err: any) {
@@ -65,9 +66,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     void invoke<UserDto[]>('auth:getActiveUsers')
       .then((users) => {
         if (!isMounted) return;
-        setActiveUsers(users || []);
-        if (users && users.length > 0) {
-          const defaultPick = users.find((u) => u.role === 'cashier') || users[0];
+        const filtered = (users || []).filter((u) => u.role !== 'root');
+        setActiveUsers(filtered);
+        if (filtered.length > 0) {
+          const defaultPick = filtered.find((u) => u.role === 'cashier') || filtered[0];
           setSelectedUser(defaultPick);
           if (defaultPick.isLocked && defaultPick.remainingLockoutSeconds) {
             setLockoutSec(defaultPick.remainingLockoutSeconds);
@@ -252,7 +254,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                             : 'bg-paid-soft text-paid border border-paid-border'
                         }`}
                       >
-                        {isAdmin ? 'مدير' : 'كاشير'}
+                        {isAdmin ? 'صاحب المحل' : 'كاشير'}
                       </span>
                     </button>
                   );

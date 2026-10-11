@@ -10,8 +10,11 @@ import {
   X, 
   Calendar,
   AlertCircle,
+  Receipt,
+  Smartphone,
+  Wallet,
   CreditCard,
-  Receipt
+  Zap
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { DailyClosing, DailyClosingPreview } from '../types/models';
@@ -256,7 +259,8 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                         <th className="p-3">يوم العمل</th>
                         <th className="p-3">وقت الإقفال</th>
                         <th className="p-3">إجمالي المبيعات</th>
-                        <th className="p-3">فيزا / بنك</th>
+                        <th className="p-3">انستاباي</th>
+                        <th className="p-3">فودافون كاش</th>
                         <th className="p-3">مصروفات الدرج</th>
                         <th className="p-3">المتوقع بالدرج</th>
                         <th className="p-3">النقد الفعلي</th>
@@ -273,7 +277,8 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                             <td className="p-3">{h.businessDate}</td>
                             <td className="p-3 text-xs text-ink-muted" dir="ltr">{h.closedAt ? h.closedAt.substring(0, 16) : '-'}</td>
                             <td className="p-3 font-semibold text-ink">{formatArabicCurrency(h.totalSalesPiasters)}</td>
-                            <td className="p-3 text-brand font-medium">{formatArabicCurrency(h.cardSalesPiasters || 0)}</td>
+                            <td className="p-3 text-[#582C83] font-medium">{formatArabicCurrency(h.instapaySalesPiasters || 0)}</td>
+                            <td className="p-3 text-[#e60000] font-medium">{formatArabicCurrency(h.vodafoneCashSalesPiasters || 0)}</td>
                             <td className="p-3 text-danger font-medium">{formatArabicCurrency(h.expensesPiasters || 0)}</td>
                             <td className="p-3 text-ink-muted">{formatArabicCurrency(h.expectedCashPiasters)}</td>
                             <td className="p-3 font-semibold text-brand">{formatArabicCurrency(h.actualCashPiasters)}</td>
@@ -384,7 +389,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
               </div>
 
               {/* Financial Metrics Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
                 <div className="bg-surface p-3.5 rounded-xl border border-line shadow-xs">
                   <span className="text-xs text-ink-muted block mb-1">إجمالي المبيعات</span>
                   <span className="text-lg font-bold text-ink">
@@ -407,14 +412,27 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
 
                 <div className="bg-surface p-3.5 rounded-xl border border-line shadow-xs relative overflow-hidden">
                   <span className="text-xs text-ink-muted flex items-center justify-between mb-1">
-                    <span>فيزا / ماكينة POS</span>
-                    <CreditCard className="w-3.5 h-3.5 text-brand" />
+                    <span>انستاباي (InstaPay)</span>
+                    <Smartphone className="w-3.5 h-3.5 text-[#582C83]" />
                   </span>
-                  <span className="text-lg font-bold text-ink">
-                    {formatArabicCurrency(preview.cardSalesPiasters || 0)}
+                  <span className="text-lg font-bold text-[#582C83]">
+                    {formatArabicCurrency(preview.instapaySalesPiasters || 0)}
                   </span>
                   <div className="text-[11px] text-ink-muted mt-1">
-                    حساب بنكي (خارج الدرج)
+                    إلكتروني (خارج الدرج)
+                  </div>
+                </div>
+
+                <div className="bg-surface p-3.5 rounded-xl border border-line shadow-xs relative overflow-hidden">
+                  <span className="text-xs text-ink-muted flex items-center justify-between mb-1">
+                    <span>فودافون كاش ومحافظ</span>
+                    <Wallet className="w-3.5 h-3.5 text-[#e60000]" />
+                  </span>
+                  <span className="text-lg font-bold text-[#e60000]">
+                    {formatArabicCurrency(preview.vodafoneCashSalesPiasters || 0)}
+                  </span>
+                  <div className="text-[11px] text-ink-muted mt-1">
+                    محافظ (خارج الدرج)
                   </div>
                 </div>
 
@@ -461,13 +479,13 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
 
               {/* Drawer Cash Reconciliation Section (The Core of Feature #49) */}
               <div className="bg-surface p-5 rounded-2xl border-2 border-line shadow-xs space-y-4">
-                <div className="flex items-center justify-between border-b border-line pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-line pb-3 gap-1.5">
                   <div className="flex items-center gap-2">
                     <Coins className="w-5 h-5 text-brand" />
-                    <h3 className="font-bold text-ink text-base">جرد ومطابقة الفلوس اللي في الدرج</h3>
+                    <h3 className="font-bold text-ink text-base">1. جرد ومطابقة نقدية درج كاشير المحل (كاش البضاعة)</h3>
                   </div>
                   <span className="text-xs text-ink-muted">
-                    حسبة الدرج = مبيعات الكاش + سداد الديون − المرتجعات − مصاريف الدرج (مبيعات الفيزا بتدخل البنك ومش في الدرج)
+                    حسبة الدرج = مبيعات الكاش (الصافي) + سداد الديون − المرتجعات − مصاريف الدرج (انستاباي والمحافظ بتدخل البنك خارج الدرج)
                   </span>
                 </div>
 
@@ -475,12 +493,12 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                   
                   {/* Expected Cash in Drawer */}
                   <div className="p-4 rounded-xl bg-surface-2 border border-line">
-                    <span className="text-xs text-ink-muted block mb-1 font-medium">المفروض يكون في الدرج</span>
+                    <span className="text-xs text-ink-muted block mb-1 font-medium">المفروض يكون في درج المحل</span>
                     <span className="text-2xl font-black text-ink block">
                       {formatArabicCurrency(expectedCash)}
                     </span>
                     <span className="text-[11px] text-ink-muted mt-1 block">
-                      محسوب تلقائياً من فواتير ومصاريف الوردية
+                      محسوب تلقائياً من مبيعات بضاعة المحل ومصاريفها
                     </span>
                   </div>
 
@@ -488,7 +506,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-ink flex items-center justify-between">
                       <span>الفلوس اللي عديتها في الدرج بإيدك *</span>
-                      <span className="text-[11px] text-brand font-medium">اكتب الفلوس اللي عديتها</span>
+                      <span className="text-[11px] text-brand font-medium">كاش درج البضاعة فقط</span>
                     </label>
                     <MoneyInput
                       valuePiasters={isAlreadyClosed && closedRecord ? closedRecord.actualCashPiasters : actualCashPiasters}
@@ -504,7 +522,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                   <div className={`p-4 rounded-xl border flex flex-col justify-center ${
                     isMatch 
                       ? 'bg-paid-soft border-paid/30 text-paid'
-                      : isShortage
+                      : isShortage 
                         ? 'bg-red-50 border-red-200 text-danger'
                         : 'bg-amber-50 border-amber-200 text-warn'
                   }`}>
@@ -539,6 +557,70 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                     className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-line bg-white text-ink focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand disabled:bg-surface-2"
                   />
                 </div>
+              </div>
+
+              {/* 2. Epay & Terminal Reconciliation Section (Fawry / Aman / SuperPay) */}
+              <div className="bg-surface p-5 rounded-2xl border-2 border-line shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-line pb-3 gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="w-5 h-5 text-paid" />
+                    <h3 className="font-bold text-ink text-base">2. جرد وعهدة ماكينات وخدمات الدفع (SuperPay / فوري / أمان)</h3>
+                  </div>
+                  <span className="text-xs text-paid bg-paid-soft px-2.5 py-0.5 rounded-full font-bold border border-paid/20">
+                    عهدة مستقلة مفصولة عن بضاعة المحل
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Metric 1: Terminal Current Balance */}
+                  <div className="p-3.5 rounded-xl bg-surface-2 border border-line">
+                    <div className="flex items-center justify-between text-xs text-ink-muted mb-1">
+                      <span>رصيد الماكينات الإلكتروني المتوفر</span>
+                      <Zap className="w-3.5 h-3.5 text-paid" />
+                    </div>
+                    <span className="text-xl font-black text-paid block">
+                      {formatArabicCurrency(preview.epayTerminalsBalancePiasters || 0)}
+                    </span>
+                    <span className="text-[11px] text-ink-muted mt-1 block">
+                      جاهز للشحن والفواتير بالماكينة
+                    </span>
+                  </div>
+
+                  {/* Metric 2: Terminal Till Cash Collected */}
+                  <div className="p-3.5 rounded-xl bg-surface-2 border border-line">
+                    <div className="flex items-center justify-between text-xs text-ink-muted mb-1">
+                      <span>نقدية محفظة الماكينة المحصلة اليوم</span>
+                      <Wallet className="w-3.5 h-3.5 text-brand" />
+                    </div>
+                    <span className="text-xl font-black text-brand block">
+                      {formatArabicCurrency(preview.epayTillCashPiasters || 0)}
+                    </span>
+                    <span className="text-[11px] text-ink-muted mt-1 block">
+                      نقدية في جيب/شنطة المكنة (خارج درج المحل)
+                    </span>
+                  </div>
+
+                  {/* Metric 3: E-services Net Profit */}
+                  <div className="p-3.5 rounded-xl bg-surface-2 border border-line">
+                    <div className="flex items-center justify-between text-xs text-ink-muted mb-1">
+                      <span>صافي أرباح وعمولات الخدمات</span>
+                      <TrendingUp className="w-3.5 h-3.5 text-paid" />
+                    </div>
+                    <span className="text-xl font-black text-paid block">
+                      {formatArabicCurrency(preview.epayNetProfitPiasters || 0)}
+                    </span>
+                    <span className="text-[11px] text-ink-muted mt-1 block">
+                      أرباح كاش + عمولات الشركات المنفذة
+                    </span>
+                  </div>
+                </div>
+
+                {(preview.epayDrawerFundingPiasters || 0) > 0 && (
+                  <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-warn text-xs flex items-center justify-between">
+                    <span>تم سحب مبلغ من درج المحل لتغذية الماكينة: <strong>{formatArabicCurrency(preview.epayDrawerFundingPiasters || 0)}</strong></span>
+                    <span className="text-[11px] text-ink-muted font-medium">مخصوم تلقائياً من حسبة كاش الدرج أعلاه</span>
+                  </div>
+                )}
               </div>
 
               {/* Profit & Zero-cost alert (Story 84 / Feature #46) */}

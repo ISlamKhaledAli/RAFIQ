@@ -11,7 +11,9 @@ import {
   Search,
   X,
   Receipt,
-  Check
+  Check,
+  Smartphone,
+  Wallet
 } from 'lucide-react';
 import type { Customer, Sale } from '../../types/models';
 import type { CartItem } from './types';
@@ -32,7 +34,8 @@ interface PosCartCheckoutBarProps {
   netTotalPiasters: number;
   loading: boolean;
   handleOpenCheckout: (forcedMethod?: 'cash' | 'credit') => void;
-  handleFastCardCheckout: () => Promise<void>;
+  handleInstapayCheckout: () => Promise<void>;
+  handleVodafoneCashCheckout: () => Promise<void>;
   requestClearCart: () => void;
   lastCompletedSale: Sale | null;
   onOpenReceipt: () => void;
@@ -60,7 +63,8 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
   netTotalPiasters,
   loading,
   handleOpenCheckout,
-  handleFastCardCheckout,
+  handleInstapayCheckout,
+  handleVodafoneCashCheckout,
   requestClearCart,
   lastCompletedSale,
   onOpenReceipt,
@@ -109,46 +113,46 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
   };
 
   return (
-    <div className="bg-surface border-t border-line shadow-[0_-4px_12px_rgba(0,0,0,0.03)] p-2 sm:p-2.5 flex flex-col gap-2 shrink-0 select-none">
+    <div className="bg-surface border-t border-line shadow-[0_-2px_8px_rgba(0,0,0,0.03)] p-1.5 sm:p-2 flex flex-col gap-1.5 shrink-0 select-none">
       
-      {/* 1. Upper Info & Support Actions Strip */}
-      <div className="flex items-center justify-between gap-1.5 flex-wrap pb-1.5 border-b border-line/60">
+      {/* 1. Upper Info & Support Actions Strip - Single neat non-wrapping row */}
+      <div className="flex items-center justify-between gap-1 flex-nowrap pb-1 border-b border-line/60 overflow-x-auto no-scrollbar">
         
         {/* Cart Meta (Invoice #, Count, Discount, Customer Quick Badge) */}
-        <div className="flex items-center gap-1.5 flex-wrap text-xs">
+        <div className="flex items-center gap-1 text-xs shrink-0">
           <div className="flex items-center gap-1 font-bold">
-            <span className="text-ink">فاتورة:</span>
-            <span className="text-[11px] font-mono font-bold text-paid bg-paid-soft border border-paid-border px-2 py-0.5 rounded-md shadow-2xs">
+            <span className="text-ink text-[11px]">فاتورة:</span>
+            <span className="text-[10px] sm:text-[11px] font-mono font-bold text-paid bg-paid-soft border border-paid-border px-1.5 py-0.5 rounded-md shadow-2xs">
               #{nextExpectedInvoiceNumber || (lastInvoiceNumber ? lastInvoiceNumber + 1 : '1')}
             </span>
           </div>
 
-          <span className="text-[11px] text-ink-muted font-semibold bg-surface-2 px-2 py-0.5 rounded-md border border-line">
+          <span className="text-[10px] sm:text-[11px] text-ink-muted font-semibold bg-surface-2 px-1.5 py-0.5 rounded-md border border-line whitespace-nowrap">
             {cart.length} صنف ({totalItemCount} حتة)
           </span>
 
           {discountPiasters > 0 && (
-            <span className="text-[11px] text-danger font-bold bg-danger-soft px-2 py-0.5 rounded-md border border-danger-border">
+            <span className="text-[10px] sm:text-[11px] text-danger font-bold bg-danger-soft px-1.5 py-0.5 rounded-md border border-danger-border whitespace-nowrap">
               خصم: -{formatArabicCurrency(discountPiasters)}
             </span>
           )}
 
-          {/* Quick Customer Indicator / Button (Point 3 Solution) */}
+          {/* Quick Customer Indicator / Button */}
           {selectedCust ? (
             <div 
               onClick={() => setIsCustomerModalOpen(true)}
-              className={`flex items-center gap-1.5 text-[11px] font-bold px-2 py-0.5 rounded-md border cursor-pointer transition-all shadow-2xs hover:opacity-90 ${
+              className={`flex items-center gap-1 text-[10px] sm:text-[11px] font-bold px-1.5 py-0.5 rounded-md border cursor-pointer transition-all shadow-2xs hover:opacity-90 whitespace-nowrap ${
                 paymentMethod === 'credit'
                   ? 'bg-rose-50 border-rose-200 text-danger'
                   : 'bg-paid-soft border-paid/30 text-paid'
               }`}
               title="اضغط لتغيير الزبون أو تبديل طريقة الدفع"
             >
-              <UserCheck className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate max-w-[110px]">{selectedCust.name}</span>
+              <UserCheck className="w-3 h-3 shrink-0" />
+              <span className="truncate max-w-[80px]">{selectedCust.name}</span>
               {selectedCust.balancePiasters > 0 && (
-                <span className="text-[10px] font-mono text-danger font-bold">
-                  (عليه {formatArabicCurrency(selectedCust.balancePiasters)})
+                <span className="text-[9px] font-mono text-danger font-bold">
+                  ({formatArabicCurrency(selectedCust.balancePiasters)})
                 </span>
               )}
               {onChangePaymentMethod && (
@@ -158,7 +162,7 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
                     e.stopPropagation();
                     onChangePaymentMethod(paymentMethod === 'credit' ? 'cash' : 'credit');
                   }}
-                  className={`px-1 rounded text-[10px] font-bold border transition ${
+                  className={`px-1 rounded text-[9px] font-bold border transition ${
                     paymentMethod === 'credit'
                       ? 'bg-danger text-white border-danger'
                       : 'bg-surface text-ink border-line hover:bg-surface-2'
@@ -174,47 +178,37 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
                 className="p-0.5 hover:bg-black/10 rounded text-ink-muted hover:text-danger transition"
                 title="إلغاء الزبون (بيع عادي كاش)"
               >
-                <X className="w-3 h-3" />
+                <X className="w-2.5 h-2.5" />
               </button>
             </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setIsCustomerModalOpen(true)}
-              className="flex items-center gap-1 text-[11px] font-bold text-brand bg-brand-soft hover:bg-brand-soft/80 border border-brand/20 px-2 py-0.5 rounded-md transition shadow-2xs cursor-pointer active:scale-95"
-              title="اختيار زبون للفاتورة أو بيع شكك"
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>اختار زبون</span>
-            </button>
-          )}
+          ) : null}
         </div>
 
-        {/* Support Action Buttons (جديدة, تعليق, معلقة, مرتجع, مصروف, الإيصال) */}
-        <div className="flex items-center gap-1 sm:gap-1.5">
-          {/* مصروف درج (نثريات) */}
+        {/* Support Action Buttons (مصروف, تفريغ, تعليق, معلقة, مرتجع, وصل) */}
+        <div className="flex items-center gap-1 shrink-0">
+          {/* مصروف درج */}
           {onOpenExpenseModal && (
             <button
               type="button"
               onClick={onOpenExpenseModal}
-              className="h-7.5 px-2 bg-surface hover:bg-rose-50 text-danger border border-line hover:border-danger/30 text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap"
+              className="h-6.5 sm:h-7 px-1.5 sm:px-2 bg-surface hover:bg-rose-50 text-danger border border-line hover:border-danger/30 text-[10px] sm:text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap"
               title="تسجيل مصروف نثريات طلع من الدرج"
             >
               <Receipt className="w-3 h-3 shrink-0" />
-              <span>مصروف درج</span>
+              <span>مصروف</span>
             </button>
           )}
 
-          {/* جديدة [F7] */}
+          {/* تفريغ [F7] */}
           <button 
             type="button"
             onClick={requestClearCart}
             disabled={cart.length === 0}
-            className="h-7.5 px-2 bg-surface hover:bg-danger-soft text-danger disabled:text-ink-muted/50 border border-danger-border disabled:border-line text-[11px] font-bold rounded-lg flex items-center justify-center gap-1 transition-all shadow-2xs cursor-pointer active:scale-95 disabled:opacity-50 whitespace-nowrap"
+            className="h-6.5 sm:h-7 px-1.5 sm:px-2 bg-surface hover:bg-danger-soft text-danger disabled:text-ink-muted/50 border border-danger-border disabled:border-line text-[10px] sm:text-[11px] font-bold rounded-lg flex items-center justify-center gap-1 transition-all shadow-2xs cursor-pointer active:scale-95 disabled:opacity-50 whitespace-nowrap"
             title="تفريغ السلة وفاتورة جديدة (F7)"
           >
             <RotateCcw className="w-3 h-3 shrink-0" />
-            <span>تفريغ السلة F7</span>
+            <span>تفريغ</span>
           </button>
 
           {/* تعليق [F6] */}
@@ -222,21 +216,21 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
             type="button"
             onClick={() => void handleHoldCurrentSale()}
             disabled={cart.length === 0}
-            className="h-7.5 px-2 bg-surface hover:bg-surface-2 text-ink disabled:text-ink-muted/50 border border-line hover:border-paid/40 text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50 whitespace-nowrap"
+            className="h-6.5 sm:h-7 px-1.5 sm:px-2 bg-surface hover:bg-surface-2 text-ink disabled:text-ink-muted/50 border border-line hover:border-paid/40 text-[10px] sm:text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50 whitespace-nowrap"
             title="تعليق الفاتورة الحالية (F6)"
           >
             <Clock className="w-3 h-3 text-ink-muted shrink-0" />
-            <span>تعليق F6</span>
+            <span>تعليق</span>
           </button>
 
-          {/* معلقة */}
+          {/* فواتير معلقة */}
           <button
             type="button"
             onClick={onOpenHeldSales}
-            className="h-7.5 px-2 bg-surface hover:bg-warn-soft text-ink border border-line hover:border-warn text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap"
+            className="h-6.5 sm:h-7 px-1.5 sm:px-2 bg-surface hover:bg-warn-soft text-ink border border-line hover:border-warn text-[10px] sm:text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap"
             title="عرض واسترجاع الفواتير المعلقة"
           >
-            <span>فواتير معلقة</span>
+            <span>معلقة</span>
             {heldSalesCount > 0 && (
               <span className="w-4 h-4 rounded-full bg-warn text-white font-mono text-[9px] flex items-center justify-center font-bold shrink-0">
                 {heldSalesCount}
@@ -248,11 +242,11 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
           <button
             type="button"
             onClick={onOpenReturnModal}
-            className="h-7.5 px-2 bg-warn-soft hover:bg-amber-100 text-amber-900 border border-warn-border text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap"
+            className="h-6.5 sm:h-7 px-1.5 sm:px-2 bg-warn-soft hover:bg-amber-100 text-amber-900 border border-warn-border text-[10px] sm:text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap"
             title="تسجيل مرتجع بضاعة (F11)"
           >
             <Undo2 className="w-3 h-3 shrink-0 text-amber-700" />
-            <span>مرتجع F11</span>
+            <span>مرتجع</span>
           </button>
 
           {/* الإيصال إذا كان متاحاً */}
@@ -260,90 +254,95 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
             <button 
               type="button"
               onClick={onOpenReceipt}
-              className="h-7.5 px-2 bg-surface border border-line hover:border-paid/50 hover:bg-paid-soft text-paid text-[11px] font-semibold rounded-lg flex items-center justify-center gap-1 transition-all shadow-2xs cursor-pointer whitespace-nowrap"
+              className="h-6.5 sm:h-7 px-1.5 sm:px-2 bg-surface border border-line hover:border-paid/50 hover:bg-paid-soft text-paid text-[10px] sm:text-[11px] font-semibold rounded-lg flex items-center justify-center gap-1 transition-all shadow-2xs cursor-pointer whitespace-nowrap"
               title="معاينة وطباعة وصل آخر فاتورة"
             >
               <Eye className="w-3 h-3 text-paid shrink-0" />
-              <span>وصل البيع</span>
+              <span>وصل</span>
             </button>
           )}
         </div>
       </div>
 
       {/* 2. Main Hero Section: Grand Total Card + Primary Payment Buttons */}
-      <div className="flex flex-row items-stretch gap-2 min-h-[60px]">
+      <div className="flex flex-row items-stretch gap-1.5 sm:gap-2 h-[52px]">
         
-        {/* Grand Total Hero Card ("المطلوب دفعه") */}
-        <div className="flex-1 min-w-[160px] bg-gradient-to-br from-brand-dark via-brand to-brand-hover rounded-xl border border-brand px-3 py-1.5 flex flex-col justify-between shadow-[0_4px_12px_rgba(0,55,45,0.18)]">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-emerald-200">المطلوب دفعه</span>
-            {showTaxes && totalTaxPiasters > 0 && (
-              <span className="text-[10px] font-medium text-emerald-300">
-                (شامل الضريبة)
+        {/* Grand Total Hero Card ("المطلوب دفعه") - Sized proportionally as the largest card */}
+        <div className="flex-[1.3] min-w-0 bg-gradient-to-br from-brand-dark via-brand to-brand-hover rounded-xl border border-brand/80 px-2.5 sm:px-3 py-1 flex flex-col justify-between shadow-[0_2px_8px_rgba(0,55,45,0.18)] select-none">
+          <div className="flex items-center justify-between leading-none">
+            <span className="text-[10px] sm:text-[11px] font-bold text-emerald-200">المطلوب دفعه</span>
+            {showTaxes && totalTaxPiasters > 0 ? (
+              <span className="text-[9px] font-medium text-emerald-300">
+                (شامل)
               </span>
+            ) : (
+              <span className="text-[10px] sm:text-[11px] font-bold text-emerald-100">ج.م</span>
             )}
-            <span className="text-[11px] font-bold text-emerald-100">ج.م</span>
           </div>
-          <div className="flex items-baseline justify-end pt-0.5">
-            <span className="text-white text-2xl sm:text-[26px] leading-tight font-black font-mono tabular-nums tracking-tight">
+          <div className="flex items-baseline justify-end leading-none pt-0.5">
+            <span className="text-white text-xl sm:text-[23px] font-black font-mono tracking-tight tabular-nums truncate">
               {formatArabicCurrency(netTotalPiasters)}
             </span>
           </div>
         </div>
 
-        {/* Primary Checkout Triggers (كاش / فيزا / شكك) */}
-        <div className="flex-1 min-w-[200px] sm:min-w-[260px] flex items-stretch gap-1.5 sm:gap-2">
+        {/* Primary Checkout Triggers (كاش / انستاباي / محافظ / شكك) - Evenly balanced */}
+        <div className="flex-[2.7] min-w-0 flex items-stretch gap-1 sm:gap-1.5">
           {paymentMethod === 'credit' ? (
-            /* شكك [F12] */
+            /* شكك */
             <button 
               type="button"
               onClick={() => handleOpenCheckout('credit')}
               disabled={loading || cart.length === 0}
-              className="w-full h-full bg-danger hover:bg-red-700 active:bg-red-800 disabled:bg-surface-2 disabled:text-ink-muted text-white rounded-xl px-3 flex items-center justify-between transition-all shadow-sm active:scale-[0.98] cursor-pointer"
+              className="w-full h-full bg-danger hover:bg-red-700 active:bg-red-800 disabled:bg-surface-2 disabled:text-ink-muted text-white rounded-xl px-3 sm:px-4 flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-[0.98] cursor-pointer"
+              title="تسجيل بيع شكك (F12)"
             >
-              <div className="flex items-center gap-1.5 min-w-0">
-                <CreditCard className="w-4 h-4 shrink-0" />
-                <span className="text-xs sm:text-sm font-bold truncate">
-                  تسجيل بيع شكك {selectedCust ? `(${selectedCust.name})` : ''}
-                </span>
-              </div>
-              <span className="text-[10px] font-mono bg-white/20 px-2 py-0.5 rounded text-white font-bold shrink-0">
-                F12
+              <CreditCard className="w-4 h-4 shrink-0" />
+              <span className="text-xs sm:text-sm font-bold truncate">
+                تسجيل بيع شكك {selectedCust ? `(${selectedCust.name})` : ''}
               </span>
             </button>
           ) : (
             <>
-              {/* كاش [F9] */}
+              {/* كاش */}
               <button 
                 type="button"
                 onClick={() => handleOpenCheckout('cash')}
                 disabled={loading || cart.length === 0}
-                className="flex-1 h-full bg-brand hover:bg-brand-dark active:bg-brand-hover disabled:bg-surface-2 disabled:text-ink-muted/60 text-white rounded-xl px-2.5 sm:px-3 flex items-center justify-between transition-all shadow-sm active:scale-[0.98] cursor-pointer"
+                className="flex-1 min-w-0 h-full bg-brand hover:bg-brand-dark active:bg-brand-hover disabled:bg-surface-2 disabled:text-ink-muted/50 text-white rounded-xl px-2 py-1 flex flex-col justify-center items-center gap-0.5 transition-all shadow-sm active:scale-[0.98] cursor-pointer"
                 title="دفع كاش وحساب الباقي (F9)"
               >
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <Banknote className="w-4 h-4 shrink-0" />
-                  <span className="text-xs sm:text-sm font-extrabold truncate">كاش</span>
-                </div>
-                <span className="text-[10px] font-mono bg-white/20 px-1.5 py-0.5 rounded text-white/90 font-bold shrink-0">
-                  F9
+                <Banknote className="w-3.5 h-3.5 shrink-0 text-white/90" />
+                <span className="text-[11px] sm:text-xs font-black truncate text-center leading-none">
+                  كاش
                 </span>
               </button>
 
-              {/* فيزا [F10] */}
+              {/* انستاباي */}
               <button 
                 type="button"
-                onClick={() => void handleFastCardCheckout()}
+                onClick={() => void handleInstapayCheckout()}
                 disabled={loading || cart.length === 0}
-                className="flex-1 h-full bg-[#006d41] hover:bg-[#005230] active:bg-[#003d24] disabled:bg-surface-2 disabled:text-ink-muted/60 text-white rounded-xl px-2.5 sm:px-3 flex items-center justify-between transition-all shadow-sm active:scale-[0.98] cursor-pointer"
-                title="سداد فوري عبر الفيزا / ماكينة POS (F10)"
+                className="flex-1 min-w-0 h-full bg-[#582C83] hover:bg-[#462269] active:bg-[#371954] disabled:bg-surface-2 disabled:text-ink-muted/50 text-white rounded-xl px-2 py-1 flex flex-col justify-center items-center gap-0.5 transition-all shadow-sm active:scale-[0.98] cursor-pointer"
+                title="سداد فوري عبر انستاباي (F10)"
               >
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <CreditCard className="w-4 h-4 shrink-0" />
-                  <span className="text-xs sm:text-sm font-extrabold truncate">فيزا</span>
-                </div>
-                <span className="text-[10px] font-mono bg-white/20 px-1.5 py-0.5 rounded text-white/90 font-bold shrink-0">
-                  F10
+                <Smartphone className="w-3.5 h-3.5 shrink-0 text-white/90" />
+                <span className="text-[11px] sm:text-xs font-black truncate text-center leading-none">
+                  انستاباي
+                </span>
+              </button>
+
+              {/* فودافون كاش ومحافظ */}
+              <button 
+                type="button"
+                onClick={() => void handleVodafoneCashCheckout()}
+                disabled={loading || cart.length === 0}
+                className="flex-1 min-w-0 h-full bg-[#e60000] hover:bg-[#cc0000] active:bg-[#b30000] disabled:bg-surface-2 disabled:text-ink-muted/50 text-white rounded-xl px-2 py-1 flex flex-col justify-center items-center gap-0.5 transition-all shadow-sm active:scale-[0.98] cursor-pointer"
+                title="سداد عبر فودافون كاش والمحافظ الإلكترونية"
+              >
+                <Wallet className="w-3.5 h-3.5 shrink-0 text-white/90" />
+                <span className="text-[11px] sm:text-xs font-black truncate text-center leading-none">
+                  فودافون كاش
                 </span>
               </button>
             </>

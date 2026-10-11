@@ -14,6 +14,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { useDataSubscription } from '../utils/eventBus';
 import { CustomSelect } from '../components/CustomSelect';
 import { PaginationBar } from '../components/PaginationBar';
 import { useClientPagination } from '../utils/usePagination';
@@ -32,7 +33,11 @@ const ACTION_FILTERS = [
   { id: 'product_create', label: 'إضافة أصناف جديدة' },
 ];
 
-export const AuditLogView = () => {
+export interface AuditLogViewProps {
+  isActive?: boolean;
+}
+
+export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) => {
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const showLoading = useSmoothLoading(loading, 300);
@@ -92,6 +97,7 @@ export const AuditLogView = () => {
   };
 
   useEffect(() => {
+    if (!isActive) return;
     let active = true;
     void (async () => {
       try {
@@ -113,7 +119,11 @@ export const AuditLogView = () => {
     return () => {
       active = false;
     };
-  }, [selectedAction]);
+  }, [selectedAction, isActive]);
+
+  useDataSubscription(['all'], () => {
+    void loadAuditLogs();
+  });
 
   const renderDetails = (log: AuditLogEntry) => {
     if (!log.detailsJson) return <span className="text-ink-muted text-xs">—</span>;
