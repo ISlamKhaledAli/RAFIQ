@@ -585,9 +585,14 @@ namespace RafiqPOS.Services
             var user = _userRepo.GetById(userId);
             if (user == null) throw new ArgumentException("الموظف غير موجود");
 
-            if (user.Role == "root" || user.Role == "admin" || user.Username == "admin")
+            if (user.Role == "root" || user.Username == "root")
             {
-                throw new InvalidOperationException("حساب صاحب المحل يملك جميع الصلاحيات دائماً ولا يمكن تقييده أو سحب الصلاحيات منه.");
+                throw new InvalidOperationException("حساب الـ Root يملك جميع الصلاحيات دائماً ولا يمكن تقييده أو سحب الصلاحيات منه.");
+            }
+
+            if ((user.Role == "admin" || user.Username == "admin") && !IsCurrentSessionRoot())
+            {
+                throw new InvalidOperationException("لا يمكن تعديل صلاحيات صاحب المحل إلا من خلال حساب الـ Root الأعلى.");
             }
 
             string permsJson = permissions != null ? JsonConvert.SerializeObject(permissions) : "{}";
@@ -1418,7 +1423,7 @@ namespace RafiqPOS.Services
         {
             if (u == null) return new Dictionary<string, bool>();
 
-            if (u.Role == "root" || u.Role == "admin" || u.Username == "admin")
+            if (u.Role == "root" || u.Username == "root")
             {
                 return GetAllPermissionsDictionary(true);
             }

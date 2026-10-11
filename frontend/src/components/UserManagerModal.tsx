@@ -415,8 +415,12 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
 
   // Start Manage Permissions
   const handleStartPermissions = (user: UserDto) => {
-    if (isOwnerOrAdmin(user)) {
-      setError('حساب صاحب المحل يمتلك كافة صلاحيات النظام بشكل دائم وتلقائي، ولا يمكن تقييد أو سحب الصلاحيات منه.');
+    if (user.role === 'root' || user.username === 'root') {
+      setError('حساب الروت يمتلك كافة صلاحيات النظام بشكل دائم وتلقائي، ولا يمكن تقييد أو سحب الصلاحيات منه.');
+      return;
+    }
+    if (isOwnerOrAdmin(user) && !isRootSession) {
+      setError('لا يمكن تعديل صلاحيات صاحب المحل والمدير إلا من خلال حساب الـ Root الأعلى.');
       return;
     }
     setSelectedUser(user);
@@ -426,7 +430,11 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
     const perms: Record<string, boolean> = {};
     PERMISSION_GROUPS.forEach((g) => {
       g.items.forEach((p) => {
-        perms[p.key] = user.role === 'root' ? true : !!(user.permissions && user.permissions[p.key]);
+        if (user.permissions && user.permissions[p.key] !== undefined) {
+          perms[p.key] = !!user.permissions[p.key];
+        } else {
+          perms[p.key] = user.role === 'root' || user.role === 'admin';
+        }
       });
     });
     setPermissionsState(perms);
@@ -576,16 +584,20 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
     e.preventDefault();
     if (!selectedUser) return;
 
-    if (isOwnerOrAdmin(selectedUser)) {
-      setError('حساب صاحب المحل يمتلك كافة الصلاحيات بشكل دائم ولا يمكن تقييدها أو سحبها.');
+    if (selectedUser.role === 'root' || selectedUser.username === 'root') {
+      setError('حساب الروت يمتلك كافة الصلاحيات بشكل دائم ولا يمكن تقييدها أو سحبها.');
+      return;
+    }
+    if (isOwnerOrAdmin(selectedUser) && !isRootSession) {
+      setError('لا يمكن تعديل صلاحيات صاحب المحل إلا من خلال حساب الـ Root الأعلى.');
       return;
     }
 
     // Build checked permissions dictionary
     const finalPerms: Record<string, boolean> = {};
     Object.keys(permissionsState).forEach((key) => {
-      // If parent does not hold it, enforce false
-      if (permissionsState[key] && parentHoldsPermission(key)) {
+      // If root session, root has all permissions, otherwise enforce parentHoldsPermission
+      if (permissionsState[key] && (isRootSession || parentHoldsPermission(key))) {
         finalPerms[key] = true;
       } else {
         finalPerms[key] = false;
@@ -884,10 +896,10 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
             )}
 
             {/* Manage Permissions */}
-            {isOwnerOrAdmin(node) ? (
+            {(node.role === 'root' || node.username === 'root') || (isOwnerOrAdmin(node) && !isRootSession) ? (
               <span
                 className="px-2.5 py-1.5 bg-paid-soft text-paid text-xs font-bold rounded-lg border border-paid-border flex items-center gap-1.5 shadow-2xs select-none"
-                title="صاحب المحل يمتلك كافة صلاحيات المنظومة بشكل دائم وتلقائي"
+                title={node.role === 'root' ? 'حساب الروت محمي بكامل الصلاحيات دائماً' : 'صاحب المحل محمي بكامل الصلاحيات أمام الموظفين'}
               >
                 <ShieldCheck className="w-3.5 h-3.5 text-paid shrink-0" />
                 <span>كامل الصلاحيات</span>
@@ -897,7 +909,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                 type="button"
                 onClick={() => handleStartPermissions(node)}
                 className="px-2.5 py-1.5 bg-surface hover:bg-surface-2 text-ink text-xs font-bold rounded-lg border border-line transition-colors flex items-center gap-1.5 cursor-pointer"
-                title="تعديل مصفوفة الصلاحيات"
+                title={isOwnerOrAdmin(node) ? 'تعديل وتحديد صلاحيات صاحب المحل' : 'تعديل مصفوفة الصلاحيات'}
               >
                 <Shield className="w-3.5 h-3.5 text-brand" />
                 <span>الصلاحيات</span>
@@ -1183,7 +1195,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                               </td>
                               <td className="px-4 py-3">
                                 <div className="flex items-center justify-center gap-1.5">
-                                  {isOwnerOrAdmin(u) ? (
+                                  {(u.role === 'root' || u.username === 'root') || (isOwnerOrAdmin(u) && !isRootSession) ? (
                                     <span
                                       className="px-2 py-1 bg-paid-soft text-paid rounded-lg text-xs font-bold border border-paid-border flex items-center gap-1 shadow-2xs select-none"
                                       title="صاحب المحل يمتلك كافة صلاحيات النظام بشكل دائم"
@@ -1927,7 +1939,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
           <div className="flex items-center gap-3">
             <span>الحسابات المسجلة: {users.length}</span>
             <span>•</span>
-            <span>حساب صاحب المحل والمدير محمي بكامل الصلاحيات دائماً</span>
+            <span>{isRootSession ? 'جلسة الروت: يمكنك تخصيص وتعديل صلاحيات صاحب المحل' : 'حساب صاحب المحل والمدير محمي بكامل الصلاحيات'}</span>
           </div>
         </div>
       </div>

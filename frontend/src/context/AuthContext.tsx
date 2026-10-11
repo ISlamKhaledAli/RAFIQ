@@ -68,12 +68,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const hasPermission = useCallback((permKey: string): boolean => {
     if (!permKey) return true;
     if (!currentUser) return false;
-    // Store owner and root ALWAYS have all permissions unconditionally
-    if (currentUser.role === 'root' || currentUser.role === 'admin' || currentUser.username === 'admin') {
+    if (currentUser.role === 'root' || currentUser.username === 'root') {
       return true;
     }
     if (currentUser.permissions && currentUser.permissions[permKey] !== undefined) {
       return currentUser.permissions[permKey] === true;
+    }
+    // Admin role defaults to true for operational permissions unless explicitly revoked
+    if (currentUser.role === 'admin' || currentUser.username === 'admin') {
+      return true;
     }
     return false;
   }, [currentUser]);

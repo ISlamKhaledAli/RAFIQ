@@ -718,16 +718,15 @@ export default function App() {
     { id: 'settings' as TabType, label: 'إعدادات المحل والسيستم', icon: Settings, shortcut: 'Alt+9' },
   ];
 
-  const isOwnerOrAdmin = isRoot || isAdmin || currentUser?.username === 'admin';
-  const canAccessPos = isOwnerOrAdmin || hasPermission('pos.access') || hasPermission('pos');
-  const canAccessEpay = isOwnerOrAdmin || hasPermission('epay.access') || hasPermission('epay');
-  const canAccessDashboard = isOwnerOrAdmin || hasPermission('reports.sales') || hasPermission('reports');
-  const canAccessCustomers = isOwnerOrAdmin || hasPermission('customers.view') || hasPermission('customers');
-  const canAccessProducts = isOwnerOrAdmin || hasPermission('products.view') || hasPermission('products');
-  const canAccessPurchases = isOwnerOrAdmin || hasPermission('purchases.view');
-  const canAccessSales = isOwnerOrAdmin || hasPermission('invoices.view');
+  const canAccessPos = isRoot || hasPermission('pos.access') || hasPermission('pos');
+  const canAccessEpay = isRoot || hasPermission('epay.access') || hasPermission('epay');
+  const canAccessDashboard = isRoot || hasPermission('reports.sales') || hasPermission('reports');
+  const canAccessCustomers = isRoot || hasPermission('customers.view') || hasPermission('customers');
+  const canAccessProducts = isRoot || hasPermission('products.view') || hasPermission('products');
+  const canAccessPurchases = isRoot || hasPermission('purchases.view');
+  const canAccessSales = isRoot || hasPermission('invoices.view');
   const canAccessAudit = isRoot && hasPermission('audit_log.view');
-  const canAccessSettings = isOwnerOrAdmin || hasPermission('settings.store') || hasPermission('settings');
+  const canAccessSettings = isRoot || hasPermission('settings.store') || hasPermission('settings');
 
   const epayTreeItems = useMemo(() => {
     const items = [
@@ -735,11 +734,11 @@ export default function App() {
       { id: 'terminals' as EpaySubTab, label: 'أرصدة وماكينات الدفع', icon: Layers },
       { id: 'history' as EpaySubTab, label: 'سجل العمليات والإيصالات', icon: Receipt },
     ];
-    if (isOwnerOrAdmin || hasPermission('epay.analytics')) {
+    if (isRoot || hasPermission('epay.analytics')) {
       items.push({ id: 'analytics' as EpaySubTab, label: 'التحليلات والأرباح المستقلة', icon: TrendingUp });
     }
     return items;
-  }, [isOwnerOrAdmin, hasPermission]);
+  }, [isRoot, hasPermission]);
 
   const navItems = allNavItems.filter((item) => {
     switch (item.id) {

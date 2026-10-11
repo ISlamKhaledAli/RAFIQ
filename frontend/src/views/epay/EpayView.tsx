@@ -1219,9 +1219,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
                           setFundingAmountPiasters(100000);
                           setIsFundingModalOpen(true);
                         }}
-                        className="w-full py-2.5 bg-surface-2 hover:bg-surface border border-line hover:border-line-hover text-ink rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs active:scale-98"
+                        className="w-full py-2.5 px-4 bg-paid hover:bg-paid-dark text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all duration-150 cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-98 group"
                       >
-                        <Zap className="w-4 h-4 text-paid" />
+                        <Zap className="w-4 h-4 text-emerald-200 fill-emerald-200/30 group-hover:fill-white group-hover:text-white transition-all group-hover:scale-110" />
                         <span>شحن وتغذية الرصيد</span>
                       </button>
                     )}
