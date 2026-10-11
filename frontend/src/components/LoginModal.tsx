@@ -175,7 +175,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       onKeyDown={handleKeyDown}
       tabIndex={0}
     >
-      <div className="bg-surface border border-line rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col">
+      <div className="bg-surface border border-line rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col">
         {/* Sleek Top Accent Line */}
         <div className="h-1.5 w-full bg-brand" />
 
@@ -226,15 +226,15 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                       key={user.id}
                       type="button"
                       onClick={() => handleSelectUser(user)}
-                      className={`w-full text-right p-3.5 rounded-xl border transition-all flex items-center justify-between gap-3 ${
+                      className={`w-full text-right p-3 rounded-xl border transition-all flex items-center justify-between gap-2.5 cursor-pointer ${
                         isSelected
                           ? 'bg-brand-soft border-brand shadow-xs ring-1 ring-brand/50'
                           : 'bg-surface border-line hover:border-brand/40 hover:bg-surface-2'
                       }`}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
                         <div
-                          className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-sm ${
+                          className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-sm shrink-0 shadow-2xs ${
                             isAdmin
                               ? 'bg-warn-soft text-warn border border-warn-border'
                               : 'bg-brand-soft text-brand border border-brand/20'
@@ -242,13 +242,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                         >
                           {user.displayName.slice(0, 1)}
                         </div>
-                        <div>
-                          <div className="font-bold text-ink text-sm">{user.displayName}</div>
-                          <div className="text-[11px] text-ink-muted font-mono">@{user.username}</div>
+                        <div className="min-w-0">
+                          <div className="font-bold text-ink text-sm whitespace-nowrap truncate">{user.displayName}</div>
+                          <div className="text-[11px] text-ink-muted font-mono whitespace-nowrap truncate">@{user.username}</div>
                         </div>
                       </div>
                       <span
-                        className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
+                        className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold whitespace-nowrap shrink-0 ${
                           isAdmin
                             ? 'bg-warn-soft text-warn border border-warn-border'
                             : 'bg-paid-soft text-paid border border-paid-border'
