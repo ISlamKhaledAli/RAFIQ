@@ -24,7 +24,6 @@ import {
   Printer,
   Activity,
   Barcode,
-  KeyRound,
   FlaskConical,
   Power,
   Truck,
@@ -198,7 +197,6 @@ export default function App() {
   const [isReadinessOpen, setIsReadinessOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(true);
   const [storeName, setStoreName] = useState('رفيق POS');
-  const [cashierName, setCashierName] = useState('كاشير (1)');
   const [logoVariant, setLogoVariant] = useState<'classic' | 'modern'>(() => {
     try {
       const saved = localStorage.getItem('rafiq_logo_variant');
@@ -537,7 +535,6 @@ export default function App() {
       const s: any = await invoke('settings:getAll');
       if (s) {
         if (s.store_name) setStoreName(s.store_name);
-        if (s.cashier_name) setCashierName((prev) => prev || s.cashier_name);
         if (s.logo_variant === 'modern' || s.logo_variant === 'classic') {
           setLogoVariant(s.logo_variant);
           try {
@@ -728,17 +725,35 @@ export default function App() {
   const canAccessAudit = isRoot && hasPermission('audit_log.view');
   const canAccessSettings = isRoot || hasPermission('settings.store') || hasPermission('settings');
 
+  const canAccessEpayTerminals = isRoot || isAdmin || hasPermission('epay.terminals_manage') || hasPermission('epay.fund');
+  const canAccessEpayHistory = isRoot || isAdmin || hasPermission('epay.history');
+  const canAccessEpayAnalytics = isRoot || isAdmin || hasPermission('epay.analytics');
+
   const epayTreeItems = useMemo(() => {
     const items = [
       { id: 'pos' as EpaySubTab, label: 'تنفيذ عملية جديدة', icon: Smartphone },
-      { id: 'terminals' as EpaySubTab, label: 'أرصدة وماكينات الدفع', icon: Layers },
-      { id: 'history' as EpaySubTab, label: 'سجل العمليات والإيصالات', icon: Receipt },
     ];
-    if (isRoot || hasPermission('epay.analytics')) {
+    if (canAccessEpayTerminals) {
+      items.push({ id: 'terminals' as EpaySubTab, label: 'أرصدة وماكينات الدفع', icon: Layers });
+    }
+    if (canAccessEpayHistory) {
+      items.push({ id: 'history' as EpaySubTab, label: 'سجل العمليات والإيصالات', icon: Receipt });
+    }
+    if (canAccessEpayAnalytics) {
       items.push({ id: 'analytics' as EpaySubTab, label: 'التحليلات والأرباح المستقلة', icon: TrendingUp });
     }
     return items;
-  }, [isRoot, hasPermission]);
+  }, [canAccessEpayTerminals, canAccessEpayHistory, canAccessEpayAnalytics]);
+
+  useEffect(() => {
+    if (epaySubTab === 'terminals' && !canAccessEpayTerminals) {
+      setEpaySubTab('pos');
+    } else if (epaySubTab === 'history' && !canAccessEpayHistory) {
+      setEpaySubTab('pos');
+    } else if (epaySubTab === 'analytics' && !canAccessEpayAnalytics) {
+      setEpaySubTab('pos');
+    }
+  }, [epaySubTab, canAccessEpayTerminals, canAccessEpayHistory, canAccessEpayAnalytics]);
 
   const navItems = allNavItems.filter((item) => {
     switch (item.id) {
@@ -817,29 +832,8 @@ export default function App() {
           </div>
         </div>
 
-        {/* Left Side: Cashier Badge, Action Buttons, Window Controls, Date & Time */}
+        {/* Left Side: Staff Management, Action Buttons, Window Controls, Date & Time */}
         <div className="flex items-center gap-1.5 sm:gap-2 text-xs shrink-0">
-          {/* Cashier / Employee Identity Badge */}
-          <button
-            type="button"
-            onClick={() => setIsLoginModalOpen(true)}
-            className="flex items-center gap-1.5 bg-surface hover:bg-surface-2 border border-line hover:border-paid/50 px-2 py-1 rounded-lg text-ink text-xs font-medium shadow-2xs transition-all cursor-pointer group active:scale-[0.98] shrink-0"
-            title="انقر لتبديل الموظف أو قفل الشاشة"
-          >
-            <div className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-extrabold shrink-0 ${
-              isRoot ? 'bg-brand text-white shadow-2xs' : isAdmin ? 'bg-warn text-white shadow-2xs' : 'bg-paid text-white shadow-2xs'
-            }`}>
-              {currentUser?.displayName ? currentUser.displayName.slice(0, 1) : 'ك'}
-            </div>
-            <span className="font-bold text-ink text-xs max-w-[90px] sm:max-w-[120px] truncate">{currentUser?.displayName || cashierName || 'كاشير (1)'}</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold shrink-0 ${
-              isRoot ? 'bg-emerald-100 text-brand-dark border border-emerald-300' : isAdmin ? 'bg-amber-100 text-amber-900 border border-amber-200' : 'bg-surface-2 text-ink-muted border border-line'
-            }`}>
-              {isRoot ? 'المطور (Root)' : isAdmin ? 'صاحب المحل' : (currentUser?.role || 'كاشير')}
-            </span>
-            <KeyRound className="w-3 h-3 text-ink-muted group-hover:text-paid transition-colors shrink-0" />
-          </button>
-
           {/* Manage Users Button for Admin/Root or authorized managers (Task 166-4) */}
           {(isAdmin || hasPermission('users.view')) && (
             <button
@@ -849,7 +843,7 @@ export default function App() {
               title="إدارة حسابات الموظفين والصلاحيات والشجرة"
             >
               <Users className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-              <span className="hidden xl:inline">الموظفون</span>
+              <span>الموظفون</span>
             </button>
           )}
 
@@ -1519,9 +1513,8 @@ export default function App() {
         isOpen={isLoginModalOpen}
         canCancel={Boolean(currentUser)}
         onClose={() => setIsLoginModalOpen(false)}
-        onSuccess={(user) => {
+        onSuccess={() => {
           void refreshUser();
-          setCashierName(user.displayName);
           setIsLoginModalOpen(false);
           setActiveTab('pos');
         }}

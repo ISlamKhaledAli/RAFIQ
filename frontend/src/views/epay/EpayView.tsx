@@ -81,11 +81,20 @@ export const EpayView: React.FC<EpayViewProps> = ({
     }
   }, [activeSubTab]);
 
-  const activeTab = activeSubTab || internalTab;
+  const activeTabRaw = activeSubTab || internalTab;
   const { hasPermission, isRoot, isAdmin } = useAuth();
   const canFund = isRoot || isAdmin || hasPermission('epay.fund');
   const canManageTerminals = isRoot || isAdmin || hasPermission('epay.terminals_manage');
   const canViewAnalytics = isRoot || isAdmin || hasPermission('epay.analytics');
+  const canViewHistory = isRoot || isAdmin || hasPermission('epay.history');
+  const canAccessTerminals = isRoot || isAdmin || canManageTerminals || canFund;
+
+  const activeTab: EpaySubTab = useMemo(() => {
+    if (activeTabRaw === 'terminals' && !canAccessTerminals) return 'pos';
+    if (activeTabRaw === 'history' && !canViewHistory) return 'pos';
+    if (activeTabRaw === 'analytics' && !canViewAnalytics) return 'pos';
+    return activeTabRaw;
+  }, [activeTabRaw, canAccessTerminals, canViewHistory, canViewAnalytics]);
 
   const [terminals, setTerminals] = useState<EpayTerminal[]>([]);
   const [transactions, setTransactions] = useState<EpayTransaction[]>([]);
@@ -584,8 +593,8 @@ export const EpayView: React.FC<EpayViewProps> = ({
         </div>
       </header>
 
-      {/* 2. Top Summary 4-KPI Cards (Displayed only on Terminals tab) */}
-      {activeTab === 'terminals' && (
+      {/* 2. Top Summary 4-KPI Cards (Displayed only on Terminals tab for authorized users) */}
+      {activeTab === 'terminals' && canAccessTerminals && (
         <section className="px-4 sm:px-6 pt-3.5 shrink-0">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
             {/* Card 1: إجمالي رصيد الماكينات */}
@@ -1131,7 +1140,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
         )}
 
         {/* TAB 2: TERMINALS & FUNDING */}
-        {activeTab === 'terminals' && (
+        {activeTab === 'terminals' && canAccessTerminals && (
           <div className="max-w-6xl mx-auto flex flex-col gap-5">
             <div className="flex items-center justify-between">
               <div>
@@ -1369,7 +1378,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
         )}
 
         {/* TAB 3: TRANSACTION HISTORY */}
-        {activeTab === 'history' && (
+        {activeTab === 'history' && canViewHistory && (
           <div className="max-w-6xl mx-auto flex flex-col gap-5">
             {/* Filter Bar */}
             <div className="bg-surface rounded-2xl border border-line shadow-2xs p-4 flex flex-col gap-3">

@@ -87,6 +87,7 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'epay.transact', label: 'تنفيذ عمليات الدفع وشحن الرصيد', description: 'تسجيل ودفع فواتير، كروت شحن، تحويل محافظ' },
       { key: 'epay.fund', label: 'تغذية وشحن رصيد الماكينات', description: 'إضافة وشحن رصيد لماكينات الدفع من الدرج أو البنك' },
       { key: 'epay.terminals_manage', label: 'إدارة وضبط ماكينات الدفع', description: 'إضافة وتعديل بيانات الماكينات وحساباتها والعمولات الافتراضية' },
+      { key: 'epay.history', label: 'سجل العمليات والإيصالات', description: 'الاطلاع على أرشيف عمليات الدفع والإيصالات المطبوعة' },
       { key: 'epay.analytics', label: 'الاطلاع على أرباح وتحليلات الماكينات', description: 'عرض تقارير صافي الربح وعمولات الشركات المستقلة' },
     ],
   },
@@ -399,12 +400,11 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
         initialPerms[p.key] = false;
       });
     });
-    // Give basic cashier permissions by default
+    // Give basic cashier permissions by default (strictly limited to active selling)
     initialPerms['pos.access'] = true;
     initialPerms['pos.sell'] = true;
     initialPerms['epay.access'] = true;
     initialPerms['epay.transact'] = true;
-    initialPerms['invoices.view'] = true;
     initialPerms['products.view'] = true;
     initialPerms['customers.view'] = true;
 

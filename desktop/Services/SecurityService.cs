@@ -150,18 +150,64 @@ namespace RafiqPOS.Services
                     if (oChanged) _userRepo.Update(ownerUser);
                 }
 
-                // 3. Ensure Cashier 1 exists and is linked under admin
-                var cashierUser = _userRepo.GetByUsername("cashier1");
-                if (cashierUser == null)
+                // 3. Ensure Cashier 1 exists and is linked under admin, and clean any stale unauthorized permissions
+                var allUsers = _userRepo.GetAll();
+                if (allUsers != null)
                 {
-                    cashierUser = _userRepo.GetById("usr_cashier_1");
-                }
-                if (cashierUser != null)
-                {
-                    if (cashierUser.ParentId != "usr_admin_default")
+                    foreach (var u in allUsers)
                     {
-                        cashierUser.ParentId = "usr_admin_default";
-                        _userRepo.Update(cashierUser);
+                        if (u != null && u.Role == "cashier")
+                        {
+                            bool uChanged = false;
+                            if (string.IsNullOrEmpty(u.ParentId))
+                            {
+                                u.ParentId = "usr_admin_default";
+                                uChanged = true;
+                            }
+                            if (!string.IsNullOrEmpty(u.PermissionsJson))
+                            {
+                                try
+                                {
+                                    var pDict = JsonConvert.DeserializeObject<Dictionary<string, bool>>(u.PermissionsJson);
+                                    if (pDict != null)
+                                    {
+                                        if (pDict.ContainsKey("invoices.view") && pDict["invoices.view"])
+                                        {
+                                            pDict["invoices.view"] = false;
+                                            uChanged = true;
+                                        }
+                                        if (pDict.ContainsKey("epay.fund") && pDict["epay.fund"])
+                                        {
+                                            pDict["epay.fund"] = false;
+                                            uChanged = true;
+                                        }
+                                        if (pDict.ContainsKey("epay.terminals_manage") && pDict["epay.terminals_manage"])
+                                        {
+                                            pDict["epay.terminals_manage"] = false;
+                                            uChanged = true;
+                                        }
+                                        if (pDict.ContainsKey("epay.history") && pDict["epay.history"])
+                                        {
+                                            pDict["epay.history"] = false;
+                                            uChanged = true;
+                                        }
+                                        if (pDict.ContainsKey("epay.analytics") && pDict["epay.analytics"])
+                                        {
+                                            pDict["epay.analytics"] = false;
+                                            uChanged = true;
+                                        }
+                                        if (uChanged)
+                                        {
+                                            u.PermissionsJson = JsonConvert.SerializeObject(pDict);
+                                        }
+                                    }
+                                }
+                                catch
+                                {
+                                }
+                            }
+                            if (uChanged) _userRepo.Update(u);
+                        }
                     }
                 }
             }
@@ -222,6 +268,14 @@ namespace RafiqPOS.Services
 
         public UserDto GetCurrentSessionUser()
         {
+            if (_currentUserSession != null && _userRepo != null)
+            {
+                var refreshed = _userRepo.GetById(_currentUserSession.Id);
+                if (refreshed != null)
+                {
+                    _currentUserSession = MapToDto(refreshed);
+                }
+            }
             return _currentUserSession;
         }
 
@@ -1403,7 +1457,7 @@ namespace RafiqPOS.Services
             "settings.store", "settings.printer", "settings.barcode", "settings.features", "settings.backup", "settings.restore", "settings.license",
             "users.view", "users.create", "users.edit", "users.deactivate", "users.reset_pin", "users.delegate",
             "audit_log.view", "expenses.view", "expenses.create", "expenses.delete",
-            "epay.access", "epay.transact", "epay.fund", "epay.terminals_manage", "epay.analytics",
+            "epay.access", "epay.transact", "epay.fund", "epay.terminals_manage", "epay.history", "epay.analytics",
             // Legacy aliases
             "pos", "customers", "products", "inventory", "reports", "settings", "users", "epay",
             "discounts", "price_edit", "stock_adjust", "db_recovery", "refunds", "cancel_sale"
@@ -1548,7 +1602,7 @@ namespace RafiqPOS.Services
             p["pos.price_override"] = isAdmin;
 
             // Invoices & Returns
-            p["invoices.view"] = true;
+            p["invoices.view"] = isAdmin;
             p["invoices.cancel"] = isAdmin;
             p["returns.create"] = isAdmin;
             p["returns.without_invoice"] = isAdmin;
@@ -1619,6 +1673,7 @@ namespace RafiqPOS.Services
             p["epay.transact"] = true;
             p["epay.fund"] = isAdmin;
             p["epay.terminals_manage"] = isAdmin;
+            p["epay.history"] = isAdmin;
             p["epay.analytics"] = isAdmin;
 
             SyncPermissionAliases(p);
