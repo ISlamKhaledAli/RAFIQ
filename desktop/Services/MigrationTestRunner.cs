@@ -226,12 +226,12 @@ namespace RafiqPOS.Services
             if (condition)
             {
                 result.PassedAssertions++;
-                result.Details.Add("✓ اجتاز: " + testName);
+                result.Details.Add("[نجاح] اجتاز: " + testName);
             }
             else
             {
                 result.Success = false;
-                result.Details.Add("✗ فشل: " + testName);
+                result.Details.Add("[فشل] " + testName);
             }
         }
     }

@@ -297,7 +297,15 @@ namespace RafiqPOS.Services
 
             if (sale.PaidPiasters > sale.TotalPiasters && string.Equals(sale.PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase))
             {
-                sale.ChangePiasters = sale.PaidPiasters - sale.TotalPiasters;
+                // If registered customer and ChangePiasters is explicitly 0 (or Notes indicate deposit), keep as 0 to deposit on customer ledger
+                if (sale.ChangePiasters == 0 && !string.IsNullOrWhiteSpace(sale.CustomerId))
+                {
+                    // Kept as 0 so unreturned change becomes a deposit in customer account
+                }
+                else if (sale.ChangePiasters <= 0)
+                {
+                    sale.ChangePiasters = sale.PaidPiasters - sale.TotalPiasters;
+                }
             }
             else
             {

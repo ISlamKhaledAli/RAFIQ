@@ -758,6 +758,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         items: cart,
         payments: paymentData.payments,
         notes: paymentData.serviceFeeNote,
+        changePiasters: paymentData.changeDuePiasters,
       };
 
       const completedSale = await invoke<Sale>('sales:create', salePayload);

@@ -309,7 +309,7 @@ namespace RafiqPOS.Services
             long baseQuantityDeltaMilli = (long)Math.Round(purchaseQuantity * factor * 1000);
 
             // Task 161-10: حساب سعر التكلفة للوحدة الأساسية تلقائياً من سعر الشراء بالوحدة الكبيرة
-            long baseCostPiasters = (long)Math.Round((double)packageCostPiasters / factor);
+            long baseCostPiasters = factor > 0 ? (long)Math.Round((decimal)packageCostPiasters / factor, 0, MidpointRounding.AwayFromZero) : packageCostPiasters;
 
             string cleanSupplier = string.IsNullOrWhiteSpace(supplierName) ? "مورد عام" : supplierName.Trim();
             string cleanInvoice = string.IsNullOrWhiteSpace(invoiceNumber) ? ("PO-" + DateTime.Now.ToString("yyyyMMddHHmmss")) : invoiceNumber.Trim();

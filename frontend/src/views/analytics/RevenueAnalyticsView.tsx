@@ -134,12 +134,14 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
   // Payment breakdown percentages
   const cashSales = salesReport?.cashSalesPiasters || 0;
   const creditSales = salesReport?.creditSalesPiasters || 0;
+  const cardSales = salesReport?.cardSalesPiasters || 0;
   const instapaySales = salesReport?.instapaySalesPiasters || 0;
   const vodafoneCashSales = salesReport?.vodafoneCashSalesPiasters || 0;
   const cashPct = totalSales > 0 ? Math.round((cashSales * 100) / totalSales) : 0;
   const creditPct = totalSales > 0 ? Math.round((creditSales * 100) / totalSales) : 0;
+  const cardPct = totalSales > 0 ? Math.round((cardSales * 100) / totalSales) : 0;
   const instapayPct = totalSales > 0 ? Math.round((instapaySales * 100) / totalSales) : 0;
-  const vodafoneCashPct = totalSales > 0 ? Math.max(0, 100 - cashPct - creditPct - instapayPct) : 0;
+  const vodafoneCashPct = totalSales > 0 ? Math.max(0, 100 - cashPct - creditPct - cardPct - instapayPct) : 0;
 
   // Composite Financial Health Score (0 - 100)
   const financialScore = Math.max(
@@ -457,6 +459,19 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                         strokeDasharray={`${creditPct} ${100 - creditPct}`}
                         strokeDashoffset={`${-cashPct}`}
                       />
+                      {/* Card / Visa slice (Sky Blue) */}
+                      {cardPct > 0 && (
+                        <circle
+                          cx="18"
+                          cy="18"
+                          r="15.915"
+                          fill="none"
+                          stroke="#0284c7"
+                          strokeWidth="4"
+                          strokeDasharray={`${cardPct} ${100 - cardPct}`}
+                          strokeDashoffset={`${-(cashPct + creditPct)}`}
+                        />
+                      )}
                       {/* InstaPay slice (Purple) */}
                       {instapayPct > 0 && (
                         <circle
@@ -467,7 +482,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                           stroke="#582C83"
                           strokeWidth="4"
                           strokeDasharray={`${instapayPct} ${100 - instapayPct}`}
-                          strokeDashoffset={`${-(cashPct + creditPct)}`}
+                          strokeDashoffset={`${-(cashPct + creditPct + cardPct)}`}
                         />
                       )}
                       {/* Vodafone Cash slice (Red) */}
@@ -480,7 +495,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                           stroke="#e60000"
                           strokeWidth="4"
                           strokeDasharray={`${vodafoneCashPct} ${100 - vodafoneCashPct}`}
-                          strokeDashoffset={`${-(cashPct + creditPct + instapayPct)}`}
+                          strokeDashoffset={`${-(cashPct + creditPct + cardPct + instapayPct)}`}
                         />
                       )}
                     </svg>
@@ -510,6 +525,16 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                     </div>
                     <div className="font-mono font-bold text-ink">
                       {formatArabicCurrency(creditSales)} ({creditPct}%)
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full bg-[#0284c7] shrink-0" />
+                      <span>مدفوعات بطاقة / فيزا (حساب بنكي):</span>
+                    </div>
+                    <div className="font-mono font-bold text-[#0284c7]">
+                      {formatArabicCurrency(cardSales)} ({cardPct}%)
                     </div>
                   </div>
 

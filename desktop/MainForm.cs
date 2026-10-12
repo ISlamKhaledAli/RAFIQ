@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Drawing.Text;
 using System.Diagnostics;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
@@ -13,19 +14,27 @@ using RafiqPOS.Services;
 
 namespace RafiqPOS
 {
+    public class DoubleBufferedPanel : Panel
+    {
+        public DoubleBufferedPanel()
+        {
+            this.DoubleBuffered = true;
+            this.SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer, true);
+            this.UpdateStyles();
+        }
+    }
+
     public class MainForm : Form
     {
         private WebView2 _webView;
 
-        // Branded High-End Splash Screen UI
-        private Panel _splashPanel;
-        private Panel _splashCard;
-        private PictureBox _splashLogo;
-        private Label _splashTitle;
-        private Label _splashSubtitle;
-        private Label _splashStatus;
-        private ProgressBar _splashProgress;
-        private Label _splashFooter;
+        // Branded High-End Splash Screen UI (Atomic GDI+ Rendered - Zero HWND Flicker)
+        private DoubleBufferedPanel _splashPanel;
+        private DoubleBufferedPanel _splashCard;
+        private Image _splashLogoImage;
+        private string _splashStatusText = "جاري تهيئة قاعدة البيانات المحلية ومحرك العرض السريع...";
+        private System.Windows.Forms.Timer _splashAnimTimer;
+        private float _shimmerProgress = 0f;
 
         // Synchronized Splash Timing & Reveal Control
         private DateTime _splashStartTime = DateTime.UtcNow;
@@ -72,6 +81,12 @@ namespace RafiqPOS
             this.FormBorderStyle = FormBorderStyle.None;
             this.Bounds = Screen.PrimaryScreen.WorkingArea;
             this.KeyPreview = true;
+
+            // Double-buffer the main form and all child drawing to eliminate any startup flicker
+            this.DoubleBuffered = true;
+            this.SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer, true);
+            this.UpdateStyles();
+
             this.KeyDown += delegate(object s, KeyEventArgs e)
             {
                 if (e.KeyCode == Keys.F11)
@@ -99,17 +114,17 @@ namespace RafiqPOS
                 this.Icon = SystemIcons.Application;
             }
 
-            // 1. Initial Branded Splash Screen (Light luxury brand identity)
-            InitializeBrandedSplashScreen();
-
-            // 2. Setup WebView2 container with light default background matching brand canvas
+            // 1. Setup WebView2 container with light default background matching brand canvas
             _webView = new WebView2
             {
                 Dock = DockStyle.Fill,
-                Visible = false,
+                Visible = true,
                 DefaultBackgroundColor = Color.FromArgb(248, 250, 252) // Brand Canvas #F8FAFC
             };
             this.Controls.Add(_webView);
+
+            // 2. Initial Branded Splash Screen (Sits directly on top of WebView2 to hide page rendering seamlessly)
+            InitializeBrandedSplashScreen();
 
             // 3. Setup Branded Error Screen Panel
             InitializeBrandedErrorScreen();
@@ -123,11 +138,11 @@ namespace RafiqPOS
         {
             _splashStartTime = DateTime.UtcNow;
 
-            _splashPanel = new Panel
+            _splashPanel = new DoubleBufferedPanel
             {
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(248, 250, 252), // Brand Canvas #F8FAFC
-                RightToLeft = RightToLeft.Yes,
+                RightToLeft = RightToLeft.No,
                 Visible = true
             };
             _splashPanel.Resize += delegate(object s, EventArgs e)
@@ -135,21 +150,13 @@ namespace RafiqPOS
                 CenterSplashCard();
             };
 
-            _splashCard = new Panel
+            _splashCard = new DoubleBufferedPanel
             {
                 BackColor = Color.White,
-                Size = new Size(520, 360)
+                Size = new Size(520, 360),
+                RightToLeft = RightToLeft.No
             };
             _splashCard.Paint += SplashCard_Paint;
-
-            // Brand Logo PictureBox (Priority on Full-Color Logo on Light Surface)
-            _splashLogo = new PictureBox
-            {
-                Size = new Size(250, 68),
-                Location = new Point((_splashCard.Width - 250) / 2, 28),
-                SizeMode = PictureBoxSizeMode.Zoom,
-                BackColor = Color.Transparent
-            };
 
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
             string[] candidateLogos = new string[]
@@ -172,78 +179,32 @@ namespace RafiqPOS
                 {
                     try
                     {
-                        _splashLogo.Image = Image.FromFile(p);
+                        _splashLogoImage = Image.FromFile(p);
                         break;
                     }
                     catch { }
                 }
             }
 
-            _splashCard.Controls.Add(_splashLogo);
-
-            // App Title
-            _splashTitle = new Label
-            {
-                Text = "رفيق POS",
-                Font = new Font("Segoe UI", 20, FontStyle.Bold),
-                ForeColor = Color.FromArgb(0, 55, 45), // Brand Dark #00372D
-                Location = new Point(20, 108),
-                Size = new Size(480, 36),
-                TextAlign = ContentAlignment.MiddleCenter
-            };
-            _splashCard.Controls.Add(_splashTitle);
-
-            // Subtitle
-            _splashSubtitle = new Label
-            {
-                Text = "نظام نقاط البيع وإدارة المتاجر ومحلات التجزئة",
-                Font = new Font("Segoe UI", 10.5f, FontStyle.Regular),
-                ForeColor = Color.FromArgb(0, 109, 65), // Paid / Emerald #006D41
-                Location = new Point(20, 146),
-                Size = new Size(480, 24),
-                TextAlign = ContentAlignment.MiddleCenter
-            };
-            _splashCard.Controls.Add(_splashSubtitle);
-
-            // Marquee Progress Bar
-            _splashProgress = new ProgressBar
-            {
-                Style = ProgressBarStyle.Marquee,
-                MarqueeAnimationSpeed = 30,
-                Location = new Point((_splashCard.Width - 260) / 2, 186),
-                Size = new Size(260, 4)
-            };
-            _splashCard.Controls.Add(_splashProgress);
-
-            // Dynamic Status Label
-            _splashStatus = new Label
-            {
-                Text = "جاري تهيئة قاعدة البيانات المحلية ومحرك العرض السريع...",
-                Font = new Font("Segoe UI", 9.5f, FontStyle.Regular),
-                ForeColor = Color.FromArgb(82, 96, 93), // Ink-Muted #52605D
-                Location = new Point(20, 204),
-                Size = new Size(480, 24),
-                TextAlign = ContentAlignment.MiddleCenter
-            };
-            _splashCard.Controls.Add(_splashStatus);
-
-            // Footer Badge
-            _splashFooter = new Label
-            {
-                Text = "Enterprise Offline-First Retail System • إصدار سطح المكتب المعتمد",
-                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(0, 109, 65), // #006D41
-                BackColor = Color.FromArgb(234, 245, 238), // Paid-Soft #EAF5EE
-                Location = new Point(40, 275),
-                Size = new Size(440, 32),
-                TextAlign = ContentAlignment.MiddleCenter
-            };
-            _splashCard.Controls.Add(_splashFooter);
-
             _splashPanel.Controls.Add(_splashCard);
             CenterSplashCard();
             this.Controls.Add(_splashPanel);
             _splashPanel.BringToFront();
+
+            // Smooth Shimmer Animation Timer (30fps) for the progress bar
+            _splashAnimTimer = new System.Windows.Forms.Timer { Interval = 33 };
+            _splashAnimTimer.Tick += delegate(object s, EventArgs e)
+            {
+                _shimmerProgress += 0.03f;
+                if (_shimmerProgress > 1f) _shimmerProgress = 0f;
+                if (_splashCard != null && !_splashCard.IsDisposed)
+                {
+                    int progW = 260;
+                    int progX = (_splashCard.Width - progW) / 2;
+                    _splashCard.Invalidate(new Rectangle(progX - 2, 184, progW + 4, 8));
+                }
+            };
+            _splashAnimTimer.Start();
 
             // Safety Fallback Timer (4.5 seconds maximum) in case React or WebView fails to report
             _splashSafetyTimer = new System.Windows.Forms.Timer { Interval = 4500 };
@@ -260,16 +221,99 @@ namespace RafiqPOS
 
         private void SplashCard_Paint(object sender, PaintEventArgs e)
         {
-            // Emerald Top Accent Stripe (#006D41)
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+
+            // 1. Emerald Top Accent Stripe (#006D41)
             using (SolidBrush topBrush = new SolidBrush(Color.FromArgb(0, 109, 65)))
             {
-                e.Graphics.FillRectangle(topBrush, 0, 0, _splashCard.Width, 4);
+                g.FillRectangle(topBrush, 0, 0, _splashCard.Width, 4);
             }
 
-            // Refined Card Border (#DCE1DC)
+            // 2. Refined Card Border (#DCE1DC)
             using (Pen pen = new Pen(Color.FromArgb(220, 225, 220), 1.5f))
             {
-                e.Graphics.DrawRectangle(pen, 0, 0, _splashCard.Width - 1, _splashCard.Height - 1);
+                g.DrawRectangle(pen, 0, 0, _splashCard.Width - 1, _splashCard.Height - 1);
+            }
+
+            // 3. Logo (Centered at Y=28)
+            if (_splashLogoImage != null)
+            {
+                int maxW = 250;
+                int maxH = 68;
+                float ratio = Math.Min((float)maxW / _splashLogoImage.Width, (float)maxH / _splashLogoImage.Height);
+                int logoW = Math.Max(1, (int)(_splashLogoImage.Width * ratio));
+                int logoH = Math.Max(1, (int)(_splashLogoImage.Height * ratio));
+                int logoX = (_splashCard.Width - logoW) / 2;
+                int logoY = 28 + (maxH - logoH) / 2;
+                g.DrawImage(_splashLogoImage, logoX, logoY, logoW, logoH);
+            }
+
+            using (StringFormat sf = new StringFormat())
+            {
+                sf.Alignment = StringAlignment.Center;
+                sf.LineAlignment = StringAlignment.Center;
+
+                // 4. App Title (Segoe UI 20 Bold, #00372D)
+                using (Font titleFont = new Font("Segoe UI", 20, FontStyle.Bold))
+                using (SolidBrush titleBrush = new SolidBrush(Color.FromArgb(0, 55, 45)))
+                {
+                    Rectangle titleRect = new Rectangle(20, 108, 480, 36);
+                    g.DrawString("رفيق POS", titleFont, titleBrush, titleRect, sf);
+                }
+
+                // 5. Subtitle (Segoe UI 10.5, #006D41)
+                using (Font subFont = new Font("Segoe UI", 10.5f, FontStyle.Regular))
+                using (SolidBrush subBrush = new SolidBrush(Color.FromArgb(0, 109, 65)))
+                {
+                    Rectangle subRect = new Rectangle(20, 146, 480, 24);
+                    g.DrawString("نظام نقاط البيع وإدارة المتاجر ومحلات التجزئة", subFont, subBrush, subRect, sf);
+                }
+
+                // 6. Progress Bar Track & Shimmer (Y=186, 260x4)
+                int progW = 260;
+                int progH = 4;
+                int progX = (_splashCard.Width - progW) / 2;
+                int progY = 186;
+                Rectangle progTrack = new Rectangle(progX, progY, progW, progH);
+                using (SolidBrush trackBrush = new SolidBrush(Color.FromArgb(241, 245, 244)))
+                {
+                    g.FillRectangle(trackBrush, progTrack);
+                }
+
+                int shimW = 80;
+                int shimX = progX + (int)((progW - shimW) * _shimmerProgress);
+                Rectangle shimRect = new Rectangle(shimX, progY, shimW, progH);
+                using (SolidBrush progBrush = new SolidBrush(Color.FromArgb(0, 109, 65)))
+                {
+                    g.FillRectangle(progBrush, shimRect);
+                }
+
+                // 7. Dynamic Status Label (Segoe UI 9.5, #52605D)
+                string statusText = _splashStatusText ?? "جاري تهيئة قاعدة البيانات المحلية ومحرك العرض السريع...";
+                using (Font statusFont = new Font("Segoe UI", 9.5f, FontStyle.Regular))
+                using (SolidBrush statusBrush = new SolidBrush(Color.FromArgb(82, 96, 93)))
+                {
+                    Rectangle statusRect = new Rectangle(20, 204, 480, 24);
+                    g.DrawString(statusText, statusFont, statusBrush, statusRect, sf);
+                }
+
+                // 8. Footer Badge (Y=275, 440x32, #EAF5EE background, #006D41 text)
+                int badgeW = 440;
+                int badgeH = 32;
+                int badgeX = (_splashCard.Width - badgeW) / 2;
+                int badgeY = 275;
+                Rectangle badgeRect = new Rectangle(badgeX, badgeY, badgeW, badgeH);
+                using (SolidBrush badgeBg = new SolidBrush(Color.FromArgb(234, 245, 238)))
+                using (Pen badgeBorder = new Pen(Color.FromArgb(200, 230, 215), 1f))
+                using (Font footerFont = new Font("Segoe UI", 8.5f, FontStyle.Bold))
+                using (SolidBrush footerBrush = new SolidBrush(Color.FromArgb(0, 109, 65)))
+                {
+                    g.FillRectangle(badgeBg, badgeRect);
+                    g.DrawRectangle(badgeBorder, badgeRect);
+                    g.DrawString("Enterprise Offline-First Retail System • إصدار سطح المكتب المعتمد", footerFont, footerBrush, badgeRect, sf);
+                }
             }
         }
 
@@ -285,17 +329,21 @@ namespace RafiqPOS
 
         private void UpdateSplashStatus(string text)
         {
-            if (_splashStatus != null && !_splashStatus.IsDisposed)
+            _splashStatusText = text;
+            if (_splashCard != null && !_splashCard.IsDisposed)
             {
                 try
                 {
                     if (this.InvokeRequired)
                     {
-                        this.BeginInvoke(new Action(delegate { _splashStatus.Text = text; }));
+                        this.BeginInvoke(new Action(delegate
+                        {
+                            _splashCard.Invalidate(new Rectangle(20, 204, 480, 24));
+                        }));
                     }
                     else
                     {
-                        _splashStatus.Text = text;
+                        _splashCard.Invalidate(new Rectangle(20, 204, 480, 24));
                     }
                 }
                 catch { }
@@ -361,6 +409,12 @@ namespace RafiqPOS
 
             try
             {
+                if (_splashAnimTimer != null)
+                {
+                    _splashAnimTimer.Stop();
+                    _splashAnimTimer.Dispose();
+                    _splashAnimTimer = null;
+                }
                 if (_splashSafetyTimer != null)
                 {
                     _splashSafetyTimer.Stop();
@@ -374,11 +428,16 @@ namespace RafiqPOS
                     _dismissDelayTimer = null;
                 }
 
-                if (_splashPanel != null) _splashPanel.Visible = false;
+                if (_splashPanel != null)
+                {
+                    _splashPanel.Visible = false;
+                }
                 _errorPanel.Visible = false;
-                _webView.Visible = true;
-                _webView.Focus();
-                WindowHelper.ActivateAndBringToFront(this);
+                if (_webView != null)
+                {
+                    _webView.Focus();
+                }
+                this.Activate();
                 Logger.Info("تم الانتهاء من عرض الشاشة الافتتاحية للمدة المحددة وإظهار واجهة رفيق بسلاسة واحترافية.");
             }
             catch (Exception ex)
@@ -666,12 +725,16 @@ namespace RafiqPOS
 
         private void MainForm_Load(object sender, EventArgs e)
         {
-            InitializeApplication();
+            // Force immediate layout and paint of the splash screen
+            this.Refresh();
         }
 
         private void MainForm_Shown(object sender, EventArgs e)
         {
             WindowHelper.ActivateAndBringToFront(this);
+            this.Refresh();
+            Application.DoEvents();
+            InitializeApplication();
         }
 
         private async void InitializeApplication()

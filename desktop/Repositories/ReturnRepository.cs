@@ -51,10 +51,11 @@ namespace RafiqPOS.Repositories
                         for (int i = 0; i < returnObj.Items.Count; i++)
                         {
                             var it = returnObj.Items[i];
-                            long lineTotal = (it.UnitPricePiasters * it.QuantityMilli) / 1000;
-                            if (it.TotalPiasters <= 0 || it.TotalPiasters != lineTotal)
+                            decimal lineDec = ((decimal)it.UnitPricePiasters * it.QuantityMilli) / 1000m;
+                            long expectedLineTotal = (long)Math.Round(lineDec, 0, MidpointRounding.AwayFromZero);
+                            if (it.TotalPiasters <= 0 || Math.Abs(it.TotalPiasters - expectedLineTotal) > 1)
                             {
-                                it.TotalPiasters = lineTotal;
+                                it.TotalPiasters = expectedLineTotal;
                             }
                             calculatedTotal += it.TotalPiasters;
                         }
