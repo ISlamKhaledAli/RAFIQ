@@ -186,6 +186,7 @@ export interface Sale {
   taxPiasters: number;
   totalPiasters: number;
   paidPiasters: number;
+  changePiasters?: number;
   paymentMethod: string;
   status: string;
   notes?: string | null;

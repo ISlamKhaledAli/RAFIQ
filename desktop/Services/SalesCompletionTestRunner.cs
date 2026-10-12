@@ -382,12 +382,12 @@ namespace RafiqPOS.Services
             if (condition)
             {
                 result.PassedAssertions++;
-                result.Details.Add("✓ " + message);
+                result.Details.Add("[نجاح] " + message);
             }
             else
             {
                 result.Success = false;
-                result.Details.Add("✗ فشل اختبار: " + message);
+                result.Details.Add("[فشل] " + message);
             }
         }
     }

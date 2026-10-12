@@ -512,12 +512,12 @@ namespace RafiqPOS.Services
                 {
                     if (request.TargetField == "price" || request.TargetField == "both")
                     {
-                        long change = (long)Math.Round(currentPrice * (request.PercentageValue / 100.0));
+                        long change = (long)Math.Round((decimal)currentPrice * ((decimal)request.PercentageValue / 100m), 0, MidpointRounding.AwayFromZero);
                         newPrice = RoundPrice(currentPrice + change, request.RoundingRule);
                     }
                     if (request.TargetField == "cost" || request.TargetField == "both")
                     {
-                        long change = (long)Math.Round(currentCost * (request.PercentageValue / 100.0));
+                        long change = (long)Math.Round((decimal)currentCost * ((decimal)request.PercentageValue / 100m), 0, MidpointRounding.AwayFromZero);
                         newCost = RoundPrice(currentCost + change, request.RoundingRule);
                     }
                 }

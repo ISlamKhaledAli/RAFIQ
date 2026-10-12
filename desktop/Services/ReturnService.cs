@@ -174,14 +174,24 @@ namespace RafiqPOS.Services
                         long effectiveUnitPrice = origItem.UnitPricePiasters;
                         if (origItem.QuantityMilli > 0 && origItem.TotalPiasters > 0)
                         {
-                            effectiveUnitPrice = (origItem.TotalPiasters * 1000) / origItem.QuantityMilli;
+                            decimal effPrice = ((decimal)origItem.TotalPiasters * 1000m) / (decimal)origItem.QuantityMilli;
+                            effectiveUnitPrice = (long)Math.Round(effPrice, 0, MidpointRounding.AwayFromZero);
                         }
 
                         if (it.UnitPricePiasters <= 0 || it.UnitPricePiasters > effectiveUnitPrice)
                         {
                             it.UnitPricePiasters = effectiveUnitPrice;
                         }
-                        it.TotalPiasters = (it.UnitPricePiasters * it.QuantityMilli) / 1000;
+
+                        if (it.QuantityMilli == origItem.QuantityMilli && origItem.TotalPiasters > 0)
+                        {
+                            it.TotalPiasters = origItem.TotalPiasters;
+                        }
+                        else
+                        {
+                            decimal lineTotalDec = ((decimal)it.UnitPricePiasters * it.QuantityMilli) / 1000m;
+                            it.TotalPiasters = (long)Math.Round(lineTotalDec, 0, MidpointRounding.AwayFromZero);
+                        }
 
                         if (it.ConversionFactor <= 0)
                         {

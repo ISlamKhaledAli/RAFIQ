@@ -25,10 +25,10 @@ namespace RafiqPOS.Services
                 // 1. Sales totals & counts (Excluding demo sales for real reporting - strictly isolating cash, card, credit)
                 string salesSql = @"
                     SELECT 
-                        COALESCE(SUM(CASE WHEN s.paid_piasters > s.total_piasters THEN s.paid_piasters ELSE s.total_piasters END), 0) AS total_sales,
+                        COALESCE(SUM(s.total_piasters), 0) AS total_sales,
                         COALESCE(SUM(
                             CASE 
-                                WHEN s.payment_method IN ('cash', 'credit') THEN MIN(s.paid_piasters, s.total_piasters)
+                                WHEN s.payment_method IN ('cash', 'credit') THEN MAX(0, s.paid_piasters - s.change_piasters)
                                 WHEN s.payment_method = 'multi' THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
@@ -201,8 +201,8 @@ namespace RafiqPOS.Services
                             string epaySql = @"
                                 SELECT 
                                     (SELECT COALESCE(SUM(balance_piasters), 0) FROM epay_terminals WHERE is_active = 1) AS terminals_balance,
-                                    COALESCE(SUM(CASE WHEN payment_channel = 'terminal_till' THEN total_received_piasters ELSE 0 END), 0) AS till_cash,
-                                    COALESCE(SUM(CASE WHEN payment_channel = 'cash_drawer' THEN total_received_piasters ELSE 0 END), 0) AS drawer_cash,
+                                    COALESCE(SUM(CASE WHEN payment_channel = 'terminal_till' THEN (CASE WHEN service_type = 'cash_out' THEN (customer_fee_piasters - bill_amount_piasters) ELSE total_received_piasters END) ELSE 0 END), 0) AS till_cash,
+                                    COALESCE(SUM(CASE WHEN payment_channel = 'cash_drawer' THEN (CASE WHEN service_type = 'cash_out' THEN (customer_fee_piasters - bill_amount_piasters) ELSE total_received_piasters END) ELSE 0 END), 0) AS drawer_cash,
                                     COALESCE(SUM(net_profit_piasters), 0) AS net_profit
                                 FROM epay_transactions
                                 WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'))
@@ -217,10 +217,7 @@ namespace RafiqPOS.Services
                                     summary.TodayEpayTillCashPiasters = Convert.ToInt64(epayReader["till_cash"]);
                                     summary.TodayEpayNetProfitPiasters = Convert.ToInt64(epayReader["net_profit"]);
                                     long drawerEpayCash = Convert.ToInt64(epayReader["drawer_cash"]);
-                                    if (drawerEpayCash > 0)
-                                    {
-                                        summary.CashDrawerPiasters += drawerEpayCash;
-                                    }
+                                    summary.CashDrawerPiasters = Math.Max(0, summary.CashDrawerPiasters + drawerEpayCash);
                                 }
                             }
 
@@ -530,10 +527,10 @@ namespace RafiqPOS.Services
                 // 1. Sales totals & payments breakdown (isolating cash, card, credit)
                 string salesSql = string.Format(@"
                     SELECT 
-                        COALESCE(SUM(CASE WHEN s.paid_piasters > s.total_piasters THEN s.paid_piasters ELSE s.total_piasters END), 0) AS total_sales,
+                        COALESCE(SUM(s.total_piasters), 0) AS total_sales,
                         COALESCE(SUM(
                             CASE 
-                                WHEN s.payment_method IN ('cash', 'credit') THEN MIN(s.paid_piasters, s.total_piasters)
+                                WHEN s.payment_method IN ('cash', 'credit') THEN MAX(0, s.paid_piasters - s.change_piasters)
                                 WHEN s.payment_method = 'multi' THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 

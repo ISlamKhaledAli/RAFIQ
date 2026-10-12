@@ -139,10 +139,10 @@ namespace RafiqPOS.Services
                 // 3. Sales totals (Excluding cancelled and demo sales - strictly isolating cash, card, and credit)
                 string salesSql = @"
                     SELECT 
-                        COALESCE(SUM(CASE WHEN s.paid_piasters > s.total_piasters THEN s.paid_piasters ELSE s.total_piasters END), 0) AS total_sales,
+                        COALESCE(SUM(s.total_piasters), 0) AS total_sales,
                         COALESCE(SUM(
                             CASE 
-                                WHEN s.payment_method IN ('cash', 'credit') THEN MIN(s.paid_piasters, s.total_piasters)
+                                WHEN s.payment_method IN ('cash', 'credit') THEN MAX(0, s.paid_piasters - s.change_piasters)
                                 WHEN s.payment_method = 'multi' THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 

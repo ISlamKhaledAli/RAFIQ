@@ -17,175 +17,485 @@ namespace RafiqPOS.Services
         private static readonly XLColor ZebraLight = XLColor.FromArgb(246, 250, 247);
 
         /// <summary>
-        /// توليد قالب استيراد الأصناف بتنسيق رسمي وألوان احترافية متوافقة مع إكسل العربي (RTL)
+        private static string CleanWorksheetName(string name, HashSet<string> used)
+        {
+            if (string.IsNullOrWhiteSpace(name)) name = "عام";
+            char[] invalidChars = new char[] { '\\', '/', '?', '*', ':', '[', ']', '\'' };
+            string clean = name;
+            for (int i = 0; i < invalidChars.Length; i++)
+            {
+                clean = clean.Replace(invalidChars[i], '_');
+            }
+            clean = clean.Trim();
+            if (clean.Length > 28) clean = clean.Substring(0, 28);
+            string candidate = clean;
+            int counter = 1;
+            while (used.Contains(candidate))
+            {
+                string prefix = clean.Length > 24 ? clean.Substring(0, 24) : clean;
+                candidate = prefix + "_" + counter;
+                counter++;
+            }
+            used.Add(candidate);
+            return candidate;
+        }
+
+        private static void PopulateStandardProductSheet(
+            IXLWorksheet ws,
+            string sheetTitleBanner,
+            List<Product> prodList,
+            Dictionary<string, string> categoryNames,
+            string fixedCategoryName = null)
+        {
+            ws.RightToLeft = true;
+            ws.ShowGridLines = true;
+
+            // 1. Title Banner
+            ws.Range("A1:T1").Merge();
+            var titleCell = ws.Cell("A1");
+            titleCell.Value = "رفيق POS - " + sheetTitleBanner;
+            titleCell.Style.Font.Bold = true;
+            titleCell.Style.Font.FontSize = 13;
+            titleCell.Style.Font.FontColor = XLColor.White;
+            titleCell.Style.Fill.BackgroundColor = ForestDark;
+            titleCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            titleCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            ws.Row(1).Height = 40;
+
+            // 2. Subtitle Banner
+            ws.Range("A2:T2").Merge();
+            var subCell = ws.Cell("A2");
+            subCell.Value = string.Format(
+                "تاريخ التصدير: {0} | اسم التابة يمثل القسم تلقائياً | إجمالي الأصناف: {1} صنف | المبالغ بالجنيه المصري | المعادلات تتحدث تلقائياً",
+                DateTime.Now.ToString("yyyy/MM/dd HH:mm"),
+                prodList != null ? prodList.Count : 0
+            );
+            subCell.Style.Font.Bold = true;
+            subCell.Style.Font.FontSize = 9.5;
+            subCell.Style.Font.FontColor = XLColor.FromArgb(0, 77, 64);
+            subCell.Style.Fill.BackgroundColor = SoftMint;
+            subCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            subCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            ws.Row(2).Height = 26;
+
+            // 3. Headers
+            string[] headers = new string[]
+            {
+                "م",
+                "اسم الصنف *",
+                "الباركود الرئيسي",
+                "باركودات إضافية (مفصولة بفاصلة)",
+                "الوحدة (قطعة / كجم)",
+                "سعر البيع (بالجنيه) *",
+                "سعر التكلفة (بالجنيه)",
+                "الرصيد الافتتاحي",
+                "حد الطلب الأدنى",
+                "هامش الربح للقطعة (ج.م)",
+                "نسبة الربح (%)",
+                "إجمالي قيمة التكلفة (ج.م)",
+                "إجمالي القيمة البيعية (ج.م)",
+                "إجمالي الربح المتوقع (ج.م)",
+                "حالة المخزون التلقائية",
+                "نسبة الضريبة (%)",
+                "كود الصنف الداخلي (SKU)",
+                "اللون (اختياري / للملابس)",
+                "المقاس (اختياري / للملابس)",
+                "كود التصنيف الضريبي (GS1/EGS)"
+            };
+
+            ws.Row(3).Height = 32;
+            for (int i = 0; i < headers.Length; i++)
+            {
+                var cell = ws.Cell(3, i + 1);
+                cell.Value = headers[i];
+                cell.Style.Font.Bold = true;
+                cell.Style.Font.FontSize = 10;
+                cell.Style.Font.FontColor = XLColor.White;
+                cell.Style.Fill.BackgroundColor = EmeraldGreen;
+                cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                cell.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                cell.Style.Border.OutsideBorderColor = XLColor.FromArgb(0, 77, 64);
+            }
+
+            int count = prodList != null ? prodList.Count : 0;
+            for (int idx = 0; idx < count; idx++)
+            {
+                int r = idx + 4;
+                var p = prodList[idx];
+                ws.Row(r).Height = 22;
+                bool isZebra = (idx % 2 == 1);
+                XLColor rowBg = isZebra ? ZebraLight : XLColor.White;
+
+                double sellPrice = p.PricePiasters / 100.0;
+                double costPrice = p.CostPiasters / 100.0;
+                double stockQty = p.StockQuantityMilli / 1000.0;
+                double minStockQty = p.MinStockQuantityMilli / 1000.0;
+                double unitMargin = Math.Max(0, sellPrice - costPrice);
+                double totalCost = stockQty * costPrice;
+                double totalRetail = stockQty * sellPrice;
+                double totalProfit = totalRetail - totalCost;
+
+                string extraBarcodes = "";
+                if (p.Barcodes != null && p.Barcodes.Count > 0)
+                {
+                    extraBarcodes = string.Join(", ", p.Barcodes.ToArray());
+                }
+
+                ws.Cell(r, 1).Value = idx + 1;
+                ws.Cell(r, 2).Value = p.Name ?? "";
+                ws.Cell(r, 3).SetValue<string>(p.Barcode ?? "");
+                ws.Cell(r, 4).SetValue<string>(extraBarcodes);
+                ws.Cell(r, 5).Value = p.Unit == "kg" ? "كجم" : "قطعة";
+                ws.Cell(r, 6).Value = sellPrice;
+                ws.Cell(r, 7).Value = costPrice;
+                ws.Cell(r, 8).Value = stockQty;
+                ws.Cell(r, 9).Value = minStockQty;
+
+                // Dynamic Formulas (shifted left by 1 column)
+                ws.Cell(r, 10).FormulaA1 = string.Format("F{0}-G{0}", r);
+                ws.Cell(r, 10).Value = unitMargin;
+
+                ws.Cell(r, 11).FormulaA1 = string.Format("IF(G{0}>0, (F{0}-G{0})/G{0}, 0)", r);
+                ws.Cell(r, 11).Value = costPrice > 0 ? unitMargin / costPrice : 0.0;
+
+                ws.Cell(r, 12).FormulaA1 = string.Format("H{0}*G{0}", r);
+                ws.Cell(r, 12).Value = totalCost;
+
+                ws.Cell(r, 13).FormulaA1 = string.Format("H{0}*F{0}", r);
+                ws.Cell(r, 13).Value = totalRetail;
+
+                ws.Cell(r, 14).FormulaA1 = string.Format("M{0}-L{0}", r);
+                ws.Cell(r, 14).Value = totalProfit;
+
+                ws.Cell(r, 15).FormulaA1 = string.Format("IF(H{0}<=0, \"نفد من المخزن\", IF(H{0}<=I{0}, \"قارب على النفاد\", \"متوفر بالمخزن\"))", r);
+                ws.Cell(r, 15).Value = stockQty <= 0 ? "نفد من المخزن" : (stockQty <= minStockQty ? "قارب على النفاد" : "متوفر بالمخزن");
+
+                ws.Cell(r, 16).Value = p.TaxRatePercent;
+                ws.Cell(r, 17).SetValue<string>(p.InternalCode ?? "");
+                ws.Cell(r, 18).Value = p.VariantColor ?? "";
+                ws.Cell(r, 19).Value = p.VariantSize ?? "";
+                ws.Cell(r, 20).SetValue<string>("");
+
+                for (int c = 1; c <= 20; c++)
+                {
+                    var cell = ws.Cell(r, c);
+                    cell.Style.Font.FontSize = 10;
+                    cell.Style.Fill.BackgroundColor = rowBg;
+                    cell.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                    cell.Style.Border.OutsideBorderColor = BorderGray;
+                    cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                }
+
+                ws.Cell(r, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(r, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+                ws.Cell(r, 3).Style.NumberFormat.Format = "@";
+                ws.Cell(r, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(r, 4).Style.NumberFormat.Format = "@";
+                ws.Cell(r, 4).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(r, 5).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+                ws.Cell(r, 6).Style.NumberFormat.Format = "#,##0.00";
+                ws.Cell(r, 6).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(r, 7).Style.NumberFormat.Format = "#,##0.00";
+                ws.Cell(r, 7).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(r, 8).Style.NumberFormat.Format = "#,##0.###";
+                ws.Cell(r, 8).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(r, 9).Style.NumberFormat.Format = "#,##0.###";
+                ws.Cell(r, 9).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+                ws.Cell(r, 10).Style.NumberFormat.Format = "#,##0.00";
+                ws.Cell(r, 10).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(r, 11).Style.NumberFormat.Format = "0.0%";
+                ws.Cell(r, 11).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(r, 12).Style.NumberFormat.Format = "#,##0.00";
+                ws.Cell(r, 12).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(r, 13).Style.NumberFormat.Format = "#,##0.00";
+                ws.Cell(r, 13).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(r, 14).Style.NumberFormat.Format = "#,##0.00";
+                ws.Cell(r, 14).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+                ws.Cell(r, 15).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(r, 15).Style.Font.Bold = true;
+
+                ws.Cell(r, 16).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(r, 17).Style.NumberFormat.Format = "@";
+                ws.Cell(r, 17).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(r, 18).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(r, 19).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(r, 20).Style.NumberFormat.Format = "@";
+                ws.Cell(r, 20).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            }
+
+            // Summary Row
+            int lastDataRow = count + 3;
+            int sumRow = count + 4;
+            ws.Row(sumRow).Height = 26;
+
+            ws.Cell(sumRow, 1).Value = "الإجمالي";
+            ws.Cell(sumRow, 2).Value = string.Format("إجمالي {0} صنف مسجل", count);
+            ws.Range(sumRow, 1, sumRow, 5).Style.Font.Bold = true;
+            ws.Range(sumRow, 1, sumRow, 5).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+            if (count > 0)
+            {
+                ws.Cell(sumRow, 6).FormulaA1 = string.Format("AVERAGE(F4:F{0})", lastDataRow);
+                ws.Cell(sumRow, 6).Style.NumberFormat.Format = "#,##0.00";
+                ws.Cell(sumRow, 7).FormulaA1 = string.Format("AVERAGE(G4:G{0})", lastDataRow);
+                ws.Cell(sumRow, 7).Style.NumberFormat.Format = "#,##0.00";
+                ws.Cell(sumRow, 8).FormulaA1 = string.Format("SUM(H4:H{0})", lastDataRow);
+                ws.Cell(sumRow, 8).Style.NumberFormat.Format = "#,##0.##";
+
+                ws.Cell(sumRow, 10).FormulaA1 = string.Format("AVERAGE(J4:J{0})", lastDataRow);
+                ws.Cell(sumRow, 10).Style.NumberFormat.Format = "#,##0.00";
+                ws.Cell(sumRow, 11).FormulaA1 = string.Format("IF(L{0}>0, N{0}/L{0}, 0)", sumRow);
+                ws.Cell(sumRow, 11).Style.NumberFormat.Format = "0.0%";
+                ws.Cell(sumRow, 12).FormulaA1 = string.Format("SUM(L4:L{0})", lastDataRow);
+                ws.Cell(sumRow, 12).Style.NumberFormat.Format = "#,##0.00";
+                ws.Cell(sumRow, 13).FormulaA1 = string.Format("SUM(M4:M{0})", lastDataRow);
+                ws.Cell(sumRow, 13).Style.NumberFormat.Format = "#,##0.00";
+                ws.Cell(sumRow, 14).FormulaA1 = string.Format("SUM(N4:N{0})", lastDataRow);
+                ws.Cell(sumRow, 14).Style.NumberFormat.Format = "#,##0.00";
+            }
+
+            ws.Cell(sumRow, 15).Value = "محسوب بالمعادلات";
+            ws.Cell(sumRow, 15).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+            var sumRange = ws.Range(sumRow, 1, sumRow, 20);
+            sumRange.Style.Font.Bold = true;
+            sumRange.Style.Fill.BackgroundColor = SoftMint;
+            sumRange.Style.Border.OutsideBorder = XLBorderStyleValues.Medium;
+            sumRange.Style.Border.OutsideBorderColor = EmeraldGreen;
+
+            ws.SheetView.FreezeRows(3);
+            ws.Column(1).Width = 6;
+            ws.Column(2).Width = 36;
+            ws.Column(3).Width = 20;
+            ws.Column(4).Width = 24;
+            ws.Column(5).Width = 14;
+            ws.Column(6).Width = 16;
+            ws.Column(7).Width = 16;
+            ws.Column(8).Width = 16;
+            ws.Column(9).Width = 16;
+            ws.Column(10).Width = 18;
+            ws.Column(11).Width = 15;
+            ws.Column(12).Width = 22;
+            ws.Column(13).Width = 22;
+            ws.Column(14).Width = 22;
+            ws.Column(15).Width = 18;
+            ws.Column(16).Width = 14;
+            ws.Column(17).Width = 20;
+            ws.Column(18).Width = 18;
+            ws.Column(19).Width = 18;
+            ws.Column(20).Width = 22;
+        }
+
+        private static void PopulateSummaryDashboardWorksheet(
+            IXLWorksheet ws,
+            string catalogTitle,
+            List<string> categoryList,
+            Dictionary<string, string> categorySheetNames,
+            Dictionary<string, int> categoryItemCounts)
+        {
+            ws.RightToLeft = true;
+            ws.ShowGridLines = true;
+
+            ws.Range("A1:I1").Merge();
+            var titleCell = ws.Cell("A1");
+            titleCell.Value = "رفيق POS - لوحة مؤشرات وملخص أقسام المتجر (" + catalogTitle + ")";
+            titleCell.Style.Font.Bold = true;
+            titleCell.Style.Font.FontSize = 13;
+            titleCell.Style.Font.FontColor = XLColor.White;
+            titleCell.Style.Fill.BackgroundColor = ForestDark;
+            titleCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            titleCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            ws.Row(1).Height = 40;
+
+            ws.Range("A2:I2").Merge();
+            var subCell = ws.Cell("A2");
+            subCell.Value = string.Format(
+                "تاريخ التصدير: {0} | نظام رفيق لإدارة المبيعات والمخازن | إجمالي الأقسام: {1} قسم | تقرير مالي ومخزني شامل بمعادلات إكسل",
+                DateTime.Now.ToString("yyyy/MM/dd HH:mm"),
+                categoryList != null ? categoryList.Count : 0
+            );
+            subCell.Style.Font.Bold = true;
+            subCell.Style.Font.FontSize = 9.5;
+            subCell.Style.Font.FontColor = XLColor.FromArgb(0, 77, 64);
+            subCell.Style.Fill.BackgroundColor = SoftMint;
+            subCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            subCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            ws.Row(2).Height = 26;
+
+            string[] headers = new string[]
+            {
+                "م",
+                "اسم القسم / التصنيف",
+                "عدد الأصناف",
+                "إجمالي كمية المخزون",
+                "إجمالي رأس مال القسم بالتكلفة (ج.م)",
+                "إجمالي القيمة البيعية التقديرية (ج.م)",
+                "إجمالي الأرباح المتوقعة للقسم (ج.م)",
+                "متوسط نسبة الربح (%)",
+                "حالة القسم"
+            };
+
+            ws.Row(3).Height = 30;
+            for (int i = 0; i < headers.Length; i++)
+            {
+                var cell = ws.Cell(3, i + 1);
+                cell.Value = headers[i];
+                cell.Style.Font.Bold = true;
+                cell.Style.Font.FontColor = XLColor.White;
+                cell.Style.Fill.BackgroundColor = EmeraldGreen;
+                cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                cell.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                cell.Style.Border.OutsideBorderColor = XLColor.FromArgb(0, 77, 64);
+            }
+
+            int catCount = categoryList != null ? categoryList.Count : 0;
+            for (int idx = 0; idx < catCount; idx++)
+            {
+                int sRow = idx + 4;
+                string cat = categoryList[idx];
+                string sheetName = categorySheetNames != null && categorySheetNames.ContainsKey(cat) ? categorySheetNames[cat] : cat;
+                int itemsCount = categoryItemCounts != null && categoryItemCounts.ContainsKey(cat) ? categoryItemCounts[cat] : 0;
+                int catLastRow = Math.Max(4, itemsCount + 3);
+
+                ws.Row(sRow).Height = 24;
+                bool isZebra = (idx % 2 == 1);
+                XLColor bg = isZebra ? ZebraLight : XLColor.White;
+
+                ws.Cell(sRow, 1).Value = idx + 1;
+                ws.Cell(sRow, 2).Value = cat;
+
+                ws.Cell(sRow, 3).FormulaA1 = string.Format("COUNTA('{0}'!B4:B{1})", sheetName, catLastRow);
+                ws.Cell(sRow, 3).Value = itemsCount;
+
+                ws.Cell(sRow, 4).FormulaA1 = string.Format("SUM('{0}'!I4:I{1})", sheetName, catLastRow);
+                ws.Cell(sRow, 5).FormulaA1 = string.Format("SUM('{0}'!M4:M{1})", sheetName, catLastRow);
+                ws.Cell(sRow, 6).FormulaA1 = string.Format("SUM('{0}'!N4:N{1})", sheetName, catLastRow);
+                ws.Cell(sRow, 7).FormulaA1 = string.Format("F{0}-E{0}", sRow);
+                ws.Cell(sRow, 8).FormulaA1 = string.Format("IF(E{0}>0, G{0}/E{0}, 0)", sRow);
+                ws.Cell(sRow, 9).FormulaA1 = string.Format("IF(C{0}>0, \"قسم نشط بالمخزن\", \"فارغ\")", sRow);
+                ws.Cell(sRow, 9).Value = "قسم نشط بالمخزن";
+
+                for (int c = 1; c <= 9; c++)
+                {
+                    var cell = ws.Cell(sRow, c);
+                    cell.Style.Fill.BackgroundColor = bg;
+                    cell.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                    cell.Style.Border.OutsideBorderColor = BorderGray;
+                    cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                }
+
+                ws.Cell(sRow, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(sRow, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+                ws.Cell(sRow, 3).Style.NumberFormat.Format = "#,##0";
+                ws.Cell(sRow, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(sRow, 4).Style.NumberFormat.Format = "#,##0.##";
+                ws.Cell(sRow, 4).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(sRow, 5).Style.NumberFormat.Format = "#,##0.00";
+                ws.Cell(sRow, 5).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(sRow, 6).Style.NumberFormat.Format = "#,##0.00";
+                ws.Cell(sRow, 6).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(sRow, 7).Style.NumberFormat.Format = "#,##0.00";
+                ws.Cell(sRow, 7).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(sRow, 8).Style.NumberFormat.Format = "0.0%";
+                ws.Cell(sRow, 8).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(sRow, 9).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(sRow, 9).Style.Font.Bold = true;
+            }
+
+            int lastCatRow = catCount + 3;
+            int grandSumRow = catCount + 4;
+            ws.Row(grandSumRow).Height = 28;
+
+            ws.Cell(grandSumRow, 1).Value = "الإجمالي العام";
+            ws.Cell(grandSumRow, 2).Value = "الإجمالي لكافة أقسام المتجر";
+            ws.Range(grandSumRow, 1, grandSumRow, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+            if (catCount > 0)
+            {
+                ws.Cell(grandSumRow, 3).FormulaA1 = string.Format("SUM(C4:C{0})", lastCatRow);
+                ws.Cell(grandSumRow, 3).Style.NumberFormat.Format = "#,##0";
+                ws.Cell(grandSumRow, 4).FormulaA1 = string.Format("SUM(D4:D{0})", lastCatRow);
+                ws.Cell(grandSumRow, 4).Style.NumberFormat.Format = "#,##0.##";
+                ws.Cell(grandSumRow, 5).FormulaA1 = string.Format("SUM(E4:E{0})", lastCatRow);
+                ws.Cell(grandSumRow, 5).Style.NumberFormat.Format = "#,##0.00";
+                ws.Cell(grandSumRow, 6).FormulaA1 = string.Format("SUM(F4:F{0})", lastCatRow);
+                ws.Cell(grandSumRow, 6).Style.NumberFormat.Format = "#,##0.00";
+                ws.Cell(grandSumRow, 7).FormulaA1 = string.Format("SUM(G4:G{0})", lastCatRow);
+                ws.Cell(grandSumRow, 7).Style.NumberFormat.Format = "#,##0.00";
+                ws.Cell(grandSumRow, 8).FormulaA1 = string.Format("IF(E{0}>0, G{0}/E{0}, 0)", grandSumRow);
+                ws.Cell(grandSumRow, 8).Style.NumberFormat.Format = "0.0%";
+            }
+
+            ws.Cell(grandSumRow, 9).Value = "متجر متكامل";
+            ws.Cell(grandSumRow, 9).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+            var gRange = ws.Range(grandSumRow, 1, grandSumRow, 9);
+            gRange.Style.Font.Bold = true;
+            gRange.Style.Fill.BackgroundColor = SoftMint;
+            gRange.Style.Border.OutsideBorder = XLBorderStyleValues.Medium;
+            gRange.Style.Border.OutsideBorderColor = EmeraldGreen;
+
+            ws.SheetView.FreezeRows(3);
+            ws.Column(1).Width = 6;
+            ws.Column(2).Width = 28;
+            ws.Column(3).Width = 16;
+            ws.Column(4).Width = 22;
+            ws.Column(5).Width = 28;
+            ws.Column(6).Width = 28;
+            ws.Column(7).Width = 26;
+            ws.Column(8).Width = 20;
+            ws.Column(9).Width = 20;
+        }
+
+        /// <summary>
+        /// توليد قالب استيراد الأصناف بتنسيق رسمي وألوان احترافية مع تابات للأقسام ومعادلات إكسل
         /// </summary>
         public string GenerateProductTemplateBase64()
         {
             using (var wb = new XLWorkbook())
             {
-                var ws = wb.Worksheets.Add("قالب_الأصناف_المعتمد");
-                ws.RightToLeft = true;
-                ws.ShowGridLines = true;
-
-                // 1. Title Banner (Row 1)
-                ws.Range("A1:N1").Merge();
-                var titleCell = ws.Cell("A1");
-                titleCell.Value = "رفيق POS - نموذج استيراد الأصناف المعتمد للمتاجر";
-                titleCell.Style.Font.Bold = true;
-                titleCell.Style.Font.FontSize = 13;
-                titleCell.Style.Font.FontColor = XLColor.White;
-                titleCell.Style.Fill.BackgroundColor = ForestDark;
-                titleCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                titleCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-                ws.Row(1).Height = 40;
-
-                // 2. Subtitle / Guidance Banner (Row 2)
-                ws.Range("A2:N2").Merge();
-                var subCell = ws.Cell("A2");
-                subCell.Value = "تعليمات هامة: الأعمدة المميزة بنجمة (*) إلزامية | الباركودات تحفظ كنص | اللون والمقاس اختياريان لمحلات الملابس والأحذية | الوحدة: قطعة أو كجم | المبالغ بالجنيه المصري";
-                subCell.Style.Font.Bold = true;
-                subCell.Style.Font.FontSize = 9.5;
-                subCell.Style.Font.FontColor = XLColor.FromArgb(0, 77, 64);
-                subCell.Style.Fill.BackgroundColor = SoftMint;
-                subCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                subCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-                ws.Row(2).Height = 26;
-
-                // 3. Table Column Headers (Row 3)
-                string[] headers = new string[]
+                var groceryProds = new List<Product>()
                 {
-                    "اسم الصنف *",
-                    "الباركود الرئيسي",
-                    "باركودات إضافية (مفصولة بفاصلة)",
-                    "القسم / التصنيف",
-                    "الوحدة (قطعة / كجم)",
-                    "اللون (اختياري / للملابس)",
-                    "المقاس (اختياري / للملابس)",
-                    "سعر البيع (بالجنيه) *",
-                    "سعر التكلفة (بالجنيه)",
-                    "الرصيد الافتتاحي",
-                    "حد الطلب الأدنى",
-                    "نسبة الضريبة (%)",
-                    "كود الصنف الداخلي (SKU)",
-                    "كود التصنيف الضريبي (GS1/EGS)"
+                    new Product { Name = "شاي العروسة ناعم 250 جم", Barcode = "6223000123456", Barcodes = new List<string> { "6223000123457" }, Unit = "piece", PricePiasters = 3500, CostPiasters = 2850, StockQuantityMilli = 0, MinStockQuantityMilli = 10000, InternalCode = "TEA-AR-250" },
+                    new Product { Name = "سكر أبيض فاخر 1 كجم", Barcode = "6223000987654", Unit = "piece", PricePiasters = 2700, CostPiasters = 2200, StockQuantityMilli = 0, MinStockQuantityMilli = 15000, InternalCode = "SGR-01" },
+                    new Product { Name = "زيت خليط قلية ممتاز 700 مل", Barcode = "6224000112233", Unit = "piece", PricePiasters = 5500, CostPiasters = 4600, StockQuantityMilli = 0, MinStockQuantityMilli = 8000, InternalCode = "OIL-700" }
                 };
 
-                ws.Row(3).Height = 32;
-                for (int i = 0; i < headers.Length; i++)
+                var clothingProds = new List<Product>()
                 {
-                    var cell = ws.Cell(3, i + 1);
-                    cell.Value = headers[i];
-                    cell.Style.Font.Bold = true;
-                    cell.Style.Font.FontSize = 10.5;
-                    cell.Style.Font.FontColor = XLColor.White;
-                    cell.Style.Fill.BackgroundColor = EmeraldGreen;
-                    cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                    cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-                    cell.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
-                    cell.Style.Border.OutsideBorderColor = XLColor.FromArgb(0, 77, 64);
-                }
-
-                // 4. Realistic Supermarket & Retail Sample Rows (Rows 4 to 9)
-                object[][] sampleData = new object[][]
-                {
-                    new object[] { "شاي العروسة ناعم 250 جم", "6223000123456", "6223000123457, 6223000123458", "بقالة ومشروبات", "قطعة", "", "", 35.00, 28.50, 50, 10, 0, "TEA-AR-250", "EG-100000-01" },
-                    new object[] { "تيشيرت بولو كاجوال رجالي", "6225501100026", "", "ملابس رجالي", "قطعة", "كحلي", "L", 220.00, 140.00, 25, 5, 0, "POLO-NV-L", "" },
-                    new object[] { "حذاء رياضي كوتشي كاجوال", "6225504400017", "", "أحذية وحقائب", "قطعة", "أسود", "42", 320.00, 200.00, 15, 3, 0, "SHOE-BK-42", "" },
-                    new object[] { "طماطم بلدي طازجة درجة أولى", "200123456789", "", "خضار وفاكهة", "كجم", "", "", 15.00, 10.00, 45.0, 5, 0, "VEG-TOM-01", "" },
-                    new object[] { "جبنة بيضاء رومي قديمة بالوزن", "200987654321", "", "ألبان وأجبان", "كجم", "", "", 320.00, 260.00, 15.5, 3, 0, "CHS-ROM-01", "EG-100000-03" },
-                    new object[] { "صابون سائل بريل بالليمون 1 لتر", "6222000554433", "", "منظفات وعناية", "قطعة", "", "", 42.00, 35.00, 30, 5, 14, "CLN-PRL-01", "EG-100000-05" }
+                    new Product { Name = "تيشيرت بولو كاجوال رجالي", Barcode = "6225501100026", Unit = "piece", VariantColor = "كحلي", VariantSize = "L", PricePiasters = 22000, CostPiasters = 14000, StockQuantityMilli = 0, MinStockQuantityMilli = 5000, InternalCode = "POLO-NV-L" },
+                    new Product { Name = "حذاء رياضي كوتشي كاجوال", Barcode = "6225504400017", Unit = "piece", VariantColor = "أسود", VariantSize = "42", PricePiasters = 32000, CostPiasters = 20000, StockQuantityMilli = 0, MinStockQuantityMilli = 3000, InternalCode = "SHOE-BK-42" }
                 };
 
-                for (int r = 0; r < sampleData.Length; r++)
+                var dairyProds = new List<Product>()
                 {
-                    int rowNum = r + 4;
-                    ws.Row(rowNum).Height = 24;
-                    bool isZebra = (r % 2 == 1);
-                    XLColor rowBg = isZebra ? ZebraLight : XLColor.White;
+                    new Product { Name = "جبنة بيضاء رومي قديمة بالوزن", Barcode = "200987654321", Unit = "kg", PricePiasters = 32000, CostPiasters = 26000, StockQuantityMilli = 0, MinStockQuantityMilli = 3000, InternalCode = "CHS-ROM-01" },
+                    new Product { Name = "حليب كامل الدسم مبستر 1 لتر", Barcode = "6221000123987", Unit = "piece", PricePiasters = 3800, CostPiasters = 3100, StockQuantityMilli = 0, MinStockQuantityMilli = 10000, InternalCode = "MLK-1L" }
+                };
 
-                    object[] rowVals = sampleData[r];
-                    for (int c = 0; c < rowVals.Length; c++)
-                    {
-                        var cell = ws.Cell(rowNum, c + 1);
-                        cell.Value = rowVals[c] != null ? rowVals[c].ToString() : "";
-                        cell.Style.Font.FontSize = 10;
-                        cell.Style.Fill.BackgroundColor = rowBg;
-                        cell.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
-                        cell.Style.Border.OutsideBorderColor = BorderGray;
-                        cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                var cleaningProds = new List<Product>()
+                {
+                    new Product { Name = "صابون سائل بريل بالليمون 1 لتر", Barcode = "6222000554433", Unit = "piece", PricePiasters = 4200, CostPiasters = 3500, StockQuantityMilli = 0, MinStockQuantityMilli = 5000, TaxRatePercent = 14, InternalCode = "CLN-PRL-01" },
+                    new Product { Name = "مسحوق غسيل أوتوماتيك أريال 2.5 كجم", Barcode = "6222000889911", Unit = "piece", PricePiasters = 17500, CostPiasters = 14500, StockQuantityMilli = 0, MinStockQuantityMilli = 5000, InternalCode = "DET-ARL-25" }
+                };
 
-                        // Specific formatting based on column
-                        if (c == 0) // Name
-                        {
-                            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
-                        }
-                        else if (c == 1 || c == 2) // Barcodes (strictly Text format)
-                        {
-                            cell.Style.NumberFormat.Format = "@";
-                            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                        }
-                        else if (c == 3 || c == 4 || c == 5 || c == 6) // Category, Unit, Color, Size
-                        {
-                            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                        }
-                        else if (c == 7 || c == 8) // Prices (Currency format)
-                        {
-                            if (rowVals[c] is double)
-                            {
-                                cell.Value = (double)rowVals[c];
-                                cell.Style.NumberFormat.Format = "#,##0.00";
-                            }
-                            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                        }
-                        else if (c == 9) // Stock
-                        {
-                            if (rowVals[c] is double)
-                            {
-                                cell.Value = (double)rowVals[c];
-                                cell.Style.NumberFormat.Format = "#,##0.###";
-                            }
-                            else if (rowVals[c] is int)
-                            {
-                                cell.Value = (int)rowVals[c];
-                                cell.Style.NumberFormat.Format = "#,##0";
-                            }
-                            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                        }
-                        else if (c == 10 || c == 11) // Min stock, Tax
-                        {
-                            if (rowVals[c] is int)
-                            {
-                                cell.Value = (int)rowVals[c];
-                                cell.Style.NumberFormat.Format = "#,##0";
-                            }
-                            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                        }
-                        else // Codes
-                        {
-                            cell.Style.NumberFormat.Format = "@";
-                            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                        }
-                    }
-                }
+                // Category Sheets directly: Each department has its own dedicated tab with its items and formulas
+                var ws1 = wb.Worksheets.Add("بقالة ومشروبات");
+                PopulateStandardProductSheet(ws1, "قسم: بقالة ومشروبات", groceryProds, null, "بقالة ومشروبات");
 
-                // 5. Freeze Header Rows
-                ws.SheetView.FreezeRows(3);
+                var ws2 = wb.Worksheets.Add("ملابس وأحذية");
+                PopulateStandardProductSheet(ws2, "قسم: ملابس وأحذية", clothingProds, null, "ملابس وأحذية");
 
-                // 6. Explicit and generous column widths
-                ws.Column(1).Width = 34; // اسم الصنف
-                ws.Column(2).Width = 20; // الباركود الرئيسي
-                ws.Column(3).Width = 32; // باركودات إضافية
-                ws.Column(4).Width = 20; // القسم
-                ws.Column(5).Width = 18; // الوحدة
-                ws.Column(6).Width = 18; // اللون
-                ws.Column(7).Width = 18; // المقاس
-                ws.Column(8).Width = 20; // سعر البيع
-                ws.Column(9).Width = 20; // سعر التكلفة
-                ws.Column(10).Width = 18; // الرصيد
-                ws.Column(11).Width = 18; // حد الطلب
-                ws.Column(12).Width = 16; // الضريبة
-                ws.Column(13).Width = 22; // SKU
-                ws.Column(14).Width = 26; // كود ضريبي
+                var ws3 = wb.Worksheets.Add("ألبان وأجبان");
+                PopulateStandardProductSheet(ws3, "قسم: ألبان وأجبان", dairyProds, null, "ألبان وأجبان");
+
+                var ws4 = wb.Worksheets.Add("منظفات وعناية");
+                PopulateStandardProductSheet(ws4, "قسم: منظفات وعناية", cleaningProds, null, "منظفات وعناية");
 
                 using (var ms = new MemoryStream())
                 {
@@ -196,7 +506,7 @@ namespace RafiqPOS.Services
         }
 
         /// <summary>
-        /// تصدير كامل أصناف النظام إلى ملف إكسل احترافي ملون ومفصل مع تقييم المخزون وهوامش الربح
+        /// تصدير كامل أصناف النظام إلى ملف إكسل احترافي مع تابات منفصلة لكل قسم ومعادلات مالية ومخزنية متقدمة
         /// </summary>
         public string ExportProductsBase64(List<Product> products, Dictionary<string, string> categoryNames)
         {
@@ -205,192 +515,51 @@ namespace RafiqPOS.Services
 
             using (var wb = new XLWorkbook())
             {
-                var ws = wb.Worksheets.Add("كتالوج_المخزون_والأصناف");
-                ws.RightToLeft = true;
-                ws.ShowGridLines = true;
-
-                // 1. Header Banner (Row 1)
-                ws.Range("A1:P1").Merge();
-                var titleCell = ws.Cell("A1");
-                titleCell.Value = "رفيق لنقاط البيع (Rafiq POS) - تقرير جرد وكتالوج الأصناف الكامل";
-                titleCell.Style.Font.Bold = true;
-                titleCell.Style.Font.FontSize = 13;
-                titleCell.Style.Font.FontColor = XLColor.White;
-                titleCell.Style.Fill.BackgroundColor = ForestDark;
-                titleCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                titleCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-                ws.Row(1).Height = 40;
-
-                // 2. Metadata Banner (Row 2)
-                ws.Range("A2:P2").Merge();
-                var metaCell = ws.Cell("A2");
-                metaCell.Value = string.Format(
-                    "تاريخ التصدير: {0} | إجمالي الأصناف المسجلة: {1} صنف | نظام رفيق لإدارة المبيعات والمخازن",
-                    DateTime.Now.ToString("yyyy/MM/dd HH:mm"),
-                    products.Count
-                );
-                metaCell.Style.Font.Bold = true;
-                metaCell.Style.Font.FontSize = 9.5;
-                metaCell.Style.Font.FontColor = XLColor.FromArgb(0, 77, 64);
-                metaCell.Style.Fill.BackgroundColor = SoftMint;
-                metaCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                metaCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-                ws.Row(2).Height = 26;
-
-                // 3. Table Column Headers (Row 3)
-                string[] headers = new string[]
+                var categoryGroups = new Dictionary<string, List<Product>>();
+                for (int i = 0; i < products.Count; i++)
                 {
-                    "م",
-                    "اسم الصنف",
-                    "الباركود الرئيسي",
-                    "القسم / التصنيف",
-                    "الوحدة",
-                    "اللون",
-                    "المقاس",
-                    "سعر البيع (ج.م)",
-                    "سعر التكلفة (ج.م)",
-                    "هامش الربح (ج.م)",
-                    "نسبة الربح",
-                    "الرصيد الحالي",
-                    "حد الطلب الأدنى",
-                    "حالة المخزون",
-                    "نسبة الضريبة",
-                    "كود الصنف (SKU)"
-                };
-
-                ws.Row(3).Height = 32;
-                for (int i = 0; i < headers.Length; i++)
-                {
-                    var cell = ws.Cell(3, i + 1);
-                    cell.Value = headers[i];
-                    cell.Style.Font.Bold = true;
-                    cell.Style.Font.FontSize = 10.5;
-                    cell.Style.Font.FontColor = XLColor.White;
-                    cell.Style.Fill.BackgroundColor = EmeraldGreen;
-                    cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                    cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-                    cell.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
-                    cell.Style.Border.OutsideBorderColor = XLColor.FromArgb(0, 77, 64);
+                    var p = products[i];
+                    string cName = "عام / متنوع";
+                    if (!string.IsNullOrEmpty(p.CategoryId) && categoryNames.ContainsKey(p.CategoryId))
+                    {
+                        cName = categoryNames[p.CategoryId];
+                    }
+                    cName = cName.Trim();
+                    if (!categoryGroups.ContainsKey(cName))
+                    {
+                        categoryGroups[cName] = new List<Product>();
+                    }
+                    categoryGroups[cName].Add(p);
                 }
 
-                // 4. Products Data Rows (Optimized for lightning speed even with 50,000 items)
-                int productCount = products.Count;
-                for (int idx = 0; idx < productCount; idx++)
+                var catList = new List<string>(categoryGroups.Keys);
+                var usedSheets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                var sheetNameMap = new Dictionary<string, string>();
+                for (int i = 0; i < catList.Count; i++)
                 {
-                    int rowNum = idx + 4;
-                    var prod = products[idx];
-                    ws.Row(rowNum).Height = 22;
-
-                    string catName = "عام / متنوع";
-                    if (!string.IsNullOrEmpty(prod.CategoryId) && categoryNames.ContainsKey(prod.CategoryId))
-                    {
-                        catName = categoryNames[prod.CategoryId];
-                    }
-
-                    double sellPounds = prod.PricePiasters / 100.0;
-                    double costPounds = prod.CostPiasters / 100.0;
-                    double profitPounds = Math.Max(0, sellPounds - costPounds);
-                    double marginPercent = costPounds > 0 ? (profitPounds / costPounds) * 100.0 : 0.0;
-                    double currentStock = prod.StockQuantityMilli / 1000.0;
-                    double minStock = prod.MinStockQuantityMilli / 1000.0;
-
-                    // Stock Status Logic
-                    string stockStatusText;
-                    XLColor stockBg;
-                    XLColor stockFont;
-
-                    if (currentStock <= 0)
-                    {
-                        stockStatusText = "نفد من المخزن";
-                        stockBg = XLColor.FromArgb(253, 232, 232); // Light red
-                        stockFont = XLColor.FromArgb(155, 28, 28); // Dark red
-                    }
-                    else if (currentStock <= minStock)
-                    {
-                        stockStatusText = "قارب على النفاد";
-                        stockBg = XLColor.FromArgb(254, 240, 138); // Light amber
-                        stockFont = XLColor.FromArgb(120, 53, 15); // Dark amber
-                    }
-                    else
-                    {
-                        stockStatusText = "متوفر بالمخزن";
-                        stockBg = XLColor.FromArgb(220, 252, 231); // Light green
-                        stockFont = XLColor.FromArgb(20, 83, 45); // Dark green
-                    }
-
-                    ws.Cell(rowNum, 1).Value = idx + 1;
-                    ws.Cell(rowNum, 2).Value = prod.Name ?? "";
-                    ws.Cell(rowNum, 3).SetValue<string>(prod.Barcode ?? "");
-                    ws.Cell(rowNum, 4).Value = catName;
-                    ws.Cell(rowNum, 5).Value = prod.Unit == "kg" ? "كجم" : "قطعة";
-                    ws.Cell(rowNum, 6).Value = prod.VariantColor ?? "";
-                    ws.Cell(rowNum, 7).Value = prod.VariantSize ?? "";
-                    ws.Cell(rowNum, 8).Value = sellPounds;
-                    ws.Cell(rowNum, 9).Value = costPounds;
-                    ws.Cell(rowNum, 10).Value = profitPounds;
-                    ws.Cell(rowNum, 11).Value = marginPercent > 0 ? string.Format("{0:0.#}%", marginPercent) : "0%";
-                    ws.Cell(rowNum, 12).Value = currentStock;
-                    ws.Cell(rowNum, 13).Value = minStock;
-
-                    var statusCell = ws.Cell(rowNum, 14);
-                    statusCell.Value = stockStatusText;
-                    statusCell.Style.Fill.BackgroundColor = stockBg;
-                    statusCell.Style.Font.FontColor = stockFont;
-                    statusCell.Style.Font.Bold = true;
-
-                    ws.Cell(rowNum, 15).Value = prod.TaxRatePercent > 0 ? string.Format("{0}%", prod.TaxRatePercent) : "0%";
-                    ws.Cell(rowNum, 16).SetValue<string>(prod.InternalCode ?? "");
-
-                    if (idx % 2 == 1)
-                    {
-                        ws.Range(rowNum, 1, rowNum, 13).Style.Fill.BackgroundColor = ZebraLight;
-                        ws.Range(rowNum, 15, rowNum, 16).Style.Fill.BackgroundColor = ZebraLight;
-                    }
+                    string cat = catList[i];
+                    string sName = CleanWorksheetName(cat, usedSheets);
+                    sheetNameMap[cat] = sName;
+                    usedSheets.Add(sName);
                 }
 
-                // Batch Range Formatting (50x faster than cell-by-cell in ClosedXML)
-                int lastRow = productCount + 3;
-                if (productCount > 0)
+                if (catList.Count == 0)
                 {
-                    var dataRange = ws.Range(4, 1, lastRow, 16);
-                    dataRange.Style.Font.FontSize = 10;
-                    dataRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
-                    dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
-                    dataRange.Style.Border.OutsideBorderColor = BorderGray;
-                    dataRange.Style.Border.InsideBorderColor = BorderGray;
-                    dataRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-
-                    ws.Range(4, 1, lastRow, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                    ws.Range(4, 2, lastRow, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
-                    ws.Range(4, 3, lastRow, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                    ws.Range(4, 3, lastRow, 3).Style.NumberFormat.Format = "@";
-                    ws.Range(4, 4, lastRow, 7).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                    ws.Range(4, 8, lastRow, 10).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                    ws.Range(4, 8, lastRow, 10).Style.NumberFormat.Format = "#,##0.00";
-                    ws.Range(4, 11, lastRow, 11).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                    ws.Range(4, 12, lastRow, 13).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                    ws.Range(4, 12, lastRow, 13).Style.NumberFormat.Format = "#,##0.###";
-                    ws.Range(4, 14, lastRow, 16).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                    var wsDefault = wb.Worksheets.Add("الأصناف_العامة");
+                    PopulateStandardProductSheet(wsDefault, "قائمة الأصناف", products, categoryNames, "الأصناف_العامة");
                 }
-
-                // 5. Freeze Header Rows
-                ws.SheetView.FreezeRows(3);
-
-                // 6. Generous widths
-                ws.Column(1).Width = 8;   // م
-                ws.Column(2).Width = 34;  // الاسم
-                ws.Column(3).Width = 20;  // الباركود
-                ws.Column(4).Width = 20;  // القسم
-                ws.Column(5).Width = 14;  // الوحدة
-                ws.Column(6).Width = 18;  // سعر البيع
-                ws.Column(7).Width = 18;  // التكلفة
-                ws.Column(8).Width = 18;  // هامش الربح
-                ws.Column(9).Width = 14;  // نسبة الربح
-                ws.Column(10).Width = 16; // الرصيد
-                ws.Column(11).Width = 16; // حد الطلب
-                ws.Column(12).Width = 20; // حالة المخزون
-                ws.Column(13).Width = 14; // الضريبة
-                ws.Column(14).Width = 20; // SKU
+                else
+                {
+                    // Dedicated Category Sheets only - each category has its own independent tab
+                    for (int i = 0; i < catList.Count; i++)
+                    {
+                        string cat = catList[i];
+                        string sName = sheetNameMap[cat];
+                        var wsCat = wb.Worksheets.Add(sName);
+                        PopulateStandardProductSheet(wsCat, "قائمة أصناف قسم: [" + cat + "]", categoryGroups[cat], categoryNames, cat);
+                    }
+                }
 
                 using (var ms = new MemoryStream())
                 {
@@ -910,9 +1079,9 @@ namespace RafiqPOS.Services
                 }
                 for (int i = 0; i < products.Count; i++)
                 {
-                    double qty = products[i].StockQuantityMilli / 1000.0;
-                    res.TotalStockCostPiasters += (long)Math.Round(qty * products[i].CostPiasters);
-                    res.TotalStockRetailPiasters += (long)Math.Round(qty * products[i].PricePiasters);
+                    decimal qty = products[i].StockQuantityMilli / 1000m;
+                    res.TotalStockCostPiasters += (long)Math.Round(qty * products[i].CostPiasters, 0, MidpointRounding.AwayFromZero);
+                    res.TotalStockRetailPiasters += (long)Math.Round(qty * products[i].PricePiasters, 0, MidpointRounding.AwayFromZero);
                 }
 
                 // File 1: Products & Stock
@@ -921,6 +1090,35 @@ namespace RafiqPOS.Services
                 {
                     var ws = wb.Worksheets.Add("المنتجات_والمخزون");
                     PopulateProductsWorksheet(ws, products, categoryDict, shopName);
+
+                    // Group products by category and append category worksheets
+                    var catGroups = new Dictionary<string, List<Product>>();
+                    for (int pIdx = 0; pIdx < products.Count; pIdx++)
+                    {
+                        var p = products[pIdx];
+                        string cName = "عام";
+                        if (!string.IsNullOrEmpty(p.CategoryId) && categoryDict.ContainsKey(p.CategoryId))
+                        {
+                            cName = categoryDict[p.CategoryId];
+                        }
+                        if (!catGroups.ContainsKey(cName))
+                        {
+                            catGroups[cName] = new List<Product>();
+                        }
+                        catGroups[cName].Add(p);
+                    }
+
+                    var usedCatNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    usedCatNames.Add("المنتجات_والمخزون");
+
+                    foreach (var kvp in catGroups)
+                    {
+                        string safeSheetName = CleanWorksheetName(kvp.Key, usedCatNames);
+                        usedCatNames.Add(safeSheetName);
+                        var catWs = wb.Worksheets.Add(safeSheetName);
+                        PopulateStandardProductSheet(catWs, string.Format("قسم: {0} - {1}", kvp.Key, shopName), kvp.Value, categoryDict, kvp.Key);
+                    }
+
                     wb.SaveAs(prodFile);
                     res.GeneratedFiles.Add(prodFile);
                 }
@@ -1145,11 +1343,14 @@ namespace RafiqPOS.Services
                 ws.Cell(r, 9).Style.NumberFormat.Format = "#,##0.##";
                 ws.Cell(r, 10).Value = minQty;
                 ws.Cell(r, 11).Value = costRow;
+                ws.Cell(r, 11).FormulaA1 = string.Format("I{0}*G{0}", r);
                 ws.Cell(r, 11).Style.NumberFormat.Format = "#,##0.00";
                 ws.Cell(r, 12).Value = retailRow;
+                ws.Cell(r, 12).FormulaA1 = string.Format("I{0}*H{0}", r);
                 ws.Cell(r, 12).Style.NumberFormat.Format = "#,##0.00";
                 ws.Cell(r, 13).Value = p.TaxRatePercent;
                 ws.Cell(r, 14).Value = status;
+                ws.Cell(r, 14).FormulaA1 = string.Format("IF(I{0}<=0, \"نفد من المخزن\", IF(I{0}<=J{0}, \"قارب على النفاد\", \"متوفر\"))", r);
 
                 if (i % 2 == 1)
                 {
@@ -1164,12 +1365,24 @@ namespace RafiqPOS.Services
             ws.Range(sumRow, 1, sumRow, 8).Merge().Style.Font.Bold = true;
             ws.Cell(sumRow, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
             ws.Cell(sumRow, 9).Value = totalQty;
+            if (products.Count > 0)
+            {
+                ws.Cell(sumRow, 9).FormulaA1 = string.Format("SUM(I4:I{0})", sumRow - 1);
+            }
             ws.Cell(sumRow, 9).Style.NumberFormat.Format = "#,##0.##";
             ws.Cell(sumRow, 9).Style.Font.Bold = true;
             ws.Cell(sumRow, 11).Value = totalCostVal;
+            if (products.Count > 0)
+            {
+                ws.Cell(sumRow, 11).FormulaA1 = string.Format("SUM(K4:K{0})", sumRow - 1);
+            }
             ws.Cell(sumRow, 11).Style.NumberFormat.Format = "#,##0.00";
             ws.Cell(sumRow, 11).Style.Font.Bold = true;
             ws.Cell(sumRow, 12).Value = totalRetailVal;
+            if (products.Count > 0)
+            {
+                ws.Cell(sumRow, 12).FormulaA1 = string.Format("SUM(L4:L{0})", sumRow - 1);
+            }
             ws.Cell(sumRow, 12).Style.NumberFormat.Format = "#,##0.00";
             ws.Cell(sumRow, 12).Style.Font.Bold = true;
             ws.Range(sumRow, 1, sumRow, 14).Style.Fill.BackgroundColor = SoftMint;

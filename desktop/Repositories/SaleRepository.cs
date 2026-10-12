@@ -366,62 +366,66 @@ namespace RafiqPOS.Repositories
                             }
                             else if (debtAmount < 0)
                             {
-                                long excessAmount = Math.Abs(debtAmount);
-                                long currentBal = 0;
-                                string getCustSql = "SELECT balance_piasters FROM customers WHERE id = @cid LIMIT 1;";
-                                using (var cCmd = new SQLiteCommand(getCustSql, conn, trans))
+                                long unreturnedChange = Math.Abs(debtAmount) - sale.ChangePiasters;
+                                if (unreturnedChange > 0)
                                 {
-                                    cCmd.Parameters.AddWithValue("@cid", sale.CustomerId);
-                                    using (var cReader = cCmd.ExecuteReader())
+                                    long excessAmount = unreturnedChange;
+                                    long currentBal = 0;
+                                    string getCustSql = "SELECT balance_piasters FROM customers WHERE id = @cid LIMIT 1;";
+                                    using (var cCmd = new SQLiteCommand(getCustSql, conn, trans))
                                     {
-                                        if (cReader.Read())
+                                        cCmd.Parameters.AddWithValue("@cid", sale.CustomerId);
+                                        using (var cReader = cCmd.ExecuteReader())
                                         {
-                                            currentBal = Convert.ToInt64(cReader["balance_piasters"]);
+                                            if (cReader.Read())
+                                            {
+                                                currentBal = Convert.ToInt64(cReader["balance_piasters"]);
+                                            }
                                         }
                                     }
-                                }
-                                long newBal = currentBal - excessAmount;
-                                string upCustSql = "UPDATE customers SET balance_piasters = @newBal WHERE id = @cid;";
-                                using (var uCmd = new SQLiteCommand(upCustSql, conn, trans))
-                                {
-                                    uCmd.Parameters.AddWithValue("@newBal", newBal);
-                                    uCmd.Parameters.AddWithValue("@cid", sale.CustomerId);
-                                    uCmd.ExecuteNonQuery();
-                                }
-
-                                string depositNote;
-                                if (currentBal > 0)
-                                {
-                                    if (newBal >= 0)
+                                    long newBal = currentBal - excessAmount;
+                                    string upCustSql = "UPDATE customers SET balance_piasters = @newBal WHERE id = @cid;";
+                                    using (var uCmd = new SQLiteCommand(upCustSql, conn, trans))
                                     {
-                                        depositNote = string.Format("سداد مديونية تحت الحساب من باقي فاتورة رقم #{0}", sale.InvoiceNumber);
+                                        uCmd.Parameters.AddWithValue("@newBal", newBal);
+                                        uCmd.Parameters.AddWithValue("@cid", sale.CustomerId);
+                                        uCmd.ExecuteNonQuery();
+                                    }
+
+                                    string depositNote;
+                                    if (currentBal > 0)
+                                    {
+                                        if (newBal >= 0)
+                                        {
+                                            depositNote = string.Format("سداد مديونية تحت الحساب من باقي فاتورة رقم #{0}", sale.InvoiceNumber);
+                                        }
+                                        else
+                                        {
+                                            depositNote = string.Format("سداد كامل المديونية وباقي {0} أمانات تحت الحساب من فاتورة رقم #{1}",
+                                                Common.Money.FormatPiasters(Math.Abs(newBal)),
+                                                sale.InvoiceNumber);
+                                        }
                                     }
                                     else
                                     {
-                                        depositNote = string.Format("سداد كامل المديونية وباقي {0} أمانات تحت الحساب من فاتورة رقم #{1}",
-                                            Common.Money.FormatPiasters(Math.Abs(newBal)),
-                                            sale.InvoiceNumber);
+                                        depositNote = string.Format("مبلغ متبقي تحت الحساب (أمانات) من فاتورة رقم #{0}", sale.InvoiceNumber);
                                     }
-                                }
-                                else
-                                {
-                                    depositNote = string.Format("مبلغ متبقي تحت الحساب (أمانات) من فاتورة رقم #{0}", sale.InvoiceNumber);
-                                }
 
-                                string insLedgerSql = @"
-                                    INSERT INTO customer_ledger (id, customer_id, type, sale_id, amount_piasters, balance_after_piasters, notes, created_at)
-                                    VALUES (@lid, @cid, 'deposit', @sid, @amt, @after, @notes, @cat);
-                                ";
-                                using (var lCmd = new SQLiteCommand(insLedgerSql, conn, trans))
-                                {
-                                    lCmd.Parameters.AddWithValue("@lid", "led_" + Guid.NewGuid().ToString("N").Substring(0, 12));
-                                    lCmd.Parameters.AddWithValue("@cid", sale.CustomerId);
-                                    lCmd.Parameters.AddWithValue("@sid", sale.Id);
-                                    lCmd.Parameters.AddWithValue("@amt", excessAmount);
-                                    lCmd.Parameters.AddWithValue("@after", newBal);
-                                    lCmd.Parameters.AddWithValue("@notes", depositNote);
-                                    lCmd.Parameters.AddWithValue("@cat", sale.CreatedAt ?? DateTime.UtcNow.ToString("o"));
-                                    lCmd.ExecuteNonQuery();
+                                    string insLedgerSql = @"
+                                        INSERT INTO customer_ledger (id, customer_id, type, sale_id, amount_piasters, balance_after_piasters, notes, created_at)
+                                        VALUES (@lid, @cid, 'deposit', @sid, @amt, @after, @notes, @cat);
+                                    ";
+                                    using (var lCmd = new SQLiteCommand(insLedgerSql, conn, trans))
+                                    {
+                                        lCmd.Parameters.AddWithValue("@lid", "led_" + Guid.NewGuid().ToString("N").Substring(0, 12));
+                                        lCmd.Parameters.AddWithValue("@cid", sale.CustomerId);
+                                        lCmd.Parameters.AddWithValue("@sid", sale.Id);
+                                        lCmd.Parameters.AddWithValue("@amt", excessAmount);
+                                        lCmd.Parameters.AddWithValue("@after", newBal);
+                                        lCmd.Parameters.AddWithValue("@notes", depositNote);
+                                        lCmd.Parameters.AddWithValue("@cat", sale.CreatedAt ?? DateTime.UtcNow.ToString("o"));
+                                        lCmd.ExecuteNonQuery();
+                                    }
                                 }
                             }
                         }

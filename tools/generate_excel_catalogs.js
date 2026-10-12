@@ -44,7 +44,7 @@ function parseMethodProducts(methodName) {
       size: '',
       price: Number((parseInt(m[4], 10) / 100).toFixed(2)),
       cost: Number((parseInt(m[5], 10) / 100).toFixed(2)),
-      stock: Math.round(parseInt(m[6], 10) / 1000),
+      stock: 0,
       minStock: Math.round(parseInt(m[7], 10) / 1000),
       taxRate: 0,
       sku: `SKU-${String(idx++).padStart(4, '0')}`,
@@ -367,82 +367,200 @@ const restaurantsCafeItems = [
   { name: 'زجاجة مياه معدنية 600 مل', barcode: '5047', category: 'مشروبات باردة', unit: 'قطعة', size: '600 مل', price: 10.0, cost: 4.5, stock: 200, minStock: 40, sku: 'RST-0034' }
 ];
 
-// دالة كتابة ملف إكسل منسق باحترافية كاملة مطابق 100% للنموذج الرسمي للتطبيق (14 عمود)
-function exportExcelFile(fileName, sheetTitle, items) {
-  const titleRow = ['رفيق POS - نموذج استيراد الأصناف المعتمد للمتاجر'];
-  const instructionsRow = [
-    'تعليمات هامة: الأعمدة المميزة بنجمة (*) إلزامية | الباركودات تحفظ كنص | اللون والمقاس اختياريان لمحلات الملابس والأحذية | الوحدة: قطعة أو كجم | المبالغ بالجنيه المصري'
-  ];
-  const headers = [
+// دالة تنظيف وتأمين أسماء أوراق العمل في إكسل (بحد أقصى 28 حرفاً وتجنب الرموز المحظورة)
+function sanitizeSheetName(name, usedSet) {
+  let clean = (name || 'عام').replace(/[\\/?*:[\]']/g, '_').trim();
+  if (clean.length > 28) clean = clean.substring(0, 28);
+  let finalName = clean;
+  let counter = 1;
+  while (usedSet.has(finalName)) {
+    finalName = `${clean.substring(0, 24)}_${counter++}`;
+  }
+  usedSet.add(finalName);
+  return finalName;
+}
+
+// دالة كتابة ملف إكسل منسق باحترافية كاملة مع تابات منفصلة لكل قسم ومعادلات مالية ومخزنية متقدمة
+function exportExcelFile(fileName, catalogTitle, items) {
+  const wb = xlsx.utils.book_new();
+  const usedSheetNames = new Set();
+
+  // 1. تقسيم وفرز الأصناف بحسب الأقسام
+  const categoryGroups = new Map();
+  items.forEach((item) => {
+    const cat = (item.category || 'عام').trim();
+    if (!categoryGroups.has(cat)) {
+      categoryGroups.set(cat, []);
+    }
+    categoryGroups.get(cat).push(item);
+  });
+
+  const categoriesList = Array.from(categoryGroups.keys());
+
+  // تعيين أسماء شيتات نظيفة لكل قسم
+  const categorySheetNames = new Map();
+
+  categoriesList.forEach((cat) => {
+    const sName = sanitizeSheetName(cat, usedSheetNames);
+    categorySheetNames.set(cat, sName);
+  });
+
+  const standardHeaders = [
+    'م',
     'اسم الصنف *',
     'الباركود الرئيسي',
     'باركودات إضافية (مفصولة بفاصلة)',
-    'القسم / التصنيف',
     'الوحدة (قطعة / كجم)',
-    'اللون (اختياري / للملابس)',
-    'المقاس (اختياري / للملابس)',
     'سعر البيع (بالجنيه) *',
     'سعر التكلفة (بالجنيه)',
     'الرصيد الافتتاحي',
     'حد الطلب الأدنى',
+    'هامش الربح للقطعة (ج.م)',
+    'نسبة الربح (%)',
+    'إجمالي قيمة التكلفة (ج.م)',
+    'إجمالي القيمة البيعية (ج.م)',
+    'إجمالي الربح المتوقع (ج.م)',
+    'حالة المخزون التلقائية',
     'نسبة الضريبة (%)',
     'كود الصنف الداخلي (SKU)',
+    'اللون (اختياري / للملابس)',
+    'المقاس (اختياري / للملابس)',
     'كود التصنيف الضريبي (GS1/EGS)'
   ];
 
-  const dataRows = items.map((item, idx) => [
-    item.name || '',
-    item.barcode ? String(item.barcode) : '',
-    item.additionalBarcodes ? String(item.additionalBarcodes) : '',
-    item.category || 'عام',
-    item.unit || 'قطعة',
-    item.color || item.variantColor || '',
-    item.size || item.variantSize || '',
-    Number(item.price || 0),
-    Number(item.cost || 0),
-    Number(item.stock || 0),
-    Number(item.minStock || 0),
-    Number(item.taxRate || 0),
-    item.sku || item.internalCode || `SKU-${String(idx + 1).padStart(4, '0')}`,
-    item.taxCategoryCode || ''
-  ]);
-
-  const allRows = [titleRow, instructionsRow, headers, ...dataRows];
-  const ws = xlsx.utils.aoa_to_sheet(allRows);
-
-  // دمج خلايا العنوان والتعليمات
-  ws['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 13 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 13 } }
-  ];
-
-  // أبعاد الأعمدة المتناسقة
-  ws['!cols'] = [
-    { wch: 42 }, // اسم الصنف *
+  const standardColWidths = [
+    { wch: 6 },  // م
+    { wch: 38 }, // اسم الصنف *
     { wch: 20 }, // الباركود الرئيسي
-    { wch: 22 }, // باركودات إضافية
-    { wch: 22 }, // القسم / التصنيف
+    { wch: 24 }, // باركودات إضافية
     { wch: 14 }, // الوحدة
-    { wch: 18 }, // اللون
-    { wch: 18 }, // المقاس
     { wch: 16 }, // سعر البيع
     { wch: 16 }, // سعر التكلفة
     { wch: 16 }, // الرصيد الافتتاحي
     { wch: 16 }, // حد الطلب الأدنى
+    { wch: 18 }, // هامش الربح للقطعة
+    { wch: 15 }, // نسبة الربح
+    { wch: 22 }, // إجمالي قيمة التكلفة
+    { wch: 22 }, // إجمالي القيمة البيعية
+    { wch: 22 }, // إجمالي الربح المتوقع
+    { wch: 18 }, // حالة المخزون التلقائية
     { wch: 14 }, // نسبة الضريبة
     { wch: 20 }, // كود الصنف الداخلي
+    { wch: 18 }, // اللون
+    { wch: 18 }, // المقاس
     { wch: 22 }  // كود التصنيف الضريبي
   ];
 
-  // تفعيل الاتجاه العربي الأصيل (RTL)
-  ws['!views'] = [{ rightToLeft: true }];
+  // دالة مساعدة لتوليد ورقة عمل لقائمة أصناف محددة
+  function buildProductSheet(sheetTitleBanner, prodList) {
+    const titleRow = [`رفيق POS - ${sheetTitleBanner}`];
+    const instructionsRow = [
+      'تعليمات هامة: الأعمدة المميزة بنجمة (*) إلزامية | اسم التابة يمثل القسم تلقائياً | المبالغ بالجنيه المصري | الأعمدة الملونة تحتوي على معادلات إكسل تتحدث تلقائياً'
+    ];
 
-  const wb = xlsx.utils.book_new();
-  xlsx.utils.book_append_sheet(wb, ws, sheetTitle);
+    const dataRows = prodList.map((item, idx) => {
+      const r = idx + 4; // رقم الصف الفعلي في إكسل (1-indexed)
+      const price = Number(item.price || 0);
+      const cost = Number(item.cost || 0);
+      const stock = 0; // الرصيد الافتتاحي يبدأ بصفر دائماً لتسهيل الجرد على العميل
+      const minStock = Number(item.minStock || 0);
+      const unitMargin = price - cost;
+      const marginPct = cost > 0 ? unitMargin / cost : 0;
+      const totalCost = stock * cost;
+      const totalRetail = stock * price;
+      const totalProfit = totalRetail - totalCost;
+      const statusText = 'نفد من المخزن';
+
+      return [
+        idx + 1,
+        item.name || '',
+        item.barcode ? String(item.barcode) : '',
+        item.additionalBarcodes ? String(item.additionalBarcodes) : '',
+        item.unit || 'قطعة',
+        price,
+        cost,
+        stock,
+        minStock,
+        // معادلة هامش الربح للقطعة: سعر البيع - سعر التكلفة
+        { f: `F${r}-G${r}`, t: 'n', v: Number(unitMargin.toFixed(2)) },
+        // معادلة نسبة الربح: (سعر البيع - سعر التكلفة) / سعر التكلفة
+        { f: `IF(G${r}>0, (F${r}-G${r})/G${r}, 0)`, t: 'n', v: Number(marginPct.toFixed(4)), z: '0.0%' },
+        // معادلة إجمالي قيمة التكلفة: الرصيد * سعر التكلفة
+        { f: `H${r}*G${r}`, t: 'n', v: Number(totalCost.toFixed(2)), z: '#,##0.00' },
+        // معادلة إجمالي القيمة البيعية: الرصيد * سعر البيع
+        { f: `H${r}*F${r}`, t: 'n', v: Number(totalRetail.toFixed(2)), z: '#,##0.00' },
+        // معادلة إجمالي الربح المتوقع: القيمة البيعية - قيمة التكلفة
+        { f: `M${r}-L${r}`, t: 'n', v: Number(totalProfit.toFixed(2)), z: '#,##0.00' },
+        // معادلة حالة المخزون التلقائية الذكية
+        { f: `IF(H${r}<=0, "نفد من المخزن", IF(H${r}<=I${r}, "قارب على النفاد", "متوفر بالمخزن"))`, t: 's', v: statusText },
+        Number(item.taxRate || 0),
+        item.sku || item.internalCode || `SKU-${String(idx + 1).padStart(4, '0')}`,
+        item.color || item.variantColor || '',
+        item.size || item.variantSize || '',
+        item.taxCategoryCode || ''
+      ];
+    });
+
+    // صف الإجماليات وملخص الجدول في الأسفل
+    const lastDataRow = prodList.length + 3;
+    const sumRowIdx = prodList.length + 4;
+    const summaryRow = [
+      'الإجمالي',
+      `إجمالي ${prodList.length} صنف مسجل`,
+      '',
+      '',
+      '',
+      { f: `AVERAGE(F4:F${lastDataRow})`, t: 'n', z: '#,##0.00' },
+      { f: `AVERAGE(G4:G${lastDataRow})`, t: 'n', z: '#,##0.00' },
+      { f: `SUM(H4:H${lastDataRow})`, t: 'n', z: '#,##0.##' },
+      '',
+      { f: `AVERAGE(J4:J${lastDataRow})`, t: 'n', z: '#,##0.00' },
+      { f: `IF(L${sumRowIdx}>0, N${sumRowIdx}/L${sumRowIdx}, 0)`, t: 'n', z: '0.0%' },
+      { f: `SUM(L4:L${lastDataRow})`, t: 'n', z: '#,##0.00' },
+      { f: `SUM(M4:M${lastDataRow})`, t: 'n', z: '#,##0.00' },
+      { f: `SUM(N4:N${lastDataRow})`, t: 'n', z: '#,##0.00' },
+      'محسوب بمعادلات إكسل',
+      '',
+      '',
+      '',
+      '',
+      ''
+    ];
+
+    const allSheetRows = [titleRow, instructionsRow, standardHeaders, ...dataRows, summaryRow];
+    const ws = xlsx.utils.aoa_to_sheet(allSheetRows);
+
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 19 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 19 } }
+    ];
+
+    ws['!cols'] = standardColWidths;
+    ws['!views'] = [{ rightToLeft: true }];
+    return ws;
+  }
+
+  // =========================================================================
+  // أوراق العمل: تابات منفصلة لكل قسم (Tabs per Category Only)
+  // =========================================================================
+  categoriesList.forEach((cat) => {
+    const catItems = categoryGroups.get(cat);
+    const catSheetName = categorySheetNames.get(cat);
+    const wsCategory = buildProductSheet(`قائمة أصناف قسم: [${cat}]`, catItems);
+    xlsx.utils.book_append_sheet(wb, wsCategory, catSheetName);
+  });
 
   const fullPath = path.join(OUTPUT_DIR, fileName);
-  xlsx.writeFile(wb, fullPath, { bookType: 'xlsx', compression: true });
-  console.log(`[تم التصدير بنجاح] ${fileName} (${items.length} صنف ومتغير)`);
+  try {
+    xlsx.writeFile(wb, fullPath, { bookType: 'xlsx', compression: true });
+    console.log(`[تم التصدير بنجاح] ${fileName} (${items.length} صنف عبر ${categoriesList.length} تاب منفصل للأقسام مع المعادلات المالية)`);
+  } catch (err) {
+    if (err && err.code === 'EBUSY') {
+      console.warn(`[تنبيه] الملف مفتوح حالياً في برنامج إكسل لديك: ${fileName}. يرجى إغلاقه لتحديث نسخته.`);
+    } else {
+      throw err;
+    }
+  }
 }
 
 // تشغيل التوليد لكافة الكتالوجات الـ 12
