@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { Sparkles, X } from 'lucide-react';
 import type { QuickItem } from '../../types/models';
 import { normalizeArabicNumerals } from '../../utils/money';
+import { useModalDismiss } from '../../hooks/useModalDismiss';
 
 interface OpenPriceModalProps {
   openPriceItem: QuickItem | null;
@@ -19,10 +20,20 @@ export const OpenPriceModal: React.FC<OpenPriceModalProps> = ({
   onClose,
   onConfirm,
 }) => {
+  const isDirty = Boolean(openPriceInputEgp && parseFloat(openPriceInputEgp) > 0);
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen: openPriceItem !== null,
+    onDismiss: onClose,
+    isDirty,
+    confirmTitle: 'إلغاء تحديد السعر؟',
+    confirmMessage: 'تم إدخال سعر بيع للصنف. هل تريد التراجع دون إضافة الصنف للسلة؟',
+  });
+
   if (!openPriceItem) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+    <div onClick={handleBackdropClick} className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-surface rounded-lg shadow-xl border border-line w-full max-w-sm p-5 animate-in fade-in zoom-in duration-150">
         <div className="flex items-center justify-between mb-4 pb-2 hairline-b">
           <h3 className="text-base font-bold text-ink flex items-center gap-2">
@@ -31,8 +42,8 @@ export const OpenPriceModal: React.FC<OpenPriceModalProps> = ({
           </h3>
           <button 
             type="button"
-            onClick={onClose}
-            className="text-ink-muted hover:text-ink p-1 rounded"
+            onClick={requestClose}
+            className="text-ink-muted hover:text-ink p-1 rounded cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -66,8 +77,8 @@ export const OpenPriceModal: React.FC<OpenPriceModalProps> = ({
             </button>
             <button
               type="button"
-              onClick={onClose}
-              className="px-4 py-2.5 bg-surface-2 hover:bg-line text-ink font-semibold rounded transition-colors"
+              onClick={requestClose}
+              className="px-4 py-2.5 bg-surface-2 hover:bg-line text-ink font-semibold rounded transition-colors cursor-pointer"
             >
               إلغاء
             </button>

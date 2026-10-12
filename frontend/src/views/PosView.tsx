@@ -11,13 +11,12 @@ import {
 } from '../utils/money';
 import { ReceiptModal } from '../components/ReceiptModal';
 import { ConfirmModal } from '../components/ConfirmModal';
-import { rafiqConfirm } from '../utils/dialogService';
 import { UndoToast } from '../components/UndoToast';
 import { WeightInputModal } from '../components/WeightInputModal';
 import { QuickItemsManagerModal } from '../components/QuickItemsManagerModal';
 import { QuickFastItemModal } from '../components/QuickFastItemModal';
-import { CategoryManagerModal } from '../components/CategoryManagerModal';
 import { PaymentModal } from '../components/PaymentModal';
+import { DigitalPaymentModal } from '../components/DigitalPaymentModal';
 import { BarcodeScannerSettingsModal } from '../components/BarcodeScannerSettingsModal';
 import { QuickAddProductModal } from '../components/QuickAddProductModal';
 import { KeyboardShortcutsModal } from '../components/KeyboardShortcutsModal';
@@ -69,7 +68,6 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const [quickItems, setQuickItems] = useState<QuickItem[]>([]);
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
 
   const [isQuickItemsManagerOpen, setIsQuickItemsManagerOpen] = useState(false);
   const [isQuickFastItemModalOpen, setIsQuickFastItemModalOpen] = useState(false);
@@ -78,7 +76,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'credit'>('cash');
-  const [paymentInitialMethod, setPaymentInitialMethod] = useState<'cash' | 'instapay' | 'vodafone_cash'>('cash');
+  const [isDigitalPaymentModalOpen, setIsDigitalPaymentModalOpen] = useState(false);
+  const [digitalPaymentMethod, setDigitalPaymentMethod] = useState<'instapay' | 'vodafone_cash'>('instapay');
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [lastCompletedSale, setLastCompletedSale] = useState<Sale | null>(null);
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
@@ -723,13 +722,14 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       return;
     }
     if (forcedMethod === 'vodafone_cash' || forcedMethod === 'instapay') {
-      setPaymentInitialMethod(forcedMethod);
-      setPaymentMethod('cash');
-    } else if (forcedMethod) {
-      setPaymentInitialMethod('cash');
-      setPaymentMethod(forcedMethod);
+      setDigitalPaymentMethod(forcedMethod);
+      setIsDigitalPaymentModalOpen(true);
+      return;
+    }
+    if (forcedMethod === 'credit') {
+      setPaymentMethod('credit');
     } else {
-      setPaymentInitialMethod('cash');
+      setPaymentMethod('cash');
     }
     setIsPaymentModalOpen(true);
   }, [cart.length, showStatus]);
@@ -1249,51 +1249,13 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   }, [cart.length, paymentMethod, selectedCustomerId, netTotalPiasters, handleConfirmPayment, showStatus]);
 
   // Fast direct digital checkouts (InstaPay & Vodafone Cash)
-  const handleDigitalCheckout = useCallback(async (method: 'instapay' | 'vodafone_cash') => {
-    if (cart.length === 0) {
-      showStatus('سلة البيع فارغة! أضف أصنافاً أولاً للبيع (F2)', 'warning');
-      return;
-    }
-    const isInstapay = method === 'instapay';
-    const feePercent = isInstapay ? instapayFeePercent : vodafoneCashFeePercent;
-    const feePiasters = Math.round(netTotalPiasters * (feePercent / 100));
-    const finalTotalPiasters = netTotalPiasters + feePiasters;
-    const methodName = isInstapay ? 'انستاباي (InstaPay)' : 'محفظة إلكترونية (فودافون، أورانج، اتصالات، وي)';
-
-    const proceed = await rafiqConfirm({
-      title: `تأكيد التحويل الإلكتروني - ${methodName}`,
-      message: `تفاصيل المعاملة الإلكترونية (خارج درج الكاش):\n` +
-        `• إجمالي الأصناف المطلوب: ${formatArabicCurrency(netTotalPiasters)}\n` +
-        `• زيادة الخدمة الإلكترونية (${feePercent}%): +${formatArabicCurrency(feePiasters)}\n` +
-        `• المبلغ المطلوب تحويله على ${isInstapay ? 'انستاباي' : 'المحفظة'}: ${formatArabicCurrency(finalTotalPiasters)}\n\n` +
-        `هل تم استلام التحويل بالكامل وتريد حفظ الفاتورة وطباعة الإيصال؟`,
-      confirmText: `تأكيد استلام ${formatArabicCurrency(finalTotalPiasters)}`,
-      cancelText: 'تراجع',
-      variant: 'info',
-    });
-
-    if (!proceed) return;
-
-    await handleConfirmPayment({
-      paymentMethod: method,
-      paidPiasters: finalTotalPiasters,
-      totalPiastersOverride: finalTotalPiasters,
-      payments: [{ method, amountPiasters: finalTotalPiasters }],
-      changeDuePiasters: 0,
-      customerId: selectedCustomerId || undefined,
-      serviceFeeNote: feePiasters > 0 
-        ? `رسوم خدمة إلكترونية (${isInstapay ? 'انستاباي' : 'محفظة إلكترونية'} ${feePercent}%): +${(feePiasters / 100).toFixed(2)} ج.م` 
-        : undefined,
-    });
-  }, [cart.length, instapayFeePercent, vodafoneCashFeePercent, netTotalPiasters, selectedCustomerId, handleConfirmPayment, showStatus]);
-
   const handleInstapayCheckout = useCallback(async () => {
-    await handleDigitalCheckout('instapay');
-  }, [handleDigitalCheckout]);
+    handleOpenCheckout('instapay');
+  }, [handleOpenCheckout]);
 
   const handleVodafoneCashCheckout = useCallback(async () => {
-    await handleDigitalCheckout('vodafone_cash');
-  }, [handleDigitalCheckout]);
+    handleOpenCheckout('vodafone_cash');
+  }, [handleOpenCheckout]);
 
   // Hook 2: Cashier Keyboard Shortcuts & Hardware Scanner Listener (F1 to F12)
   usePosShortcuts({
@@ -1326,7 +1288,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   useEffect(() => {
     if (!isActive) return;
 
-    const isAnyModalOpen = isPaymentModalOpen || isReceiptOpen || isClearConfirmOpen || 
+    const isAnyModalOpen = isPaymentModalOpen || isDigitalPaymentModalOpen || isReceiptOpen || isClearConfirmOpen || 
       isScannerModalOpen || isQuickAddModalOpen || isQuickItemsManagerOpen || 
       isQuickFastItemModalOpen || isHelpModalOpen || isHeldSalesModalOpen || isReturnModalOpen || !!weightModalProduct || !!variantPickerParentProduct || !!unitPickerProduct;
 
@@ -1338,6 +1300,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     }
   }, [
     isPaymentModalOpen, 
+    isDigitalPaymentModalOpen,
     isReceiptOpen, 
     isClearConfirmOpen, 
     isScannerModalOpen, 
@@ -1440,8 +1403,6 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             heldSalesCount={heldSalesCount}
             onOpenHeldSales={() => setIsHeldSalesModalOpen(true)}
             onOpenReturnModal={() => setIsReturnModalOpen(true)}
-            onSelectCustomer={setSelectedCustomerId}
-            onChangePaymentMethod={setPaymentMethod}
             onOpenExpenseModal={() => setIsExpenseModalOpen(true)}
           />
         </section>
@@ -1476,7 +1437,6 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             popularItemsCount={popularItemsCount}
             customItemsCount={customItemsCount}
             categoryProductCounts={categoryProductCounts}
-            onOpenCategoryManager={() => setIsCategoryManagerOpen(true)}
           />
         )}
       </div>
@@ -1566,11 +1526,13 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         onConfirm={handleConfirmOpenPrice}
       />
 
-      {/* 10. PAYMENT & CHANGE DUE MODAL (Feature #27) */}
+      {/* 10. CASH PAYMENT & CHANGE DUE MODAL (Feature #27 - نقداً / الدرج / الآجل) */}
       <PaymentModal
         isOpen={isPaymentModalOpen}
         onClose={() => {
           setIsPaymentModalOpen(false);
+          setSelectedCustomerId('');
+          setPaymentMethod('cash');
           barcodeInputRef.current?.focus();
         }}
         invoiceNumber={nextExpectedInvoiceNumber || (lastInvoiceNumber ? lastInvoiceNumber + 1 : 1)}
@@ -1588,10 +1550,35 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         showCredit={showCredit}
         customers={customers}
         onConfirmPayment={handleConfirmPayment}
+        loading={loading}
+      />
+
+      {/* 10.B DIGITAL PAYMENT MODAL (انستاباي ومحافظ الهاتف - مستقلة وبدون آجل) */}
+      <DigitalPaymentModal
+        isOpen={isDigitalPaymentModalOpen}
+        onClose={() => {
+          setIsDigitalPaymentModalOpen(false);
+          setSelectedCustomerId('');
+          barcodeInputRef.current?.focus();
+        }}
+        method={digitalPaymentMethod}
+        onChangeMethod={setDigitalPaymentMethod}
+        invoiceNumber={nextExpectedInvoiceNumber || (lastInvoiceNumber ? lastInvoiceNumber + 1 : 1)}
+        itemCount={cart.length}
+        totalItemCount={totalItemCount}
+        subtotalPiasters={subtotalPiasters}
+        discountPiasters={discountPiasters}
+        netTotalPiasters={netTotalPiasters}
+        selectedCustomerId={selectedCustomerId}
+        onCustomerChange={setSelectedCustomerId}
+        customers={customers}
+        onConfirmPayment={async (paymentData) => {
+          setIsDigitalPaymentModalOpen(false);
+          await handleConfirmPayment(paymentData);
+        }}
         instapayFeePercent={instapayFeePercent}
         vodafoneCashFeePercent={vodafoneCashFeePercent}
         loading={loading}
-        initialMethod={paymentInitialMethod}
       />
 
       {/* 11. BARCODE SCANNER SETTINGS & LIVE DIAGNOSTIC MODAL (Feature #131) */}
@@ -1772,19 +1759,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         }}
       />
 
-      {/* 18. CATEGORY MANAGER MODAL */}
-      {isCategoryManagerOpen && (
-        <CategoryManagerModal
-          onClose={() => {
-            setIsCategoryManagerOpen(false);
-            barcodeInputRef.current?.focus();
-          }}
-          onCategoriesChanged={() => {
-            void loadCategories();
-            void loadSmartCatalog();
-          }}
-        />
-      )}
+
 
       {/* 19. CASH DRAWER EXPENSE MODAL */}
       <ExpenseModal

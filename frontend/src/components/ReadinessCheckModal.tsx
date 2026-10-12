@@ -16,8 +16,9 @@ import {
   PackageCheck
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
-import { ReceiptModal } from './ReceiptModal';
 import type { Sale } from '../types/models';
+import { ReceiptModal } from './ReceiptModal';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 interface ReadinessCheckItem {
   key: string;
@@ -117,8 +118,6 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
     };
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
   // Single-click test print
   const handleTestPrint = async () => {
     setTestingPrinter(true);
@@ -186,12 +185,24 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
     }
   };
 
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen: isOpen && !loading && !isReceiptModalOpen,
+    onDismiss: onClose,
+    isDirty: false,
+  });
+
+  if (!isOpen) return null;
+
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-md p-4 animate-fadeIn">
+      <div 
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-md p-4 animate-fadeIn"
+        onClick={handleBackdropClick}
+      >
         <div
           className="bg-white rounded-3xl shadow-2xl border border-slate-200/80 w-full max-w-3xl overflow-hidden flex flex-col max-h-[92vh]"
           dir="rtl"
+          onClick={(e) => e.stopPropagation()}
         >
           {/* 1. HERO LAUNCHPAD HEADER */}
           <div className="relative px-7 py-6 bg-gradient-to-br from-[#00372d] via-[#004d3e] to-[#002820] text-white overflow-hidden shrink-0">
@@ -220,7 +231,7 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
 
               <button
                 type="button"
-                onClick={onClose}
+                onClick={requestClose}
                 className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors border border-white/15"
                 title="إغلاق"
               >

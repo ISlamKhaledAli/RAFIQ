@@ -36,6 +36,9 @@ import {
   Smartphone,
   Layers,
   KeyRound,
+  RefreshCw,
+  Database,
+  BarChart3,
 } from 'lucide-react';
 import { 
   NotificationBellButton, 
@@ -44,7 +47,7 @@ import {
 } from './components/NotificationCenter';
 import { useSystemNotifications } from './utils/useSystemNotifications';
 import { invoke } from './bridge/ipc';
-import { useDataSubscription } from './utils/eventBus';
+import { useDataSubscription, emitDataChanged } from './utils/eventBus';
 import { PosView } from './views/PosView';
 import { EpayView, type EpaySubTab } from './views/epay/EpayView';
 import { DashboardView } from './views/DashboardView';
@@ -65,6 +68,7 @@ import type { DatabaseIntegrityStatus } from './components/DatabaseRecoveryModal
 import { FirstRunWizardModal } from './components/FirstRunWizardModal';
 import { GuidedTourModal } from './components/GuidedTourModal';
 import { ReadinessCheckModal } from './components/ReadinessCheckModal';
+import { RafiqLoadingState } from './components/RafiqLoadingState';
 import { RafiqDialogContainer } from './components/RafiqDialog';
 import { rafiqConfirm, rafiqAlert } from './utils/dialogService';
 import { LoginModal } from './components/LoginModal';
@@ -130,10 +134,13 @@ const CASHIER_ALLOWED_TABS: TabType[] = ['pos', 'epay', 'customers'];
 
 export default function App() {
   const { isEnabled } = useFeatures();
-  const { currentUser, logout, hasPermission, isRoot, isAdmin, refreshUser } = useAuth();
+  const { currentUser, isLoading, logout, hasPermission, isRoot, isAdmin, refreshUser } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('pos');
   const isCashier = currentUser?.role === 'cashier';
   const effectiveActiveTab: TabType = isCashier && !CASHIER_ALLOWED_TABS.includes(activeTab) ? 'pos' : activeTab;
+
+  const [isUniversalRefreshing, setIsUniversalRefreshing] = useState(false);
+  const [refreshToastMsg, setRefreshToastMsg] = useState<string | null>(null);
 
   const [productsSubView, setProductsSubView] = useState<'catalog' | 'movements' | 'batches'>('catalog');
   const [isProductsMenuExpanded, setIsProductsMenuExpanded] = useState(false);
@@ -574,6 +581,100 @@ export default function App() {
   useDataSubscription(['settings', 'all'], refreshSettings);
   useDataSubscription(['products', 'all'], refreshLowStock);
 
+  // Context-aware refresh labels and icons tailored to active view
+  const currentRefreshInfo = useMemo(() => {
+    switch (effectiveActiveTab) {
+      case 'pos':
+        return {
+          label: 'جاري تحديث شاشة البيع والكاشير...',
+          sublabel: 'تحديث السلة، الأصناف السريعة، وأسعار المنتجات الحية',
+          icon: <ShoppingCart className="w-6 h-6 text-brand" />,
+        };
+      case 'epay':
+        return {
+          label: 'جاري تحديث خدمات وماكينات الدفع...',
+          sublabel: 'استرجاع أرصدة الماكينات وسجل العمليات والتحليلات',
+          icon: <Smartphone className="w-6 h-6 text-brand" />,
+        };
+      case 'dashboard':
+        return {
+          label: dashboardSubTab === 'revenue' 
+            ? 'جاري تحديث تحليلات الإيرادات والأرباح...' 
+            : dashboardSubTab === 'inventory' 
+            ? 'جاري تحديث تحليلات حركة المخزون...' 
+            : dashboardSubTab === 'customers' 
+            ? 'جاري تحديث تحليلات وسجل العملاء...' 
+            : 'جاري تحديث لوحة اليوم والوردية...',
+          sublabel: 'حساب الإيرادات والأرباح ومطابقة نقدية الدرج الحالية',
+          icon: dashboardSubTab === 'revenue' ? <BarChart3 className="w-6 h-6 text-brand" /> : <LayoutDashboard className="w-6 h-6 text-brand" />,
+        };
+      case 'products':
+        return {
+          label: 'جاري تحميل وتحديث أصناف وبضاعة المحل...',
+          sublabel: 'استرجاع السلع والوحدات ومطابقة الأرصدة الحالية من قاعدة البيانات',
+          icon: <Package className="w-6 h-6 text-brand" />,
+        };
+      case 'customers':
+        return {
+          label: 'جاري تحديث سجل العملاء والمديونيات...',
+          sublabel: 'استرجاع الحسابات، الدفعات، وأرصدة الشكك الحالية',
+          icon: <Users className="w-6 h-6 text-brand" />,
+        };
+      case 'purchases':
+        return {
+          label: 'جاري تحديث فواتير المشتريات والموردين...',
+          sublabel: 'مطابقة فواتير التوريد، الأرصدة، ومدفوعات الموردين',
+          icon: <Truck className="w-6 h-6 text-brand" />,
+        };
+      case 'sales':
+        return {
+          label: 'جاري تحديث سجل فواتير البيع...',
+          sublabel: 'استرجاع الفواتير المكتملة وحركات المبيعات من قاعدة البيانات',
+          icon: <Receipt className="w-6 h-6 text-brand" />,
+        };
+      case 'audit':
+        return {
+          label: 'جاري تحديث سجل الرقابة والأمان...',
+          sublabel: 'استرجاع حركات التدقيق وسجل نشاط المستخدمين',
+          icon: <ShieldAlert className="w-6 h-6 text-brand" />,
+        };
+      case 'settings':
+        return {
+          label: 'جاري تحديث إعدادات النظام والمتجر...',
+          sublabel: 'قراءة المتغيرات وتفضيلات النظام من قاعدة البيانات',
+          icon: <Settings className="w-6 h-6 text-brand" />,
+        };
+      default:
+        return {
+          label: 'جاري تحديث بيانات النظام...',
+          sublabel: 'الاتصال بقاعدة البيانات ومطابقة السجلات الحية',
+          icon: <Database className="w-6 h-6 text-brand" />,
+        };
+    }
+  }, [effectiveActiveTab, dashboardSubTab]);
+
+  const handleUniversalRefresh = useCallback(async () => {
+    if (isUniversalRefreshing) return;
+    setIsUniversalRefreshing(true);
+    try {
+      emitDataChanged('all');
+      await Promise.allSettled([
+        refreshSettings(),
+        refreshLowStock(),
+        refreshUser(),
+      ]);
+      // Keep loading visible for a pleasant smooth feedback moment (600ms)
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      setRefreshToastMsg('تم تحديث كافة بيانات النظام والعمليات بنجاح');
+      setTimeout(() => {
+        setRefreshToastMsg(null);
+      }, 2500);
+    } catch {
+      // Graceful fallback
+    } finally {
+      setIsUniversalRefreshing(false);
+    }
+  }, [isUniversalRefreshing, refreshSettings, refreshLowStock, refreshUser]);
 
   // Global keyboard shortcuts for switching tabs and system actions
   useEffect(() => {
@@ -629,16 +730,17 @@ export default function App() {
         return;
       }
 
-      // 4. Ctrl+R or F5: Universal refresh / reload (restores full application reload)
+      // 4. Ctrl+R or F5: Universal in-app refresh without reload or logout
       if (e.key === 'F5' || (e.ctrlKey && (e.key.toLowerCase() === 'r' || e.code === 'KeyR'))) {
-        window.location.reload();
+        e.preventDefault();
+        void handleUniversalRefresh();
         return;
       }
     };
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [activeTab, currentUser?.role]);
+  }, [activeTab, currentUser?.role, handleUniversalRefresh]);
 
   const handleExitApp = async () => {
     const confirmed = await rafiqConfirm({
@@ -796,6 +898,17 @@ export default function App() {
     );
   }
 
+  if (isLoading && !currentUser) {
+    return (
+      <div className="fixed inset-0 z-[9999] w-screen h-screen flex items-center justify-center bg-canvas select-none" dir="rtl">
+        <RafiqLoadingState 
+          label="جاري تحميل نظام رفيق..." 
+          sublabel="التحقق من جلسة المستخدم والاتصال بقاعدة البيانات" 
+        />
+      </div>
+    );
+  }
+
   if (!currentUser) {
     return (
       <div className="fixed inset-0 z-[9999] w-screen h-screen overflow-hidden select-none bg-canvas" dir="rtl">
@@ -806,7 +919,14 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-canvas text-ink select-none overflow-hidden">
+    <div className="flex flex-col h-screen w-screen bg-canvas text-ink select-none overflow-hidden relative">
+      {/* Floating Refresh Toast Feedback */}
+      {refreshToastMsg && (
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-paid text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2 pointer-events-none">
+          <CheckCircle2 className="w-4 h-4 text-white" />
+          <span>{refreshToastMsg}</span>
+        </div>
+      )}
       {/* 1. TOP BAR (52px professional high, hairline-b, Spans across top) */}
       <header className="h-[52px] w-full bg-surface hairline-b flex items-center justify-between px-3 sm:px-4 shrink-0 z-20 shadow-2xs">
         {/* Right Side: Store Title & Status Badges */}
@@ -903,6 +1023,19 @@ export default function App() {
             ) : (
               <Maximize2 className="w-4 h-4 text-paid" />
             )}
+          </button>
+
+          {/* Universal System Refresh Button */}
+          <button
+            type="button"
+            onClick={() => void handleUniversalRefresh()}
+            disabled={isUniversalRefreshing}
+            className={`w-8 h-8 rounded-lg bg-surface hover:bg-paid-soft border border-line hover:border-paid text-ink-muted hover:text-paid flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0 disabled:opacity-60 ${
+              isUniversalRefreshing ? 'bg-paid-soft text-paid border-paid/50' : ''
+            }`}
+            title="تحديث شامل لكافة البيانات والعمليات في النظام (F5)"
+          >
+            <RefreshCw className={`w-4 h-4 ${isUniversalRefreshing ? 'animate-spin text-paid' : ''}`} />
           </button>
 
           {/* Notification Bell Button with live Badge */}
@@ -1360,6 +1493,20 @@ export default function App() {
 
         {/* Dynamic Views Viewport - Lazy Keep-Alive Architecture */}
         <main className="flex-1 h-full overflow-hidden bg-canvas relative">
+          {/* Universal Context-Aware Refresh Loading Overlay */}
+          {isUniversalRefreshing && (
+            <div className="absolute inset-0 z-50 bg-canvas/85 backdrop-blur-[2px] flex items-center justify-center animate-in fade-in duration-150 select-none">
+              <div className="bg-surface border border-line shadow-2xl rounded-2xl p-6 sm:p-8 flex flex-col items-center max-w-md w-full mx-4 animate-in zoom-in-95 duration-150">
+                <RafiqLoadingState
+                  label={currentRefreshInfo.label}
+                  sublabel={currentRefreshInfo.sublabel}
+                  icon={currentRefreshInfo.icon}
+                  minHeight="min-h-0"
+                />
+              </div>
+            </div>
+          )}
+
           {/* POS View is always mounted, kept alive, and instant */}
           <div className={`h-full w-full ${effectiveActiveTab === 'pos' ? '' : 'hidden'}`}>
             <PosView isActive={effectiveActiveTab === 'pos'} onNavigateToEpay={() => { setActiveTab('epay'); setEpaySubTab('pos'); setIsEpayMenuExpanded(true); }} />

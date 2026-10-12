@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { FormEvent } from 'react';
 import {
   Package,
@@ -28,6 +28,7 @@ import { CustomSelect } from '../../components/CustomSelect';
 import { CustomDatePicker } from '../../components/CustomDatePicker';
 import { ProductUnitsEditor } from '../../components/ProductUnitsEditor';
 import { useFeatures } from '../../context/useFeatures';
+import { useModalDismiss } from '../../hooks/useModalDismiss';
 
 export interface BelowCostWarningData {
   pricePiasters: number;
@@ -279,10 +280,38 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const activeCalculatedCost = costCalcMode === 'carton' ? calculatedFromCarton : calculatedFromInvoice;
   const { isEnabled } = useFeatures();
 
+  const isDirty = useMemo(() => {
+    if (editingId) {
+      return Boolean(name.trim() || barcode.trim() || pricePiasters > 0);
+    }
+    return Boolean(
+      name.trim() ||
+      barcode.trim() ||
+      pricePiasters > 0 ||
+      costPiasters > 0 ||
+      (stockInput && stockInput !== '0') ||
+      productUnits.length > 0 ||
+      additionalBarcodes.length > 0
+    );
+  }, [editingId, name, barcode, pricePiasters, costPiasters, stockInput, productUnits.length, additionalBarcodes.length]);
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onClose,
+    isDirty,
+    confirmTitle: 'تجاهل تعديلات الصنف؟',
+    confirmMessage: 'هناك بيانات أو تعديلات غير محفوظة على هذا الصنف، هل أنت متأكد من الخروج وتجاهلها؟',
+    discardText: 'تجاهل والخروج',
+    stayText: 'البقاء ومتابعة التعديل',
+  });
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-ink/40 z-50 flex items-center justify-center p-2 sm:p-4">
+    <div 
+      className="fixed inset-0 bg-ink/40 z-50 flex items-center justify-center p-2 sm:p-4"
+      onClick={handleBackdropClick}
+    >
       <div className="w-full max-w-3xl max-h-[92vh] bg-surface rounded-xl border border-brand/50 shadow-2xl overflow-hidden flex flex-col select-none animate-in fade-in zoom-in-95 duration-150">
         {/* Modal Header (Fixed at top) */}
         <div className="h-[48px] bg-surface-2 hairline-b px-4 flex items-center justify-between shrink-0">
@@ -304,8 +333,10 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             )}
           </div>
           <button
-            onClick={onClose}
+            type="button"
+            onClick={() => void requestClose()}
             className="text-ink-muted hover:text-danger p-1 rounded transition-colors"
+            title="إغلاق"
           >
             <X className="w-4 h-4" />
           </button>
@@ -1255,7 +1286,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
           <div className="h-[52px] bg-surface-2 hairline-t px-4 sm:px-5 flex items-center justify-end gap-2 shrink-0">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => void requestClose()}
               className="h-[36px] px-4 bg-surface hover:bg-surface-3 border border-line text-ink rounded text-[12px] font-semibold transition-colors"
             >
               إلغاء

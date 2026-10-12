@@ -3,6 +3,7 @@ import { X, AlertTriangle } from 'lucide-react';
 import type { Customer } from '../../types/models';
 import { MoneyInput } from '../../components/MoneyInput';
 import { normalizeArabicNumerals } from '../../utils/money';
+import { useModalDismiss } from '../../hooks/useModalDismiss';
 
 export interface CustomerFormModalProps {
   isOpen: boolean;
@@ -41,16 +42,36 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
   onSave,
   onOpenStatementForDuplicate,
 }) => {
+  const isDirty = Boolean(name.trim() || phone.trim() || initialBalancePiasters !== 0);
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onClose,
+    isDirty,
+    confirmTitle: 'تجاهل بيانات الزبون؟',
+    confirmMessage: 'هناك بيانات زبون غير محفوظة، هل أنت متأكد من الخروج وتجاهل التعديلات؟',
+    discardText: 'تجاهل والخروج',
+    stayText: 'البقاء ومتابعة التسجيل',
+  });
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      onClick={handleBackdropClick}
+    >
       <div className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         <div className="h-12 bg-surface-2 hairline-b px-4 flex items-center justify-between shrink-0">
           <span className="text-sm font-bold text-ink">
             {editingCustomer ? 'تعديل بيانات الزبون' : 'تسجيل زبون جديد في النوتة'}
           </span>
-          <button onClick={onClose} className="text-ink-muted hover:text-ink cursor-pointer">
+          <button 
+            type="button"
+            onClick={() => void requestClose()} 
+            className="text-ink-muted hover:text-ink cursor-pointer"
+            title="إغلاق"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -135,7 +156,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
           <div className="pt-2 flex justify-end gap-2 hairline-t">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => void requestClose()}
               className="px-4 py-1.5 rounded bg-surface border border-line hover:bg-surface-2 text-ink font-medium cursor-pointer"
             >
               رجوع

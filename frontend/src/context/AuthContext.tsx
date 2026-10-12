@@ -3,7 +3,17 @@ import { invoke, type UserDto, type LoginResult } from '../bridge/ipc';
 import { AuthContext } from './authContextDef';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<UserDto | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserDto | null>(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const cached = localStorage.getItem('rafiq_user_session');
+        if (cached) return JSON.parse(cached);
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  });
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [idleTimeoutMinutes, setIdleTimeoutMinutes] = useState<number>(15);
   const lastActivityRef = useRef<number>(0);
@@ -15,9 +25,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshUser = useCallback(async () => {
     try {
       const user = await invoke<UserDto | null>('auth:getCurrentUser');
-      setCurrentUser(user || null);
+      if (user) {
+        setCurrentUser(user);
+        try {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('rafiq_user_session', JSON.stringify(user));
+          }
+        } catch {
+          // ignore
+        }
+      } else {
+        setCurrentUser(null);
+        try {
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('rafiq_user_session');
+          }
+        } catch {
+          // ignore
+        }
+      }
     } catch {
-      setCurrentUser(null);
+      // In case of transient IPC error, keep cached user to avoid unexpected kick-out
     } finally {
       setIsLoading(false);
     }
@@ -44,6 +72,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (res && res.success && res.user) {
         setCurrentUser(res.user);
+        try {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('rafiq_user_session', JSON.stringify(res.user));
+          }
+        } catch {
+          // ignore
+        }
         lastActivityRef.current = Date.now();
         return res;
       }
@@ -62,6 +97,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
     } finally {
       setCurrentUser(null);
+      try {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('rafiq_user_session');
+        }
+      } catch {
+        // ignore
+      }
     }
   }, []);
 

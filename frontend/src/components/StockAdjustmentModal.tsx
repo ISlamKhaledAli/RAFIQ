@@ -12,6 +12,7 @@ import { invoke } from '../bridge/ipc';
 import { CustomSelect } from './CustomSelect';
 import type { Product } from '../types/models';
 import { normalizeArabicNumerals } from '../utils/money';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 interface StockAdjustmentModalProps {
   isOpen: boolean;
@@ -52,6 +53,16 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const isDirty = Boolean(actualStockInput.trim() || deltaInput.trim() || reason.trim());
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen: isOpen && Boolean(product),
+    onDismiss: onClose,
+    isDirty,
+    confirmTitle: 'إلغاء تسوية المخزون؟',
+    confirmMessage: 'تم إدخال بيانات تسوية للمنتج. هل أنت متأكد من الإلغاء والتراجع دون حفظ؟',
+  });
 
   if (!isOpen || !product) return null;
 
@@ -157,7 +168,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-ink/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in select-none">
+    <div onClick={handleBackdropClick} className="fixed inset-0 bg-ink/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in select-none">
       <div className="bg-surface rounded-lg hairline-all shadow-xl w-full max-w-lg flex flex-col max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="px-5 py-4 border-b border-line flex items-center justify-between bg-surface-2/60 shrink-0">
@@ -172,7 +183,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             className="w-7 h-7 rounded flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface border border-transparent hover:border-line transition-colors"
           >
             <X className="w-4 h-4" />
@@ -400,7 +411,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
           <div className="pt-3 border-t border-line flex items-center justify-end gap-2 mt-auto shrink-0">
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               className="h-9 px-4 rounded bg-surface border border-line text-ink hover:bg-surface-2 text-[12px] font-semibold transition-colors"
             >
               إلغاء

@@ -6,7 +6,6 @@ import {
   Search, 
   X, 
   FolderTree, 
-  Settings,
   ChevronLeft,
   PanelLeftClose,
   PanelLeftOpen
@@ -23,7 +22,6 @@ interface PosCategoriesPanelProps {
   popularItemsCount: number;
   customItemsCount: number;
   categoryProductCounts: Record<string, number>;
-  onOpenCategoryManager?: () => void;
 }
 
 export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
@@ -34,7 +32,6 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
   popularItemsCount,
   customItemsCount,
   categoryProductCounts,
-  onOpenCategoryManager,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
@@ -98,16 +95,6 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
-          {!isCollapsed && onOpenCategoryManager && (
-            <button
-              type="button"
-              onClick={onOpenCategoryManager}
-              className="p-1 rounded-lg border border-line bg-surface hover:bg-paid-soft text-ink-muted hover:text-paid transition-all cursor-pointer shadow-2xs"
-              title="إدارة وتعديل التصنيفات"
-            >
-              <Settings className="w-3.5 h-3.5" />
-            </button>
-          )}
 
           <button
             type="button"
@@ -323,16 +310,6 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
                 <FolderTree className="w-3 h-3 text-brand" />
                 <span>أقسام المتجر</span>
               </span>
-              {onOpenCategoryManager && (
-                <button
-                  type="button"
-                  onClick={onOpenCategoryManager}
-                  title="تخصيص وإدارة الأقسام والأيقونات"
-                  className="p-1 hover:bg-surface rounded-md text-ink-muted hover:text-brand transition-colors cursor-pointer"
-                >
-                  <Settings className="w-3.5 h-3.5" />
-                </button>
-              )}
             </div>
           )}
           <div className="h-px bg-line flex-1" />

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Tag, Percent, Banknote, AlertTriangle } from 'lucide-react';
 import { formatArabicCurrency, normalizeArabicNumerals, calculateDiscountAmount } from '../utils/money';
 import type { SaleItem } from '../types/models';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 interface ItemDiscountModalProps {
   isOpen: boolean;
@@ -29,6 +30,18 @@ export const ItemDiscountModal: React.FC<ItemDiscountModalProps> = ({
   const [discountType, setDiscountType] = useState<'amount' | 'percent'>('amount');
   const [inputValue, setInputValue] = useState(() => {
     return item && item.discountPiasters > 0 ? (item.discountPiasters / 100).toFixed(2) : '';
+  });
+
+  const isDirty = inputValue.trim() !== '' && inputValue.trim() !== '0';
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onClose,
+    isDirty,
+    confirmTitle: 'تجاهل الخصم؟',
+    confirmMessage: 'هناك قيمة خصم مدخلة على الصنف، هل تريد الخروج وتجاهلها؟',
+    discardText: 'تجاهل والخروج',
+    stayText: 'البقاء ومتابعة الخصم',
   });
 
   const grossPiasters = item
@@ -68,7 +81,10 @@ export const ItemDiscountModal: React.FC<ItemDiscountModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div 
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+      onClick={handleBackdropClick}
+    >
       <div className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-md p-5 animate-in fade-in zoom-in-95 duration-150 text-right select-none">
         {/* Header */}
         <div className="flex items-center justify-between mb-4 pb-2 border-b border-line">
@@ -85,8 +101,9 @@ export const ItemDiscountModal: React.FC<ItemDiscountModalProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
-            className="text-ink-muted hover:text-ink p-1 rounded hover:bg-surface-2 transition-colors"
+            onClick={() => void requestClose()}
+            className="text-ink-muted hover:text-ink p-1 rounded hover:bg-surface-2 transition-colors cursor-pointer"
+            title="إغلاق"
           >
             <X className="w-5 h-5" />
           </button>
@@ -220,8 +237,8 @@ export const ItemDiscountModal: React.FC<ItemDiscountModalProps> = ({
             </button>
             <button
               type="button"
-              onClick={onClose}
-              className="px-4 h-10 bg-surface hover:bg-surface-2 border border-line text-ink font-semibold rounded-lg transition-colors"
+              onClick={() => void requestClose()}
+              className="px-4 h-10 bg-surface hover:bg-surface-2 border border-line text-ink font-semibold rounded-lg transition-colors cursor-pointer"
             >
               إلغاء
             </button>

@@ -14,6 +14,7 @@ import {
   Power
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 export interface PinSettingsModalProps {
   isOpen: boolean;
@@ -79,8 +80,32 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
     setNewPinConfirm('');
     setGeneratedRecoveryCode(null);
     setCopied(false);
+    setIsConfirmToggleOpen(false);
+    setTogglePinInput('');
     onClose();
   };
+
+  const isDirty = Boolean(newPin.trim() || newPinConfirm.trim() || currentPin.trim());
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen: isOpen && !isConfirmToggleOpen,
+    onDismiss: handleClose,
+    isDirty,
+    confirmTitle: 'تجاهل التغييرات؟',
+    confirmMessage: 'لديك بيانات غير محفوظة في إعدادات الرقم السري. هل تريد حقاً الإغلاق وتجاهل التعديلات؟',
+  });
+
+  useEffect(() => {
+    if (!isConfirmToggleOpen) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setIsConfirmToggleOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKey, true);
+    return () => window.removeEventListener('keydown', handleKey, true);
+  }, [isConfirmToggleOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -214,11 +239,15 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
+      onClick={handleBackdropClick}
+    >
       <div 
         className="w-full max-w-lg bg-surface rounded-2xl shadow-2xl border border-line overflow-hidden flex flex-col max-h-[90vh] text-ink"
         role="dialog"
         aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="bg-brand text-white px-6 py-4 flex items-center justify-between border-b border-brand-dark">
@@ -235,7 +264,7 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
           </div>
           <button
             type="button"
-            onClick={handleClose}
+            onClick={requestClose}
             className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -417,8 +446,14 @@ export const PinSettingsModal: React.FC<PinSettingsModalProps> = ({
 
       {/* Confirmation Modal for Toggle */}
       {isConfirmToggleOpen && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-sm bg-surface rounded-2xl shadow-2xl border border-line overflow-hidden flex flex-col">
+        <div 
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in"
+          onClick={() => setIsConfirmToggleOpen(false)}
+        >
+          <div 
+            className="w-full max-w-sm bg-surface rounded-2xl shadow-2xl border border-line overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="bg-brand text-white px-5 py-3.5 flex items-center justify-between border-b border-brand-dark">
               <div className="flex items-center gap-2.5">
                 <Lock className="w-4 h-4 text-white" />

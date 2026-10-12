@@ -4,6 +4,7 @@ import type { UserDto, LoginResult } from '../bridge/ipc';
 import { UserManagerModal } from './UserManagerModal';
 import { SupervisorPromptModal } from './SupervisorPromptModal';
 import { ShieldCheck, Keyboard } from 'lucide-react';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -154,6 +155,20 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     }
   };
 
+  const handleDismiss = () => {
+    if (canCancel && onClose) {
+      setPin('');
+      setError('');
+      onClose();
+    }
+  };
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen: isOpen && Boolean(canCancel && onClose) && !isInternalUserManagerOpen && !isSupervisorPromptOpen,
+    onDismiss: handleDismiss,
+    isDirty: false,
+  });
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key >= '0' && e.key <= '9') {
       handleNumberClick(e.key);
@@ -161,8 +176,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       handleBackspace();
     } else if (e.key === 'Enter') {
       handleSubmit();
-    } else if (e.key === 'Escape' && canCancel && onClose) {
-      onClose();
     }
   };
 
@@ -173,9 +186,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
       dir="rtl"
       onKeyDown={handleKeyDown}
+      onClick={canCancel && onClose ? handleBackdropClick : undefined}
       tabIndex={0}
     >
-      <div className="bg-surface border border-line rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col">
+      <div 
+        className="bg-surface border border-line rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Sleek Top Accent Line */}
         <div className="h-1.5 w-full bg-brand" />
 
@@ -194,7 +211,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           </div>
           {canCancel && onClose && (
             <button
-              onClick={onClose}
+              onClick={requestClose}
               className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface-2 transition-colors cursor-pointer"
               title="إغلاق"
             >

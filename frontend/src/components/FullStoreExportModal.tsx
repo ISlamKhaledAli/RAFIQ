@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { invoke, type FullStoreExportResult } from '../bridge/ipc';
 import { rafiqAlert } from '../utils/dialogService';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 interface FullStoreExportModalProps {
   isOpen: boolean;
@@ -26,8 +27,6 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
   const [selectedFolder, setSelectedFolder] = useState<string>('');
   const [isExporting, setIsExporting] = useState(false);
   const [exportResult, setExportResult] = useState<FullStoreExportResult | null>(null);
-
-  if (!isOpen) return null;
 
   const handleBrowseFolder = async () => {
     try {
@@ -119,11 +118,23 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
     }
   };
 
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen: isOpen && !isExporting,
+    onDismiss: onClose,
+    isDirty: false,
+  });
+
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+      onClick={handleBackdropClick}
+    >
       <div 
         className="w-full max-w-2xl bg-surface rounded-2xl shadow-2xl border border-line flex flex-col overflow-hidden text-ink font-sans text-right"
         dir="rtl"
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
         <div className="bg-brand-dark px-6 py-4 flex items-center justify-between text-white border-b border-white/10">
@@ -139,7 +150,7 @@ export const FullStoreExportModal = ({ isOpen, onClose }: FullStoreExportModalPr
             </div>
           </div>
           <button 
-            onClick={onClose} 
+            onClick={requestClose} 
             disabled={isExporting}
             className="w-8 h-8 rounded-lg flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-50"
           >

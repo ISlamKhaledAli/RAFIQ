@@ -11,6 +11,7 @@ import { CustomSelect } from './CustomSelect';
 import { MoneyInput } from './MoneyInput';
 import { formatArabicCurrency } from '../utils/money';
 import type { Expense } from '../types/models';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 interface ExpenseModalProps {
   isOpen: boolean;
@@ -42,6 +43,18 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   // Today's expenses log
   const [todayExpenses, setTodayExpenses] = useState<Expense[]>([]);
   const [loadingList, setLoadingList] = useState(false);
+
+  const isDirty = amountPiasters > 0 || notes.trim() !== '';
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onClose,
+    isDirty,
+    confirmTitle: 'تجاهل تسجيل المصروف؟',
+    confirmMessage: 'هناك مبلغ أو ملاحظات مدخلة في نافذة المصروف، هل تريد الخروج وتجاهلها؟',
+    discardText: 'تجاهل والخروج',
+    stayText: 'البقاء ومتابعة التسجيل',
+  });
 
   const loadTodayExpenses = useCallback(async () => {
     setLoadingList(true);
@@ -104,7 +117,11 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   const totalTodayExpensesPiasters = todayExpenses.reduce((sum, item) => sum + (item.amountPiasters || 0), 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 select-none" dir="rtl">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 select-none" 
+      onClick={handleBackdropClick}
+      dir="rtl"
+    >
       <div className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}
@@ -119,7 +136,8 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
             </div>
           </div>
           <button
-            onClick={onClose}
+            type="button"
+            onClick={() => void requestClose()}
             className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition"
             title="إغلاق"
           >
@@ -239,7 +257,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
         <div className="px-5 py-3 bg-surface border-t border-line flex justify-end">
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => void requestClose()}
             className="px-4 py-1.5 rounded-lg border border-line text-ink hover:bg-surface-2 text-xs font-semibold cursor-pointer transition"
           >
             إغلاق

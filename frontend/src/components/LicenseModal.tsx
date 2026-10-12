@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { rafiqAlert, rafiqConfirm } from '../utils/dialogService';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 export interface LicenseInfoData {
   isActive: boolean;
@@ -124,8 +125,6 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
       active = false;
     };
   }, [isOpen]);
-
-  if (!isOpen) return null;
 
   const handleCopyFp = () => {
     if (license?.deviceFingerprint) {
@@ -277,20 +276,36 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
     }
   };
 
+  const isDirty = Boolean(inputKey.trim() || supportCode.trim() || transferReason.trim());
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onDismiss: onClose,
+    isDirty,
+    confirmTitle: 'تجاهل البيانات المدخلة؟',
+    confirmMessage: 'لديك بيانات غير مكتملة في نافذة الترخيص. هل تريد حقاً الإغلاق؟',
+  });
+
   const isAlreadyActive = license?.isActive && (license.status === 'active' || license.status === 'trial');
   const isTrial = Boolean(license?.isActive) && (license?.status === 'trial' || license?.licenseType === 'trial');
   const isTransferred = license?.status === 'transferred';
 
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+      onClick={handleBackdropClick}
+    >
       <div 
         className="bg-surface rounded-3xl shadow-2xl border border-line w-full max-w-xl overflow-hidden flex flex-col max-h-[92vh]"
         dir="rtl"
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="bg-brand-dark p-6 text-white relative shrink-0">
           <button 
-            onClick={onClose}
+            onClick={requestClose}
             className="absolute left-5 top-5 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
             title="إغلاق"
           >

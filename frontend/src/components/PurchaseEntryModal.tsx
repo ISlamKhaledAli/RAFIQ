@@ -15,6 +15,7 @@ import type { Product, ProductUnit } from '../types/models';
 import { MoneyInput } from './MoneyInput';
 import { CustomSelect } from './CustomSelect';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../utils/money';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 export interface PurchaseEntryModalProps {
   isOpen: boolean;
@@ -49,6 +50,21 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  const isDirty = Boolean(
+    invoiceNumber.trim() ||
+    supplierName.trim() ||
+    (purchaseQtyInput.trim() !== '' && purchaseQtyInput.trim() !== '1') ||
+    packageCostPiasters !== initialCost
+  );
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen: isOpen && Boolean(product),
+    onDismiss: onClose,
+    isDirty,
+    confirmTitle: 'إلغاء تسجيل استلام البضاعة؟',
+    confirmMessage: 'تم إدخال بيانات توريد للصنف. هل أنت متأكد من الإلغاء والتراجع دون حفظ؟',
+  });
 
   if (!isOpen || !product) return null;
 
@@ -123,7 +139,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+    <div onClick={handleBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
       <div className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         
         {/* Header */}
@@ -139,7 +155,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             className="w-7 h-7 rounded flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface border border-transparent hover:border-line transition-colors"
           >
             <X className="w-4 h-4" />
@@ -320,7 +336,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
         <div className="px-5 py-3 border-t border-line bg-surface-2 flex items-center justify-between shrink-0">
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             disabled={loading}
             className="px-4 py-2 bg-surface border border-line text-ink hover:bg-surface-2 rounded text-xs font-bold transition-colors disabled:opacity-50"
           >

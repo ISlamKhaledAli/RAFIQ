@@ -15,6 +15,7 @@ import {
   ChevronUp,
   FileText
 } from 'lucide-react';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 interface CertifiedDevice {
   id: string;
@@ -300,6 +301,12 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedDeviceId, setExpandedDeviceId] = useState<string | null>(null);
 
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onDismiss: onClose,
+    isDirty: false,
+  });
+
   if (!isOpen) return null;
 
   const filteredDevices = CERTIFIED_DEVICES.filter((d) => {
@@ -320,11 +327,13 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
     <div
       className="fixed inset-0 z-[9990] flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
       dir="rtl"
+      onClick={handleBackdropClick}
     >
       <div
         className="w-full max-w-4xl h-[86vh] max-h-[800px] bg-white rounded-2xl shadow-2xl border border-[#dce1dc] flex flex-col overflow-hidden font-sans text-[#0f172a]"
         role="dialog"
         aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="px-5 py-3.5 bg-brand-dark text-white flex items-center justify-between shrink-0 select-none shadow-sm">
@@ -349,7 +358,7 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
 
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
             title="إغلاق (Esc)"
           >

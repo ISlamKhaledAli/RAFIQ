@@ -63,7 +63,12 @@ export const ProductUnitPickerModal: React.FC<ProductUnitPickerModalProps> = ({
   const isOutOfStock = stockBaseMilli <= 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150 select-none">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150 select-none"
+    >
       <div
         className="w-full max-w-md bg-white rounded-2xl border border-[#dce1dc] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
@@ -176,9 +181,7 @@ export const ProductUnitPickerModal: React.FC<ProductUnitPickerModalProps> = ({
 
         {/* Footer */}
         <div className="px-5 py-3 bg-[#f8faf9] border-t border-[#dce1dc] flex items-center justify-between text-xs text-[#52605d]">
-          <span>
-            اضغط <kbd className="px-1.5 py-0.5 rounded bg-white border border-[#dce1dc] font-mono text-[11px] font-bold">Enter</kbd> للوحدة الأساسية
-          </span>
+          <span>اختر الوحدة المطلوبة للبيع</span>
           <button
             type="button"
             onClick={onClose}

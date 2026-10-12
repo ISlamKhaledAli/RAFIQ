@@ -61,6 +61,17 @@ export const CategoryIconPickerModal: React.FC<CategoryIconPickerModalProps> = (
     onClose();
   };
 
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   const SmartIconComponent = CATEGORY_ICON_MAP[smartSuggestedKey];
 
   return (

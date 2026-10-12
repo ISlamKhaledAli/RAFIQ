@@ -6,6 +6,7 @@ export interface RafiqLoadingStateProps {
   sublabel?: string;
   minHeight?: string;
   className?: string;
+  icon?: React.ReactNode;
 }
 
 export const RafiqLoadingState: React.FC<RafiqLoadingStateProps> = ({
@@ -13,6 +14,7 @@ export const RafiqLoadingState: React.FC<RafiqLoadingStateProps> = ({
   sublabel = 'الاتصال بقاعدة البيانات المحلية وتحديث السجلات الحية',
   minHeight = 'min-h-[220px]',
   className = '',
+  icon,
 }) => {
   return (
     <div 
@@ -23,7 +25,13 @@ export const RafiqLoadingState: React.FC<RafiqLoadingStateProps> = ({
       <div className="relative flex items-center justify-center">
         {/* Ambient glow circle */}
         <div className="w-14 h-14 rounded-2xl bg-brand-soft/90 border border-brand/20 flex items-center justify-center shadow-xs">
-          <Database className="w-5 h-5 text-brand/70 animate-pulse" />
+          {icon ? (
+            <div className="text-brand/80 animate-pulse flex items-center justify-center">
+              {icon}
+            </div>
+          ) : (
+            <Database className="w-5 h-5 text-brand/70 animate-pulse" />
+          )}
         </div>
         {/* Spinning brand spinner */}
         <div className="absolute inset-0 m-auto w-10 h-10 border-2 border-brand/20 border-t-brand border-r-paid rounded-full animate-spin" />

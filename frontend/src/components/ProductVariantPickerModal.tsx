@@ -54,6 +54,18 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
     }
   }, [isOpen, parentProduct]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen || !parentProduct) return null;
 
   // Available unique colors and sizes
@@ -96,7 +108,12 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+    >
       <div
         dir="rtl"
         className="bg-surface rounded-2xl border border-line shadow-2xl w-full max-w-lg overflow-hidden text-ink font-sans flex flex-col"

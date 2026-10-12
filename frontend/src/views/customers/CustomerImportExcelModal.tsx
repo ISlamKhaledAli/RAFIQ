@@ -9,6 +9,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import type { CustomerImportPreviewResult, CustomerImportResult } from '../../types/models';
+import { useModalDismiss } from '../../hooks/useModalDismiss';
 
 export interface CustomerImportExcelModalProps {
   isOpen: boolean;
@@ -39,10 +40,20 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
   importPreview,
   onExecuteImport,
 }) => {
+  const isDirty = Boolean(importPreview && !importResult);
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onDismiss: onClose,
+    isDirty,
+    confirmTitle: 'إلغاء استيراد العملاء؟',
+    confirmMessage: 'تم رفع وفحص شيت العملاء. هل أنت متأكد من الإلغاء والتراجع دون استيراد؟',
+  });
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+    <div onClick={handleBackdropClick} className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="bg-surface border border-line rounded-xl shadow-2xl max-w-5xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in duration-200">
         {/* Modal Header */}
         <div className="h-14 px-5 bg-surface-2 hairline-b flex items-center justify-between shrink-0">
@@ -57,8 +68,8 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
           </div>
           <button
             type="button"
-            onClick={onClose}
-            className="w-7 h-7 rounded hover:bg-surface flex items-center justify-center text-ink-muted hover:text-ink"
+            onClick={requestClose}
+            className="w-7 h-7 rounded hover:bg-surface flex items-center justify-center text-ink-muted hover:text-ink cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -227,8 +238,8 @@ export const CustomerImportExcelModal: React.FC<CustomerImportExcelModalProps> =
         <div className="h-14 px-5 bg-surface-2 hairline-t flex items-center justify-between shrink-0">
           <button
             type="button"
-            onClick={onClose}
-            className="px-4 py-1.5 rounded bg-surface border border-line text-xs font-semibold text-ink hover:bg-surface-2"
+            onClick={requestClose}
+            className="px-4 py-1.5 rounded bg-surface border border-line text-xs font-semibold text-ink hover:bg-surface-2 cursor-pointer"
           >
             إغلاق
           </button>

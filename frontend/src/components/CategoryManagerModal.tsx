@@ -21,8 +21,10 @@ import {
   CATEGORY_ICONS_CHANGED_EVENT 
 } from '../utils/categoryIcons';
 import { CategoryIconPickerModal } from './CategoryIconPickerModal';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 interface CategoryManagerModalProps {
+  isOpen?: boolean;
   onClose: () => void;
   onCategoriesChanged?: () => void;
 }
@@ -181,9 +183,24 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
     }
   };
 
+  const isDirty = Boolean(newCatName.trim() || editingId !== null);
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen: true,
+    onClose,
+    isDirty,
+    confirmTitle: 'تجاهل إدخال التصنيف؟',
+    confirmMessage: 'هناك بيانات أو تعديلات مدخلة على التصنيف، هل تريد الخروج وتجاهلها؟',
+    discardText: 'تجاهل والخروج',
+    stayText: 'البقاء ومتابعة التعديل',
+  });
+
   return (
     <>
-      <div className="fixed inset-0 z-50 bg-ink/50 backdrop-blur-xs flex items-center justify-center p-4 font-sans select-none animate-in fade-in duration-150">
+      <div 
+        className="fixed inset-0 z-50 bg-ink/50 backdrop-blur-xs flex items-center justify-center p-4 font-sans select-none animate-in fade-in duration-150"
+        onClick={handleBackdropClick}
+      >
         <div className="w-full max-w-3xl max-h-[88vh] bg-surface rounded-[8px] shadow-2xl border border-line overflow-hidden flex flex-col text-right">
           {/* Modal Header */}
           <div className="h-[48px] bg-surface-2 hairline-b px-4 flex items-center justify-between shrink-0">
@@ -192,8 +209,10 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
               <h3 className="text-[14px] font-bold text-ink m-0">إدارة تصنيفات وأقسام المنتجات</h3>
             </div>
             <button
-              onClick={onClose}
+              type="button"
+              onClick={() => void requestClose()}
               className="text-ink-muted hover:text-danger p-1 rounded transition-colors cursor-pointer"
+              title="إغلاق"
             >
               <X className="w-4 h-4" />
             </button>
@@ -413,7 +432,7 @@ export const CategoryManagerModal = ({ onClose, onCategoriesChanged }: CategoryM
             <span>تتعرف المنظومة الذكية تلقائياً على أنسب أيقونة لكل قسم، كما يمكنك تغيير أيقونة أي قسم يدوياً بالضغط عليها.</span>
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => void requestClose()}
               className="px-3 py-1 bg-surface border border-line rounded text-ink hover:bg-surface-2 text-[11.5px] font-bold cursor-pointer"
             >
               إغلاق

@@ -22,6 +22,7 @@ import {
 import { invoke } from '../bridge/ipc';
 import { formatArabicCurrency } from '../utils/money';
 import { CustomSelect } from './CustomSelect';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 interface ExcelImportModalProps {
   isOpen: boolean;
@@ -47,10 +48,7 @@ export const ExcelImportModal = ({
   const [duplicateStrategy, setDuplicateStrategy] = useState<'skip' | 'update' | 'error'>('skip');
   const [onlyValidRows, setOnlyValidRows] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
-  
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  if (!isOpen) return null;
 
   const validRows = parsedRows.filter(r => r.status === 'valid');
   const warningRows = parsedRows.filter(r => r.status === 'warning');
@@ -168,8 +166,20 @@ export const ExcelImportModal = ({
     }
   };
 
+  const isDirty = Boolean(selectedFile || parsedRows.length > 0);
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onDismiss: onClose,
+    isDirty,
+    confirmTitle: 'إلغاء استيراد الأصناف؟',
+    confirmMessage: 'تم رفع وفحص ملف الأصناف. هل أنت متأكد من الإلغاء والتراجع دون استيراد؟',
+  });
+
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+    <div onClick={handleBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
       <div 
         className="bg-surface hairline-all rounded-lg shadow-xl w-full max-w-5xl flex flex-col max-h-[92vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150"
         dir="rtl"
@@ -186,9 +196,9 @@ export const ExcelImportModal = ({
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={requestClose}
             disabled={importing}
-            className="p-1 rounded text-ink-muted hover:text-ink hover:bg-surface-3 transition-colors"
+            className="p-1 rounded text-ink-muted hover:text-ink hover:bg-surface-3 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -488,9 +498,9 @@ export const ExcelImportModal = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               disabled={importing}
-              className="h-8 px-4 rounded bg-surface hover:bg-surface-3 hairline-all text-ink font-bold text-[11.5px] transition-colors"
+              className="h-8 px-4 rounded bg-surface hover:bg-surface-3 hairline-all text-ink font-bold text-[11.5px] transition-colors cursor-pointer"
             >
               إلغاء
             </button>

@@ -792,12 +792,12 @@ namespace RafiqPOS.Repositories
                             cmd.ExecuteNonQuery();
                         }
 
-                        // 5. Audit log
+                        // 5. Audit log inside the same atomic transaction (Senior Rule 2)
                         if (_auditRepo != null)
                         {
                             try
                             {
-                                _auditRepo.Log(new AuditLog
+                                _auditRepo.Log(conn, trans, new AuditLog
                                 {
                                     Action = "customer_archive",
                                     EntityType = "customer",

@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { CustomSelect } from './CustomSelect';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 import { INITIAL_STORE_TEMPLATES, type StoreTemplateDto } from '../constants/storeTemplates';
 export type { StoreTemplateDto };
 
@@ -53,6 +54,12 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen: isOpen && !isFirstRun && !loading,
+    onDismiss: onClose,
+    isDirty: false,
+  });
 
   // Templates
   const [templates, setTemplates] = useState<StoreTemplateDto[]>(INITIAL_STORE_TEMPLATES);
@@ -962,12 +969,17 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
   // MODAL DIALOG VIEW (WHEN OPENED FROM SETTINGS - Matching 1_4 design)
   // --------------------------------------------------------------------------
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs text-ink select-none font-sans" dir="rtl">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs text-ink select-none font-sans" 
+      dir="rtl"
+      onClick={handleBackdropClick}
+    >
       {/* MODAL CONTAINER (896px wide, max 85vh, 8px radius, 1px line border, modal-shadow) */}
       <div 
         className="w-[896px] max-h-[85vh] bg-surface rounded-[8px] border border-line shadow-2xl flex flex-col overflow-hidden"
         role="dialog"
         aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
       >
         {/* 1. MODAL HEADER (72px, --surface, 1px bottom border) */}
         <div className="h-[72px] bg-surface border-b border-line px-6 flex items-center justify-between shrink-0">
@@ -978,7 +990,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
           {/* 44px dismiss button */}
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             className="w-11 h-11 border border-line rounded-[6px] bg-surface hover:bg-canvas text-ink flex items-center justify-center transition-colors cursor-pointer"
             title="إغلاق المعالج"
           >

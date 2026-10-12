@@ -170,6 +170,14 @@ namespace RafiqPOS.Bridge
                     {
                         response = BridgeResponse.Fail(request.Id, "ARCHIVE_BLOCKED", ioEx.Message);
                     }
+                    catch (ArgumentException argEx)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", argEx.Message);
+                    }
+                    catch (Exception ex)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "ARCHIVE_FAILED", ex.Message);
+                    }
                     return true;
 
                 case "customers:runTests":

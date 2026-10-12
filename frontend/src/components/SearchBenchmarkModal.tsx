@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Zap, CheckCircle2, XCircle, Clock, ShieldCheck, Play, X, Loader2, Barcode } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 import type { SearchBenchmarkResult } from '../types/models';
 
 interface SearchBenchmarkModalProps {
@@ -13,7 +14,11 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
   const [benchmarkResult, setBenchmarkResult] = useState<SearchBenchmarkResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  if (!isOpen) return null;
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen: isOpen && !running,
+    onDismiss: onClose,
+    isDirty: false,
+  });
 
   const handleRun = async () => {
     try {
@@ -42,14 +47,22 @@ export const SearchBenchmarkModal: React.FC<SearchBenchmarkModalProps> = ({ isOp
     ? benchmarkResult.testLog 
     : (Array.isArray((benchmarkResult as any)?.TestLog) ? (benchmarkResult as any).TestLog : []);
 
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-surface rounded-xl border hairline-all shadow-2xl max-w-4xl max-h-[90vh] w-full flex flex-col overflow-hidden text-right animate-in fade-in zoom-in-95 duration-150">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      onClick={handleBackdropClick}
+    >
+      <div 
+        className="bg-surface rounded-xl border hairline-all shadow-2xl max-w-4xl max-h-[90vh] w-full flex flex-col overflow-hidden text-right animate-in fade-in zoom-in-95 duration-150"
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* Header */}
         <div className="px-6 py-4 bg-surface-2 hairline-b flex items-center justify-between">
           <button
-            onClick={onClose}
+            onClick={requestClose}
             className="text-ink-muted hover:text-ink p-1 rounded hover:bg-surface-3 transition-colors"
           >
             <X className="w-5 h-5" />

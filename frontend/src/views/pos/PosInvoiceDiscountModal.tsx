@@ -5,6 +5,7 @@ import {
   normalizeArabicNumerals, 
   calculateDiscountAmount 
 } from '../../utils/money';
+import { useModalDismiss } from '../../hooks/useModalDismiss';
 
 interface PosInvoiceDiscountModalProps {
   isOpen: boolean;
@@ -29,6 +30,18 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
 }) => {
   const [discountInputEgp, setDiscountInputEgp] = useState('');
   const [invoiceDiscountType, setInvoiceDiscountType] = useState<'amount' | 'percent'>('amount');
+
+  const isDirty = discountInputEgp.trim() !== '' && discountInputEgp.trim() !== '0';
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onClose,
+    isDirty,
+    confirmTitle: 'تجاهل خصم الفاتورة؟',
+    confirmMessage: 'هناك قيمة خصم مدخلة على الفاتورة، هل تريد الخروج وتجاهلها؟',
+    discardText: 'تجاهل والخروج',
+    stayText: 'البقاء ومتابعة الخصم',
+  });
 
   if (!isOpen) return null;
 
@@ -65,7 +78,10 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
   const previewNet = Math.max(0, subtotalPiasters - piastersVal);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div 
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+      onClick={handleBackdropClick}
+    >
       <div className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-sm p-5 animate-in fade-in zoom-in-95 duration-150 text-right select-none">
         <div className="flex items-center justify-between mb-4 pb-2 hairline-b">
           <div className="flex items-center gap-2">
@@ -74,8 +90,9 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
           </div>
           <button 
             type="button"
-            onClick={onClose}
-            className="text-ink-muted hover:text-ink p-1 rounded hover:bg-surface-2 transition-colors"
+            onClick={() => void requestClose()}
+            className="text-ink-muted hover:text-ink p-1 rounded hover:bg-surface-2 transition-colors cursor-pointer"
+            title="إغلاق"
           >
             <X className="w-5 h-5" />
           </button>
@@ -206,8 +223,8 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
             </button>
             <button
               type="button"
-              onClick={onClose}
-              className="px-4 h-10 bg-surface hover:bg-surface-2 border border-line text-ink font-semibold rounded-lg transition-colors"
+              onClick={() => void requestClose()}
+              className="px-4 h-10 bg-surface hover:bg-surface-2 border border-line text-ink font-semibold rounded-lg transition-colors cursor-pointer"
             >
               إلغاء (Esc)
             </button>

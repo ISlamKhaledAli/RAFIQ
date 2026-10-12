@@ -17,6 +17,7 @@ import type { Sale, Return, Product } from '../types/models';
 import { extractProducts } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
 import { invoke } from '../bridge/ipc';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 interface ReturnModalProps {
   isOpen: boolean;
@@ -166,8 +167,6 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
       }
     }
   }, [isOpen, initialSale]);
-
-  if (!isOpen) return null;
 
   const handleSearchInvoice = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -333,14 +332,27 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
     }
   };
 
+  const isDirty = activeReturnItems.length > 0 && !completedReturn;
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onClose,
+    isDirty,
+    confirmTitle: 'تجاهل مسودة المرتجع؟',
+    confirmMessage: 'هناك أصناف محددة للمرتجع لم يتم حفظها بعد، هل تريد الخروج وتجاهل المرتجع؟',
+    discardText: 'تجاهل والخروج',
+    stayText: 'البقاء ومتابعة المرتجع',
+  });
+
+  if (!isOpen) return null;
+
   return (
     <div 
       className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none"
-      onClick={onClose}
+      onClick={handleBackdropClick}
     >
       <div 
         className="w-full max-w-[700px] bg-white rounded-xl border border-slate-300 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150 border-t-4 border-t-amber-600"
-        onClick={(e) => e.stopPropagation()}
         dir="rtl"
       >
         {/* Modal Header */}
@@ -351,8 +363,9 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
           </div>
           <button 
             type="button"
-            onClick={onClose}
+            onClick={() => void requestClose()}
             className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-slate-100 transition-colors cursor-pointer"
+            title="إغلاق"
           >
             <X className="w-4 h-4" />
           </button>
@@ -716,7 +729,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={() => void requestClose()}
                 disabled={loading}
                 className="h-9 px-4 border border-slate-300 bg-white hover:bg-slate-50 font-bold text-xs text-slate-700 rounded-lg transition-colors cursor-pointer"
               >

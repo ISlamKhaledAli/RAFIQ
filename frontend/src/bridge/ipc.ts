@@ -153,6 +153,7 @@ function dispatchAutoTopicsForAction(action: string) {
   } else if (
     action.startsWith('customers:save') || 
     action.startsWith('customers:delete') || 
+    action.startsWith('customers:archive') || 
     action.startsWith('customers:recordPayment') || 
     action.startsWith('customers:cancelPayment') || 
     action.startsWith('excel:importCustomers')
@@ -962,6 +963,9 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       }
       mockFailedAttempts = 0;
       mockCurrentUserId = u.id;
+      if (typeof window !== 'undefined') {
+        try { localStorage.setItem('rafiq_mock_user_id', u.id); } catch {}
+      }
       u.lastLoginAt = new Date().toISOString();
       return {
         success: true,
@@ -972,6 +976,9 @@ async function mockHandler(action: string, payload: any): Promise<any> {
 
     case 'auth:logout': {
       mockCurrentUserId = '';
+      if (typeof window !== 'undefined') {
+        try { localStorage.removeItem('rafiq_mock_user_id'); } catch {}
+      }
       return { success: true };
     }
 
@@ -3348,7 +3355,9 @@ let mockUsers: UserDto[] = [
     createdAt: new Date().toISOString(),
   },
 ];
-let mockCurrentUserId = '';
+let mockCurrentUserId = typeof window !== 'undefined'
+  ? (localStorage.getItem('rafiq_mock_user_id') || 'usr_admin_default')
+  : 'usr_admin_default';
 
 function getMockPermissionsForRole(role: string): Record<string, boolean> {
   const isRoot = role === 'root';

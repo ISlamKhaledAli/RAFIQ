@@ -269,15 +269,6 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
             <ShieldCheck className={`w-4 h-4 ${verifying ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">{verifying ? 'جارِ التحقق...' : 'فحص سلامة السجل'}</span>
           </button>
-
-          <button
-            onClick={() => void loadAuditLogs()}
-            disabled={loading}
-            className="h-8 w-8 flex items-center justify-center bg-surface-2 hover:bg-surface border border-line text-ink-muted hover:text-ink rounded-lg transition-colors cursor-pointer"
-            title="تحديث السجل"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
         </div>
       </div>
 

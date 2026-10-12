@@ -1,6 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { normalizeArabicNumerals } from '../../utils/money';
+import { useModalDismiss } from '../../hooks/useModalDismiss';
 
 interface PosQuantityModalProps {
   quantityModalItem: { index: number; name: string; currentQty: number } | null;
@@ -17,6 +18,16 @@ export const PosQuantityModal: React.FC<PosQuantityModalProps> = ({
   onClose,
   onConfirm,
 }) => {
+  const isDirty = quantityModalItem !== null && quantityInputVal.trim() !== '' && quantityInputVal.trim() !== String(quantityModalItem.currentQty);
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen: quantityModalItem !== null,
+    onDismiss: onClose,
+    isDirty,
+    confirmTitle: 'إلغاء تعديل الكمية؟',
+    confirmMessage: 'تم إدخال كمية جديدة للصنف. هل أنت متأكد من الإلغاء والتراجع؟',
+  });
+
   if (!quantityModalItem) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -29,7 +40,7 @@ export const PosQuantityModal: React.FC<PosQuantityModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div onClick={handleBackdropClick} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-sm p-5 animate-in fade-in zoom-in-95 duration-150 text-right select-none">
         <div className="flex items-center justify-between mb-4 pb-2 hairline-b">
           <div>
@@ -40,8 +51,8 @@ export const PosQuantityModal: React.FC<PosQuantityModalProps> = ({
           </div>
           <button 
             type="button"
-            onClick={onClose}
-            className="text-ink-muted hover:text-ink p-1 rounded hover:bg-surface-2 transition-colors"
+            onClick={requestClose}
+            className="text-ink-muted hover:text-ink p-1 rounded hover:bg-surface-2 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -109,8 +120,8 @@ export const PosQuantityModal: React.FC<PosQuantityModalProps> = ({
             </button>
             <button
               type="button"
-              onClick={onClose}
-              className="px-4 h-10 bg-surface hover:bg-surface-2 border border-line text-ink font-semibold rounded-lg transition-colors"
+              onClick={requestClose}
+              className="px-4 h-10 bg-surface hover:bg-surface-2 border border-line text-ink font-semibold rounded-lg transition-colors cursor-pointer"
             >
               إلغاء (Esc)
             </button>

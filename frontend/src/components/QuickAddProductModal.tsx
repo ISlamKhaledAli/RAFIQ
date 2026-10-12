@@ -7,6 +7,7 @@ import { poundsToPiasters, normalizeArabicNumerals } from '../utils/money';
 import { CustomSelect } from './CustomSelect';
 import { CustomDatePicker } from './CustomDatePicker';
 import { useFeatures } from '../context/useFeatures';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 interface QuickAddProductModalProps {
   isOpen: boolean;
@@ -66,25 +67,6 @@ export function QuickAddProductModal({
       clearTimeout(timer);
     };
   }, [isOpen]);
-
-  // Keyboard shortcut listener (Escape to cancel)
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
 
   const handleSubmit = async (e?: FormEvent) => {
     if (e) e.preventDefault();
@@ -154,8 +136,25 @@ export function QuickAddProductModal({
     }
   };
 
+  const isDirty = Boolean(name.trim() || priceEgp.trim() || costEgp.trim() || variantSize.trim() || variantColor.trim() || expiryDate.trim());
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onClose,
+    isDirty,
+    confirmTitle: 'تجاهل إضافة الصنف؟',
+    confirmMessage: 'هناك بيانات صنف مدخلة، هل تريد الخروج وتجاهل الحفظ؟',
+    discardText: 'تجاهل والخروج',
+    stayText: 'البقاء ومتابعة الإدخال',
+  });
+
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-100">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-100"
+      onClick={handleBackdropClick}
+    >
       <div 
         className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-lg overflow-hidden flex flex-col"
         dir="rtl"
@@ -173,8 +172,9 @@ export function QuickAddProductModal({
           </div>
           <button 
             type="button"
-            onClick={onClose}
-            className="w-7 h-7 rounded-md hover:bg-surface flex items-center justify-center text-ink-muted hover:text-ink"
+            onClick={() => void requestClose()}
+            className="w-7 h-7 rounded-md hover:bg-surface flex items-center justify-center text-ink-muted hover:text-ink cursor-pointer"
+            title="إغلاق"
           >
             <X className="w-4 h-4" />
           </button>
@@ -369,9 +369,9 @@ export function QuickAddProductModal({
           <div className="pt-2 hairline-t flex items-center justify-end gap-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => void requestClose()}
               disabled={loading}
-              className="px-4 py-2 rounded-lg bg-surface border border-line text-ink hover:bg-surface-2 text-xs font-semibold transition-colors disabled:opacity-50"
+              className="px-4 py-2 rounded-lg bg-surface border border-line text-ink hover:bg-surface-2 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
             >
               إلغاء (Esc)
             </button>

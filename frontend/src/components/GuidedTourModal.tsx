@@ -13,6 +13,7 @@ import {
   FileText,
   BarChart3,
 } from 'lucide-react';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 interface GuidedTourModalProps {
   isOpen: boolean;
@@ -124,8 +125,6 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
 }) => {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
 
-  if (!isOpen) return null;
-
   const currentStep = TOUR_STEPS[currentStepIndex];
   const isFirst = currentStepIndex === 0;
   const isLast = currentStepIndex === TOUR_STEPS.length - 1;
@@ -144,11 +143,23 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
     }
   };
 
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onDismiss: onClose,
+    isDirty: false,
+  });
+
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn"
+      onClick={handleBackdropClick}
+    >
       <div
         className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]"
         dir="rtl"
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header with gradient and icon */}
         <div className={`bg-gradient-to-r ${currentStep.color} text-white px-6 py-5 relative transition-all duration-300`}>
@@ -169,7 +180,7 @@ export const GuidedTourModal: React.FC<GuidedTourModalProps> = ({
               </div>
             </div>
             <button
-              onClick={onClose}
+              onClick={requestClose}
               className="text-white/80 hover:text-white hover:bg-white/10 rounded-lg p-2 transition-colors cursor-pointer"
               title="إغلاق"
             >

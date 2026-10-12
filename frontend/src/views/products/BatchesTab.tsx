@@ -5,7 +5,6 @@ import {
   Clock,
   Search,
   X,
-  RefreshCw,
   Trash2,
   Sliders,
   DollarSign,
@@ -14,6 +13,7 @@ import {
   Check,
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
+import { useDataSubscription } from '../../utils/eventBus';
 import type { ProductBatch, BatchSummary } from '../../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
 import { CustomSelect } from '../../components/CustomSelect';
@@ -150,6 +150,10 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
       active = false;
     };
   }, [alertDays]);
+
+  useDataSubscription(['products', 'all'], () => {
+    void loadData(alertDays);
+  });
 
   const handleAdjustSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -494,15 +498,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={() => void loadData(alertDays)}
-            disabled={loading}
-            className="h-8 w-8 flex items-center justify-center bg-surface hover:bg-surface-2 border border-line text-ink-muted hover:text-ink rounded-xl transition-colors shadow-2xs cursor-pointer"
-            title="تحديث البيانات"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-brand' : ''}`} />
-          </button>
+
         </div>
       </div>
 

@@ -21,6 +21,7 @@ import {
   Sparkles,
   RefreshCw,
 } from 'lucide-react';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 interface DemoDataStatus {
   hasDemoData: boolean;
@@ -117,8 +118,6 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
     };
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
   const handleLoadDemo = async () => {
     setLoading(true);
     setMessage(null);
@@ -194,11 +193,23 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
     }
   };
 
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen: isOpen && !loading,
+    onDismiss: onClose,
+    isDirty: false,
+  });
+
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn"
+      onClick={handleBackdropClick}
+    >
       <div
         className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]"
         dir="rtl"
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="bg-brand text-white px-6 py-5 flex items-center justify-between border-b border-brand-dark">
@@ -214,7 +225,7 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={requestClose}
             className="text-white/80 hover:text-white hover:bg-white/10 rounded-lg p-2 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />

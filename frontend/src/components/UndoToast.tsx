@@ -91,7 +91,7 @@ export const UndoToast: React.FC<UndoToastProps> = ({
             className="h-[30px] px-3 bg-brand hover:bg-brand-hover text-white rounded text-[11.5px] font-bold flex items-center gap-1 transition-colors shadow-sm"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>تراجع (F9)</span>
+            <span>تراجع</span>
           </button>
 
           <button

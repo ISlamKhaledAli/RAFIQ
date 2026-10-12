@@ -11,6 +11,7 @@ import {
   FileSpreadsheet,
   Download,
   Trash2,
+  Loader2,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
@@ -38,6 +39,7 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
   const [filterType, setFilterType] = useState<'all' | 'debtors' | 'settled'>('all');
   const [isLoading, setIsLoading] = useState(false);
   const showLoading = useSmoothLoading(isLoading, 300);
+  const [archivingCustomerId, setArchivingCustomerId] = useState<string | null>(null);
 
   // Modals state
   const [isAddEditOpen, setIsAddEditOpen] = useState(false);
@@ -572,7 +574,9 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
       return;
     }
 
-    // 3. Confirm
+    if (archivingCustomerId) return;
+
+    // 2. Confirm
     const confirmed = await rafiqConfirm({
       title: 'تأكيد حذف العميل',
       message: `هل أنت متأكد من حذف العميل "${cust.name}"؟ سيختفي من القائمة لكن سجلاته المالية والفواتير المرتبطة ستبقى محفوظة في النظام.`,
@@ -582,9 +586,14 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
     });
     if (!confirmed) return;
 
-    // 4. Execute archive
+    // 3. Execute archive with optimistic update & loading state
+    setArchivingCustomerId(cust.id);
     try {
       await invoke<{ success: boolean }>('customers:archive', { customerId: cust.id });
+      setCustomers((prev) => prev.filter((c) => c.id !== cust.id));
+      if (selectedCustomer?.id === cust.id) {
+        setSelectedCustomer(null);
+      }
       void loadCustomers();
     } catch (err: unknown) {
       void rafiqAlert({
@@ -592,6 +601,8 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
         message: err instanceof Error ? err.message : 'تعذر حذف العميل',
         variant: 'error',
       });
+    } finally {
+      setArchivingCustomerId(null);
     }
   };
 
@@ -884,15 +895,21 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
 
                             <button
                               onClick={() => void handleArchiveCustomer(cust)}
-                              title={hasDebt ? 'لا يمكن الحذف — يوجد دين مستحق' : 'حذف العميل'}
-                              disabled={hasDebt}
+                              title={hasDebt ? 'لا يمكن الحذف — يوجد دين مستحق' : archivingCustomerId === cust.id ? 'جاري الحذف...' : 'حذف العميل'}
+                              disabled={hasDebt || archivingCustomerId === cust.id}
                               className={`w-7.5 h-7.5 flex items-center justify-center rounded-xl border transition-colors shadow-2xs cursor-pointer ${
                                 hasDebt
                                   ? 'bg-surface-2 border-line text-ink-muted/40 cursor-not-allowed opacity-40'
+                                  : archivingCustomerId === cust.id
+                                  ? 'bg-surface-2 border-line text-danger opacity-75 cursor-wait'
                                   : 'bg-surface border-line text-danger/80 hover:text-white hover:bg-danger hover:border-danger'
                               }`}
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              {archivingCustomerId === cust.id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-danger" />
+                              ) : (
+                                <Trash2 className="w-3.5 h-3.5" />
+                              )}
                             </button>
                         </div>
                       </td>

@@ -81,11 +81,38 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
   onConfirmCancelPayment,
   onOpenPrintStatement,
 }) => {
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (cancellingEntry) {
+          setCancellingEntry(null);
+        } else {
+          onClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, cancellingEntry, setCancellingEntry, onClose]);
+
   if (!isOpen || !selectedCustomer) return null;
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            if (cancellingEntry) {
+              setCancellingEntry(null);
+            } else {
+              onClose();
+            }
+          }
+        }}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      >
         <div className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
           {/* Header */}
           <div className="h-12 bg-surface-2 hairline-b px-4 flex items-center justify-between shrink-0">

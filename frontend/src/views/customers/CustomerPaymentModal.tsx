@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { CreditCard, Sparkles, X, Coins, ArrowLeftRight, Check, AlertCircle } from 'lucide-react';
 import type { Customer } from '../../types/models';
 import { MoneyInput } from '../../components/MoneyInput';
+import { useModalDismiss } from '../../hooks/useModalDismiss';
 
 export interface CustomerPaymentModalProps {
   isOpen: boolean;
@@ -33,6 +34,16 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
       setExcessAction('return_change');
     }
   }, [isOpen, selectedCustomer]);
+
+  const isDirty = paymentAmountPiasters > 0 || Boolean(paymentNotes.trim());
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen: isOpen && Boolean(selectedCustomer),
+    onDismiss: onClose,
+    isDirty,
+    confirmTitle: 'إلغاء سداد حساب العميل؟',
+    confirmMessage: 'تم إدخال بيانات سداد للعميل. هل أنت متأكد من الإلغاء والتراجع دون تسجيل السداد؟',
+  });
 
   if (!isOpen || !selectedCustomer) return null;
 
@@ -73,7 +84,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div onClick={handleBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-md max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="h-13 bg-surface-2 border-b border-line px-5 flex items-center justify-between shrink-0">
@@ -92,7 +103,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
@@ -294,7 +305,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
           <div className="pt-2 flex items-center justify-end gap-2 border-t border-line">
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               className="px-4 py-2 rounded-xl bg-surface border border-line hover:bg-surface-2 text-ink font-semibold transition-colors cursor-pointer"
             >
               إلغاء

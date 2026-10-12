@@ -4,7 +4,6 @@ import {
   Users,
   CreditCard,
   AlertTriangle,
-  RefreshCw,
   Printer,
   Clock,
   TrendingUp,
@@ -168,17 +167,6 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
               }}
             />
           )}
-
-          <button
-            type="button"
-            onClick={() => void loadData()}
-            disabled={isLoading}
-            className="h-9 px-3 rounded-lg border border-line bg-surface hover:bg-surface-2 text-ink-muted hover:text-ink text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-            title="تحديث البيانات"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-warn' : ''}`} />
-            <span>تحديث</span>
-          </button>
 
           <button
             type="button"

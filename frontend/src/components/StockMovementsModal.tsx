@@ -11,6 +11,7 @@ import {
   FileText
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 import type { StockMovement } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
 
@@ -76,7 +77,11 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
     };
   }, [isOpen, productId, movementTypeFilter]);
 
-  if (!isOpen) return null;
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onDismiss: onClose,
+    isDirty: false,
+  });
 
   const formatDate = (dateStr: string) => {
     try {
@@ -117,9 +122,17 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
     return `${sign}${formatted} ${isKg ? 'كجم' : 'ق'}`;
   };
 
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 bg-ink/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in select-none">
-      <div className="bg-surface rounded-xl hairline-all shadow-2xl w-full max-w-5xl flex flex-col max-h-[88vh] overflow-hidden">
+    <div
+      onClick={handleBackdropClick}
+      className="fixed inset-0 bg-ink/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in select-none"
+    >
+      <div 
+        className="bg-surface rounded-xl hairline-all shadow-2xl w-full max-w-5xl flex flex-col max-h-[88vh] overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="px-5 py-4 border-b border-line flex items-center justify-between bg-surface-2/60 shrink-0">
           <div className="flex items-center gap-2.5">
@@ -152,7 +165,7 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
             )}
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               className="w-7 h-7 rounded flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface border border-transparent hover:border-line transition-colors"
             >
               <X className="w-4 h-4" />

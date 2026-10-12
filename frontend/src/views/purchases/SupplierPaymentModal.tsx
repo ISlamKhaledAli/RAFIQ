@@ -3,6 +3,7 @@ import { Banknote, X, CheckCheck, Sparkles, Coins, ArrowLeftRight, Check, AlertC
 import type { Supplier } from '../../types/models';
 import { formatMoney } from './types';
 import { MoneyInput } from '../../components/MoneyInput';
+import { useModalDismiss } from '../../hooks/useModalDismiss';
 
 interface SupplierPaymentModalProps {
   isOpen: boolean;
@@ -34,6 +35,16 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
       setExcessAction('pay_exact');
     }
   }, [isOpen, supplier]);
+
+  const isDirty = paymentAmountPiasters > 0 || Boolean(paymentNotes.trim());
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen: isOpen && Boolean(supplier),
+    onDismiss: onClose,
+    isDirty,
+    confirmTitle: 'إلغاء سداد حساب المورد؟',
+    confirmMessage: 'تم إدخال بيانات صرف للمورد. هل أنت متأكد من الإلغاء والتراجع دون تسجيل السداد؟',
+  });
 
   if (!isOpen || !supplier) return null;
 
@@ -74,7 +85,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+    <div onClick={handleBackdropClick} className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-surface border border-line rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[92vh]">
         {/* Header */}
         <div className="h-14 bg-surface-2 border-b border-line px-5 flex items-center justify-between shrink-0">
@@ -89,7 +100,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
@@ -287,7 +298,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
           <div className="pt-2 flex items-center justify-end gap-2 border-t border-line">
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               className="px-4 py-2 rounded-xl bg-surface border border-line hover:bg-surface-2 text-ink font-semibold transition-colors cursor-pointer"
             >
               إلغاء

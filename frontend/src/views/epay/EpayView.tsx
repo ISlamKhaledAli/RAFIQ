@@ -6,7 +6,6 @@ import {
   FileText, 
   Landmark, 
   PlusCircle, 
-  RefreshCw, 
   TrendingUp, 
   AlertTriangle, 
   CheckCircle2, 
@@ -100,7 +99,6 @@ export const EpayView: React.FC<EpayViewProps> = ({
   const [transactions, setTransactions] = useState<EpayTransaction[]>([]);
   const [fundings, setFundings] = useState<EpayTerminalFunding[]>([]);
   const [analytics, setAnalytics] = useState<EpayAnalyticsSummary | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -187,7 +185,6 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
   // Load all data
   const loadData = useCallback(async () => {
-    setIsLoading(true);
     setErrorMsg(null);
     try {
       const [termsRes, txsRes, fundRes, anRes] = await Promise.all([
@@ -208,8 +205,6 @@ export const EpayView: React.FC<EpayViewProps> = ({
       }
     } catch (err: any) {
       setErrorMsg(err?.message || 'تعذر تحميل بيانات ماكينات وخدمات الدفع');
-    } finally {
-      setIsLoading(false);
     }
   }, [selectedTerminalId]);
 
@@ -581,17 +576,6 @@ export const EpayView: React.FC<EpayViewProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={loadData}
-            disabled={isLoading}
-            className="p-2 bg-surface hover:bg-surface-2 border border-line rounded-xl text-ink-muted hover:text-ink transition-colors shadow-2xs cursor-pointer"
-            title="تحديث البيانات"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
       </header>
 
       {/* 2. Top Summary 4-KPI Cards (Displayed only on Terminals tab for authorized users) */}

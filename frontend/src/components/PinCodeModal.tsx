@@ -13,6 +13,7 @@ import {
   Check 
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 export interface PinCodeModalProps {
   isOpen: boolean;
@@ -56,6 +57,16 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
     setCopied(false);
     onClose();
   };
+
+  const isDirty = Boolean(isRecoveryMode && (recoveryCode.trim() || newPin.trim() || newPinConfirm.trim()));
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onDismiss: handleClose,
+    isDirty,
+    confirmTitle: 'تجاهل عملية الاسترجاع؟',
+    confirmMessage: 'لديك بيانات غير مكتملة في عملية استرجاع الرقم السري. هل تريد حقاً الإلغاء؟',
+  });
 
   // Check PIN status and lockout when modal opens
   useEffect(() => {
@@ -222,16 +233,15 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
+      onClick={handleBackdropClick}
+    >
       <div 
         className="w-full max-w-sm bg-surface rounded-2xl shadow-2xl border border-line overflow-hidden flex flex-col text-ink"
         role="dialog"
         aria-modal="true"
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            handleClose();
-          }
-        }}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="bg-brand text-white px-5 py-4 flex items-center justify-between border-b border-brand-dark">
@@ -250,7 +260,7 @@ export const PinCodeModal: React.FC<PinCodeModalProps> = ({
           </div>
           <button
             type="button"
-            onClick={handleClose}
+            onClick={requestClose}
             className="p-1 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
             title="إلغاء (Esc)"
           >

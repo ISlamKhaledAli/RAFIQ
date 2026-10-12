@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Scale, X, Check, Delete, RotateCcw } from 'lucide-react';
 import { formatArabicCurrency, calculateLineTotal, normalizeArabicNumerals } from '../utils/money';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 interface WeightInputModalProps {
   isOpen: boolean;
@@ -61,18 +62,25 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
   const pricePiasters = product.pricePiasters;
   const totalPiasters = calculateLineTotal(pricePiasters, weightMilli);
 
+  const isDirty = weightMilli !== initialWeightMilli;
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen: true,
+    onDismiss: onClose,
+    isDirty,
+    confirmTitle: 'إلغاء تحديد الوزن؟',
+    confirmMessage: 'تم تعديل وزن الصنف. هل أنت متأكد من الإلغاء والتراجع؟',
+  });
+
   const handleConfirm = () => {
     if (weightMilli <= 0) return;
     onConfirm(weightMilli);
   };
 
-  // Keyboard shortcut listener
+  // Keyboard shortcut listener for Enter
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-      } else if (e.key === 'Enter') {
+      if (e.key === 'Enter') {
         e.preventDefault();
         handleConfirm();
       }
@@ -124,6 +132,7 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
 
   return (
     <div 
+      onClick={handleBackdropClick}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
       dir="rtl"
     >
@@ -155,8 +164,8 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
-            className="w-8 h-8 rounded-full hover:bg-surface border border-transparent hover:border-line flex items-center justify-center text-ink-muted hover:text-ink transition-colors"
+            onClick={requestClose}
+            className="w-8 h-8 rounded-full hover:bg-surface border border-transparent hover:border-line flex items-center justify-center text-ink-muted hover:text-ink transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -313,8 +322,8 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-lg bg-surface hover:bg-surface-2 border border-line text-ink text-[12.5px] font-semibold transition-colors"
+              onClick={requestClose}
+              className="px-4 py-2 rounded-lg bg-surface hover:bg-surface-2 border border-line text-ink text-[12.5px] font-semibold transition-colors cursor-pointer"
             >
               إلغاء (Esc)
             </button>

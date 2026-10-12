@@ -43,6 +43,17 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
     }
   }, [isOpen, loadHeldSales]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleRecall = async (sale: HeldSale) => {
@@ -218,7 +229,7 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
               <PauseCircle className="w-12 h-12 mb-2 stroke-[1.2] text-line-hover" />
               <p className="text-sm font-bold text-ink">مفيش أي فواتير معلقة دلوقتي</p>
               <p className="text-xs text-ink-muted mt-1">
-                تقدر تعلق أي فاتورة في السلة وانت شغال بالضغط على زرار <kbd className="px-1.5 py-0.5 font-mono text-[10px] bg-surface-2 border border-line rounded font-bold text-ink">F6</kbd>
+                تقدر تعلق أي فاتورة في السلة وانت شغال بالضغط على زرار تعليق الفاتورة
               </p>
             </div>
           )}
@@ -231,10 +242,7 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="h-13 px-5 bg-surface-2 border-t border-line flex items-center justify-between">
-          <span className="text-[11px] text-ink-muted">
-            مفتاح <kbd className="px-1.5 py-0.5 bg-surface border border-line rounded text-ink font-mono text-[10px]">Esc</kbd> للإغلاق
-          </span>
+        <div className="h-13 px-5 bg-surface-2 border-t border-line flex items-center justify-end">
           <button
             type="button"
             onClick={onClose}

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Printer, X, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import type { Sale } from '../types/models';
 import { invoke } from '../bridge/ipc';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 interface ReceiptModalProps {
   isOpen: boolean;
@@ -22,6 +23,11 @@ export function ReceiptModal({
   storeAddress = '',
   receiptFooter = 'شكراً لتعاملكم معنا! البضاعة المباعة ترد وتستبدل وفقاً لسياسة المتجر.'
 }: ReceiptModalProps) {
+  const { handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onClose,
+    isDirty: false,
+  });
   const [isPrinting, setIsPrinting] = useState(false);
   const [printStatus, setPrintStatus] = useState<{ ok: boolean; msg: string } | null>(null);
   const [liveSettings, setLiveSettings] = useState<Record<string, string>>({});
@@ -115,7 +121,10 @@ export function ReceiptModal({
   const remainingPiasters = Math.max(0, sale.totalPiasters - sale.paidPiasters);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      onClick={handleBackdropClick}
+    >
       <div className="bg-surface rounded-lg shadow-2xl border border-line flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         
         {/* Modal Header */}
@@ -287,7 +296,7 @@ export function ReceiptModal({
               disabled={isPrinting}
               className="px-4 py-2 rounded bg-surface border border-line text-ink hover:bg-surface-2 text-xs font-semibold disabled:opacity-50"
             >
-              إغلاق (Esc)
+              إغلاق
             </button>
             <button
               onClick={handlePrint}
@@ -295,7 +304,7 @@ export function ReceiptModal({
               className="flex items-center gap-2 px-5 py-2 rounded bg-brand text-white hover:bg-brand-hover text-xs font-bold shadow-sm disabled:opacity-60"
             >
               {isPrinting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-              <span>{isPrinting ? 'جاري الطباعة...' : 'طباعة الإيصال (F9)'}</span>
+              <span>{isPrinting ? 'جاري الطباعة...' : 'طباعة الإيصال'}</span>
             </button>
           </div>
         </div>

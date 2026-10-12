@@ -93,7 +93,14 @@ export const RafiqDialogContainer: React.FC = () => {
   const vStyles = getVariantStyles();
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in select-none">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          handleCancel();
+        }
+      }}
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in select-none"
+    >
       <div
         className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col transform transition-all animate-scale-up"
         role="alertdialog"
@@ -145,7 +152,6 @@ export const RafiqDialogContainer: React.FC = () => {
             className={`h-9 px-5 text-xs font-bold rounded-lg transition-all shadow-sm active:scale-95 flex items-center gap-2 cursor-pointer ${vStyles.confirmBtn}`}
           >
             <span>{state.confirmText}</span>
-            <kbd className="hidden sm:inline-block text-[10px] bg-white/20 text-white px-1.5 py-0.5 rounded font-mono">Enter</kbd>
           </button>
         </div>
       </div>

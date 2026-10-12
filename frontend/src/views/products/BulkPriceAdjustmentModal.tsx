@@ -16,6 +16,7 @@ import {
 import { invoke } from '../../bridge/ipc';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
 import { CustomSelect } from '../../components/CustomSelect';
+import { useModalDismiss } from '../../hooks/useModalDismiss';
 import type {
   Category,
   BulkPricePreviewResult,
@@ -271,10 +272,20 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
     }
   };
 
+  const isDirty = Boolean(percentageValue.trim() || amountValue.trim() || excelFileName);
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onDismiss: onClose,
+    isDirty,
+    confirmTitle: 'إلغاء تعديل الأسعار الجماعي؟',
+    confirmMessage: 'تم إدخال قيم لتعديل الأسعار. هل أنت متأكد من الإلغاء والتراجع دون تطبيق؟',
+  });
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-ink/60 backdrop-blur-xs select-none animate-in fade-in duration-200">
+    <div onClick={handleBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-ink/60 backdrop-blur-xs select-none animate-in fade-in duration-200">
       <div className="w-full max-w-5xl h-[92vh] max-h-[820px] bg-surface rounded-2xl border border-line shadow-2xl flex flex-col overflow-hidden">
         
         {/* 1. Header */}
@@ -290,7 +301,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             className="w-8 h-8 rounded-lg flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -740,7 +751,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
           <div className="flex items-center gap-2.5">
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               className="h-9 px-4 rounded-xl border border-line text-ink font-bold text-xs hover:bg-surface-2 transition-colors cursor-pointer"
             >
               إلغاء

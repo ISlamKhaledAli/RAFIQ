@@ -13,6 +13,7 @@ import {
   X
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 export interface DatabaseIntegrityStatus {
   isValid: boolean;
@@ -96,9 +97,26 @@ export const DatabaseRecoveryModal = ({
     }
   };
 
+  const canDismiss = !status.isCorrupt && Boolean(onDismiss);
+  const isDirty = Boolean(pin.trim() || customFile.trim());
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen: canDismiss && !restoring,
+    onDismiss: onDismiss || (() => {}),
+    isDirty,
+    confirmTitle: 'إلغاء عملية الاسترجاع؟',
+    confirmMessage: 'لديك بيانات مدخلة في نافذة الاسترجاع. هل تريد حقاً الإلغاء؟',
+  });
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 font-sans select-none animate-in fade-in duration-200">
-      <div className="w-full max-w-xl bg-surface rounded-[8px] shadow-2xl border border-red-300 overflow-hidden flex flex-col text-right">
+    <div 
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 font-sans select-none animate-in fade-in duration-200"
+      onClick={canDismiss ? handleBackdropClick : undefined}
+    >
+      <div 
+        className="w-full max-w-xl bg-surface rounded-[8px] shadow-2xl border border-red-300 overflow-hidden flex flex-col text-right"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* 1. Modal Top Banner */}
         <div className="p-4 bg-danger text-white flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -119,7 +137,7 @@ export const DatabaseRecoveryModal = ({
 
           {!status.isCorrupt && onDismiss && (
             <button
-              onClick={onDismiss}
+              onClick={requestClose}
               className="text-white/80 hover:text-white text-xs px-2.5 py-1 rounded hover:bg-white/10 flex items-center gap-1 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />

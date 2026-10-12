@@ -10,8 +10,6 @@ import {
   UserPlus, 
   AlertTriangle, 
   CheckCircle,
-  Smartphone,
-  Wallet
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { Customer, SalePayment } from '../types/models';
@@ -19,6 +17,7 @@ import { formatArabicCurrency, normalizeArabicNumerals, poundsToPiasters, piaste
 import { rafiqConfirm, rafiqAlert } from '../utils/dialogService';
 import { MoneyInput } from './MoneyInput';
 import { CustomSelect } from './CustomSelect';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 import { CashPaymentSection } from './payment/CashPaymentSection';
 
@@ -45,10 +44,7 @@ interface PaymentModalProps {
     totalPiastersOverride?: number;
     serviceFeeNote?: string;
   }) => void;
-  instapayFeePercent?: number;
-  vodafoneCashFeePercent?: number;
   loading?: boolean;
-  initialMethod?: 'cash' | 'instapay' | 'vodafone_cash';
 }
 
 export const PaymentModal = ({
@@ -66,12 +62,8 @@ export const PaymentModal = ({
   showCredit: _showCredit = true,
   customers,
   onConfirmPayment,
-  instapayFeePercent = 1,
-  vodafoneCashFeePercent = 1,
   loading = false,
-  initialMethod = 'cash',
 }: PaymentModalProps) => {
-  const [paymentMethodTab, setPaymentMethodTab] = useState<'cash' | 'instapay' | 'vodafone_cash'>(initialMethod);
   const [receivedInput, setReceivedInput] = useState<string>(() => piastersToPounds(netTotalPiasters).toString());
   const [receivedPiasters, setReceivedPiasters] = useState<number>(() => netTotalPiasters);
   const [currentCustomerId, setCurrentCustomerId] = useState<string | null>(selectedCustomerId || null);
@@ -110,7 +102,6 @@ export const PaymentModal = ({
     if (isOpen && !prevIsOpenRef.current) {
       setReceivedInput('0');
       setReceivedPiasters(0);
-      setPaymentMethodTab(initialMethod);
       setIsFullCreditMode(false);
       setSaveChangeToCustomerAccount(false);
       setCurrentCustomerId(selectedCustomerId || null);
@@ -128,7 +119,7 @@ export const PaymentModal = ({
     if (!isOpen) {
       prevIsOpenRef.current = false;
     }
-  }, [isOpen, netTotalPiasters, selectedCustomerId, initialMethod]);
+  }, [isOpen, netTotalPiasters, selectedCustomerId]);
 
   const duplicateQuickCustomer = useMemo(() => {
     const clean = quickPhone.trim().replace(/[\s-]/g, '');
@@ -236,85 +227,31 @@ export const PaymentModal = ({
     setIsFullCreditMode(true);
   };
 
+  const isDirty = useMemo(() => {
+    const receivedModified = receivedInput !== '0' && receivedInput !== '';
+    const customerModified = Boolean(currentCustomerId && currentCustomerId !== (selectedCustomerId || null));
+    const quickAddModified = Boolean(quickName.trim() || quickPhone.trim());
+    return receivedModified || customerModified || quickAddModified || isFullCreditMode || saveChangeToCustomerAccount;
+  }, [receivedInput, currentCustomerId, selectedCustomerId, quickName, quickPhone, isFullCreditMode, saveChangeToCustomerAccount]);
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onClose,
+    isDirty,
+    confirmTitle: 'تجاهل البيانات المدخلة؟',
+    confirmMessage: 'هناك مبالغ أو بيانات مدخلة في نافذة الدفع، هل تريد الخروج وتجاهلها؟',
+    discardText: 'تجاهل والخروج',
+    stayText: 'البقاء ومتابعة الدفع',
+  });
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !loading) {
       e.preventDefault();
       void handleConfirm();
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      onClose();
     }
   };
 
-  const instapayFeePiasters = Math.round(netTotalPiasters * ((instapayFeePercent ?? 1) / 100));
-  const instapayTotalPiasters = netTotalPiasters + instapayFeePiasters;
-
-  const vodafoneCashFeePiasters = Math.round(netTotalPiasters * ((vodafoneCashFeePercent ?? 1) / 100));
-  const vodafoneCashTotalPiasters = netTotalPiasters + vodafoneCashFeePiasters;
-
   const handleConfirm = async () => {
-    if (paymentMethodTab === 'instapay') {
-      const proceed = await rafiqConfirm({
-        title: 'تأكيد استلام تحويل انستاباي',
-        message: `تفاصيل المعاملة الإلكترونية (خارج درج الكاش):\n` +
-          `• إجمالي الفاتورة الأصلي: ${formatArabicCurrency(netTotalPiasters)}\n` +
-          `• رسوم انستاباي (${instapayFeePercent}%): +${formatArabicCurrency(instapayFeePiasters)}\n` +
-          `• المطلوب استلامه بالتحويل: ${formatArabicCurrency(instapayTotalPiasters)}\n\n` +
-          `هل تم استلام التحويل بالكامل وتريد حفظ الفاتورة وطباعة الإيصال؟`,
-        confirmText: `تأكيد استلام ${formatArabicCurrency(instapayTotalPiasters)}`,
-        cancelText: 'تراجع',
-        variant: 'info',
-      });
-      if (!proceed) return;
-
-      onConfirmPayment({
-        paymentMethod: 'instapay',
-        paidPiasters: instapayTotalPiasters,
-        totalPiastersOverride: instapayTotalPiasters,
-        payments: [{
-          amountPiasters: instapayTotalPiasters,
-          method: 'instapay',
-        }],
-        changeDuePiasters: 0,
-        customerId: currentCustomerId,
-        serviceFeeNote: instapayFeePiasters > 0 
-          ? `رسوم خدمة انستاباي (${instapayFeePercent}%): +${(instapayFeePiasters / 100).toFixed(2)} ج.م` 
-          : undefined,
-      });
-      return;
-    }
-
-    if (paymentMethodTab === 'vodafone_cash') {
-      const proceed = await rafiqConfirm({
-        title: 'تأكيد استلام تحويل المحفظة الإلكترونية',
-        message: `تفاصيل المعاملة الإلكترونية (خارج درج الكاش):\n` +
-          `• إجمالي الفاتورة الأساسي: ${formatArabicCurrency(netTotalPiasters)}\n` +
-          `• رسوم خدمة المحفظة (${vodafoneCashFeePercent}%): +${formatArabicCurrency(vodafoneCashFeePiasters)}\n` +
-          `• المبلغ المطلوب تحويله على المحفظة: ${formatArabicCurrency(vodafoneCashTotalPiasters)}\n\n` +
-          `هل تم التأكد من استلام المبلغ على المحفظة وتريد تأكيد الفاتورة وطباعة الإيصال؟`,
-        confirmText: `تأكيد استلام ${formatArabicCurrency(vodafoneCashTotalPiasters)}`,
-        cancelText: 'تراجع',
-        variant: 'info',
-      });
-      if (!proceed) return;
-
-      onConfirmPayment({
-        paymentMethod: 'vodafone_cash',
-        paidPiasters: vodafoneCashTotalPiasters,
-        totalPiastersOverride: vodafoneCashTotalPiasters,
-        payments: [{
-          amountPiasters: vodafoneCashTotalPiasters,
-          method: 'vodafone_cash',
-        }],
-        changeDuePiasters: 0,
-        customerId: currentCustomerId,
-        serviceFeeNote: vodafoneCashFeePiasters > 0 
-          ? `رسوم خدمة المحفظة الإلكترونية (${vodafoneCashFeePercent}%): +${(vodafoneCashFeePiasters / 100).toFixed(2)} ج.م` 
-          : undefined,
-      });
-      return;
-    }
-
     const hasRegisteredCustomer = !!(selectedCustomer && selectedCustomer.id !== 'cust_general_cash');
     const isCreditSubmission = isFullCreditMode || (receivedPiasters === 0 && hasRegisteredCustomer);
 
@@ -491,6 +428,7 @@ export const PaymentModal = ({
   return (
     <div 
       className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4 select-none"
+      onClick={handleBackdropClick}
       onKeyDown={handleKeyDown}
     >
       <div className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-3xl max-h-[94vh] flex flex-col overflow-hidden text-ink">
@@ -502,16 +440,16 @@ export const PaymentModal = ({
             </div>
             <div>
               <h2 className="text-[16px] font-bold text-ink leading-tight m-0">
-                حساب الفاتورة واستلام الفلوس والباقي
+                حساب الفاتورة واستلام الفلوس والباقي (نقداً)
               </h2>
               <p className="text-[11px] text-ink-muted m-0">
-                استلمت كام من الزبون، احسب الباقي، وسجل الفاتورة بضغطة زر واحدة
+                استلمت كام نقداً من الزبون في الدرج، احسب الباقي، وسجل الفاتورة بضغطة زر واحدة
               </p>
             </div>
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => void requestClose()}
             className="w-8 h-8 rounded hover:bg-surface flex items-center justify-center text-ink-muted hover:text-ink transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -682,172 +620,35 @@ export const PaymentModal = ({
             )}
           </div>
 
-          {/* Payment Method Selector Tabs */}
-          <div className="flex items-center gap-2 bg-surface-2 p-1.5 rounded-xl border border-line">
-            <button
-              type="button"
-              onClick={() => setPaymentMethodTab('cash')}
-              className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                paymentMethodTab === 'cash'
-                  ? 'bg-brand text-white shadow-xs'
-                  : 'text-ink-muted hover:text-ink hover:bg-surface'
-              }`}
-            >
-              <Banknote className="w-4 h-4 shrink-0" />
-              <span>نقداً (كاش)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setPaymentMethodTab('instapay')}
-              className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                paymentMethodTab === 'instapay'
-                  ? 'bg-[#582C83] text-white shadow-xs'
-                  : 'text-ink-muted hover:text-ink hover:bg-surface'
-              }`}
-            >
-              <Smartphone className="w-4 h-4 shrink-0" />
-              <span>انستاباي</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setPaymentMethodTab('vodafone_cash')}
-              className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                paymentMethodTab === 'vodafone_cash'
-                  ? 'bg-[#e60000] text-white shadow-xs'
-                  : 'text-ink-muted hover:text-ink hover:bg-surface'
-              }`}
-            >
-              <Wallet className="w-4 h-4 shrink-0" />
-              <span>محفظة</span>
-            </button>
-          </div>
-
-          {/* 2. Cash or Digital Payment Section */}
-          {paymentMethodTab === 'cash' ? (
-            <CashPaymentSection
-              receivedInput={receivedInput}
-              onReceivedChange={handleReceivedChange}
-              receivedInputRef={receivedInputRef}
-              netTotalPiasters={netTotalPiasters}
-              netPounds={netPounds}
-              quickPresets={quickPresets}
-              onSetPreset={setPresetReceived}
-              isShortPayment={isShortPayment}
-              selectedCustomer={selectedCustomer}
-              shortAmountPiasters={shortAmountPiasters}
-              receivedPiasters={receivedPiasters}
-              changeDuePiasters={changeDuePiasters}
-              onQuickFullCredit={handleQuickFullCredit}
-              isFullCreditMode={isFullCreditMode}
-              saveChangeToCustomerAccount={saveChangeToCustomerAccount}
-              onToggleSaveChangeToCustomerAccount={setSaveChangeToCustomerAccount}
-            />
-          ) : (
-            <div className={`p-4 rounded-2xl border flex flex-col gap-3.5 ${
-              paymentMethodTab === 'instapay'
-                ? 'bg-purple-50/50 border-purple-200 text-purple-950'
-                : 'bg-red-50/50 border-red-200 text-red-950'
-            }`}>
-              {/* Header Info */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  {paymentMethodTab === 'instapay' ? (
-                    <div className="w-9 h-9 rounded-xl bg-[#582C83] text-white flex items-center justify-center shadow-xs">
-                      <Smartphone className="w-5 h-5" />
-                    </div>
-                  ) : (
-                    <div className="w-9 h-9 rounded-xl bg-[#e60000] text-white flex items-center justify-center shadow-xs">
-                      <Wallet className="w-5 h-5" />
-                    </div>
-                  )}
-                  <div>
-                    <h4 className="font-bold text-sm">
-                      {paymentMethodTab === 'instapay' 
-                        ? 'سداد عبر تطبيق انستاباي (InstaPay)' 
-                        : 'سداد عبر المحفظة الإلكترونية (فودافون، أورانج، اتصالات، وي)'}
-                    </h4>
-                    <p className="text-[11px] opacity-75">
-                      معاملة إلكترونية فورية (لا تُضاف لدرج الكاش الورقي وتُسجل بتقرير مستقل)
-                    </p>
-                  </div>
-                </div>
-
-                <span className={`text-xs font-bold px-2.5 py-1 rounded-lg border shadow-2xs ${
-                  paymentMethodTab === 'instapay'
-                    ? 'bg-white text-purple-900 border-purple-200'
-                    : 'bg-white text-red-900 border-red-200'
-                }`}>
-                  رسوم الخدمة: +{paymentMethodTab === 'instapay' ? instapayFeePercent : vodafoneCashFeePercent}%
-                </span>
-              </div>
-
-              {/* 1. HERO: المبلغ المطلوب من العميل بخط كبير وواضح */}
-              <div className="bg-surface rounded-2xl border border-line p-4 text-center flex flex-col items-center justify-center gap-1 shadow-xs">
-                <span className="text-xs font-bold text-ink-muted">
-                  المبلغ المطلوب من العميل:
-                </span>
-                <div className={`text-3xl sm:text-4xl md:text-5xl font-black font-mono tracking-tight tabular-nums my-0.5 ${
-                  paymentMethodTab === 'instapay' ? 'text-[#582C83]' : 'text-[#e60000]'
-                }`}>
-                  {formatArabicCurrency(paymentMethodTab === 'instapay' ? instapayTotalPiasters : vodafoneCashTotalPiasters)}
-                </div>
-                <span className="text-[11px] text-ink-muted/80">
-                  يرجى التأكد من استلام هذا المبلغ كاملاً على {paymentMethodTab === 'instapay' ? 'انستاباي' : 'المحفظة'}
-                </span>
-              </div>
-
-              {/* 2. تفاصيل حساب المبلغ المطلوب */}
-              <div className="bg-surface/80 rounded-xl border border-line/80 p-3 flex flex-col gap-2">
-                <div className="flex items-center justify-between text-xs font-bold text-ink border-b border-line/60 pb-1.5">
-                  <span className="text-ink-muted text-[11px]">تفاصيل حساب المبلغ المطلوب:</span>
-                  <span className="font-mono text-[11px] text-ink-muted dir-ltr">
-                    {formatArabicCurrency(netTotalPiasters)} + {formatArabicCurrency(paymentMethodTab === 'instapay' ? instapayFeePiasters : vodafoneCashFeePiasters)} = {formatArabicCurrency(paymentMethodTab === 'instapay' ? instapayTotalPiasters : vodafoneCashTotalPiasters)}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-0.5">
-                  <div className="bg-surface-2 p-2.5 rounded-lg border border-line/70 flex flex-col">
-                    <span className="text-[11px] text-ink-muted">إجمالي الفاتورة الأساسي</span>
-                    <span className="text-sm font-bold font-mono text-ink mt-0.5 tabular-nums">
-                      {formatArabicCurrency(netTotalPiasters)}
-                    </span>
-                  </div>
-
-                  <div className="bg-surface-2 p-2.5 rounded-lg border border-line/70 flex flex-col">
-                    <span className="text-[11px] text-ink-muted">
-                      رسوم التحويل (+{paymentMethodTab === 'instapay' ? instapayFeePercent : vodafoneCashFeePercent}%)
-                    </span>
-                    <span className="text-sm font-bold font-mono text-amber-700 mt-0.5 tabular-nums">
-                      +{formatArabicCurrency(paymentMethodTab === 'instapay' ? instapayFeePiasters : vodafoneCashFeePiasters)}
-                    </span>
-                  </div>
-
-                  <div className={`p-2.5 rounded-lg border flex flex-col ${
-                    paymentMethodTab === 'instapay'
-                      ? 'bg-purple-100/60 border-purple-200 text-purple-950'
-                      : 'bg-red-100/60 border-red-200 text-red-950'
-                  }`}>
-                    <span className="text-[11px] font-bold">الإجمالي المستحق</span>
-                    <span className="text-sm font-black font-mono mt-0.5 tabular-nums">
-                      {formatArabicCurrency(paymentMethodTab === 'instapay' ? instapayTotalPiasters : vodafoneCashTotalPiasters)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* 2. Cash Payment Section (استلام النقدية والباقي والآجل) */}
+          <CashPaymentSection
+            receivedInput={receivedInput}
+            onReceivedChange={handleReceivedChange}
+            receivedInputRef={receivedInputRef}
+            netTotalPiasters={netTotalPiasters}
+            netPounds={netPounds}
+            quickPresets={quickPresets}
+            onSetPreset={setPresetReceived}
+            isShortPayment={isShortPayment}
+            selectedCustomer={selectedCustomer}
+            shortAmountPiasters={shortAmountPiasters}
+            receivedPiasters={receivedPiasters}
+            changeDuePiasters={changeDuePiasters}
+            onQuickFullCredit={handleQuickFullCredit}
+            isFullCreditMode={isFullCreditMode}
+            saveChangeToCustomerAccount={saveChangeToCustomerAccount}
+            onToggleSaveChangeToCustomerAccount={setSaveChangeToCustomerAccount}
+          />
         </div>
 
         {/* Footer */}
         <div className="h-[64px] px-5 bg-surface-2 hairline-t flex items-center justify-between shrink-0">
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => void requestClose()}
             className="px-4 py-2 rounded-md text-xs font-semibold text-ink-muted hover:text-ink hover:bg-surface border border-line transition-colors cursor-pointer"
           >
-            رجوع لفاتورة البيع [Esc]
+            رجوع لفاتورة البيع
           </button>
 
           <button
@@ -857,7 +658,7 @@ export const PaymentModal = ({
             className="px-6 py-2.5 rounded-lg text-sm font-bold bg-brand hover:bg-brand-hover text-white flex items-center gap-2 shadow-sm transition-all disabled:opacity-50 cursor-pointer"
           >
             <Printer className="w-4 h-4" />
-            <span>{loading ? 'ثواني، بنسجل الفاتورة وبنطبع...' : 'حفظ الفاتورة وطباعة الوصل [Enter]'}</span>
+            <span>{loading ? 'ثواني، بنسجل الفاتورة وبنطبع...' : 'حفظ الفاتورة وطباعة الوصل'}</span>
             <ArrowRight className="w-4 h-4 rotate-180" />
           </button>
         </div>

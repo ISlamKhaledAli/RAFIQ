@@ -20,6 +20,7 @@ import { invoke } from '../bridge/ipc';
 import type { DailyClosing, DailyClosingPreview } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
 import { MoneyInput } from './MoneyInput';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 interface DailyClosingModalProps {
   isOpen: boolean;
@@ -163,8 +164,6 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
     }
   };
 
-  if (!isOpen) return null;
-
   // Check if this date is already sealed/closed
   const isAlreadyClosed = Boolean(preview?.isAlreadyClosed && preview?.existingClosing);
   const closedRecord = preview?.existingClosing || savedClosing;
@@ -181,8 +180,20 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
   const isMatch = differencePiasters === 0;
   const isShortage = differencePiasters < 0;
 
+  const isDirty = !savedClosing && !isAlreadyClosed && (actualCashPiasters > 0 || Boolean(notes.trim()));
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onDismiss: onClose,
+    isDirty,
+    confirmTitle: 'إلغاء تقفيل الوردية؟',
+    confirmMessage: 'تم إدخال مبالغ جرد للدرج. هل أنت متأكد من الخروج دون اعتماد التقفيل؟',
+  });
+
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3">
+    <div onClick={handleBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3">
       <div className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}
@@ -221,8 +232,8 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
               <span>{showHistory ? 'الرجوع لليومية الحالية' : 'سجل الورديات المقفولة'}</span>
             </button>
             <button
-              onClick={onClose}
-              className="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition"
+              onClick={requestClose}
+              className="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition cursor-pointer"
               title="إغلاق"
             >
               <X className="w-5 h-5" />

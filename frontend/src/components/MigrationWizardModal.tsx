@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { rafiqAlert } from '../utils/dialogService';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 export interface DriveItem {
   name: string;
@@ -150,8 +151,6 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
     }
   }, [isOpen, loadInitialData]);
 
-  if (!isOpen) return null;
-
   const formatPiasters = (piasters: number) => {
     return (piasters / 100).toLocaleString('en-US', {
       minimumFractionDigits: 2,
@@ -257,11 +256,28 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
     window.location.reload();
   };
 
+  const isDirty = step !== 'role_select' && step !== 'reconcile_step';
+  const isBusy = loading;
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen: isOpen && !isBusy,
+    onDismiss: onClose,
+    isDirty,
+    confirmTitle: 'إلغاء عملية نقل البيانات؟',
+    confirmMessage: 'أنت في منتصف خطوات نقل البيانات. هل تريد حقاً الإلغاء والخروج؟',
+  });
+
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200"
+      onClick={handleBackdropClick}
+    >
       <div
         className="bg-surface rounded-2xl border border-line shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden text-right"
         dir="rtl"
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-line bg-surface-2">
@@ -280,7 +296,7 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface border border-transparent hover:border-line transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />

@@ -38,6 +38,7 @@ import { useAuth } from '../context/useAuth';
 import { CustomSelect } from './CustomSelect';
 import type { SelectOption } from './CustomSelect';
 import { ToggleSwitch } from './ToggleSwitch';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 interface UserManagerModalProps {
   isOpen: boolean;
@@ -983,10 +984,34 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
     );
   };
 
+  const isDirty = formMode !== 'none' && Boolean(
+    username.trim() ||
+    displayName.trim() ||
+    password.trim() ||
+    pin.trim()
+  );
+
+  const handleDismissAction = useCallback(() => {
+    if (formMode !== 'none') {
+      setFormMode('none');
+    } else {
+      onClose();
+    }
+  }, [formMode, onClose]);
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onDismiss: handleDismissAction,
+    isDirty,
+    confirmTitle: 'إلغاء التعديلات غير المحفوظة؟',
+    confirmMessage: 'تم إدخال تعديلات في بيانات الموظف. هل أنت متأكد من الإلغاء والتراجع دون حفظ؟',
+  });
+
   if (!isOpen) return null;
 
   return (
     <div
+      onClick={handleBackdropClick}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
       dir="rtl"
     >
@@ -1050,7 +1075,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
             {/* Close Button */}
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface-2 transition-colors cursor-pointer"
               title="إغلاق"
             >

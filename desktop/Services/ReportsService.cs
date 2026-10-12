@@ -25,7 +25,7 @@ namespace RafiqPOS.Services
                 // 1. Sales totals & counts (Excluding demo sales for real reporting - strictly isolating cash, card, credit)
                 string salesSql = @"
                     SELECT 
-                        COALESCE(SUM(s.total_piasters), 0) AS total_sales,
+                        COALESCE(SUM(CASE WHEN s.paid_piasters > s.total_piasters THEN s.paid_piasters ELSE s.total_piasters END), 0) AS total_sales,
                         COALESCE(SUM(
                             CASE 
                                 WHEN s.payment_method IN ('cash', 'credit') THEN MIN(s.paid_piasters, s.total_piasters)
@@ -530,7 +530,7 @@ namespace RafiqPOS.Services
                 // 1. Sales totals & payments breakdown (isolating cash, card, credit)
                 string salesSql = string.Format(@"
                     SELECT 
-                        COALESCE(SUM(s.total_piasters), 0) AS total_sales,
+                        COALESCE(SUM(CASE WHEN s.paid_piasters > s.total_piasters THEN s.paid_piasters ELSE s.total_piasters END), 0) AS total_sales,
                         COALESCE(SUM(
                             CASE 
                                 WHEN s.payment_method IN ('cash', 'credit') THEN MIN(s.paid_piasters, s.total_piasters)

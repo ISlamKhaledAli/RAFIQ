@@ -17,6 +17,7 @@ import {
 import { invoke } from '../bridge/ipc';
 import { extractProducts, type QuickItem, type Product } from '../types/models';
 import { CustomSelect } from './CustomSelect';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 interface QuickItemsManagerModalProps {
   isOpen: boolean;
@@ -337,10 +338,28 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
     }
   };
 
+  const isDirty = isFormOpen && Boolean(formName.trim() || formPriceEgp.trim() || formProductId);
+
+  const handleDismissAction = () => {
+    if (isFormOpen) {
+      setIsFormOpen(false);
+    } else {
+      onClose();
+    }
+  };
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onDismiss: handleDismissAction,
+    isDirty,
+    confirmTitle: 'إلغاء تعديل الصنف السريع؟',
+    confirmMessage: 'تم إدخال بيانات للصنف. هل أنت متأكد من الإلغاء والتراجع دون حفظ؟',
+  });
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div onClick={handleBackdropClick} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div 
         className="bg-surface border border-line rounded-xl shadow-2xl w-full max-w-5xl h-[88vh] max-h-[850px] flex flex-col overflow-hidden text-ink animate-in fade-in zoom-in-95 duration-150"
         dir="rtl"
@@ -359,8 +378,8 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
             </div>
           </div>
           <button
-            onClick={onClose}
-            className="p-1.5 rounded hover:bg-surface text-ink-muted hover:text-ink transition-colors"
+            onClick={requestClose}
+            className="p-1.5 rounded hover:bg-surface text-ink-muted hover:text-ink transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -880,8 +899,8 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                   </button>
                   <button
                     type="button"
-                    onClick={() => setIsFormOpen(false)}
-                    className="px-3 py-2 text-xs font-bold rounded bg-surface border border-line text-ink hover:bg-surface-2 transition-colors"
+                    onClick={requestClose}
+                    className="px-3 py-2 text-xs font-bold rounded bg-surface border border-line text-ink hover:bg-surface-2 transition-colors cursor-pointer"
                   >
                     إلغاء
                   </button>
@@ -895,8 +914,8 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
         <div className="p-3 hairline-t bg-surface-2 flex items-center justify-between text-xs text-ink-muted">
           <span>إجمالي الأصناف السريعة المسجلة: {items.length} صنف</span>
           <button
-            onClick={onClose}
-            className="px-4 py-1.5 rounded bg-surface border border-line text-ink font-bold hover:bg-surface-2 transition-colors"
+            onClick={requestClose}
+            className="px-4 py-1.5 rounded bg-surface border border-line text-ink font-bold hover:bg-surface-2 transition-colors cursor-pointer"
           >
             إغلاق
           </button>

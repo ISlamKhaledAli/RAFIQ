@@ -19,6 +19,7 @@ import { invoke } from '../bridge/ipc';
 import type { DataQualityReport, DataQualityIssueItem, DataQualityIssueType, BulkGenerateBarcodesResult, AssignBarcodeResult } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
 import { rafiqAlert } from '../utils/dialogService';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 interface DataQualityAuditModalProps {
   isOpen: boolean;
@@ -147,6 +148,12 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
     window.print();
   };
 
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onDismiss: onClose,
+    isDirty: false,
+  });
+
   if (!isOpen) return null;
 
   const score = report?.healthScorePercent ?? 100;
@@ -154,8 +161,14 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
   const isFair = score >= 70 && score < 90;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 print:p-0 print:bg-white print:static">
-      <div className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 print:shadow-none print:border-none print:max-h-none print:w-full">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 print:p-0 print:bg-white print:static"
+      onClick={handleBackdropClick}
+    >
+      <div 
+        className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 print:shadow-none print:border-none print:max-h-none print:w-full"
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* Header (hidden in print) */}
         <div className="px-6 py-4 bg-brand-dark text-white flex items-center justify-between shrink-0 print:hidden">
@@ -199,7 +212,7 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
 
             <button 
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               className="p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition cursor-pointer"
               title="إغلاق النافذة"
             >

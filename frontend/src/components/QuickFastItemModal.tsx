@@ -23,6 +23,7 @@ import { extractProducts, type QuickItem, type Product } from '../types/models';
 import { normalizeArabicNumerals } from '../utils/money';
 import { CustomSelect } from './CustomSelect';
 import { useFeatures } from '../context/useFeatures';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 interface QuickFastItemModalProps {
   isOpen: boolean;
@@ -73,6 +74,24 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
   // General State
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isDirty = Boolean(
+    name.trim() ||
+    priceEgp.trim() ||
+    selectedProduct ||
+    bundleName.trim() ||
+    bundleItems.length > 0
+  );
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onClose,
+    isDirty,
+    confirmTitle: 'تجاهل إضافة الصنف السريع؟',
+    confirmMessage: 'هناك بيانات أو أصناف مضافة في هذا العرض/الصنف السريع، هل تريد الخروج وتجاهلها؟',
+    discardText: 'تجاهل والخروج',
+    stayText: 'البقاء ومتابعة الإدخال',
+  });
 
   if (!isOpen) return null;
 
@@ -328,7 +347,11 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 select-none animate-in fade-in duration-150" dir="rtl">
+    <div 
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 select-none animate-in fade-in duration-150" 
+      onClick={handleBackdropClick}
+      dir="rtl"
+    >
       <div className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-xl overflow-hidden flex flex-col max-h-[92vh]">
         
         {/* Header */}
@@ -346,8 +369,9 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => void requestClose()}
             className="w-7 h-7 rounded-lg text-ink-muted hover:text-ink hover:bg-surface-2 flex items-center justify-center transition-colors cursor-pointer"
+            title="إغلاق"
           >
             <X className="w-4 h-4" />
           </button>
@@ -1107,7 +1131,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
             <div className="flex items-center gap-2 mr-auto">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={() => void requestClose()}
                 disabled={loading}
                 className="px-4 h-9 bg-surface-2 hover:bg-slate-200 dark:hover:bg-slate-800 text-ink rounded-lg text-xs font-semibold transition-colors cursor-pointer"
               >

@@ -4,7 +4,6 @@ import {
   Package, 
   Plus, 
   Search, 
-  RefreshCw, 
   X, 
   Check, 
   Tags,
@@ -849,15 +848,6 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 </button>
               </form>
 
-              <button
-                onClick={() => void loadProducts(searchQuery)}
-                disabled={loading}
-                className="h-9 w-9 flex items-center justify-center bg-surface hover:bg-surface-2 border border-line text-ink-muted hover:text-ink rounded-xl transition-colors shadow-2xs cursor-pointer shrink-0"
-                title="تحديث القائمة"
-              >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-brand' : ''}`} />
-              </button>
-
               {/* Senior Tools & Operations Dropdown */}
               <div className="relative">
                 <button
@@ -1004,22 +994,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 <span>صنف جديد</span>
               </button>
             </>
-          ) : (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  void loadMovements();
-                  void checkDiscrepancies();
-                }}
-                disabled={movementsLoading}
-                className="h-9 px-3.5 bg-surface hover:bg-surface-2 border border-line text-ink rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
-              >
-                <RefreshCw className={`w-4 h-4 ${movementsLoading ? 'animate-spin text-brand' : ''}`} />
-                <span>تحديث الحركات</span>
-              </button>
-            </div>
-          )}
+          ) : null}
         </div>
       </div>
 

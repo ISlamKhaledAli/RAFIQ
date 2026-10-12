@@ -1,6 +1,7 @@
 import React from 'react';
 import { Building2, X } from 'lucide-react';
 import { normalizeArabicNumerals } from '../../utils/money';
+import { useModalDismiss } from '../../hooks/useModalDismiss';
 
 export interface SupplierFormData {
   id?: string;
@@ -27,10 +28,32 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
   setForm,
   onSave,
 }) => {
+  const isDirty = Boolean(
+    form.name.trim() ||
+    form.companyName.trim() ||
+    form.phone.trim() ||
+    form.address.trim() ||
+    form.notes.trim() ||
+    (form.balanceEGP && form.balanceEGP !== '0')
+  );
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onClose,
+    isDirty,
+    confirmTitle: 'تجاهل بيانات المورد؟',
+    confirmMessage: 'هناك بيانات مورد غير محفوظة، هل أنت متأكد من الخروج وتجاهل التعديلات؟',
+    discardText: 'تجاهل والخروج',
+    stayText: 'البقاء ومتابعة التسجيل',
+  });
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+    <div 
+      className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4"
+      onClick={handleBackdropClick}
+    >
       <div className="bg-surface border border-line rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
         <div className="h-14 bg-surface border-b border-line px-5 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -43,8 +66,9 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => void requestClose()}
             className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface-2 transition-colors cursor-pointer"
+            title="إغلاق"
           >
             <X className="w-4 h-4" />
           </button>
@@ -145,7 +169,7 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
             </button>
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => void requestClose()}
               className="px-4 h-10 bg-surface hover:bg-surface-2 border border-line text-ink rounded-xl text-xs font-bold transition-colors cursor-pointer"
             >
               إلغاء

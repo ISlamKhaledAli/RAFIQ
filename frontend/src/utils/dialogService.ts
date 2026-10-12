@@ -25,15 +25,22 @@ export type DialogState = {
 };
 
 let dialogHandler: ((state: DialogState) => void) | null = null;
+let isAnyDialogOpen = false;
+
+export const isRafiqDialogOpen = (): boolean => isAnyDialogOpen;
 
 export const setDialogHandler = (handler: ((state: DialogState) => void) | null) => {
   dialogHandler = handler;
+  if (!handler) {
+    isAnyDialogOpen = false;
+  }
 };
 
 export const rafiqConfirm = (options: RafiqConfirmOptions | string): Promise<boolean> => {
   return new Promise<boolean>((resolve) => {
     const opts: RafiqConfirmOptions = typeof options === 'string' ? { message: options } : options;
     if (dialogHandler) {
+      isAnyDialogOpen = true;
       dialogHandler({
         isOpen: true,
         isConfirm: true,
@@ -42,7 +49,10 @@ export const rafiqConfirm = (options: RafiqConfirmOptions | string): Promise<boo
         confirmText: opts.confirmText || 'تأكيد ومتابعة',
         cancelText: opts.cancelText || 'إلغاء',
         variant: opts.variant || 'warning',
-        resolve,
+        resolve: (val: boolean) => {
+          isAnyDialogOpen = false;
+          resolve(val);
+        },
       });
     } else {
       console.warn('RafiqDialogContainer not mounted yet for confirm:', opts.message);
@@ -55,6 +65,7 @@ export const rafiqAlert = (options: RafiqAlertOptions | string): Promise<void> =
   return new Promise<void>((resolve) => {
     const opts: RafiqAlertOptions = typeof options === 'string' ? { message: options } : options;
     if (dialogHandler) {
+      isAnyDialogOpen = true;
       dialogHandler({
         isOpen: true,
         isConfirm: false,
@@ -63,7 +74,10 @@ export const rafiqAlert = (options: RafiqAlertOptions | string): Promise<void> =
         confirmText: opts.confirmText || 'حسناً، فهمت',
         cancelText: '',
         variant: opts.variant || 'info',
-        resolve: () => resolve(),
+        resolve: () => {
+          isAnyDialogOpen = false;
+          resolve();
+        },
       });
     } else {
       console.warn('RafiqDialogContainer not mounted yet for alert:', opts.message);

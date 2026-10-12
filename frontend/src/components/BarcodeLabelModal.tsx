@@ -30,6 +30,7 @@ import type {
 import { formatArabicCurrency } from '../utils/money';
 import { CustomSelect } from './CustomSelect';
 import { ToggleSwitch } from './ToggleSwitch';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 interface BarcodeLabelModalProps {
   isOpen: boolean;
@@ -370,10 +371,20 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
     window.print();
   };
 
+  const isDirty = queue.length > 0;
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onDismiss: onClose,
+    isDirty,
+    confirmTitle: 'إلغاء قائمة طباعة الباركود؟',
+    confirmMessage: 'توجد أصناف مجهزة في قائمة الطباعة. هل أنت متأكد من الخروج والتراجع؟',
+  });
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
+    <div onClick={handleBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
       <div className="bg-surface border border-line rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}
@@ -388,8 +399,8 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
             </div>
           </div>
           <button
-            onClick={onClose}
-            className="p-1.5 hover:bg-white/15 rounded-lg text-white/80 hover:text-white transition-colors"
+            onClick={requestClose}
+            className="p-1.5 hover:bg-white/15 rounded-lg text-white/80 hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>

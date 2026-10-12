@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   TrendingUp, 
   TrendingDown,
@@ -6,7 +6,6 @@ import {
   DollarSign, 
   AlertTriangle, 
   Clock, 
-  RefreshCw, 
   Wallet, 
   CheckCircle2, 
   Users,
@@ -98,6 +97,20 @@ export function DashboardView({
     void loadData();
   });
 
+  const todaySalesTotalPiasters = useMemo(() => {
+    if (!summary) return 0;
+    const componentsSum = (summary.todayCashPiasters || 0) + 
+                          (summary.todayInstapayPiasters || 0) + 
+                          (summary.todayVodafoneCashPiasters || 0) + 
+                          (summary.todayCardPiasters || 0) + 
+                          (summary.todayCreditPiasters || 0);
+    return Math.max(summary.todaySalesPiasters || 0, componentsSum);
+  }, [summary]);
+
+  const todayCashAmount = (summary?.todayCashPiasters || 0) / 100;
+  const todayInstapayAmount = (summary?.todayInstapayPiasters || 0) / 100;
+  const todayVodafoneCashAmount = (summary?.todayVodafoneCashPiasters || 0) / 100;
+
   if (showLoading && !summary) {
     return (
       <div className="flex flex-col h-full w-full bg-canvas items-center justify-center select-none p-5" dir="rtl">
@@ -128,14 +141,6 @@ export function DashboardView({
             <span className="font-mono text-ink font-bold text-xs tabular-nums">{lastRefreshed || '---'}</span>
           </div>
 
-          <button
-            onClick={() => void loadData()}
-            disabled={isLoading}
-            className="flex items-center justify-center h-9 w-9 bg-surface border border-line hover:bg-surface-2 rounded-lg text-xs font-bold text-ink transition-colors shadow-2xs disabled:opacity-50 cursor-pointer active:translate-y-0.5"
-            title="تحديث البيانات دلوقتي"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-paid' : 'text-ink-muted'}`} />
-          </button>
 
           <button
             type="button"
@@ -287,11 +292,11 @@ export function DashboardView({
           onClick={() => {
             if (onNavigateSubTab) onNavigateSubTab('revenue');
           }}
-          className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 shadow-2xs hover:border-paid hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[120px] cursor-pointer group"
+          className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 shadow-2xs hover:border-paid hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[128px] cursor-pointer group"
           title="عرض كشف تحليلات المبيعات التفصيلي"
         >
           <div>
-            <div className="flex items-center justify-between text-xs text-ink-muted mb-1.5">
+            <div className="flex items-center justify-between text-xs text-ink-muted mb-1">
               <span className="font-bold text-ink text-xs">مبيعات النهاردة</span>
               <div className="w-7 h-7 rounded-lg bg-paid-soft text-paid border border-paid/20 flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
                 <ShoppingCart className="w-3.5 h-3.5 stroke-[2.5]" />
@@ -299,19 +304,41 @@ export function DashboardView({
             </div>
             <div className="flex items-baseline gap-1">
               <span className="text-xl lg:text-2xl font-black font-mono text-ink tabular-nums leading-none">
-                {summary ? (summary.todaySalesPiasters / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                {(todaySalesTotalPiasters / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
               <span className="text-[11px] font-bold text-ink-muted">ج.م</span>
             </div>
-          </div>
-          <div className="pt-2 mt-2 border-t border-line/60 flex items-center justify-between text-[11px] text-ink-muted">
-            <div className="flex items-center gap-1.5 font-mono text-[10px] flex-wrap">
-              <span>كاش: <strong className="text-ink font-bold">{summary ? (summary.todayCashPiasters / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '0'}</strong></span>
-              <span className="text-line">•</span>
-              <span>انستاباي: <strong className="text-[#582C83] font-bold">{summary ? ((summary.todayInstapayPiasters || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '0'}</strong></span>
-              <span className="text-line">•</span>
-              <span>محافظ: <strong className="text-[#e60000] font-bold">{summary ? ((summary.todayVodafoneCashPiasters || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '0'}</strong></span>
+
+            {/* Branded Payment Method Breakdown Pills (كاش / انستاباي / محفظة) */}
+            <div className="grid grid-cols-3 gap-1 pt-2 my-1.5 border-t border-line/60">
+              {/* كاش */}
+              <div className="bg-emerald-50/70 border border-emerald-200/60 rounded-md py-1 px-1 flex flex-col items-center justify-center text-center">
+                <span className="text-[9px] font-extrabold text-[#006D41] leading-none">كاش</span>
+                <span className="font-mono text-[10px] sm:text-[11px] font-black text-[#006D41] tabular-nums leading-tight mt-1">
+                  {todayCashAmount.toLocaleString('en-US', { minimumFractionDigits: todayCashAmount % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+
+              {/* انستاباي */}
+              <div className="bg-purple-50/80 border border-purple-200/80 rounded-md py-1 px-1 flex flex-col items-center justify-center text-center">
+                <span className="text-[9px] font-extrabold text-[#582C83] leading-none">انستاباي</span>
+                <span className="font-mono text-[10px] sm:text-[11px] font-black text-[#582C83] tabular-nums leading-tight mt-1">
+                  {todayInstapayAmount.toLocaleString('en-US', { minimumFractionDigits: todayInstapayAmount % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+
+              {/* محافظ */}
+              <div className="bg-red-50/80 border border-red-200/80 rounded-md py-1 px-1 flex flex-col items-center justify-center text-center">
+                <span className="text-[9px] font-extrabold text-[#e60000] leading-none">محافظ</span>
+                <span className="font-mono text-[10px] sm:text-[11px] font-black text-[#e60000] tabular-nums leading-tight mt-1">
+                  {todayVodafoneCashAmount.toLocaleString('en-US', { minimumFractionDigits: todayVodafoneCashAmount % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}
+                </span>
+              </div>
             </div>
+          </div>
+
+          <div className="pt-1 flex items-center justify-between text-[10px] text-ink-muted">
+            <span className="text-ink-muted font-medium">تفاصيل المبيعات</span>
             <span className="text-paid font-bold text-[11px] flex items-center gap-0.5 group-hover:underline">
               كشف الحساب
               <ChevronLeft className="w-3 h-3" />
@@ -440,49 +467,76 @@ export function DashboardView({
         </div>
 
         {/* KPI 5: Drawer Balance */}
-        <div className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 shadow-2xs hover:border-brand hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[120px]">
-          <div>
-            <div className="flex items-center justify-between text-xs text-ink-muted mb-1.5">
-              <span className="font-bold text-ink text-xs">كاش الدرج دلوقتي</span>
-              <div className="w-7 h-7 rounded-lg bg-paid-soft text-paid border border-paid/20 flex items-center justify-center shadow-2xs">
-                <Wallet className="w-3.5 h-3.5 stroke-[2.5]" />
+        {(() => {
+          const todayOutPiasters = summary ? ((summary.todayExpensesPiasters || 0) + (summary.todayReturnsPiasters || 0)) : 0;
+          const epayTillPiasters = summary ? (summary.todayEpayTillCashPiasters || 0) : 0;
+
+          return (
+            <div 
+              onClick={() => setIsClosingModalOpen(true)}
+              className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 shadow-2xs hover:border-brand hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[120px] cursor-pointer group"
+              title="عرض كشف درج الكاشير وتقفيل الوردية"
+            >
+              <div>
+                <div className="flex items-center justify-between text-xs text-ink-muted mb-1.5">
+                  <span className="font-bold text-ink text-xs">كاش الدرج دلوقتي</span>
+                  <div className="w-7 h-7 rounded-lg bg-paid-soft text-paid border border-paid/20 flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
+                    <Wallet className="w-3.5 h-3.5 stroke-[2.5]" />
+                  </div>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-xl lg:text-2xl font-black font-mono text-ink tabular-nums leading-none">
+                    {summary ? (summary.cashDrawerPiasters / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                  </span>
+                  <span className="text-[11px] font-bold text-ink-muted">ج.م</span>
+                </div>
+
+                {/* Branded Cash Breakdown Pills (مبيعات كاش / سداد شكك / مصاريف) - Identical to KPI 1 */}
+                <div className="grid grid-cols-3 gap-1 pt-2 my-1.5 border-t border-line/60">
+                  {/* مبيعات كاش */}
+                  <div className="bg-emerald-50/70 border border-emerald-200/60 rounded-md py-1 px-1 flex flex-col items-center justify-center text-center">
+                    <span className="text-[9px] font-extrabold text-[#006D41] leading-none">مبيعات كاش</span>
+                    <span className="font-mono text-[10px] sm:text-[11px] font-black text-[#006D41] tabular-nums leading-tight mt-1">
+                      {summary ? ((summary.todayCashPiasters || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: ((summary.todayCashPiasters || 0) / 100) % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 }) : '0'}
+                    </span>
+                  </div>
+
+                  {/* سداد شكك */}
+                  <div className="bg-teal-50/70 border border-teal-200/60 rounded-md py-1 px-1 flex flex-col items-center justify-center text-center">
+                    <span className="text-[9px] font-extrabold text-[#006D41] leading-none">سداد شكك</span>
+                    <span className="font-mono text-[10px] sm:text-[11px] font-black text-[#006D41] tabular-nums leading-tight mt-1">
+                      {summary && (summary.todayDebtPaymentsPiasters || 0) > 0 ? '+' : ''}{summary ? (((summary.todayDebtPaymentsPiasters || 0) / 100)).toLocaleString('en-US', { minimumFractionDigits: ((summary.todayDebtPaymentsPiasters || 0) / 100) % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 }) : '0'}
+                    </span>
+                  </div>
+
+                  {/* مصاريف ومرتجع */}
+                  <div className="bg-rose-50/70 border border-rose-200/60 rounded-md py-1 px-1 flex flex-col items-center justify-center text-center">
+                    <span className="text-[9px] font-extrabold text-danger leading-none">مصاريف/مرتجع</span>
+                    <span className="font-mono text-[10px] sm:text-[11px] font-black text-danger tabular-nums leading-tight mt-1">
+                      {todayOutPiasters > 0 ? '-' : ''}{(todayOutPiasters / 100).toLocaleString('en-US', { minimumFractionDigits: (todayOutPiasters / 100) % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-1 flex items-center justify-between text-[10px] text-ink-muted">
+                <span className="text-ink-muted font-medium truncate">
+                  {epayTillPiasters > 0 ? (
+                    <span className="text-slate-600" title="نقدية محفظة ماكينات الدفع والخدمات الإلكترونية مستقلة تماماً عن درج المحل">
+                      كاش محفظة المكن: <strong className="font-mono font-bold text-slate-800">{(epayTillPiasters / 100).toFixed(0)}</strong> ج.م
+                    </span>
+                  ) : (
+                    'نقدية الدرج الفعلية'
+                  )}
+                </span>
+                <span className="text-paid font-bold text-[11px] flex items-center gap-0.5 group-hover:underline shrink-0">
+                  تقفيل الوردية
+                  <ChevronLeft className="w-3 h-3" />
+                </span>
               </div>
             </div>
-            <div className="flex items-baseline gap-1">
-              <span className="text-xl lg:text-2xl font-black font-mono text-ink tabular-nums leading-none">
-                {summary ? (summary.cashDrawerPiasters / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
-              </span>
-              <span className="text-[11px] font-bold text-ink-muted">ج.م</span>
-            </div>
-          </div>
-          <div className="pt-2 mt-2 border-t border-line/60 flex items-center justify-between text-[11px] text-ink-muted">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span>مبيعات كاش: <strong className="text-ink font-mono tabular-nums">{summary ? (summary.todayCashPiasters / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '0'}</strong></span>
-              {summary && (summary.todayEpayTillCashPiasters || 0) > 0 && (
-                <span className="text-paid font-bold text-[10px] bg-paid-soft px-1.5 py-0.2 rounded-md border border-paid/20" title="نقدية محفظة ماكينة الدفع المحصلة (مستقلة عن الدرج)">
-                  عهدة المكنة: +{((summary.todayEpayTillCashPiasters || 0) / 100).toFixed(0)}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-1 font-mono text-[10px]">
-              {summary && (summary.todayExpensesPiasters || 0) > 0 && (
-                <span className="text-danger font-bold" title="مصاريف طلعت كاش من الدرج">
-                  -{((summary.todayExpensesPiasters || 0) / 100).toFixed(0)} مصاريف
-                </span>
-              )}
-              {summary && (summary.todayReturnsPiasters || 0) > 0 && (
-                <span className="text-amber-800 font-bold" title="فلوس رجعت للزبون كاش">
-                  -{((summary.todayReturnsPiasters || 0) / 100).toFixed(0)} مرتجع
-                </span>
-              )}
-              {summary && (summary.todayDebtPaymentsPiasters || 0) > 0 && (
-                <span className="text-paid font-bold" title="زبون سدد حسابه كاش في الدرج">
-                  +{((summary.todayDebtPaymentsPiasters || 0) / 100).toFixed(0)} سداد شكك
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
+          );
+        })()}
 
         {/* KPI 6: Customer Debts */}
         <div 

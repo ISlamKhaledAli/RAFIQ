@@ -401,14 +401,6 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
             >
               <HelpCircle className="w-4 h-4" />
             </button>
-            <button
-              onClick={() => void loadSales()}
-              disabled={loading}
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-surface-2 hover:bg-surface border border-line text-ink-muted hover:text-ink flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
-              title="تحديث البيانات"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-paid' : ''}`} />
-            </button>
           </div>
         </div>
       </div>
@@ -702,13 +694,13 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
 
       {/* 4. Full Invoice Details Modal */}
       {selectedSale && (
-        <div className="fixed inset-0 bg-[#0F172A]/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-3xl bg-white rounded-2xl border border-[#006D41]/30 shadow-2xl overflow-hidden flex flex-col select-none max-h-[90vh] animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 bg-ink/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-3xl bg-surface rounded-2xl border border-line shadow-2xl overflow-hidden flex flex-col select-none max-h-[90vh] animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
             <div className="h-12 bg-surface-2 border-b border-line px-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
-                <Receipt className="w-4 h-4 text-[#004D3F]" />
-                <h3 className="text-sm font-bold text-[#0F172A] m-0">
+                <Receipt className="w-4 h-4 text-brand" />
+                <h3 className="text-sm font-bold text-ink m-0">
                   تفاصيل وبيانات فاتورة #{selectedSale.invoiceNumber}
                 </h3>
                 {selectedSale.status === 'cancelled' && (
@@ -725,14 +717,14 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
               <button
                 onClick={() => setSelectedSale(null)}
                 className="text-ink-muted hover:text-danger p-1 rounded transition-colors"
-                title="إغلاق (Esc)"
+                title="إغلاق"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="p-4 flex flex-col gap-3 overflow-y-auto font-mono text-[12px]">
+            <div className="flex-1 min-h-0 p-4 sm:p-5 flex flex-col gap-3.5 overflow-y-auto custom-scrollbar font-mono text-[12px]">
               {/* Cancelled Banner if applicable */}
               {selectedSale.status === 'cancelled' && (
                 <div className="bg-danger-soft border border-danger/30 rounded p-2.5 flex items-start gap-2 text-danger">
@@ -816,15 +808,15 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
               </div>
 
               {/* Items Breakdown Table */}
-              <div className="border border-line rounded overflow-hidden">
-                <div className="bg-surface-2 px-3 py-1.5 text-[11px] font-bold text-ink-muted grid grid-cols-12 gap-2">
+              <div className="border border-line rounded-lg overflow-hidden bg-surface shadow-2xs">
+                <div className="bg-surface-2 border-b border-line px-3.5 py-2 text-[11px] font-bold text-ink-muted grid grid-cols-12 gap-2 select-none">
                   <span className="col-span-5">اسم الصنف</span>
                   <span className="col-span-2 text-center">العدد / الوزن</span>
                   <span className="col-span-2 text-center">سعر البيع</span>
                   <span className="col-span-3 text-left pl-1">الإجمالي</span>
                 </div>
 
-                <div className="max-h-48 overflow-y-auto divide-y divide-line/60">
+                <div className="divide-y divide-line/60">
                   {loadingDetails ? (
                     <div className="p-4 text-center text-ink-muted flex items-center justify-center gap-2">
                       <RefreshCw className="w-4 h-4 animate-spin text-brand" />
@@ -839,15 +831,15 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                       const netLineTotal = Math.round(remainingQty * item.unitPricePiasters);
 
                       return (
-                        <div key={item.id || idx} className={`px-3 py-2 text-[12px] grid grid-cols-12 items-center gap-2 ${
-                          retInfo ? 'bg-amber-50/30' : ''
+                        <div key={item.id || idx} className={`px-3.5 py-2.5 text-[12px] grid grid-cols-12 items-center gap-2 transition-colors ${
+                          retInfo ? 'bg-amber-50/40' : 'hover:bg-canvas/50'
                         }`}>
-                          <div className="col-span-5">
-                            <div className="font-bold text-ink truncate">{item.productName}</div>
-                            <div className="flex items-center gap-1.5 text-[10px] text-ink-muted">
-                              {item.barcode && <span>{item.barcode}</span>}
+                          <div className="col-span-5 min-w-0">
+                            <div className="font-bold text-ink truncate" title={item.productName}>{item.productName}</div>
+                            <div className="flex items-center flex-wrap gap-1.5 text-[10px] text-ink-muted mt-0.5">
+                              {item.barcode && <span className="font-mono">{item.barcode}</span>}
                               {retInfo && (
-                                <span className="text-amber-800 font-bold bg-amber-100 px-1.5 py-0.2 rounded">
+                                <span className="text-amber-800 font-bold bg-amber-100/90 border border-amber-300/60 px-1.5 py-0.5 rounded text-[10px]">
                                   رجع منه {retInfo.returnedPieces} {unitStr}
                                   {retInfo.hasDamaged && ' (تالف)'}
                                 </span>
@@ -857,9 +849,9 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
 
                           <div className="col-span-2 text-center font-mono tabular-nums text-ink">
                             {retInfo ? (
-                              <div>
-                                <span className="line-through text-ink-muted text-[11px] block">{origQty}</span>
-                                <span className="font-bold text-paid text-xs block">{remainingQty} {unitStr}</span>
+                              <div className="flex flex-col items-center">
+                                <span className="line-through text-ink-muted/70 text-[10px] leading-tight">{origQty} {unitStr}</span>
+                                <span className="font-bold text-paid text-xs leading-tight">{remainingQty} {unitStr}</span>
                               </div>
                             ) : (
                               <span>{origQty} {unitStr}</span>
@@ -870,14 +862,14 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                             {formatArabicCurrency(item.unitPricePiasters)}
                           </div>
 
-                          <div className="col-span-3 text-left pl-1 font-mono font-bold text-brand tabular-nums">
+                          <div className="col-span-3 text-left pl-1 font-mono tabular-nums">
                             {retInfo ? (
-                              <div>
-                                <span className="line-through text-ink-muted text-[10px] block">{formatArabicCurrency(item.totalPiasters)}</span>
-                                <span className="text-brand text-xs block">{formatArabicCurrency(netLineTotal)}</span>
+                              <div className="flex flex-col items-end">
+                                <span className="line-through text-ink-muted/70 text-[10px] leading-tight">{formatArabicCurrency(item.totalPiasters)}</span>
+                                <span className="font-bold text-brand text-xs leading-tight">{formatArabicCurrency(netLineTotal)}</span>
                               </div>
                             ) : (
-                              formatArabicCurrency(item.totalPiasters)
+                              <span className="font-bold text-brand">{formatArabicCurrency(item.totalPiasters)}</span>
                             )}
                           </div>
                         </div>
@@ -906,7 +898,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                     </span>
                   </div>
 
-                  <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
+                  <div className="flex flex-col gap-2.5">
                     {saleReturns.map((ret, idx) => (
                       <div key={ret.id || idx} className="bg-white border border-amber-200/90 rounded-md p-2.5 flex flex-col gap-1.5 shadow-2xs text-xs">
                         <div className="flex items-center justify-between">
@@ -1012,9 +1004,6 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
             {/* Modal Footer Controls */}
             <div className="h-[52px] bg-surface-2 hairline-t px-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
-                <span className="text-[11px] text-ink-muted">
-                  اضغط <kbd className="bg-surface px-1.5 py-0.5 rounded border border-line text-ink font-mono">F9</kbd> عشان تطبع وصل تاني
-                </span>
                 {selectedSale.status !== 'cancelled' && (
                   <div className="flex items-center gap-1.5">
                     <button
@@ -1045,7 +1034,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                   onClick={() => setSelectedSale(null)}
                   className="h-[36px] px-4 bg-surface hover:bg-surface-2 border border-line text-ink rounded text-[12px] font-semibold transition-colors"
                 >
-                  رجوع [Esc]
+                  رجوع
                 </button>
                 <button
                   type="button"
@@ -1055,7 +1044,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                   title="طباعة إيصال يحمل علامة نسخة طبق الأصل وتوثيقه في السجل"
                 >
                   <Printer className={`w-4 h-4 ${isReprinting ? 'animate-spin' : ''}`} />
-                  <span>{isReprinting ? 'جاري الطباعة...' : 'طباعة وصل تاني [F9]'}</span>
+                  <span>{isReprinting ? 'جاري الطباعة...' : 'طباعة وصل تاني'}</span>
                 </button>
               </div>
             </div>

@@ -14,6 +14,7 @@ import { invoke } from '../bridge/ipc';
 import { CustomSelect } from './CustomSelect';
 import { MoneyInput } from './MoneyInput';
 import { normalizeArabicNumerals } from '../utils/money';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 import type { Category, VariantMatrixCell, CreateVariantMatrixRequest, ParentProductWithVariants } from '../types/models';
 
 interface ProductVariantMatrixModalProps {
@@ -109,8 +110,6 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
       return next;
     });
   }, [colors, sizes, defaultPricePiasters, defaultCostPiasters, defaultMinStock]);
-
-  if (!isOpen) return null;
 
   // Add / remove tags
   const handleAddSize = (val: string) => {
@@ -236,8 +235,20 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
     }
   };
 
+  const isDirty = Boolean(parentName.trim() || defaultPricePiasters > 0 || defaultCostPiasters > 0);
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onDismiss: onClose,
+    isDirty,
+    confirmTitle: 'إلغاء إنشاء مصفوفة المقاسات؟',
+    confirmMessage: 'تم إدخال بيانات للمنتج والتركيبات. هل أنت متأكد من الإلغاء والتراجع دون حفظ؟',
+  });
+
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+    <div onClick={handleBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div
         dir="rtl"
         className="bg-surface rounded-2xl border border-line shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden text-ink font-sans"
@@ -261,8 +272,8 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
             </div>
           </div>
           <button
-            onClick={onClose}
-            className="p-2 text-ink-muted hover:text-ink hover:bg-line/40 rounded-xl transition-colors"
+            onClick={requestClose}
+            className="p-2 text-ink-muted hover:text-ink hover:bg-line/40 rounded-xl transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -729,9 +740,9 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               disabled={isSubmitting}
-              className="h-10 px-4 rounded-xl border border-line text-ink-muted hover:text-ink hover:bg-surface-2 text-xs font-semibold transition-colors"
+              className="h-10 px-4 rounded-xl border border-line text-ink-muted hover:text-ink hover:bg-surface-2 text-xs font-semibold transition-colors cursor-pointer"
             >
               إلغاء
             </button>

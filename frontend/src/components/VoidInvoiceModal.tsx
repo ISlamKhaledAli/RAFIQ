@@ -3,6 +3,7 @@ import { Ban, X, AlertTriangle, Lock, Check } from 'lucide-react';
 import type { Sale } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
 import { invoke } from '../bridge/ipc';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 
 interface VoidInvoiceModalProps {
   isOpen: boolean;
@@ -29,6 +30,16 @@ export const VoidInvoiceModal: React.FC<VoidInvoiceModalProps> = ({
   const [supervisorPin, setSupervisorPin] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const isDirty = Boolean(customReason.trim() || supervisorPin.trim());
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen: isOpen && Boolean(sale),
+    onDismiss: onClose,
+    isDirty,
+    confirmTitle: 'تراجع عن إلغاء الفاتورة؟',
+    confirmMessage: 'هل أنت متأكد من التراجع عن إلغاء الفاتورة والعودة لشاشة المبيعات؟',
+  });
 
   if (!isOpen || !sale) return null;
 
@@ -69,11 +80,10 @@ export const VoidInvoiceModal: React.FC<VoidInvoiceModalProps> = ({
   return (
     <div 
       className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none"
-      onClick={onClose}
+      onClick={handleBackdropClick}
     >
       <div 
         className="w-full max-w-[480px] bg-surface rounded-xl border border-line shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150 border-t-4 border-t-danger"
-        onClick={(e) => e.stopPropagation()}
         dir="rtl"
       >
         {/* Modal Header */}
@@ -84,7 +94,7 @@ export const VoidInvoiceModal: React.FC<VoidInvoiceModalProps> = ({
           </div>
           <button 
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-danger hover:bg-danger-soft transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
@@ -182,7 +192,7 @@ export const VoidInvoiceModal: React.FC<VoidInvoiceModalProps> = ({
           <div className="pt-2 border-t border-line flex items-center justify-between gap-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               disabled={loading}
               className="h-[38px] px-4 text-xs font-bold text-ink-muted hover:text-ink rounded-lg hover:bg-surface-2 transition-colors cursor-pointer"
             >
