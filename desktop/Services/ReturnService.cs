@@ -18,10 +18,37 @@ namespace RafiqPOS.Services
 
         public Return ProcessReturn(Return returnObj, string supervisorPin = null)
         {
+            // Serialize with sales/cancellations so the remaining-quantity check stays valid until commit (Audit F-17)
+            lock (SaleService.FinancialWriteLock)
+            {
+                return ProcessReturnCore(returnObj, supervisorPin);
+            }
+        }
+
+        private Return ProcessReturnCore(Return returnObj, string supervisorPin)
+        {
             if (returnObj == null) throw new ArgumentNullException("returnObj");
             if (returnObj.Items == null || returnObj.Items.Count == 0)
             {
                 throw new InvalidOperationException("لا يمكن حفظ مرتجع بدون أصناف");
+            }
+
+            // Server-side validation of returned quantities and prices (Audit F-10)
+            for (int vIdx = 0; vIdx < returnObj.Items.Count; vIdx++)
+            {
+                var vItem = returnObj.Items[vIdx];
+                if (vItem == null || string.IsNullOrWhiteSpace(vItem.ProductId))
+                {
+                    throw new InvalidOperationException(string.Format("البند رقم {0} في المرتجع غير صالح.", vIdx + 1));
+                }
+                if (vItem.QuantityMilli <= 0)
+                {
+                    throw new InvalidOperationException(string.Format("كمية المرتجع للصنف '{0}' يجب أن تكون أكبر من الصفر.", vItem.ProductName ?? vItem.ProductId));
+                }
+                if (vItem.UnitPricePiasters < 0)
+                {
+                    throw new InvalidOperationException(string.Format("سعر المرتجع للصنف '{0}' لا يمكن أن يكون سالباً.", vItem.ProductName ?? vItem.ProductId));
+                }
             }
 
             // 1. If return is without invoice, require Supervisor PIN
@@ -100,6 +127,19 @@ namespace RafiqPOS.Services
                     }
 
                     // Check quantities and enforce net unit prices
+                    var requestedInThisReturn = new Dictionary<string, long>();
+                    var refundedTotalSoFar = new Dictionary<string, long>();
+                    var refundedTotalBySaleItem = new Dictionary<string, long>();
+                    for (int r = 0; r < pastReturns.Count; r++)
+                    {
+                        if (pastReturns[r].Items == null) continue;
+                        for (int pi = 0; pi < pastReturns[r].Items.Count; pi++)
+                        {
+                            var pastItem = pastReturns[r].Items[pi];
+                            if (string.IsNullOrEmpty(pastItem.SaleItemId)) continue;
+                            refundedTotalBySaleItem[pastItem.SaleItemId] = (refundedTotalBySaleItem.ContainsKey(pastItem.SaleItemId) ? refundedTotalBySaleItem[pastItem.SaleItemId] : 0) + pastItem.TotalPiasters;
+                        }
+                    }
                     for (int i = 0; i < returnObj.Items.Count; i++)
                     {
                         var it = returnObj.Items[i];
@@ -162,13 +202,17 @@ namespace RafiqPOS.Services
                         }
 
                         long maxAllowable = origItem.QuantityMilli - alreadyReturned;
-                        if (it.QuantityMilli > maxAllowable)
+                        string origKey = !string.IsNullOrEmpty(origItem.Id) ? origItem.Id : ((origItem.ProductId ?? "") + "_" + (origItem.Unit ?? ""));
+                        long requestedSoFar = requestedInThisReturn.ContainsKey(origKey) ? requestedInThisReturn[origKey] : 0;
+                        // Repeated lines for the same sale item inside one request must be summed (Audit F-07)
+                        if (requestedSoFar + it.QuantityMilli > maxAllowable)
                         {
                             throw new InvalidOperationException(string.Format(
                                 "الكمية المرتجعة للصنف '{0}' ({1:0.###}) أكبر من الكمية المتبقية المتاحة للإرجاع ({2:0.###}).",
-                                it.ProductName, it.QuantityMilli / 1000.0, Math.Max(0, maxAllowable) / 1000.0
+                                it.ProductName, (requestedSoFar + it.QuantityMilli) / 1000.0, Math.Max(0, maxAllowable) / 1000.0
                             ));
                         }
+                        requestedInThisReturn[origKey] = requestedSoFar + it.QuantityMilli;
 
                         // Calculate effective net unit price after discounts (TEST-7)
                         long effectiveUnitPrice = origItem.UnitPricePiasters;
@@ -181,7 +225,23 @@ namespace RafiqPOS.Services
                         {
                             it.UnitPricePiasters = effectiveUnitPrice;
                         }
-                        it.TotalPiasters = (it.UnitPricePiasters * it.QuantityMilli) / 1000;
+                        // Refund proportionally to the original net line total; the line that exhausts the sold
+                        // quantity receives the exact remainder so cumulative refunds equal what was paid (Audit F-19)
+                        long proportionalTotal = (origItem.QuantityMilli > 0)
+                            ? (origItem.TotalPiasters * it.QuantityMilli) / origItem.QuantityMilli
+                            : 0;
+                        long refundedBefore = refundedTotalSoFar.ContainsKey(origKey) ? refundedTotalSoFar[origKey] : 0;
+                        if (!string.IsNullOrEmpty(origItem.Id) && refundedTotalBySaleItem.ContainsKey(origItem.Id))
+                        {
+                            refundedBefore += refundedTotalBySaleItem[origItem.Id];
+                        }
+                        if (alreadyReturned + requestedInThisReturn[origKey] == origItem.QuantityMilli)
+                        {
+                            proportionalTotal = Math.Max(0, origItem.TotalPiasters - refundedBefore);
+                        }
+                        long priceBasedTotal = (it.UnitPricePiasters * it.QuantityMilli) / 1000;
+                        it.TotalPiasters = (it.UnitPricePiasters == effectiveUnitPrice) ? proportionalTotal : Math.Min(priceBasedTotal, proportionalTotal);
+                        refundedTotalSoFar[origKey] = (refundedTotalSoFar.ContainsKey(origKey) ? refundedTotalSoFar[origKey] : 0) + it.TotalPiasters;
 
                         if (it.ConversionFactor <= 0)
                         {

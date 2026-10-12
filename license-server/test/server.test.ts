@@ -1,15 +1,31 @@
-import { describe, it, beforeEach } from 'node:test';
+import { describe, it, before, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createMockD1Database } from './d1-mock.ts';
 import server from '../src/index.ts';
 import type { Env } from '../src/types.ts';
 import { verifyActivationToken } from '../src/crypto.ts';
 
+async function generateTestPrivateKeyPem(): Promise<string> {
+  const pair = await crypto.subtle.generateKey(
+    { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' },
+    true,
+    ['sign', 'verify']
+  );
+  const der = new Uint8Array(await crypto.subtle.exportKey('pkcs8', pair.privateKey));
+  let binary = '';
+  for (let i = 0; i < der.length; i++) binary += String.fromCharCode(der[i]);
+  return `-----BEGIN PRIVATE KEY-----\n${btoa(binary)}\n-----END PRIVATE KEY-----`;
+}
+
 describe('Rafiq POS License Server & D1 Tests (Feature #170)', () => {
   let env: Env;
   const APP_SECRET = 'test_app_secret_123';
   const ADMIN_SECRET = 'test_admin_secret_456';
-  const TOKEN_SECRET = 'test_token_signing_key_789';
+  let TOKEN_SECRET = '';
+
+  before(async () => {
+    TOKEN_SECRET = await generateTestPrivateKeyPem();
+  });
 
   beforeEach(() => {
     const mockDb = createMockD1Database();
@@ -17,7 +33,7 @@ describe('Rafiq POS License Server & D1 Tests (Feature #170)', () => {
       DB: mockDb,
       APP_API_KEY: APP_SECRET,
       ADMIN_SECRET: ADMIN_SECRET,
-      TOKEN_SIGNING_SECRET: TOKEN_SECRET,
+      LICENSE_PRIVATE_KEY: TOKEN_SECRET,
     };
   });
 
@@ -395,8 +411,21 @@ describe('Rafiq POS License Server & D1 Tests (Feature #170)', () => {
       assert.equal(genRes.status, 200);
       const genData = await genRes.json() as any;
       assert.equal(genData.success, true);
-      assert.ok(genData.support_code.startsWith('RFQ-SUP-T0007-'));
-      assert.equal(genData.support_code.length, 26);
+      assert.ok(genData.support_code.startsWith('RFQ-SUP-'));
+      const supportToken = genData.support_code.substring('RFQ-SUP-'.length);
+      const supportCheck = await verifyActivationToken(supportToken, TOKEN_SECRET);
+      assert.equal(supportCheck.valid, true);
+      assert.equal(supportCheck.payload?.fp, 'A1B2C3D4E5F6');
+      assert.equal(supportCheck.payload?.type, 'trial');
+      assert.equal(supportCheck.payload?.kind, 'support');
+
+      // A tampered support code must fail signature verification
+      const tamperedParts = supportToken.split('.');
+      const tamperedPayload = JSON.parse(Buffer.from(tamperedParts[1], 'base64url').toString());
+      tamperedPayload.type = 'lifetime';
+      tamperedParts[1] = Buffer.from(JSON.stringify(tamperedPayload)).toString('base64url');
+      const tamperedCheck = await verifyActivationToken(tamperedParts.join('.'), TOKEN_SECRET);
+      assert.equal(tamperedCheck.valid, false);
     });
   });
 });

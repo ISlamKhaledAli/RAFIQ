@@ -420,12 +420,8 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // Close and release all open SQLite connections and memory pools
-                System.Data.SQLite.SQLiteConnection.ClearAllPools();
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-
-                // Save a snapshot of the current state before replacing
+                // Save a consistent snapshot of the current state before replacing. The SQLite online backup API
+                // includes pages still in the WAL file; a plain File.Copy would miss recent sales (Audit F-29).
                 if (File.Exists(_dbPath))
                 {
                     try
@@ -433,11 +429,42 @@ namespace RafiqPOS.Services
                         string safetyDir = Path.Combine(Path.GetDirectoryName(_dbPath), "pre_restore");
                         if (!Directory.Exists(safetyDir)) Directory.CreateDirectory(safetyDir);
                         string snapPath = Path.Combine(safetyDir, string.Format("pre_restore_{0}.db", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
-                        File.Copy(_dbPath, snapPath, true);
+                        using (var srcConn = new System.Data.SQLite.SQLiteConnection(_connectionString))
+                        using (var dstConn = new System.Data.SQLite.SQLiteConnection(string.Format("Data Source={0};Version=3;", snapPath)))
+                        {
+                            srcConn.Open();
+                            dstConn.Open();
+                            srcConn.BackupDatabase(dstConn, "main", "main", -1, null, 0);
+                        }
                         PruneDirectoryFiles(safetyDir, "pre_restore_*.db", 2);
                     }
-                    catch { }
+                    catch (Exception snapEx)
+                    {
+                        Logger.Error("تعذر أخذ نسخة أمان قبل الاسترجاع", snapEx);
+                        if (!IsCorrupted)
+                        {
+                            return new TransactionResult(false, "تم إيقاف الاسترجاع: تعذر حفظ نسخة أمان من البيانات الحالية قبل استبدالها.");
+                        }
+                        // Corrupt database: the backup API may be unable to read it, so keep raw copies of the db and WAL files instead
+                        try
+                        {
+                            string rawDir = Path.Combine(Path.GetDirectoryName(_dbPath), "pre_restore");
+                            if (!Directory.Exists(rawDir)) Directory.CreateDirectory(rawDir);
+                            string stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                            File.Copy(_dbPath, Path.Combine(rawDir, "pre_restore_corrupt_" + stamp + ".db"), true);
+                            if (File.Exists(_dbPath + "-wal")) File.Copy(_dbPath + "-wal", Path.Combine(rawDir, "pre_restore_corrupt_" + stamp + ".db-wal"), true);
+                        }
+                        catch (Exception rawEx)
+                        {
+                            Logger.Error("تعذر نسخ ملفات قاعدة البيانات التالفة قبل الاسترجاع", rawEx);
+                        }
+                    }
                 }
+
+                // Close and release all open SQLite connections and memory pools
+                System.Data.SQLite.SQLiteConnection.ClearAllPools();
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
 
                 // Delete WAL / SHM files if present
                 try
@@ -550,30 +577,53 @@ namespace RafiqPOS.Services
             using (var conn = new System.Data.SQLite.SQLiteConnection(_connectionString))
             {
                 conn.Open();
+
+                // Mandatory safety backup before wiping data (Audit F-30)
+                if (Backup != null)
+                {
+                    BackupResult preResetBackup = null;
+                    try
+                    {
+                        preResetBackup = Backup.CreateBackup(null);
+                    }
+                    catch (Exception bEx)
+                    {
+                        Logger.Error("فشل أخذ نسخة احتياطية قبل تصفير البيانات", bEx);
+                    }
+                    if (preResetBackup == null || !preResetBackup.Success)
+                    {
+                        result.Success = false;
+                        result.Message = "تم إيقاف التصفير: تعذر أخذ نسخة احتياطية آمنة من البيانات الحالية أولاً.";
+                        return result;
+                    }
+                }
+
                 using (var trans = conn.BeginTransaction())
                 {
                     try
                     {
-                        // 1. Delete sales transactions
-                        using (var cmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM sale_items; DELETE FROM sales;", conn, trans))
-                        {
-                            result.DeletedSalesCount = cmd.ExecuteNonQuery();
-                        }
+                        result.DeletedSalesCount = (int)CountRowsIfTableExists(conn, trans, "sales");
+                        result.DeletedCustomersCount = (int)CountRowsIfTableExists(conn, trans, "customers");
+                        result.DeletedProductsCount = (int)CountRowsIfTableExists(conn, trans, "products");
 
-                        // 2. Delete customers and customer ledgers
-                        using (var cmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM customer_ledger; DELETE FROM customers;", conn, trans))
+                        // 1-3. Delete business data child-first so foreign keys (PRAGMA foreign_keys = ON) never block the reset
+                        string[] tablesInDeleteOrder = new string[]
                         {
-                            result.DeletedCustomersCount = cmd.ExecuteNonQuery();
-                        }
-
-                        // 3. Delete products, barcodes, units, and inventory movements
-                        using (var cmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM stock_movements; DELETE FROM product_price_history; DELETE FROM product_barcodes; DELETE FROM product_units; DELETE FROM products; DELETE FROM quick_items;", conn, trans))
+                            "payments", "return_items", "returns", "held_sales", "sale_items", "sales",
+                            "customer_ledger", "customers",
+                            "purchase_items", "purchases", "supplier_transactions", "suppliers",
+                            "product_batches", "product_variants", "stock_movements", "product_price_history",
+                            "product_barcodes", "product_units", "quick_items", "products",
+                            "daily_closings", "expenses",
+                            "epay_transactions", "epay_terminal_fundings", "epay_terminals"
+                        };
+                        for (int tIdx = 0; tIdx < tablesInDeleteOrder.Length; tIdx++)
                         {
-                            result.DeletedProductsCount = cmd.ExecuteNonQuery();
+                            DeleteAllIfTableExists(conn, trans, tablesInDeleteOrder[tIdx]);
                         }
 
                         // 4. Reset sequence counters and first run flag
-                        using (var cmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM counters; DELETE FROM settings WHERE key IN ('first_run_completed', 'has_demo_data');", conn, trans))
+                        using (var cmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM counters; DELETE FROM app_settings WHERE key IN ('first_run_completed', 'has_demo_data');", conn, trans))
                         {
                             cmd.ExecuteNonQuery();
                         }
@@ -647,6 +697,34 @@ namespace RafiqPOS.Services
             }
 
             return result;
+        }
+
+        private static bool TableExists(System.Data.SQLite.SQLiteConnection conn, System.Data.SQLite.SQLiteTransaction trans, string tableName)
+        {
+            using (var cmd = new System.Data.SQLite.SQLiteCommand("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = @name;", conn, trans))
+            {
+                cmd.Parameters.AddWithValue("@name", tableName);
+                return Convert.ToInt64(cmd.ExecuteScalar()) > 0;
+            }
+        }
+
+        private static long CountRowsIfTableExists(System.Data.SQLite.SQLiteConnection conn, System.Data.SQLite.SQLiteTransaction trans, string tableName)
+        {
+            if (!TableExists(conn, trans, tableName)) return 0;
+            // tableName comes only from the hard-coded list above, never from user input
+            using (var cmd = new System.Data.SQLite.SQLiteCommand("SELECT COUNT(*) FROM " + tableName + ";", conn, trans))
+            {
+                return Convert.ToInt64(cmd.ExecuteScalar());
+            }
+        }
+
+        private static void DeleteAllIfTableExists(System.Data.SQLite.SQLiteConnection conn, System.Data.SQLite.SQLiteTransaction trans, string tableName)
+        {
+            if (!TableExists(conn, trans, tableName)) return;
+            using (var cmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM " + tableName + ";", conn, trans))
+            {
+                cmd.ExecuteNonQuery();
+            }
         }
 
         private static void PruneDirectoryFiles(string dir, string pattern, int keepCount)

@@ -38,11 +38,11 @@ namespace RafiqPOS.Repositories
                             INSERT INTO sales (
                                 id, invoice_number, cashier_id, customer_id, subtotal_piasters,
                                 discount_piasters, tax_piasters, total_piasters, paid_piasters,
-                                change_piasters, payment_method, status, notes, created_at
+                                change_piasters, payment_method, status, notes, created_at, service_fee_piasters
                             ) VALUES (
                                 @id, @invoiceNumber, @cashierId, @customerId, @subtotal,
                                 @discount, @tax, @total, @paid,
-                                @change, @paymentMethod, @status, @notes, @createdAt
+                                @change, @paymentMethod, @status, @notes, @createdAt, @serviceFee
                             );
                         ";
                         using (var cmd = new SQLiteCommand(insertSaleSql, conn, trans))
@@ -61,6 +61,7 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@status", sale.Status ?? "completed");
                             cmd.Parameters.AddWithValue("@notes", (object)sale.Notes ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@createdAt", sale.CreatedAt ?? DateTime.UtcNow.ToString("o"));
+                            cmd.Parameters.AddWithValue("@serviceFee", sale.ServiceFeePiasters);
                             cmd.ExecuteNonQuery();
                         }
 
@@ -256,6 +257,8 @@ namespace RafiqPOS.Repositories
                             long sumPayments = 0;
                             for (int pIdx = 0; pIdx < sale.Payments.Count; pIdx++)
                             {
+                                // The 'credit' portion is unpaid debt, not money received (Audit F-39)
+                                if (sale.Payments[pIdx] == null || string.Equals(sale.Payments[pIdx].Method, "credit", StringComparison.OrdinalIgnoreCase)) continue;
                                 sumPayments += sale.Payments[pIdx].AmountPiasters;
                             }
                             if (sumPayments != sale.PaidPiasters)
@@ -290,9 +293,16 @@ namespace RafiqPOS.Repositories
                         }
 
                         // 5. If sale has a customer and unpaid debt or excess change, record in customer_ledger atomically
-                        if (!string.IsNullOrWhiteSpace(sale.CustomerId))
+                        if (!string.IsNullOrWhiteSpace(sale.CustomerId) && sale.CustomerId != "cust_general_cash")
                         {
-                            long debtAmount = sale.TotalPiasters - sale.PaidPiasters;
+                            // The pass-through provider fee is never part of what the customer owes or deposits (Q2)
+                            long debtAmount = sale.TotalPiasters - (sale.PaidPiasters - sale.ServiceFeePiasters);
+                            // Only a cash overpayment is a customer deposit. E-payment service fees (paid > total)
+                            // must never be credited to the customer account (Audit F-06).
+                            if (debtAmount < 0 && !string.Equals(sale.PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase))
+                            {
+                                debtAmount = 0;
+                            }
                             if (debtAmount > 0)
                             {
                                 long currentBal = 0;
@@ -455,6 +465,29 @@ namespace RafiqPOS.Repositories
             }
         }
 
+        private static long ReadOptionalLong(SQLiteDataReader reader, string column)
+        {
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                if (string.Equals(reader.GetName(i), column, StringComparison.OrdinalIgnoreCase))
+                {
+                    return reader.IsDBNull(i) ? 0 : Convert.ToInt64(reader.GetValue(i));
+                }
+            }
+            return 0;
+        }
+
+        private static long SumLedgerAmountForSale(SQLiteConnection conn, SQLiteTransaction trans, string saleId, string ledgerType)
+        {
+            using (var cmd = new SQLiteCommand("SELECT COALESCE(SUM(amount_piasters), 0) FROM customer_ledger WHERE sale_id = @sid AND type = @type;", conn, trans))
+            {
+                cmd.Parameters.AddWithValue("@sid", saleId);
+                cmd.Parameters.AddWithValue("@type", ledgerType);
+                object res = cmd.ExecuteScalar();
+                return (res != null && res != DBNull.Value) ? Convert.ToInt64(res) : 0;
+            }
+        }
+
         private Sale MapReaderToSale(SQLiteDataReader reader)
         {
             var sale = new Sale
@@ -468,6 +501,7 @@ namespace RafiqPOS.Repositories
                 TaxPiasters = Convert.ToInt64(reader["tax_piasters"]),
                 TotalPiasters = Convert.ToInt64(reader["total_piasters"]),
                 PaidPiasters = Convert.ToInt64(reader["paid_piasters"]),
+                ServiceFeePiasters = ReadOptionalLong(reader, "service_fee_piasters"),
                 PaymentMethod = reader["payment_method"].ToString(),
                 Status = reader["status"].ToString(),
                 Notes = reader["notes"] != DBNull.Value ? reader["notes"].ToString() : null,
@@ -820,6 +854,7 @@ namespace RafiqPOS.Repositories
                                         TaxPiasters = Convert.ToInt64(reader["tax_piasters"]),
                                         TotalPiasters = Convert.ToInt64(reader["total_piasters"]),
                                         PaidPiasters = Convert.ToInt64(reader["paid_piasters"]),
+                ServiceFeePiasters = ReadOptionalLong(reader, "service_fee_piasters"),
                                         PaymentMethod = reader["payment_method"].ToString(),
                                         Status = reader["status"].ToString(),
                                         Notes = reader["notes"] != DBNull.Value ? reader["notes"].ToString() : null,
@@ -837,6 +872,42 @@ namespace RafiqPOS.Repositories
                         if (string.Equals(sale.Status, "cancelled", StringComparison.OrdinalIgnoreCase))
                         {
                             throw new InvalidOperationException("هذه الفاتورة تم إلغاؤها مسبقاً");
+                        }
+
+                        // Business rule (Q3): a sale with existing returns cannot be cancelled; the remaining
+                        // items must be processed through the return workflow to keep stock, batches,
+                        // customer balance and cash closing consistent (Audit F-09 / F-35).
+                        using (var retCountCmd = new SQLiteCommand("SELECT COUNT(*) FROM returns WHERE sale_id = @sid OR (invoice_number IS NOT NULL AND invoice_number = @inv);", conn, trans))
+                        {
+                            retCountCmd.Parameters.AddWithValue("@sid", sale.Id);
+                            retCountCmd.Parameters.AddWithValue("@inv", sale.InvoiceNumber);
+                            if (Convert.ToInt64(retCountCmd.ExecuteScalar()) > 0)
+                            {
+                                throw new InvalidOperationException("لا يمكن إلغاء فاتورة عليها مرتجعات سابقة. يرجى عمل مرتجع لباقي الأصناف بدلاً من الإلغاء.");
+                            }
+                        }
+
+                        // Business rule 33-1: cancellation is allowed only before the business day is closed (Audit F-38)
+                        int cutoffHour = 4;
+                        using (var cutCmd = new SQLiteCommand("SELECT value FROM app_settings WHERE key = 'business_day_cutoff_hour' LIMIT 1;", conn, trans))
+                        {
+                            object cutVal = cutCmd.ExecuteScalar();
+                            int parsedCut;
+                            if (cutVal != null && cutVal != DBNull.Value && int.TryParse(cutVal.ToString(), out parsedCut) && parsedCut >= 0 && parsedCut <= 12)
+                            {
+                                cutoffHour = parsedCut;
+                            }
+                        }
+                        using (var closedCmd = new SQLiteCommand(@"
+                            SELECT COUNT(*) FROM daily_closings
+                            WHERE business_date = date(datetime(@createdAt, 'localtime', '-' || @cutoff || ' hours'));", conn, trans))
+                        {
+                            closedCmd.Parameters.AddWithValue("@createdAt", sale.CreatedAt);
+                            closedCmd.Parameters.AddWithValue("@cutoff", cutoffHour);
+                            if (Convert.ToInt64(closedCmd.ExecuteScalar()) > 0)
+                            {
+                                throw new InvalidOperationException("لا يمكن إلغاء فاتورة بعد إقفال يومية تاريخها. يرجى استخدام المرتجع بدلاً من الإلغاء.");
+                            }
                         }
 
                         var items = new List<SaleItem>();
@@ -992,7 +1063,7 @@ namespace RafiqPOS.Repositories
 
                         if (!string.IsNullOrWhiteSpace(sale.CustomerId))
                         {
-                            long debtAmount = sale.TotalPiasters - sale.PaidPiasters;
+                            long debtAmount = sale.TotalPiasters - (sale.PaidPiasters - sale.ServiceFeePiasters);
                             if (debtAmount > 0)
                             {
                                 long currentBal = 0;
@@ -1029,9 +1100,10 @@ namespace RafiqPOS.Repositories
                                     lCmd.ExecuteNonQuery();
                                 }
                             }
-                            else if (debtAmount < 0)
+                            else if (debtAmount < 0 && SumLedgerAmountForSale(conn, trans, sale.Id, "deposit") > 0)
                             {
-                                long excessAmount = Math.Abs(debtAmount);
+                                // Reverse exactly what was deposited for this sale (e-payment fees were never deposits - Audit F-06)
+                                long excessAmount = SumLedgerAmountForSale(conn, trans, sale.Id, "deposit");
                                 long currentBal = 0;
                                 using (var cCmd = new SQLiteCommand("SELECT balance_piasters FROM customers WHERE id = @cid LIMIT 1;", conn, trans))
                                 {

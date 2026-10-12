@@ -292,34 +292,31 @@ namespace RafiqPOS.Repositories
             {
                 conn.Open();
 
-                // Check for linked purchases
-                string checkSql = "SELECT COUNT(*) FROM purchases WHERE supplier_id = @id;";
-                using (var checkCmd = new SQLiteCommand(checkSql, conn))
-                {
-                    checkCmd.Parameters.AddWithValue("@id", id);
-                    long count = Convert.ToInt64(checkCmd.ExecuteScalar());
-                    if (count > 0)
-                    {
-                        throw new InvalidOperationException("لا يمكن حذف المورد لوجود فواتير شراء مرتبطة به. يرجى أرشفة المورد بدلاً من ذلك لحفظ السجلات المحاسبية.");
-                    }
-                }
-
-                // Check for transactions
-                string checkTransSql = "SELECT COUNT(*) FROM supplier_transactions WHERE supplier_id = @id;";
-                using (var checkCmd = new SQLiteCommand(checkTransSql, conn))
-                {
-                    checkCmd.Parameters.AddWithValue("@id", id);
-                    long count = Convert.ToInt64(checkCmd.ExecuteScalar());
-                    if (count > 0)
-                    {
-                        throw new InvalidOperationException("لا يمكن حذف المورد لوجود حركات مالية مسجلة عليه. يرجى أرشفة المورد بدلاً من ذلك.");
-                    }
-                }
-
                 using (var trans = conn.BeginTransaction())
                 {
                     try
                     {
+                        // Linked-record checks run inside the same transaction as the delete (Audit F-28)
+                        string checkSql = "SELECT COUNT(*) FROM purchases WHERE supplier_id = @id;";
+                        using (var checkCmd = new SQLiteCommand(checkSql, conn, trans))
+                        {
+                            checkCmd.Parameters.AddWithValue("@id", id);
+                            if (Convert.ToInt64(checkCmd.ExecuteScalar()) > 0)
+                            {
+                                throw new InvalidOperationException("لا يمكن حذف المورد لوجود فواتير شراء مرتبطة به. يرجى أرشفة المورد بدلاً من ذلك لحفظ السجلات المحاسبية.");
+                            }
+                        }
+
+                        string checkTransSql = "SELECT COUNT(*) FROM supplier_transactions WHERE supplier_id = @id;";
+                        using (var checkCmd = new SQLiteCommand(checkTransSql, conn, trans))
+                        {
+                            checkCmd.Parameters.AddWithValue("@id", id);
+                            if (Convert.ToInt64(checkCmd.ExecuteScalar()) > 0)
+                            {
+                                throw new InvalidOperationException("لا يمكن حذف المورد لوجود حركات مالية مسجلة عليه. يرجى أرشفة المورد بدلاً من ذلك.");
+                            }
+                        }
+
                         string sql = "DELETE FROM suppliers WHERE id = @id;";
                         using (var cmd = new SQLiteCommand(sql, conn, trans))
                         {

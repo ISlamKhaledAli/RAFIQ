@@ -6,7 +6,7 @@ namespace RafiqPOS.Database
 {
     public static class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 28;
+        public const int LATEST_SUPPORTED_VERSION = 29;
 
         public static void ApplyMigrations(string connectionString, string dbPath)
         {
@@ -252,7 +252,14 @@ namespace RafiqPOS.Database
                     ApplyMigration28(conn);
                 }
 
-                // 32. Self-Healing Schema Guard: Automatically repair missing columns or indexes
+                // 32. Apply Migration 29: Pass-through e-payment service fees stored outside sales revenue
+                if (currentVersion < 29)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration29(conn);
+                }
+
+                // 33. Self-Healing Schema Guard: Automatically repair missing columns or indexes
                 EnsureSchemaHealth(conn);
             }
         }
@@ -3562,6 +3569,52 @@ namespace RafiqPOS.Database
                     using (var cmd = new SQLiteCommand(@"
                         INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
                         VALUES (28, 'Electronic Payment Terminals Dynamic Fee & Commission Rules (Fixed & Percentage)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        // Migration 29: E-payment service fee collected from the customer on behalf of the payment provider.
+        // It is NOT shop revenue (business decision Q2), so it is stored separately from total_piasters.
+        private static void ApplyMigration29(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    try
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE sales ADD COLUMN service_fee_piasters INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    // Backfill historical e-payment sales where the fee was recorded as paid > total
+                    using (var backfill = new SQLiteCommand(@"
+                        UPDATE sales
+                        SET service_fee_piasters = paid_piasters - total_piasters
+                        WHERE payment_method IN ('instapay', 'vodafone_cash')
+                          AND paid_piasters > total_piasters
+                          AND service_fee_piasters = 0;", conn, trans))
+                    {
+                        backfill.ExecuteNonQuery();
+                    }
+
+                    using (var cmd = new SQLiteCommand(@"
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (29, 'Pass-through e-payment service fee column on sales', datetime('now'));
                     ", conn, trans))
                     {
                         cmd.ExecuteNonQuery();

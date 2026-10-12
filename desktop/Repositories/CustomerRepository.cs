@@ -274,7 +274,7 @@ namespace RafiqPOS.Repositories
                         _auditRepo.Log(conn, trans, new AuditLog
                         {
                             Id = "aud_" + Guid.NewGuid().ToString("N"),
-                            UserId = "usr_admin_default",
+                            UserId = CurrentAuditUserId(),
                             Action = "customer_payment",
                             EntityType = "customer",
                             EntityId = customerId,
@@ -414,6 +414,42 @@ namespace RafiqPOS.Repositories
             }
         }
 
+        private static string CurrentAuditUserId()
+        {
+            var sessionUser = RafiqPOS.Services.SecurityService.CurrentUser;
+            return sessionUser != null ? sessionUser.Id : "usr_admin_default";
+        }
+
+        /// <summary>
+        /// Single source of truth for how each customer_ledger entry changes the customer's balance
+        /// (positive = debt increases). Used by statements and balance verification (Audit F-20/F-21/F-22).
+        /// </summary>
+        public static long GetLedgerBalanceEffect(string type, long amountPiasters, long balanceAfterPiasters)
+        {
+            string t = (type ?? "").ToLowerInvariant();
+            long abs = Math.Abs(amountPiasters);
+            switch (t)
+            {
+                case "opening_balance":
+                    // Stored as absolute (manual) or signed (import); the opening entry's balance_after carries the sign.
+                    return balanceAfterPiasters < 0 ? -abs : abs;
+                case "sale":
+                case "debt_increase":
+                case "payment_cancel":
+                    return abs;
+                case "payment":
+                case "refund":
+                case "debt_decrease":
+                case "deposit":
+                    return -abs;
+                case "cancellation":
+                    // Stored signed: -debt when a credit sale is cancelled, +excess when a deposit is reversed.
+                    return amountPiasters;
+                default:
+                    return 0;
+            }
+        }
+
         public List<CustomerLedgerEntry> GetStatement(string customerId, int limit)
         {
             var list = new List<CustomerLedgerEntry>();
@@ -493,15 +529,12 @@ namespace RafiqPOS.Repositories
                             };
 
                             string entryDate = entry.CreatedAt != null && entry.CreatedAt.Length >= 10 ? entry.CreatedAt.Substring(0, 10) : "";
-                            string type = entry.Type.ToLowerInvariant();
-                            bool isDebit = (type == "sale" || type == "opening_balance" || type == "debt_increase" || type == "payment_cancel");
-                            bool isCredit = (type == "payment" || type == "refund" || type == "cancellation" || type == "debt_decrease");
+                            long effect = GetLedgerBalanceEffect(entry.Type, entry.AmountPiasters, entry.BalanceAfterPiasters);
 
                             // If strictly prior to start date, factor into opening balance
                             if (!string.IsNullOrWhiteSpace(startDate) && string.Compare(entryDate, startDate, StringComparison.Ordinal) < 0)
                             {
-                                if (isDebit) runningOpening += entry.AmountPiasters;
-                                else if (isCredit) runningOpening -= entry.AmountPiasters;
+                                runningOpening += effect;
                                 continue;
                             }
 
@@ -511,8 +544,8 @@ namespace RafiqPOS.Repositories
                                 continue;
                             }
 
-                            if (isDebit) report.PeriodDebitsPiasters += entry.AmountPiasters;
-                            else if (isCredit) report.PeriodCreditsPiasters += entry.AmountPiasters;
+                            if (effect > 0) report.PeriodDebitsPiasters += effect;
+                            else if (effect < 0) report.PeriodCreditsPiasters += -effect;
 
                             report.Entries.Add(entry);
                         }
@@ -546,7 +579,7 @@ namespace RafiqPOS.Repositories
 
                 long calculatedBalance = 0;
                 int entriesCount = 0;
-                string ledgerSql = "SELECT type, amount_piasters FROM customer_ledger WHERE customer_id = @id ORDER BY created_at ASC;";
+                string ledgerSql = "SELECT type, amount_piasters, balance_after_piasters FROM customer_ledger WHERE customer_id = @id ORDER BY created_at ASC;";
                 using (var cmd = new SQLiteCommand(ledgerSql, conn))
                 {
                     cmd.Parameters.AddWithValue("@id", customerId);
@@ -555,17 +588,10 @@ namespace RafiqPOS.Repositories
                         while (reader.Read())
                         {
                             entriesCount++;
-                            string type = reader["type"].ToString().ToLowerInvariant();
-                            long amount = Math.Abs(Convert.ToInt64(reader["amount_piasters"]));
-
-                            if (type == "opening_balance" || type == "sale" || type == "debt_increase" || type == "payment_cancel")
-                            {
-                                calculatedBalance += amount;
-                            }
-                            else if (type == "payment" || type == "refund" || type == "cancellation" || type == "debt_decrease" || type == "deposit")
-                            {
-                                calculatedBalance -= amount;
-                            }
+                            calculatedBalance += GetLedgerBalanceEffect(
+                                reader["type"].ToString(),
+                                Convert.ToInt64(reader["amount_piasters"]),
+                                Convert.ToInt64(reader["balance_after_piasters"]));
                         }
                     }
                 }
@@ -588,14 +614,45 @@ namespace RafiqPOS.Repositories
 
             if (!verify.IsBalanced)
             {
+                // The ledger is the source of truth; the cached balance is realigned to it and the
+                // correction is recorded in the tamper-evident audit log inside the same transaction (Audit F-23).
                 using (var conn = new SQLiteConnection(_connectionString))
                 {
                     conn.Open();
-                    using (var cmd = new SQLiteCommand("UPDATE customers SET balance_piasters = @bal WHERE id = @id;", conn))
+                    using (var trans = conn.BeginTransaction())
                     {
-                        cmd.Parameters.AddWithValue("@bal", verify.CalculatedBalancePiasters);
-                        cmd.Parameters.AddWithValue("@id", customerId);
-                        cmd.ExecuteNonQuery();
+                        try
+                        {
+                            using (var cmd = new SQLiteCommand("UPDATE customers SET balance_piasters = @bal WHERE id = @id;", conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@bal", verify.CalculatedBalancePiasters);
+                                cmd.Parameters.AddWithValue("@id", customerId);
+                                cmd.ExecuteNonQuery();
+                            }
+
+                            if (_auditRepo != null)
+                            {
+                                string userId = CurrentAuditUserId();
+                                _auditRepo.Log(conn, trans, new AuditLog
+                                {
+                                    Id = "aud_" + Guid.NewGuid().ToString("N"),
+                                    UserId = userId,
+                                    Action = "customer_balance_realign",
+                                    EntityType = "customer",
+                                    EntityId = customerId,
+                                    DetailsJson = string.Format("{{\"storedBalance\":{0},\"ledgerBalance\":{1},\"discrepancy\":{2}}}",
+                                        verify.StoredBalancePiasters, verify.CalculatedBalancePiasters, verify.DiscrepancyPiasters),
+                                    CreatedAt = DateTime.UtcNow.ToString("o")
+                                });
+                            }
+
+                            trans.Commit();
+                        }
+                        catch
+                        {
+                            trans.Rollback();
+                            throw;
+                        }
                     }
                 }
             }

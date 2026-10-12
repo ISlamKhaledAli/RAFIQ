@@ -845,7 +845,8 @@ namespace RafiqPOS.Services
             }
             if (user == null) return false;
 
-            if (user.Role == "root" || user.Role == "admin" || user.Username == "admin") return true;
+            // Authorization is decided by role only (Audit F-13); the owner account is enforced as role "admin" at startup.
+            if (user.Role == "root" || user.Role == "admin") return true;
 
             var perms = GetEffectivePermissions(user);
             return perms.ContainsKey(permKey) && perms[permKey];

@@ -32,48 +32,78 @@ export function base64UrlDecode(str: string): string {
 }
 
 /**
- * Import HMAC key from secret string
+ * License tokens are signed with RSA (RS256, Audit F-04/F-15).
+ * The private key exists only as the Worker secret LICENSE_PRIVATE_KEY (PKCS#8 PEM).
+ * The desktop app embeds only the public key, so it can verify licenses but never mint them.
  */
-async function getCryptoKey(secret: string): Promise<CryptoKey> {
-  const enc = new TextEncoder();
+const RS256 = { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' } as const;
+
+function pemToDer(pem: string): ArrayBuffer {
+  const body = pem
+    .replace(/-----BEGIN [A-Z ]+-----/g, '')
+    .replace(/-----END [A-Z ]+-----/g, '')
+    .replace(/\\n/g, '')
+    .replace(/\s+/g, '');
+  const binary = atob(body);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+function base64UrlToBytes(str: string): Uint8Array {
+  let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4 !== 0) {
+    base64 += '=';
+  }
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+async function importPrivateKey(privateKeyPem: string): Promise<CryptoKey> {
+  if (!privateKeyPem) {
+    throw new Error('LICENSE_PRIVATE_KEY is not configured');
+  }
+  return await crypto.subtle.importKey('pkcs8', pemToDer(privateKeyPem), RS256, true, ['sign']);
+}
+
+async function derivePublicKey(privateKeyPem: string): Promise<CryptoKey> {
+  const privateKey = await importPrivateKey(privateKeyPem);
+  const jwk = (await crypto.subtle.exportKey('jwk', privateKey)) as JsonWebKey;
   return await crypto.subtle.importKey(
-    'raw',
-    enc.encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
+    'jwk',
+    { kty: 'RSA', n: jwk.n, e: jwk.e, alg: 'RS256', ext: true },
+    RS256,
     false,
-    ['sign', 'verify']
+    ['verify']
   );
 }
 
 /**
- * Create a cryptographically signed JWT-format activation token
+ * Create an RS256-signed JWT activation token
  */
 export async function signActivationToken(
   payload: ActivationTokenPayload,
-  secret: string
+  privateKeyPem: string
 ): Promise<string> {
-  const header = { alg: 'HS256', typ: 'JWT' };
-  const encodedHeader = base64UrlEncode(JSON.stringify(header));
-  const encodedPayload = base64UrlEncode(JSON.stringify(payload));
-  const message = `${encodedHeader}.${encodedPayload}`;
-
-  const key = await getCryptoKey(secret);
-  const signatureBuffer = await crypto.subtle.sign(
-    'HMAC',
-    key,
-    new TextEncoder().encode(message)
-  );
-
-  const encodedSignature = base64UrlEncode(new Uint8Array(signatureBuffer));
-  return `${message}.${encodedSignature}`;
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const message = `${base64UrlEncode(JSON.stringify(header))}.${base64UrlEncode(JSON.stringify(payload))}`;
+  const key = await importPrivateKey(privateKeyPem);
+  const signature = await crypto.subtle.sign(RS256, key, new TextEncoder().encode(message));
+  return `${message}.${base64UrlEncode(new Uint8Array(signature))}`;
 }
 
 /**
- * Verify an activation token and return payload if valid
+ * Verify an RS256 activation token and return its payload if the signature is valid
  */
 export async function verifyActivationToken(
   token: string,
-  secret: string,
+  privateKeyPem: string,
   ignoreExpiration = false
 ): Promise<{ valid: boolean; payload?: ActivationTokenPayload; isExpired?: boolean; error?: string }> {
   try {
@@ -83,25 +113,17 @@ export async function verifyActivationToken(
     }
 
     const [encodedHeader, encodedPayload, encodedSignature] = parts;
-    const message = `${encodedHeader}.${encodedPayload}`;
-
-    // Decode signature
-    let base64 = encodedSignature.replace(/-/g, '+').replace(/_/g, '/');
-    while (base64.length % 4 !== 0) {
-      base64 += '=';
-    }
-    const sigBinary = atob(base64);
-    const signatureBytes = new Uint8Array(sigBinary.length);
-    for (let i = 0; i < sigBinary.length; i++) {
-      signatureBytes[i] = sigBinary.charCodeAt(i);
+    const header = JSON.parse(base64UrlDecode(encodedHeader)) as { alg?: string };
+    if (header.alg !== 'RS256') {
+      return { valid: false, error: 'خوارزمية توقيع التوكن غير مدعومة' };
     }
 
-    const key = await getCryptoKey(secret);
+    const key = await derivePublicKey(privateKeyPem);
     const isValid = await crypto.subtle.verify(
-      'HMAC',
+      RS256,
       key,
-      signatureBytes,
-      new TextEncoder().encode(message)
+      base64UrlToBytes(encodedSignature),
+      new TextEncoder().encode(`${encodedHeader}.${encodedPayload}`)
     );
 
     if (!isValid) {
@@ -111,7 +133,6 @@ export async function verifyActivationToken(
     const payload: ActivationTokenPayload = JSON.parse(base64UrlDecode(encodedPayload));
     const isExpired = Boolean(payload.exp && payload.exp < Math.floor(Date.now() / 1000));
 
-    // Check expiration if present and not explicitly ignored
     if (!ignoreExpiration && isExpired) {
       return { valid: false, payload, isExpired: true, error: 'انتهت صلاحية توكن التفعيل' };
     }
@@ -123,52 +144,52 @@ export async function verifyActivationToken(
 }
 
 /**
- * Master offline secret for signing offline support codes (Identical to C# Desktop host)
- */
-export const OFFLINE_MASTER_SECRET = 'RafiqPOS_Master_Secret_Offline_2026_Secure';
-
-/**
- * Generate cryptographically signed offline support code for air-gapped retail devices
- * Output format: RFQ-SUP-{TypeChar}{DaysHex}-{SigHex12}
+ * Generate an RS256-signed offline support code for air-gapped retail devices.
+ * Output format: RFQ-SUP-{signed JWT bound to the device fingerprint}
  */
 export async function generateOfflineSupportCode(
   deviceFingerprint: string,
   licenseType: string,
-  days: number
+  days: number,
+  privateKeyPem: string,
+  shopName = ''
 ): Promise<string> {
   if (!deviceFingerprint || !deviceFingerprint.trim()) {
     throw new Error('بصمة الجهاز (Device Fingerprint) مطلوبة');
   }
 
-  let typeChar = 'A';
-  let finalDays = days;
-  if (licenseType === 'lifetime' || finalDays >= 9000) {
-    typeChar = 'L';
-    finalDays = 9999;
+  const now = Math.floor(Date.now() / 1000);
+  let type: ActivationTokenPayload['type'] = 'annual';
+  let exp: number | null = null;
+  const safeDays = Math.max(1, Math.floor(Number(days) || 1));
+
+  if (licenseType === 'lifetime' || safeDays >= 9000) {
+    type = 'lifetime';
+    exp = null;
   } else if (licenseType === 'trial') {
-    typeChar = 'T';
-  } else if (licenseType === 'monthly' || finalDays <= 31) {
-    typeChar = 'M';
+    type = 'trial';
+    exp = now + safeDays * 86400;
+  } else if (licenseType === 'monthly' || safeDays <= 31) {
+    type = 'monthly';
+    exp = now + safeDays * 86400;
   } else {
-    typeChar = 'A';
+    type = 'annual';
+    exp = now + safeDays * 86400;
   }
 
-  const daysHex = finalDays.toString(16).toUpperCase().padStart(4, '0');
-  const payload = `${deviceFingerprint.trim().toUpperCase()}:${typeChar}${daysHex}`;
-
-  const key = await getCryptoKey(OFFLINE_MASTER_SECRET);
-  const sigBuffer = await crypto.subtle.sign(
-    'HMAC',
-    key,
-    new TextEncoder().encode(payload)
+  const token = await signActivationToken(
+    {
+      iss: 'rafiq-license-server',
+      sub: `SUPPORT-${crypto.randomUUID()}`,
+      fp: deviceFingerprint.trim().toUpperCase(),
+      shop: shopName,
+      type,
+      iat: now,
+      exp,
+      kind: 'support',
+    },
+    privateKeyPem
   );
 
-  const sigBytes = new Uint8Array(sigBuffer);
-  let sigHex = '';
-  for (let i = 0; i < 6; i++) {
-    sigHex += sigBytes[i].toString(16).toUpperCase().padStart(2, '0');
-  }
-
-  return `RFQ-SUP-${typeChar}${daysHex}-${sigHex}`;
+  return `RFQ-SUP-${token}`;
 }
-

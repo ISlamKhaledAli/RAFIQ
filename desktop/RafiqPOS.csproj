@@ -88,6 +88,8 @@
     <Compile Include="Bridge\IpcDispatcher.Excel.cs" />
     <Compile Include="Bridge\IpcDispatcher.System.cs" />
     <Compile Include="Common\Money.cs" />
+    <Compile Include="Common\LicenseConfig.cs" />
+    <Compile Include="Common\LicenseTokenVerifier.cs" />
     <Compile Include="Common\OsDetector.cs" />
     <Compile Include="Common\Logger.cs" />
     <Compile Include="Common\TimeGuard.cs" />
