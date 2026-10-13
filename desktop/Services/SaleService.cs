@@ -152,6 +152,7 @@ namespace RafiqPOS.Services
 
                 // Validate product exists or pull cost and tax if missing (Task 30-3)
                 var product = _productRepo.GetById(item.ProductId);
+                QuickItem quickItem = null;
                 if (product != null)
                 {
                     // Cost always comes from the catalogue, never from the client (Audit F-11)
@@ -163,6 +164,46 @@ namespace RafiqPOS.Services
                     if (string.IsNullOrWhiteSpace(item.ProductName))
                     {
                         item.ProductName = product.Name;
+                    }
+                }
+                else
+                {
+                    if (_quickRepo != null)
+                    {
+                        quickItem = _quickRepo.GetById(item.ProductId);
+                    }
+                    else if (DatabaseService.QuickItems != null)
+                    {
+                        quickItem = DatabaseService.QuickItems.GetById(item.ProductId);
+                    }
+
+                    if (quickItem != null)
+                    {
+                        if (!string.IsNullOrEmpty(quickItem.ProductId))
+                        {
+                            product = _productRepo.GetById(quickItem.ProductId);
+                            if (product != null)
+                            {
+                                item.ProductId = product.Id;
+                                item.UnitCostPiasters = product.CostPiasters;
+                                if (!item.TaxRatePercent.HasValue) item.TaxRatePercent = product.TaxRatePercent;
+                                if (string.IsNullOrWhiteSpace(item.ProductName)) item.ProductName = product.Name;
+                            }
+                        }
+
+                        if (product == null)
+                        {
+                            if (string.IsNullOrWhiteSpace(item.ProductName))
+                            {
+                                item.ProductName = quickItem.Name;
+                            }
+                            if (!item.TaxRatePercent.HasValue)
+                            {
+                                item.TaxRatePercent = 0;
+                            }
+                            // Standalone services have 0 inventory cost, preserving true 100% operating profit
+                            item.UnitCostPiasters = 0;
+                        }
                     }
                 }
 
@@ -307,9 +348,27 @@ namespace RafiqPOS.Services
                 }
 
                 // Selling below/above the catalogue price requires the price-override permission (Audit F-11)
-                if (enforcePriceAuthority && product != null && !IsCataloguePrice(item, product, matchedUnit))
+                if (enforcePriceAuthority)
                 {
-                    throw new InvalidOperationException(string.Format("سعر الصنف '{0}' يختلف عن سعر الكتالوج ويتطلب صلاحية تعديل السعر.", product.Name));
+                    if (product != null)
+                    {
+                        if (!IsCataloguePrice(item, product, matchedUnit))
+                        {
+                            throw new InvalidOperationException(string.Format("سعر الصنف '{0}' يختلف عن سعر الكتالوج ويتطلب صلاحية تعديل السعر.", product.Name));
+                        }
+                    }
+                    else if (quickItem != null)
+                    {
+                        if (!quickItem.IsOpenPrice && item.UnitPricePiasters != quickItem.PricePiasters)
+                        {
+                            throw new InvalidOperationException(string.Format("سعر الصنف السريع '{0}' محدد بـ {1:0.00} ج.م وتعديله يتطلب صلاحية تعديل السعر.", quickItem.Name, quickItem.PricePiasters / 100.0));
+                        }
+                    }
+                    else
+                    {
+                        // Ghost / unregistered product attempt by cashier without price override permission
+                        throw new InvalidOperationException(string.Format("الصنف '{0}' غير مسجل في الكتالوج أو الأصناف السريعة؛ وبيعه يتطلب صلاحية تعديل الأسعار.", !string.IsNullOrWhiteSpace(item.ProductName) ? item.ProductName : item.ProductId));
+                    }
                 }
 
                 if (product != null)
@@ -578,7 +637,10 @@ namespace RafiqPOS.Services
                     // If product is a configured component in an active quick item bundle offer, allow it
                     if (!string.IsNullOrEmpty(qi.BundleItemsJson) && qi.BundleItemsJson.IndexOf(product.Id, StringComparison.OrdinalIgnoreCase) >= 0)
                     {
-                        return true;
+                        if (price > 0 && price <= (product.PricePiasters * factor))
+                        {
+                            return true;
+                        }
                     }
                 }
             }

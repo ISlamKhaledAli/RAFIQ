@@ -79,7 +79,7 @@ namespace RafiqPOS.Services
         public static SettingsService Settings { get; private set; }
         public static CustomerService Customers { get; private set; }
         public static CategoryService Categories { get; private set; }
-        public static QuickItemService QuickItems { get; private set; }
+        public static QuickItemService QuickItems { get; internal set; }
         public static ReportsService Reports { get; private set; }
         public static AuditLogService Audit { get; private set; }
         public static SupportService Support { get; private set; }
@@ -87,7 +87,7 @@ namespace RafiqPOS.Services
         public static BackupService Backup { get; private set; }
         public static ExcelService Excel { get; private set; }
         public static PrinterService Printer { get; private set; }
-        public static SecurityService Security { get; private set; }
+        public static SecurityService Security { get; internal set; }
         public static StoreTemplateService Templates { get; private set; }
         public static DemoDataService DemoData { get; private set; }
         public static ReadinessService Readiness { get; private set; }
@@ -98,7 +98,7 @@ namespace RafiqPOS.Services
         public static ReturnRepository ReturnRepo { get; private set; }
         public static SupplierRepository SupplierRepo { get; private set; }
         public static PurchaseRepository PurchaseRepo { get; private set; }
-        public static HeldSaleService HeldSales { get; private set; }
+        public static HeldSaleService HeldSales { get; internal set; }
         public static ReturnService Returns { get; private set; }
         public static SupplierService Suppliers { get; private set; }
         public static PurchaseService Purchases { get; private set; }

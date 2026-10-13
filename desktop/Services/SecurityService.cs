@@ -221,6 +221,11 @@ namespace RafiqPOS.Services
             get { return _currentUserSession; }
         }
 
+        public static void SetCurrentUserForTesting(UserDto user)
+        {
+            _currentUserSession = user;
+        }
+
         public PinStatusResult GetStatus()
         {
             string pinHash = _settingsRepo.Get(KEY_PIN_HASH, "");
@@ -1543,7 +1548,7 @@ namespace RafiqPOS.Services
             else if (p.ContainsKey("epay")) p["epay.access"] = p["epay"];
         }
 
-        private static UserDto MapToDto(User u)
+        public static UserDto MapToDto(User u)
         {
             int remainingSec = 0;
             if (!string.IsNullOrEmpty(u.LockoutUntil))
