@@ -28,22 +28,25 @@ namespace RafiqPOS.Services
                 throw new ArgumentException("قيمة المصروف يجب أن تكون أكبر من الصفر", "AmountPiasters");
             }
 
-            string businessDate = string.IsNullOrEmpty(request.BusinessDate)
-                ? (_dailyClosingService != null ? _dailyClosingService.GetCurrentBusinessDate() : DateTime.Now.ToString("yyyy-MM-dd"))
-                : request.BusinessDate;
-
-            var expense = new Expense
+            lock (SaleService.FinancialWriteLock)
             {
-                Id = "exp_" + Guid.NewGuid().ToString("N"),
-                AmountPiasters = request.AmountPiasters,
-                Category = string.IsNullOrEmpty(request.Category) ? "عام" : request.Category.Trim(),
-                Notes = string.IsNullOrEmpty(request.Notes) ? null : request.Notes.Trim(),
-                CreatedBy = string.IsNullOrEmpty(request.CreatedBy) ? "الكاشير" : request.CreatedBy.Trim(),
-                BusinessDate = businessDate,
-                CreatedAt = DateTime.UtcNow.ToString("o")
-            };
+                string businessDate = string.IsNullOrEmpty(request.BusinessDate)
+                    ? (_dailyClosingService != null ? _dailyClosingService.GetCurrentBusinessDate() : DateTime.Now.ToString("yyyy-MM-dd"))
+                    : request.BusinessDate;
 
-            return _expenseRepo.Insert(expense);
+                var expense = new Expense
+                {
+                    Id = "exp_" + Guid.NewGuid().ToString("N"),
+                    AmountPiasters = request.AmountPiasters,
+                    Category = string.IsNullOrEmpty(request.Category) ? "عام" : request.Category.Trim(),
+                    Notes = string.IsNullOrEmpty(request.Notes) ? null : request.Notes.Trim(),
+                    CreatedBy = string.IsNullOrEmpty(request.CreatedBy) ? "الكاشير" : request.CreatedBy.Trim(),
+                    BusinessDate = businessDate,
+                    CreatedAt = DateTime.UtcNow.ToString("o")
+                };
+
+                return _expenseRepo.Insert(expense);
+            }
         }
 
         public List<Expense> GetExpenses(string businessDate)

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using RafiqPOS.Models;
 using RafiqPOS.Repositories;
@@ -16,7 +16,10 @@ namespace RafiqPOS.Services
 
         public ParentProductWithVariants CreateVariantMatrix(CreateVariantMatrixRequest request)
         {
-            return _repository.CreateMatrix(request);
+            lock (SaleService.FinancialWriteLock)
+            {
+                return _repository.CreateMatrix(request);
+            }
         }
 
         public List<ProductVariant> GetVariantsByParentId(string parentId)

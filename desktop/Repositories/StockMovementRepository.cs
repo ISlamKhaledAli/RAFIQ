@@ -196,8 +196,14 @@ namespace RafiqPOS.Repositories
                     p.barcode, 
                     p.unit, 
                     p.stock_quantity_milli AS cached_stock,
-                    COALESCE(SUM(sm.quantity_milli), 0) AS calculated_stock,
-                    (p.stock_quantity_milli - COALESCE(SUM(sm.quantity_milli), 0)) AS diff
+                    CASE 
+                        WHEN p.has_variants = 1 THEN COALESCE((SELECT SUM(c.stock_quantity_milli) FROM products c WHERE c.parent_id = p.id), 0)
+                        ELSE COALESCE(SUM(sm.quantity_milli), 0)
+                    END AS calculated_stock,
+                    (p.stock_quantity_milli - (CASE 
+                        WHEN p.has_variants = 1 THEN COALESCE((SELECT SUM(c.stock_quantity_milli) FROM products c WHERE c.parent_id = p.id), 0)
+                        ELSE COALESCE(SUM(sm.quantity_milli), 0)
+                    END)) AS diff
                 FROM products p
                 LEFT JOIN stock_movements sm ON p.id = sm.product_id AND sm.movement_type != 'DAMAGED_RETURN'
                 GROUP BY p.id

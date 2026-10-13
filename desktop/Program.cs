@@ -406,6 +406,24 @@ namespace RafiqPOS
                         return;
                     }
 
+                    if (args[i] == "--run-senior-stress-tests")
+                    {
+                        try
+                        {
+                            var res = Services.SeniorStressTestRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "senior_stress_test_output.json"), json);
+                            Environment.Exit(res.Success ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Senior stress test error: " + ex.ToString());
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
+
 #if DEBUG
                     if (args[i] == "--demo-error" || args[i] == "--test-error")
                     {

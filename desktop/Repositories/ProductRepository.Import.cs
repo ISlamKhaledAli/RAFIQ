@@ -144,7 +144,7 @@ namespace RafiqPOS.Repositories
                                 else
                                 {
                                     categoryId = "cat_" + Guid.NewGuid().ToString("N").Substring(0, 8);
-                                    using (var insCatCmd = new SQLiteCommand("INSERT INTO categories (id, name, created_at) VALUES (@cid, @cname, @cdate);", conn, trans))
+                                    using (var insCatCmd = new SQLiteCommand("INSERT INTO categories (id, name, display_order, is_active, created_at, updated_at) VALUES (@cid, @cname, 0, 1, @cdate, @cdate);", conn, trans))
                                     {
                                         insCatCmd.Parameters.AddWithValue("@cid", categoryId);
                                         insCatCmd.Parameters.AddWithValue("@cname", catName);
@@ -275,6 +275,27 @@ namespace RafiqPOS.Repositories
                                         }
                                     }
 
+                                    // Synchronize base unit in product_units
+                                    try
+                                    {
+                                        string updUnitSql = @"
+                                            UPDATE product_units
+                                            SET sell_price_piasters = @price,
+                                                cost_price_piasters = @cost,
+                                                updated_at = @now
+                                            WHERE product_id = @pid AND is_base_unit = 1;
+                                        ";
+                                        using (var uUnitCmd = new SQLiteCommand(updUnitSql, conn, trans))
+                                        {
+                                            uUnitCmd.Parameters.AddWithValue("@pid", existingProductId);
+                                            uUnitCmd.Parameters.AddWithValue("@price", item.PricePiasters);
+                                            uUnitCmd.Parameters.AddWithValue("@cost", item.CostPiasters);
+                                            uUnitCmd.Parameters.AddWithValue("@now", now);
+                                            uUnitCmd.ExecuteNonQuery();
+                                        }
+                                    }
+                                    catch { }
+
                                     result.UpdatedCount++;
                                     continue;
                                 }
@@ -350,6 +371,41 @@ namespace RafiqPOS.Repositories
                                     }
                                 }
                             }
+
+                            // Synchronize base unit in product_units
+                            try
+                            {
+                                string uName = !string.IsNullOrWhiteSpace(item.Unit) ? item.Unit.Trim() : "قطعة";
+                                bool isDiv = uName.Equals("kg", StringComparison.OrdinalIgnoreCase) ||
+                                             uName.Equals("كيلو", StringComparison.OrdinalIgnoreCase) ||
+                                             uName.Equals("كجم", StringComparison.OrdinalIgnoreCase);
+
+                                string insUnitSql = @"
+                                    INSERT OR IGNORE INTO product_units (
+                                        id, product_id, unit_name, conversion_factor, is_base_unit,
+                                        sell_price_piasters, cost_price_piasters, barcode, is_divisible,
+                                        sort_order, created_at, updated_at
+                                    ) VALUES (
+                                        @id, @productId, @unitName, 1, 1,
+                                        @sellPrice, @costPrice, @barcode, @isDivisible,
+                                        0, @createdAt, @updatedAt
+                                    );
+                                ";
+                                using (var insUnitCmd = new SQLiteCommand(insUnitSql, conn, trans))
+                                {
+                                    insUnitCmd.Parameters.AddWithValue("@id", "punit_" + newId);
+                                    insUnitCmd.Parameters.AddWithValue("@productId", newId);
+                                    insUnitCmd.Parameters.AddWithValue("@unitName", uName);
+                                    insUnitCmd.Parameters.AddWithValue("@sellPrice", item.PricePiasters);
+                                    insUnitCmd.Parameters.AddWithValue("@costPrice", item.CostPiasters);
+                                    insUnitCmd.Parameters.AddWithValue("@barcode", string.IsNullOrWhiteSpace(primaryBarcode) ? (object)DBNull.Value : primaryBarcode);
+                                    insUnitCmd.Parameters.AddWithValue("@isDivisible", isDiv ? 1 : 0);
+                                    insUnitCmd.Parameters.AddWithValue("@createdAt", now);
+                                    insUnitCmd.Parameters.AddWithValue("@updatedAt", now);
+                                    insUnitCmd.ExecuteNonQuery();
+                                }
+                            }
+                            catch { }
 
                             // Record Initial Stock Movement (Task 21-5 & Feature #35)
                             if (item.StockQuantityMilli != 0)

@@ -8,10 +8,12 @@ namespace RafiqPOS.Repositories
     public class ExpenseRepository
     {
         private readonly string _connectionString;
+        private readonly AuditLogRepository _auditRepo;
 
-        public ExpenseRepository(string connectionString)
+        public ExpenseRepository(string connectionString, AuditLogRepository auditRepo = null)
         {
             _connectionString = connectionString;
+            _auditRepo = auditRepo;
         }
 
         public Expense Insert(Expense expense)
@@ -46,11 +48,16 @@ namespace RafiqPOS.Repositories
                         }
                         expense.ExpenseNumber = nextNum;
 
+                        if (string.IsNullOrWhiteSpace(expense.CreatedAt))
+                        {
+                            expense.CreatedAt = DateTime.UtcNow.ToString("o");
+                        }
+
                         string sql = @"
                             INSERT INTO expenses (
                                 id, expense_number, amount_piasters, category, notes, created_by, business_date, created_at
                             ) VALUES (
-                                @id, @num, @amount, @category, @notes, @createdBy, @bdate, datetime('now', 'localtime')
+                                @id, @num, @amount, @category, @notes, @createdBy, @bdate, @created_at
                             );
                         ";
 
@@ -63,8 +70,30 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@notes", (object)expense.Notes ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@createdBy", (object)expense.CreatedBy ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@bdate", expense.BusinessDate);
+                            cmd.Parameters.AddWithValue("@created_at", expense.CreatedAt);
 
                             cmd.ExecuteNonQuery();
+                        }
+
+                        if (_auditRepo != null)
+                        {
+                            try
+                            {
+                                _auditRepo.Log(conn, trans, new AuditLog
+                                {
+                                    Id = "aud_" + Guid.NewGuid().ToString("N"),
+                                    UserId = !string.IsNullOrWhiteSpace(expense.CreatedBy) ? expense.CreatedBy : "الكاشير",
+                                    Action = "create_expense",
+                                    EntityType = "expense",
+                                    EntityId = expense.Id,
+                                    DetailsJson = string.Format("{{\"amountPiasters\":{0},\"category\":\"{1}\",\"expenseNumber\":{2}}}",
+                                        expense.AmountPiasters,
+                                        (expense.Category ?? "").Replace("\"", "\\\""),
+                                        expense.ExpenseNumber),
+                                    CreatedAt = expense.CreatedAt
+                                });
+                            }
+                            catch { }
                         }
 
                         trans.Commit();

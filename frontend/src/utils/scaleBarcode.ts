@@ -52,7 +52,7 @@ export function parseScaleBarcode(rawBarcode: string): ParsedScaleBarcode | null
     itemPlu,
     itemPluTrimmed,
     weightGrams,
-    weightMilli: weightGrams * 1000,
+    weightMilli: weightGrams,
     weightKg: weightGrams / 1000.0,
     fullBarcode: bc,
   };
