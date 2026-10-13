@@ -421,8 +421,36 @@ namespace RafiqPOS.Repositories
             if (string.IsNullOrWhiteSpace(supplierId)) throw new ArgumentException("معرف المورد مطلوب");
             if (amountPiasters <= 0) throw new ArgumentException("مبلغ السداد يجب أن يكون أكبر من الصفر");
 
-            // Payment to supplier reduces what we owe (delta is negative balance)
-            AdjustBalance(supplierId, -amountPiasters, "PAYMENT", null, notes);
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var trans = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        // Payment to supplier reduces what we owe (delta is negative balance)
+                        AdjustBalance(supplierId, -amountPiasters, "PAYMENT", null, notes, conn, trans);
+
+                        _auditRepo.Log(conn, trans, new AuditLog
+                        {
+                            Id = "aud_" + Guid.NewGuid().ToString("N"),
+                            UserId = string.IsNullOrWhiteSpace(userId) ? "usr_admin_default" : userId,
+                            Action = "supplier_payment",
+                            EntityType = "suppliers",
+                            EntityId = supplierId,
+                            DetailsJson = string.Format("{{\"amountPiasters\":{0},\"notes\":\"{1}\"}}", amountPiasters, (notes ?? "").Replace("\"", "\\\"")),
+                            CreatedAt = DateTime.UtcNow.ToString("o")
+                        });
+
+                        trans.Commit();
+                    }
+                    catch
+                    {
+                        trans.Rollback();
+                        throw;
+                    }
+                }
+            }
         }
 
         public List<SupplierTransaction> GetTransactions(string supplierId, int limit = 50)

@@ -527,12 +527,26 @@ namespace RafiqPOS.Repositories
                     cmd.ExecuteNonQuery();
                 }
 
-                // 2. Adjust overall product stock
+                // 2. Adjust overall product stock and variants
                 string updateProductSql = @"
                     UPDATE products
                     SET stock_quantity_milli = stock_quantity_milli + @delta,
                         updated_at = @now
                     WHERE id = @pid;
+
+                    UPDATE product_variants
+                    SET stock_quantity_milli = stock_quantity_milli + @delta,
+                        updated_at = @now
+                    WHERE variant_product_id = @pid;
+
+                    UPDATE products
+                    SET stock_quantity_milli = (
+                        SELECT COALESCE(SUM(p2.stock_quantity_milli), 0)
+                        FROM products p2
+                        WHERE p2.parent_id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @pid)
+                    ),
+                    updated_at = @now
+                    WHERE id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @pid AND p1.parent_id IS NOT NULL);
                 ";
                 using (var cmd = new SQLiteCommand(updateProductSql, activeConn, activeTrans))
                 {
@@ -641,12 +655,26 @@ namespace RafiqPOS.Repositories
                             cmd.ExecuteNonQuery();
                         }
 
-                        // 2. Deduct disposed quantity from product stock
+                        // 2. Deduct disposed quantity from product stock and sync variants
                         string updateProductSql = @"
                             UPDATE products
                             SET stock_quantity_milli = stock_quantity_milli - @qty,
                                 updated_at = @now
                             WHERE id = @pid;
+
+                            UPDATE product_variants
+                            SET stock_quantity_milli = stock_quantity_milli - @qty,
+                                updated_at = @now
+                            WHERE variant_product_id = @pid;
+
+                            UPDATE products
+                            SET stock_quantity_milli = (
+                                SELECT COALESCE(SUM(p2.stock_quantity_milli), 0)
+                                FROM products p2
+                                WHERE p2.parent_id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @pid)
+                            ),
+                            updated_at = @now
+                            WHERE id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @pid AND p1.parent_id IS NOT NULL);
                         ";
                         using (var cmd = new SQLiteCommand(updateProductSql, conn, trans))
                         {

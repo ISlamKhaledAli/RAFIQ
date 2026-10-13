@@ -30,7 +30,7 @@ namespace RafiqPOS.Repositories
             {
                 conn.Open();
                 string sql = @"
-                    INSERT INTO held_sales (
+                    INSERT OR REPLACE INTO held_sales (
                         id, hold_label, customer_id, customer_name, items_count,
                         subtotal_piasters, discount_piasters, total_piasters,
                         cart_json, notes, cashier_id, created_at
