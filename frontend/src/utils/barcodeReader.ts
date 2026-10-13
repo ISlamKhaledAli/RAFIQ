@@ -178,3 +178,32 @@ export function sanitizeScannedBarcode(rawBarcode: string, prefix = ''): string 
   }
   return converted.trim();
 }
+
+/**
+ * تنظيف وتصحيح نصوص الباركود القادمة من ملفات الإكسل
+ * يعالج الترقيم العلمي (Scientific Notation مثل 6.223E+12) ونهايات الأرقام العشرية (.0)
+ */
+export function cleanExcelBarcode(raw: string): string {
+  if (!raw) return '';
+  // Convert Eastern Arabic numerals to standard 0-9 digits without altering punctuation
+  let str = raw.replace(/[٠-٩۰-۹]/g, (d) => {
+    const code = d.charCodeAt(0);
+    return code >= 1632 && code <= 1641 ? String(code - 1632) : String(code - 1776);
+  }).trim();
+
+  if (/^\d+\.0+$/.test(str)) {
+    str = str.replace(/\.0+$/, '');
+  }
+  if (/^[0-9]+(\.[0-9]+)?[eE]\+[0-9]+$/i.test(str)) {
+    try {
+      const num = Number(str);
+      if (!isNaN(num) && isFinite(num)) {
+        str = BigInt(Math.round(num)).toString();
+      }
+    } catch {
+      // fallback
+    }
+  }
+  return str;
+}
+

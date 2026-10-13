@@ -290,8 +290,8 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // Net Profit = Sales Gross Profit - Inventory Losses + Inventory Surplus
-                summary.TodayNetProfitsPiasters = summary.TodayProfitsPiasters - summary.TodayInventoryLossPiasters + summary.TodayInventorySurplusPiasters;
+                // Net Operating Profit = Sales Gross Profit - Operational Expenses - Inventory Losses + Inventory Surplus + Epay Net Profit
+                summary.TodayNetProfitsPiasters = summary.TodayProfitsPiasters - summary.TodayExpensesPiasters - summary.TodayInventoryLossPiasters + summary.TodayInventorySurplusPiasters + summary.TodayEpayNetProfitPiasters;
 
                 // 5. Recent Inventory Adjustments for today
                 string recentAdjSql = @"

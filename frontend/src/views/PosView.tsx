@@ -34,6 +34,7 @@ import {
   type BarcodeScannerSettings, 
   DEFAULT_SCANNER_SETTINGS 
 } from '../utils/barcodeReader';
+import { parseScaleBarcode } from '../utils/scaleBarcode';
 import { useFeatures } from '../context/useFeatures';
 
 // Modular POS Subcomponents & Hooks
@@ -930,8 +931,24 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     if (!scannedBarcode) return;
     try {
       setLoading(true);
-      const res = await invoke<unknown>('products:search', { query: scannedBarcode, limit: 5 });
-      const results = extractProducts(res);
+      const scaleInfo = parseScaleBarcode(scannedBarcode);
+      let scaleWeightMilli: number | undefined;
+
+      let res = await invoke<unknown>('products:search', { query: scannedBarcode, limit: 5 });
+      let results = extractProducts(res);
+
+      if ((!results || results.length === 0) && scaleInfo) {
+        res = await invoke<unknown>('products:search', { query: scaleInfo.itemPluTrimmed, limit: 5 });
+        results = extractProducts(res);
+        if (!results || results.length === 0) {
+          res = await invoke<unknown>('products:search', { query: scaleInfo.itemPlu, limit: 5 });
+          results = extractProducts(res);
+        }
+        if (results && results.length > 0) {
+          scaleWeightMilli = scaleInfo.weightMilli;
+        }
+      }
+
       if (results && results.length > 0) {
         let matchedUnit: ProductUnit | undefined;
         const exactMatch = results.find((p) => {
@@ -949,11 +966,12 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           matchedUnit = exactMatch.units.find(u => u.barcode === scannedBarcode);
         }
 
-        addProductToCart(exactMatch, undefined, matchedUnit);
+        addProductToCart(exactMatch, scaleWeightMilli, matchedUnit);
         setBarcodeQuery('');
         setIsSearchDropdownOpen(false);
         const unitSuffix = matchedUnit ? ` [${matchedUnit.unitName}]` : '';
-        showStatus(`تم مسح الباركود وإضافة: ${exactMatch.name}${unitSuffix}`, 'success');
+        const weightDesc = scaleWeightMilli ? ` (${(scaleWeightMilli / 1000000).toFixed(3)} كجم - ميزان)` : '';
+        showStatus(`تم مسح الباركود وإضافة: ${exactMatch.name}${unitSuffix}${weightDesc}`, 'success');
       } else {
         setUnregisteredBarcode(scannedBarcode);
         setIsQuickAddModalOpen(true);
@@ -1003,8 +1021,24 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
 
     try {
       setLoading(true);
-      const res = await invoke<unknown>('products:search', { query, limit: 10 });
-      const results = extractProducts(res);
+      const scaleInfo = parseScaleBarcode(query);
+      let scaleWeightMilli: number | undefined;
+
+      let res = await invoke<unknown>('products:search', { query, limit: 10 });
+      let results = extractProducts(res);
+
+      if ((!results || results.length === 0) && scaleInfo) {
+        res = await invoke<unknown>('products:search', { query: scaleInfo.itemPluTrimmed, limit: 5 });
+        results = extractProducts(res);
+        if (!results || results.length === 0) {
+          res = await invoke<unknown>('products:search', { query: scaleInfo.itemPlu, limit: 5 });
+          results = extractProducts(res);
+        }
+        if (results && results.length > 0) {
+          scaleWeightMilli = scaleInfo.weightMilli;
+        }
+      }
+
       if (results && results.length > 0) {
         let matchedUnit: ProductUnit | undefined;
         const targetProd = results.find((p) => {
@@ -1022,11 +1056,12 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           matchedUnit = targetProd.units.find(u => u.barcode === query);
         }
 
-        addProductToCart(targetProd, undefined, matchedUnit);
+        addProductToCart(targetProd, scaleWeightMilli, matchedUnit);
         setBarcodeQuery('');
         setIsSearchDropdownOpen(false);
         const unitSuffix = matchedUnit ? ` [${matchedUnit.unitName}]` : '';
-        showStatus(`تمت إضافة: ${targetProd.name}${unitSuffix}`, 'success');
+        const weightDesc = scaleWeightMilli ? ` (${(scaleWeightMilli / 1000000).toFixed(3)} كجم - ميزان)` : '';
+        showStatus(`تمت إضافة: ${targetProd.name}${unitSuffix}${weightDesc}`, 'success');
       } else {
         setUnregisteredBarcode(query);
         setIsQuickAddModalOpen(true);

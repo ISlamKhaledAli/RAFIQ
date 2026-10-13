@@ -408,7 +408,7 @@ namespace RafiqPOS.Repositories
                 FROM product_batches
                 WHERE product_id = @pid AND status = 'ACTIVE' AND quantity_milli > 0
                 ORDER BY 
-                    CASE WHEN expiry_date IS NULL THEN 1 ELSE 0 END ASC,
+                    CASE WHEN expiry_date IS NULL OR expiry_date = '' THEN 1 ELSE 0 END ASC,
                     expiry_date ASC,
                     created_at ASC;
             ";
