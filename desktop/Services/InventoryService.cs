@@ -173,6 +173,10 @@ namespace RafiqPOS.Services
                 {
                     throw new InvalidOperationException("المنتج غير موجود: " + productId);
                 }
+                if (product.HasVariants)
+                {
+                    throw new InvalidOperationException("لا يمكن إجراء تسوية جردية مباشرة على منتج أب له متغيرات. يرجى تسوية رصيد كل متغير (لون/مقاس) على حدة للحفاظ على مصفوفة الأصناف.");
+                }
 
                 long currentStock = product.StockQuantityMilli;
                 long delta = newStockQuantityMilli - currentStock;
@@ -360,6 +364,11 @@ namespace RafiqPOS.Services
                                 SET cost_piasters = @cost,
                                     updated_at = @now
                                 WHERE id = @pid;
+
+                                UPDATE product_units
+                                SET cost_price_piasters = @cost,
+                                    updated_at = @now
+                                WHERE product_id = @pid AND is_base_unit = 1;
                             ";
                             using (var cmd = new SQLiteCommand(updateCostSql, conn, trans))
                             {

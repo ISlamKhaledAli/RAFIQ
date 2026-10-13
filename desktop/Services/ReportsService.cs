@@ -30,11 +30,11 @@ namespace RafiqPOS.Services
                             CASE 
                                 WHEN s.payment_method = 'cash' THEN MAX(0, (s.paid_piasters - s.service_fee_piasters) - COALESCE(s.change_piasters, 0))
                                 WHEN s.payment_method = 'credit' THEN MIN((s.paid_piasters - s.service_fee_piasters), s.total_piasters)
-                                WHEN s.payment_method = 'multi' THEN (
+                                WHEN s.payment_method = 'multi' THEN MAX(0, (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
                                     WHERE p.sale_id = s.id AND p.method = 'cash'
-                                )
+                                ) - COALESCE(s.change_piasters, 0))
                                 ELSE 0 
                             END
                         ), 0) AS cash_sales,
@@ -262,6 +262,37 @@ namespace RafiqPOS.Services
                     {
                         summary.TodayProfitsPiasters = Convert.ToInt64(res);
                         summary.TodaySalesGrossProfitPiasters = summary.TodayProfitsPiasters;
+                    }
+                }
+
+                // Deduct returned gross profit & damaged return losses from gross profit
+                using (var checkRetCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='returns';", conn))
+                {
+                    if (checkRetCmd.ExecuteScalar() != null)
+                    {
+                        string retProfitSql = @"
+                            SELECT COALESCE(SUM(
+                                CASE 
+                                    WHEN ri.is_damaged = 1 THEN ri.total_piasters
+                                    ELSE (ri.total_piasters - (ri.quantity_milli * COALESCE(si.unit_cost_piasters, p.cost_piasters, 0) / 1000))
+                                END
+                            ), 0) AS returned_profit
+                            FROM return_items ri
+                            JOIN returns r ON ri.return_id = r.id
+                            LEFT JOIN sale_items si ON ri.sale_item_id = si.id
+                            LEFT JOIN products p ON ri.product_id = p.id
+                            WHERE (date(r.created_at, 'localtime') = date('now', 'localtime') OR date(r.created_at) = date('now'));
+                        ";
+                        using (var retProfCmd = new SQLiteCommand(retProfitSql, conn))
+                        {
+                            object retProfRes = retProfCmd.ExecuteScalar();
+                            if (retProfRes != null && retProfRes != DBNull.Value)
+                            {
+                                long returnedProfit = Convert.ToInt64(retProfRes);
+                                summary.TodayProfitsPiasters = Math.Max(0, summary.TodayProfitsPiasters - returnedProfit);
+                                summary.TodaySalesGrossProfitPiasters = summary.TodayProfitsPiasters;
+                            }
+                        }
                     }
                 }
 
@@ -532,11 +563,11 @@ namespace RafiqPOS.Services
                             CASE 
                                 WHEN s.payment_method = 'cash' THEN MAX(0, (s.paid_piasters - s.service_fee_piasters) - COALESCE(s.change_piasters, 0))
                                 WHEN s.payment_method = 'credit' THEN MIN((s.paid_piasters - s.service_fee_piasters), s.total_piasters)
-                                WHEN s.payment_method = 'multi' THEN (
+                                WHEN s.payment_method = 'multi' THEN MAX(0, (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
                                     WHERE p.sale_id = s.id AND p.method = 'cash'
-                                )
+                                ) - COALESCE(s.change_piasters, 0))
                                 ELSE 0 
                             END
                         ), 0) AS cash_sales,
@@ -695,6 +726,42 @@ namespace RafiqPOS.Services
                         {
                             report.GrossProfitPiasters = Convert.ToInt64(reader["total_profit"]);
                             report.ZeroCostItemsCount = Convert.ToInt32(reader["zero_cost_count"]);
+                        }
+                    }
+                }
+
+                // Deduct returned gross profit & damaged losses from gross profit in this period
+                using (var checkRetCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='returns';", conn))
+                {
+                    if (checkRetCmd.ExecuteScalar() != null)
+                    {
+                        string retDateClause = dateFilterClause.Replace("created_at", "r.created_at");
+                        string retProfitSql = string.Format(@"
+                            SELECT COALESCE(SUM(
+                                CASE 
+                                    WHEN ri.is_damaged = 1 THEN ri.total_piasters
+                                    ELSE (ri.total_piasters - (ri.quantity_milli * COALESCE(si.unit_cost_piasters, p.cost_piasters, 0) / 1000))
+                                END
+                            ), 0) AS returned_profit
+                            FROM return_items ri
+                            JOIN returns r ON ri.return_id = r.id
+                            LEFT JOIN sale_items si ON ri.sale_item_id = si.id
+                            LEFT JOIN products p ON ri.product_id = p.id
+                            WHERE {0};
+                        ", retDateClause);
+                        using (var retProfCmd = new SQLiteCommand(retProfitSql, conn))
+                        {
+                            if (period == "custom")
+                            {
+                                retProfCmd.Parameters.AddWithValue("@from", customFromDate);
+                                retProfCmd.Parameters.AddWithValue("@to", customToDate);
+                            }
+                            object retProfRes = retProfCmd.ExecuteScalar();
+                            if (retProfRes != null && retProfRes != DBNull.Value)
+                            {
+                                long returnedProfit = Convert.ToInt64(retProfRes);
+                                report.GrossProfitPiasters = Math.Max(0, report.GrossProfitPiasters - returnedProfit);
+                            }
                         }
                     }
                 }
