@@ -781,6 +781,258 @@ namespace RafiqPOS.Services
                 Assert(preview.CardSalesPiasters >= 3000, "احتساب مبيعات الفيزا بدقة (30 ج.م على الأقل)", result);
                 Assert(preview.ExpectedCashPiasters >= 2000, "احتساب نقدية الدرج المتوقعة مخصوماً منها الفكة المستردة (20 ج.م صافي بدلاً من 30 ج.م)", result);
 
+                // =========================================================================
+                // SCENARIO 12: إلغاء دفعات العملاء وضبط نقدية الإغلاق اليومي والملخص المالي
+                // =========================================================================
+                Console.WriteLine("--> Scenario 12: Customer Payment Cancellation & Daily Closing Net Drawer Integrity");
+                var custService = new CustomerService(custRepo);
+                var cancelCust = new Customer
+                {
+                    Name = "عميل سداد ملغي",
+                    Phone = "01099998888",
+                    BalancePiasters = 100000, // 1000 EGP debt
+                    CreditLimitPiasters = 500000
+                };
+                cancelCust = custRepo.SaveCustomer(cancelCust);
+
+                // Collect payment of 30,000 piasters (300 EGP) in cash
+                custService.RecordPayment(cancelCust.Id, 30000, "سداد نقدي من العميل");
+                var previewAfterPay = closingService.GetClosingPreview(todayDate);
+                Assert(previewAfterPay.DebtPaymentsPiasters >= 30000, "احتساب دفعة العميل النقدية في نقدية الدرج قبل الإلغاء", result);
+
+                // Cashier cancels the payment via contra-entry
+                var ledgerEntries = custService.GetStatement(cancelCust.Id, 10);
+                CustomerLedgerEntry payEntry = null;
+                for (int leIdx = 0; leIdx < ledgerEntries.Count; leIdx++)
+                {
+                    if (ledgerEntries[leIdx].Type == "payment")
+                    {
+                        payEntry = ledgerEntries[leIdx];
+                        break;
+                    }
+                }
+                Assert(payEntry != null, "العثور على حركة السداد الأصلية لإلغائها", result);
+                custService.CancelPayment(cancelCust.Id, payEntry.Id, "سجلت بالخطأ", "كاشير الصباح");
+
+                // Preview closing again: debt_payments should net out to 0!
+                var previewAfterCancel = closingService.GetClosingPreview(todayDate);
+                Assert(previewAfterCancel.DebtPaymentsPiasters == 0, "خصم القيد المعاكس payment_cancel من تحصيلات الديون بالإغلاق اليومي بدقة", result);
+
+                var repService = new ReportsService(tempConnStr);
+                var summaryAfterCancel = repService.GetTodaySummary();
+                Assert(summaryAfterCancel.TodayDebtPaymentsPiasters == 0, "خصم القيد المعاكس في تقرير الملخص المالي اليومي", result);
+
+                var custVerify = custService.VerifyBalance(cancelCust.Id);
+                Assert(custVerify.IsBalanced && custVerify.StoredBalancePiasters == 100000, "تطابق رصيد العميل بعد الإلغاء مع دفتر الأستاذ (1000 ج.م)", result);
+
+                // =========================================================================
+                // SCENARIO 13: التحقق الذاتي من دفتر أستاذ الموردين واستشفاء انحرافات الرصيد
+                // =========================================================================
+                Console.WriteLine("--> Scenario 13: Supplier Ledger Verification & Self-Healing");
+                var supplierService = new SupplierService(supplierRepo);
+                var supDrift = new Supplier
+                {
+                    Name = "مورد ألبان الواحة",
+                    Phone = "01155554444",
+                    CompanyName = "ألبان الواحة",
+                    BalancePiasters = 50000,
+                    IsActive = true
+                };
+                supDrift = supplierService.Save(supDrift);
+
+                // Record payment 20,000 piasters
+                supplierService.RecordPayment(supDrift.Id, 20000, "سداد دفعة من الحساب", "usr_tester");
+                var supVer1 = supplierService.VerifyBalance(supDrift.Id);
+                Assert(supVer1.IsBalanced && supVer1.StoredBalancePiasters == 30000 && supVer1.CalculatedBalancePiasters == 30000, "تطابق رصيد المورد مع حركات دفتر الأستاذ بدقة", result);
+
+                // Inject simulated drift into database
+                using (var driftConn = new SQLiteConnection(tempConnStr))
+                {
+                    driftConn.Open();
+                    using (var driftCmd = new SQLiteCommand("UPDATE suppliers SET balance_piasters = 99999 WHERE id = @id;", driftConn))
+                    {
+                        driftCmd.Parameters.AddWithValue("@id", supDrift.Id);
+                        driftCmd.ExecuteNonQuery();
+                    }
+                }
+
+                var supVer2 = supplierService.VerifyBalance(supDrift.Id);
+                Assert(!supVer2.IsBalanced && supVer2.DiscrepancyPiasters == 69999, "كشف انحراف رصيد المورد المحاكى عن دفتر الأستاذ", result);
+
+                var supDiscrepancies = supplierService.CheckDiscrepancies();
+                Assert(supDiscrepancies.Count > 0, "إدراج المورد في قائمة الانحرافات المالية المكتشفة", result);
+
+                // Auto-repair and reconcile balance
+                var healedSup = supplierService.RecalculateAndFixBalance(supDrift.Id, "usr_tester");
+                Assert(healedSup.BalancePiasters == 30000, "إعادة مواءمة رصيد المورد التالف تلقائياً إلى 30,000 قرش من دفتر الأستاذ", result);
+
+                var supVer3 = supplierService.VerifyBalance(supDrift.Id);
+                Assert(supVer3.IsBalanced && supVer3.DiscrepancyPiasters == 0, "استعادة توازن دفتر أستاذ المورد بعد المعالجة الذاتية بنسبة 100%", result);
+
+                // =========================================================================
+                // SCENARIO 14: مزامنة الوحدة الأساسية للمنتج مع جدول المنتجات عند التغيير والتعديل
+                // =========================================================================
+                Console.WriteLine("--> Scenario 14: Multi-Unit Base Unit Reassignment Synchronization");
+                var orangeProd = CreateTestProduct(prodRepo, "عصير برتقال طبيعي", "62277770001", 1500, 1000, 100000, "علبة");
+                var baseUnit = unitRepo.GetBaseUnit(orangeProd.Id);
+                Assert(baseUnit != null && baseUnit.UnitName == "علبة", "إنشاء الوحدة الأساسية الافتراضية 'علبة' تلقائياً عند استيراد المنتج", result);
+
+                var cartonUnit = new ProductUnit
+                {
+                    ProductId = orangeProd.Id,
+                    UnitName = "كرتونة",
+                    ConversionFactor = 24,
+                    IsBaseUnit = false,
+                    SellPricePiasters = 33000,
+                    CostPricePiasters = 22000,
+                    IsDivisible = false,
+                    SortOrder = 2
+                };
+                unitRepo.Create(cartonUnit);
+
+                // Reassign base unit to Carton
+                unitRepo.SetBaseUnit(orangeProd.Id, cartonUnit.Id);
+
+                var freshProd = prodRepo.GetById(orangeProd.Id);
+                Assert(freshProd.Unit == "كرتونة", "مزامنة الوحدة الأساسية في جدول المنتجات إلى 'كرتونة'", result);
+                Assert(freshProd.PricePiasters == 33000, "مزامنة سعر بيع الوحدة الأساسية الجديدة في جدول المنتجات (330 ج.م)", result);
+                Assert(freshProd.CostPiasters == 22000, "مزامنة تكلفة الوحدة الأساسية الجديدة في جدول المنتجات (220 ج.م)", result);
+
+                // Edit carton price via unitRepo.Update
+                cartonUnit.SellPricePiasters = 34000;
+                unitRepo.Update(cartonUnit);
+                var freshProd2 = prodRepo.GetById(orangeProd.Id);
+                Assert(freshProd2.PricePiasters == 34000, "تحديث سعر المنتج الرئيسي تلقائياً عند تعديل سعر الوحدة الأساسية", result);
+
+                // =========================================================================
+                // SCENARIO 15: حظر الماكينات الموقوفة والرصيد غير الكافي في ماكينات الدفع والتدقيق
+                // =========================================================================
+                Console.WriteLine("--> Scenario 15: E-Pay Inactive Terminal Guard & Audit Trail");
+                var epayRepo = new EpayRepository(tempConnStr, auditRepo);
+                var term = new EpayTerminal
+                {
+                    Name = "ماكينة فوري تجريبية",
+                    Provider = "fawry",
+                    BalancePiasters = 50000, // 500 EGP
+                    IsActive = false
+                };
+                term = epayRepo.SaveTerminal(term);
+
+                // Attempt transaction on inactive terminal
+                bool inactiveBlocked = false;
+                try
+                {
+                    epayRepo.CreateTransaction(new EpayTransaction
+                    {
+                        TerminalId = term.Id,
+                        ServiceType = "bill_payment",
+                        BillAmountPiasters = 10000,
+                        CustomerFeePiasters = 500,
+                        ProviderCommissionPiasters = 200,
+                        CashierName = "كاشير تجريبي"
+                    });
+                }
+                catch (InvalidOperationException ex)
+                {
+                    if (ex.Message.Contains("موقوفة ومُعطلة")) inactiveBlocked = true;
+                }
+                Assert(inactiveBlocked, "حظر إجراء أي معاملات على ماكينات الدفع الإلكتروني الموقوفة", result);
+
+                // Activate terminal
+                term.IsActive = true;
+                term = epayRepo.SaveTerminal(term);
+
+                // Attempt transaction exceeding balance
+                bool overbalanceBlocked = false;
+                try
+                {
+                    epayRepo.CreateTransaction(new EpayTransaction
+                    {
+                        TerminalId = term.Id,
+                        ServiceType = "bill_payment",
+                        BillAmountPiasters = 60000,
+                        CustomerFeePiasters = 500,
+                        ProviderCommissionPiasters = 200,
+                        MachineDeductedPiasters = 59800,
+                        CashierName = "كاشير تجريبي"
+                    });
+                }
+                catch (InvalidOperationException ex)
+                {
+                    if (ex.Message.Contains("غير كافٍ")) overbalanceBlocked = true;
+                }
+                Assert(overbalanceBlocked, "حظر المعاملات التي تتجاوز رصيد ماكينة الدفع الإلكتروني المسبقة الدفع", result);
+
+                // Fund terminal with 50,000 piasters (500 EGP)
+                var funding = epayRepo.FundTerminal(term.Id, 50000, "cash_drawer", "تغذية رصيد الماكينة", "usr_tester");
+                Assert(funding.NewBalancePiasters == 100000, "تغذية رصيد الماكينة بنجاح إلى 1,000 ج.م", result);
+
+                // Create valid bill transaction
+                var epayTx = epayRepo.CreateTransaction(new EpayTransaction
+                {
+                    TerminalId = term.Id,
+                    ServiceType = "bill_payment",
+                    ServiceName = "فاتورة كهرباء",
+                    BillAmountPiasters = 20000,
+                    CustomerFeePiasters = 500,
+                    ProviderCommissionPiasters = 200,
+                    MachineDeductedPiasters = 19800,
+                    CashierName = "كاشير تجريبي"
+                });
+                Assert(epayTx != null && epayTx.NetProfitPiasters == 700, "تسجيل معاملة الدفع الإلكتروني واحتساب صافي الربح 7 ج.م بدقة", result);
+
+                var termUpdated = epayRepo.GetTerminalById(term.Id);
+                Assert(termUpdated.BalancePiasters == 80200, "خصم الرصيد من الماكينة بدقة (100,000 - 19,800 = 80,200 قرش)", result);
+
+                var epayAudits = auditRepo.GetLogs(10, "epay_terminal_fund");
+                Assert(epayAudits.Count > 0, "تسجيل عملية تغذية الماكينة في سجل التدقيق الأمني المشفر", result);
+
+                // =========================================================================
+                // SCENARIO 16: السداد بالزيادة للموردين وتكوين رصيد دائن لصالحنا بدفتر الأستاذ
+                // =========================================================================
+                Console.WriteLine("--> Scenario 16: Supplier Purchase Overpayment & Advance Credit Invariant");
+                var advSupplier = new Supplier
+                {
+                    Name = "شركة النيل للتوزيع",
+                    Phone = "01233332222",
+                    CompanyName = "النيل",
+                    BalancePiasters = 0,
+                    IsActive = true
+                };
+                advSupplier = supplierRepo.Save(advSupplier);
+
+                var advProd = CreateTestProduct(prodRepo, "بسكويت سادة", "62288880001", 500, 350, 10000, "علبة");
+                var purchaseRepo = new PurchaseRepository(tempConnStr, counterRepo, supplierRepo, priceHistRepo, auditRepo, batchRepo);
+
+                var purchaseInvoice = new Purchase
+                {
+                    SupplierId = advSupplier.Id,
+                    SupplierName = advSupplier.Name,
+                    TotalCostPiasters = 3500, // 35.00 EGP net cost
+                    DiscountPiasters = 0,
+                    NetCostPiasters = 3500,
+                    PaidAmountPiasters = 5000, // 50.00 EGP paid (15.00 EGP advance credit)
+                    CreatedAt = DateTime.UtcNow.ToString("o")
+                };
+                purchaseInvoice.Items.Add(new PurchaseItem
+                {
+                    ProductId = advProd.Id,
+                    ProductName = advProd.Name,
+                    QuantityMilli = 10000,
+                    UnitCostPiasters = 350,
+                    TotalCostPiasters = 3500,
+                    CreatedAt = purchaseInvoice.CreatedAt
+                });
+
+                var createdPurchase = purchaseRepo.CreatePurchase(purchaseInvoice, "LATEST", "usr_tester");
+                Assert(createdPurchase != null && createdPurchase.InvoiceNumber > 0, "تسجيل فاتورة الشراء بسداد بالزيادة بنجاح", result);
+
+                var freshAdvSup = supplierRepo.GetById(advSupplier.Id);
+                Assert(freshAdvSup.BalancePiasters == -1500, "تحويل رصيد المورد إلى دائن لصالحنا (-15.00 ج.م) بدقة تامة", result);
+
+                var advSupVerify = supplierRepo.VerifyBalance(advSupplier.Id);
+                Assert(advSupVerify.IsBalanced && advSupVerify.StoredBalancePiasters == -1500 && advSupVerify.CalculatedBalancePiasters == -1500, "تطابق رصيد المورد الدائن مع حركة PURCHASE_OVERPAYMENT في دفتر الأستاذ", result);
+
                 result.Success = (result.PassedAssertions == result.TotalAssertions);
                 result.Message = string.Format("اكتمل فحص السينيور الاحترافي: {0}/{1} بنجاح تام", result.PassedAssertions, result.TotalAssertions);
             }

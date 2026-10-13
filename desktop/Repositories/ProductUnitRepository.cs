@@ -244,7 +244,16 @@ namespace RafiqPOS.Repositories
                 {
                     try
                     {
-                        if (unit.IsBaseUnit)
+                        bool isCurrentlyBase = false;
+                        using (var checkCmd = new SQLiteCommand("SELECT is_base_unit FROM product_units WHERE id = @id LIMIT 1;", conn, trans))
+                        {
+                            checkCmd.Parameters.AddWithValue("@id", unit.Id);
+                            object o = checkCmd.ExecuteScalar();
+                            if (o != null && o != DBNull.Value) isCurrentlyBase = (Convert.ToInt32(o) == 1);
+                        }
+                        bool isBase = unit.IsBaseUnit || isCurrentlyBase;
+
+                        if (isBase)
                         {
                             string unmarkSql = "UPDATE product_units SET is_base_unit = 0 WHERE product_id = @productId AND id != @id;";
                             using (var unmarkCmd = new SQLiteCommand(unmarkSql, conn, trans))
@@ -272,8 +281,8 @@ namespace RafiqPOS.Repositories
                         {
                             cmd.Parameters.AddWithValue("@id", unit.Id);
                             cmd.Parameters.AddWithValue("@unitName", unit.UnitName.Trim());
-                            cmd.Parameters.AddWithValue("@conversionFactor", unit.ConversionFactor);
-                            cmd.Parameters.AddWithValue("@isBaseUnit", unit.IsBaseUnit ? 1 : 0);
+                            cmd.Parameters.AddWithValue("@conversionFactor", isBase ? 1 : unit.ConversionFactor);
+                            cmd.Parameters.AddWithValue("@isBaseUnit", isBase ? 1 : 0);
                             cmd.Parameters.AddWithValue("@sellPrice", unit.SellPricePiasters);
                             cmd.Parameters.AddWithValue("@costPrice", unit.CostPricePiasters);
                             cmd.Parameters.AddWithValue("@barcode", string.IsNullOrWhiteSpace(unit.Barcode) ? (object)DBNull.Value : unit.Barcode.Trim());
@@ -281,6 +290,27 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@sortOrder", unit.SortOrder);
                             cmd.Parameters.AddWithValue("@updatedAt", unit.UpdatedAt);
                             cmd.ExecuteNonQuery();
+                        }
+
+                        if (isBase)
+                        {
+                            string syncProdSql = @"
+                                UPDATE products
+                                SET unit = @unitName,
+                                    price_piasters = @sellPrice,
+                                    cost_piasters = @costPrice,
+                                    updated_at = @updatedAt
+                                WHERE id = @productId;
+                            ";
+                            using (var syncCmd = new SQLiteCommand(syncProdSql, conn, trans))
+                            {
+                                syncCmd.Parameters.AddWithValue("@unitName", unit.UnitName.Trim());
+                                syncCmd.Parameters.AddWithValue("@sellPrice", unit.SellPricePiasters);
+                                syncCmd.Parameters.AddWithValue("@costPrice", unit.CostPricePiasters);
+                                syncCmd.Parameters.AddWithValue("@updatedAt", unit.UpdatedAt);
+                                syncCmd.Parameters.AddWithValue("@productId", unit.ProductId);
+                                syncCmd.ExecuteNonQuery();
+                            }
                         }
 
                         trans.Commit();
@@ -321,6 +351,7 @@ namespace RafiqPOS.Repositories
                 {
                     try
                     {
+                        string now = DateTime.UtcNow.ToString("o");
                         string resetSql = "UPDATE product_units SET is_base_unit = 0 WHERE product_id = @productId;";
                         using (var cmd = new SQLiteCommand(resetSql, conn, trans))
                         {
@@ -333,8 +364,25 @@ namespace RafiqPOS.Repositories
                         {
                             cmd.Parameters.AddWithValue("@unitId", unitId.Trim());
                             cmd.Parameters.AddWithValue("@productId", productId.Trim());
-                            cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
+                            cmd.Parameters.AddWithValue("@now", now);
                             cmd.ExecuteNonQuery();
+                        }
+
+                        // Synchronize products table with new base unit attributes
+                        string syncProductSql = @"
+                            UPDATE products
+                            SET unit = (SELECT unit_name FROM product_units WHERE id = @unitId),
+                                price_piasters = (SELECT sell_price_piasters FROM product_units WHERE id = @unitId),
+                                cost_piasters = (SELECT cost_price_piasters FROM product_units WHERE id = @unitId),
+                                updated_at = @now
+                            WHERE id = @productId;
+                        ";
+                        using (var syncCmd = new SQLiteCommand(syncProductSql, conn, trans))
+                        {
+                            syncCmd.Parameters.AddWithValue("@unitId", unitId.Trim());
+                            syncCmd.Parameters.AddWithValue("@productId", productId.Trim());
+                            syncCmd.Parameters.AddWithValue("@now", now);
+                            syncCmd.ExecuteNonQuery();
                         }
 
                         trans.Commit();

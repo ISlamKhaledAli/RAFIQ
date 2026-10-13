@@ -148,6 +148,57 @@ namespace RafiqPOS.Bridge
                     var transactions = DatabaseService.Suppliers.GetTransactions(txSupId, txLimit);
                     response = BridgeResponse.Ok(request.Id, transactions);
                     return true;
+
+                case "suppliers:verifyBalance":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "معرف المورد مفقود");
+                        return true;
+                    }
+                    JObject vObj = request.Payload as JObject;
+                    string vSupId = vObj != null && vObj["supplierId"] != null ? vObj["supplierId"].ToString() : request.Payload.ToString();
+                    var vResult = DatabaseService.Suppliers.VerifyBalance(vSupId);
+                    if (vResult == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "NOT_FOUND", "المورد غير موجود");
+                    }
+                    else
+                    {
+                        response = BridgeResponse.Ok(request.Id, vResult);
+                    }
+                    return true;
+
+                case "suppliers:recalculateBalance":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "معرف المورد مفقود");
+                        return true;
+                    }
+                    try
+                    {
+                        JObject rObj = request.Payload as JObject;
+                        string rSupId = rObj != null && rObj["supplierId"] != null ? rObj["supplierId"].ToString() : request.Payload.ToString();
+                        string rUserId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : null;
+                        var fixedSup = DatabaseService.Suppliers.RecalculateAndFixBalance(rSupId, rUserId);
+                        if (fixedSup == null)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "NOT_FOUND", "المورد غير موجود");
+                        }
+                        else
+                        {
+                            response = BridgeResponse.Ok(request.Id, fixedSup);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "RECALCULATE_FAILED", ex.Message);
+                    }
+                    return true;
+
+                case "suppliers:checkDiscrepancies":
+                    var discList = DatabaseService.Suppliers.CheckDiscrepancies();
+                    response = BridgeResponse.Ok(request.Id, discList);
+                    return true;
             }
 
             return false;
