@@ -397,6 +397,18 @@ namespace RafiqPOS.Services
 
             bool hasRegisteredCustomer = !string.IsNullOrWhiteSpace(sale.CustomerId) && sale.CustomerId != "cust_general_cash";
             bool isCashMethod = string.Equals(sale.PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase);
+            bool hasCashPayment = isCashMethod;
+            if (!hasCashPayment && sale.Payments != null)
+            {
+                for (int p = 0; p < sale.Payments.Count; p++)
+                {
+                    if (sale.Payments[p] != null && string.Equals(sale.Payments[p].Method, "cash", StringComparison.OrdinalIgnoreCase))
+                    {
+                        hasCashPayment = true;
+                        break;
+                    }
+                }
+            }
 
             // Unpaid remainder can only be recorded as debt on a registered customer account (Audit F-36)
             if (sale.PaidPiasters < sale.TotalPiasters && !hasRegisteredCustomer)
@@ -404,7 +416,7 @@ namespace RafiqPOS.Services
                 throw new InvalidOperationException("لا يمكن تسجيل فاتورة آجلة أو مدفوعة جزئياً بدون اختيار عميل مسجل.");
             }
 
-            if (sale.PaidPiasters > sale.TotalPiasters && isCashMethod)
+            if (sale.PaidPiasters > sale.TotalPiasters && hasCashPayment)
             {
                 if (hasRegisteredCustomer)
                 {

@@ -56,5 +56,23 @@ namespace RafiqPOS.Services
         {
             return _supplierRepo.GetTransactions(supplierId, limit);
         }
+
+        public SupplierBalanceVerification VerifyBalance(string supplierId)
+        {
+            return _supplierRepo.VerifyBalance(supplierId);
+        }
+
+        public Supplier RecalculateAndFixBalance(string supplierId, string userId = null)
+        {
+            lock (SaleService.FinancialWriteLock)
+            {
+                return _supplierRepo.RecalculateAndFixBalance(supplierId, userId);
+            }
+        }
+
+        public List<SupplierBalanceVerification> CheckDiscrepancies()
+        {
+            return _supplierRepo.CheckDiscrepancies();
+        }
     }
 }

@@ -421,8 +421,36 @@ namespace RafiqPOS.Repositories
             if (string.IsNullOrWhiteSpace(supplierId)) throw new ArgumentException("معرف المورد مطلوب");
             if (amountPiasters <= 0) throw new ArgumentException("مبلغ السداد يجب أن يكون أكبر من الصفر");
 
-            // Payment to supplier reduces what we owe (delta is negative balance)
-            AdjustBalance(supplierId, -amountPiasters, "PAYMENT", null, notes);
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var trans = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        // Payment to supplier reduces what we owe (delta is negative balance)
+                        AdjustBalance(supplierId, -amountPiasters, "PAYMENT", null, notes, conn, trans);
+
+                        _auditRepo.Log(conn, trans, new AuditLog
+                        {
+                            Id = "aud_" + Guid.NewGuid().ToString("N"),
+                            UserId = string.IsNullOrWhiteSpace(userId) ? "usr_admin_default" : userId,
+                            Action = "supplier_payment",
+                            EntityType = "suppliers",
+                            EntityId = supplierId,
+                            DetailsJson = string.Format("{{\"amountPiasters\":{0},\"notes\":\"{1}\"}}", amountPiasters, (notes ?? "").Replace("\"", "\\\"")),
+                            CreatedAt = DateTime.UtcNow.ToString("o")
+                        });
+
+                        trans.Commit();
+                    }
+                    catch
+                    {
+                        trans.Rollback();
+                        throw;
+                    }
+                }
+            }
         }
 
         public List<SupplierTransaction> GetTransactions(string supplierId, int limit = 50)
@@ -457,6 +485,119 @@ namespace RafiqPOS.Repositories
                 }
             }
             return list;
+        }
+
+        public SupplierBalanceVerification VerifyBalance(string supplierId)
+        {
+            if (string.IsNullOrWhiteSpace(supplierId)) return null;
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+
+                long storedBalance = 0;
+                string getBalSql = "SELECT balance_piasters FROM suppliers WHERE id = @id LIMIT 1;";
+                using (var cmd = new SQLiteCommand(getBalSql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", supplierId);
+                    object res = cmd.ExecuteScalar();
+                    if (res == null || res == DBNull.Value) return null;
+                    storedBalance = Convert.ToInt64(res);
+                }
+
+                long calculatedBalance = 0;
+                int entriesCount = 0;
+                string ledgerSql = "SELECT COALESCE(SUM(amount_piasters), 0) AS total_calc, COUNT(*) AS cnt FROM supplier_transactions WHERE supplier_id = @id;";
+                using (var cmd = new SQLiteCommand(ledgerSql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", supplierId);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            calculatedBalance = Convert.ToInt64(reader["total_calc"]);
+                            entriesCount = Convert.ToInt32(reader["cnt"]);
+                        }
+                    }
+                }
+
+                var verification = new SupplierBalanceVerification();
+                verification.SupplierId = supplierId;
+                verification.StoredBalancePiasters = storedBalance;
+                verification.CalculatedBalancePiasters = calculatedBalance;
+                verification.IsBalanced = (storedBalance == calculatedBalance);
+                verification.DiscrepancyPiasters = storedBalance - calculatedBalance;
+                verification.TotalEntriesCount = entriesCount;
+                return verification;
+            }
+        }
+
+        public Supplier RecalculateAndFixBalance(string supplierId, string userId = null)
+        {
+            var verify = VerifyBalance(supplierId);
+            if (verify == null) return null;
+
+            if (!verify.IsBalanced)
+            {
+                using (var conn = new SQLiteConnection(_connectionString))
+                {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction())
+                    {
+                        try
+                        {
+                            string now = DateTime.UtcNow.ToString("o");
+                            using (var cmd = new SQLiteCommand("UPDATE suppliers SET balance_piasters = @bal, updated_at = @now WHERE id = @id;", conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@bal", verify.CalculatedBalancePiasters);
+                                cmd.Parameters.AddWithValue("@now", now);
+                                cmd.Parameters.AddWithValue("@id", supplierId);
+                                cmd.ExecuteNonQuery();
+                            }
+
+                            if (_auditRepo != null)
+                            {
+                                string uid = string.IsNullOrWhiteSpace(userId) ? "usr_admin_default" : userId;
+                                _auditRepo.Log(conn, trans, new AuditLog
+                                {
+                                    Id = "aud_" + Guid.NewGuid().ToString("N"),
+                                    UserId = uid,
+                                    Action = "supplier_balance_realign",
+                                    EntityType = "supplier",
+                                    EntityId = supplierId,
+                                    DetailsJson = string.Format("{{\"storedBalance\":{0},\"ledgerBalance\":{1},\"discrepancy\":{2}}}",
+                                        verify.StoredBalancePiasters, verify.CalculatedBalancePiasters, verify.DiscrepancyPiasters),
+                                    CreatedAt = now
+                                });
+                            }
+
+                            trans.Commit();
+                        }
+                        catch
+                        {
+                            trans.Rollback();
+                            throw;
+                        }
+                    }
+                }
+            }
+
+            return GetById(supplierId);
+        }
+
+        public List<SupplierBalanceVerification> CheckDiscrepancies()
+        {
+            var results = new List<SupplierBalanceVerification>();
+            var allSuppliers = GetAll(true);
+            for (int i = 0; i < allSuppliers.Count; i++)
+            {
+                var v = VerifyBalance(allSuppliers[i].Id);
+                if (v != null && !v.IsBalanced)
+                {
+                    results.Add(v);
+                }
+            }
+            return results;
         }
 
         private static Supplier MapReaderToSupplier(SQLiteDataReader reader)

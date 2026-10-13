@@ -145,11 +145,11 @@ namespace RafiqPOS.Services
                                 -- Cash kept in the drawer = paid minus change handed back (includes cash deposited to a customer account - Audit F-27)
                                 WHEN s.payment_method = 'cash' THEN MAX(0, (s.paid_piasters - s.service_fee_piasters) - COALESCE(s.change_piasters, 0))
                                 WHEN s.payment_method = 'credit' THEN MIN((s.paid_piasters - s.service_fee_piasters), s.total_piasters)
-                                WHEN s.payment_method = 'multi' THEN (
+                                WHEN s.payment_method = 'multi' THEN MAX(0, (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
                                     WHERE p.sale_id = s.id AND p.method = 'cash'
-                                )
+                                ) - COALESCE(s.change_piasters, 0))
                                 ELSE 0 
                             END
                         ), 0) AS cash_sales,
@@ -278,8 +278,7 @@ namespace RafiqPOS.Services
                         END
                     ), 0) AS debt_payments
                     FROM customer_ledger
-                    WHERE type IN ('payment', 'payment_cancel')
-                      AND sale_id IS NULL
+                    WHERE ((type = 'payment' AND sale_id IS NULL) OR type = 'payment_cancel')
                       AND date(datetime(created_at, 'localtime', '-' || @cutoff || ' hours')) = @bdate
                       AND customer_id NOT LIKE 'demo_%';
                 ";

@@ -156,8 +156,7 @@ namespace RafiqPOS.Services
                         END
                     ), 0) AS total_debt_payments
                     FROM customer_ledger
-                    WHERE type IN ('payment', 'payment_cancel')
-                      AND sale_id IS NULL
+                    WHERE ((type = 'payment' AND sale_id IS NULL) OR type = 'payment_cancel')
                       AND (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'))
                       AND customer_id NOT LIKE 'demo_%';
                 ";

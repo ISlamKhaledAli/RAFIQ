@@ -264,26 +264,202 @@ namespace RafiqPOS.Repositories
                                     vSyncCmd.ExecuteNonQuery();
                                 }
 
-                                // Stock movement entry
-                                string insertMovementSql = @"
-                                    INSERT INTO stock_movements (
-                                        id, product_id, movement_type, quantity_milli, reference_id, reference_type,
-                                        unit_cost_piasters, note, batch_number, created_at
-                                    ) VALUES (
-                                        @mId, @mProdId, 'REFUND', @mQty, @mRefId, 'RETURN',
-                                        @mUnitCost, @mNote, NULL, @mNow
-                                    );
-                                ";
-                                using (var cmd = new SQLiteCommand(insertMovementSql, conn, trans))
+                                // Check if product has batches and restore batch inventory
+                                bool hasBatches = false;
+                                using (var bCheckCmd = new SQLiteCommand("SELECT 1 FROM product_batches WHERE product_id = @prodId LIMIT 1;", conn, trans))
                                 {
-                                    cmd.Parameters.AddWithValue("@mId", Guid.NewGuid().ToString());
-                                    cmd.Parameters.AddWithValue("@mProdId", item.ProductId);
-                                    cmd.Parameters.AddWithValue("@mQty", baseQtyMilli);
-                                    cmd.Parameters.AddWithValue("@mRefId", returnObj.Id);
-                                    cmd.Parameters.AddWithValue("@mUnitCost", unitCost);
-                                    cmd.Parameters.AddWithValue("@mNote", string.Format("مرتجع بضاعة #{0} (فاتورة #{1})", returnObj.ReturnNumber, returnObj.InvoiceNumber.HasValue ? returnObj.InvoiceNumber.Value.ToString() : "بدون"));
-                                    cmd.Parameters.AddWithValue("@mNow", nowIso);
-                                    cmd.ExecuteNonQuery();
+                                    bCheckCmd.Parameters.AddWithValue("@prodId", item.ProductId);
+                                    object bCheckRes = bCheckCmd.ExecuteScalar();
+                                    if (bCheckRes != null && bCheckRes != DBNull.Value) hasBatches = true;
+                                }
+
+                                if (hasBatches)
+                                {
+                                    long remainingToRestore = baseQtyMilli;
+                                    // 1. If linked to an original sale, find batches deducted in that sale
+                                    if (!string.IsNullOrEmpty(returnObj.SaleId))
+                                    {
+                                        var saleBatches = new List<Tuple<string, string, long>>();
+                                        string sBatchesSql = @"
+                                            SELECT sm.batch_id, pb.batch_number, ABS(sm.quantity_milli) AS deducted_qty
+                                            FROM stock_movements sm
+                                            JOIN product_batches pb ON sm.batch_id = pb.id
+                                            WHERE sm.reference_id = @sid AND sm.movement_type = 'SALE' AND sm.product_id = @prodId AND sm.batch_id IS NOT NULL
+                                            ORDER BY sm.created_at DESC;
+                                        ";
+                                        using (var sbCmd = new SQLiteCommand(sBatchesSql, conn, trans))
+                                        {
+                                            sbCmd.Parameters.AddWithValue("@sid", returnObj.SaleId);
+                                            sbCmd.Parameters.AddWithValue("@prodId", item.ProductId);
+                                            using (var sbReader = sbCmd.ExecuteReader())
+                                            {
+                                                while (sbReader.Read())
+                                                {
+                                                    string bId = sbReader["batch_id"].ToString();
+                                                    string bNum = sbReader["batch_number"].ToString();
+                                                    long dQty = Convert.ToInt64(sbReader["deducted_qty"]);
+                                                    saleBatches.Add(new Tuple<string, string, long>(bId, bNum, dQty));
+                                                }
+                                            }
+                                        }
+
+                                        for (int sbIdx = 0; sbIdx < saleBatches.Count && remainingToRestore > 0; sbIdx++)
+                                        {
+                                            string bId = saleBatches[sbIdx].Item1;
+                                            string bNum = saleBatches[sbIdx].Item2;
+                                            long dQty = saleBatches[sbIdx].Item3;
+
+                                            long alreadyRestored = 0;
+                                            using (var arCmd = new SQLiteCommand(@"
+                                                SELECT COALESCE(SUM(sm_ret.quantity_milli), 0)
+                                                FROM stock_movements sm_ret
+                                                JOIN returns r ON sm_ret.reference_id = r.id
+                                                WHERE r.sale_id = @sid AND sm_ret.movement_type = 'REFUND' AND sm_ret.batch_id = @bid;
+                                            ", conn, trans))
+                                            {
+                                                arCmd.Parameters.AddWithValue("@sid", returnObj.SaleId);
+                                                arCmd.Parameters.AddWithValue("@bid", bId);
+                                                object arRes = arCmd.ExecuteScalar();
+                                                if (arRes != null && arRes != DBNull.Value) alreadyRestored = Convert.ToInt64(arRes);
+                                            }
+
+                                            long canRestore = Math.Max(0, dQty - alreadyRestored);
+                                            if (canRestore > 0)
+                                            {
+                                                long restoreThis = Math.Min(remainingToRestore, canRestore);
+                                                using (var uBatchCmd = new SQLiteCommand("UPDATE product_batches SET quantity_milli = quantity_milli + @bQty, status = 'ACTIVE', updated_at = @now WHERE id = @bid;", conn, trans))
+                                                {
+                                                    uBatchCmd.Parameters.AddWithValue("@bQty", restoreThis);
+                                                    uBatchCmd.Parameters.AddWithValue("@now", nowIso);
+                                                    uBatchCmd.Parameters.AddWithValue("@bid", bId);
+                                                    uBatchCmd.ExecuteNonQuery();
+                                                }
+
+                                                // Record stock movement for this restored batch
+                                                using (var cmd = new SQLiteCommand(@"
+                                                    INSERT INTO stock_movements (
+                                                        id, product_id, movement_type, quantity_milli, reference_id, reference_type,
+                                                        unit_cost_piasters, note, batch_number, batch_id, created_at
+                                                    ) VALUES (
+                                                        @mId, @mProdId, 'REFUND', @mQty, @mRefId, 'RETURN',
+                                                        @mUnitCost, @mNote, @mBNum, @mBId, @mNow
+                                                    );", conn, trans))
+                                                {
+                                                    cmd.Parameters.AddWithValue("@mId", Guid.NewGuid().ToString());
+                                                    cmd.Parameters.AddWithValue("@mProdId", item.ProductId);
+                                                    cmd.Parameters.AddWithValue("@mQty", restoreThis);
+                                                    cmd.Parameters.AddWithValue("@mRefId", returnObj.Id);
+                                                    cmd.Parameters.AddWithValue("@mUnitCost", unitCost);
+                                                    cmd.Parameters.AddWithValue("@mNote", string.Format("مرتجع بضاعة #{0} (فاتورة #{1}) - دفعة {2}", returnObj.ReturnNumber, returnObj.InvoiceNumber.HasValue ? returnObj.InvoiceNumber.Value.ToString() : "بدون", bNum));
+                                                    cmd.Parameters.AddWithValue("@mBNum", bNum);
+                                                    cmd.Parameters.AddWithValue("@mBId", bId);
+                                                    cmd.Parameters.AddWithValue("@mNow", nowIso);
+                                                    cmd.ExecuteNonQuery();
+                                                }
+
+                                                remainingToRestore -= restoreThis;
+                                            }
+                                        }
+                                    }
+
+                                    // If still remaining (e.g. without invoice or excess), restore to latest active/available batch
+                                    if (remainingToRestore > 0)
+                                    {
+                                        string fallbackBatchId = null;
+                                        string fallbackBatchNum = null;
+                                        using (var fbCmd = new SQLiteCommand("SELECT id, batch_number FROM product_batches WHERE product_id = @prodId ORDER BY (CASE WHEN status = 'ACTIVE' THEN 1 ELSE 2 END), created_at DESC LIMIT 1;", conn, trans))
+                                        {
+                                            fbCmd.Parameters.AddWithValue("@prodId", item.ProductId);
+                                            using (var fbReader = fbCmd.ExecuteReader())
+                                            {
+                                                if (fbReader.Read())
+                                                {
+                                                    fallbackBatchId = fbReader["id"].ToString();
+                                                    fallbackBatchNum = fbReader["batch_number"].ToString();
+                                                }
+                                            }
+                                        }
+
+                                        if (!string.IsNullOrEmpty(fallbackBatchId))
+                                        {
+                                            using (var uBatchCmd = new SQLiteCommand("UPDATE product_batches SET quantity_milli = quantity_milli + @bQty, status = 'ACTIVE', updated_at = @now WHERE id = @bid;", conn, trans))
+                                            {
+                                                uBatchCmd.Parameters.AddWithValue("@bQty", remainingToRestore);
+                                                uBatchCmd.Parameters.AddWithValue("@now", nowIso);
+                                                uBatchCmd.Parameters.AddWithValue("@bid", fallbackBatchId);
+                                                uBatchCmd.ExecuteNonQuery();
+                                            }
+
+                                            using (var cmd = new SQLiteCommand(@"
+                                                INSERT INTO stock_movements (
+                                                    id, product_id, movement_type, quantity_milli, reference_id, reference_type,
+                                                    unit_cost_piasters, note, batch_number, batch_id, created_at
+                                                ) VALUES (
+                                                    @mId, @mProdId, 'REFUND', @mQty, @mRefId, 'RETURN',
+                                                    @mUnitCost, @mNote, @mBNum, @mBId, @mNow
+                                                );", conn, trans))
+                                            {
+                                                cmd.Parameters.AddWithValue("@mId", Guid.NewGuid().ToString());
+                                                cmd.Parameters.AddWithValue("@mProdId", item.ProductId);
+                                                cmd.Parameters.AddWithValue("@mQty", remainingToRestore);
+                                                cmd.Parameters.AddWithValue("@mRefId", returnObj.Id);
+                                                cmd.Parameters.AddWithValue("@mUnitCost", unitCost);
+                                                cmd.Parameters.AddWithValue("@mNote", string.Format("مرتجع بضاعة #{0} (فاتورة #{1}) - دفعة {2}", returnObj.ReturnNumber, returnObj.InvoiceNumber.HasValue ? returnObj.InvoiceNumber.Value.ToString() : "بدون", fallbackBatchNum));
+                                                cmd.Parameters.AddWithValue("@mBNum", fallbackBatchNum);
+                                                cmd.Parameters.AddWithValue("@mBId", fallbackBatchId);
+                                                cmd.Parameters.AddWithValue("@mNow", nowIso);
+                                                cmd.ExecuteNonQuery();
+                                            }
+                                            remainingToRestore = 0;
+                                        }
+                                    }
+
+                                    // If for any reason no batch row was found, insert standard movement
+                                    if (remainingToRestore > 0)
+                                    {
+                                        using (var cmd = new SQLiteCommand(@"
+                                            INSERT INTO stock_movements (
+                                                id, product_id, movement_type, quantity_milli, reference_id, reference_type,
+                                                unit_cost_piasters, note, batch_number, created_at
+                                            ) VALUES (
+                                                @mId, @mProdId, 'REFUND', @mQty, @mRefId, 'RETURN',
+                                                @mUnitCost, @mNote, NULL, @mNow
+                                            );", conn, trans))
+                                        {
+                                            cmd.Parameters.AddWithValue("@mId", Guid.NewGuid().ToString());
+                                            cmd.Parameters.AddWithValue("@mProdId", item.ProductId);
+                                            cmd.Parameters.AddWithValue("@mQty", remainingToRestore);
+                                            cmd.Parameters.AddWithValue("@mRefId", returnObj.Id);
+                                            cmd.Parameters.AddWithValue("@mUnitCost", unitCost);
+                                            cmd.Parameters.AddWithValue("@mNote", string.Format("مرتجع بضاعة #{0} (فاتورة #{1})", returnObj.ReturnNumber, returnObj.InvoiceNumber.HasValue ? returnObj.InvoiceNumber.Value.ToString() : "بدون"));
+                                            cmd.Parameters.AddWithValue("@mNow", nowIso);
+                                            cmd.ExecuteNonQuery();
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    // Stock movement entry without batches
+                                    string insertMovementSql = @"
+                                        INSERT INTO stock_movements (
+                                            id, product_id, movement_type, quantity_milli, reference_id, reference_type,
+                                            unit_cost_piasters, note, batch_number, created_at
+                                        ) VALUES (
+                                            @mId, @mProdId, 'REFUND', @mQty, @mRefId, 'RETURN',
+                                            @mUnitCost, @mNote, NULL, @mNow
+                                        );
+                                    ";
+                                    using (var cmd = new SQLiteCommand(insertMovementSql, conn, trans))
+                                    {
+                                        cmd.Parameters.AddWithValue("@mId", Guid.NewGuid().ToString());
+                                        cmd.Parameters.AddWithValue("@mProdId", item.ProductId);
+                                        cmd.Parameters.AddWithValue("@mQty", baseQtyMilli);
+                                        cmd.Parameters.AddWithValue("@mRefId", returnObj.Id);
+                                        cmd.Parameters.AddWithValue("@mUnitCost", unitCost);
+                                        cmd.Parameters.AddWithValue("@mNote", string.Format("مرتجع بضاعة #{0} (فاتورة #{1})", returnObj.ReturnNumber, returnObj.InvoiceNumber.HasValue ? returnObj.InvoiceNumber.Value.ToString() : "بدون"));
+                                        cmd.Parameters.AddWithValue("@mNow", nowIso);
+                                        cmd.ExecuteNonQuery();
+                                    }
                                 }
                             }
                             else

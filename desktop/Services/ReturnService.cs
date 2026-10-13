@@ -270,12 +270,24 @@ namespace RafiqPOS.Services
                     // If returning an unpaid credit sale, cash cannot be disbursed from drawer;
                     // it must be routed to 'credit' to reduce customer debt.
                     long netCashPaidOnOrig = 0;
-                    if (string.Equals(origSale.PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase))
+                    if (origSale.Payments != null && origSale.Payments.Count > 0)
+                    {
+                        long cashSum = 0;
+                        for (int p = 0; p < origSale.Payments.Count; p++)
+                        {
+                            var pm = origSale.Payments[p];
+                            if (pm != null && string.Equals(pm.Method, "cash", StringComparison.OrdinalIgnoreCase))
+                            {
+                                cashSum += pm.AmountPiasters;
+                            }
+                        }
+                        netCashPaidOnOrig = Math.Max(0, cashSum - origSale.ChangePiasters);
+                    }
+                    else if (string.Equals(origSale.PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase))
                     {
                         netCashPaidOnOrig = Math.Max(0, origSale.PaidPiasters - origSale.ChangePiasters);
                     }
-                    else if (string.Equals(origSale.PaymentMethod, "credit", StringComparison.OrdinalIgnoreCase) ||
-                             string.Equals(origSale.PaymentMethod, "multi", StringComparison.OrdinalIgnoreCase))
+                    else if (string.Equals(origSale.PaymentMethod, "credit", StringComparison.OrdinalIgnoreCase))
                     {
                         netCashPaidOnOrig = Math.Max(0, origSale.PaidPiasters);
                     }
@@ -300,27 +312,13 @@ namespace RafiqPOS.Services
                     {
                         if (netCashPaidOnOrig <= 0)
                         {
-                            if (!string.IsNullOrEmpty(returnObj.CustomerId))
-                            {
-                                returnObj.RefundMethod = "credit";
-                            }
-                            else
-                            {
-                                throw new InvalidOperationException("لا يمكن صرف مرتجع نقدي من الدرج لفاتورة بيع آجل لم يُسدد منها مبالغ نقدية. يجب اختيار استرداد كرصيد آجل (credit).");
-                            }
+                            throw new InvalidOperationException("لا يمكن صرف مرتجع نقدي من الدرج لفاتورة بيع لم يُسدد منها مبالغ نقدية. يجب اختيار استرداد كرصيد آجل (credit).");
                         }
                         else if (currentReturnTotal > allowableCashRefund)
                         {
-                            if (!string.IsNullOrEmpty(returnObj.CustomerId) && allowableCashRefund == 0)
-                            {
-                                returnObj.RefundMethod = "credit";
-                            }
-                            else
-                            {
-                                throw new InvalidOperationException(string.Format(
-                                    "لا يمكن صرف مرتجع نقدي من الدرج بمبلغ ({0:N2} ج.م) يتجاوز النقد المسدد فعلياً في الفاتورة الأصلية ({1:N2} ج.م). يجب اختيار الاسترداد كرصيد آجل (credit) لخصم القيمة من حساب العميل.",
-                                    currentReturnTotal / 100.0, allowableCashRefund / 100.0));
-                            }
+                            throw new InvalidOperationException(string.Format(
+                                "لا يمكن صرف مرتجع نقدي من الدرج بمبلغ ({0:N2} ج.م) يتجاوز النقد المسدد فعلياً في الفاتورة الأصلية ({1:N2} ج.م). يجب اختيار الاسترداد كرصيد آجل (credit) لخصم القيمة من حساب العميل.",
+                                currentReturnTotal / 100.0, allowableCashRefund / 100.0));
                         }
                     }
                 }

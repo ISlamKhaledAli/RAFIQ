@@ -35,4 +35,25 @@ namespace RafiqPOS.Models
         [JsonProperty("updatedAt")]
         public string UpdatedAt { get; set; }
     }
+
+    public class SupplierBalanceVerification
+    {
+        [JsonProperty("supplierId")]
+        public string SupplierId { get; set; }
+
+        [JsonProperty("storedBalancePiasters")]
+        public long StoredBalancePiasters { get; set; }
+
+        [JsonProperty("calculatedBalancePiasters")]
+        public long CalculatedBalancePiasters { get; set; }
+
+        [JsonProperty("isBalanced")]
+        public bool IsBalanced { get; set; }
+
+        [JsonProperty("discrepancyPiasters")]
+        public long DiscrepancyPiasters { get; set; }
+
+        [JsonProperty("totalEntriesCount")]
+        public int TotalEntriesCount { get; set; }
+    }
 }

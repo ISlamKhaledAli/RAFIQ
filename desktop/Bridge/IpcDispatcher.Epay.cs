@@ -15,7 +15,7 @@ namespace RafiqPOS.Bridge
         {
             if (_epayRepo == null)
             {
-                _epayRepo = new EpayRepository(DatabaseService.ConnectionString);
+                _epayRepo = new EpayRepository(DatabaseService.ConnectionString, DatabaseService.AuditRepo);
             }
             return _epayRepo;
         }
@@ -49,8 +49,11 @@ namespace RafiqPOS.Bridge
                             response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "اسم الماكينة مطلوب");
                             return true;
                         }
-                        var saved = repo.SaveTerminal(terminal);
-                        response = BridgeResponse.Ok(request.Id, saved);
+                        lock (SaleService.FinancialWriteLock)
+                        {
+                            var saved = repo.SaveTerminal(terminal);
+                            response = BridgeResponse.Ok(request.Id, saved);
+                        }
                         return true;
                     }
 
@@ -81,8 +84,11 @@ namespace RafiqPOS.Bridge
                             return true;
                         }
 
-                        var funding = repo.FundTerminal(terminalId, amountPiasters, fundingSource, notes, createdBy);
-                        response = BridgeResponse.Ok(request.Id, funding);
+                        lock (SaleService.FinancialWriteLock)
+                        {
+                            var funding = repo.FundTerminal(terminalId, amountPiasters, fundingSource, notes, createdBy);
+                            response = BridgeResponse.Ok(request.Id, funding);
+                        }
                         return true;
                     }
 
@@ -112,8 +118,18 @@ namespace RafiqPOS.Bridge
                             return true;
                         }
 
-                        var created = repo.CreateTransaction(tx);
-                        response = BridgeResponse.Ok(request.Id, created);
+                        try
+                        {
+                            lock (SaleService.FinancialWriteLock)
+                            {
+                                var created = repo.CreateTransaction(tx);
+                                response = BridgeResponse.Ok(request.Id, created);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "TRANSACTION_FAILED", ex.Message);
+                        }
                         return true;
                     }
 

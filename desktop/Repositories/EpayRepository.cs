@@ -8,10 +8,12 @@ namespace RafiqPOS.Repositories
     public class EpayRepository
     {
         private readonly string _connectionString;
+        private readonly AuditLogRepository _auditRepo;
 
-        public EpayRepository(string connectionString)
+        public EpayRepository(string connectionString, AuditLogRepository auditRepo = null)
         {
             _connectionString = connectionString;
+            _auditRepo = auditRepo ?? new AuditLogRepository(connectionString);
         }
 
         public List<EpayTerminal> GetAllTerminals()
@@ -178,6 +180,21 @@ namespace RafiqPOS.Repositories
                             cmd.ExecuteNonQuery();
                         }
 
+                        if (_auditRepo != null)
+                        {
+                            _auditRepo.Log(conn, trans, new AuditLog
+                            {
+                                Id = "aud_" + Guid.NewGuid().ToString("N"),
+                                UserId = string.IsNullOrWhiteSpace(createdBy) ? "usr_admin_default" : createdBy,
+                                Action = "epay_terminal_fund",
+                                EntityType = "epay_terminal",
+                                EntityId = terminalId,
+                                DetailsJson = string.Format("{{\"amount\":{0},\"source\":\"{1}\",\"previousBalance\":{2},\"newBalance\":{3}}}",
+                                    amountPiasters, fundingSource ?? "cash_drawer", prevBal, newBal),
+                                CreatedAt = now
+                            });
+                        }
+
                         trans.Commit();
                     }
                     catch
@@ -240,8 +257,10 @@ namespace RafiqPOS.Repositories
                 {
                     try
                     {
-                        // 1. Get terminal info and check balance
-                        string getTermSql = "SELECT name, balance_piasters FROM epay_terminals WHERE id = @id LIMIT 1;";
+                        // 1. Get terminal info and check balance & status
+                        bool isActive = true;
+                        long currentTermBal = 0;
+                        string getTermSql = "SELECT name, balance_piasters, is_active FROM epay_terminals WHERE id = @id LIMIT 1;";
                         using (var cmd = new SQLiteCommand(getTermSql, conn, trans))
                         {
                             cmd.Parameters.AddWithValue("@id", tx.TerminalId);
@@ -252,7 +271,14 @@ namespace RafiqPOS.Repositories
                                     throw new InvalidOperationException("ماكينة الدفع المحددة غير موجودة");
                                 }
                                 tx.TerminalName = reader["name"].ToString();
+                                currentTermBal = Convert.ToInt64(reader["balance_piasters"]);
+                                isActive = Convert.ToInt32(reader["is_active"]) == 1;
                             }
+                        }
+
+                        if (!isActive)
+                        {
+                            throw new InvalidOperationException("ماكينة الدفع الإلكتروني موقوفة ومُعطلة حالياً ولا يمكن إجراء معاملات عليها");
                         }
 
                         // 2. Adjust terminal balance atomically
@@ -266,6 +292,12 @@ namespace RafiqPOS.Repositories
                         else
                         {
                             balanceDelta = -tx.MachineDeductedPiasters;
+                        }
+
+                        if (balanceDelta < 0 && (currentTermBal + balanceDelta) < 0)
+                        {
+                            throw new InvalidOperationException(string.Format("رصيد ماكينة الدفع الإلكتروني غير كافٍ لإتمام العملية (الرصيد الحالي: {0:N2} ج.م، المطلوب خصمه: {1:N2} ج.م)",
+                                currentTermBal / 100.0, Math.Abs(balanceDelta) / 100.0));
                         }
 
                         string updateBalSql = @"
@@ -317,6 +349,21 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@notes", (object)tx.Notes ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@now", now);
                             cmd.ExecuteNonQuery();
+                        }
+
+                        if (_auditRepo != null)
+                        {
+                            _auditRepo.Log(conn, trans, new AuditLog
+                            {
+                                Id = "aud_" + Guid.NewGuid().ToString("N"),
+                                UserId = string.IsNullOrWhiteSpace(tx.CashierName) ? "usr_admin_default" : tx.CashierName,
+                                Action = "epay_transaction_create",
+                                EntityType = "epay_transaction",
+                                EntityId = tx.Id,
+                                DetailsJson = string.Format("{{\"serviceType\":\"{0}\",\"billAmount\":{1},\"fee\":{2},\"netProfit\":{3},\"terminalId\":\"{4}\"}}",
+                                    tx.ServiceType, tx.BillAmountPiasters, tx.CustomerFeePiasters, tx.NetProfitPiasters, tx.TerminalId),
+                                CreatedAt = now
+                            });
                         }
 
                         trans.Commit();

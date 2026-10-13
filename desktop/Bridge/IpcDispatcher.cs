@@ -205,6 +205,7 @@ namespace RafiqPOS.Bridge
             { "suppliers:restore", "suppliers.manage" },
             { "suppliers:delete", "suppliers.manage" },
             { "suppliers:recordPayment", "suppliers.manage" },
+            { "suppliers:recalculateBalance", REQUIRE_ADMIN },
 
             { "customers:save", "customers.create" },
             { "customers:archive", "customers.edit" },
