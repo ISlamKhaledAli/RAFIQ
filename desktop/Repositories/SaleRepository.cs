@@ -105,90 +105,134 @@ namespace RafiqPOS.Repositories
                                 cmd.ExecuteNonQuery();
                             }
 
-                            // Deduct Stock Quantity atomically by base units (Feature #161 / Task 161-6)
-                            string updateStockSql = @"
-                                UPDATE products 
-                                SET stock_quantity_milli = stock_quantity_milli - @qty,
-                                    updated_at = @now
-                                WHERE id = @prodId;
-                            ";
-                            using (var cmd = new SQLiteCommand(updateStockSql, conn, trans))
+                            // Check if this item is a tracked warehouse product (Audit F-28 / Quick Items Support)
+                            bool prodExistsInDb = false;
+                            using (var chkCmd = new SQLiteCommand("SELECT 1 FROM products WHERE id = @chkId LIMIT 1;", conn, trans))
                             {
-                                cmd.Parameters.AddWithValue("@qty", baseQtyDeductionMilli);
-                                cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
-                                cmd.Parameters.AddWithValue("@prodId", item.ProductId);
-                                cmd.ExecuteNonQuery();
-                            }
-
-                            // If this product is a variant (has parent_id), synchronize variant table and parent product total stock
-                            string syncVariantStockSql = @"
-                                UPDATE product_variants
-                                SET stock_quantity_milli = stock_quantity_milli - @qty,
-                                    updated_at = @now
-                                WHERE variant_product_id = @prodId;
-
-                                UPDATE products
-                                SET stock_quantity_milli = (
-                                    SELECT COALESCE(SUM(p2.stock_quantity_milli), 0)
-                                    FROM products p2
-                                    WHERE p2.parent_id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @prodId)
-                                ),
-                                updated_at = @now
-                                WHERE id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @prodId AND p1.parent_id IS NOT NULL);
-                            ";
-                            using (var vSyncCmd = new SQLiteCommand(syncVariantStockSql, conn, trans))
-                            {
-                                vSyncCmd.Parameters.AddWithValue("@qty", baseQtyDeductionMilli);
-                                vSyncCmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
-                                vSyncCmd.Parameters.AddWithValue("@prodId", item.ProductId);
-                                vSyncCmd.ExecuteNonQuery();
-                            }
-
-                            // Deduct from batches using FEFO (Feature #60 / Task 60-4)
-                            var batchDeductions = _batchRepo.DeductFromBatchesFefo(item.ProductId, baseQtyDeductionMilli, conn, trans);
-                            
-                            // If batches were deducted, record each batch stock movement; otherwise record single movement
-                            if (batchDeductions != null && batchDeductions.Count > 0)
-                            {
-                                long totalBatchDeducted = 0;
-                                for (int bIdx = 0; bIdx < batchDeductions.Count; bIdx++)
+                                chkCmd.Parameters.AddWithValue("@chkId", item.ProductId);
+                                object chkRes = chkCmd.ExecuteScalar();
+                                if (chkRes != null && chkRes != DBNull.Value)
                                 {
-                                    var bDed = batchDeductions[bIdx];
-                                    totalBatchDeducted += bDed.DeductedQuantityMilli;
+                                    prodExistsInDb = true;
+                                }
+                            }
 
-                                    string insertMovementSql = @"
-                                        INSERT INTO stock_movements (
-                                            id, product_id, movement_type, quantity_milli, reference_id, reference_type,
-                                            unit_cost_piasters, note, batch_number, batch_id, created_at
-                                        ) VALUES (
-                                            @mId, @mProdId, 'SALE', @mQty, @mRefId, 'SALE',
-                                            @mUnitCost, @mNote, @mBatchNum, @mBatchId, @mNow
-                                        );
-                                    ";
-                                    using (var cmd = new SQLiteCommand(insertMovementSql, conn, trans))
-                                    {
-                                        cmd.Parameters.AddWithValue("@mId", Guid.NewGuid().ToString());
-                                        cmd.Parameters.AddWithValue("@mProdId", item.ProductId);
-                                        cmd.Parameters.AddWithValue("@mQty", -bDed.DeductedQuantityMilli);
-                                        cmd.Parameters.AddWithValue("@mRefId", sale.Id);
-                                        cmd.Parameters.AddWithValue("@mUnitCost", item.UnitCostPiasters);
-                                        string movementNote = "مبيعات كاشير [دفعة " + bDed.BatchNumber + "] - فاتورة #" + (sale.InvoiceNumber > 0 ? sale.InvoiceNumber.ToString() : sale.Id);
-                                        if (!string.IsNullOrWhiteSpace(item.UnitName))
-                                        {
-                                            movementNote += string.Format(" ({0})", item.UnitName);
-                                        }
-                                        cmd.Parameters.AddWithValue("@mNote", movementNote);
-                                        cmd.Parameters.AddWithValue("@mBatchNum", bDed.BatchNumber);
-                                        cmd.Parameters.AddWithValue("@mBatchId", bDed.BatchId);
-                                        cmd.Parameters.AddWithValue("@mNow", DateTime.UtcNow.ToString("o"));
-                                        cmd.ExecuteNonQuery();
-                                    }
+                            if (prodExistsInDb)
+                            {
+                                // Deduct Stock Quantity atomically by base units (Feature #161 / Task 161-6)
+                                string updateStockSql = @"
+                                    UPDATE products 
+                                    SET stock_quantity_milli = stock_quantity_milli - @qty,
+                                        updated_at = @now
+                                    WHERE id = @prodId;
+                                ";
+                                using (var cmd = new SQLiteCommand(updateStockSql, conn, trans))
+                                {
+                                    cmd.Parameters.AddWithValue("@qty", baseQtyDeductionMilli);
+                                    cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
+                                    cmd.Parameters.AddWithValue("@prodId", item.ProductId);
+                                    cmd.ExecuteNonQuery();
                                 }
 
-                                // If the requested quantity exceeded available batch quantity, record the remainder without batch
-                                long remainder = baseQtyDeductionMilli - totalBatchDeducted;
-                                if (remainder > 0)
+                                // If this product is a variant (has parent_id), synchronize variant table and parent product total stock
+                                string syncVariantStockSql = @"
+                                    UPDATE product_variants
+                                    SET stock_quantity_milli = stock_quantity_milli - @qty,
+                                        updated_at = @now
+                                    WHERE variant_product_id = @prodId;
+
+                                    UPDATE products
+                                    SET stock_quantity_milli = (
+                                        SELECT COALESCE(SUM(p2.stock_quantity_milli), 0)
+                                        FROM products p2
+                                        WHERE p2.parent_id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @prodId)
+                                    ),
+                                    updated_at = @now
+                                    WHERE id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @prodId AND p1.parent_id IS NOT NULL);
+                                ";
+                                using (var vSyncCmd = new SQLiteCommand(syncVariantStockSql, conn, trans))
                                 {
+                                    vSyncCmd.Parameters.AddWithValue("@qty", baseQtyDeductionMilli);
+                                    vSyncCmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
+                                    vSyncCmd.Parameters.AddWithValue("@prodId", item.ProductId);
+                                    vSyncCmd.ExecuteNonQuery();
+                                }
+
+                                // Deduct from batches using FEFO (Feature #60 / Task 60-4)
+                                var batchDeductions = _batchRepo.DeductFromBatchesFefo(item.ProductId, baseQtyDeductionMilli, conn, trans);
+                                
+                                // If batches were deducted, record each batch stock movement; otherwise record single movement
+                                if (batchDeductions != null && batchDeductions.Count > 0)
+                                {
+                                    long totalBatchDeducted = 0;
+                                    for (int bIdx = 0; bIdx < batchDeductions.Count; bIdx++)
+                                    {
+                                        var bDed = batchDeductions[bIdx];
+                                        totalBatchDeducted += bDed.DeductedQuantityMilli;
+
+                                        string insertMovementSql = @"
+                                            INSERT INTO stock_movements (
+                                                id, product_id, movement_type, quantity_milli, reference_id, reference_type,
+                                                unit_cost_piasters, note, batch_number, batch_id, created_at
+                                            ) VALUES (
+                                                @mId, @mProdId, 'SALE', @mQty, @mRefId, 'SALE',
+                                                @mUnitCost, @mNote, @mBatchNum, @mBatchId, @mNow
+                                            );
+                                        ";
+                                        using (var cmd = new SQLiteCommand(insertMovementSql, conn, trans))
+                                        {
+                                            cmd.Parameters.AddWithValue("@mId", Guid.NewGuid().ToString());
+                                            cmd.Parameters.AddWithValue("@mProdId", item.ProductId);
+                                            cmd.Parameters.AddWithValue("@mQty", -bDed.DeductedQuantityMilli);
+                                            cmd.Parameters.AddWithValue("@mRefId", sale.Id);
+                                            cmd.Parameters.AddWithValue("@mUnitCost", item.UnitCostPiasters);
+                                            string movementNote = "مبيعات كاشير [دفعة " + bDed.BatchNumber + "] - فاتورة #" + (sale.InvoiceNumber > 0 ? sale.InvoiceNumber.ToString() : sale.Id);
+                                            if (!string.IsNullOrWhiteSpace(item.UnitName))
+                                            {
+                                                movementNote += string.Format(" ({0})", item.UnitName);
+                                            }
+                                            cmd.Parameters.AddWithValue("@mNote", movementNote);
+                                            cmd.Parameters.AddWithValue("@mBatchNum", bDed.BatchNumber);
+                                            cmd.Parameters.AddWithValue("@mBatchId", bDed.BatchId);
+                                            cmd.Parameters.AddWithValue("@mNow", DateTime.UtcNow.ToString("o"));
+                                            cmd.ExecuteNonQuery();
+                                        }
+                                    }
+
+                                    // If the requested quantity exceeded available batch quantity, record the remainder without batch
+                                    long remainder = baseQtyDeductionMilli - totalBatchDeducted;
+                                    if (remainder > 0)
+                                    {
+                                        string insertMovementSql = @"
+                                            INSERT INTO stock_movements (
+                                                id, product_id, movement_type, quantity_milli, reference_id, reference_type,
+                                                unit_cost_piasters, note, batch_number, batch_id, created_at
+                                            ) VALUES (
+                                                @mId, @mProdId, 'SALE', @mQty, @mRefId, 'SALE',
+                                                @mUnitCost, @mNote, NULL, NULL, @mNow
+                                            );
+                                        ";
+                                        using (var cmd = new SQLiteCommand(insertMovementSql, conn, trans))
+                                        {
+                                            cmd.Parameters.AddWithValue("@mId", Guid.NewGuid().ToString());
+                                            cmd.Parameters.AddWithValue("@mProdId", item.ProductId);
+                                            cmd.Parameters.AddWithValue("@mQty", -remainder);
+                                            cmd.Parameters.AddWithValue("@mRefId", sale.Id);
+                                            cmd.Parameters.AddWithValue("@mUnitCost", item.UnitCostPiasters);
+                                            string movementNote = "مبيعات كاشير (فائض عن الدفعات) - فاتورة #" + (sale.InvoiceNumber > 0 ? sale.InvoiceNumber.ToString() : sale.Id);
+                                            if (!string.IsNullOrWhiteSpace(item.UnitName))
+                                            {
+                                                movementNote += string.Format(" ({0})", item.UnitName);
+                                            }
+                                            cmd.Parameters.AddWithValue("@mNote", movementNote);
+                                            cmd.Parameters.AddWithValue("@mNow", DateTime.UtcNow.ToString("o"));
+                                            cmd.ExecuteNonQuery();
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    // No batches registered for this product, record standard movement
                                     string insertMovementSql = @"
                                         INSERT INTO stock_movements (
                                             id, product_id, movement_type, quantity_milli, reference_id, reference_type,
@@ -202,10 +246,10 @@ namespace RafiqPOS.Repositories
                                     {
                                         cmd.Parameters.AddWithValue("@mId", Guid.NewGuid().ToString());
                                         cmd.Parameters.AddWithValue("@mProdId", item.ProductId);
-                                        cmd.Parameters.AddWithValue("@mQty", -remainder);
+                                        cmd.Parameters.AddWithValue("@mQty", -baseQtyDeductionMilli);
                                         cmd.Parameters.AddWithValue("@mRefId", sale.Id);
                                         cmd.Parameters.AddWithValue("@mUnitCost", item.UnitCostPiasters);
-                                        string movementNote = "مبيعات كاشير (فائض عن الدفعات) - فاتورة #" + (sale.InvoiceNumber > 0 ? sale.InvoiceNumber.ToString() : sale.Id);
+                                        string movementNote = "مبيعات كاشير - فاتورة #" + (sale.InvoiceNumber > 0 ? sale.InvoiceNumber.ToString() : sale.Id);
                                         if (!string.IsNullOrWhiteSpace(item.UnitName))
                                         {
                                             movementNote += string.Format(" ({0})", item.UnitName);
@@ -214,35 +258,6 @@ namespace RafiqPOS.Repositories
                                         cmd.Parameters.AddWithValue("@mNow", DateTime.UtcNow.ToString("o"));
                                         cmd.ExecuteNonQuery();
                                     }
-                                }
-                            }
-                            else
-                            {
-                                // No batches registered for this product, record standard movement
-                                string insertMovementSql = @"
-                                    INSERT INTO stock_movements (
-                                        id, product_id, movement_type, quantity_milli, reference_id, reference_type,
-                                        unit_cost_piasters, note, batch_number, batch_id, created_at
-                                    ) VALUES (
-                                        @mId, @mProdId, 'SALE', @mQty, @mRefId, 'SALE',
-                                        @mUnitCost, @mNote, NULL, NULL, @mNow
-                                    );
-                                ";
-                                using (var cmd = new SQLiteCommand(insertMovementSql, conn, trans))
-                                {
-                                    cmd.Parameters.AddWithValue("@mId", Guid.NewGuid().ToString());
-                                    cmd.Parameters.AddWithValue("@mProdId", item.ProductId);
-                                    cmd.Parameters.AddWithValue("@mQty", -baseQtyDeductionMilli);
-                                    cmd.Parameters.AddWithValue("@mRefId", sale.Id);
-                                    cmd.Parameters.AddWithValue("@mUnitCost", item.UnitCostPiasters);
-                                    string movementNote = "مبيعات كاشير - فاتورة #" + (sale.InvoiceNumber > 0 ? sale.InvoiceNumber.ToString() : sale.Id);
-                                    if (!string.IsNullOrWhiteSpace(item.UnitName))
-                                    {
-                                        movementNote += string.Format(" ({0})", item.UnitName);
-                                    }
-                                    cmd.Parameters.AddWithValue("@mNote", movementNote);
-                                    cmd.Parameters.AddWithValue("@mNow", DateTime.UtcNow.ToString("o"));
-                                    cmd.ExecuteNonQuery();
                                 }
                             }
                         }

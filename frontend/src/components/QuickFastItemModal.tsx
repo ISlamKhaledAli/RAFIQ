@@ -291,7 +291,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
           isOpenPrice: false,
           unit: 'piece',
           categoryName: finalBundleCategory,
-          color: '#006d41',
+          color: null,
           displayOrder: 999,
           bundleItemsJson: JSON.stringify(bundlePayload)
         };
@@ -357,7 +357,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
         {/* Header */}
         <div className="px-5 py-3.5 bg-slate-100/90 dark:bg-slate-900 border-b border-line flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/70 text-[#006d41] dark:text-emerald-400 flex items-center justify-center shadow-2xs">
+            <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/70 text-paid dark:text-emerald-400 flex items-center justify-center shadow-2xs">
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
@@ -388,7 +388,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
               }}
               className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-bold transition-all cursor-pointer ${
                 mode === 'warehouse'
-                  ? 'bg-[#006d41] text-white shadow-2xs'
+                  ? 'bg-paid text-white shadow-2xs'
                   : 'text-ink-muted hover:text-ink hover:bg-surface-2'
               }`}
             >
@@ -407,7 +407,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
               }}
               className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-bold transition-all cursor-pointer ${
                 mode === 'bundle'
-                  ? 'bg-[#006d41] text-white shadow-2xs'
+                  ? 'bg-paid text-white shadow-2xs'
                   : 'text-ink-muted hover:text-ink hover:bg-surface-2'
               }`}
             >
@@ -423,7 +423,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
               }}
               className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-bold transition-all cursor-pointer ${
                 mode === 'service'
-                  ? 'bg-[#006d41] text-white shadow-2xs'
+                  ? 'bg-paid text-white shadow-2xs'
                   : 'text-ink-muted hover:text-ink hover:bg-surface-2'
               }`}
             >
@@ -487,7 +487,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                     value={searchQuery}
                     onChange={(e) => void handleProductSearch(e.target.value)}
                     placeholder="اكتب اسم الصنف أو امسح الباركود للبحث في المخزن..."
-                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface border border-line rounded-lg text-ink focus:border-[#006d41] focus:outline-none transition-all font-medium"
+                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface border border-line rounded-lg text-ink focus:border-paid focus:outline-none transition-all font-medium"
                   />
                   {isSearching && (
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-ink-muted font-bold animate-pulse">
@@ -510,7 +510,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                           <span className="text-[10px] text-ink-muted font-mono">{p.barcode || 'بدون باركود'}</span>
                         </div>
                         <div className="flex items-center gap-2.5">
-                          <span className="font-mono font-bold text-[#006d41]">
+                          <span className="font-mono font-bold text-paid">
                             {(p.pricePiasters / 100).toFixed(2)} ج.م
                           </span>
                           <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1.5 py-0.5 rounded font-mono">
@@ -527,9 +527,9 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
               {selectedProduct ? (
                 <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-[#006d41] shrink-0" />
+                    <CheckCircle2 className="w-4 h-4 text-paid shrink-0" />
                     <div>
-                      <span className="font-bold text-[#006d41]">تم ربط الصنف المخزني: </span>
+                      <span className="font-bold text-paid">تم ربط الصنف المخزني: </span>
                       <span className="font-semibold text-ink">{selectedProduct.name}</span>
                       <span className="block text-[10.5px] text-ink-muted font-mono mt-0.5">
                         الرصيد المتاح: {selectedProduct.stockQuantityMilli / 1000} {selectedProduct.unit === 'kg' ? 'كجم' : 'قطعة'}
@@ -568,7 +568,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                     placeholder="مثال: عيش فينو، لبن جهينة، خيار، إلخ..."
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface-2 border border-line rounded-lg text-ink focus:border-[#006d41] focus:bg-surface focus:outline-none transition-all font-medium"
+                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface-2 border border-line rounded-lg text-ink focus:border-paid focus:bg-surface focus:outline-none transition-all font-medium"
                   />
                 </div>
               </div>
@@ -588,7 +588,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                         setIsOpenPrice(e.target.checked);
                         if (e.target.checked) setPriceEgp('');
                       }}
-                      className="w-4 h-4 rounded border-line text-[#006d41] focus:ring-0 cursor-pointer"
+                      className="w-4 h-4 rounded border-line text-paid focus:ring-0 cursor-pointer"
                     />
                     <span>سعر حر (مفتوح عند البيع)</span>
                   </label>
@@ -608,11 +608,11 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                         placeholder="0.00"
                         value={priceEgp}
                         onChange={(e) => setPriceEgp(normalizeArabicNumerals(e.target.value))}
-                        className="w-full h-10 pr-3 pl-12 text-sm font-mono font-bold bg-surface border border-line rounded-lg text-[#006d41] focus:border-[#006d41] focus:outline-none transition-all"
+                        className="w-full h-10 pr-3 pl-12 text-sm font-mono font-bold bg-surface border border-line rounded-lg text-paid focus:border-paid focus:outline-none transition-all"
                       />
                     </div>
                     {originalPriceEgp && (
-                      <div className="mt-1.5 flex items-center justify-between text-[11px] text-[#006d41] bg-emerald-50 dark:bg-emerald-950/30 px-2 py-1 rounded">
+                      <div className="mt-1.5 flex items-center justify-between text-[11px] text-paid bg-emerald-50 dark:bg-emerald-950/30 px-2 py-1 rounded">
                         <span>السعر الأساسي في المخزن: <strong>{originalPriceEgp} ج.م</strong></span>
                         <span className="text-ink-muted text-[10px]">(يمكنك تركه كما هو أو تعديله لهذا الزر)</span>
                       </div>
@@ -637,7 +637,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                       onClick={() => setUnit('piece')}
                       className={`flex items-center justify-center gap-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
                         unit === 'piece'
-                          ? 'bg-surface text-[#006d41] shadow-2xs border border-line'
+                          ? 'bg-surface text-paid shadow-2xs border border-line'
                           : 'text-ink-muted hover:text-ink'
                       }`}
                     >
@@ -649,7 +649,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                       onClick={() => setUnit('kg')}
                       className={`flex items-center justify-center gap-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
                         unit === 'kg'
-                          ? 'bg-surface text-[#006d41] shadow-2xs border border-line'
+                          ? 'bg-surface text-paid shadow-2xs border border-line'
                           : 'text-ink-muted hover:text-ink'
                       }`}
                     >
@@ -689,7 +689,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                         placeholder="اسم القسم الجديد..."
                         value={customCategoryInput}
                         onChange={(e) => setCustomCategoryInput(e.target.value)}
-                        className="flex-1 px-2.5 text-xs bg-surface border border-[#006d41] rounded-lg text-ink focus:outline-none"
+                        className="flex-1 px-2.5 text-xs bg-surface border border-paid rounded-lg text-ink focus:outline-none"
                       />
                       <button
                         type="button"
@@ -727,7 +727,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                     placeholder="مثال: كرتونة رمضان الخير، عرض التوفير الأسبوعي، باقة السحور..."
                     value={bundleName}
                     onChange={(e) => setBundleName(e.target.value)}
-                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface-2 border border-line rounded-lg text-ink focus:border-[#006d41] focus:bg-surface focus:outline-none transition-all font-medium"
+                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface-2 border border-line rounded-lg text-ink focus:border-paid focus:bg-surface focus:outline-none transition-all font-medium"
                   />
                 </div>
               </div>
@@ -744,7 +744,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                     value={bundleSearchQuery}
                     onChange={(e) => void handleBundleSearch(e.target.value)}
                     placeholder="ابحث عن صنف لإضافته للعرض (زيت، سكر، أرز...)..."
-                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface border border-line rounded-lg text-ink focus:border-[#006d41] focus:outline-none transition-all font-medium"
+                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface border border-line rounded-lg text-ink focus:border-paid focus:outline-none transition-all font-medium"
                   />
                   {isBundleSearching && (
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-ink-muted font-bold animate-pulse">
@@ -767,7 +767,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                           <span className="text-[10px] text-ink-muted font-mono">{p.barcode || 'بدون باركود'}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-[#006d41]">
+                          <span className="font-mono font-bold text-paid">
                             {(p.pricePiasters / 100).toFixed(2)} ج.م
                           </span>
                           <span className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 px-2 py-0.5 rounded font-bold flex items-center gap-0.5">
@@ -851,7 +851,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                     سعر بيع العرض للمستهلك (الإجمالي) <span className="text-danger">*</span>
                   </label>
                   {bundleSavingsPiasters > 0 && (
-                    <div className="flex items-center gap-1 text-[11px] font-bold text-[#006d41] bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded">
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-paid bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded">
                       <Percent className="w-3 h-3" />
                       <span>توفير للزبون: {(bundleSavingsPiasters / 100).toFixed(2)} ج.م ({bundleSavingsPercent}%)</span>
                     </div>
@@ -870,7 +870,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                     placeholder="مثال: 150.00"
                     value={bundlePriceEgp}
                     onChange={(e) => setBundlePriceEgp(normalizeArabicNumerals(e.target.value))}
-                    className="w-full h-10 pr-3 pl-12 text-sm font-mono font-bold bg-surface border border-line rounded-lg text-[#006d41] focus:border-[#006d41] focus:outline-none transition-all"
+                    className="w-full h-10 pr-3 pl-12 text-sm font-mono font-bold bg-surface border border-line rounded-lg text-paid focus:border-paid focus:outline-none transition-all"
                   />
                 </div>
                 <p className="text-[10.5px] text-ink-muted m-0">
@@ -909,7 +909,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                       placeholder="اسم القسم الجديد..."
                       value={customBundleCategoryInput}
                       onChange={(e) => setCustomBundleCategoryInput(e.target.value)}
-                      className="flex-1 px-2.5 text-xs bg-surface border border-[#006d41] rounded-lg text-ink focus:outline-none"
+                      className="flex-1 px-2.5 text-xs bg-surface border border-paid rounded-lg text-ink focus:outline-none"
                     />
                     <button
                       type="button"
@@ -980,7 +980,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                     placeholder="مثال: كيس بلاستيك كبير، خدمة توصيل، فنجان شاي..."
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface-2 border border-line rounded-lg text-ink focus:border-[#006d41] focus:bg-surface focus:outline-none transition-all font-medium"
+                    className="w-full h-10 pr-9 pl-3 text-xs bg-surface-2 border border-line rounded-lg text-ink focus:border-paid focus:bg-surface focus:outline-none transition-all font-medium"
                   />
                 </div>
               </div>
@@ -1000,7 +1000,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                         setIsOpenPrice(e.target.checked);
                         if (e.target.checked) setPriceEgp('');
                       }}
-                      className="w-4 h-4 rounded border-line text-[#006d41] focus:ring-0 cursor-pointer"
+                      className="w-4 h-4 rounded border-line text-paid focus:ring-0 cursor-pointer"
                     />
                     <span>سعر حر (مفتوح عند البيع)</span>
                   </label>
@@ -1019,7 +1019,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                       placeholder="0.00"
                       value={priceEgp}
                       onChange={(e) => setPriceEgp(normalizeArabicNumerals(e.target.value))}
-                      className="w-full h-10 pr-3 pl-12 text-sm font-mono font-bold bg-surface border border-line rounded-lg text-[#006d41] focus:border-[#006d41] focus:outline-none transition-all"
+                      className="w-full h-10 pr-3 pl-12 text-sm font-mono font-bold bg-surface border border-line rounded-lg text-paid focus:border-paid focus:outline-none transition-all"
                     />
                   </div>
                 ) : (
@@ -1041,7 +1041,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                       onClick={() => setUnit('piece')}
                       className={`flex items-center justify-center gap-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
                         unit === 'piece'
-                          ? 'bg-surface text-[#006d41] shadow-2xs border border-line'
+                          ? 'bg-surface text-paid shadow-2xs border border-line'
                           : 'text-ink-muted hover:text-ink'
                       }`}
                     >
@@ -1053,7 +1053,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                       onClick={() => setUnit('kg')}
                       className={`flex items-center justify-center gap-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
                         unit === 'kg'
-                          ? 'bg-surface text-[#006d41] shadow-2xs border border-line'
+                          ? 'bg-surface text-paid shadow-2xs border border-line'
                           : 'text-ink-muted hover:text-ink'
                       }`}
                     >
@@ -1093,7 +1093,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                         placeholder="اسم القسم الجديد..."
                         value={customCategoryInput}
                         onChange={(e) => setCustomCategoryInput(e.target.value)}
-                        className="flex-1 px-2.5 text-xs bg-surface border border-[#006d41] rounded-lg text-ink focus:outline-none"
+                        className="flex-1 px-2.5 text-xs bg-surface border border-paid rounded-lg text-ink focus:outline-none"
                       />
                       <button
                         type="button"
@@ -1121,7 +1121,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                   onClose();
                   onOpenFullManager();
                 }}
-                className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-[#006d41] font-semibold py-1.5 px-2 rounded-lg hover:bg-surface-2 transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-paid font-semibold py-1.5 px-2 rounded-lg hover:bg-surface-2 transition-colors cursor-pointer"
               >
                 <Settings className="w-3.5 h-3.5" />
                 <span>إدارة وترتيب الأزرار السريعة</span>
@@ -1141,7 +1141,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="px-5 h-9 bg-[#006d41] hover:bg-[#005231] active:bg-[#00372d] text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-[0.98] cursor-pointer"
+                className="px-5 h-9 bg-paid hover:bg-paid-hover active:bg-brand-dark text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-[0.98] cursor-pointer"
               >
                 {loading ? (
                   <span>جاري الحفظ...</span>

@@ -129,22 +129,22 @@ test('Screen 1 Invariant: Composite Item Discount & Global Invoice Discount Zero
 });
 
 test('Screen 1 Invariant: Scale Barcode GS1 Variable Measure Edge Cases', () => {
-  // Test 1: Minimum weight (1 gram = 0.001 kg = 1000 milli)
+  // Test 1: Minimum weight (1 gram = 0.001 kg = 1 milli)
   const minBarcode = '2000123000010';
   const minResult = parseScaleBarcode(minBarcode);
   assert.ok(minResult);
   assert.equal(minResult.itemPlu, '00123');
   assert.equal(minResult.itemPluTrimmed, '123');
   assert.equal(minResult.weightGrams, 1);
-  assert.equal(minResult.weightMilli, 1000);
+  assert.equal(minResult.weightMilli, 1);
 
-  // Test 2: Maximum weight (99.999 kg = 99999 grams = 99,999,000 milli)
+  // Test 2: Maximum weight (99.999 kg = 99999 grams = 99,999 milli)
   const maxBarcode = '2199999999995';
   const maxResult = parseScaleBarcode(maxBarcode);
   assert.ok(maxResult);
   assert.equal(maxResult.itemPlu, '99999');
   assert.equal(maxResult.weightGrams, 99999);
-  assert.equal(maxResult.weightMilli, 99999000);
+  assert.equal(maxResult.weightMilli, 99999);
 
   // Test 3: Standard retail barcodes starting with non-scale prefixes must NOT be parsed as scale
   assert.equal(parseScaleBarcode('6223000123456'), null); // Egyptian standard

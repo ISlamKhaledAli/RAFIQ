@@ -10,11 +10,13 @@ namespace RafiqPOS.Services
     {
         private readonly SaleRepository _saleRepo;
         private readonly ProductRepository _productRepo;
+        private readonly QuickItemRepository _quickRepo;
 
-        public SaleService(SaleRepository saleRepo, ProductRepository productRepo)
+        public SaleService(SaleRepository saleRepo, ProductRepository productRepo, QuickItemRepository quickRepo = null)
         {
             _saleRepo = saleRepo;
             _productRepo = productRepo;
+            _quickRepo = quickRepo;
         }
 
         /// <summary>
@@ -538,7 +540,7 @@ namespace RafiqPOS.Services
         /// A line price is accepted without the price-override permission when it matches a configured catalogue
         /// price: the product price, the unit price, or a quick-pick price (open-price quick items allow any price).
         /// </summary>
-        private static bool IsCataloguePrice(SaleItem item, Product product, ProductUnit matchedUnit)
+        private bool IsCataloguePrice(SaleItem item, Product product, ProductUnit matchedUnit)
         {
             long price = item.UnitPricePiasters;
             int factor = item.ConversionFactor > 0 ? item.ConversionFactor : 1;
@@ -549,19 +551,34 @@ namespace RafiqPOS.Services
             if (price == product.PricePiasters * factor) return true;
             if (matchedUnit != null && matchedUnit.SellPricePiasters > 0 && price == matchedUnit.SellPricePiasters) return true;
 
-            if (DatabaseService.QuickItems != null)
+            List<QuickItem> quickItems = null;
+            if (_quickRepo != null)
             {
-                var quickItems = DatabaseService.QuickItems.GetAll();
-                if (quickItems != null)
+                quickItems = _quickRepo.GetAll();
+            }
+            else if (DatabaseService.QuickItems != null)
+            {
+                quickItems = DatabaseService.QuickItems.GetAll();
+            }
+
+            if (quickItems != null)
+            {
+                for (int q = 0; q < quickItems.Count; q++)
                 {
-                    for (int q = 0; q < quickItems.Count; q++)
+                    var qi = quickItems[q];
+                    if (qi == null) continue;
+                    bool sameProduct = string.Equals(qi.ProductId, product.Id, StringComparison.Ordinal) ||
+                                       string.Equals(qi.Id, product.Id, StringComparison.Ordinal);
+                    if (sameProduct)
                     {
-                        var qi = quickItems[q];
-                        if (qi == null) continue;
-                        bool sameProduct = string.Equals(qi.ProductId, product.Id, StringComparison.Ordinal) ||
-                                           string.Equals(qi.Id, product.Id, StringComparison.Ordinal);
-                        if (!sameProduct) continue;
                         if (qi.IsOpenPrice || qi.PricePiasters == price) return true;
+                    }
+
+                    // Authorized store combo / bundle offer component:
+                    // If product is a configured component in an active quick item bundle offer, allow it
+                    if (!string.IsNullOrEmpty(qi.BundleItemsJson) && qi.BundleItemsJson.IndexOf(product.Id, StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        return true;
                     }
                 }
             }

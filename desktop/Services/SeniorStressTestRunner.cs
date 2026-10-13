@@ -58,8 +58,10 @@ namespace RafiqPOS.Services
                 var settingsRepo = new SettingsRepository(tempConnStr);
                 var batchRepo = new ProductBatchRepository(tempConnStr, auditRepo);
                 var batchService = new ProductBatchService(batchRepo, settingsRepo);
+                var quickRepo = new QuickItemRepository(tempConnStr);
+                var quickService = new QuickItemService(quickRepo);
                 var saleRepo = new SaleRepository(tempConnStr, counterRepo, auditRepo, batchRepo);
-                var saleService = new SaleService(saleRepo, prodRepo);
+                var saleService = new SaleService(saleRepo, prodRepo, quickRepo);
                 var returnRepo = new ReturnRepository(tempConnStr, counterRepo, auditRepo);
                 var returnService = new ReturnService(returnRepo, saleRepo);
                 var heldRepo = new HeldSaleRepository(tempConnStr);
@@ -1693,8 +1695,6 @@ namespace RafiqPOS.Services
                 // SCENARIO 27: إدارة الأصناف السريعة والمفضلة (Quick Items) والسعر المفتوح وإعادة الترتيب
                 // =========================================================================
                 Console.WriteLine("--> Scenario 27: Quick Items CRUD, Open Price & Display Order");
-                var quickRepo = new QuickItemRepository(tempConnStr);
-                var quickService = new QuickItemService(quickRepo);
 
                 var qItem1 = quickService.Save(new QuickItem
                 {
@@ -1771,6 +1771,224 @@ namespace RafiqPOS.Services
                 var catListWithArchived = catRepo.GetAll(true);
                 var foundInAll = catListWithArchived.Find(delegate(Category c) { return c.Id == catHot.Id; });
                 Assert(foundInAll != null && !foundInAll.IsActive, "ظهور التصنيف في القائمة الشاملة بحالة غير نشط", result);
+
+                // =========================================================================
+                // SCENARIO 29: مبيعات ومرتجعات الأصناف السريعة (Quick Items / Bundles / Open-Price) تحت قيود المفاتيح الأجنبية وتوزيع الأسعار
+                // =========================================================================
+                Console.WriteLine("--> Scenario 29: Quick Items Sale, Bundle Pricing, Open Price & Returns without FK Violations");
+
+                // 1. Standalone Quick Item (Not in products table)
+                var standaloneItem = quickService.Save(new QuickItem
+                {
+                    Name = "خدمة توصيل سريعة",
+                    PricePiasters = 2500, // 25.00 EGP
+                    IsOpenPrice = false,
+                    Unit = "خدمة",
+                    CategoryName = "خدمات",
+                    DisplayOrder = 10
+                });
+
+                var saleStandalone = new Sale
+                {
+                    Id = Guid.NewGuid().ToString("D"),
+                    CashierId = "user-cashier-1",
+                    TotalPiasters = 2500,
+                    SubtotalPiasters = 2500,
+                    TaxPiasters = 0,
+                    DiscountPiasters = 0,
+                    PaymentMethod = "cash",
+                    PaidPiasters = 3000,
+                    ChangePiasters = 500,
+                    Status = "completed",
+                    CreatedAt = DateTime.UtcNow.ToString("o"),
+                    Items = new List<SaleItem>()
+                };
+                saleStandalone.Items.Add(new SaleItem
+                {
+                    Id = Guid.NewGuid().ToString("D"),
+                    ProductId = standaloneItem.Id,
+                    ProductName = standaloneItem.Name,
+                    QuantityMilli = 1000, // 1 service
+                    UnitPricePiasters = 2500,
+                    TotalPiasters = 2500,
+                    Unit = "خدمة"
+                });
+
+                Sale createdStandaloneSale = null;
+                bool standaloneSaleThrewException = false;
+                try
+                {
+                    createdStandaloneSale = saleRepo.CreateSaleAtomic(saleStandalone);
+                }
+                catch (Exception ex)
+                {
+                    standaloneSaleThrewException = true;
+                    Console.WriteLine("  Error selling standalone quick item: " + ex.Message);
+                }
+
+                Assert(!standaloneSaleThrewException && createdStandaloneSale != null, "بيع صنف سريع مستقل (بدون سجل في products) بنجاح ودون انتهاك لقيود المفاتيح الأجنبية", result);
+
+                int standaloneStockMovements = 0;
+                using (var qConn = new SQLiteConnection(tempConnStr))
+                {
+                    qConn.Open();
+                    using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM stock_movements WHERE product_id = @pid;", qConn))
+                    {
+                        cmd.Parameters.AddWithValue("@pid", standaloneItem.Id);
+                        standaloneStockMovements = Convert.ToInt32(cmd.ExecuteScalar());
+                    }
+                }
+                Assert(standaloneStockMovements == 0, "عدم تسجيل حركة مخزنية للأصناف الخدمية والمستقلة غير المرتبطة بجدول المخازن", result);
+
+                // 2. Open-Price Quick Item sale validation
+                var openPriceItem = quickService.Save(new QuickItem
+                {
+                    Name = "وجبة مشكلة بسعر حر",
+                    PricePiasters = 0,
+                    IsOpenPrice = true,
+                    Unit = "وجبة",
+                    CategoryName = "مأكولات",
+                    DisplayOrder = 11
+                });
+
+                var saleOpenPrice = new Sale
+                {
+                    Id = Guid.NewGuid().ToString("D"),
+                    CashierId = "user-cashier-1",
+                    TotalPiasters = 8500,
+                    SubtotalPiasters = 8500,
+                    TaxPiasters = 0,
+                    DiscountPiasters = 0,
+                    PaymentMethod = "cash",
+                    PaidPiasters = 10000,
+                    ChangePiasters = 1500,
+                    Status = "completed",
+                    CreatedAt = DateTime.UtcNow.ToString("o"),
+                    Items = new List<SaleItem>()
+                };
+                saleOpenPrice.Items.Add(new SaleItem
+                {
+                    Id = Guid.NewGuid().ToString("D"),
+                    ProductId = openPriceItem.Id,
+                    ProductName = openPriceItem.Name,
+                    QuantityMilli = 1000,
+                    UnitPricePiasters = 8500,
+                    TotalPiasters = 8500,
+                    Unit = "وجبة"
+                });
+
+                var createdOpenPriceSale = saleService.ProcessSale(saleOpenPrice, "test-open-price-" + Guid.NewGuid().ToString("N"));
+                Assert(createdOpenPriceSale != null && createdOpenPriceSale.TotalPiasters == 8500, "إتمام عملية بيع صنف سريع بسعر مفتوح بدقة وتطابق إجمالي الفاتورة بالقروش", result);
+
+                // 3. Bundle / Combo Quick Item with authorized component discounts
+                var comp1 = CreateTestProduct(prodRepo, "ساندوتش كفتة", "BNDL-001", 6000, 3500, 50000, "قطعة");
+                var comp2 = CreateTestProduct(prodRepo, "كانز كولا", "BNDL-002", 2000, 1200, 50000, "قطعة");
+
+                string bundleJson = string.Format("[{{\"productId\":\"{0}\",\"productName\":\"ساندوتش كفتة\",\"quantityMilli\":1000,\"unitPricePiasters\":4875}},{{\"productId\":\"{1}\",\"productName\":\"كانز كولا\",\"quantityMilli\":1000,\"unitPricePiasters\":1625}}]", comp1.Id, comp2.Id);
+
+                quickService.Save(new QuickItem
+                {
+                    Name = "عرض كومبو كفتة مع كولا",
+                    PricePiasters = 6500,
+                    IsOpenPrice = false,
+                    Unit = "وجبة",
+                    CategoryName = "عروض",
+                    BundleItemsJson = bundleJson,
+                    DisplayOrder = 12
+                });
+
+                var saleBundle = new Sale
+                {
+                    Id = Guid.NewGuid().ToString("D"),
+                    CashierId = "cashier-no-override",
+                    TotalPiasters = 6500,
+                    SubtotalPiasters = 6500,
+                    TaxPiasters = 0,
+                    DiscountPiasters = 0,
+                    PaymentMethod = "cash",
+                    PaidPiasters = 7000,
+                    ChangePiasters = 500,
+                    Status = "completed",
+                    CreatedAt = DateTime.UtcNow.ToString("o"),
+                    Items = new List<SaleItem>()
+                };
+                saleBundle.Items.Add(new SaleItem
+                {
+                    Id = Guid.NewGuid().ToString("D"),
+                    ProductId = comp1.Id,
+                    ProductName = comp1.Name,
+                    QuantityMilli = 1000,
+                    UnitPricePiasters = 4875,
+                    TotalPiasters = 4875,
+                    Unit = "قطعة"
+                });
+                saleBundle.Items.Add(new SaleItem
+                {
+                    Id = Guid.NewGuid().ToString("D"),
+                    ProductId = comp2.Id,
+                    ProductName = comp2.Name,
+                    QuantityMilli = 1000,
+                    UnitPricePiasters = 1625,
+                    TotalPiasters = 1625,
+                    Unit = "قطعة"
+                });
+
+                Sale createdBundleSale = null;
+                bool bundleSaleFailed = false;
+                try
+                {
+                    createdBundleSale = saleService.ProcessSale(saleBundle, "test-bundle-" + Guid.NewGuid().ToString("N"));
+                }
+                catch (Exception ex)
+                {
+                    bundleSaleFailed = true;
+                    Console.WriteLine("  Error selling combo bundle: " + ex.Message);
+                }
+
+                Assert(!bundleSaleFailed && createdBundleSale != null && createdBundleSale.TotalPiasters == 6500, "اعتماد بيع عرض الكومبو التوفيري للكاشير العادي دون الحاجة لصلاحية تعديل الأسعار", result);
+
+                var updatedComp1 = prodRepo.GetById(comp1.Id);
+                var updatedComp2 = prodRepo.GetById(comp2.Id);
+                Assert(updatedComp1.StockQuantityMilli == 49000 && updatedComp2.StockQuantityMilli == 49000, "خصم المخزون الحقيقي لكافة مكونات عرض الكومبو بدقة بالمليجرام (خصم 1000 ملي لكل مكون)", result);
+
+                // 4. Return of Standalone Quick Item (With invoice)
+                var returnStandalone = new Return
+                {
+                    Id = Guid.NewGuid().ToString("D"),
+                    SaleId = createdStandaloneSale.Id,
+                    InvoiceNumber = createdStandaloneSale.InvoiceNumber,
+                    TotalPiasters = 2500,
+                    Reason = "إلغاء خدمة التوصيل",
+                    CashierId = "user-cashier-1",
+                    CreatedAt = DateTime.UtcNow.ToString("o"),
+                    Items = new List<ReturnItem>()
+                };
+                returnStandalone.Items.Add(new ReturnItem
+                {
+                    Id = Guid.NewGuid().ToString("D"),
+                    SaleItemId = createdStandaloneSale.Items[0].Id,
+                    ProductId = standaloneItem.Id,
+                    ProductName = standaloneItem.Name,
+                    QuantityMilli = 1000,
+                    UnitPricePiasters = 2500,
+                    TotalPiasters = 2500,
+                    Unit = "خدمة",
+                    IsDamaged = false
+                });
+
+                Return createdStandaloneReturn = null;
+                bool standaloneReturnThrewException = false;
+                try
+                {
+                    createdStandaloneReturn = returnRepo.CreateReturnAtomic(returnStandalone);
+                }
+                catch (Exception ex)
+                {
+                    standaloneReturnThrewException = true;
+                    Console.WriteLine("  Error returning standalone quick item: " + ex.Message);
+                }
+
+                Assert(!standaloneReturnThrewException && createdStandaloneReturn != null, "استرجاع صنف سريع مستقل بنجاح دون أخطاء مفاتيح أجنبية واستقرار القيود المالية", result);
 
                 result.Success = (result.PassedAssertions == result.TotalAssertions);
                 result.Message = string.Format("اكتمل فحص السينيور الاحترافي: {0}/{1} بنجاح تام", result.PassedAssertions, result.TotalAssertions);

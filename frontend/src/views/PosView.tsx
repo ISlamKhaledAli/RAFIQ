@@ -1093,15 +1093,16 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       showStatus(`تم تعديل وزن ${weightModalProduct.name} إلى ${(weightMilli / 1000).toFixed(3)} كجم`, 'success');
     } else {
       const dummyId = weightModalProduct.id || (weightModalProduct.barcode ? `prod_${weightModalProduct.barcode}` : `prod_${weightModalProduct.name.replace(/\s+/g, '_')}`);
+      const foundProd = catalogProducts.find((p) => p.id === weightModalProduct.id);
       const productToAdd: Product = {
         id: dummyId,
         name: weightModalProduct.name,
-        barcode: weightModalProduct.barcode || null,
+        barcode: weightModalProduct.barcode || foundProd?.barcode || null,
         pricePiasters: weightModalProduct.pricePiasters,
-        costPiasters: Math.round(weightModalProduct.pricePiasters * 0.75),
-        stockQuantityMilli: 100000,
+        costPiasters: foundProd ? foundProd.costPiasters : Math.round(weightModalProduct.pricePiasters * 0.75),
+        stockQuantityMilli: foundProd && typeof foundProd.stockQuantityMilli === 'number' ? foundProd.stockQuantityMilli : 100000,
         unit: 'kg',
-        taxRatePercent: 0,
+        taxRatePercent: foundProd ? foundProd.taxRatePercent : 0,
         isActive: true,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
