@@ -209,6 +209,7 @@
     <Compile Include="Repositories\EpayRepository.cs" />
     <Compile Include="Bridge\IpcDispatcher.Epay.cs" />
     <Compile Include="Services\SeniorStressTestRunner.cs" />
+    <Compile Include="Services\SeniorMasterEdgeCaseRunner.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

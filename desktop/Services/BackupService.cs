@@ -274,9 +274,15 @@ namespace RafiqPOS.Services
                     // DriveInfo check non-critical
                 }
 
-                string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss_fff");
                 string fileName = string.Format("rafiq_backup_{0}.db", timestamp);
                 string backupFilePath = Path.Combine(targetFolder, fileName);
+
+                // If file already exists, delete to ensure SQLite starts with a fresh database
+                if (File.Exists(backupFilePath))
+                {
+                    try { File.Delete(backupFilePath); } catch { }
+                }
 
                 // Use SQLite Online Backup API (thread-safe, non-blocking snapshot in WAL mode)
                 string destConnString = string.Format("Data Source={0};Version=3;", backupFilePath);

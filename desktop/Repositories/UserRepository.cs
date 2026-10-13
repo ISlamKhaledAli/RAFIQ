@@ -148,7 +148,7 @@ namespace RafiqPOS.Repositories
                 {
                     cmd.Parameters.AddWithValue("@id", user.Id);
                     cmd.Parameters.AddWithValue("@username", user.Username);
-                    cmd.Parameters.AddWithValue("@displayName", user.DisplayName);
+                    cmd.Parameters.AddWithValue("@displayName", string.IsNullOrWhiteSpace(user.DisplayName) ? (user.Username ?? "") : user.DisplayName);
                     cmd.Parameters.AddWithValue("@pinCodeHash", user.PinCodeHash ?? "");
                     cmd.Parameters.AddWithValue("@pinSalt", user.PinSalt ?? "");
                     cmd.Parameters.AddWithValue("@role", user.Role ?? "cashier");
@@ -196,7 +196,7 @@ namespace RafiqPOS.Repositories
                 {
                     cmd.Parameters.AddWithValue("@id", user.Id);
                     cmd.Parameters.AddWithValue("@username", user.Username);
-                    cmd.Parameters.AddWithValue("@displayName", user.DisplayName);
+                    cmd.Parameters.AddWithValue("@displayName", string.IsNullOrWhiteSpace(user.DisplayName) ? (user.Username ?? "") : user.DisplayName);
                     cmd.Parameters.AddWithValue("@role", user.Role ?? "cashier");
                     cmd.Parameters.AddWithValue("@isActive", user.IsActive ? 1 : 0);
                     cmd.Parameters.AddWithValue("@permissionsJson", (object)user.PermissionsJson ?? DBNull.Value);

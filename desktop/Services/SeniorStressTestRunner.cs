@@ -2013,14 +2013,19 @@ namespace RafiqPOS.Services
                 });
 
                 // Create and set logged in user as cashier without price override permission
-                var cashierUser = new User
+                var cashierUser = userRepo.GetByUsername("cashier1");
+                if (cashierUser == null)
                 {
-                    Id = "cashier-strict-guard-id",
-                    Username = "cashier1",
-                    Role = "cashier",
-                    IsActive = true
-                };
-                userRepo.Insert(cashierUser);
+                    cashierUser = new User
+                    {
+                        Id = "cashier-strict-guard-id",
+                        Username = "cashier_guard_test",
+                        DisplayName = "كاشير 1",
+                        Role = "cashier",
+                        IsActive = true
+                    };
+                    userRepo.Insert(cashierUser);
+                }
                 var cashierDto = SecurityService.MapToDto(cashierUser);
                 SecurityService.SetCurrentUserForTesting(cashierDto);
 
@@ -2202,6 +2207,9 @@ namespace RafiqPOS.Services
                 Assert(recalledHeldQuick != null && recalledHeldQuick.TotalPiasters == 17000, "استرجاع الفاتورة المعلقة المحتوية على أصناف سريعة بكامل بياناتها بدقة", result);
 
                 // 6. Return without invoice for standalone item requires supervisor PIN
+                securityService.SetPin("1234", null, null);
+                securityService.EnablePin("1234");
+
                 var noInvStandaloneReturn = new Return
                 {
                     Id = Guid.NewGuid().ToString("D"),
