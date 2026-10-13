@@ -428,6 +428,20 @@ namespace RafiqPOS.Repositories
                 {
                     try
                     {
+                        using (var sCmd = new SQLiteCommand("SELECT is_active FROM suppliers WHERE id = @id LIMIT 1;", conn, trans))
+                        {
+                            sCmd.Parameters.AddWithValue("@id", supplierId);
+                            object res = sCmd.ExecuteScalar();
+                            if (res == null || res == DBNull.Value)
+                            {
+                                throw new InvalidOperationException("المورد غير موجود أو تم حذفه");
+                            }
+                            if (Convert.ToInt32(res) == 0)
+                            {
+                                throw new InvalidOperationException("لا يمكن تسجيل دفعة لمورد مؤرشف");
+                            }
+                        }
+
                         // Payment to supplier reduces what we owe (delta is negative balance)
                         AdjustBalance(supplierId, -amountPiasters, "PAYMENT", null, notes, conn, trans);
 

@@ -544,6 +544,7 @@ namespace RafiqPOS.Repositories
                         SELECT COALESCE(SUM(p2.stock_quantity_milli), 0)
                         FROM products p2
                         WHERE p2.parent_id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @pid)
+                          AND p2.is_active = 1
                     ),
                     updated_at = @now
                     WHERE id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @pid AND p1.parent_id IS NOT NULL);
@@ -672,6 +673,7 @@ namespace RafiqPOS.Repositories
                                 SELECT COALESCE(SUM(p2.stock_quantity_milli), 0)
                                 FROM products p2
                                 WHERE p2.parent_id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @pid)
+                                  AND p2.is_active = 1
                             ),
                             updated_at = @now
                             WHERE id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @pid AND p1.parent_id IS NOT NULL);

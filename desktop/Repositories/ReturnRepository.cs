@@ -49,7 +49,7 @@ namespace RafiqPOS.Repositories
                         // Bidirectionally resolve SaleId and InvoiceNumber
                         if (string.IsNullOrEmpty(returnObj.SaleId) && returnObj.InvoiceNumber.HasValue)
                         {
-                            using (var findSaleCmd = new SQLiteCommand("SELECT id, customer_id, customer_name FROM sales WHERE invoice_number = @inv LIMIT 1;", conn, trans))
+                            using (var findSaleCmd = new SQLiteCommand("SELECT s.id, s.customer_id, c.name AS customer_name FROM sales s LEFT JOIN customers c ON s.customer_id = c.id WHERE s.invoice_number = @inv LIMIT 1;", conn, trans))
                             {
                                 findSaleCmd.Parameters.AddWithValue("@inv", returnObj.InvoiceNumber.Value);
                                 using (var saleReader = findSaleCmd.ExecuteReader())
@@ -71,7 +71,7 @@ namespace RafiqPOS.Repositories
                         }
                         else if (!returnObj.InvoiceNumber.HasValue && !string.IsNullOrEmpty(returnObj.SaleId))
                         {
-                            using (var findInvCmd = new SQLiteCommand("SELECT invoice_number, customer_id, customer_name FROM sales WHERE id = @sid LIMIT 1;", conn, trans))
+                            using (var findInvCmd = new SQLiteCommand("SELECT s.invoice_number, s.customer_id, c.name AS customer_name FROM sales s LEFT JOIN customers c ON s.customer_id = c.id WHERE s.id = @sid LIMIT 1;", conn, trans))
                             {
                                 findInvCmd.Parameters.AddWithValue("@sid", returnObj.SaleId);
                                 using (var invReader = findInvCmd.ExecuteReader())
@@ -256,6 +256,7 @@ namespace RafiqPOS.Repositories
                                         SELECT COALESCE(SUM(p2.stock_quantity_milli), 0)
                                         FROM products p2
                                         WHERE p2.parent_id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @prodId)
+                                          AND p2.is_active = 1
                                     ),
                                     updated_at = @now
                                     WHERE id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @prodId AND p1.parent_id IS NOT NULL);

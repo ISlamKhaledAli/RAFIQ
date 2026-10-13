@@ -54,6 +54,24 @@ namespace RafiqPOS.Repositories
                 {
                     try
                     {
+                        // Validate Supplier if supplied
+                        if (!string.IsNullOrWhiteSpace(purchase.SupplierId))
+                        {
+                            using (var sCmd = new SQLiteCommand("SELECT is_active FROM suppliers WHERE id = @supId LIMIT 1;", conn, trans))
+                            {
+                                sCmd.Parameters.AddWithValue("@supId", purchase.SupplierId);
+                                object sRes = sCmd.ExecuteScalar();
+                                if (sRes == null || sRes == DBNull.Value)
+                                {
+                                    throw new InvalidOperationException("المورد المحدد غير موجود في قاعدة البيانات");
+                                }
+                                if (Convert.ToInt32(sRes) == 0)
+                                {
+                                    throw new InvalidOperationException("لا يمكن إضافة فاتورة شراء لمورد مؤرشف");
+                                }
+                            }
+                        }
+
                         // 1. Get next atomic purchase invoice number
                         purchase.InvoiceNumber = _counterRepo.GetNextCounterNumber(conn, trans, "purchase_invoice", "purchases", "invoice_number");
 
@@ -154,7 +172,7 @@ namespace RafiqPOS.Repositories
                             string productName = item.ProductName;
                             string barcode = item.Barcode;
 
-                            string selectProdSql = "SELECT name, barcode, stock_quantity_milli, cost_piasters, price_piasters FROM products WHERE id = @pid LIMIT 1;";
+                            string selectProdSql = "SELECT name, barcode, stock_quantity_milli, cost_piasters, price_piasters, has_variants FROM products WHERE id = @pid LIMIT 1;";
                             using (var prodCmd = new SQLiteCommand(selectProdSql, conn, trans))
                             {
                                 prodCmd.Parameters.AddWithValue("@pid", item.ProductId);
@@ -167,6 +185,12 @@ namespace RafiqPOS.Repositories
                                         currentStock = Convert.ToInt64(reader["stock_quantity_milli"]);
                                         currentCost = Convert.ToInt64(reader["cost_piasters"]);
                                         currentPrice = Convert.ToInt64(reader["price_piasters"]);
+                                        bool hasVariants = false;
+                                        try { hasVariants = Convert.ToInt32(reader["has_variants"]) == 1; } catch { }
+                                        if (hasVariants)
+                                        {
+                                            throw new InvalidOperationException(string.Format("لا يمكن إضافة كميات شراء للمنتج الرئيسي '{0}' مباشرة لوجود متغيرات (ألوان ومقاسات) مرتبطة به. يرجى اختيار المتغير المحدد للشراء.", productName));
+                                        }
                                     }
                                     else
                                     {
@@ -309,6 +333,7 @@ namespace RafiqPOS.Repositories
                                     SELECT COALESCE(SUM(p2.stock_quantity_milli), 0)
                                     FROM products p2
                                     WHERE p2.parent_id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @pid)
+                                      AND p2.is_active = 1
                                 ),
                                 updated_at = @now
                                 WHERE id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @pid AND p1.parent_id IS NOT NULL);

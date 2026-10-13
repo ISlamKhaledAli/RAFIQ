@@ -184,6 +184,7 @@ namespace RafiqPOS.Bridge
             { "productUnits:delete", "products.edit" },
             { "productUnits:setBase", "products.edit" },
             { "variants:createMatrix", "products.edit" },
+            { "variants:getMatrixReport", "products.view" },
             { "categories:save", "categories.manage" },
             { "categories:archive", "categories.manage" },
             { "categories:reorder", "categories.manage" },
@@ -206,6 +207,9 @@ namespace RafiqPOS.Bridge
             { "suppliers:delete", "suppliers.manage" },
             { "suppliers:recordPayment", "suppliers.manage" },
             { "suppliers:recalculateBalance", REQUIRE_ADMIN },
+            { "suppliers:verifyBalance", "suppliers.manage" },
+            { "suppliers:checkDiscrepancies", REQUIRE_ADMIN },
+            { "suppliers:getTransactions", "suppliers.manage" },
 
             { "customers:save", "customers.create" },
             { "customers:archive", "customers.edit" },
