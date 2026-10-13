@@ -1033,6 +1033,481 @@ namespace RafiqPOS.Services
                 var advSupVerify = supplierRepo.VerifyBalance(advSupplier.Id);
                 Assert(advSupVerify.IsBalanced && advSupVerify.StoredBalancePiasters == -1500 && advSupVerify.CalculatedBalancePiasters == -1500, "تطابق رصيد المورد الدائن مع حركة PURCHASE_OVERPAYMENT في دفتر الأستاذ", result);
 
+                // =========================================================================
+                // SCENARIO 17: حظر المرتجع الآجل بدون عميل أو للعميل النقدي العام
+                // =========================================================================
+                Console.WriteLine("--> Scenario 17: Credit Refund Customer Validation & Anonymous Protection");
+                var secProd = CreateTestProduct(prodRepo, "شاحن لاسلكي سريع", "62255550001", 30000, 18000, 10000, "قطعة");
+
+                // 1. Attempt credit refund with null/empty customerId
+                bool creditNoCustomerBlocked = false;
+                try
+                {
+                    var invalidCreditRet = new Return
+                    {
+                        RefundMethod = "credit",
+                        CustomerId = null,
+                        CashierId = "usr_tester",
+                        Items = new List<ReturnItem>
+                        {
+                            new ReturnItem
+                            {
+                                ProductId = secProd.Id,
+                                ProductName = secProd.Name,
+                                QuantityMilli = 1000,
+                                UnitPricePiasters = 30000,
+                                TotalPiasters = 30000,
+                                Unit = "قطعة",
+                                ConversionFactor = 1
+                            }
+                        }
+                    };
+                    returnService.ProcessReturn(invalidCreditRet, "1234");
+                }
+                catch (InvalidOperationException ex)
+                {
+                    if (ex.Message.Contains("بدون تحديد عميل مسجل")) creditNoCustomerBlocked = true;
+                }
+                Assert(creditNoCustomerBlocked, "حظر طلب المرتجع كرصيد آجل بدون تحديد عميل مسجل في النظام", result);
+
+                // 2. Attempt credit refund with anonymous cash customer
+                bool creditAnonBlocked = false;
+                try
+                {
+                    var anonCreditRet = new Return
+                    {
+                        RefundMethod = "credit",
+                        CustomerId = "cust_general_cash",
+                        CashierId = "usr_tester",
+                        Items = new List<ReturnItem>
+                        {
+                            new ReturnItem
+                            {
+                                ProductId = secProd.Id,
+                                ProductName = secProd.Name,
+                                QuantityMilli = 1000,
+                                UnitPricePiasters = 30000,
+                                TotalPiasters = 30000,
+                                Unit = "قطعة",
+                                ConversionFactor = 1
+                            }
+                        }
+                    };
+                    returnService.ProcessReturn(anonCreditRet, "1234");
+                }
+                catch (InvalidOperationException ex)
+                {
+                    if (ex.Message.Contains("للعميل النقدي العام")) creditAnonBlocked = true;
+                }
+                Assert(creditAnonBlocked, "حظر استرداد المرتجع كرصيد آجل لحساب العميل النقدي العام المجهول", result);
+
+                // 3. Valid credit refund with registered customer
+                var validCreditCust = custRepo.SaveCustomer(new Customer
+                {
+                    Name = "عميل مرتجع آجل معتمد",
+                    Phone = "01077776666",
+                    BalancePiasters = 50000 // 500 EGP debt
+                });
+                var validCreditRet = new Return
+                {
+                    RefundMethod = "credit",
+                    CustomerId = validCreditCust.Id,
+                    CashierId = "usr_tester",
+                    Items = new List<ReturnItem>
+                    {
+                        new ReturnItem
+                        {
+                            ProductId = secProd.Id,
+                            ProductName = secProd.Name,
+                            QuantityMilli = 1000,
+                            UnitPricePiasters = 30000,
+                            TotalPiasters = 30000,
+                            Unit = "قطعة",
+                            ConversionFactor = 1
+                        }
+                    }
+                };
+                var processedCreditRet = returnService.ProcessReturn(validCreditRet, "1234");
+                Assert(processedCreditRet != null && processedCreditRet.TotalPiasters == 30000, "تسجيل المرتجع الآجل للعميل المعتمد بنجاح", result);
+
+                var reloadedValidCust = custRepo.GetById(validCreditCust.Id);
+                Assert(reloadedValidCust.BalancePiasters == 20000, "خصم قيمة المرتجع الآجل (300 ج.م) من مديونية العميل لتصبح 200 ج.م", result);
+
+                var validCustVerify = custRepo.VerifyBalance(validCreditCust.Id);
+                Assert(validCustVerify.IsBalanced && validCustVerify.StoredBalancePiasters == 20000, "تطابق دفتر أستاذ العميل بعد المرتجع الآجل بنسبة 100%", result);
+
+                // =========================================================================
+                // SCENARIO 18: مزامنة أسعار الوحدة الأساسية product_units عند تسجيل فاتورة شراء
+                // =========================================================================
+                Console.WriteLine("--> Scenario 18: Purchase Multi-Unit Pricing Parity & Base Unit Synchronization");
+                var purchProd = CreateTestProduct(prodRepo, "زيت ذرة نقي 1 لتر", "62244440001", 6000, 4500, 20000, "زجاجة");
+                var baseUnitBefore = unitRepo.GetBaseUnit(purchProd.Id);
+                Assert(baseUnitBefore != null && baseUnitBefore.SellPricePiasters == 6000 && baseUnitBefore.CostPricePiasters == 4500, "تطابق أسعار الوحدة الأساسية المبدئية قبل الشراء", result);
+
+                var newPricePurchase = new Purchase
+                {
+                    SupplierId = advSupplier.Id,
+                    SupplierName = advSupplier.Name,
+                    TotalCostPiasters = 52000,
+                    NetCostPiasters = 52000,
+                    PaidAmountPiasters = 52000,
+                    CreatedAt = DateTime.UtcNow.ToString("o")
+                };
+                newPricePurchase.Items.Add(new PurchaseItem
+                {
+                    ProductId = purchProd.Id,
+                    ProductName = purchProd.Name,
+                    QuantityMilli = 10000,
+                    UnitCostPiasters = 5200, // New cost increased from 45.00 to 52.00 EGP
+                    TotalCostPiasters = 52000,
+                    NewSellingPricePiasters = 7200, // New selling price increased from 60.00 to 72.00 EGP
+                    CreatedAt = newPricePurchase.CreatedAt
+                });
+
+                var createdPurch2 = purchaseRepo.CreatePurchase(newPricePurchase, "LATEST", "usr_tester");
+                Assert(createdPurch2 != null, "تسجيل فاتورة شراء بأسعار وتكاليف جديدة بنجاح", result);
+
+                var reloadedPurchProd = prodRepo.GetById(purchProd.Id);
+                Assert(reloadedPurchProd.CostPiasters == 5200 && reloadedPurchProd.PricePiasters == 7200, "تحديث التكلفة وسعر البيع في جدول products", result);
+
+                var baseUnitAfter = unitRepo.GetBaseUnit(purchProd.Id);
+                Assert(baseUnitAfter.CostPricePiasters == 5200 && baseUnitAfter.SellPricePiasters == 7200, "مزامنة التكلفة وسعر البيع بالتزامن في جدول product_units للوحدة الأساسية", result);
+
+                // =========================================================================
+                // SCENARIO 19: حظر صرف نقدية من الدرج لفاتورة آجل لم يُدفع منها نقد وإتمام المرتجع الآجل
+                // =========================================================================
+                Console.WriteLine("--> Scenario 19: Unpaid Credit Sale Cash Refund Block & Ledger Balance Invariant");
+                var creditCust2 = custRepo.SaveCustomer(new Customer
+                {
+                    Name = "عميل آجل بدون سداد نقدي",
+                    Phone = "01033334444",
+                    BalancePiasters = 0,
+                    CreditLimitPiasters = 200000
+                });
+
+                var creditSaleProd = CreateTestProduct(prodRepo, "سماعة بلوتوث رياضية", "62233330001", 40000, 25000, 10000, "قطعة");
+
+                var creditSale = new Sale
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    CashierId = "usr_tester",
+                    CustomerId = creditCust2.Id,
+                    CustomerName = creditCust2.Name,
+                    SubtotalPiasters = 40000,
+                    TotalPiasters = 40000,
+                    PaidPiasters = 0, // Zero cash paid
+                    ChangePiasters = 0,
+                    PaymentMethod = "credit",
+                    CreatedAt = DateTime.UtcNow.ToString("o")
+                };
+                creditSale.Items.Add(new SaleItem
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    SaleId = creditSale.Id,
+                    ProductId = creditSaleProd.Id,
+                    ProductName = creditSaleProd.Name,
+                    QuantityMilli = 1000,
+                    UnitPricePiasters = 40000,
+                    UnitCostPiasters = 25000,
+                    TotalPiasters = 40000,
+                    Unit = "قطعة",
+                    ConversionFactor = 1
+                });
+
+                var createdCreditSale = saleService.ProcessSale(creditSale, "idemp_credit_sale_unpaid");
+                Assert(createdCreditSale != null && createdCreditSale.InvoiceNumber > 0, "تسجيل فاتورة البيع الآجل بالكامل بنجاح", result);
+
+                var custAfterCreditSale = custRepo.GetById(creditCust2.Id);
+                Assert(custAfterCreditSale.BalancePiasters == 40000, "تسجيل مديونية العميل 400 ج.م بدقة", result);
+
+                // Attempt cash refund on this unpaid credit sale
+                bool unpaidCashDrainBlocked = false;
+                try
+                {
+                    var cashRefundReq = new Return
+                    {
+                        SaleId = createdCreditSale.Id,
+                        RefundMethod = "cash",
+                        CashierId = "usr_tester",
+                        CustomerId = creditCust2.Id,
+                        Items = new List<ReturnItem>
+                        {
+                            new ReturnItem
+                            {
+                                ProductId = creditSaleProd.Id,
+                                ProductName = creditSaleProd.Name,
+                                QuantityMilli = 1000,
+                                UnitPricePiasters = 40000,
+                                TotalPiasters = 40000,
+                                Unit = "قطعة",
+                                ConversionFactor = 1
+                            }
+                        }
+                    };
+                    returnService.ProcessReturn(cashRefundReq);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    if (ex.Message.Contains("لم يُسدد منها مبالغ نقدية")) unpaidCashDrainBlocked = true;
+                }
+                Assert(unpaidCashDrainBlocked, "حظر صرف نقدية من الدرج لفاتورة آجل لم يُسدد منها أي مبالغ نقدية", result);
+
+                // Process legitimate credit refund to reduce customer debt
+                var legitCreditRet2 = new Return
+                {
+                    SaleId = createdCreditSale.Id,
+                    RefundMethod = "credit",
+                    CashierId = "usr_tester",
+                    CustomerId = creditCust2.Id,
+                    Items = new List<ReturnItem>
+                    {
+                        new ReturnItem
+                        {
+                            ProductId = creditSaleProd.Id,
+                            ProductName = creditSaleProd.Name,
+                            QuantityMilli = 1000,
+                            UnitPricePiasters = 40000,
+                            TotalPiasters = 40000,
+                            Unit = "قطعة",
+                            ConversionFactor = 1
+                        }
+                    }
+                };
+                var retResCredit = returnService.ProcessReturn(legitCreditRet2);
+                Assert(retResCredit != null && retResCredit.TotalPiasters == 40000, "إتمام المرتجع كرصيد آجل لحساب العميل بنجاح", result);
+
+                var custAfterRet = custRepo.GetById(creditCust2.Id);
+                Assert(custAfterRet.BalancePiasters == 0, "تصفير مديونية العميل بالكامل (0 قرش) بعد إرجاع الفاتورة الآجل", result);
+
+                var cust2Verify = custRepo.VerifyBalance(creditCust2.Id);
+                Assert(cust2Verify.IsBalanced && cust2Verify.StoredBalancePiasters == 0, "تطابق دفتر أستاذ العميل بنسبة 100% دون أي انحراف مالي", result);
+
+                // =========================================================================
+                // SCENARIO 20: بيع ومرتجع بالوحدات الكبرى (كرتونة) وتطابق خصم واستعادة الدفعات والمخزون
+                // =========================================================================
+                Console.WriteLine("--> Scenario 20: Secondary Unit (Carton) Sale & Return with FEFO Batch Tracking");
+                var cartonProd = CreateTestProduct(prodRepo, "معجون أسنان مبيض 75 مل", "62222220001", 3000, 2000, 100000, "قطعة");
+                var cartonUnitModel = new ProductUnit
+                {
+                    ProductId = cartonProd.Id,
+                    UnitName = "كرتونة",
+                    ConversionFactor = 12, // 1 carton = 12 pieces
+                    IsBaseUnit = false,
+                    SellPricePiasters = 32000, // 320.00 EGP / carton
+                    CostPricePiasters = 22000,
+                    IsDivisible = false,
+                    SortOrder = 2
+                };
+                cartonUnitModel.Id = Guid.NewGuid().ToString();
+                unitRepo.Create(cartonUnitModel);
+
+                // Create Batch with 60 pieces (60,000 milli)
+                var cartonBatch = batchRepo.CreateOrUpdateBatch(new ProductBatch
+                {
+                    ProductId = cartonProd.Id,
+                    BatchNumber = "PASTE-CARTON-BATCH-01",
+                    ExpiryDate = "2027-01-01",
+                    QuantityMilli = 60000,
+                    CostPricePiasters = 2000,
+                    Status = "ACTIVE"
+                });
+
+                // Sell 2 cartons (= 24 pieces = 24,000 milli base quantity)
+                var cartonSale = new Sale
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    CashierId = "usr_tester",
+                    SubtotalPiasters = 64000,
+                    TotalPiasters = 64000,
+                    PaidPiasters = 64000,
+                    PaymentMethod = "cash",
+                    CreatedAt = DateTime.UtcNow.ToString("o")
+                };
+                cartonSale.Items.Add(new SaleItem
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    SaleId = cartonSale.Id,
+                    ProductId = cartonProd.Id,
+                    ProductName = cartonProd.Name,
+                    QuantityMilli = 2000, // 2 cartons
+                    UnitPricePiasters = 32000,
+                    UnitCostPiasters = 22000,
+                    TotalPiasters = 64000,
+                    Unit = "كرتونة",
+                    UnitId = cartonUnitModel.Id,
+                    UnitName = "كرتونة",
+                    ConversionFactor = 12
+                });
+
+                var processedCartonSale = saleService.ProcessSale(cartonSale, "idemp_carton_sale");
+                Assert(processedCartonSale != null, "تسجيل بيع 2 كرتونة (24 قطعة) بنجاح", result);
+
+                // Verify stock deduction in products (100,000 - 24,000 = 76,000 milli)
+                var prodAfterCartonSale = prodRepo.GetById(cartonProd.Id);
+                Assert(prodAfterCartonSale.StockQuantityMilli == 76000, "خصم 24 قطعة (24,000 milli) من رصيد المنتج بالوحدات الأساسية", result);
+
+                // Verify batch deduction in product_batches (60,000 - 24,000 = 36,000 milli)
+                var batchAfterCartonSale = batchRepo.GetById(cartonBatch.Id);
+                Assert(batchAfterCartonSale.QuantityMilli == 36000, "خصم 24,000 milli من دفعة الصنف حسب FEFO بدقة تامة", result);
+
+                // Return 1 carton (= 12 pieces = 12,000 milli base quantity)
+                var cartonReturn = new Return
+                {
+                    SaleId = processedCartonSale.Id,
+                    RefundMethod = "cash",
+                    CashierId = "usr_tester",
+                    Items = new List<ReturnItem>
+                    {
+                        new ReturnItem
+                        {
+                            ProductId = cartonProd.Id,
+                            ProductName = cartonProd.Name,
+                            QuantityMilli = 1000, // 1 carton
+                            UnitPricePiasters = 32000,
+                            TotalPiasters = 32000,
+                            Unit = "كرتونة",
+                            ConversionFactor = 12
+                        }
+                    }
+                };
+                var retCartonRes = returnService.ProcessReturn(cartonReturn);
+                Assert(retCartonRes != null && retCartonRes.TotalPiasters == 32000, "تسجيل مرتجع 1 كرتونة سليم بنجاح", result);
+
+                // Verify stock restored in products (76,000 + 12,000 = 88,000 milli)
+                var prodAfterCartonRet = prodRepo.GetById(cartonProd.Id);
+                Assert(prodAfterCartonRet.StockQuantityMilli == 88000, "استعادة 12 قطعة (12,000 milli) لرصيد المنتج بالوحدات الأساسية", result);
+
+                // Verify batch restored in product_batches (36,000 + 12,000 = 48,000 milli)
+                var batchAfterCartonRet = batchRepo.GetById(cartonBatch.Id);
+                Assert(batchAfterCartonRet.QuantityMilli == 48000, "استعادة 12,000 milli لدفعة الصنف بدقة تامة", result);
+
+                var cartonDiscrepancies = movementRepo.CheckDiscrepancies();
+                Assert(cartonDiscrepancies.Count == 0, "تطابق 100% بين products و stock_movements بعد بيع ومرتجع الكرتونة دون أي انحراف", result);
+
+                // =========================================================================
+                // SCENARIO 21: سداد العميل بالزيادة في بيع نقدي وخصم الرصيد في فاتورة آجل تالية
+                // =========================================================================
+                Console.WriteLine("--> Scenario 21: Customer Cash Overpayment Credit Deposit & Offset in Subsequent Debt Sale");
+                var overpayCust = custRepo.SaveCustomer(new Customer
+                {
+                    Name = "عميل سداد بالزيادة",
+                    Phone = "01088887777",
+                    BalancePiasters = 0,
+                    CreditLimitPiasters = 500000
+                });
+
+                var overpayProd = CreateTestProduct(prodRepo, "سماعة أذن سلكية", "62211118888", 7000, 4500, 10000, "قطعة");
+
+                // Customer buys 1 piece (70.00 EGP). Pays 100.00 EGP cash with 0 change returned (deposits 30.00 EGP advance credit)
+                var overpaySale = new Sale
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    CashierId = "usr_tester",
+                    CustomerId = overpayCust.Id,
+                    CustomerName = overpayCust.Name,
+                    SubtotalPiasters = 7000,
+                    TotalPiasters = 7000,
+                    PaidPiasters = 10000, // 100.00 EGP
+                    ChangePiasters = 0,    // 0 change returned -> 30.00 EGP deposit
+                    PaymentMethod = "cash",
+                    CreatedAt = DateTime.UtcNow.ToString("o")
+                };
+                overpaySale.Items.Add(new SaleItem
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    SaleId = overpaySale.Id,
+                    ProductId = overpayProd.Id,
+                    ProductName = overpayProd.Name,
+                    QuantityMilli = 1000,
+                    UnitPricePiasters = 7000,
+                    TotalPiasters = 7000,
+                    Unit = "قطعة",
+                    ConversionFactor = 1
+                });
+
+                var procOverpaySale = saleService.ProcessSale(overpaySale, "idemp_overpay_sale_1");
+                Assert(procOverpaySale != null, "تسجيل فاتورة البيع النقدي بالسداد بالزيادة بنجاح", result);
+
+                var custAfterOverpay = custRepo.GetById(overpayCust.Id);
+                Assert(custAfterOverpay.BalancePiasters == -3000, "تحويل رصيد العميل إلى دائن (-30.00 ج.م) كأمانات مسددة بالزيادة بدقة", result);
+
+                var overpayVerify1 = custRepo.VerifyBalance(overpayCust.Id);
+                Assert(overpayVerify1.IsBalanced && overpayVerify1.StoredBalancePiasters == -3000, "تطابق دفتر أستاذ العميل الدائن مع حركة deposit", result);
+
+                // Next day: Customer buys 1 item (50.00 EGP) on credit without paying
+                // System should absorb the 30.00 EGP advance credit, resulting in remaining net debt of 20.00 EGP (+2000 piasters)
+                var nextDebtProd = CreateTestProduct(prodRepo, "شاحن سيارة سريع", "62211117777", 5000, 3000, 10000, "قطعة");
+                var nextDebtSale = new Sale
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    CashierId = "usr_tester",
+                    CustomerId = overpayCust.Id,
+                    CustomerName = overpayCust.Name,
+                    SubtotalPiasters = 5000,
+                    TotalPiasters = 5000,
+                    PaidPiasters = 0,
+                    ChangePiasters = 0,
+                    PaymentMethod = "credit",
+                    CreatedAt = DateTime.UtcNow.ToString("o")
+                };
+                nextDebtSale.Items.Add(new SaleItem
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    SaleId = nextDebtSale.Id,
+                    ProductId = nextDebtProd.Id,
+                    ProductName = nextDebtProd.Name,
+                    QuantityMilli = 1000,
+                    UnitPricePiasters = 5000,
+                    TotalPiasters = 5000,
+                    Unit = "قطعة",
+                    ConversionFactor = 1
+                });
+
+                var procNextSale = saleService.ProcessSale(nextDebtSale, "idemp_next_debt_sale");
+                Assert(procNextSale != null, "تسجيل فاتورة الآجل التالية للعميل بنجاح", result);
+
+                var custAfterNextSale = custRepo.GetById(overpayCust.Id);
+                Assert(custAfterNextSale.BalancePiasters == 2000, "استيعاب الرصيد الدائن المسبق (-30 ج.م) وصافي الدين الجديد 20 ج.م بدقة متناهية", result);
+
+                var overpayVerify2 = custRepo.VerifyBalance(overpayCust.Id);
+                Assert(overpayVerify2.IsBalanced && overpayVerify2.StoredBalancePiasters == 2000, "تطابق دفتر أستاذ العميل بنسبة 100% بعد امتصاص الرصيد المسبق", result);
+
+                // =========================================================================
+                // SCENARIO 22: السحب النقدي من المحفظة (Cash-Out) وتأثيره على رصيد الماكينة ودرج الكاشير
+                // =========================================================================
+                Console.WriteLine("--> Scenario 22: E-Pay Cash-Out (Wallet Withdrawal) Terminal & Cash Drawer Balance Invariants");
+                var cashOutTerm = epayRepo.SaveTerminal(new EpayTerminal
+                {
+                    Name = "ماكينة أمان سحب نقدي",
+                    Provider = "aman",
+                    BalancePiasters = 20000, // 200.00 EGP initial terminal balance
+                    IsActive = true
+                });
+
+                // Customer withdraws 300.00 EGP (30,000 piasters) from wallet.
+                // Merchant charges customer fee 500 piasters (5.00 EGP).
+                // Merchant hands 300.00 EGP cash to customer from the drawer.
+                // Terminal balance INCREASES by 300.00 EGP (electronic credit transferred from customer to merchant terminal).
+                var cashOutTx = epayRepo.CreateTransaction(new EpayTransaction
+                {
+                    TerminalId = cashOutTerm.Id,
+                    ServiceType = "cash_out",
+                    ServiceName = "سحب نقدي من فودافون كاش",
+                    BillAmountPiasters = 30000, // 300.00 EGP withdrawn
+                    CustomerFeePiasters = 500,  // 5.00 EGP fee collected
+                    ProviderCommissionPiasters = 0,
+                    PaymentChannel = "cash_drawer",
+                    CashierName = "كاشير السحب"
+                });
+                Assert(cashOutTx != null && cashOutTx.NetProfitPiasters == 500, "تسجيل عملية السحب النقدي بنجاح واحتساب عمولة المحل 5 ج.م", result);
+
+                var reloadedCashOutTerm = epayRepo.GetTerminalById(cashOutTerm.Id);
+                Assert(reloadedCashOutTerm.BalancePiasters == 50000, "زيادة رصيد ماكينة الدفع الإلكتروني بقيمة السحب (200 + 300 = 500 ج.م)", result);
+
+                // Check Daily Closing calculation for cash drawer
+                var closingPrevWithCashOut = closingService.GetClosingPreview(todayDate);
+                Assert(closingPrevWithCashOut.EpayDrawerCashPiasters != 0, "احتساب حركة نقدية ماكينة الدفع الإلكتروني في درج الكاشير", result);
+
                 result.Success = (result.PassedAssertions == result.TotalAssertions);
                 result.Message = string.Format("اكتمل فحص السينيور الاحترافي: {0}/{1} بنجاح تام", result.PassedAssertions, result.TotalAssertions);
             }

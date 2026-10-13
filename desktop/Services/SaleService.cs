@@ -162,60 +162,90 @@ namespace RafiqPOS.Services
                     {
                         item.ProductName = product.Name;
                     }
-                    if (string.IsNullOrWhiteSpace(item.Barcode))
-                    {
-                        item.Barcode = product.Barcode;
-                    }
-                    if (string.IsNullOrWhiteSpace(item.Unit))
-                    {
-                        item.Unit = product.Unit;
-                    }
                 }
+
+                // Preserve original client barcode for unit matching before filling catalog barcode
+                string clientBarcode = item.Barcode;
 
                 // Multi-unit resolution and validation (Feature #161 / Tasks 161-6 & 161-14)
                 ProductUnit matchedUnit = null;
-                if (!string.IsNullOrWhiteSpace(item.UnitId) && DatabaseService.ProductUnits != null)
+
+                // 1. Direct unit ID match
+                if (!string.IsNullOrWhiteSpace(item.UnitId))
                 {
-                    matchedUnit = DatabaseService.ProductUnits.GetUnitById(item.UnitId);
-                    // A unit id belonging to another product must never be accepted
-                    if (matchedUnit != null && !string.Equals(matchedUnit.ProductId, item.ProductId, StringComparison.Ordinal))
+                    if (product != null && product.Units != null)
                     {
-                        matchedUnit = null;
+                        foreach (var u in product.Units)
+                        {
+                            if (string.Equals(u.Id, item.UnitId, StringComparison.OrdinalIgnoreCase))
+                            {
+                                matchedUnit = u;
+                                break;
+                            }
+                        }
+                    }
+                    if (matchedUnit == null && DatabaseService.ProductUnits != null)
+                    {
+                        var uDb = DatabaseService.ProductUnits.GetUnitById(item.UnitId);
+                        if (uDb != null && (product == null || string.Equals(uDb.ProductId, item.ProductId, StringComparison.Ordinal)))
+                        {
+                            matchedUnit = uDb;
+                        }
                     }
                 }
-                if (matchedUnit == null && product != null && product.Units != null && product.Units.Count > 0)
+
+                // 2. Unit name match
+                if (matchedUnit == null && product != null && product.Units != null)
                 {
-                    if (!string.IsNullOrWhiteSpace(item.Barcode))
+                    string targetName = !string.IsNullOrWhiteSpace(item.UnitName) ? item.UnitName : item.Unit;
+                    if (!string.IsNullOrWhiteSpace(targetName))
                     {
                         foreach (var u in product.Units)
                         {
-                            if (string.Equals(u.Barcode, item.Barcode, StringComparison.OrdinalIgnoreCase))
+                            if (string.Equals(u.UnitName, targetName, StringComparison.OrdinalIgnoreCase))
                             {
                                 matchedUnit = u;
                                 break;
                             }
                         }
                     }
-                    if (matchedUnit == null && !string.IsNullOrWhiteSpace(item.UnitName))
+                }
+
+                // 3. Client barcode match against unit barcodes
+                if (matchedUnit == null && !string.IsNullOrWhiteSpace(clientBarcode) && product != null && product.Units != null)
+                {
+                    foreach (var u in product.Units)
                     {
-                        foreach (var u in product.Units)
+                        if (!string.IsNullOrWhiteSpace(u.Barcode) && string.Equals(u.Barcode, clientBarcode, StringComparison.OrdinalIgnoreCase))
                         {
-                            if (string.Equals(u.UnitName, item.UnitName, StringComparison.OrdinalIgnoreCase))
-                            {
-                                matchedUnit = u;
-                                break;
-                            }
+                            matchedUnit = u;
+                            break;
                         }
                     }
-                    if (matchedUnit == null)
+                }
+
+                // 4. Conversion factor match
+                if (matchedUnit == null && item.ConversionFactor > 1 && product != null && product.Units != null)
+                {
+                    foreach (var u in product.Units)
                     {
-                        foreach (var u in product.Units)
+                        if (u.ConversionFactor == item.ConversionFactor)
                         {
-                            if (u.IsBaseUnit)
-                            {
-                                matchedUnit = u;
-                                break;
-                            }
+                            matchedUnit = u;
+                            break;
+                        }
+                    }
+                }
+
+                // 5. Fallback to base unit if available
+                if (matchedUnit == null && product != null && product.Units != null)
+                {
+                    foreach (var u in product.Units)
+                    {
+                        if (u.IsBaseUnit)
+                        {
+                            matchedUnit = u;
+                            break;
                         }
                     }
                 }
@@ -226,6 +256,11 @@ namespace RafiqPOS.Services
                     item.UnitName = matchedUnit.UnitName;
                     item.ConversionFactor = matchedUnit.ConversionFactor > 0 ? matchedUnit.ConversionFactor : 1;
                     item.Unit = matchedUnit.UnitName;
+
+                    if (string.IsNullOrWhiteSpace(item.Barcode))
+                    {
+                        item.Barcode = !string.IsNullOrWhiteSpace(matchedUnit.Barcode) ? matchedUnit.Barcode : (product != null ? product.Barcode : null);
+                    }
 
                     // Task 161-14: Prevent fractional sale for non-divisible units
                     if (!matchedUnit.IsDivisible && (item.QuantityMilli % 1000 != 0))
@@ -257,7 +292,15 @@ namespace RafiqPOS.Services
 
                     if (string.IsNullOrWhiteSpace(item.UnitName))
                     {
-                        item.UnitName = item.Unit ?? "piece";
+                        item.UnitName = item.Unit ?? (product != null ? product.Unit : "piece");
+                    }
+                    if (string.IsNullOrWhiteSpace(item.Unit))
+                    {
+                        item.Unit = item.UnitName;
+                    }
+                    if (string.IsNullOrWhiteSpace(item.Barcode) && product != null)
+                    {
+                        item.Barcode = product.Barcode;
                     }
                 }
 
