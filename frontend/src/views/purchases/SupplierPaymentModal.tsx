@@ -166,17 +166,15 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
 
           {/* Smart Excess Resolution Box */}
           {hasExcess && (
-            <div className="p-3.5 bg-surface-2 border border-line rounded-xl space-y-2.5 animate-in fade-in duration-200">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-warn shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold text-ink text-xs block">
-                    المبلغ المكتوب ({formatMoney(paymentAmountPiasters)}) أكبر من دين المورد ({formatMoney(currentBal)})
-                  </span>
-                  <span className="text-[11px] text-ink-muted block mt-0.5">
-                    يوجد زيادة قدرها <b className="font-mono text-warn font-black">{formatMoney(excessPiasters)}</b>. ماذا تريد أن تفعل بالزيادة؟
-                  </span>
+            <div className="p-3 bg-surface-2 border border-line rounded-xl space-y-2 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between bg-amber-500/10 border border-warn/20 px-3 py-1.5 rounded-lg text-xs">
+                <div className="flex items-center gap-1.5 font-bold text-ink">
+                  <AlertCircle className="w-3.5 h-3.5 text-warn shrink-0" />
+                  <span>زيادة عن حساب المورد:</span>
                 </div>
+                <span className="font-mono font-black text-warn text-xs">
+                  {formatMoney(excessPiasters)}
+                </span>
               </div>
 
               {/* Option 1: Pay Exact */}
@@ -200,11 +198,11 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-xs text-ink flex items-center gap-1.5">
                       <Coins className="w-3.5 h-3.5 text-brand" />
-                      <span>صرف المستحق فقط وإبقاء الفائض في الخزينة (المعتاد)</span>
+                      <span>صرف المستحق فقط والباقي في الدرج</span>
                     </span>
                   </div>
-                  <p className="text-[10.5px] text-ink-muted mt-1 leading-relaxed">
-                    يصرف للمورد <b>{formatMoney(currentBal)}</b> فقط ليصبح حسابه خالصاً (0.00 ج.م)، ويحتفظ بالفائض <b>{formatMoney(excessPiasters)}</b> داخل درج المحل.
+                  <p className="text-[11px] text-ink-muted mt-0.5 leading-normal">
+                    صرف {formatMoney(currentBal)} لتسوية الحساب، والاحتفاظ بـ {formatMoney(excessPiasters)} في الدرج.
                   </p>
                 </div>
               </button>
@@ -230,11 +228,11 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-xs text-ink flex items-center gap-1.5">
                       <ArrowLeftRight className="w-3.5 h-3.5 text-paid" />
-                      <span>صرف المبلغ كاملاً وترحيل الزيادة دفعة مقدمة تحت الحساب</span>
+                      <span>صرف المبلغ كاملاً وترحيل الباقي كرصيد</span>
                     </span>
                   </div>
-                  <p className="text-[10.5px] text-ink-muted mt-1 leading-relaxed">
-                    يصرف من الدرج <b>{formatMoney(paymentAmountPiasters)}</b> كاملاً، وتُسجل الزيادة <b>{formatMoney(excessPiasters)}</b> رصيداً لنا عند المورد تُخصم تلقائياً من الفواتير القادمة.
+                  <p className="text-[11px] text-ink-muted mt-0.5 leading-normal">
+                    صرف {formatMoney(paymentAmountPiasters)} بالكامل، وتسجيل {formatMoney(excessPiasters)} رصيد لنا عنده.
                   </p>
                 </div>
               </button>
@@ -309,15 +307,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
               className="px-5 py-2 rounded-xl bg-paid hover:bg-paid-hover text-white font-bold transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
             >
               <Check className="w-4 h-4" />
-              <span>
-                {hasExcess
-                  ? excessAction === 'pay_exact'
-                    ? `صرف المستحق فقط (${formatMoney(currentBal)})`
-                    : `صرف ${formatMoney(paymentAmountPiasters)} وترحيل ${formatMoney(excessPiasters)} تحت الحساب`
-                  : isDebt
-                  ? 'تأكيد السداد وتحديث الحساب'
-                  : 'تأكيد صرف الدفعة المقدمة'}
-              </span>
+              <span>تأكيد الصرف</span>
             </button>
           </div>
         </form>

@@ -170,7 +170,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
       {/* 2-Column Grid of Smart Catalog Items */}
       <div 
         onScroll={handleScroll}
-        className="flex-1 grid grid-cols-2 gap-2 overflow-y-auto pr-0.5 content-start custom-scrollbar"
+        className="flex-1 grid grid-cols-2 gap-2 overflow-y-auto pr-0.5 pt-2.5 pb-2 px-1 content-start custom-scrollbar"
       >
         {itemsToRender.map((item) => {
           const stockMilli = typeof item.stockQuantityMilli === 'number' ? item.stockQuantityMilli : null;
@@ -219,7 +219,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                   </div>
                 </div>
 
-                {/* Category & Status Tags */}
+                {/* Status & Stock Tags */}
                 <div className="flex items-center gap-1 flex-wrap">
                   {isScale ? (
                     <span className="text-[10px] font-semibold bg-sky-50 text-sky-800 border border-sky-200 px-1.5 py-0.2 rounded flex items-center gap-0.5">
@@ -231,11 +231,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                       <Layers className="w-2.5 h-2.5 text-purple-600" />
                       <span>مقاسات وألوان{item.variantsCount ? ` (${item.variantsCount})` : ''}</span>
                     </span>
-                  ) : (
-                    <span className="text-[10px] font-medium text-ink-muted bg-surface-2 border border-line px-1.5 py-0.2 rounded truncate max-w-[85px]">
-                      {item.categoryName || 'عام'}
-                    </span>
-                  )}
+                  ) : null}
 
                   {(item.variantColor || item.variantSize) && (
                     <span className="text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200 px-1.5 py-0.2 rounded flex items-center gap-1 font-mono">

@@ -578,18 +578,12 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
                 <>
                   <Receipt className="w-3.5 h-3.5 text-brand" />
                   <span>فواتير المشتريات</span>
-                  <span className="bg-brand-soft text-brand-dark px-1.5 py-0.2 rounded-full text-[11px] font-mono">
-                    {purchases.length}
-                  </span>
                 </>
               )}
               {activeTab === 'suppliers' && (
                 <>
                   <Building2 className="w-3.5 h-3.5 text-brand" />
                   <span>دليل الموردين</span>
-                  <span className="bg-brand-soft text-brand-dark px-1.5 py-0.2 rounded-full text-[11px] font-mono">
-                    {suppliers.length}
-                  </span>
                 </>
               )}
             </div>

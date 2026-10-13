@@ -43,6 +43,17 @@ import type {
 
 export type EpaySubTab = 'pos' | 'terminals' | 'history' | 'analytics';
 
+const PROVIDER_NAMES: Record<string, string> = {
+  fawry: 'فوري',
+  aman: 'أمان',
+  bee: 'بي',
+  momkn: 'ممكن',
+  sadad: 'سداد',
+  masary: 'مصاري',
+  super_pay: 'سوبر باي',
+  other: 'ماكينة دفع',
+};
+
 export interface EpayViewProps {
   activeSubTab?: EpaySubTab;
   onSubTabChange?: (tab: EpaySubTab) => void;
@@ -723,9 +734,6 @@ export const EpayView: React.FC<EpayViewProps> = ({
                         >
                           <div className="flex items-center justify-between mb-1">
                             <span className="font-bold text-sm text-ink">{term.name}</span>
-                            <span className="text-[11px] px-2 py-0.5 rounded bg-surface-2 text-ink-muted font-medium border border-line">
-                              {term.terminalCode || term.provider}
-                            </span>
                           </div>
                           <div className="flex items-center justify-between mt-2">
                             <span className="text-xs text-ink-muted">الرصيد المتاح:</span>
@@ -1174,7 +1182,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     <div>
                       <div className="flex items-center justify-between mb-2">
                         <span className="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-brand-soft text-brand border border-brand/20">
-                          {term.provider.toUpperCase()}
+                          {PROVIDER_NAMES[term.provider] || term.provider}
                         </span>
                         {canManageTerminals && (
                           <button
@@ -1236,11 +1244,6 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     {filteredFundings.length} حركة
                   </span>
                 </div>
-                {filteredFundings.length > 0 && (
-                  <span className="text-xs text-ink-muted">
-                    المعروض: {pagedFundings.length} من إجمالي {filteredFundings.length} حركة
-                  </span>
-                )}
               </div>
 
               {/* Fundings Filter Bar */}
@@ -1460,11 +1463,6 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     {filteredTransactions.length} عملية
                   </span>
                 </div>
-                {filteredTransactions.length > 0 && (
-                  <span className="text-xs text-ink-muted">
-                    المعروض: {pagedTransactions.length} من أصل {filteredTransactions.length} عملية (مرتبة من الأحدث للأقدم)
-                  </span>
-                )}
               </div>
 
               {filteredTransactions.length === 0 ? (

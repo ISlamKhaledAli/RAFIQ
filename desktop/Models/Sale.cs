@@ -66,6 +66,9 @@ namespace RafiqPOS.Models
         [JsonProperty("cashierId")]
         public string CashierId { get; set; }
 
+        [JsonProperty("cashierName")]
+        public string CashierName { get; set; }
+
         [JsonProperty("customerId")]
         public string CustomerId { get; set; }
 

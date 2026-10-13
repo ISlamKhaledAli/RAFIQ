@@ -358,7 +358,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
                 : 'text-ink-muted hover:text-ink hover:bg-surface'
             }`}
           >
-            كافة الدفعات ({batches.length})
+            كافة الدفعات
           </button>
           <button
             type="button"
@@ -371,9 +371,6 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
           >
             <Clock className="w-3.5 h-3.5" />
             <span>قريبة الانتهاء</span>
-            {summary && summary.expiringSoonCount > 0 && (
-              <span className="font-mono text-[11px] mr-1">({summary.expiringSoonCount})</span>
-            )}
           </button>
           <button
             type="button"
@@ -386,9 +383,6 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
           >
             <AlertTriangle className="w-3.5 h-3.5" />
             <span>منتهية الصلاحية</span>
-            {summary && summary.expiredCount > 0 && (
-              <span className="font-mono text-[11px] mr-1">({summary.expiredCount})</span>
-            )}
           </button>
           <button
             type="button"
@@ -654,9 +648,6 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
         {/* Table Footer */}
         <div className="h-9 bg-surface-2 border-t border-line px-4 flex items-center justify-between text-xs text-ink-muted shrink-0">
           <span>إجمالي الدفعات المسجلة: {batches.length} دفعة</span>
-          <span className="font-mono text-[11px] text-brand-dark">
-            المعروض: {pagedBatches.length} من أصل {filteredBatches.length} دفعة
-          </span>
         </div>
       </div>
 

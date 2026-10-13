@@ -53,6 +53,8 @@ export interface ProductsViewProps {
   onSubViewChange?: (view: 'catalog' | 'movements' | 'batches') => void;
   initialFilter?: 'all' | 'lowStock' | 'outOfStock';
   onResetFilter?: () => void;
+  initialProductIdToEdit?: string | null;
+  onClearInitialProductIdToEdit?: () => void;
 }
 
 export const ProductsView: React.FC<ProductsViewProps> = ({ 
@@ -60,7 +62,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   subView, 
   onSubViewChange,
   initialFilter = 'all', 
-  onResetFilter 
+  onResetFilter,
+  initialProductIdToEdit,
+  onClearInitialProductIdToEdit
 }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -72,8 +76,6 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
   // Pagination state
   const [totalCount, setTotalCount] = useState(0);
-  const [totalLowStockCount, setTotalLowStockCount] = useState(0);
-  const [totalOutOfStockCount, setTotalOutOfStockCount] = useState(0);
   const [pageSize, setPageSize] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -341,8 +343,6 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       if (res && Array.isArray(res.products)) {
         setProducts(res.products);
         setTotalCount(res.totalCount || 0);
-        if (typeof res.lowStockCount === 'number') setTotalLowStockCount(res.lowStockCount);
-        if (typeof res.outOfStockCount === 'number') setTotalOutOfStockCount(res.outOfStockCount);
       } else if (Array.isArray(res)) {
         // Fallback for backward compatibility
         setProducts(res as unknown as Product[]);
@@ -407,8 +407,6 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           if (prodRes && Array.isArray(prodRes.products)) {
             setProducts(prodRes.products);
             setTotalCount(prodRes.totalCount || 0);
-            if (typeof prodRes.lowStockCount === 'number') setTotalLowStockCount(prodRes.lowStockCount);
-            if (typeof prodRes.outOfStockCount === 'number') setTotalOutOfStockCount(prodRes.outOfStockCount);
           } else if (Array.isArray(prodRes)) {
             setProducts(prodRes as unknown as Product[]);
           }
@@ -517,6 +515,26 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setBelowCostWarning(null);
     setShowModal(true);
   };
+
+  // Open edit modal if navigated with a specific product ID (e.g. from Dead Stock Radar)
+  useEffect(() => {
+    if (!initialProductIdToEdit) return;
+    const found = products.find(p => p.id === initialProductIdToEdit);
+    if (found) {
+      openEditModal(found);
+      onClearInitialProductIdToEdit?.();
+    } else {
+      void invoke<Product>('products:getById', { id: initialProductIdToEdit }).then((prod) => {
+        if (prod && prod.id) {
+          openEditModal(prod);
+        }
+        onClearInitialProductIdToEdit?.();
+      }).catch(() => {
+        onClearInitialProductIdToEdit?.();
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialProductIdToEdit, products, onClearInitialProductIdToEdit]);
 
   const handleAddBarcode = () => {
     const code = newBarcodeInput.trim();
@@ -764,10 +782,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 <div className="flex items-center gap-2">
                   <h2 className="text-sm font-black text-ink leading-tight">أصناف وبضاعة المحل</h2>
                   <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-surface-2 text-ink font-bold border border-line tabular-nums">
-                    {totalCount > products.length
-                      ? `معروض ${products.length} من أصل ${totalCount.toLocaleString('en-US')} صنف`
-                      : `${products.length} صنف`
-                    }
+                    {totalCount.toLocaleString('en-US')} صنف
                   </span>
                 </div>
                 <p className="text-[11px] text-ink-muted">أسعار البضاعة، الباركود، رصيد المخزن، وتنبيهات النواقص</p>
@@ -987,6 +1002,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               )}
 
               <button
+                type="button"
+                onClick={() => setShowCategoryModal(true)}
+                className="h-9 px-3 bg-surface hover:bg-surface-2 border border-line text-ink-muted hover:text-ink rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-[0.98] shrink-0"
+                title="إضافة وتعديل وأرشفة وترتيب أقسام السلع"
+              >
+                <Tags className="w-4 h-4 text-brand" />
+                <span>إدارة الأقسام</span>
+              </button>
+
+              <button
                 onClick={openAddModal}
                 className="h-9 px-3.5 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-[0.98] shrink-0"
               >
@@ -1036,11 +1061,6 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 }`}
               >
                 <span>كل الأصناف</span>
-                {totalCount > 0 && (
-                  <span className="font-mono text-[11px] mr-1.5 opacity-90 tabular-nums">
-                    ({totalCount.toLocaleString('en-US')})
-                  </span>
-                )}
               </button>
               <button
                 type="button"
@@ -1056,10 +1076,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 }`}
               >
                 <AlertTriangle className="w-3.5 h-3.5" />
-                <span>بضاعة قربت تخلص (النواقص)</span>
-                <span className="font-mono text-[11px] mr-0.5 opacity-95 tabular-nums">
-                  ({totalLowStockCount.toLocaleString('en-US')})
-                </span>
+                <span>نواقص</span>
               </button>
               <button
                 type="button"
@@ -1074,16 +1091,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                     : 'text-rose-800 hover:bg-rose-50'
                 }`}
               >
-                <span>خلصان من المخزن</span>
-                <span className="font-mono text-[11px] mr-0.5 opacity-95 tabular-nums">
-                  ({totalOutOfStockCount.toLocaleString('en-US')})
-                </span>
+                <span>خلصان</span>
               </button>
             </div>
 
-            {/* Department / Category Filter & Management Button */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-1.5 overflow-x-auto max-w-[460px] py-0.5">
+            {/* Department / Category Filter */}
+            <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0 justify-end">
+              <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 custom-scrollbar">
                 <button
                   type="button"
                   onClick={() => {
@@ -1121,18 +1135,6 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   );
                 })}
               </div>
-
-              <div className="h-5 w-[1px] bg-line hidden sm:block" />
-
-              <button
-                type="button"
-                onClick={() => setShowCategoryModal(true)}
-                className="shrink-0 px-3 py-1.5 rounded-xl bg-surface hover:bg-surface-2 border border-line text-ink-muted hover:text-ink text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
-                title="إضافة وتعديل وأرشفة وترتيب أقسام السلع"
-              >
-                <Tags className="w-3.5 h-3.5 text-brand" />
-                <span>إدارة أقسام المحل</span>
-              </button>
             </div>
           </div>
 
@@ -1143,8 +1145,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                 <span>
                   {stockStatusFilter === 'lowStock'
-                    ? `تصفية النواقص: معروض دلوقتي الأصناف اللي كميتها قربت تخلص في المخزن (${totalCount.toLocaleString('en-US')} صنف)`
-                    : `تصفية الخلصان: معروض دلوقتي الأصناف اللي رصيدها صفر وخلصانة تماماً من المخزن (${totalCount.toLocaleString('en-US')} صنف)`}
+                    ? `تصفية النواقص: الأصناف اللي قربت تخلص في المخزن (${totalCount.toLocaleString('en-US')} صنف)`
+                    : `تصفية الخلصان: الأصناف اللي رصيدها صفر وخلصت من المخزن (${totalCount.toLocaleString('en-US')} صنف)`}
                 </span>
               </div>
               <button

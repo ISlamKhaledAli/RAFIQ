@@ -18,6 +18,7 @@ export interface FinancialWaterfallChartProps {
   cogsPiasters: number;
   grossProfitPiasters: number;
   inventoryLossPiasters: number;
+  operationalExpensesPiasters?: number;
   netProfitPiasters: number;
 }
 
@@ -28,6 +29,7 @@ export const FinancialWaterfallChart: FC<FinancialWaterfallChartProps> = ({
   cogsPiasters,
   grossProfitPiasters,
   inventoryLossPiasters,
+  operationalExpensesPiasters = 0,
   netProfitPiasters,
 }) => {
   const baseValue = Math.max(1, grossSalesPiasters);
@@ -219,6 +221,34 @@ export const FinancialWaterfallChart: FC<FinancialWaterfallChartProps> = ({
           </div>
         )}
 
+        {/* Step 6b: Operational Expenses */}
+        {operationalExpensesPiasters > 0 && (
+          <div className="group p-2.5 rounded-lg bg-surface-2 hover:bg-slate-100/70 border border-line/50 transition-all mr-3 border-r-2 border-r-amber-500">
+            <div className="flex items-center justify-between text-xs mb-1.5">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-md bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+                  <Minus className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <span className="font-bold text-ink">المصروفات التشغيلية والنثرية</span>
+                  <span className="text-[10px] text-amber-700 mr-1.5 font-mono">
+                    (إيجار، فواتير، مرتبات، بوفيه، نثريات)
+                  </span>
+                </div>
+              </div>
+              <div className="font-mono font-bold text-sm text-amber-700 tabular-nums">
+                - {formatArabicCurrency(operationalExpensesPiasters)}
+              </div>
+            </div>
+            <div className="w-full h-3 bg-line/40 rounded-full overflow-hidden flex">
+              <div 
+                className="h-full bg-amber-500 rounded-full transition-all duration-500" 
+                style={{ width: `${getWidthPercent(operationalExpensesPiasters)}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Step 7: Final Net Profit in Pocket */}
         <div className="p-3.5 rounded-xl bg-paid-soft/80 border-2 border-paid shadow-sm transition-all">
           <div className="flex items-center justify-between text-xs mb-2">
@@ -229,7 +259,7 @@ export const FinancialWaterfallChart: FC<FinancialWaterfallChartProps> = ({
               <div>
                 <span className="text-sm font-black text-paid">7. صافي الربح الحقيقي في يد التاجر</span>
                 <div className="text-[11px] text-ink-muted">
-                  المبلغ الصافي الخالي من التكلفة والمرتجعات وعجز الجرد
+                  المبلغ الصافي المتبقي بعد التكلفة والمرتجعات والمصروفات وعجز الجرد
                 </div>
               </div>
             </div>

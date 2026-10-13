@@ -108,8 +108,75 @@ export function DashboardView({
   }, [summary]);
 
   const todayCashAmount = (summary?.todayCashPiasters || 0) / 100;
+  const todayCreditAmount = (summary?.todayCreditPiasters || 0) / 100;
+  const todayCardAmount = (summary?.todayCardPiasters || 0) / 100;
   const todayInstapayAmount = (summary?.todayInstapayPiasters || 0) / 100;
   const todayVodafoneCashAmount = (summary?.todayVodafoneCashPiasters || 0) / 100;
+
+  const paymentPills = useMemo(() => {
+    const list: { key: string; label: string; amount: number; color: string; bg: string; border: string; title: string }[] = [];
+
+    // 1. كاش
+    list.push({
+      key: 'cash',
+      label: 'كاش',
+      amount: todayCashAmount,
+      color: '#006D41',
+      bg: 'bg-emerald-50/70',
+      border: 'border-emerald-200/60',
+      title: 'مبيعات كاش محصلة في درج النقدية',
+    });
+
+    // 2. شكك (يظهر إذا كان هناك بيع آجل على الحساب لتطابق الحسابات)
+    if (todayCreditAmount > 0) {
+      list.push({
+        key: 'credit',
+        label: 'شكك',
+        amount: todayCreditAmount,
+        color: '#B3720E',
+        bg: 'bg-amber-50/80',
+        border: 'border-amber-200/80',
+        title: 'مبيعات آجلة على الحساب (شكك ذمم عملاء)',
+      });
+    }
+
+    // 3. فيزا / بطاقة (إذا وُجد دفع ببطاقة بنكية)
+    if (todayCardAmount > 0) {
+      list.push({
+        key: 'card',
+        label: 'فيزا',
+        amount: todayCardAmount,
+        color: '#0284c7',
+        bg: 'bg-sky-50/80',
+        border: 'border-sky-200/80',
+        title: 'مدفوعات بطاقة بنكية / فيزا',
+      });
+    }
+
+    // 4. انستاباي
+    list.push({
+      key: 'instapay',
+      label: list.length >= 2 ? 'انستا' : 'انستاباي',
+      amount: todayInstapayAmount,
+      color: '#582C83',
+      bg: 'bg-purple-50/80',
+      border: 'border-purple-200/80',
+      title: 'تحويلات انستاباي',
+    });
+
+    // 5. محافظ إلكترونية
+    list.push({
+      key: 'wallets',
+      label: 'محافظ',
+      amount: todayVodafoneCashAmount,
+      color: '#e60000',
+      bg: 'bg-red-50/80',
+      border: 'border-red-200/80',
+      title: 'محافظ إلكترونية (فودافون كاش وغيرها)',
+    });
+
+    return list;
+  }, [todayCashAmount, todayCreditAmount, todayCardAmount, todayInstapayAmount, todayVodafoneCashAmount]);
 
   if (showLoading && !summary) {
     return (
@@ -309,31 +376,30 @@ export function DashboardView({
               <span className="text-[11px] font-bold text-ink-muted">ج.م</span>
             </div>
 
-            {/* Branded Payment Method Breakdown Pills (كاش / انستاباي / محفظة) */}
-            <div className="grid grid-cols-3 gap-1 pt-2 my-1.5 border-t border-line/60">
-              {/* كاش */}
-              <div className="bg-emerald-50/70 border border-emerald-200/60 rounded-md py-1 px-1 flex flex-col items-center justify-center text-center">
-                <span className="text-[9px] font-extrabold text-[#006D41] leading-none">كاش</span>
-                <span className="font-mono text-[10px] sm:text-[11px] font-black text-[#006D41] tabular-nums leading-tight mt-1">
-                  {todayCashAmount.toLocaleString('en-US', { minimumFractionDigits: todayCashAmount % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}
-                </span>
-              </div>
-
-              {/* انستاباي */}
-              <div className="bg-purple-50/80 border border-purple-200/80 rounded-md py-1 px-1 flex flex-col items-center justify-center text-center">
-                <span className="text-[9px] font-extrabold text-[#582C83] leading-none">انستاباي</span>
-                <span className="font-mono text-[10px] sm:text-[11px] font-black text-[#582C83] tabular-nums leading-tight mt-1">
-                  {todayInstapayAmount.toLocaleString('en-US', { minimumFractionDigits: todayInstapayAmount % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}
-                </span>
-              </div>
-
-              {/* محافظ */}
-              <div className="bg-red-50/80 border border-red-200/80 rounded-md py-1 px-1 flex flex-col items-center justify-center text-center">
-                <span className="text-[9px] font-extrabold text-[#e60000] leading-none">محافظ</span>
-                <span className="font-mono text-[10px] sm:text-[11px] font-black text-[#e60000] tabular-nums leading-tight mt-1">
-                  {todayVodafoneCashAmount.toLocaleString('en-US', { minimumFractionDigits: todayVodafoneCashAmount % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}
-                </span>
-              </div>
+            {/* Branded Payment Method Breakdown Pills (كاش / شكك / انستاباي / محافظ / فيزا) */}
+            <div className={`grid ${
+              paymentPills.length === 4 ? 'grid-cols-4' : paymentPills.length >= 5 ? 'grid-cols-5 gap-0.5' : 'grid-cols-3'
+            } gap-1 pt-2 my-1.5 border-t border-line/60`}>
+              {paymentPills.map((pill) => (
+                <div 
+                  key={pill.key}
+                  className={`${pill.bg} border ${pill.border} rounded-md py-1 px-1 flex flex-col items-center justify-center text-center`}
+                  title={pill.title}
+                >
+                  <span className="text-[9px] font-extrabold leading-none truncate max-w-full" style={{ color: pill.color }}>
+                    {pill.label}
+                  </span>
+                  <span 
+                    className="font-mono text-[10px] sm:text-[11px] font-black tabular-nums leading-tight mt-1 truncate max-w-full"
+                    style={{ color: pill.color }}
+                  >
+                    {pill.amount.toLocaleString('en-US', { 
+                      minimumFractionDigits: pill.amount % 1 !== 0 ? 2 : 0, 
+                      maximumFractionDigits: 2 
+                    })}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -450,7 +516,7 @@ export function DashboardView({
             </div>
           </div>
           <div className="pt-2 mt-2 border-t border-line/60 flex items-center justify-between text-[11px] text-ink-muted">
-            <span>متوسط الفاتورة: <strong className="text-ink font-bold font-mono tabular-nums">{summary && summary.todayInvoicesCount > 0 ? ((summary.todaySalesPiasters / summary.todayInvoicesCount) / 100).toFixed(0) : '0'}</strong> ج.م</span>
+            <span>متوسط الفاتورة: <strong className="text-ink font-bold font-mono tabular-nums">{summary && summary.todayInvoicesCount > 0 ? ((todaySalesTotalPiasters / summary.todayInvoicesCount) / 100).toFixed(0) : '0'}</strong> ج.م</span>
             <div className="flex items-center gap-1.5 font-bold text-[10px]">
               {summary && (summary.todayCancelledCount || 0) > 0 && (
                 <span className="text-danger bg-rose-50 px-1.5 py-0.2 rounded-md border border-rose-200" title="فواتير اتلغت النهاردة">
@@ -724,7 +790,7 @@ export function DashboardView({
             <div className="h-10 bg-surface-2 border-b border-line px-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2 text-danger font-bold text-xs">
                 <AlertTriangle className="w-4 h-4 animate-pulse" />
-                <span>بضاعة قربت تخلص (النواقص)</span>
+                <span>نواقص المخزن</span>
                 {summary && (summary.lowStockCount ?? summary.lowStockProducts?.length) > 0 && (
                   <span className="px-1.5 py-0.2 rounded-md bg-rose-50 text-danger text-[10px] font-mono font-bold border border-rose-200">
                     {summary.lowStockCount ?? summary.lowStockProducts.length} صنف

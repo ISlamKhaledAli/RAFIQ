@@ -527,6 +527,18 @@ namespace RafiqPOS.Repositories
                 {
                     sale.ChangePiasters = reader[i] != DBNull.Value ? Convert.ToInt64(reader[i]) : 0;
                 }
+                else if (string.Equals(col, "cashier_name", StringComparison.OrdinalIgnoreCase))
+                {
+                    sale.CashierName = reader[i] != DBNull.Value ? reader[i].ToString() : null;
+                }
+            }
+
+            if (string.IsNullOrEmpty(sale.CashierName))
+            {
+                if (sale.CashierId == "usr_admin_default" || string.IsNullOrEmpty(sale.CashierId))
+                {
+                    sale.CashierName = "مدير النظام";
+                }
             }
 
             return sale;
@@ -539,9 +551,11 @@ namespace RafiqPOS.Repositories
             {
                 conn.Open();
                 string sql = @"
-                    SELECT s.*, c.name AS customer_name, c.phone AS customer_phone
+                    SELECT s.*, c.name AS customer_name, c.phone AS customer_phone,
+                           COALESCE(u.display_name, u.username, 'مدير النظام') AS cashier_name
                     FROM sales s
                     LEFT JOIN customers c ON s.customer_id = c.id
+                    LEFT JOIN users u ON s.cashier_id = u.id
                     ORDER BY s.created_at DESC LIMIT @limit;
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn))
@@ -566,9 +580,11 @@ namespace RafiqPOS.Repositories
             {
                 conn.Open();
                 string sql = @"
-                    SELECT s.*, c.name AS customer_name, c.phone AS customer_phone
+                    SELECT s.*, c.name AS customer_name, c.phone AS customer_phone,
+                           COALESCE(u.display_name, u.username, 'مدير النظام') AS cashier_name
                     FROM sales s
                     LEFT JOIN customers c ON s.customer_id = c.id
+                    LEFT JOIN users u ON s.cashier_id = u.id
                     ORDER BY s.invoice_number ASC;
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn))
@@ -658,9 +674,11 @@ namespace RafiqPOS.Repositories
 
                 string whereSql = whereClauses.Count > 0 ? "WHERE " + string.Join(" AND ", whereClauses) : "";
                 string sql = string.Format(@"
-                    SELECT s.*, c.name AS customer_name, c.phone AS customer_phone
+                    SELECT s.*, c.name AS customer_name, c.phone AS customer_phone,
+                           COALESCE(u.display_name, u.username, 'مدير النظام') AS cashier_name
                     FROM sales s
                     LEFT JOIN customers c ON s.customer_id = c.id
+                    LEFT JOIN users u ON s.cashier_id = u.id
                     {0}
                     ORDER BY s.created_at DESC
                     LIMIT @limit;
@@ -738,9 +756,11 @@ namespace RafiqPOS.Repositories
             {
                 conn.Open();
                 string sql = @"
-                    SELECT s.*, c.name AS customer_name, c.phone AS customer_phone
+                    SELECT s.*, c.name AS customer_name, c.phone AS customer_phone,
+                           COALESCE(u.display_name, u.username, 'مدير النظام') AS cashier_name
                     FROM sales s
                     LEFT JOIN customers c ON s.customer_id = c.id
+                    LEFT JOIN users u ON s.cashier_id = u.id
                     WHERE s.id = @id LIMIT 1;
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn))
@@ -774,9 +794,11 @@ namespace RafiqPOS.Repositories
             {
                 conn.Open();
                 string sql = @"
-                    SELECT s.*, c.name AS customer_name, c.phone AS customer_phone
+                    SELECT s.*, c.name AS customer_name, c.phone AS customer_phone,
+                           COALESCE(u.display_name, u.username, 'مدير النظام') AS cashier_name
                     FROM sales s
                     LEFT JOIN customers c ON s.customer_id = c.id
+                    LEFT JOIN users u ON s.cashier_id = u.id
                     WHERE s.invoice_number = @inv LIMIT 1;
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn))

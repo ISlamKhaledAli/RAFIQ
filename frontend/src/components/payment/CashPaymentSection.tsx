@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertCircle, AlertTriangle, Check, CheckCircle, Clock, HelpCircle, Sparkles, UserCheck, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Check, CheckCircle, Sparkles, UserCheck, X } from 'lucide-react';
 import type { Customer } from '../../types/models';
 import { formatArabicCurrency } from '../../utils/money';
 
@@ -136,15 +136,6 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
         ) : (
           /* Normal full credit debt */
           <div className="p-4 rounded-xl border border-[#f5deb4] bg-[#fef7ec] text-[#b3720e] flex flex-col gap-3 transition-all shadow-2xs">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-bold text-[#b3720e] flex items-center gap-1.5 whitespace-nowrap">
-                <Clock className="w-4 h-4 text-[#b3720e] shrink-0" />
-                <span>الفاتورة كلها على الحساب (آجل بالكامل - بدون كاش):</span>
-              </span>
-              <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-[#f5deb4]/70 text-[#8a5200]">
-                العميل: {selectedCustomer.name}
-              </span>
-            </div>
 
             {/* 3-Step Clear Debt Calculation Breakdown */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-xl bg-white/90 border border-[#f5deb4] text-center font-mono">
@@ -167,31 +158,9 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
                 </span>
               </div>
             </div>
-
-            <div className="text-xs font-medium text-[#8a5200] flex items-center gap-1.5">
-              <AlertCircle className="w-4 h-4 shrink-0 text-[#b3720e]" />
-              <span>مفيش فلوس اتدفعت كاش (0.00 ج.م). تم قيد الفاتورة بالكامل على حساب الزبون في النوتة.</span>
-            </div>
           </div>
         )
-      ) : receivedPiasters === 0 ? (
-        <div className="p-4 rounded-xl border border-line bg-surface-2 flex items-center justify-between gap-3 transition-all">
-          <div className="flex flex-col">
-            <span className="text-xs font-bold text-ink-muted whitespace-nowrap">
-              المطلوب استلامه كاش:
-            </span>
-            <span className="text-2xl font-mono font-black mt-1 tabular-nums text-ink whitespace-nowrap">
-              {formatArabicCurrency(netTotalPiasters)}
-            </span>
-          </div>
-          <div className="text-left text-xs font-medium text-ink-muted max-w-[260px]">
-            <span className="flex items-center gap-1.5 text-ink-muted">
-              <HelpCircle className="w-4 h-4 shrink-0 text-brand" />
-              <span>اكتب المبلغ المستلم، أو اضغط «المبلغ بالظبط»، أو اختار «على الحساب بالكامل».</span>
-            </span>
-          </div>
-        </div>
-      ) : isShortPayment ? (
+      ) : receivedPiasters === 0 ? null : isShortPayment ? (
         <div className={`p-4 rounded-xl border flex flex-col gap-3 transition-all shadow-2xs ${
           selectedCustomer
             ? 'bg-[#FEF7EC] border-[#F5DEB4] text-[#B3720E]'

@@ -477,7 +477,6 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
       {/* Table Footer Status */}
       <div className="h-8 bg-surface-2 border-t border-line px-4 flex items-center justify-between text-[11px] text-ink-muted shrink-0">
         <span>حركات المخزن وتغيير الأسعار بتتسجل تلقائياً أول بأول بدون نت.</span>
-        <span className="font-mono tabular-nums font-bold">معروض {filteredProducts.length} صنف في الصفحة دي</span>
       </div>
 
       {/* Floating Actions Portal Dropdown Menu */}

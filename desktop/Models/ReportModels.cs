@@ -60,6 +60,9 @@ namespace RafiqPOS.Models
         [JsonProperty("topSellingProducts")]
         public List<TopSellingItem> TopSellingProducts { get; set; }
 
+        [JsonProperty("totalExpensesPiasters")]
+        public long TotalExpensesPiasters { get; set; }
+
         public PeriodSalesReport()
         {
             TopSellingProducts = new List<TopSellingItem>();
@@ -508,6 +511,12 @@ namespace RafiqPOS.Models
 
         [JsonProperty("averagePaybackDays")]
         public double AveragePaybackDays { get; set; }
+
+        [JsonProperty("periodOpeningDebtsPiasters")]
+        public long PeriodOpeningDebtsPiasters { get; set; }
+
+        [JsonProperty("periodClosingDebtsPiasters")]
+        public long PeriodClosingDebtsPiasters { get; set; }
     }
 
     public class DebtAgingTier

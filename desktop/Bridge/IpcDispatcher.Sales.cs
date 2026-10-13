@@ -33,6 +33,9 @@ namespace RafiqPOS.Bridge
                         {
                             // Always attribute the sale to the authenticated cashier (Audit F-12)
                             saleToCreate.CashierId = SecurityService.CurrentUser.Id;
+                            saleToCreate.CashierName = !string.IsNullOrEmpty(SecurityService.CurrentUser.DisplayName)
+                                ? SecurityService.CurrentUser.DisplayName
+                                : SecurityService.CurrentUser.Username;
                         }
                         string saleIdempotencyKey = null;
                         JObject salePayloadObj = request.Payload as JObject;
