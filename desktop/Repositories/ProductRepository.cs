@@ -604,14 +604,20 @@ namespace RafiqPOS.Repositories
                 {
                     try
                     {
+                        if (string.IsNullOrEmpty(product.Id))
+                        {
+                            product.Id = Guid.NewGuid().ToString();
+                        }
                         string normName = Common.ArabicTextNormalizer.Normalize(product.Name ?? "");
                         string sql = @"
                             INSERT INTO products (
                                 id, barcode, internal_code, name, normalized_name, category_id, price_piasters, cost_piasters, 
-                                stock_quantity_milli, min_stock_quantity_milli, unit, tax_rate_percent, tax_category_code, is_active, needs_review, created_at, updated_at
+                                stock_quantity_milli, min_stock_quantity_milli, unit, tax_rate_percent, tax_category_code, is_active, needs_review, created_at, updated_at,
+                                has_variants, parent_id
                             ) VALUES (
                                 @id, @barcode, @internalCode, @name, @normName, @categoryId, @price, @cost, 
-                                @stock, @minStock, @unit, @tax, @taxCategoryCode, @isActive, @needsReview, @createdAt, @updatedAt
+                                @stock, @minStock, @unit, @tax, @taxCategoryCode, @isActive, @needsReview, @createdAt, @updatedAt,
+                                @hasVariants, @parentId
                             )
                             ON CONFLICT(id) DO UPDATE SET
                                 barcode = excluded.barcode,
@@ -628,7 +634,9 @@ namespace RafiqPOS.Repositories
                                 tax_category_code = excluded.tax_category_code,
                                 is_active = excluded.is_active,
                                 needs_review = excluded.needs_review,
-                                updated_at = excluded.updated_at;
+                                updated_at = excluded.updated_at,
+                                has_variants = excluded.has_variants,
+                                parent_id = excluded.parent_id;
                         ";
                         using (var cmd = new SQLiteCommand(sql, conn, trans))
                         {
@@ -649,6 +657,8 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@needsReview", product.NeedsReview ? 1 : 0);
                             cmd.Parameters.AddWithValue("@createdAt", product.CreatedAt ?? DateTime.UtcNow.ToString("o"));
                             cmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
+                            cmd.Parameters.AddWithValue("@hasVariants", product.HasVariants ? 1 : 0);
+                            cmd.Parameters.AddWithValue("@parentId", string.IsNullOrWhiteSpace(product.ParentId) ? (object)DBNull.Value : product.ParentId);
                             cmd.ExecuteNonQuery();
                         }
 
@@ -816,6 +826,43 @@ namespace RafiqPOS.Repositories
                             // Ignore if product_units is not ready
                         }
 
+                        // Synchronize product_variants table and parent product stock if this product is a variant
+                        try
+                        {
+                            string syncVarSql = @"
+                                UPDATE product_variants
+                                SET price_piasters = @price,
+                                    cost_piasters = @cost,
+                                    stock_quantity_milli = @stock,
+                                    min_stock_quantity_milli = @minStock,
+                                    barcode = @barcode,
+                                    updated_at = @now
+                                WHERE variant_product_id = @id;
+
+                                UPDATE products
+                                SET stock_quantity_milli = (
+                                    SELECT COALESCE(SUM(p2.stock_quantity_milli), 0)
+                                    FROM products p2
+                                    WHERE p2.parent_id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @id)
+                                      AND p2.is_active = 1
+                                ),
+                                updated_at = @now
+                                WHERE id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @id AND p1.parent_id IS NOT NULL);
+                            ";
+                            using (var vCmd = new SQLiteCommand(syncVarSql, conn, trans))
+                            {
+                                vCmd.Parameters.AddWithValue("@id", product.Id);
+                                vCmd.Parameters.AddWithValue("@price", product.PricePiasters);
+                                vCmd.Parameters.AddWithValue("@cost", product.CostPiasters);
+                                vCmd.Parameters.AddWithValue("@stock", product.StockQuantityMilli);
+                                vCmd.Parameters.AddWithValue("@minStock", product.MinStockQuantityMilli);
+                                vCmd.Parameters.AddWithValue("@barcode", string.IsNullOrWhiteSpace(product.Barcode) ? (object)DBNull.Value : product.Barcode.Trim());
+                                vCmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
+                                vCmd.ExecuteNonQuery();
+                            }
+                        }
+                        catch { }
+
                         trans.Commit();
                     }
                     catch
@@ -829,15 +876,60 @@ namespace RafiqPOS.Repositories
 
         public void SoftDelete(string id)
         {
+            if (string.IsNullOrWhiteSpace(id)) return;
+            string now = DateTime.UtcNow.ToString("o");
+
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = "UPDATE products SET is_active = 0, updated_at = @updatedAt WHERE id = @id;";
-                using (var cmd = new SQLiteCommand(sql, conn))
+                using (var trans = conn.BeginTransaction())
                 {
-                    cmd.Parameters.AddWithValue("@id", id);
-                    cmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
-                    cmd.ExecuteNonQuery();
+                    try
+                    {
+                        // 1. Soft delete the target product
+                        string sql = "UPDATE products SET is_active = 0, updated_at = @updatedAt WHERE id = @id;";
+                        using (var cmd = new SQLiteCommand(sql, conn, trans))
+                        {
+                            cmd.Parameters.AddWithValue("@id", id);
+                            cmd.Parameters.AddWithValue("@updatedAt", now);
+                            cmd.ExecuteNonQuery();
+                        }
+
+                        // 2. If target is a parent product, cascade soft-delete to all child variants
+                        string cascadeSql = "UPDATE products SET is_active = 0, updated_at = @updatedAt WHERE parent_id = @id;";
+                        using (var cCmd = new SQLiteCommand(cascadeSql, conn, trans))
+                        {
+                            cCmd.Parameters.AddWithValue("@id", id);
+                            cCmd.Parameters.AddWithValue("@updatedAt", now);
+                            cCmd.ExecuteNonQuery();
+                        }
+
+                        // 3. If target was a child variant, recalculate parent product's active stock
+                        string syncParentSql = @"
+                            UPDATE products
+                            SET stock_quantity_milli = (
+                                SELECT COALESCE(SUM(p2.stock_quantity_milli), 0)
+                                FROM products p2
+                                WHERE p2.parent_id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @id)
+                                  AND p2.is_active = 1
+                            ),
+                            updated_at = @updatedAt
+                            WHERE id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @id AND p1.parent_id IS NOT NULL);
+                        ";
+                        using (var sCmd = new SQLiteCommand(syncParentSql, conn, trans))
+                        {
+                            sCmd.Parameters.AddWithValue("@id", id);
+                            sCmd.Parameters.AddWithValue("@updatedAt", now);
+                            sCmd.ExecuteNonQuery();
+                        }
+
+                        trans.Commit();
+                    }
+                    catch
+                    {
+                        trans.Rollback();
+                        throw;
+                    }
                 }
             }
         }

@@ -197,11 +197,11 @@ namespace RafiqPOS.Repositories
                     p.unit, 
                     p.stock_quantity_milli AS cached_stock,
                     CASE 
-                        WHEN p.has_variants = 1 THEN COALESCE((SELECT SUM(c.stock_quantity_milli) FROM products c WHERE c.parent_id = p.id), 0)
+                        WHEN p.has_variants = 1 THEN COALESCE((SELECT SUM(c.stock_quantity_milli) FROM products c WHERE c.parent_id = p.id AND c.is_active = 1), 0)
                         ELSE COALESCE(SUM(sm.quantity_milli), 0)
                     END AS calculated_stock,
                     (p.stock_quantity_milli - (CASE 
-                        WHEN p.has_variants = 1 THEN COALESCE((SELECT SUM(c.stock_quantity_milli) FROM products c WHERE c.parent_id = p.id), 0)
+                        WHEN p.has_variants = 1 THEN COALESCE((SELECT SUM(c.stock_quantity_milli) FROM products c WHERE c.parent_id = p.id AND c.is_active = 1), 0)
                         ELSE COALESCE(SUM(sm.quantity_milli), 0)
                     END)) AS diff
                 FROM products p
@@ -270,7 +270,7 @@ namespace RafiqPOS.Repositories
                     SET stock_quantity_milli = COALESCE((
                         SELECT SUM(c.stock_quantity_milli)
                         FROM products c
-                        WHERE c.parent_id = @pid
+                        WHERE c.parent_id = @pid AND c.is_active = 1
                     ), 0),
                     updated_at = datetime('now')
                     WHERE id = @pid AND has_variants = 1;
@@ -300,6 +300,7 @@ namespace RafiqPOS.Repositories
                         SELECT COALESCE(SUM(p2.stock_quantity_milli), 0)
                         FROM products p2
                         WHERE p2.parent_id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @pid)
+                          AND p2.is_active = 1
                     ),
                     updated_at = datetime('now')
                     WHERE id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @pid AND p1.parent_id IS NOT NULL);
@@ -337,7 +338,7 @@ namespace RafiqPOS.Repositories
                     SET stock_quantity_milli = COALESCE((
                         SELECT SUM(c.stock_quantity_milli)
                         FROM products c
-                        WHERE c.parent_id = products.id
+                        WHERE c.parent_id = products.id AND c.is_active = 1
                     ), 0),
                     updated_at = datetime('now')
                     WHERE has_variants = 1;

@@ -19,7 +19,31 @@ namespace RafiqPOS.Repositories
         {
             if (request == null) throw new ArgumentNullException("request");
             if (string.IsNullOrWhiteSpace(request.ParentName)) throw new ArgumentException("اسم المنتج الأب مطلوب");
+            if (request.DefaultPricePiasters < 0) throw new ArgumentException("سعر البيع الافتراضي لا يمكن أن يكون سالباً");
+            if (request.DefaultCostPiasters < 0) throw new ArgumentException("سعر التكلفة الافتراضي لا يمكن أن يكون سالباً");
+            if (request.DefaultMinStockQuantityMilli < 0) throw new ArgumentException("حد الطلب الأدنى الافتراضي لا يمكن أن يكون سالباً");
             if (request.MatrixCells == null || request.MatrixCells.Count == 0) throw new ArgumentException("يجب تحديد تركيبة واحدة على الأقل");
+
+            // Validate in-request duplicate barcodes and cell financial integrity
+            var seenBarcodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var cell in request.MatrixCells)
+            {
+                if (cell == null || !cell.IsEnabled) continue;
+                if (cell.PricePiasters < 0) throw new ArgumentException("سعر البيع للتركيبة لا يمكن أن يكون سالباً");
+                if (cell.CostPiasters < 0) throw new ArgumentException("سعر التكلفة للتركيبة لا يمكن أن يكون سالباً");
+                if (cell.StockQuantityMilli < 0) throw new ArgumentException("كمية المخزون للتركيبة لا يمكن أن تكون سالبة");
+                if (cell.MinStockQuantityMilli < 0) throw new ArgumentException("حد الطلب الأدنى للتركيبة لا يمكن أن يكون سالباً");
+
+                if (!string.IsNullOrWhiteSpace(cell.Barcode))
+                {
+                    string bc = cell.Barcode.Trim();
+                    if (seenBarcodes.Contains(bc))
+                    {
+                        throw new InvalidOperationException(string.Format("الباركود '{0}' مكرر في أكثر من تركيبة لنفس المنتج", bc));
+                    }
+                    seenBarcodes.Add(bc);
+                }
+            }
 
             using (var conn = new SQLiteConnection(_connectionString))
             {
@@ -92,6 +116,19 @@ namespace RafiqPOS.Repositories
                             else
                             {
                                 variantBarcode = variantBarcode.Trim();
+                                // Validate barcode is not already owned by another active product
+                                string checkCollisionSql = @"
+                                    SELECT name FROM products WHERE is_active = 1 AND barcode = @b LIMIT 1;
+                                ";
+                                using (var chkCmd = new SQLiteCommand(checkCollisionSql, conn, trans))
+                                {
+                                    chkCmd.Parameters.AddWithValue("@b", variantBarcode);
+                                    object existingOwner = chkCmd.ExecuteScalar();
+                                    if (existingOwner != null && existingOwner != DBNull.Value)
+                                    {
+                                        throw new InvalidOperationException(string.Format("الباركود '{0}' مسجل بالفعل لمنتج آخر: '{1}'", variantBarcode, existingOwner.ToString()));
+                                    }
+                                }
                             }
 
                             string variantProdId = Guid.NewGuid().ToString("N");
@@ -243,13 +280,28 @@ namespace RafiqPOS.Repositories
                             });
                         }
 
-                        // 3. Update parent product stock to reflect total
-                        string updateStockSql = "UPDATE products SET stock_quantity_milli = @total WHERE id = @id;";
+                        // 3. Update parent product stock to reflect total of all active variants
+                        string updateStockSql = @"
+                            UPDATE products
+                            SET stock_quantity_milli = (
+                                SELECT COALESCE(SUM(p2.stock_quantity_milli), 0)
+                                FROM products p2
+                                WHERE p2.parent_id = @id AND p2.is_active = 1
+                            ),
+                            updated_at = @now
+                            WHERE id = @id;
+
+                            SELECT stock_quantity_milli FROM products WHERE id = @id LIMIT 1;
+                        ";
                         using (var cmd = new SQLiteCommand(updateStockSql, conn, trans))
                         {
-                            cmd.Parameters.AddWithValue("@total", totalParentStockMilli);
                             cmd.Parameters.AddWithValue("@id", parentId);
-                            cmd.ExecuteNonQuery();
+                            cmd.Parameters.AddWithValue("@now", now);
+                            object totalObj = cmd.ExecuteScalar();
+                            if (totalObj != null && totalObj != DBNull.Value)
+                            {
+                                totalParentStockMilli = Convert.ToInt64(totalObj);
+                            }
                         }
 
                         trans.Commit();
@@ -425,12 +477,25 @@ namespace RafiqPOS.Repositories
             {
                 // Prefix 214 for variants (conforming to supermarket internal barcode formats)
                 string candidate = "214" + rnd.Next(100000000, 999999999).ToString();
-                string checkSql = "SELECT COUNT(*) FROM products WHERE barcode = @b;";
+                string checkSql = @"
+                    SELECT COUNT(*) FROM products WHERE barcode = @b
+                    UNION ALL
+                    SELECT COUNT(*) FROM product_barcodes WHERE barcode = @b
+                    UNION ALL
+                    SELECT COUNT(*) FROM product_units WHERE barcode = @b;
+                ";
                 using (var cmd = new SQLiteCommand(checkSql, conn, trans))
                 {
                     cmd.Parameters.AddWithValue("@b", candidate);
-                    long count = Convert.ToInt64(cmd.ExecuteScalar());
-                    if (count == 0)
+                    long totalCollisions = 0;
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            totalCollisions += Convert.ToInt64(reader[0]);
+                        }
+                    }
+                    if (totalCollisions == 0)
                     {
                         return candidate;
                     }

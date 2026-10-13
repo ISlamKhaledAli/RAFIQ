@@ -29,6 +29,15 @@ namespace RafiqPOS.Repositories
                 {
                     try
                     {
+                        if (string.IsNullOrEmpty(sale.Id))
+                        {
+                            sale.Id = Guid.NewGuid().ToString();
+                        }
+                        if (string.IsNullOrEmpty(sale.CreatedAt))
+                        {
+                            sale.CreatedAt = DateTime.UtcNow.ToString("o");
+                        }
+
                         // 1. Calculate next sequential daily invoice number (Task 107-1 & 107-2: Atomic sequence counter)
                         int nextInvoiceNumber = (int)_counters.GetNextInvoiceNumber(conn, trans);
                         sale.InvoiceNumber = nextInvoiceNumber;
@@ -107,14 +116,23 @@ namespace RafiqPOS.Repositories
 
                             // Check if this item is a tracked warehouse product (Audit F-28 / Quick Items Support)
                             bool prodExistsInDb = false;
-                            using (var chkCmd = new SQLiteCommand("SELECT 1 FROM products WHERE id = @chkId LIMIT 1;", conn, trans))
+                            bool hasVariants = false;
+                            using (var chkCmd = new SQLiteCommand("SELECT has_variants FROM products WHERE id = @chkId LIMIT 1;", conn, trans))
                             {
                                 chkCmd.Parameters.AddWithValue("@chkId", item.ProductId);
-                                object chkRes = chkCmd.ExecuteScalar();
-                                if (chkRes != null && chkRes != DBNull.Value)
+                                using (var chkReader = chkCmd.ExecuteReader())
                                 {
-                                    prodExistsInDb = true;
+                                    if (chkReader.Read())
+                                    {
+                                        prodExistsInDb = true;
+                                        try { hasVariants = Convert.ToInt32(chkReader["has_variants"]) == 1; } catch { }
+                                    }
                                 }
+                            }
+
+                            if (hasVariants)
+                            {
+                                throw new InvalidOperationException(string.Format("لا يمكن بيع المنتج الرئيسي '{0}' مباشرة لأنه يحتوي على متغيرات (ألوان ومقاسات). يرجى اختيار الصنف الفرعي المحدد.", item.ProductName ?? item.ProductId));
                             }
 
                             if (prodExistsInDb)
@@ -146,6 +164,7 @@ namespace RafiqPOS.Repositories
                                         SELECT COALESCE(SUM(p2.stock_quantity_milli), 0)
                                         FROM products p2
                                         WHERE p2.parent_id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @prodId)
+                                          AND p2.is_active = 1
                                     ),
                                     updated_at = @now
                                     WHERE id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @prodId AND p1.parent_id IS NOT NULL);
@@ -1067,6 +1086,7 @@ namespace RafiqPOS.Repositories
                                         SELECT COALESCE(SUM(p2.stock_quantity_milli), 0)
                                         FROM products p2
                                         WHERE p2.parent_id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @prodId)
+                                          AND p2.is_active = 1
                                     ),
                                     updated_at = @now
                                     WHERE id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @prodId AND p1.parent_id IS NOT NULL);
