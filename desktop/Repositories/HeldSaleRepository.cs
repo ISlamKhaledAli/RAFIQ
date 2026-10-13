@@ -120,14 +120,18 @@ namespace RafiqPOS.Repositories
 
         public int CleanupOldHeldSales(int retentionDays = 7)
         {
-            if (retentionDays < 1) retentionDays = 1;
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = "DELETE FROM held_sales WHERE date(created_at) < date('now', '-' || @days || ' days');";
+                string sql = retentionDays <= 0
+                    ? "DELETE FROM held_sales;"
+                    : "DELETE FROM held_sales WHERE date(created_at) < date('now', '-' || @days || ' days');";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
-                    cmd.Parameters.AddWithValue("@days", retentionDays);
+                    if (retentionDays > 0)
+                    {
+                        cmd.Parameters.AddWithValue("@days", retentionDays);
+                    }
                     return cmd.ExecuteNonQuery();
                 }
             }

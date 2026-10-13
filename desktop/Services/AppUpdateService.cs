@@ -158,7 +158,7 @@ namespace RafiqPOS.Services
             {
                 if (_backupService != null)
                 {
-                    var backupRes = _backupService.CreateBackup("نسخة_تلقائية_أمان_قبل_التحديث_v" + CURRENT_VERSION);
+                    var backupRes = _backupService.CreateBackup(null);
                     if (backupRes != null && backupRes.Success)
                     {
                         backupPath = backupRes.BackupFilePath;

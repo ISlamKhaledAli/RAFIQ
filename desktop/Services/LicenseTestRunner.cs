@@ -60,6 +60,30 @@ namespace RafiqPOS.Services
             string origConsumed = settingsRepo.Get("consumed_offline_codes", "");
             settingsRepo.Set("consumed_offline_codes", "");
 
+            var origUser = SecurityService.CurrentUser;
+            var adminUser = DatabaseService.UserRepo != null 
+                ? (DatabaseService.UserRepo.GetByUsername("admin") ?? DatabaseService.UserRepo.GetById("usr_admin_default")) 
+                : null;
+            if (adminUser != null)
+            {
+                SecurityService.SetCurrentUserForTesting(SecurityService.MapToDto(adminUser));
+            }
+            else
+            {
+                var testPerms = new System.Collections.Generic.Dictionary<string, bool>();
+                testPerms.Add("reports.sales", true);
+                testPerms.Add("settings.license", true);
+                SecurityService.SetCurrentUserForTesting(new UserDto
+                {
+                    Id = "usr_admin_default",
+                    Username = "admin",
+                    DisplayName = "مدير النظام التجريبي",
+                    Role = "admin",
+                    IsActive = true,
+                    Permissions = testPerms
+                });
+            }
+
             try
             {
                 // ==========================================
@@ -141,7 +165,8 @@ namespace RafiqPOS.Services
                 var readResponse = IpcDispatcher.Dispatch(readRequest);
                 if (!readResponse.Success)
                 {
-                    result.Message = "فشل اختبار القائمة البيضاء: تم حجب تقارير اليومية أثناء انتهاء الترخيص";
+                    string errDetail = readResponse.Error != null ? (readResponse.Error.Code + ": " + readResponse.Error.Message) : "Unknown error";
+                    result.Message = "فشل اختبار القائمة البيضاء: تم حجب تقارير اليومية أثناء انتهاء الترخيص (" + errDetail + ")";
                     return result;
                 }
 
@@ -331,6 +356,7 @@ namespace RafiqPOS.Services
                 settingsRepo.Set("last_known_utc", origLastKnown);
                 settingsRepo.Set("transfer_release_code", origRel);
                 settingsRepo.Set("consumed_offline_codes", origConsumed);
+                SecurityService.SetCurrentUserForTesting(origUser);
             }
         }
 
