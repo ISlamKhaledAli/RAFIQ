@@ -257,6 +257,50 @@ namespace RafiqPOS.Services
                             it.SaleItemId = origItem.Id;
                         }
                     }
+
+                    // Enforce financial ceiling for refunds on credit sales (Senior QA Invariant)
+                    // If returning an unpaid credit sale, cash cannot be disbursed from drawer;
+                    // it must be routed to 'credit' to reduce customer debt.
+                    long netCashPaidOnOrig = 0;
+                    if (string.Equals(origSale.PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase))
+                    {
+                        netCashPaidOnOrig = Math.Max(0, origSale.PaidPiasters - origSale.ChangePiasters);
+                    }
+                    else if (string.Equals(origSale.PaymentMethod, "credit", StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(origSale.PaymentMethod, "multi", StringComparison.OrdinalIgnoreCase))
+                    {
+                        netCashPaidOnOrig = Math.Max(0, origSale.PaidPiasters);
+                    }
+
+                    long pastCashRefunds = 0;
+                    for (int r = 0; r < pastReturns.Count; r++)
+                    {
+                        if (string.Equals(pastReturns[r].RefundMethod, "cash", StringComparison.OrdinalIgnoreCase))
+                        {
+                            pastCashRefunds += pastReturns[r].TotalPiasters;
+                        }
+                    }
+
+                    long allowableCashRefund = Math.Max(0, netCashPaidOnOrig - pastCashRefunds);
+
+                    if (string.Equals(returnObj.RefundMethod, "cash", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (netCashPaidOnOrig <= 0)
+                        {
+                            if (!string.IsNullOrEmpty(returnObj.CustomerId))
+                            {
+                                returnObj.RefundMethod = "credit";
+                            }
+                            else
+                            {
+                                throw new InvalidOperationException("لا يمكن صرف مرتجع نقدي من الدرج لفاتورة بيع آجل لم يُسدد منها مبالغ نقدية. يجب اختيار استرداد كرصيد آجل (credit).");
+                            }
+                        }
+                        else if (allowableCashRefund == 0 && !string.IsNullOrEmpty(returnObj.CustomerId))
+                        {
+                            returnObj.RefundMethod = "credit";
+                        }
+                    }
                 }
             }
 

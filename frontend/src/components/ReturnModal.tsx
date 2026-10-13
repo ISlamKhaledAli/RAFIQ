@@ -284,10 +284,12 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
     setLoading(true);
     setSubmitError(null);
     try {
+      const isUnpaidCredit = mode === 'withInvoice' && loadedSale?.paymentMethod === 'credit' && (loadedSale?.paidPiasters || 0) <= 0;
+      const effectiveRefundMethod = isUnpaidCredit ? 'credit' : refundMethod;
       const payload = {
         saleId: loadedSale?.id || undefined,
         reason: reason.trim() || 'مرتجع أصناف',
-        refundMethod,
+        refundMethod: effectiveRefundMethod,
         supervisorPin: supervisorPin.trim() || undefined,
         items: activeReturnItems.map((item) => ({
           saleItemId: item.saleItemId,
@@ -333,6 +335,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
   };
 
   const isDirty = activeReturnItems.length > 0 && !completedReturn;
+  const isUnpaidCreditSale = mode === 'withInvoice' && loadedSale?.paymentMethod === 'credit' && (loadedSale?.paidPiasters || 0) <= 0;
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
     isOpen,
@@ -654,11 +657,15 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                   <div className="grid grid-cols-2 gap-1.5">
                     <button
                       type="button"
+                      disabled={isUnpaidCreditSale}
                       onClick={() => setRefundMethod('cash')}
+                      title={isUnpaidCreditSale ? 'الفاتورة شكك لم يُسدد منها كاش، الاسترداد يتم كرصيد آجل لخصم المديونية' : undefined}
                       className={`h-8 rounded-lg text-xs font-bold border flex items-center justify-center gap-1.5 transition-colors ${
-                        refundMethod === 'cash'
-                          ? 'bg-amber-100/70 border-amber-400 text-amber-900 shadow-2xs'
-                          : 'bg-slate-50 border-slate-200 text-slate-600'
+                        isUnpaidCreditSale
+                          ? 'opacity-40 cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400'
+                          : refundMethod === 'cash'
+                            ? 'bg-amber-100/70 border-amber-400 text-amber-900 shadow-2xs'
+                            : 'bg-slate-50 border-slate-200 text-slate-600'
                       }`}
                     >
                       <Banknote className="w-3.5 h-3.5" />
