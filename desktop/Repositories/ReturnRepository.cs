@@ -253,7 +253,7 @@ namespace RafiqPOS.Repositories
                                 {
                                     cmd.Parameters.AddWithValue("@mId", Guid.NewGuid().ToString());
                                     cmd.Parameters.AddWithValue("@mProdId", item.ProductId);
-                                    cmd.Parameters.AddWithValue("@mQty", item.QuantityMilli);
+                                    cmd.Parameters.AddWithValue("@mQty", baseQtyMilli);
                                     cmd.Parameters.AddWithValue("@mRefId", returnObj.Id);
                                     cmd.Parameters.AddWithValue("@mUnitCost", unitCost);
                                     cmd.Parameters.AddWithValue("@mNote", string.Format("مرتجع بضاعة تالفة #{0} (لا تدخل المخزون)", returnObj.ReturnNumber));

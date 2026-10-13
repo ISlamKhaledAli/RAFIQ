@@ -28,7 +28,8 @@ namespace RafiqPOS.Services
                         COALESCE(SUM(CASE WHEN (s.paid_piasters - s.service_fee_piasters) > s.total_piasters THEN (s.paid_piasters - s.service_fee_piasters) ELSE s.total_piasters END), 0) AS total_sales,
                         COALESCE(SUM(
                             CASE 
-                                WHEN s.payment_method IN ('cash', 'credit') THEN MIN((s.paid_piasters - s.service_fee_piasters), s.total_piasters)
+                                WHEN s.payment_method = 'cash' THEN MAX(0, (s.paid_piasters - s.service_fee_piasters) - COALESCE(s.change_piasters, 0))
+                                WHEN s.payment_method = 'credit' THEN MIN((s.paid_piasters - s.service_fee_piasters), s.total_piasters)
                                 WHEN s.payment_method = 'multi' THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
@@ -530,7 +531,8 @@ namespace RafiqPOS.Services
                         COALESCE(SUM(CASE WHEN (s.paid_piasters - s.service_fee_piasters) > s.total_piasters THEN (s.paid_piasters - s.service_fee_piasters) ELSE s.total_piasters END), 0) AS total_sales,
                         COALESCE(SUM(
                             CASE 
-                                WHEN s.payment_method IN ('cash', 'credit') THEN MIN((s.paid_piasters - s.service_fee_piasters), s.total_piasters)
+                                WHEN s.payment_method = 'cash' THEN MAX(0, (s.paid_piasters - s.service_fee_piasters) - COALESCE(s.change_piasters, 0))
+                                WHEN s.payment_method = 'credit' THEN MIN((s.paid_piasters - s.service_fee_piasters), s.total_piasters)
                                 WHEN s.payment_method = 'multi' THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 

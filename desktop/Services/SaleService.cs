@@ -393,21 +393,25 @@ namespace RafiqPOS.Services
                 throw new InvalidOperationException("لا يمكن تسجيل فاتورة آجلة أو مدفوعة جزئياً بدون اختيار عميل مسجل.");
             }
 
-            if (sale.PaidPiasters > sale.TotalPiasters && isCashMethod && !hasRegisteredCustomer)
+            if (sale.PaidPiasters > sale.TotalPiasters && isCashMethod)
             {
-                // If registered customer and ChangePiasters is explicitly 0 (or Notes indicate deposit), keep as 0 to deposit on customer ledger
-                if (sale.ChangePiasters == 0 && !string.IsNullOrWhiteSpace(sale.CustomerId))
+                if (hasRegisteredCustomer)
                 {
-                    // Kept as 0 so unreturned change becomes a deposit in customer account
+                    // If registered customer and ChangePiasters is 0 or negative, unreturned change is deposited to customer account (Audit F-27)
+                    // If client specified ChangePiasters > 0, the cash change was handed back to the customer and must NOT be deposited!
+                    if (sale.ChangePiasters < 0)
+                    {
+                        sale.ChangePiasters = 0;
+                    }
                 }
-                else if (sale.ChangePiasters <= 0)
+                else
                 {
+                    // For anonymous general cash customers, cash excess is always change handed back
                     sale.ChangePiasters = sale.PaidPiasters - sale.TotalPiasters;
                 }
             }
             else
             {
-                // For registered customers the cash excess is deposited to the account, so no change is handed back (Audit F-27)
                 sale.ChangePiasters = 0;
             }
 
