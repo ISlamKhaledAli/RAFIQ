@@ -66,6 +66,9 @@ namespace RafiqPOS.Models
         [JsonProperty("cashierId")]
         public string CashierId { get; set; }
 
+        [JsonProperty("cashierName")]
+        public string CashierName { get; set; }
+
         [JsonProperty("customerId")]
         public string CustomerId { get; set; }
 
@@ -101,6 +104,13 @@ namespace RafiqPOS.Models
 
         [JsonProperty("changePiasters")]
         public long ChangePiasters { get; set; }
+
+        /// <summary>
+        /// E-payment service fee collected for the payment provider (pass-through, not shop revenue).
+        /// Always computed on the server; any client-supplied value is ignored.
+        /// </summary>
+        [JsonProperty("serviceFeePiasters")]
+        public long ServiceFeePiasters { get; set; }
 
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }

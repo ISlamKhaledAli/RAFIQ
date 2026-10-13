@@ -904,7 +904,13 @@ namespace RafiqPOS
                 // Attach IPC message receiver
                 _webView.CoreWebView2.WebMessageReceived += CoreWebView2_WebMessageReceived;
 
+                // DevTools give full access to the IPC bridge; allow them only in Debug builds (Audit F-02)
+#if DEBUG
                 _webView.CoreWebView2.Settings.AreDevToolsEnabled = true;
+#else
+                _webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
+                _webView.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = false;
+#endif
 
                 // Navigate to app with cache-buster parameter
                 UpdateSplashStatus("جاري فتح واجهة نظام رفيق...");
@@ -978,6 +984,13 @@ namespace RafiqPOS
             string rawJson = null;
             try
             {
+                // Accept bridge messages only from the bundled local application origin (Audit F-02)
+                string source = e.Source ?? "";
+                if (!source.StartsWith("https://app.rafiq.local/", StringComparison.OrdinalIgnoreCase))
+                {
+                    Logger.Warn("تم تجاهل رسالة IPC من مصدر غير موثوق: " + source);
+                    return;
+                }
                 rawJson = e.WebMessageAsJson;
             }
             catch (Exception ex)

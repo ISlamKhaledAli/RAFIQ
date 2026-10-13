@@ -178,6 +178,7 @@ export interface Sale {
   id?: string;
   invoiceNumber?: number;
   cashierId?: string | null;
+  cashierName?: string | null;
   customerId?: string | null;
   customerName?: string | null;
   customerPhone?: string | null;
@@ -693,6 +694,7 @@ export interface PeriodSalesReport {
   cancelledCount: number;
   zeroCostItemsCount: number;
   topSellingProducts: TopSellingItem[];
+  totalExpensesPiasters?: number;
 }
 
 export interface LowStockReportItem {
@@ -1025,6 +1027,8 @@ export interface CreditOverviewReport {
   periodRepaymentsPiasters: number;
   netCreditFlowPiasters: number;
   averagePaybackDays: number;
+  periodOpeningDebtsPiasters?: number;
+  periodClosingDebtsPiasters?: number;
 }
 
 export interface DebtAgingTier {

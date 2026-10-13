@@ -82,6 +82,29 @@ function matchHeader(cellValue: string): string | null {
 }
 
 /**
+ * تنظيف وتصحيح نصوص الباركود القادمة من ملفات الإكسل
+ * يعالج الترقيم العلمي (Scientific Notation مثل 6.223E+12) ونهايات الأرقام العشرية (.0)
+ */
+export function cleanExcelBarcode(raw: string): string {
+  if (!raw) return '';
+  let str = normalizeArabicNumerals(raw).trim();
+  if (/^\d+\.0+$/.test(str)) {
+    str = str.replace(/\.0+$/, '');
+  }
+  if (/^[0-9]+(\.[0-9]+)?[eE]\+[0-9]+$/.test(str)) {
+    try {
+      const num = Number(str);
+      if (!isNaN(num) && isFinite(num)) {
+        str = BigInt(Math.round(num)).toString();
+      }
+    } catch {
+      // fallback to original
+    }
+  }
+  return str;
+}
+
+/**
  * تحميل ملف Base64 كملف محلي في المتصفح / WebView2
  */
 export function downloadBase64File(base64: string, fileName: string, mimeType: string = 'application/octet-stream'): void {
@@ -762,7 +785,7 @@ export async function parseExcelOrCsvFile(file: File): Promise<RawImportRow[]> {
       const internalCode = getCellString('internalCode');
       const taxCategoryCode = getCellString('taxCode');
 
-      const normBarcode = normalizeArabicNumerals(rawBarcode).trim();
+      const normBarcode = cleanExcelBarcode(rawBarcode);
       const normSku = internalCode.trim().toLowerCase();
       const normName = normalizeArabicText(rawName).trim().toLowerCase();
       const normColor = (rawColor || '').trim().toLowerCase();
@@ -779,7 +802,7 @@ export async function parseExcelOrCsvFile(file: File): Promise<RawImportRow[]> {
       seenKeys.add(dedupKey);
 
       const additionalCodes = rawAdditionalCodes
-        ? rawAdditionalCodes.split(/[,;\n]/).map((c) => normalizeArabicNumerals(c.trim())).filter(Boolean)
+        ? rawAdditionalCodes.split(/[,;\n]/).map((c) => cleanExcelBarcode(c)).filter(Boolean)
         : [];
 
       resultRows.push({

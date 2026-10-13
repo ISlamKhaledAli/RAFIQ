@@ -194,6 +194,7 @@ export default function App() {
   const [lowStockCount, setLowStockCount] = useState<number>(0);
   const [lowStockDismissed, setLowStockDismissed] = useState<boolean>(false);
   const [initialProductFilter, setInitialProductFilter] = useState<'all' | 'lowStock' | 'outOfStock'>('all');
+  const [productToEditId, setProductToEditId] = useState<string | null>(null);
   const [isFirstRunWizardOpen, setIsFirstRunWizardOpen] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('rafiq_first_run_completed') !== 'true';
@@ -1555,6 +1556,23 @@ export default function App() {
                 <div className={`h-full w-full ${dashboardSubTab === 'inventory' ? '' : 'hidden'}`}>
                   <InventoryAnalyticsView 
                     isActive={effectiveActiveTab === 'dashboard' && dashboardSubTab === 'inventory'}
+                    onNavigateToProducts={(sub, filter) => {
+                      setActiveTab('products');
+                      setProductsSubView(sub || 'catalog');
+                      if (filter) setInitialProductFilter(filter);
+                      setIsProductsMenuExpanded(true);
+                    }}
+                    onNavigateToProductEdit={(productId) => {
+                      setActiveTab('products');
+                      setProductsSubView('catalog');
+                      setProductToEditId(productId);
+                      setIsProductsMenuExpanded(true);
+                    }}
+                    onNavigateToPurchases={() => {
+                      setActiveTab('purchases');
+                      setPurchasesSubView('new_invoice');
+                      setIsPurchasesMenuExpanded(true);
+                    }}
                   />
                 </div>
               )}
@@ -1583,6 +1601,8 @@ export default function App() {
                 onSubViewChange={(tab) => setProductsSubView(tab)} 
                 initialFilter={initialProductFilter}
                 onResetFilter={() => setInitialProductFilter('all')}
+                initialProductIdToEdit={productToEditId}
+                onClearInitialProductIdToEdit={() => setProductToEditId(null)}
               />
             </div>
           )}

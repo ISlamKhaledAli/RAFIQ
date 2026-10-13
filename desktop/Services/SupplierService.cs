@@ -46,7 +46,10 @@ namespace RafiqPOS.Services
 
         public void RecordPayment(string supplierId, long amountPiasters, string notes, string userId = null)
         {
-            _supplierRepo.RecordPayment(supplierId, amountPiasters, notes, userId);
+            lock (SaleService.FinancialWriteLock)
+            {
+                _supplierRepo.RecordPayment(supplierId, amountPiasters, notes, userId);
+            }
         }
 
         public List<SupplierTransaction> GetTransactions(string supplierId, int limit = 50)

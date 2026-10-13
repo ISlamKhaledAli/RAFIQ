@@ -46,12 +46,18 @@ namespace RafiqPOS.Services
 
         public Customer RecordPayment(string customerId, long amountPiasters, string notes)
         {
-            return _repo.RecordPayment(customerId, amountPiasters, notes);
+            lock (SaleService.FinancialWriteLock)
+            {
+                return _repo.RecordPayment(customerId, amountPiasters, notes);
+            }
         }
 
         public Customer CancelPayment(string customerId, string ledgerEntryId, string reason, string userName)
         {
-            return _repo.CancelPayment(customerId, ledgerEntryId, reason, userName);
+            lock (SaleService.FinancialWriteLock)
+            {
+                return _repo.CancelPayment(customerId, ledgerEntryId, reason, userName);
+            }
         }
 
         public List<CustomerLedgerEntry> GetStatement(string customerId, int limit = 50)
@@ -71,12 +77,18 @@ namespace RafiqPOS.Services
 
         public Customer RecalculateAndFixBalance(string customerId)
         {
-            return _repo.RecalculateAndFixBalance(customerId);
+            lock (SaleService.FinancialWriteLock)
+            {
+                return _repo.RecalculateAndFixBalance(customerId);
+            }
         }
 
         public CustomerImportResult BatchImportCustomers(List<CustomerImportRow> rows)
         {
-            return _repo.BatchImportCustomers(rows);
+            lock (SaleService.FinancialWriteLock)
+            {
+                return _repo.BatchImportCustomers(rows);
+            }
         }
 
         public void ArchiveCustomer(string customerId)

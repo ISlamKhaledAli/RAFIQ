@@ -388,6 +388,24 @@ namespace RafiqPOS
                         return;
                     }
 
+                    if (args[i] == "--run-chaos-tests")
+                    {
+                        try
+                        {
+                            var res = Services.ChaosEngineeringTestRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "chaos_test_output.json"), json);
+                            Environment.Exit(0);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Chaos test error: " + ex.ToString());
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
+
 #if DEBUG
                     if (args[i] == "--demo-error" || args[i] == "--test-error")
                     {

@@ -712,7 +712,7 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
                   : 'text-ink-muted hover:text-brand hover:bg-surface'
               }`}
             >
-              الكل ({customers.length})
+              الكل
             </button>
             <button
               onClick={() => setFilterType('debtors')}
@@ -722,7 +722,7 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
                   : 'text-ink-muted hover:text-danger hover:bg-surface'
               }`}
             >
-              عليهم فلوس ({debtorsCount})
+              عليهم فلوس
             </button>
             <button
               onClick={() => setFilterType('settled')}
@@ -732,7 +732,7 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
                   : 'text-ink-muted hover:text-paid hover:bg-surface'
               }`}
             >
-              حسابهم خالص ({customers.length - debtorsCount})
+              حسابهم خالص
             </button>
           </div>
 

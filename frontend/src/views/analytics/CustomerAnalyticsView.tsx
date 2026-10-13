@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import type { FC } from 'react';
 import {
   Users,
-  CreditCard,
   AlertTriangle,
   Printer,
   Clock,
@@ -13,7 +12,10 @@ import {
   CheckCircle2,
   AlertCircle,
   Award,
-  Wallet
+  Wallet,
+  Calendar,
+  Scale,
+  ArrowLeftRight
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { useDataSubscription } from '../../utils/eventBus';
@@ -192,132 +194,205 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
         </div>
       </div>
 
-      {/* 2. Top Credit KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-2.5 my-4 shrink-0">
-        {/* KPI 1: Total Outstanding Debts */}
-        <div className="bg-surface border border-line rounded-xl p-3 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-ink-muted mb-1">
-            <span className="text-[11px] font-semibold">إجمالي ديون العملاء</span>
-            <span className="text-[10px] bg-surface-2 px-1.5 py-0.5 rounded font-mono text-ink-muted">
+      {/* 2. Top All-Time Credit KPIs (كروت الرصيد التراكمي الشامل لكافة العملاء) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 my-4 shrink-0">
+        {/* KPI 1: Total Debts */}
+        <div className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 shadow-2xs hover:border-amber-300 hover:shadow-xs transition-all duration-200 flex flex-col justify-between min-h-[118px]">
+          <div>
+            <div className="flex items-center justify-between text-xs text-ink-muted mb-1.5">
+              <span className="font-bold text-ink text-xs">إجمالي ديون العملاء</span>
+              <div className="w-7 h-7 rounded-lg bg-amber-50 text-warn border border-amber-200/80 flex items-center justify-center shadow-2xs">
+                <Users className="w-3.5 h-3.5 stroke-[2.5]" />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-xl sm:text-2xl font-black font-mono text-warn tabular-nums leading-none">
+                {((creditOverview?.totalOutstandingDebtsPiasters || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+              <span className="text-[11px] font-bold text-ink-muted">ج.م</span>
+            </div>
+          </div>
+          <div className="pt-2 mt-2 border-t border-line/60 flex items-center justify-between text-[11px] text-ink-muted">
+            <span>أموال المحل في السوق</span>
+            <span className="bg-amber-50 text-warn font-bold font-mono px-1.5 py-0.5 rounded-md border border-amber-200 text-[10px]">
               {creditOverview?.debtorsCount || 0} عملاء
             </span>
           </div>
-          <div className="text-base font-bold font-mono tabular-nums text-warn">
-            {formatArabicCurrency(creditOverview?.totalOutstandingDebtsPiasters || 0)}
-          </div>
-          <div className="text-[10px] text-ink-muted mt-1">
-            أموال المحل في السوق
-          </div>
         </div>
 
-        {/* KPI 2: Customer Advance Credits (تحت الحساب) */}
-        <div className="bg-surface border border-line rounded-xl p-3 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-ink-muted mb-1">
-            <span className="text-[11px] font-semibold">أرصدة عملاء (تحت الحساب)</span>
-            <span className="text-[10px] bg-paid-soft text-paid-dark px-1.5 py-0.5 rounded font-mono font-bold">
+        {/* KPI 2: Customer Advance Credits */}
+        <div className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 shadow-2xs hover:border-paid hover:shadow-xs transition-all duration-200 flex flex-col justify-between min-h-[118px]">
+          <div>
+            <div className="flex items-center justify-between text-xs text-ink-muted mb-1.5">
+              <span className="font-bold text-ink text-xs">أرصدة عملاء (تحت الحساب)</span>
+              <div className="w-7 h-7 rounded-lg bg-paid-soft text-paid border border-paid/20 flex items-center justify-center shadow-2xs">
+                <Wallet className="w-3.5 h-3.5 stroke-[2.5]" />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-xl sm:text-2xl font-black font-mono text-paid tabular-nums leading-none">
+                {((creditOverview?.totalCustomerCreditsPiasters || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+              <span className="text-[11px] font-bold text-ink-muted">ج.م</span>
+            </div>
+          </div>
+          <div className="pt-2 mt-2 border-t border-line/60 flex items-center justify-between text-[11px] text-ink-muted">
+            <span>أمانات زبائن سايبينها بالمحل</span>
+            <span className="bg-paid-soft text-paid font-bold font-mono px-1.5 py-0.5 rounded-md border border-paid/20 text-[10px]">
               {creditOverview?.creditorsCount || 0} عملاء
             </span>
-          </div>
-          <div className="text-base font-bold font-mono tabular-nums text-paid">
-            {formatArabicCurrency(creditOverview?.totalCustomerCreditsPiasters || 0)}
-          </div>
-          <div className="text-[10px] text-paid-dark mt-1">
-            أمانات زبائن سايبينها بالمحل
           </div>
         </div>
 
         {/* KPI 3: Net Market Exposure */}
-        <div className="bg-surface border border-line rounded-xl p-3 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-ink-muted mb-1">
-            <span className="text-[11px] font-semibold">صافي ذمة السوق للمحل</span>
-            <Wallet className="w-3.5 h-3.5 text-brand" />
-          </div>
-          <div className="text-base font-bold font-mono tabular-nums text-brand-dark">
-            {formatArabicCurrency(creditOverview?.netMarketExposurePiasters ?? (creditOverview?.totalOutstandingDebtsPiasters || 0))}
-          </div>
-          <div className="text-[10px] text-ink-muted mt-1">
-            (ديون العملاء - أمانات الزبائن)
-          </div>
-        </div>
-
-        {/* KPI 4: Repayments in Period */}
-        <div className="bg-surface border border-line rounded-xl p-3 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-ink-muted mb-1">
-            <span className="text-[11px] font-semibold">سدادات تم تحصيلها</span>
-            <TrendingUp className="w-3.5 h-3.5 text-paid" />
-          </div>
-          <div className="text-base font-bold font-mono tabular-nums text-paid">
-            {formatArabicCurrency(creditOverview?.periodRepaymentsPiasters || 0)}
-          </div>
-          <div className="text-[10px] text-paid mt-1">
-            سيولة دخلت الدرج خلال الفترة
-          </div>
-        </div>
-
-        {/* KPI 5: New Credit Sales in Period */}
-        <div className="bg-surface border border-line rounded-xl p-3 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-ink-muted mb-1">
-            <span className="text-[11px] font-semibold">مبيعات آجلة جديدة</span>
-            <TrendingDown className="w-3.5 h-3.5 text-ink-muted" />
-          </div>
-          <div className="text-base font-bold font-mono tabular-nums text-ink">
-            {formatArabicCurrency(creditOverview?.periodNewCreditPiasters || 0)}
-          </div>
-          <div className="text-[10px] text-ink-muted mt-1">
-            فواتير خرجت بدون دفع فوري
-          </div>
-        </div>
-
-        {/* KPI 6: Net Credit Flow */}
-        <div className="bg-surface border border-line rounded-xl p-3 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-ink-muted mb-1">
-            <span className="text-[11px] font-semibold">صافي حركة الآجل</span>
-            <CreditCard className="w-3.5 h-3.5 text-brand" />
-          </div>
-          <div className="text-base font-bold font-mono tabular-nums">
-            {(creditOverview?.netCreditFlowPiasters || 0) <= 0 ? (
-              <span className="text-paid">
-                تقلصت {formatArabicCurrency(Math.abs(creditOverview?.netCreditFlowPiasters || 0))}
+        <div className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 shadow-2xs hover:border-brand hover:shadow-xs transition-all duration-200 flex flex-col justify-between min-h-[118px]">
+          <div>
+            <div className="flex items-center justify-between text-xs text-ink-muted mb-1.5">
+              <span className="font-bold text-ink text-xs">صافي ذمة السوق للمحل</span>
+              <div className="w-7 h-7 rounded-lg bg-surface-2 text-brand border border-brand/20 flex items-center justify-center shadow-2xs">
+                <Scale className="w-3.5 h-3.5 stroke-[2.5]" />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-xl sm:text-2xl font-black font-mono text-ink tabular-nums leading-none">
+                {(((creditOverview?.netMarketExposurePiasters ?? (creditOverview?.totalOutstandingDebtsPiasters || 0))) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
-            ) : (
-              <span className="text-danger">
-                زادت +{formatArabicCurrency(creditOverview?.netCreditFlowPiasters || 0)}
+              <span className="text-[11px] font-bold text-ink-muted">ج.م</span>
+            </div>
+          </div>
+          <div className="pt-2 mt-2 border-t border-line/60 flex items-center justify-between text-[11px] text-ink-muted">
+            <span>الديون ناقص الأمانات</span>
+            <span className="bg-surface-2 text-ink-muted font-bold px-1.5 py-0.5 rounded-md border border-line text-[10px]">
+              صافي السوق
+            </span>
+          </div>
+        </div>
+
+        {/* KPI 4: Critical Debts */}
+        <div className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 shadow-2xs hover:border-danger hover:shadow-xs transition-all duration-200 flex flex-col justify-between min-h-[118px]">
+          <div>
+            <div className="flex items-center justify-between text-xs text-ink-muted mb-1.5">
+              <span className="font-bold text-ink text-xs">ديون حرجة (+90 يوم)</span>
+              <div className="w-7 h-7 rounded-lg bg-rose-50 text-danger border border-rose-200 flex items-center justify-center shadow-2xs">
+                <AlertTriangle className="w-3.5 h-3.5 stroke-[2.5]" />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-1">
+              <span className={`text-xl sm:text-2xl font-black font-mono tabular-nums leading-none ${
+                (debtAging?.criticalDebtorsCount || 0) > 0 ? 'text-danger' : 'text-ink'
+              }`}>
+                {debtAging?.criticalDebtorsCount || 0}
               </span>
-            )}
+              <span className="text-[11px] font-bold text-ink-muted">عملاء</span>
+            </div>
           </div>
-          <div className="text-[10px] text-ink-muted mt-1">
-            {(creditOverview?.netCreditFlowPiasters || 0) <= 0 ? 'مؤشر ممتاز (التحصيل أعلى)' : 'تنبيه: الديون تتراكم'}
-          </div>
-        </div>
-
-        {/* KPI 7: Average Payback Time */}
-        <div className="bg-surface border border-line rounded-xl p-3 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-ink-muted mb-1">
-            <span className="text-[11px] font-semibold">متوسط دورة السداد</span>
-            <Clock className="w-3.5 h-3.5 text-ink-muted" />
-          </div>
-          <div className="text-base font-bold font-mono tabular-nums text-ink">
-            {creditOverview?.averagePaybackDays ? `${creditOverview.averagePaybackDays} يوم` : '—'}
-          </div>
-          <div className="text-[10px] text-ink-muted mt-1">
-            سرعة وفاء العملاء بديونهم
-          </div>
-        </div>
-
-        {/* KPI 8: Critical Debtors (>90 days) */}
-        <div className="bg-surface border border-line rounded-xl p-3 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-ink-muted mb-1">
-            <span className="text-[11px] font-semibold">ديون حرجة (&gt; 90 يوم)</span>
-            <AlertTriangle className="w-3.5 h-3.5 text-danger" />
-          </div>
-          <div className="text-base font-bold font-mono tabular-nums text-danger">
-            {debtAging?.criticalDebtorsCount || 0} عملاء
-          </div>
-          <div className="text-[10px] text-danger mt-1">
-            تتطلب اتصالاً ومطالبة فورية
+          <div className="pt-2 mt-2 border-t border-line/60 flex items-center justify-between text-[11px] text-ink-muted">
+            <span>تتطلب اتصالاً ومطالبة فورية</span>
+            <span className={`font-bold font-mono px-1.5 py-0.5 rounded-md border text-[10px] ${
+              (debtAging?.criticalDebtorsCount || 0) > 0
+                ? 'bg-rose-50 text-danger border-rose-200'
+                : 'bg-paid-soft text-paid border-paid/20'
+            }`}>
+              {(debtAging?.criticalDebtorsCount || 0) > 0 ? 'انتباه عاجل' : 'حالة ممتازة'}
+            </span>
           </div>
         </div>
       </div>
+
+        {/* TIER 2: Period Flow & Reconciliation (حركة الشكك والتحصيل خلال الفترة) */}
+        <div className="bg-surface border border-line rounded-xl p-3 shadow-2xs">
+          <div className="flex items-center justify-between border-b border-line pb-2 mb-2.5">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-paid" />
+              <span className="text-xs font-bold text-ink">
+                حركة الشكك والتحصيل ({PERIOD_OPTIONS.find(p => p.value === period)?.label || 'الفترة المحددة'})
+              </span>
+            </div>
+            <span className="text-[10px] bg-paid-soft text-paid font-medium px-2 py-0.5 rounded-full border border-paid/20">
+              ملخص حركة الفترة
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
+            {/* Flow 1: Opening Debt */}
+            <div className="bg-surface border border-line/80 rounded-xl p-2.5 sm:p-3 shadow-2xs hover:border-line transition-all flex flex-col justify-between">
+              <div className="text-[11px] font-semibold text-ink-muted mb-1">رصيد أول الفترة</div>
+              <div className="text-sm sm:text-base font-bold font-mono tabular-nums text-ink">
+                {formatArabicCurrency(creditOverview?.periodOpeningDebtsPiasters ?? (creditOverview?.totalOutstandingDebtsPiasters || 0))}
+              </div>
+              <div className="text-[10px] text-ink-muted mt-1.5 pt-1.5 border-t border-line/50">ديون العملاء في البداية</div>
+            </div>
+
+            {/* Flow 2: New Credit Sales */}
+            <div className="bg-surface border border-line/80 rounded-xl p-2.5 sm:p-3 shadow-2xs hover:border-amber-200 transition-all flex flex-col justify-between">
+              <div className="flex items-center justify-between text-ink-muted mb-1">
+                <span className="text-[11px] font-semibold text-ink">شكك جديد</span>
+                <TrendingDown className="w-3.5 h-3.5 text-warn" />
+              </div>
+              <div className="text-sm sm:text-base font-bold font-mono tabular-nums text-warn">
+                {formatArabicCurrency(creditOverview?.periodNewCreditPiasters || 0)}
+              </div>
+              <div className="text-[10px] text-ink-muted mt-1.5 pt-1.5 border-t border-line/50">بضاعة طلعت على الحساب</div>
+            </div>
+
+            {/* Flow 3: Period Repayments */}
+            <div className="bg-surface border border-line/80 rounded-xl p-2.5 sm:p-3 shadow-2xs hover:border-paid/30 transition-all flex flex-col justify-between">
+              <div className="flex items-center justify-between text-ink-muted mb-1">
+                <span className="text-[11px] font-semibold text-ink">سدادات اتحصلت</span>
+                <TrendingUp className="w-3.5 h-3.5 text-paid" />
+              </div>
+              <div className="text-sm sm:text-base font-bold font-mono tabular-nums text-paid">
+                {formatArabicCurrency(creditOverview?.periodRepaymentsPiasters || 0)}
+              </div>
+              <div className="text-[10px] text-paid mt-1.5 pt-1.5 border-t border-line/50">فلوس شكك دخلت الدرج</div>
+            </div>
+
+            {/* Flow 4: Net Flow Delta */}
+            <div className="bg-surface border border-line/80 rounded-xl p-2.5 sm:p-3 shadow-2xs hover:border-brand/30 transition-all flex flex-col justify-between">
+              <div className="flex items-center justify-between text-ink-muted mb-1">
+                <span className="text-[11px] font-semibold text-ink">حركة الديون</span>
+                <ArrowLeftRight className="w-3.5 h-3.5 text-brand" />
+              </div>
+              <div className="text-sm sm:text-base font-bold font-mono tabular-nums">
+                {(creditOverview?.netCreditFlowPiasters || 0) <= 0 ? (
+                  <span className="text-paid">
+                    نزلت {formatArabicCurrency(Math.abs(creditOverview?.netCreditFlowPiasters || 0))}
+                  </span>
+                ) : (
+                  <span className="text-danger">
+                    زادت {formatArabicCurrency(creditOverview?.netCreditFlowPiasters || 0)}
+                  </span>
+                )}
+              </div>
+              <div className="text-[10px] text-ink-muted mt-1.5 pt-1.5 border-t border-line/50">
+                {(creditOverview?.netCreditFlowPiasters || 0) <= 0 ? 'حصّلت أكتر ما طلعت شكك (ممتاز)' : 'طلعت شكك أكتر ما حصّلت'}
+              </div>
+            </div>
+
+            {/* Flow 5: Closing Debt */}
+            <div className="bg-surface border border-line/80 rounded-xl p-2.5 sm:p-3 shadow-2xs hover:border-brand/30 transition-all flex flex-col justify-between">
+              <div className="text-[11px] font-semibold text-ink-muted mb-1">شكك آخر الفترة</div>
+              <div className="text-sm sm:text-base font-bold font-mono tabular-nums text-brand-dark">
+                {formatArabicCurrency(creditOverview?.periodClosingDebtsPiasters ?? (creditOverview?.totalOutstandingDebtsPiasters || 0))}
+              </div>
+              <div className="text-[10px] text-brand-dark mt-1.5 pt-1.5 border-t border-line/50">إجمالي الشكك اللي برة دلوقتي</div>
+            </div>
+
+            {/* Flow 6: Actual Payback Duration */}
+            <div className="bg-surface border border-line/80 rounded-xl p-2.5 sm:p-3 shadow-2xs hover:border-line transition-all flex flex-col justify-between">
+              <div className="flex items-center justify-between text-ink-muted mb-1">
+                <span className="text-[11px] font-semibold text-ink">متوسط وقت السداد</span>
+                <Clock className="w-3.5 h-3.5 text-ink-muted" />
+              </div>
+              <div className="text-sm sm:text-base font-bold font-mono tabular-nums text-ink">
+                {(creditOverview?.averagePaybackDays && creditOverview.averagePaybackDays > 0)
+                  ? `${creditOverview.averagePaybackDays} يوم`
+                  : 'مفيش سدادات كافية'}
+              </div>
+              <div className="text-[10px] text-ink-muted mt-1.5 pt-1.5 border-t border-line/50">الزبون بياخد أد إيه على ما يسدد</div>
+            </div>
+          </div>
+        </div>
 
       {/* 3. Section Navigation Tabs */}
       <div className="flex items-center gap-2 border-b border-line pb-3 mb-4 shrink-0 flex-wrap">
@@ -331,7 +406,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
           }`}
         >
           <Clock className="w-4 h-4 shrink-0" />
-          <span>كشف أعمار الديون (Aging Report)</span>
+          <span>كشف أعمار الديون</span>
         </button>
 
         <button
@@ -344,7 +419,7 @@ export const CustomerAnalyticsView: FC<CustomerAnalyticsViewProps> = ({
           }`}
         >
           <Users className="w-4 h-4 shrink-0" />
-          <span>كشف حسابات المدينين ({debtors.length})</span>
+          <span>كشف حسابات المدينين</span>
         </button>
 
         <button

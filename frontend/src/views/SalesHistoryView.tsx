@@ -35,6 +35,19 @@ export interface SalesHistoryViewProps {
   isActive?: boolean;
 }
 
+const formatCashierName = (cashierName?: string | null, cashierId?: string | null): string => {
+  if (cashierName && cashierName.trim()) {
+    if (cashierName === 'usr_admin_default' || cashierName === 'admin') {
+      return 'مدير النظام';
+    }
+    return cashierName;
+  }
+  if (!cashierId || cashierId === 'usr_admin_default' || cashierId === 'admin') {
+    return 'مدير النظام';
+  }
+  return cashierId;
+};
+
 export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = true }) => {
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(false);
@@ -277,7 +290,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
       const sStatus = s.status || 'completed';
       if (statusFilter === 'completed' && sStatus !== 'completed') return false;
       if (statusFilter === 'cancelled' && sStatus !== 'cancelled') return false;
-      if (statusFilter === 'refunded' && sStatus !== 'refunded') return false;
+      if (statusFilter === 'refunded' && sStatus !== 'refunded' && sStatus !== 'partially_refunded') return false;
     }
 
     // 2. Date Filter
@@ -589,7 +602,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
           ) : (
             pagedSales.map((sale) => {
               const isCancelled = sale.status === 'cancelled';
-              const isRefunded = sale.status === 'refunded';
+              const isRefunded = sale.status === 'refunded' || sale.status === 'partially_refunded';
               return (
                 <div 
                   key={sale.id || sale.invoiceNumber} 
@@ -632,7 +645,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                       </span>
                     ) : isRefunded ? (
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-warn border border-amber-200">
-                        فيها مرتجع
+                        {sale.status === 'partially_refunded' ? 'مرتجع جزئي' : 'مستردة بالكامل'}
                       </span>
                     ) : (
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-paid-soft text-paid border border-paid/20">
@@ -673,11 +686,8 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
         </div>
 
         {/* Footer info */}
-        <div className="h-8 bg-surface-2 border-t border-line px-4 flex items-center justify-between text-[11px] text-ink-muted shrink-0 font-mono">
-          <span className="font-sans">جميع فواتير المبيعات محفوظة ومؤمنة محلياً</span>
-          <span className="tabular-nums font-bold">
-            المعروض: {pagedSales.length} من أصل {filteredSales.length} فاتورة (إجمالي السجل: {sales.length})
-          </span>
+        <div className="h-8 bg-surface-2 border-t border-line px-4 flex items-center justify-between text-[11px] text-ink-muted shrink-0">
+          <span>جميع فواتير المبيعات محفوظة ومؤمنة محلياً</span>
         </div>
       </div>
 
@@ -724,10 +734,10 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
             </div>
 
             {/* Modal Body */}
-            <div className="flex-1 min-h-0 p-4 sm:p-5 flex flex-col gap-3.5 overflow-y-auto custom-scrollbar font-mono text-[12px]">
+            <div className="flex-1 min-h-0 p-4 sm:p-5 flex flex-col gap-4 overflow-y-auto custom-scrollbar font-sans text-xs">
               {/* Cancelled Banner if applicable */}
               {selectedSale.status === 'cancelled' && (
-                <div className="bg-danger-soft border border-danger/30 rounded p-2.5 flex items-start gap-2 text-danger">
+                <div className="bg-danger-soft border border-danger/30 rounded-xl p-3 flex items-start gap-2.5 text-danger shrink-0">
                   <Ban className="w-4 h-4 shrink-0 mt-0.5" />
                   <div>
                     <div className="font-bold text-xs">الفاتورة دي ملغية وبضاعتها رجعت للمخزن</div>
@@ -740,10 +750,10 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
 
               {/* Refunded Banner if applicable */}
               {(selectedSale.status === 'refunded' || saleReturns.length > 0) && (
-                <div className="bg-amber-50/90 border border-amber-300 rounded-lg p-3 text-amber-950 flex flex-col gap-2 shadow-2xs">
+                <div className="bg-amber-50 border border-amber-300/80 rounded-xl p-3 text-amber-950 flex flex-col gap-2 shadow-2xs shrink-0">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className="p-1.5 rounded-md bg-amber-100 text-amber-800">
+                      <div className="p-1.5 rounded-lg bg-amber-100 text-amber-800">
                         <RotateCcw className="w-4 h-4" />
                       </div>
                       <div>
@@ -768,7 +778,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                       <button
                         type="button"
                         onClick={() => setShowReturnsBreakdown(!showReturnsBreakdown)}
-                        className="px-2.5 py-1 text-[11px] font-bold bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-md transition-colors flex items-center gap-1 cursor-pointer"
+                        className="px-2.5 py-1 text-[11px] font-bold bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
                       >
                         <span>{showReturnsBreakdown ? 'إخفاء تفاصيل المرتجع' : 'عرض تفاصيل المرتجع'}</span>
                         {showReturnsBreakdown ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -779,10 +789,10 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
               )}
 
               {/* Meta Grid */}
-              <div className="grid grid-cols-2 gap-2 bg-canvas p-3 rounded hairline-all text-[12px]">
+              <div className="grid grid-cols-2 gap-2.5 bg-canvas p-3 rounded-xl border border-line/70 text-xs shrink-0">
                 <div>
                   <span className="text-ink-muted text-[11px]">وقت الفاتورة: </span>
-                  <span className="text-ink font-bold tabular-nums">
+                  <span className="text-ink font-bold tabular-nums font-mono text-[11px]">
                     {selectedSale.createdAt ? new Date(selectedSale.createdAt).toLocaleString('ar-EG-u-nu-latn') : '—'}
                   </span>
                 </div>
@@ -798,18 +808,21 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                     {selectedSale.customerName || 'زبون عادي (كاش)'}
                   </span>
                   {selectedSale.customerPhone && (
-                    <span className="text-ink-muted text-[11px] mr-1">({selectedSale.customerPhone})</span>
+                    <span className="text-ink-muted text-[11px] font-mono mr-1">({selectedSale.customerPhone})</span>
                   )}
                 </div>
-                <div>
+                <div className="flex items-center gap-1.5">
                   <span className="text-ink-muted text-[11px]">الكاشير: </span>
-                  <span className="text-ink font-bold">{selectedSale.cashierId || 'الكاشير'}</span>
+                  <span className="text-ink font-bold inline-flex items-center gap-1 bg-surface-2 px-2 py-0.5 rounded-md border border-line text-xs">
+                    <User className="w-3 h-3 text-paid shrink-0" />
+                    <span>{formatCashierName(selectedSale.cashierName, selectedSale.cashierId)}</span>
+                  </span>
                 </div>
               </div>
 
               {/* Items Breakdown Table */}
-              <div className="border border-line rounded-lg overflow-hidden bg-surface shadow-2xs">
-                <div className="bg-surface-2 border-b border-line px-3.5 py-2 text-[11px] font-bold text-ink-muted grid grid-cols-12 gap-2 select-none">
+              <div className="border border-line rounded-xl overflow-hidden bg-surface shadow-2xs shrink-0">
+                <div className="bg-surface-2 border-b border-line px-4 py-2.5 text-[11px] font-bold text-ink-muted grid grid-cols-12 gap-2 select-none">
                   <span className="col-span-5">اسم الصنف</span>
                   <span className="col-span-2 text-center">العدد / الوزن</span>
                   <span className="col-span-2 text-center">سعر البيع</span>
@@ -831,15 +844,17 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                       const netLineTotal = Math.round(remainingQty * item.unitPricePiasters);
 
                       return (
-                        <div key={item.id || idx} className={`px-3.5 py-2.5 text-[12px] grid grid-cols-12 items-center gap-2 transition-colors ${
-                          retInfo ? 'bg-amber-50/40' : 'hover:bg-canvas/50'
+                        <div key={item.id || idx} className={`px-4 py-3 text-xs grid grid-cols-12 items-center gap-2 transition-colors ${
+                          retInfo ? 'bg-amber-50/50' : 'hover:bg-canvas/50'
                         }`}>
                           <div className="col-span-5 min-w-0">
-                            <div className="font-bold text-ink truncate" title={item.productName}>{item.productName}</div>
-                            <div className="flex items-center flex-wrap gap-1.5 text-[10px] text-ink-muted mt-0.5">
-                              {item.barcode && <span className="font-mono">{item.barcode}</span>}
+                            <div className="font-bold text-ink leading-snug break-words" title={item.productName}>
+                              {item.productName}
+                            </div>
+                            <div className="flex items-center flex-wrap gap-1.5 text-[11px] text-ink-muted mt-1">
+                              {item.barcode && <span className="font-mono tabular-nums text-[10px] text-ink-muted/80">{item.barcode}</span>}
                               {retInfo && (
-                                <span className="text-amber-800 font-bold bg-amber-100/90 border border-amber-300/60 px-1.5 py-0.5 rounded text-[10px]">
+                                <span className="inline-flex items-center text-amber-800 font-bold bg-amber-100 border border-amber-300/80 px-2 py-0.5 rounded-full text-[10px]">
                                   رجع منه {retInfo.returnedPieces} {unitStr}
                                   {retInfo.hasDamaged && ' (تالف)'}
                                 </span>
@@ -849,27 +864,27 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
 
                           <div className="col-span-2 text-center font-mono tabular-nums text-ink">
                             {retInfo ? (
-                              <div className="flex flex-col items-center">
-                                <span className="line-through text-ink-muted/70 text-[10px] leading-tight">{origQty} {unitStr}</span>
+                              <div className="flex flex-col items-center gap-0.5">
+                                <span className="line-through text-ink-muted/60 text-[10px] leading-tight">{origQty} {unitStr}</span>
                                 <span className="font-bold text-paid text-xs leading-tight">{remainingQty} {unitStr}</span>
                               </div>
                             ) : (
-                              <span>{origQty} {unitStr}</span>
+                              <span className="font-bold text-xs">{origQty} {unitStr}</span>
                             )}
                           </div>
 
-                          <div className="col-span-2 text-center font-mono tabular-nums text-ink">
+                          <div className="col-span-2 text-center font-mono tabular-nums text-ink font-semibold text-xs">
                             {formatArabicCurrency(item.unitPricePiasters)}
                           </div>
 
                           <div className="col-span-3 text-left pl-1 font-mono tabular-nums">
                             {retInfo ? (
-                              <div className="flex flex-col items-end">
-                                <span className="line-through text-ink-muted/70 text-[10px] leading-tight">{formatArabicCurrency(item.totalPiasters)}</span>
-                                <span className="font-bold text-brand text-xs leading-tight">{formatArabicCurrency(netLineTotal)}</span>
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className="line-through text-ink-muted/60 text-[10px] leading-tight">{formatArabicCurrency(item.totalPiasters)}</span>
+                                <span className="font-black text-brand text-xs leading-tight">{formatArabicCurrency(netLineTotal)}</span>
                               </div>
                             ) : (
-                              <span className="font-bold text-brand">{formatArabicCurrency(item.totalPiasters)}</span>
+                              <span className="font-black text-brand text-xs">{formatArabicCurrency(item.totalPiasters)}</span>
                             )}
                           </div>
                         </div>
@@ -885,37 +900,37 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
 
               {/* Detailed Returns Log Section */}
               {showReturnsBreakdown && saleReturns.length > 0 && (
-                <div className="border border-amber-200 bg-amber-50/40 rounded-lg overflow-hidden flex flex-col gap-2 p-3">
-                  <div className="flex items-center justify-between border-b border-amber-200/80 pb-2">
+                <div className="border border-amber-200 bg-amber-50/50 rounded-xl overflow-hidden flex flex-col gap-2.5 p-3.5 shrink-0">
+                  <div className="flex items-center justify-between border-b border-amber-200/80 pb-2.5">
                     <div className="flex items-center gap-2">
                       <RotateCcw className="w-4 h-4 text-amber-700" />
                       <span className="font-bold text-xs text-amber-950">
-                        سجل عمليات المرتجع التابعة للفاتورة ({saleReturns.length})
+                        سجل عمليات المرتجع التابعة للفاتورة
                       </span>
                     </div>
-                    <span className="text-[11px] text-amber-800 font-mono font-bold">
+                    <span className="text-xs text-amber-900 font-mono font-bold">
                       إجمالي المسترد: {formatArabicCurrency(totalRefundedPiasters)}
                     </span>
                   </div>
 
                   <div className="flex flex-col gap-2.5">
                     {saleReturns.map((ret, idx) => (
-                      <div key={ret.id || idx} className="bg-white border border-amber-200/90 rounded-md p-2.5 flex flex-col gap-1.5 shadow-2xs text-xs">
-                        <div className="flex items-center justify-between">
+                      <div key={ret.id || idx} className="bg-white border border-amber-200 rounded-xl p-3 flex flex-col gap-2 shadow-2xs text-xs">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
                           <div className="flex items-center gap-2 font-bold text-amber-900">
                             <span className="font-mono">وصل مرتجع #{ret.returnNumber}</span>
-                            <span className="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-800">
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 border border-amber-300/50">
                               {ret.refundMethod === 'credit' ? 'خصم من حسابه الشكك' : 'كاش من الدرج'}
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-amber-800 text-[13px]">
+                            <span className="font-mono font-black text-amber-900 text-sm">
                               {formatArabicCurrency(ret.totalPiasters)}
                             </span>
                             <button
                               type="button"
                               onClick={() => void handlePrintReturnReceipt(ret.id)}
-                              className="h-6 px-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                              className="h-6.5 px-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
                               title="طباعة إيصال هذا المرتجع"
                             >
                               <Printer className="w-3 h-3" />
@@ -924,21 +939,29 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                           </div>
                         </div>
 
-                        <div className="text-[11px] text-ink-muted flex items-center gap-3">
+                        <div className="text-[11px] text-ink-muted flex items-center flex-wrap gap-3">
                           <span>التاريخ: {ret.createdAt ? new Date(ret.createdAt).toLocaleString('ar-EG-u-nu-latn') : '—'}</span>
                           {ret.reason && <span>السبب: <strong className="text-ink">{ret.reason}</strong></span>}
                         </div>
 
                         {/* Returned Items in this receipt */}
                         {ret.items && ret.items.length > 0 && (
-                          <div className="bg-canvas border border-line/60 rounded p-1.5 flex flex-col gap-1 text-[11px]">
+                          <div className="bg-surface-2 border border-line rounded-lg p-2 flex flex-col gap-1.5 text-xs">
                             {ret.items.map((ritem, rIdx) => (
-                              <div key={ritem.id || rIdx} className="flex justify-between items-center text-ink">
-                                <span className="font-medium">
-                                  • {ritem.productName} × {ritem.unit === 'kg' ? (ritem.quantityMilli / 1000).toFixed(3) : ritem.quantityMilli / 1000} {ritem.unit === 'kg' ? 'كجم' : 'قطعة'}
-                                  {ritem.isDamaged && <span className="text-danger mr-1 font-bold">(تالف)</span>}
+                              <div key={ritem.id || rIdx} className="flex justify-between items-center py-1.5 px-2.5 rounded-md bg-surface border border-line/60 text-ink">
+                                <span className="font-medium text-ink flex items-center gap-1.5 flex-wrap">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                  <span className="font-bold">{ritem.productName}</span>
+                                  <span className="text-ink-muted font-mono font-bold text-[11px]">
+                                    × {ritem.unit === 'kg' ? (ritem.quantityMilli / 1000).toFixed(3) : ritem.quantityMilli / 1000} {ritem.unit === 'kg' ? 'كجم' : 'قطعة'}
+                                  </span>
+                                  {ritem.isDamaged && (
+                                    <span className="text-danger font-bold text-[10px] bg-danger/10 px-1.5 py-0.2 rounded border border-danger/20">
+                                      تالف
+                                    </span>
+                                  )}
                                 </span>
-                                <span className="font-mono font-bold text-amber-800">
+                                <span className="font-mono font-bold text-amber-900 shrink-0">
                                   {formatArabicCurrency(ritem.totalPiasters)}
                                 </span>
                               </div>
@@ -952,49 +975,49 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
               )}
 
               {/* Financial Totals */}
-              <div className="bg-canvas p-3 rounded hairline-all flex flex-col gap-1.5 text-[12px]">
+              <div className="bg-surface border border-line rounded-xl p-3.5 shadow-2xs flex flex-col gap-2 text-xs shrink-0">
                 <div className="flex justify-between text-ink-muted">
                   <span>إجمالي الأصناف قبل الخصم:</span>
-                  <span className="text-ink tabular-nums">{formatArabicCurrency(selectedSale.subtotalPiasters)}</span>
+                  <span className="text-ink font-mono font-bold tabular-nums">{formatArabicCurrency(selectedSale.subtotalPiasters)}</span>
                 </div>
                 {selectedSale.discountPiasters > 0 && (
                   <div className="flex justify-between text-danger font-semibold">
                     <span>الخصم:</span>
-                    <span className="tabular-nums">−{formatArabicCurrency(selectedSale.discountPiasters)}</span>
+                    <span className="font-mono tabular-nums">−{formatArabicCurrency(selectedSale.discountPiasters)}</span>
                   </div>
                 )}
                 {selectedSale.taxPiasters > 0 && (
                   <div className="flex justify-between text-ink-muted">
                     <span>الضريبة:</span>
-                    <span className="tabular-nums">{formatArabicCurrency(selectedSale.taxPiasters)}</span>
+                    <span className="font-mono tabular-nums">{formatArabicCurrency(selectedSale.taxPiasters)}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-ink-muted pt-1 border-t border-line/60">
+                <div className="flex justify-between text-ink font-bold pt-1.5 border-t border-line/60">
                   <span>إجمالي الفاتورة:</span>
-                  <span className="text-ink font-bold tabular-nums">{formatArabicCurrency(selectedSale.totalPiasters)}</span>
+                  <span className="text-ink font-mono font-bold tabular-nums">{formatArabicCurrency(selectedSale.totalPiasters)}</span>
                 </div>
 
                 {totalRefundedPiasters > 0 && (
-                  <div className="flex justify-between text-warn font-bold">
+                  <div className="flex justify-between text-amber-800 font-bold bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200">
                     <span>فلوس المرتجع اللي رجعت:</span>
-                    <span className="tabular-nums font-mono">−{formatArabicCurrency(totalRefundedPiasters)}</span>
+                    <span className="tabular-nums font-mono font-bold">−{formatArabicCurrency(totalRefundedPiasters)}</span>
                   </div>
                 )}
 
-                <div className="flex justify-between font-black text-[15px] text-brand pt-2 border-t border-line">
+                <div className="flex justify-between font-black text-base text-brand pt-2 border-t border-line">
                   <span>{totalRefundedPiasters > 0 ? 'الصافي بعد المرتجع:' : 'المطلوب دفعه:'}</span>
-                  <span className="tabular-nums">{formatArabicCurrency(netSalePiasters)}</span>
+                  <span className="tabular-nums font-mono">{formatArabicCurrency(netSalePiasters)}</span>
                 </div>
 
-                <div className="flex justify-between text-ink-muted text-[11px] pt-1 border-t border-line/60">
+                <div className="flex justify-between text-ink-muted text-[11px] pt-1.5 border-t border-line/60">
                   <span>الفلوس اللي دفعها الزبون:</span>
-                  <span className="text-ink font-semibold tabular-nums">{formatArabicCurrency(selectedSale.paidPiasters)}</span>
+                  <span className="text-ink font-semibold font-mono tabular-nums">{formatArabicCurrency(selectedSale.paidPiasters)}</span>
                 </div>
               </div>
 
               {/* Reprint feedback toast */}
               {reprintFeedback && (
-                <div className="bg-brand-soft border border-brand/30 rounded p-2 text-xs text-brand font-semibold flex items-center gap-1.5">
+                <div className="bg-brand-soft border border-brand/30 rounded-xl p-2.5 text-xs text-brand font-semibold flex items-center gap-2 shrink-0">
                   <CheckCircle2 className="w-4 h-4 shrink-0 text-brand" />
                   <span>{reprintFeedback}</span>
                 </div>

@@ -233,7 +233,8 @@ namespace RafiqPOS.Bridge
                         response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "قائمة الأصناف المراد استيرادها فارغة");
                         return true;
                     }
-                    var importResult = DatabaseService.Products.ImportBatch(importReq, "usr_admin_default");
+                    string importUserId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
+                    var importResult = DatabaseService.Products.ImportBatch(importReq, importUserId);
                     response = BridgeResponse.Ok(request.Id, importResult);
                     return true;
 

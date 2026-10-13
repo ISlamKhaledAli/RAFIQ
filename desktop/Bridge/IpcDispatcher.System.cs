@@ -11,6 +11,32 @@ namespace RafiqPOS.Bridge
 {
     public partial class IpcDispatcher
     {
+        // License, clock-guard and security state may only be written by their owning services (Audit F-15)
+        private static Dictionary<string, string> RemoveProtectedSettingKeys(Dictionary<string, string> input)
+        {
+            var clean = new Dictionary<string, string>();
+            if (input == null) return clean;
+            foreach (var kvp in input)
+            {
+                string key = kvp.Key ?? "";
+                string lower = key.ToLowerInvariant();
+                bool isProtected =
+                    lower.StartsWith("license_") ||
+                    lower.StartsWith("security_") ||
+                    lower.StartsWith("transfer_") ||
+                    lower.StartsWith("last_online_verify") ||
+                    lower == "last_known_utc" ||
+                    lower == "consumed_offline_codes";
+                if (isProtected)
+                {
+                    Logger.Warn("تم تجاهل محاولة تعديل إعداد محمي عبر الواجهة: " + key);
+                    continue;
+                }
+                clean[key] = kvp.Value;
+            }
+            return clean;
+        }
+
         private static bool TryDispatchSystem(BridgeRequest request, out BridgeResponse response)
         {
             response = null;
@@ -108,7 +134,7 @@ namespace RafiqPOS.Bridge
                         response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات الإعدادات فارغة");
                         return true;
                     }
-                    var settingsDict = JsonConvert.DeserializeObject<Dictionary<string, string>>(request.Payload.ToString());
+                    var settingsDict = RemoveProtectedSettingKeys(JsonConvert.DeserializeObject<Dictionary<string, string>>(request.Payload.ToString()));
                     var updatedSettings = DatabaseService.Settings.SaveSettings(settingsDict);
                     response = BridgeResponse.Ok(request.Id, updatedSettings);
                     return true;
@@ -131,7 +157,7 @@ namespace RafiqPOS.Bridge
                     }
                     if (batchDict != null)
                     {
-                        DatabaseService.Settings.SaveSettings(batchDict);
+                        DatabaseService.Settings.SaveSettings(RemoveProtectedSettingKeys(batchDict));
                     }
                     response = BridgeResponse.Ok(request.Id, new { success = true });
                     return true;

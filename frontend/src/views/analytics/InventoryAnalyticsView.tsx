@@ -46,12 +46,14 @@ const PERIOD_OPTIONS: SelectOption[] = [
 interface InventoryAnalyticsViewProps {
   isActive?: boolean;
   onNavigateToProducts?: (subView?: 'catalog' | 'movements' | 'batches', filter?: 'all' | 'lowStock' | 'outOfStock') => void;
+  onNavigateToProductEdit?: (productId: string) => void;
   onNavigateToPurchases?: () => void;
 }
 
 export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
   isActive = true,
   onNavigateToProducts,
+  onNavigateToProductEdit,
   onNavigateToPurchases
 }) => {
   const [period, setPeriod] = useState<string>('month');
@@ -222,7 +224,7 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
           <div className="text-base font-bold font-mono tabular-nums text-paid">
             {formatArabicCurrency(overview?.potentialGrossProfitPiasters || 0)}
           </div>
-          <div className="text-[10px] text-paid-border text-paid mt-1">
+          <div className="text-[10px] text-ink-muted mt-1">
             فارق البيع عن التكلفة
           </div>
         </div>
@@ -303,7 +305,7 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
           }`}
         >
           <Package className="w-4 h-4 shrink-0" />
-          <span>النواقص وأمر الشراء المقترح ({lowStockItems.length})</span>
+          <span>النواقص وأمر الشراء المقترح</span>
         </button>
 
         <button
@@ -710,8 +712,12 @@ export const InventoryAnalyticsView: FC<InventoryAnalyticsViewProps> = ({
         {/* SECTION E: Dead Stock Radar */}
         {activeSection === 'deadstock' && (
           <DeadStockRadar 
-            onNavigateToProduct={() => {
-              if (onNavigateToProducts) onNavigateToProducts('catalog');
+            onNavigateToProduct={(productId) => {
+              if (onNavigateToProductEdit) {
+                onNavigateToProductEdit(productId);
+              } else if (onNavigateToProducts) {
+                onNavigateToProducts('catalog');
+              }
             }} 
           />
         )}

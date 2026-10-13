@@ -9,9 +9,6 @@ import {
   ArrowRight,
   Receipt,
   Percent,
-  AlertTriangle,
-  Sparkles,
-  CheckCircle
 } from 'lucide-react';
 import type { Customer, SalePayment } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
@@ -96,11 +93,6 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
   const feePiasters = Math.round(netTotalPiasters * (feePercent / 100));
   const finalTotalPiasters = netTotalPiasters + feePiasters;
 
-  const selectedCustomer = useMemo(() => {
-    if (!currentCustomerId || currentCustomerId === 'cust_general_cash') return null;
-    return customers.find(c => c && c.id === currentCustomerId) || null;
-  }, [customers, currentCustomerId]);
-
   // Format customer options exactly matching PaymentModal (Image 2)
   const customerOptions = useMemo(() => {
     return [
@@ -109,16 +101,14 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
         .filter(c => c && c.id && c.id !== 'cust_general_cash')
         .map((c) => ({
           value: c.id,
-          label: `${c.name} ${c.phone ? `(${c.phone})` : ''} ${
-            c.balancePiasters > 0
-              ? `[عليه: ${(c.balancePiasters / 100).toFixed(0)} ج.م]`
-              : c.balancePiasters < 0
-              ? `[له: ${(Math.abs(c.balancePiasters) / 100).toFixed(0)} ج.م]`
-              : ''
-          }`.trim(),
+          label: c.name,
         }))
     ];
   }, [customers]);
+
+  const selectedCustomer = useMemo(() => {
+    return customers.find(c => c && c.id === currentCustomerId);
+  }, [customers, currentCustomerId]);
 
   const handleCustomerSelect = (id: string) => {
     setCurrentCustomerId(id || null);
@@ -250,32 +240,78 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
                   />
                 </div>
               </div>
-
-              {selectedCustomer && (
-                selectedCustomer.balancePiasters > 0 ? (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-danger-soft/40 border-2 border-danger/60 text-danger font-bold text-xs shadow-xs shrink-0 animate-in fade-in">
-                    <AlertTriangle className="w-4 h-4 text-danger shrink-0 animate-pulse" />
-                    <span>تنبيه: عليه حساب قديم:</span>
-                    <span className="font-mono font-black text-sm tabular-nums text-danger">
-                      {formatArabicCurrency(selectedCustomer.balancePiasters)}
-                    </span>
-                  </div>
-                ) : selectedCustomer.balancePiasters < 0 ? (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-paid-soft border-2 border-paid/50 text-paid font-bold text-xs shadow-xs shrink-0 animate-in fade-in">
-                    <Sparkles className="w-4 h-4 text-paid shrink-0" />
-                    <span>له رصيد سابق في حسابه بالمحل:</span>
-                    <span className="font-mono font-black text-sm tabular-nums text-paid">
-                      {formatArabicCurrency(Math.abs(selectedCustomer.balancePiasters))}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-surface-2 border border-line text-ink-muted text-xs font-semibold shrink-0">
-                    <CheckCircle className="w-3.5 h-3.5 text-paid" />
-                    <span>حسابه خالص (0.00 ج.م)</span>
-                  </div>
-                )
-              )}
             </div>
+
+            {/* Customer Account Status & Debt Breakdown (موقف حساب الزبون مع انستاباي/المحفظة) */}
+            {selectedCustomer && (
+              <div className={`grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-xl bg-white/95 border text-center font-mono shadow-2xs mt-1 ${
+                isInstapay ? 'border-purple-200' : 'border-red-200'
+              }`}>
+                {/* 1. كان عليه قديم */}
+                <div className="flex flex-col items-center justify-center p-2 rounded-lg bg-surface-2 border border-line">
+                  <span className="text-[11px] font-sans text-ink-muted mb-0.5">
+                    {selectedCustomer.balancePiasters > 0
+                      ? 'كان عليه قديم:'
+                      : selectedCustomer.balancePiasters < 0
+                        ? 'له أمانات سابقة:'
+                        : 'حسابه القديم:'}
+                  </span>
+                  <span className={`text-base font-black ${
+                    selectedCustomer.balancePiasters > 0
+                      ? 'text-danger'
+                      : selectedCustomer.balancePiasters < 0
+                        ? 'text-paid'
+                        : 'text-ink'
+                  }`}>
+                    {selectedCustomer.balancePiasters === 0 
+                      ? '0.00 ج.م (خالص)' 
+                      : formatArabicCurrency(Math.abs(selectedCustomer.balancePiasters))}
+                  </span>
+                </div>
+
+                {/* 2. الفاتورة الحالية (مسددة بالتحويل) */}
+                <div className={`flex flex-col items-center justify-center p-2 rounded-lg border ${
+                  isInstapay ? 'bg-purple-50/60 border-purple-200' : 'bg-red-50/60 border-red-200'
+                }`}>
+                  <span className="text-[11px] font-sans text-ink-muted mb-0.5">
+                    الفاتورة الحالية ({isInstapay ? 'انستاباي' : 'محفظة'}):
+                  </span>
+                  <span className={`text-base font-black ${isInstapay ? 'text-[#582C83]' : 'text-[#e60000]'}`}>
+                    {formatArabicCurrency(finalTotalPiasters)}
+                  </span>
+                  <span className="text-[10px] font-sans font-bold text-paid mt-0.5">
+                    مسددة بالكامل • لا تضاف للشكك
+                  </span>
+                </div>
+
+                {/* 3. إجمالي حسابه بعد الفاتورة */}
+                <div className={`flex flex-col items-center justify-center p-2 rounded-lg border ${
+                  selectedCustomer.balancePiasters > 0
+                    ? 'bg-rose-50/60 border-rose-200 text-danger'
+                    : selectedCustomer.balancePiasters < 0
+                      ? 'bg-paid-soft border-paid/20 text-paid'
+                      : 'bg-surface-2 border-line text-ink'
+                }`}>
+                  <span className="text-[11px] font-sans font-bold mb-0.5">
+                    {selectedCustomer.balancePiasters > 0
+                      ? 'إجمالي اللي عليه بعد الفاتورة:'
+                      : selectedCustomer.balancePiasters < 0
+                        ? 'يظل في رصيده بالمحل:'
+                        : 'حسابه بعد الفاتورة:'}
+                  </span>
+                  <span className="text-base sm:text-lg font-black">
+                    {selectedCustomer.balancePiasters === 0
+                      ? '0.00 ج.م (خالص)'
+                      : formatArabicCurrency(Math.abs(selectedCustomer.balancePiasters))}
+                  </span>
+                  {selectedCustomer.balancePiasters > 0 && (
+                    <span className="text-[10px] font-sans font-medium text-ink-muted mt-0.5">
+                      ديونه القديمة تظل بدون تغيير
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 2. HERO: Required Transfer Amount Display */}

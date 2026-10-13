@@ -5,7 +5,8 @@ import {
   DollarSign, 
   AlertTriangle, 
   RefreshCw, 
-  ChevronLeft
+  ChevronLeft,
+  Pencil
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { formatArabicCurrency } from '../../utils/money';
@@ -203,10 +204,12 @@ export const DeadStockRadar: FC<DeadStockRadarProps> = ({ onNavigateToProduct })
                       <button
                         type="button"
                         onClick={() => onNavigateToProduct(item.productId)}
-                        className="px-2 py-1 rounded bg-surface hover:bg-surface-2 border border-line text-[11px] font-bold text-ink hover:text-brand transition-colors cursor-pointer inline-flex items-center gap-1"
+                        className="px-2.5 py-1 rounded-lg bg-surface hover:bg-brand-soft border border-line hover:border-brand/40 text-[11px] font-bold text-ink hover:text-brand transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-2xs active:scale-95"
+                        title="تعديل بيانات وسعر السلعة لتصريفها من المخزن"
                       >
+                        <Pencil className="w-3 h-3 text-brand" />
                         <span>تعديل</span>
-                        <ChevronLeft className="w-3 h-3" />
+                        <ChevronLeft className="w-3 h-3 text-ink-muted" />
                       </button>
                     )}
                   </td>

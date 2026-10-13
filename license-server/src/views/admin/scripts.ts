@@ -1,7 +1,7 @@
 /**
  * Admin Dashboard Client-side Interactivity, Filtering & API Handlers
  */
-export const adminScripts = `    const DEFAULT_SECRET = 'rafiq_admin_super_secret_2026';
+export const adminScripts = `    const DEFAULT_SECRET = '';
     
     // State
     let activeMainTab = 'licenses'; // 'licenses' | 'logs'
@@ -84,34 +84,33 @@ export const adminScripts = `    const DEFAULT_SECRET = 'rafiq_admin_super_secre
       openModal('confirmModal');
     }
 
-    // Main Tab Switching (Separating Licenses & Logs)
+    // Main Tab Switching (Separating Licenses, Logs & Offline Codes)
     function switchMainTab(tab) {
       activeMainTab = tab;
       const licView = document.getElementById('licensesView');
       const logsView = document.getElementById('logsView');
+      const offView = document.getElementById('offlineView');
       const tabBtnLic = document.getElementById('tabBtnLicenses');
       const tabBtnLogs = document.getElementById('tabBtnLogs');
+      const tabBtnOff = document.getElementById('tabBtnOffline');
 
-      if (tab === 'licenses') {
-        licView.style.display = 'flex';
-        logsView.style.display = 'none';
-        tabBtnLic.classList.add('active');
-        tabBtnLogs.classList.remove('active');
-      } else {
-        licView.style.display = 'none';
-        logsView.style.display = 'flex';
-        tabBtnLic.classList.remove('active');
-        tabBtnLogs.classList.add('active');
-        if (allLogs.length === 0) {
-          loadLogs();
-        }
+      licView.style.display = tab === 'licenses' ? 'flex' : 'none';
+      logsView.style.display = tab === 'logs' ? 'flex' : 'none';
+      if (offView) offView.style.display = tab === 'offline' ? 'flex' : 'none';
+
+      tabBtnLic.classList.toggle('active', tab === 'licenses');
+      tabBtnLogs.classList.toggle('active', tab === 'logs');
+      if (tabBtnOff) tabBtnOff.classList.toggle('active', tab === 'offline');
+
+      if (tab === 'logs' && allLogs.length === 0) {
+        loadLogs();
       }
     }
 
     function refreshCurrentView() {
       if (activeMainTab === 'licenses') {
         loadLicenses();
-      } else {
+      } else if (activeMainTab === 'logs') {
         loadLogs();
       }
     }
@@ -125,6 +124,99 @@ export const adminScripts = `    const DEFAULT_SECRET = 'rafiq_admin_super_secre
       } else {
         w.style.display = 'none';
       }
+    }
+
+    function toggleOfflineCustomDays() {
+      const val = document.getElementById('offlineDurationSelect').value;
+      const w = document.getElementById('offlineCustomDaysWrapper');
+      if (val === 'custom') {
+        w.style.display = 'flex';
+        document.getElementById('offlineCustomDaysInput').focus();
+      } else {
+        w.style.display = 'none';
+      }
+    }
+
+    async function handleGenerateSupportCode(e) {
+      e.preventDefault();
+      const fp = document.getElementById('offlineDeviceFp').value.trim();
+      const shop = document.getElementById('offlineShopName').value.trim();
+      const durVal = document.getElementById('offlineDurationSelect').value;
+      const btn = document.getElementById('btnGenSupport');
+
+      if (!fp) {
+        showToast('يرجى إدخال بصمة جهاز العميل', true);
+        return;
+      }
+
+      let licType = 'lifetime';
+      let days = 9999;
+      if (durVal === 'lifetime') {
+        licType = 'lifetime';
+        days = 9999;
+      } else if (durVal === '14' || durVal === '7') {
+        licType = 'trial';
+        days = parseInt(durVal);
+      } else if (durVal === 'custom') {
+        const cDays = parseInt(document.getElementById('offlineCustomDaysInput').value);
+        if (!cDays || cDays < 1) {
+          showToast('يرجى تحديد عدد الأيام المخصصة', true);
+          return;
+        }
+        licType = 'custom';
+        days = cDays;
+      } else {
+        licType = durVal === '30' ? 'monthly' : 'annual';
+        days = parseInt(durVal);
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span>جاري التوليد والتشفير...</span>';
+
+      try {
+        const secret = getSecret();
+        const res = await fetch('/api/admin/generate-support-code', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Admin-Secret': secret
+          },
+          body: JSON.stringify({
+            device_fingerprint: fp,
+            shop_name: shop,
+            license_type: licType,
+            days: days
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          showToast(data.message || 'فشل توليد كود الدعم', true);
+          return;
+        }
+
+        document.getElementById('offlineResultCode').value = data.support_code;
+        document.getElementById('offlineResultBox').style.display = 'block';
+        document.getElementById('offlineResultBox').scrollIntoView({ behavior: 'smooth' });
+        showToast('تم توليد كود الدعم بنجاح!');
+      } catch (err) {
+        showToast('حدث خطأ أثناء الاتصال بالسيرفر', true);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg><span>توليد كود الدعم الأوفلاين المشفر</span>';
+      }
+    }
+
+    function copyOfflineResultCode() {
+      const codeInput = document.getElementById('offlineResultCode');
+      if (!codeInput || !codeInput.value) return;
+      codeInput.select();
+      navigator.clipboard.writeText(codeInput.value).then(() => {
+        showToast('تم نسخ كود الدعم الفني للحافظة بنجاح!');
+      }).catch(() => {
+        document.execCommand('copy');
+        showToast('تم نسخ كود الدعم الفني للحافظة!');
+      });
     }
 
     // ==========================================
@@ -1240,6 +1332,7 @@ export const adminScripts = `    const DEFAULT_SECRET = 'rafiq_admin_super_secre
 
     function initDashboard() {
       initCustomSelect('durationSelect');
+      initCustomSelect('offlineDurationSelect');
       initCustomSelect('editExtendAction');
       loadLicenses();
       loadLogs();

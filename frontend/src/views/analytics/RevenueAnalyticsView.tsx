@@ -15,6 +15,7 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   AlertTriangle,
+  Minus,
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { useDataSubscription } from '../../utils/eventBus';
@@ -128,7 +129,8 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
   const grossProfit = salesReport?.grossProfitPiasters || 0;
   const cogs = Math.max(0, netSales - grossProfit);
   const inventoryLosses = lossReport?.totalLossPiasters || 0;
-  const netOperationalProfit = grossProfit - inventoryLosses;
+  const operationalExpenses = salesReport?.totalExpensesPiasters || 0;
+  const netOperationalProfit = grossProfit - inventoryLosses - operationalExpenses;
   const netMarginPercent = netSales > 0 ? (netOperationalProfit * 100) / netSales : 0;
 
   // Payment breakdown percentages
@@ -152,7 +154,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
         50 +
         (cashPct * 0.25) +
         Math.min(25, netMarginPercent * 1.2) -
-        (totalSales > 0 ? (inventoryLosses * 100 / totalSales) * 2 : 0) -
+        (totalSales > 0 ? ((inventoryLosses + operationalExpenses) * 100 / totalSales) * 1.5 : 0) -
         (creditPct > 35 ? (creditPct - 35) * 0.5 : 0)
       )
     )
@@ -226,7 +228,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
       </div>
 
       {/* 2. Top Financial KPI Cards (Waterfall of Supermarket Money) */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 my-4 shrink-0">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2.5 my-4 shrink-0">
         {/* KPI 1: Gross Sales */}
         <div className="bg-surface border border-line rounded-xl p-3 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-ink-muted mb-1">
@@ -281,8 +283,22 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
           <div className="text-base font-bold font-mono tabular-nums text-paid">
             {formatArabicCurrency(grossProfit)}
           </div>
-          <div className="text-[10px] text-paid-border text-paid mt-1">
-            قبل خصم مصاريف وعجز الجرد
+          <div className="text-[10px] text-ink-muted mt-1">
+            فارق البيع عن سعر الشراء
+          </div>
+        </div>
+
+        {/* KPI 5: Operational Expenses */}
+        <div className="bg-surface border border-line rounded-xl p-3 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-ink-muted mb-1">
+            <span className="text-[11px] font-semibold">المصروفات التشغيلية</span>
+            <Minus className="w-3.5 h-3.5 text-amber-600" />
+          </div>
+          <div className="text-base font-bold font-mono tabular-nums text-amber-700">
+            {operationalExpenses > 0 ? `-${formatArabicCurrency(operationalExpenses)}` : formatArabicCurrency(0)}
+          </div>
+          <div className="text-[10px] text-ink-muted mt-1">
+            إيجار، فواتير، مرتبات ونثريات
           </div>
         </div>
 
@@ -412,6 +428,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                   cogsPiasters={cogs}
                   grossProfitPiasters={grossProfit}
                   inventoryLossPiasters={inventoryLosses}
+                  operationalExpensesPiasters={operationalExpenses}
                   netProfitPiasters={netOperationalProfit}
                 />
               </div>

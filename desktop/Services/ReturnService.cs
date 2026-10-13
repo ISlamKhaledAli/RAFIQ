@@ -18,10 +18,45 @@ namespace RafiqPOS.Services
 
         public Return ProcessReturn(Return returnObj, string supervisorPin = null)
         {
+            // Serialize with sales/cancellations so the remaining-quantity check stays valid until commit (Audit F-17)
+            lock (SaleService.FinancialWriteLock)
+            {
+                return ProcessReturnCore(returnObj, supervisorPin);
+            }
+        }
+
+        private Return ProcessReturnCore(Return returnObj, string supervisorPin)
+        {
             if (returnObj == null) throw new ArgumentNullException("returnObj");
             if (returnObj.Items == null || returnObj.Items.Count == 0)
             {
                 throw new InvalidOperationException("لا يمكن حفظ مرتجع بدون أصناف");
+            }
+
+            // Server-side validation of returned quantities and prices (Audit F-10)
+            for (int vIdx = 0; vIdx < returnObj.Items.Count; vIdx++)
+            {
+                var vItem = returnObj.Items[vIdx];
+                if (vItem == null || string.IsNullOrWhiteSpace(vItem.ProductId))
+                {
+                    throw new InvalidOperationException(string.Format("البند رقم {0} في المرتجع غير صالح.", vIdx + 1));
+                }
+                if (vItem.QuantityMilli <= 0)
+                {
+                    throw new InvalidOperationException(string.Format("كمية المرتجع للصنف '{0}' يجب أن تكون أكبر من الصفر.", vItem.ProductName ?? vItem.ProductId));
+                }
+                if (vItem.QuantityMilli > SaleService.MAX_QUANTITY_MILLI)
+                {
+                    throw new InvalidOperationException(string.Format("كمية المرتجع للصنف '{0}' تتجاوز الحد الأقصى المسموح به للنظام.", vItem.ProductName ?? vItem.ProductId));
+                }
+                if (vItem.UnitPricePiasters < 0)
+                {
+                    throw new InvalidOperationException(string.Format("سعر المرتجع للصنف '{0}' لا يمكن أن يكون سالباً.", vItem.ProductName ?? vItem.ProductId));
+                }
+                if (vItem.UnitPricePiasters > SaleService.MAX_PRICE_PIASTERS)
+                {
+                    throw new InvalidOperationException(string.Format("سعر المرتجع للصنف '{0}' يتجاوز الحد الأقصى المسموح به للنظام.", vItem.ProductName ?? vItem.ProductId));
+                }
             }
 
             // 1. If return is without invoice, require Supervisor PIN
@@ -100,6 +135,19 @@ namespace RafiqPOS.Services
                     }
 
                     // Check quantities and enforce net unit prices
+                    var requestedInThisReturn = new Dictionary<string, long>();
+                    var refundedTotalSoFar = new Dictionary<string, long>();
+                    var refundedTotalBySaleItem = new Dictionary<string, long>();
+                    for (int r = 0; r < pastReturns.Count; r++)
+                    {
+                        if (pastReturns[r].Items == null) continue;
+                        for (int pi = 0; pi < pastReturns[r].Items.Count; pi++)
+                        {
+                            var pastItem = pastReturns[r].Items[pi];
+                            if (string.IsNullOrEmpty(pastItem.SaleItemId)) continue;
+                            refundedTotalBySaleItem[pastItem.SaleItemId] = (refundedTotalBySaleItem.ContainsKey(pastItem.SaleItemId) ? refundedTotalBySaleItem[pastItem.SaleItemId] : 0) + pastItem.TotalPiasters;
+                        }
+                    }
                     for (int i = 0; i < returnObj.Items.Count; i++)
                     {
                         var it = returnObj.Items[i];
@@ -162,13 +210,17 @@ namespace RafiqPOS.Services
                         }
 
                         long maxAllowable = origItem.QuantityMilli - alreadyReturned;
-                        if (it.QuantityMilli > maxAllowable)
+                        string origKey = !string.IsNullOrEmpty(origItem.Id) ? origItem.Id : ((origItem.ProductId ?? "") + "_" + (origItem.Unit ?? ""));
+                        long requestedSoFar = requestedInThisReturn.ContainsKey(origKey) ? requestedInThisReturn[origKey] : 0;
+                        // Repeated lines for the same sale item inside one request must be summed (Audit F-07)
+                        if (requestedSoFar + it.QuantityMilli > maxAllowable)
                         {
                             throw new InvalidOperationException(string.Format(
                                 "الكمية المرتجعة للصنف '{0}' ({1:0.###}) أكبر من الكمية المتبقية المتاحة للإرجاع ({2:0.###}).",
-                                it.ProductName, it.QuantityMilli / 1000.0, Math.Max(0, maxAllowable) / 1000.0
+                                it.ProductName, (requestedSoFar + it.QuantityMilli) / 1000.0, Math.Max(0, maxAllowable) / 1000.0
                             ));
                         }
+                        requestedInThisReturn[origKey] = requestedSoFar + it.QuantityMilli;
 
                         // Calculate effective net unit price after discounts (TEST-7)
                         long effectiveUnitPrice = origItem.UnitPricePiasters;
@@ -182,16 +234,23 @@ namespace RafiqPOS.Services
                         {
                             it.UnitPricePiasters = effectiveUnitPrice;
                         }
-
-                        if (it.QuantityMilli == origItem.QuantityMilli && origItem.TotalPiasters > 0)
+                        // Refund proportionally to the original net line total; the line that exhausts the sold
+                        // quantity receives the exact remainder so cumulative refunds equal what was paid (Audit F-19)
+                        long proportionalTotal = (origItem.QuantityMilli > 0)
+                            ? (origItem.TotalPiasters * it.QuantityMilli) / origItem.QuantityMilli
+                            : 0;
+                        long refundedBefore = refundedTotalSoFar.ContainsKey(origKey) ? refundedTotalSoFar[origKey] : 0;
+                        if (!string.IsNullOrEmpty(origItem.Id) && refundedTotalBySaleItem.ContainsKey(origItem.Id))
                         {
-                            it.TotalPiasters = origItem.TotalPiasters;
+                            refundedBefore += refundedTotalBySaleItem[origItem.Id];
                         }
-                        else
+                        if (alreadyReturned + requestedInThisReturn[origKey] == origItem.QuantityMilli)
                         {
-                            decimal lineTotalDec = ((decimal)it.UnitPricePiasters * it.QuantityMilli) / 1000m;
-                            it.TotalPiasters = (long)Math.Round(lineTotalDec, 0, MidpointRounding.AwayFromZero);
+                            proportionalTotal = Math.Max(0, origItem.TotalPiasters - refundedBefore);
                         }
+                        long priceBasedTotal = (it.UnitPricePiasters * it.QuantityMilli) / 1000;
+                        it.TotalPiasters = (it.UnitPricePiasters == effectiveUnitPrice) ? proportionalTotal : Math.Min(priceBasedTotal, proportionalTotal);
+                        refundedTotalSoFar[origKey] = (refundedTotalSoFar.ContainsKey(origKey) ? refundedTotalSoFar[origKey] : 0) + it.TotalPiasters;
 
                         if (it.ConversionFactor <= 0)
                         {
@@ -204,6 +263,64 @@ namespace RafiqPOS.Services
                         if (string.IsNullOrEmpty(it.SaleItemId))
                         {
                             it.SaleItemId = origItem.Id;
+                        }
+                    }
+
+                    // Enforce financial ceiling for refunds on credit sales (Senior QA Invariant)
+                    // If returning an unpaid credit sale, cash cannot be disbursed from drawer;
+                    // it must be routed to 'credit' to reduce customer debt.
+                    long netCashPaidOnOrig = 0;
+                    if (string.Equals(origSale.PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase))
+                    {
+                        netCashPaidOnOrig = Math.Max(0, origSale.PaidPiasters - origSale.ChangePiasters);
+                    }
+                    else if (string.Equals(origSale.PaymentMethod, "credit", StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(origSale.PaymentMethod, "multi", StringComparison.OrdinalIgnoreCase))
+                    {
+                        netCashPaidOnOrig = Math.Max(0, origSale.PaidPiasters);
+                    }
+
+                    long pastCashRefunds = 0;
+                    for (int r = 0; r < pastReturns.Count; r++)
+                    {
+                        if (string.Equals(pastReturns[r].RefundMethod, "cash", StringComparison.OrdinalIgnoreCase))
+                        {
+                            pastCashRefunds += pastReturns[r].TotalPiasters;
+                        }
+                    }
+
+                    long allowableCashRefund = Math.Max(0, netCashPaidOnOrig - pastCashRefunds);
+                    long currentReturnTotal = 0;
+                    for (int ri = 0; ri < returnObj.Items.Count; ri++)
+                    {
+                        currentReturnTotal += returnObj.Items[ri].TotalPiasters;
+                    }
+
+                    if (string.Equals(returnObj.RefundMethod, "cash", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (netCashPaidOnOrig <= 0)
+                        {
+                            if (!string.IsNullOrEmpty(returnObj.CustomerId))
+                            {
+                                returnObj.RefundMethod = "credit";
+                            }
+                            else
+                            {
+                                throw new InvalidOperationException("لا يمكن صرف مرتجع نقدي من الدرج لفاتورة بيع آجل لم يُسدد منها مبالغ نقدية. يجب اختيار استرداد كرصيد آجل (credit).");
+                            }
+                        }
+                        else if (currentReturnTotal > allowableCashRefund)
+                        {
+                            if (!string.IsNullOrEmpty(returnObj.CustomerId) && allowableCashRefund == 0)
+                            {
+                                returnObj.RefundMethod = "credit";
+                            }
+                            else
+                            {
+                                throw new InvalidOperationException(string.Format(
+                                    "لا يمكن صرف مرتجع نقدي من الدرج بمبلغ ({0:N2} ج.م) يتجاوز النقد المسدد فعلياً في الفاتورة الأصلية ({1:N2} ج.م). يجب اختيار الاسترداد كرصيد آجل (credit) لخصم القيمة من حساب العميل.",
+                                    currentReturnTotal / 100.0, allowableCashRefund / 100.0));
+                            }
                         }
                     }
                 }

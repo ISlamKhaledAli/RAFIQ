@@ -17,12 +17,101 @@ namespace RafiqPOS.Services
             _productRepo = productRepo;
         }
 
+        /// <summary>
+        /// IPC requests run on thread-pool threads. Validation (stock, return limits, idempotency) happens before the
+        /// write transaction, so sales, cancellations and returns are serialized to keep those checks valid (Audit F-17).
+        /// </summary>
+        public static readonly object FinancialWriteLock = new object();
+
+        private static readonly Dictionary<string, Sale> _completedByIdempotencyKey = new Dictionary<string, Sale>();
+        private static readonly Queue<string> _idempotencyOrder = new Queue<string>();
+        private const int IDEMPOTENCY_CACHE_SIZE = 200;
+
+        /// <summary>
+        /// Creates a sale at most once per client checkout key, so a retry after a UI timeout cannot duplicate it (Audit F-16).
+        /// </summary>
+        public Sale ProcessSale(Sale sale, string idempotencyKey)
+        {
+            lock (FinancialWriteLock)
+            {
+                if (!string.IsNullOrWhiteSpace(idempotencyKey) && _completedByIdempotencyKey.ContainsKey(idempotencyKey))
+                {
+                    return _completedByIdempotencyKey[idempotencyKey];
+                }
+
+                Sale created = ProcessSaleCore(sale);
+
+                if (!string.IsNullOrWhiteSpace(idempotencyKey))
+                {
+                    _completedByIdempotencyKey[idempotencyKey] = created;
+                    _idempotencyOrder.Enqueue(idempotencyKey);
+                    while (_idempotencyOrder.Count > IDEMPOTENCY_CACHE_SIZE)
+                    {
+                        _completedByIdempotencyKey.Remove(_idempotencyOrder.Dequeue());
+                    }
+                }
+                return created;
+            }
+        }
+
         public Sale ProcessSale(Sale sale)
+        {
+            return ProcessSale(sale, null);
+        }
+
+        public const long MAX_QUANTITY_MILLI = 10000000000L; // 10,000,000 units
+        public const long MAX_PRICE_PIASTERS = 100000000000L; // 1,000,000,000 EGP
+
+        private Sale ProcessSaleCore(Sale sale)
         {
             if (sale == null) throw new ArgumentNullException("sale");
             if (sale.Items == null || sale.Items.Count == 0)
             {
                 throw new InvalidOperationException("لا يمكن حفظ فاتورة بدون أصناف");
+            }
+
+            // Server-side input validation: never trust client amounts (Audit F-10)
+            if (sale.DiscountPiasters < 0)
+            {
+                throw new InvalidOperationException("قيمة خصم الفاتورة لا يمكن أن تكون سالبة.");
+            }
+            if (sale.PaidPiasters < 0)
+            {
+                throw new InvalidOperationException("المبلغ المدفوع لا يمكن أن يكون سالباً.");
+            }
+            for (int vIdx = 0; vIdx < sale.Items.Count; vIdx++)
+            {
+                var vItem = sale.Items[vIdx];
+                if (vItem == null || string.IsNullOrWhiteSpace(vItem.ProductId))
+                {
+                    throw new InvalidOperationException(string.Format("البند رقم {0} في الفاتورة غير صالح.", vIdx + 1));
+                }
+                if (vItem.QuantityMilli <= 0)
+                {
+                    throw new InvalidOperationException(string.Format("كمية الصنف '{0}' يجب أن تكون أكبر من الصفر.", vItem.ProductName ?? vItem.ProductId));
+                }
+                if (vItem.QuantityMilli > MAX_QUANTITY_MILLI)
+                {
+                    throw new InvalidOperationException(string.Format("كمية الصنف '{0}' تتجاوز الحد الأقصى المسموح به للنظام.", vItem.ProductName ?? vItem.ProductId));
+                }
+                if (vItem.UnitPricePiasters < 0 || vItem.DiscountPiasters < 0 || vItem.UnitCostPiasters < 0)
+                {
+                    throw new InvalidOperationException(string.Format("سعر أو خصم أو تكلفة الصنف '{0}' لا يمكن أن تكون سالبة.", vItem.ProductName ?? vItem.ProductId));
+                }
+                if (vItem.UnitPricePiasters > MAX_PRICE_PIASTERS)
+                {
+                    throw new InvalidOperationException(string.Format("سعر الصنف '{0}' يتجاوز الحد الأقصى المسموح به للنظام.", vItem.ProductName ?? vItem.ProductId));
+                }
+            }
+            if (sale.Payments != null)
+            {
+                for (int pv = 0; pv < sale.Payments.Count; pv++)
+                {
+                    if (sale.Payments[pv] != null && sale.Payments[pv].AmountPiasters < 0)
+                    {
+                        throw new InvalidOperationException("لا يمكن تسجيل دفعة بمبلغ سالب.");
+                    }
+                }
             }
 
             sale.Id = Guid.NewGuid().ToString();
@@ -45,30 +134,14 @@ namespace RafiqPOS.Services
             }
             bool allowNegative = (allowNegativeSetting == "1" || string.Equals(allowNegativeSetting, "true", StringComparison.OrdinalIgnoreCase));
 
-            // Pre-calculate total required base units demand per product across all cart items (prevents duplicate line bypass - TEST-4)
+            // Total resolved base-unit demand per product across all cart lines (computed after server-side unit resolution)
             var productTotalDemandMilli = new Dictionary<string, long>();
-            for (int i = 0; i < sale.Items.Count; i++)
-            {
-                var it = sale.Items[i];
-                if (it != null && !string.IsNullOrEmpty(it.ProductId))
-                {
-                    int itFactor = it.ConversionFactor > 0 ? it.ConversionFactor : 1;
-                    if (itFactor == 1 && !string.IsNullOrEmpty(it.UnitId) && DatabaseService.ProductUnits != null)
-                    {
-                        var u = DatabaseService.ProductUnits.GetUnitById(it.UnitId);
-                        if (u != null && u.ConversionFactor > 0) itFactor = u.ConversionFactor;
-                    }
-                    long baseDemand = it.QuantityMilli * itFactor;
-                    if (productTotalDemandMilli.ContainsKey(it.ProductId))
-                    {
-                        productTotalDemandMilli[it.ProductId] += baseDemand;
-                    }
-                    else
-                    {
-                        productTotalDemandMilli[it.ProductId] = baseDemand;
-                    }
-                }
-            }
+            var resolvedProducts = new Dictionary<string, Product>();
+
+            // Price authority applies to interactive sales by a logged-in user without the override permission
+            bool enforcePriceAuthority = SecurityService.CurrentUser != null
+                && DatabaseService.Security != null
+                && !DatabaseService.Security.HasPermission(SecurityService.CurrentUser.Id, "pos.price_override");
 
             foreach (var item in sale.Items)
             {
@@ -79,10 +152,8 @@ namespace RafiqPOS.Services
                 var product = _productRepo.GetById(item.ProductId);
                 if (product != null)
                 {
-                    if (item.UnitCostPiasters <= 0)
-                    {
-                        item.UnitCostPiasters = product.CostPiasters;
-                    }
+                    // Cost always comes from the catalogue, never from the client (Audit F-11)
+                    item.UnitCostPiasters = product.CostPiasters;
                     if (!item.TaxRatePercent.HasValue)
                     {
                         item.TaxRatePercent = product.TaxRatePercent;
@@ -106,8 +177,13 @@ namespace RafiqPOS.Services
                 if (!string.IsNullOrWhiteSpace(item.UnitId) && DatabaseService.ProductUnits != null)
                 {
                     matchedUnit = DatabaseService.ProductUnits.GetUnitById(item.UnitId);
+                    // A unit id belonging to another product must never be accepted
+                    if (matchedUnit != null && !string.Equals(matchedUnit.ProductId, item.ProductId, StringComparison.Ordinal))
+                    {
+                        matchedUnit = null;
+                    }
                 }
-                else if (product != null && product.Units != null && product.Units.Count > 0)
+                if (matchedUnit == null && product != null && product.Units != null && product.Units.Count > 0)
                 {
                     if (!string.IsNullOrWhiteSpace(item.Barcode))
                     {
@@ -172,13 +248,11 @@ namespace RafiqPOS.Services
                 }
                 else
                 {
-                    if (item.ConversionFactor <= 0)
+                    // No registered unit: catalogue products are always sold in their base unit; the client
+                    // conversion factor is never trusted for stock or cost (Audit F-08/F-11 pattern)
+                    if (product != null || item.ConversionFactor <= 0)
                     {
                         item.ConversionFactor = 1;
-                    }
-                    else if (item.ConversionFactor > 1 && product != null && product.CostPiasters > 0)
-                    {
-                        item.UnitCostPiasters = product.CostPiasters * item.ConversionFactor;
                     }
 
                     if (string.IsNullOrWhiteSpace(item.UnitName))
@@ -187,29 +261,40 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                long requiredStockBaseMilli = productTotalDemandMilli.ContainsKey(item.ProductId)
-                    ? productTotalDemandMilli[item.ProductId]
-                    : item.QuantityMilli * (item.ConversionFactor > 0 ? item.ConversionFactor : 1);
+                // Selling below/above the catalogue price requires the price-override permission (Audit F-11)
+                if (enforcePriceAuthority && product != null && !IsCataloguePrice(item, product, matchedUnit))
+                {
+                    throw new InvalidOperationException(string.Format("سعر الصنف '{0}' يختلف عن سعر الكتالوج ويتطلب صلاحية تعديل السعر.", product.Name));
+                }
 
                 if (product != null)
                 {
-                    // Task 30-2: Negative stock handling
-                    if (!allowNegative && product.StockQuantityMilli < requiredStockBaseMilli)
-                    {
-                        double currentQty = product.StockQuantityMilli / 1000.0;
-                        string unitLabel = !string.IsNullOrWhiteSpace(product.Unit) ? product.Unit : "قطعة";
-                        throw new InvalidOperationException(string.Format("لا يمكن إتمام البيع: رصيد الصنف '{0}' في المخزن غير كافٍ (الرصيد المتاح حالياً: {1:0.###} {2}). يمكنك إضافة كمية للصنف من شاشة الأصناف أو تفعيل «السماح بالبيع بالسالب» من الإعدادات.", product.Name, currentQty, unitLabel));
-                    }
-                    else if (product.StockQuantityMilli < requiredStockBaseMilli)
-                    {
-                        sale.NegativeStockWarnings.Add(string.Format("تنبيه: رصيد الصنف '{0}' قبل البيع كان ({1:0.###}) وأصبح بالسالب.", product.Name, product.StockQuantityMilli / 1000.0));
-                    }
+                    resolvedProducts[item.ProductId] = product;
+                    long baseDemand = item.QuantityMilli * (item.ConversionFactor > 0 ? item.ConversionFactor : 1);
+                    productTotalDemandMilli[item.ProductId] = (productTotalDemandMilli.ContainsKey(item.ProductId) ? productTotalDemandMilli[item.ProductId] : 0) + baseDemand;
                 }
 
                 // Item gross = unit_price * quantity_milli / 1000
                 Money unitPrice = Money.FromPiasters(item.UnitPricePiasters);
                 Money lineGross = unitPrice.MultiplyByMilliUnits(item.QuantityMilli);
                 subtotal = subtotal.Add(lineGross);
+            }
+
+            // Task 30-2: Negative stock handling, evaluated on the total resolved base-unit demand per product
+            // across all lines (prevents duplicate-line bypass - TEST-4)
+            foreach (var demand in productTotalDemandMilli)
+            {
+                Product demandProduct = resolvedProducts[demand.Key];
+                if (demandProduct.StockQuantityMilli < demand.Value)
+                {
+                    if (!allowNegative)
+                    {
+                        double currentQty = demandProduct.StockQuantityMilli / 1000.0;
+                        string unitLabel = !string.IsNullOrWhiteSpace(demandProduct.Unit) ? demandProduct.Unit : "قطعة";
+                        throw new InvalidOperationException(string.Format("لا يمكن إتمام البيع: رصيد الصنف '{0}' في المخزن غير كافٍ (الرصيد المتاح حالياً: {1:0.###} {2}). يمكنك إضافة كمية للصنف من شاشة الأصناف أو تفعيل «السماح بالبيع بالسالب» من الإعدادات.", demandProduct.Name, currentQty, unitLabel));
+                    }
+                    sale.NegativeStockWarnings.Add(string.Format("تنبيه: رصيد الصنف '{0}' قبل البيع كان ({1:0.###}) وأصبح بالسالب.", demandProduct.Name, demandProduct.StockQuantityMilli / 1000.0));
+                }
             }
 
             // Task 24-2: Proportional Invoice Discount Distribution
@@ -289,21 +374,50 @@ namespace RafiqPOS.Services
             Money grandTotal = subtotal.Subtract(totalDiscount);
             sale.TotalPiasters = Math.Max(0, grandTotal.Piasters);
 
+            // E-payment service fee: collected from the customer on behalf of the payment provider.
+            // It is NOT shop revenue (business decision Q2): computed here from settings, kept out of
+            // TotalPiasters/revenue, and stored separately in ServiceFeePiasters.
+            sale.ServiceFeePiasters = CalculateEpayServiceFee(sale.PaymentMethod, sale.TotalPiasters);
+            bool isEpayMethod = sale.ServiceFeePiasters > 0;
+            if (isEpayMethod)
+            {
+                // The customer pays the invoice total plus the provider fee in full through the wallet
+                sale.PaidPiasters = sale.TotalPiasters + sale.ServiceFeePiasters;
+                if (sale.Payments != null && sale.Payments.Count == 1 && sale.Payments[0] != null)
+                {
+                    sale.Payments[0].AmountPiasters = sale.PaidPiasters;
+                }
+            }
+
             if (sale.PaidPiasters <= 0 && !string.Equals(sale.PaymentMethod, "credit", StringComparison.OrdinalIgnoreCase))
             {
                 // Default full payment for cash
                 sale.PaidPiasters = sale.TotalPiasters;
             }
 
-            if (sale.PaidPiasters > sale.TotalPiasters && string.Equals(sale.PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase))
+            bool hasRegisteredCustomer = !string.IsNullOrWhiteSpace(sale.CustomerId) && sale.CustomerId != "cust_general_cash";
+            bool isCashMethod = string.Equals(sale.PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase);
+
+            // Unpaid remainder can only be recorded as debt on a registered customer account (Audit F-36)
+            if (sale.PaidPiasters < sale.TotalPiasters && !hasRegisteredCustomer)
             {
-                // If registered customer and ChangePiasters is explicitly 0 (or Notes indicate deposit), keep as 0 to deposit on customer ledger
-                if (sale.ChangePiasters == 0 && !string.IsNullOrWhiteSpace(sale.CustomerId))
+                throw new InvalidOperationException("لا يمكن تسجيل فاتورة آجلة أو مدفوعة جزئياً بدون اختيار عميل مسجل.");
+            }
+
+            if (sale.PaidPiasters > sale.TotalPiasters && isCashMethod)
+            {
+                if (hasRegisteredCustomer)
                 {
-                    // Kept as 0 so unreturned change becomes a deposit in customer account
+                    // If registered customer and ChangePiasters is 0 or negative, unreturned change is deposited to customer account (Audit F-27)
+                    // If client specified ChangePiasters > 0, the cash change was handed back to the customer and must NOT be deposited!
+                    if (sale.ChangePiasters < 0)
+                    {
+                        sale.ChangePiasters = 0;
+                    }
                 }
-                else if (sale.ChangePiasters <= 0)
+                else
                 {
+                    // For anonymous general cash customers, cash excess is always change handed back
                     sale.ChangePiasters = sale.PaidPiasters - sale.TotalPiasters;
                 }
             }
@@ -317,6 +431,8 @@ namespace RafiqPOS.Services
                 long sumPayments = 0;
                 for (int pIdx = 0; pIdx < sale.Payments.Count; pIdx++)
                 {
+                    // The 'credit' portion is unpaid debt, not money received (Audit F-39)
+                    if (sale.Payments[pIdx] == null || string.Equals(sale.Payments[pIdx].Method, "credit", StringComparison.OrdinalIgnoreCase)) continue;
                     sumPayments += sale.Payments[pIdx].AmountPiasters;
                 }
                 if (sumPayments != sale.PaidPiasters)
@@ -328,6 +444,73 @@ namespace RafiqPOS.Services
             var result = _saleRepo.CreateSaleAtomic(sale);
             result.NegativeStockWarnings = sale.NegativeStockWarnings;
             return result;
+        }
+
+        /// <summary>
+        /// Pass-through e-payment fee in whole piasters, using integer basis points (AGENTS Rule 1).
+        /// </summary>
+        private static long CalculateEpayServiceFee(string paymentMethod, long totalPiasters)
+        {
+            if (totalPiasters <= 0 || DatabaseService.Settings == null) return 0;
+
+            string settingKey;
+            if (string.Equals(paymentMethod, "instapay", StringComparison.OrdinalIgnoreCase))
+            {
+                settingKey = "instapay_fee_percent";
+            }
+            else if (string.Equals(paymentMethod, "vodafone_cash", StringComparison.OrdinalIgnoreCase))
+            {
+                settingKey = "vodafone_cash_fee_percent";
+            }
+            else
+            {
+                return 0;
+            }
+
+            decimal percent;
+            string raw = DatabaseService.Settings.Get(settingKey, "0");
+            if (!decimal.TryParse(raw, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out percent) || percent <= 0)
+            {
+                return 0;
+            }
+
+            long basisPoints = (long)decimal.Round(percent * 100m, 0, MidpointRounding.AwayFromZero);
+            // Round half up to whole piasters, matching the POS screen preview
+            return (totalPiasters * basisPoints + 5000L) / 10000L;
+        }
+
+        /// <summary>
+        /// A line price is accepted without the price-override permission when it matches a configured catalogue
+        /// price: the product price, the unit price, or a quick-pick price (open-price quick items allow any price).
+        /// </summary>
+        private static bool IsCataloguePrice(SaleItem item, Product product, ProductUnit matchedUnit)
+        {
+            long price = item.UnitPricePiasters;
+            int factor = item.ConversionFactor > 0 ? item.ConversionFactor : 1;
+
+            // Products without a catalogue price are sold at an entered price by design
+            if (product.PricePiasters <= 0) return true;
+            if (price == product.PricePiasters) return true;
+            if (price == product.PricePiasters * factor) return true;
+            if (matchedUnit != null && matchedUnit.SellPricePiasters > 0 && price == matchedUnit.SellPricePiasters) return true;
+
+            if (DatabaseService.QuickItems != null)
+            {
+                var quickItems = DatabaseService.QuickItems.GetAll();
+                if (quickItems != null)
+                {
+                    for (int q = 0; q < quickItems.Count; q++)
+                    {
+                        var qi = quickItems[q];
+                        if (qi == null) continue;
+                        bool sameProduct = string.Equals(qi.ProductId, product.Id, StringComparison.Ordinal) ||
+                                           string.Equals(qi.Id, product.Id, StringComparison.Ordinal);
+                        if (!sameProduct) continue;
+                        if (qi.IsOpenPrice || qi.PricePiasters == price) return true;
+                    }
+                }
+            }
+            return false;
         }
 
         /// <summary>
@@ -476,7 +659,10 @@ namespace RafiqPOS.Services
                 }
             }
 
-            return _saleRepo.CancelSaleAtomic(saleId, reason.Trim(), userId);
+            lock (FinancialWriteLock)
+            {
+                return _saleRepo.CancelSaleAtomic(saleId, reason.Trim(), userId);
+            }
         }
     }
 }

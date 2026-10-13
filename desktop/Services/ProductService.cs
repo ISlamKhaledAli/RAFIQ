@@ -398,7 +398,10 @@ namespace RafiqPOS.Services
                 return new BatchImportResult();
             }
 
-            return _repo.ImportBatchAtomic(request.Items, request.DuplicateStrategy, userId);
+            lock (SaleService.FinancialWriteLock)
+            {
+                return _repo.ImportBatchAtomic(request.Items, request.DuplicateStrategy, userId);
+            }
         }
 
         public List<Product> GetSmartCatalog(int limit = 1000)
@@ -578,7 +581,10 @@ namespace RafiqPOS.Services
         public BulkPriceApplyResult ApplyBulkPriceAdjustment(BulkPriceApplyRequest request)
         {
             if (request == null) throw new ArgumentNullException("request");
-            return _repo.ApplyBulkPriceAdjustment(request.Items, request.Reason, request.UserId);
+            lock (SaleService.FinancialWriteLock)
+            {
+                return _repo.ApplyBulkPriceAdjustment(request.Items, request.Reason, request.UserId);
+            }
         }
 
         #region Feature #119 / Story 108: توليد الباركود الداخلي للأصناف

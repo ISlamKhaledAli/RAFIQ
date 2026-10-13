@@ -171,17 +171,15 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
 
           {/* Smart Excess Resolution Box when payment exceeds debt */}
           {hasExcess && (
-            <div className="p-3.5 bg-surface-2 border border-line rounded-xl space-y-2.5 animate-in fade-in duration-200">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-warn shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold text-ink text-xs block">
-                    المبلغ المستلم ({(paymentAmountPiasters / 100).toFixed(2)} ج.م) أكبر من دين العميل ({(currentBal / 100).toFixed(2)} ج.م)
-                  </span>
-                  <span className="text-[11px] text-ink-muted block mt-0.5">
-                    يوجد زيادة قدرها <b className="font-mono text-warn font-black">{(excessPiasters / 100).toFixed(2)} ج.م</b>. كيف تريد التعامل معها؟
-                  </span>
+            <div className="p-3 bg-surface-2 border border-line rounded-xl space-y-2 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between bg-amber-500/10 border border-warn/20 px-3 py-1.5 rounded-lg text-xs">
+                <div className="flex items-center gap-1.5 font-bold text-ink">
+                  <AlertCircle className="w-3.5 h-3.5 text-warn shrink-0" />
+                  <span>زيادة عن الدين المطلوب:</span>
                 </div>
+                <span className="font-mono font-black text-warn text-xs">
+                  {(excessPiasters / 100).toFixed(2)} ج.م
+                </span>
               </div>
 
               {/* Resolution Option 1: Return Change */}
@@ -205,11 +203,11 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-xs text-ink flex items-center gap-1.5">
                       <Coins className="w-3.5 h-3.5 text-brand" />
-                      <span>سداد الدين فقط وإرجاع الباقي كاش للعميل (المعتاد)</span>
+                      <span>رجّع الباقي كاش للزبون</span>
                     </span>
                   </div>
-                  <p className="text-[10.5px] text-ink-muted mt-1 leading-relaxed">
-                    يسجل سداد <b>{(currentBal / 100).toFixed(2)} ج.م</b> فقط ويصبح حسابه خالصاً (0.00 ج.م)، وترد له باقي فكة <b>{(excessPiasters / 100).toFixed(2)} ج.م</b> كاش في يده.
+                  <p className="text-[11px] text-ink-muted mt-0.5 leading-normal">
+                    سداد الدين كامل، وترد له <b>{(excessPiasters / 100).toFixed(2)} ج.م</b> فكة في إيده.
                   </p>
                 </div>
               </button>
@@ -235,11 +233,11 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-xs text-ink flex items-center gap-1.5">
                       <ArrowLeftRight className="w-3.5 h-3.5 text-paid" />
-                      <span>تسجيل الزيادة كرصيد دائن تحت الحساب للعميل</span>
+                      <span>سيب الزيادة رصيد في حسابه</span>
                     </span>
                   </div>
-                  <p className="text-[10.5px] text-ink-muted mt-1 leading-relaxed">
-                    يستلم الدرج المبلغ كاملاً <b>{(paymentAmountPiasters / 100).toFixed(2)} ج.م</b>، وتُسجل <b>{(excessPiasters / 100).toFixed(2)} ج.م</b> كرصيد للعميل تُخصم تلقائياً من مشترياته القادمة.
+                  <p className="text-[11px] text-ink-muted mt-0.5 leading-normal">
+                    تسجيل <b>{(excessPiasters / 100).toFixed(2)} ج.م</b> رصيد له تتخصم من فواتيره الجاية.
                   </p>
                 </div>
               </button>
@@ -248,12 +246,12 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
 
           {/* When customer had no debt initially */}
           {!isDebt && paymentAmountPiasters > 0 && (
-            <div className="p-3 bg-paid-soft border border-paid/30 rounded-xl text-[11px] text-paid-dark flex items-start gap-2">
+            <div className="p-2.5 bg-paid-soft border border-paid/30 rounded-xl text-xs text-paid-dark flex items-start gap-2">
               <Sparkles className="w-4 h-4 text-paid shrink-0 mt-0.5" />
               <div>
-                <span className="font-bold block">استلام دفعة مقدمة تحت الحساب:</span>
-                <span className="leading-relaxed block mt-0.5">
-                  حساب العميل خالص حالياً. سيتم إيداع مبلغ <b className="font-mono font-bold">{(paymentAmountPiasters / 100).toFixed(2)} ج.م</b> كرصيد دائن لصالحه في المحل، ليتم استهلاكه تلقائياً في فواتير الشكك القادمة.
+                <span className="font-bold block">دفعة مقدّمة تحت الحساب:</span>
+                <span className="text-[11px] block mt-0.5">
+                  الزبون معلهوش دين حالياً — المبلغ (<b className="font-mono font-bold">{(paymentAmountPiasters / 100).toFixed(2)} ج.م</b>) هيتسجل رصيد في حسابه يتخصم من مشترياته الجاية.
                 </span>
               </div>
             </div>
@@ -316,15 +314,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
               className="px-5 py-2 rounded-xl bg-paid hover:bg-paid-hover text-white font-bold transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
             >
               <Check className="w-4 h-4" />
-              <span>
-                {hasExcess
-                  ? excessAction === 'return_change'
-                    ? `سداد ${(currentBal / 100).toFixed(2)} ج.م ورد باقي ${(excessPiasters / 100).toFixed(2)} ج.م`
-                    : `استلام ${(paymentAmountPiasters / 100).toFixed(2)} ج.م وتسجيل ${(excessPiasters / 100).toFixed(2)} تحت الحساب`
-                  : isDebt
-                  ? 'تأكيد السداد وتحديث الحساب'
-                  : 'تأكيد استلام الدفعة المقدمة'}
-              </span>
+              <span>تأكيد السداد</span>
             </button>
           </div>
         </form>

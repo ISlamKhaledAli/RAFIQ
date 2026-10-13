@@ -548,6 +548,8 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       return {
         id: `sale_mock_${invNum}`,
         invoiceNumber: invNum,
+        cashierId: 'usr_admin_default',
+        cashierName: 'مدير النظام',
         subtotalPiasters: 8000,
         discountPiasters: 0,
         taxPiasters: 0,

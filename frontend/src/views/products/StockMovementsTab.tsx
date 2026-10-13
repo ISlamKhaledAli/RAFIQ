@@ -320,9 +320,6 @@ export const StockMovementsTab: React.FC<StockMovementsTabProps> = ({
         {/* Table Footer */}
         <div className="h-[32px] bg-surface-2 hairline-t px-4 flex items-center justify-between text-[11px] text-ink-muted shrink-0">
           <span>كل حركة بضاعة متسجلة تلقائياً بدون إمكانية للحذف لحماية المخزن من أي عجز أو تلاعب.</span>
-          <span className="font-mono tabular-nums">
-            المعروض: {pagedMovements.length} من أصل {filteredMovements.length} حركة (إجمالي حركات المحل: {allMovements.length})
-          </span>
         </div>
       </div>
 

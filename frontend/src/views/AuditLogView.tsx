@@ -399,9 +399,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
 
         {/* Table Footer */}
         <div className="h-9 bg-surface-2 border-t border-line px-4 flex items-center justify-between text-xs text-ink-muted shrink-0">
-          <span>
-            المعروض: {pagedLogs.length} من أصل {logs.length} عملية مسجلة
-          </span>
+          <span>كل عمليات النظام مسجلة ومؤمنة محلياً</span>
           <span className="font-mono text-[11px] text-paid flex items-center gap-1">
             <Lock className="w-3 h-3 text-paid" />
             سجل أمان غير قابل للتعديل مشفر ببصمة SHA-256

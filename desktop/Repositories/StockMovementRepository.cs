@@ -156,7 +156,8 @@ namespace RafiqPOS.Repositories
 
         private static long GetTotalStockInternal(SQLiteConnection conn, SQLiteTransaction trans, string productId)
         {
-            string sql = "SELECT COALESCE(SUM(quantity_milli), 0) FROM stock_movements WHERE product_id = @pid;";
+            // DAMAGED_RETURN rows are informational: damaged goods never re-enter sellable stock (Audit F-24)
+            string sql = "SELECT COALESCE(SUM(quantity_milli), 0) FROM stock_movements WHERE product_id = @pid AND movement_type != 'DAMAGED_RETURN';";
             using (var cmd = new SQLiteCommand(sql, conn, trans))
             {
                 cmd.Parameters.AddWithValue("@pid", productId);
@@ -198,7 +199,7 @@ namespace RafiqPOS.Repositories
                     COALESCE(SUM(sm.quantity_milli), 0) AS calculated_stock,
                     (p.stock_quantity_milli - COALESCE(SUM(sm.quantity_milli), 0)) AS diff
                 FROM products p
-                LEFT JOIN stock_movements sm ON p.id = sm.product_id
+                LEFT JOIN stock_movements sm ON p.id = sm.product_id AND sm.movement_type != 'DAMAGED_RETURN'
                 GROUP BY p.id
                 HAVING diff != 0;
             ";
@@ -273,7 +274,7 @@ namespace RafiqPOS.Repositories
                     SET stock_quantity_milli = COALESCE((
                         SELECT SUM(quantity_milli)
                         FROM stock_movements
-                        WHERE product_id = @pid
+                        WHERE product_id = @pid AND movement_type != 'DAMAGED_RETURN'
                     ), 0),
                     updated_at = datetime('now')
                     WHERE id = @pid AND (has_variants = 0 OR has_variants IS NULL);
@@ -311,7 +312,7 @@ namespace RafiqPOS.Repositories
                     SET stock_quantity_milli = COALESCE((
                         SELECT SUM(quantity_milli)
                         FROM stock_movements
-                        WHERE product_id = products.id
+                        WHERE product_id = products.id AND movement_type != 'DAMAGED_RETURN'
                     ), 0),
                     updated_at = datetime('now')
                     WHERE has_variants = 0 OR has_variants IS NULL;

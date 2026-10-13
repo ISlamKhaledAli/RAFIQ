@@ -464,7 +464,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
           {/* Footer */}
           <div className="h-12 bg-surface-2 hairline-t px-4 flex items-center justify-between shrink-0">
             <span className="text-[11px] text-ink-muted">
-              عدد الحركات المعروضة: {filteredStatementEntries.length}
+              إجمالي الحركات: {filteredStatementEntries.length}
             </span>
 
             <div className="flex items-center gap-2">

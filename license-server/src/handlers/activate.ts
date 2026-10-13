@@ -135,14 +135,37 @@ export async function handleActivate(request: Request, env: Env): Promise<Respon
   let activatedTime = license.activated_at;
   if (license.status === 'pending') {
     activatedTime = new Date().toISOString();
-    await env.DB.prepare(
+    // Conditional update: only one device can win a concurrent activation race (Audit F-18)
+    const bindResult = await env.DB.prepare(
       `UPDATE licenses 
        SET status = 'active', 
            machine_fingerprint = ?, 
            activated_at = datetime('now'), 
            updated_at = datetime('now') 
-       WHERE id = ?`
+       WHERE id = ? AND status = 'pending'`
     ).bind(machineFingerprint, license.id).run();
+
+    const changes = bindResult && bindResult.meta ? bindResult.meta.changes : undefined;
+    if (changes !== 1) {
+      // Confirm which device actually owns the license after the conditional update
+      const current = await env.DB.prepare('SELECT machine_fingerprint FROM licenses WHERE id = ?')
+        .bind(license.id)
+        .first<{ machine_fingerprint: string | null }>();
+      if (!current || current.machine_fingerprint !== machineFingerprint) {
+        await logAudit('activate', 'failed', 'DEVICE_MISMATCH');
+        return new Response(
+          JSON.stringify({
+            success: false,
+            code: 'DEVICE_MISMATCH',
+            message: 'هذا الترخيص مفعّل ومربوط بجهاز آخر بالفعل. لنقله إلى هذا الجهاز، يرجى التواصل مع الدعم الفني لفك الربط.',
+          }),
+          { status: 403, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
+        );
+      }
+      if (changes === 0) {
+        isReactivation = true;
+      }
+    }
   }
 
   // 8. Generate Cryptographically Signed Token
@@ -157,7 +180,7 @@ export async function handleActivate(request: Request, env: Env): Promise<Respon
       iat: Math.floor(Date.now() / 1000),
       exp: expTimestamp,
     },
-    env.TOKEN_SIGNING_SECRET
+    env.LICENSE_PRIVATE_KEY
   );
 
   await logAudit(isReactivation ? 'reactivate' : 'activate', 'success', null);

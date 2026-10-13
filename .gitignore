@@ -32,6 +32,9 @@ audit_results.json
 .env.*.local
 *.dev.vars
 !.env.example
+.secrets/
+*.pem
+*.DS_Store
 
 # Databases & Runtime Data
 data/

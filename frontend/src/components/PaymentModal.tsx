@@ -6,10 +6,7 @@ import {
   X, 
   Printer, 
   ArrowRight, 
-  Sparkles, 
   UserPlus, 
-  AlertTriangle, 
-  CheckCircle,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { Customer, SalePayment } from '../types/models';
@@ -527,13 +524,7 @@ export const PaymentModal = ({
                       { value: '', label: 'زبون عادي كاش (بدون حساب)' },
                       ...localCustomers.filter(c => c.id !== 'cust_general_cash').map((c) => ({
                         value: c.id,
-                        label: `${c.name} ${c.phone ? `(${c.phone})` : ''} ${
-                          c.balancePiasters > 0
-                            ? `[عليه: ${(c.balancePiasters / 100).toFixed(0)} ج.م]`
-                            : c.balancePiasters < 0
-                            ? `[له: ${(Math.abs(c.balancePiasters) / 100).toFixed(0)} ج.م]`
-                            : ''
-                        }`,
+                        label: c.name,
                       })),
                     ]}
                     className="w-full"
@@ -552,31 +543,6 @@ export const PaymentModal = ({
                   <span>تسجيل زبون جديد</span>
                 </button>
               </div>
-
-              {selectedCustomer && (
-                selectedCustomer.balancePiasters > 0 ? (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-danger-soft/40 border-2 border-danger/60 text-danger font-bold text-xs shadow-xs shrink-0 animate-in fade-in">
-                    <AlertTriangle className="w-4 h-4 text-danger shrink-0 animate-pulse" />
-                    <span>تنبيه: عليه حساب قديم:</span>
-                    <span className="font-mono font-black text-sm tabular-nums text-danger">
-                      {formatArabicCurrency(selectedCustomer.balancePiasters)}
-                    </span>
-                  </div>
-                ) : selectedCustomer.balancePiasters < 0 ? (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-paid-soft border-2 border-paid/50 text-paid font-bold text-xs shadow-xs shrink-0 animate-in fade-in">
-                    <Sparkles className="w-4 h-4 text-paid shrink-0" />
-                    <span>له رصيد سابق في حسابه بالمحل:</span>
-                    <span className="font-mono font-black text-sm tabular-nums text-paid">
-                      {formatArabicCurrency(Math.abs(selectedCustomer.balancePiasters))}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-surface-2 border border-line text-ink-muted text-xs font-semibold shrink-0">
-                    <CheckCircle className="w-3.5 h-3.5 text-paid" />
-                    <span>حسابه خالص (0.00 ج.م)</span>
-                  </div>
-                )
-              )}
             </div>
 
             {/* Quick Add Customer Inline Form (Toggled) */}

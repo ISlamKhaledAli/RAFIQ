@@ -25,10 +25,11 @@ namespace RafiqPOS.Services
                 // 1. Sales totals & counts (Excluding demo sales for real reporting - strictly isolating cash, card, credit)
                 string salesSql = @"
                     SELECT 
-                        COALESCE(SUM(s.total_piasters), 0) AS total_sales,
+                        COALESCE(SUM(CASE WHEN (s.paid_piasters - s.service_fee_piasters) > s.total_piasters THEN (s.paid_piasters - s.service_fee_piasters) ELSE s.total_piasters END), 0) AS total_sales,
                         COALESCE(SUM(
                             CASE 
-                                WHEN s.payment_method IN ('cash', 'credit') THEN MAX(0, s.paid_piasters - s.change_piasters)
+                                WHEN s.payment_method = 'cash' THEN MAX(0, (s.paid_piasters - s.service_fee_piasters) - COALESCE(s.change_piasters, 0))
+                                WHEN s.payment_method = 'credit' THEN MIN((s.paid_piasters - s.service_fee_piasters), s.total_piasters)
                                 WHEN s.payment_method = 'multi' THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
@@ -39,7 +40,7 @@ namespace RafiqPOS.Services
                         ), 0) AS cash_sales,
                         COALESCE(SUM(
                             CASE 
-                                WHEN s.payment_method = 'instapay' THEN s.paid_piasters
+                                WHEN s.payment_method = 'instapay' THEN (s.paid_piasters - s.service_fee_piasters)
                                 WHEN s.payment_method = 'multi' THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
@@ -50,7 +51,7 @@ namespace RafiqPOS.Services
                         ), 0) AS instapay_sales,
                         COALESCE(SUM(
                             CASE 
-                                WHEN s.payment_method = 'vodafone_cash' THEN s.paid_piasters
+                                WHEN s.payment_method = 'vodafone_cash' THEN (s.paid_piasters - s.service_fee_piasters)
                                 WHEN s.payment_method = 'multi' THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
@@ -61,7 +62,7 @@ namespace RafiqPOS.Services
                         ), 0) AS vodafone_cash_sales,
                         COALESCE(SUM(
                             CASE 
-                                WHEN s.payment_method = 'card' THEN s.paid_piasters
+                                WHEN s.payment_method = 'card' THEN (s.paid_piasters - s.service_fee_piasters)
                                 WHEN s.payment_method = 'multi' THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
@@ -70,7 +71,7 @@ namespace RafiqPOS.Services
                                 ELSE 0 
                             END
                         ), 0) AS card_sales,
-                        COALESCE(SUM(CASE WHEN s.total_piasters > s.paid_piasters THEN (s.total_piasters - s.paid_piasters) ELSE 0 END), 0) AS credit_sales,
+                        COALESCE(SUM(CASE WHEN s.total_piasters > (s.paid_piasters - s.service_fee_piasters) THEN (s.total_piasters - (s.paid_piasters - s.service_fee_piasters)) ELSE 0 END), 0) AS credit_sales,
                         COUNT(*) AS inv_count
                     FROM sales s
                     WHERE (date(s.created_at, 'localtime') = date('now', 'localtime') OR date(s.created_at) = date('now')) 
@@ -176,7 +177,7 @@ namespace RafiqPOS.Services
                 {
                     string expenseSql = @"
                         SELECT COALESCE(SUM(amount_piasters), 0) FROM expenses
-                        WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'));
+                        WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR business_date = date('now', 'localtime') OR date(created_at) = date('now'));
                     ";
                     using (var cmd = new SQLiteCommand(expenseSql, conn))
                     {
@@ -289,8 +290,8 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // Net Profit = Sales Gross Profit - Inventory Losses + Inventory Surplus
-                summary.TodayNetProfitsPiasters = summary.TodayProfitsPiasters - summary.TodayInventoryLossPiasters + summary.TodayInventorySurplusPiasters;
+                // Net Operating Profit = Sales Gross Profit - Operational Expenses - Inventory Losses + Inventory Surplus + Epay Net Profit
+                summary.TodayNetProfitsPiasters = summary.TodayProfitsPiasters - summary.TodayExpensesPiasters - summary.TodayInventoryLossPiasters + summary.TodayInventorySurplusPiasters + summary.TodayEpayNetProfitPiasters;
 
                 // 5. Recent Inventory Adjustments for today
                 string recentAdjSql = @"
@@ -527,10 +528,11 @@ namespace RafiqPOS.Services
                 // 1. Sales totals & payments breakdown (isolating cash, card, credit)
                 string salesSql = string.Format(@"
                     SELECT 
-                        COALESCE(SUM(s.total_piasters), 0) AS total_sales,
+                        COALESCE(SUM(CASE WHEN (s.paid_piasters - s.service_fee_piasters) > s.total_piasters THEN (s.paid_piasters - s.service_fee_piasters) ELSE s.total_piasters END), 0) AS total_sales,
                         COALESCE(SUM(
                             CASE 
-                                WHEN s.payment_method IN ('cash', 'credit') THEN MAX(0, s.paid_piasters - s.change_piasters)
+                                WHEN s.payment_method = 'cash' THEN MAX(0, (s.paid_piasters - s.service_fee_piasters) - COALESCE(s.change_piasters, 0))
+                                WHEN s.payment_method = 'credit' THEN MIN((s.paid_piasters - s.service_fee_piasters), s.total_piasters)
                                 WHEN s.payment_method = 'multi' THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
@@ -541,7 +543,7 @@ namespace RafiqPOS.Services
                         ), 0) AS cash_sales,
                         COALESCE(SUM(
                             CASE 
-                                WHEN s.payment_method = 'instapay' THEN s.paid_piasters
+                                WHEN s.payment_method = 'instapay' THEN (s.paid_piasters - s.service_fee_piasters)
                                 WHEN s.payment_method = 'multi' THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
@@ -552,7 +554,7 @@ namespace RafiqPOS.Services
                         ), 0) AS instapay_sales,
                         COALESCE(SUM(
                             CASE 
-                                WHEN s.payment_method = 'vodafone_cash' THEN s.paid_piasters
+                                WHEN s.payment_method = 'vodafone_cash' THEN (s.paid_piasters - s.service_fee_piasters)
                                 WHEN s.payment_method = 'multi' THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
@@ -563,7 +565,7 @@ namespace RafiqPOS.Services
                         ), 0) AS vodafone_cash_sales,
                         COALESCE(SUM(
                             CASE 
-                                WHEN s.payment_method = 'card' THEN s.paid_piasters
+                                WHEN s.payment_method = 'card' THEN (s.paid_piasters - s.service_fee_piasters)
                                 WHEN s.payment_method = 'multi' THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
@@ -572,7 +574,7 @@ namespace RafiqPOS.Services
                                 ELSE 0 
                             END
                         ), 0) AS card_sales,
-                        COALESCE(SUM(CASE WHEN s.total_piasters > s.paid_piasters THEN (s.total_piasters - s.paid_piasters) ELSE 0 END), 0) AS credit_sales,
+                        COALESCE(SUM(CASE WHEN s.total_piasters > (s.paid_piasters - s.service_fee_piasters) THEN (s.total_piasters - (s.paid_piasters - s.service_fee_piasters)) ELSE 0 END), 0) AS credit_sales,
                         COUNT(*) AS inv_count
                     FROM sales s
                     WHERE {0}
@@ -736,6 +738,37 @@ namespace RafiqPOS.Services
                             });
                         }
                     }
+                }
+
+                // 6. Operational Expenses in this period
+                try
+                {
+                    using (var checkExpCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='expenses';", conn))
+                    {
+                        if (checkExpCmd.ExecuteScalar() != null)
+                        {
+                            string expDateClause = dateFilterClause.Replace("created_at", "business_date");
+                            string expSql = string.Format(@"
+                                SELECT COALESCE(SUM(amount_piasters), 0)
+                                FROM expenses
+                                WHERE ({0} OR {1});
+                            ", dateFilterClause, expDateClause);
+
+                            using (var expCmd = new SQLiteCommand(expSql, conn))
+                            {
+                                if (period == "custom")
+                                {
+                                    expCmd.Parameters.AddWithValue("@from", customFromDate);
+                                    expCmd.Parameters.AddWithValue("@to", customToDate);
+                                }
+                                report.TotalExpensesPiasters = Convert.ToInt64(expCmd.ExecuteScalar() ?? 0);
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    report.TotalExpensesPiasters = 0;
                 }
             }
 
@@ -2029,18 +2062,22 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // 2. Repayments in period (taking payments + deposits from sales - cancelled payments)
+                // 2. Repayments & Debt Reductions in period (taking payments + deposits from sales - cancelled payments + debt decreases + refunds)
                 string repaySql = string.Format(@"
                     SELECT COALESCE(SUM(
                         CASE 
                             WHEN cl.type = 'payment' THEN cl.amount_piasters
                             WHEN cl.type = 'payment_cancel' THEN -cl.amount_piasters
                             WHEN cl.type = 'deposit' THEN cl.amount_piasters
+                            WHEN cl.type = 'debt_decrease' THEN cl.amount_piasters
+                            WHEN cl.type = 'refund' THEN cl.amount_piasters
                             ELSE 0
                         END
                     ), 0)
                     FROM customer_ledger cl
-                    WHERE cl.type IN ('payment', 'payment_cancel', 'deposit') AND {0};
+                    WHERE cl.type IN ('payment', 'payment_cancel', 'deposit', 'debt_decrease', 'refund') 
+                      AND cl.customer_id NOT LIKE 'demo_%'
+                      AND {0};
                 ", dateClause);
                 using (var cmd = new SQLiteCommand(repaySql, conn))
                 {
@@ -2049,20 +2086,65 @@ namespace RafiqPOS.Services
                     if (report.PeriodRepaymentsPiasters < 0) report.PeriodRepaymentsPiasters = 0;
                 }
 
-                // 3. New credit sales in period
+                // 3. New credit sales & Debt Additions in period (credit sales + manual debt increases - cancellations)
                 string credSalesSql = string.Format(@"
-                    SELECT COALESCE(SUM(cl.amount_piasters), 0)
+                    SELECT COALESCE(SUM(
+                        CASE
+                            WHEN cl.type IN ('sale', 'sale_credit', 'debt_increase') THEN cl.amount_piasters
+                            WHEN cl.type = 'cancellation' THEN -cl.amount_piasters
+                            ELSE 0
+                        END
+                    ), 0)
                     FROM customer_ledger cl
-                    WHERE (cl.type = 'sale' OR cl.type = 'sale_credit') AND {0};
+                    WHERE cl.type IN ('sale', 'sale_credit', 'debt_increase', 'cancellation') 
+                      AND cl.customer_id NOT LIKE 'demo_%'
+                      AND {0};
                 ", dateClause);
                 using (var cmd = new SQLiteCommand(credSalesSql, conn))
                 {
                     BindCustomDates(cmd, period, customFrom, customTo);
                     report.PeriodNewCreditPiasters = Convert.ToInt64(cmd.ExecuteScalar() ?? 0);
+                    if (report.PeriodNewCreditPiasters < 0) report.PeriodNewCreditPiasters = 0;
                 }
 
                 report.NetCreditFlowPiasters = report.PeriodNewCreditPiasters - report.PeriodRepaymentsPiasters;
-                report.AveragePaybackDays = 14.0;
+                report.PeriodOpeningDebtsPiasters = Math.Max(0, report.TotalOutstandingDebtsPiasters - report.NetCreditFlowPiasters);
+                report.PeriodClosingDebtsPiasters = report.TotalOutstandingDebtsPiasters;
+
+                // 4. Dynamic average payback days calculated from actual payment records
+                try
+                {
+                    string avgDaysSql = @"
+                        SELECT AVG(JULIANDAY(cl.created_at) - JULIANDAY(
+                            (SELECT MAX(s.created_at) 
+                             FROM customer_ledger s 
+                             WHERE s.customer_id = cl.customer_id 
+                               AND (s.type = 'sale' OR s.type = 'sale_credit') 
+                               AND s.created_at <= cl.created_at)
+                        ))
+                        FROM customer_ledger cl
+                        WHERE cl.type = 'payment'
+                          AND cl.customer_id NOT LIKE 'demo_%'
+                          AND (SELECT COUNT(*) FROM customer_ledger s WHERE s.customer_id = cl.customer_id AND (s.type = 'sale' OR s.type = 'sale_credit') AND s.created_at <= cl.created_at) > 0;
+                    ";
+                    using (var avgCmd = new SQLiteCommand(avgDaysSql, conn))
+                    {
+                        object avgRes = avgCmd.ExecuteScalar();
+                        if (avgRes != null && avgRes != DBNull.Value)
+                        {
+                            double days = Convert.ToDouble(avgRes);
+                            report.AveragePaybackDays = days > 0 ? Math.Round(days, 1) : 0;
+                        }
+                        else
+                        {
+                            report.AveragePaybackDays = 0;
+                        }
+                    }
+                }
+                catch
+                {
+                    report.AveragePaybackDays = 0;
+                }
             }
 
             return report;
@@ -2638,7 +2720,7 @@ namespace RafiqPOS.Services
                         COALESCE(u.role, 'admin') AS role,
                         COUNT(s.id) AS inv_count,
                         COALESCE(SUM(CASE WHEN s.status != 'cancelled' THEN s.total_piasters ELSE 0 END), 0) AS total_sales,
-                        COALESCE(SUM(CASE WHEN s.status != 'cancelled' THEN s.paid_piasters ELSE 0 END), 0) AS cash_sales,
+                        COALESCE(SUM(CASE WHEN s.status != 'cancelled' THEN (s.paid_piasters - s.service_fee_piasters) ELSE 0 END), 0) AS cash_sales,
                         COALESCE(SUM(CASE WHEN s.status = 'cancelled' THEN 1 ELSE 0 END), 0) AS cancelled_count
                     FROM sales s
                     LEFT JOIN users u ON s.cashier_id = u.id

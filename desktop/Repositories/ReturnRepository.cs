@@ -46,6 +46,55 @@ namespace RafiqPOS.Repositories
                         int nextReturnNumber = (int)_counters.GetNextCounterNumber(conn, trans, "return_number", "returns", "return_number");
                         returnObj.ReturnNumber = nextReturnNumber;
 
+                        // Bidirectionally resolve SaleId and InvoiceNumber
+                        if (string.IsNullOrEmpty(returnObj.SaleId) && returnObj.InvoiceNumber.HasValue)
+                        {
+                            using (var findSaleCmd = new SQLiteCommand("SELECT id, customer_id, customer_name FROM sales WHERE invoice_number = @inv LIMIT 1;", conn, trans))
+                            {
+                                findSaleCmd.Parameters.AddWithValue("@inv", returnObj.InvoiceNumber.Value);
+                                using (var saleReader = findSaleCmd.ExecuteReader())
+                                {
+                                    if (saleReader.Read())
+                                    {
+                                        returnObj.SaleId = saleReader["id"].ToString();
+                                        if (string.IsNullOrEmpty(returnObj.CustomerId) && saleReader["customer_id"] != DBNull.Value)
+                                        {
+                                            returnObj.CustomerId = saleReader["customer_id"].ToString();
+                                        }
+                                        if (string.IsNullOrEmpty(returnObj.CustomerName) && saleReader["customer_name"] != DBNull.Value)
+                                        {
+                                            returnObj.CustomerName = saleReader["customer_name"].ToString();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        else if (!returnObj.InvoiceNumber.HasValue && !string.IsNullOrEmpty(returnObj.SaleId))
+                        {
+                            using (var findInvCmd = new SQLiteCommand("SELECT invoice_number, customer_id, customer_name FROM sales WHERE id = @sid LIMIT 1;", conn, trans))
+                            {
+                                findInvCmd.Parameters.AddWithValue("@sid", returnObj.SaleId);
+                                using (var invReader = findInvCmd.ExecuteReader())
+                                {
+                                    if (invReader.Read())
+                                    {
+                                        if (invReader["invoice_number"] != DBNull.Value)
+                                        {
+                                            returnObj.InvoiceNumber = Convert.ToInt32(invReader["invoice_number"]);
+                                        }
+                                        if (string.IsNullOrEmpty(returnObj.CustomerId) && invReader["customer_id"] != DBNull.Value)
+                                        {
+                                            returnObj.CustomerId = invReader["customer_id"].ToString();
+                                        }
+                                        if (string.IsNullOrEmpty(returnObj.CustomerName) && invReader["customer_name"] != DBNull.Value)
+                                        {
+                                            returnObj.CustomerName = invReader["customer_name"].ToString();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         // Calculate total and enforce consistency (prevent tampering)
                         long calculatedTotal = 0;
                         for (int i = 0; i < returnObj.Items.Count; i++)
@@ -53,7 +102,10 @@ namespace RafiqPOS.Repositories
                             var it = returnObj.Items[i];
                             decimal lineDec = ((decimal)it.UnitPricePiasters * it.QuantityMilli) / 1000m;
                             long expectedLineTotal = (long)Math.Round(lineDec, 0, MidpointRounding.AwayFromZero);
-                            if (it.TotalPiasters <= 0 || Math.Abs(it.TotalPiasters - expectedLineTotal) > 1)
+                            // Invoice-linked line totals are computed by ReturnService from the original sale line
+                            // (proportional, remainder-exact - Audit F-19); returns without an invoice use price x qty.
+                            bool serviceComputed = !string.IsNullOrEmpty(returnObj.SaleId);
+                            if (!serviceComputed || it.TotalPiasters < 0)
                             {
                                 it.TotalPiasters = expectedLineTotal;
                             }
@@ -138,9 +190,10 @@ namespace RafiqPOS.Repositories
                                 }
                             }
 
-                            // Determine conversion factor for multi-unit items
-                            int factor = item.ConversionFactor > 0 ? item.ConversionFactor : 1;
-                            if (factor == 1 && !string.IsNullOrEmpty(item.SaleItemId))
+                            // Determine conversion factor from stored data only - never trust the client value (Audit F-08)
+                            int factor = 1;
+                            bool factorResolved = false;
+                            if (!string.IsNullOrEmpty(item.SaleItemId))
                             {
                                 using (var fCmd = new SQLiteCommand("SELECT conversion_factor FROM sale_items WHERE id = @siId LIMIT 1;", conn, trans))
                                 {
@@ -150,10 +203,11 @@ namespace RafiqPOS.Repositories
                                     {
                                         int cf = Convert.ToInt32(fRes);
                                         if (cf > 0) factor = cf;
+                                        factorResolved = true;
                                     }
                                 }
                             }
-                            else if (factor == 1 && !string.IsNullOrEmpty(item.Unit) && item.Unit != "piece")
+                            if (!factorResolved && !string.IsNullOrEmpty(item.Unit) && item.Unit != "piece")
                             {
                                 using (var fCmd = new SQLiteCommand("SELECT conversion_factor FROM product_units WHERE product_id = @pid AND unit_name = @uname LIMIT 1;", conn, trans))
                                 {
@@ -248,7 +302,7 @@ namespace RafiqPOS.Repositories
                                 {
                                     cmd.Parameters.AddWithValue("@mId", Guid.NewGuid().ToString());
                                     cmd.Parameters.AddWithValue("@mProdId", item.ProductId);
-                                    cmd.Parameters.AddWithValue("@mQty", item.QuantityMilli);
+                                    cmd.Parameters.AddWithValue("@mQty", baseQtyMilli);
                                     cmd.Parameters.AddWithValue("@mRefId", returnObj.Id);
                                     cmd.Parameters.AddWithValue("@mUnitCost", unitCost);
                                     cmd.Parameters.AddWithValue("@mNote", string.Format("مرتجع بضاعة تالفة #{0} (لا تدخل المخزون)", returnObj.ReturnNumber));
@@ -297,20 +351,70 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
-                        // 5. Update original sale status to 'refunded' if linked to a sale
-                        if (!string.IsNullOrEmpty(returnObj.SaleId))
+                        // 5. Update original sale status: differentiate fully refunded vs partially refunded
+                        string targetSaleId = returnObj.SaleId;
+                        if (string.IsNullOrEmpty(targetSaleId) && returnObj.InvoiceNumber.HasValue)
                         {
-                            using (var uSaleCmd = new SQLiteCommand("UPDATE sales SET status = 'refunded' WHERE id = @sid AND status != 'cancelled';", conn, trans))
+                            using (var findIdCmd = new SQLiteCommand("SELECT id FROM sales WHERE invoice_number = @inv LIMIT 1;", conn, trans))
                             {
-                                uSaleCmd.Parameters.AddWithValue("@sid", returnObj.SaleId);
-                                uSaleCmd.ExecuteNonQuery();
+                                findIdCmd.Parameters.AddWithValue("@inv", returnObj.InvoiceNumber.Value);
+                                object foundIdObj = findIdCmd.ExecuteScalar();
+                                if (foundIdObj != null && foundIdObj != DBNull.Value)
+                                {
+                                    targetSaleId = foundIdObj.ToString();
+                                }
                             }
                         }
-                        else if (returnObj.InvoiceNumber.HasValue)
+
+                        if (!string.IsNullOrEmpty(targetSaleId))
                         {
-                            using (var uSaleCmd = new SQLiteCommand("UPDATE sales SET status = 'refunded' WHERE invoice_number = @inv AND status != 'cancelled';", conn, trans))
+                            long totalSoldMilli = 0;
+                            long totalSoldPiasters = 0;
+                            using (var qCmd = new SQLiteCommand("SELECT COALESCE(SUM(quantity_milli), 0), COALESCE(SUM(total_piasters), 0) FROM sale_items WHERE sale_id = @sid;", conn, trans))
                             {
-                                uSaleCmd.Parameters.AddWithValue("@inv", returnObj.InvoiceNumber.Value);
+                                qCmd.Parameters.AddWithValue("@sid", targetSaleId);
+                                using (var sReader = qCmd.ExecuteReader())
+                                {
+                                    if (sReader.Read())
+                                    {
+                                        totalSoldMilli = Convert.ToInt64(sReader[0]);
+                                        totalSoldPiasters = Convert.ToInt64(sReader[1]);
+                                    }
+                                }
+                            }
+
+                            long totalRetMilli = 0;
+                            using (var rqCmd = new SQLiteCommand(@"
+                                SELECT COALESCE(SUM(ri.quantity_milli), 0)
+                                FROM return_items ri
+                                JOIN returns r ON ri.return_id = r.id
+                                WHERE r.sale_id = @sid OR (r.invoice_number IS NOT NULL AND r.invoice_number = (SELECT invoice_number FROM sales WHERE id = @sid));", conn, trans))
+                            {
+                                rqCmd.Parameters.AddWithValue("@sid", targetSaleId);
+                                object rRes = rqCmd.ExecuteScalar();
+                                if (rRes != null && rRes != DBNull.Value) totalRetMilli = Convert.ToInt64(rRes);
+                            }
+
+                            long totalRetPiasters = 0;
+                            using (var rpCmd = new SQLiteCommand(@"
+                                SELECT COALESCE(SUM(total_piasters), 0)
+                                FROM returns
+                                WHERE sale_id = @sid OR (invoice_number IS NOT NULL AND invoice_number = (SELECT invoice_number FROM sales WHERE id = @sid));", conn, trans))
+                            {
+                                rpCmd.Parameters.AddWithValue("@sid", targetSaleId);
+                                object pRes = rpCmd.ExecuteScalar();
+                                if (pRes != null && pRes != DBNull.Value) totalRetPiasters = Convert.ToInt64(pRes);
+                            }
+
+                            bool isFullyRefunded = (totalSoldPiasters > 0 && totalRetPiasters >= totalSoldPiasters) ||
+                                                   (totalSoldMilli > 0 && totalRetMilli >= totalSoldMilli);
+
+                            string newStatus = isFullyRefunded ? "refunded" : "partially_refunded";
+
+                            using (var uSaleCmd = new SQLiteCommand("UPDATE sales SET status = @st WHERE id = @sid AND status != 'cancelled';", conn, trans))
+                            {
+                                uSaleCmd.Parameters.AddWithValue("@st", newStatus);
+                                uSaleCmd.Parameters.AddWithValue("@sid", targetSaleId);
                                 uSaleCmd.ExecuteNonQuery();
                             }
                         }

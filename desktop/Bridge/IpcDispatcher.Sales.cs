@@ -29,11 +29,21 @@ namespace RafiqPOS.Bridge
                     try
                     {
                         var saleToCreate = JsonConvert.DeserializeObject<Sale>(request.Payload.ToString());
-                        if (saleToCreate != null && string.IsNullOrEmpty(saleToCreate.CashierId) && SecurityService.CurrentUser != null)
+                        if (saleToCreate != null && SecurityService.CurrentUser != null)
                         {
+                            // Always attribute the sale to the authenticated cashier (Audit F-12)
                             saleToCreate.CashierId = SecurityService.CurrentUser.Id;
+                            saleToCreate.CashierName = !string.IsNullOrEmpty(SecurityService.CurrentUser.DisplayName)
+                                ? SecurityService.CurrentUser.DisplayName
+                                : SecurityService.CurrentUser.Username;
                         }
-                        var createdSale = DatabaseService.Sales.ProcessSale(saleToCreate);
+                        string saleIdempotencyKey = null;
+                        JObject salePayloadObj = request.Payload as JObject;
+                        if (salePayloadObj != null && salePayloadObj["idempotencyKey"] != null)
+                        {
+                            saleIdempotencyKey = salePayloadObj["idempotencyKey"].ToString();
+                        }
+                        var createdSale = DatabaseService.Sales.ProcessSale(saleToCreate, saleIdempotencyKey);
                         if (DatabaseService.License != null)
                         {
                             DatabaseService.License.RecordKnownUtc();
@@ -89,12 +99,17 @@ namespace RafiqPOS.Bridge
                         if (cPayload["saleId"] != null) cancelSaleId = cPayload["saleId"].ToString();
                         else if (cPayload["id"] != null) cancelSaleId = cPayload["id"].ToString();
                         if (cPayload["reason"] != null) cancelReason = cPayload["reason"].ToString();
-                        if (cPayload["userId"] != null) cancelUserId = cPayload["userId"].ToString();
                         if (cPayload["supervisorPin"] != null) cancelSupPin = cPayload["supervisorPin"].ToString();
                     }
                     else if (request.Payload != null)
                     {
                         cancelSaleId = request.Payload.ToString().Trim('"', ' ');
+                    }
+
+                    // Audit trail must reflect the authenticated session user, never a client-supplied id (Audit F-12)
+                    if (SecurityService.CurrentUser != null)
+                    {
+                        cancelUserId = SecurityService.CurrentUser.Id;
                     }
 
                     if (string.IsNullOrWhiteSpace(cancelSaleId))
@@ -277,6 +292,12 @@ namespace RafiqPOS.Bridge
                         {
                             response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "تعذر قراءة بيانات المرتجع");
                             return true;
+                        }
+
+                        if (SecurityService.CurrentUser != null)
+                        {
+                            // Attribute the return to the authenticated user (Audit F-12)
+                            retObjToProcess.CashierId = SecurityService.CurrentUser.Id;
                         }
 
                         var processedReturn = DatabaseService.Returns.ProcessReturn(retObjToProcess, retSupPin);

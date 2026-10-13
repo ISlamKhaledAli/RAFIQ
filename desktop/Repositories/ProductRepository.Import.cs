@@ -201,6 +201,18 @@ namespace RafiqPOS.Repositories
                                 }
                                 else if (strat == "update")
                                 {
+                                    long oldStock = 0;
+                                    using (var getOldCmd = new SQLiteCommand("SELECT stock_quantity_milli FROM products WHERE id = @pid LIMIT 1;", conn, trans))
+                                    {
+                                        getOldCmd.Parameters.AddWithValue("@pid", existingProductId);
+                                        var oldVal = getOldCmd.ExecuteScalar();
+                                        if (oldVal != null && oldVal != DBNull.Value)
+                                        {
+                                            oldStock = Convert.ToInt64(oldVal);
+                                        }
+                                    }
+                                    long deltaStock = item.StockQuantityMilli - oldStock;
+
                                     // Update existing product including variant_color and variant_size
                                     string updateSql = @"
                                         UPDATE products SET
@@ -240,6 +252,29 @@ namespace RafiqPOS.Repositories
                                         uCmd.Parameters.AddWithValue("@now", now);
                                         uCmd.ExecuteNonQuery();
                                     }
+
+                                    if (deltaStock != 0)
+                                    {
+                                        string insertSmSql = @"
+                                            INSERT INTO stock_movements (
+                                                id, product_id, movement_type, quantity_milli, reference_id, reference_type,
+                                                unit_cost_piasters, note, batch_number, created_at
+                                            ) VALUES (
+                                                @smId, @smPid, 'ADJUSTMENT', @smQty, 'EXCEL_IMPORT', 'IMPORT_UPDATE',
+                                                @smCost, 'تسوية رصيد ناتجة عن تحديث ملف إكسل', NULL, @now
+                                            );
+                                        ";
+                                        using (var smCmd = new SQLiteCommand(insertSmSql, conn, trans))
+                                        {
+                                            smCmd.Parameters.AddWithValue("@smId", Guid.NewGuid().ToString());
+                                            smCmd.Parameters.AddWithValue("@smPid", existingProductId);
+                                            smCmd.Parameters.AddWithValue("@smQty", deltaStock);
+                                            smCmd.Parameters.AddWithValue("@smCost", item.CostPiasters);
+                                            smCmd.Parameters.AddWithValue("@now", now);
+                                            smCmd.ExecuteNonQuery();
+                                        }
+                                    }
+
                                     result.UpdatedCount++;
                                     continue;
                                 }
