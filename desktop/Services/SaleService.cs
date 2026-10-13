@@ -59,6 +59,9 @@ namespace RafiqPOS.Services
             return ProcessSale(sale, null);
         }
 
+        public const long MAX_QUANTITY_MILLI = 10000000000L; // 10,000,000 units
+        public const long MAX_PRICE_PIASTERS = 100000000000L; // 1,000,000,000 EGP
+
         private Sale ProcessSaleCore(Sale sale)
         {
             if (sale == null) throw new ArgumentNullException("sale");
@@ -87,9 +90,17 @@ namespace RafiqPOS.Services
                 {
                     throw new InvalidOperationException(string.Format("كمية الصنف '{0}' يجب أن تكون أكبر من الصفر.", vItem.ProductName ?? vItem.ProductId));
                 }
+                if (vItem.QuantityMilli > MAX_QUANTITY_MILLI)
+                {
+                    throw new InvalidOperationException(string.Format("كمية الصنف '{0}' تتجاوز الحد الأقصى المسموح به للنظام.", vItem.ProductName ?? vItem.ProductId));
+                }
                 if (vItem.UnitPricePiasters < 0 || vItem.DiscountPiasters < 0 || vItem.UnitCostPiasters < 0)
                 {
                     throw new InvalidOperationException(string.Format("سعر أو خصم أو تكلفة الصنف '{0}' لا يمكن أن تكون سالبة.", vItem.ProductName ?? vItem.ProductId));
+                }
+                if (vItem.UnitPricePiasters > MAX_PRICE_PIASTERS)
+                {
+                    throw new InvalidOperationException(string.Format("سعر الصنف '{0}' يتجاوز الحد الأقصى المسموح به للنظام.", vItem.ProductName ?? vItem.ProductId));
                 }
             }
             if (sale.Payments != null)

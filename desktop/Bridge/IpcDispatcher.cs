@@ -216,8 +216,15 @@ namespace RafiqPOS.Bridge
             { "excel:exportCustomers", "products.export" },
             { "excel:exportFullStore", "products.export" },
 
+            { "closing:getPreview", "reports.daily_closing" },
             { "closing:save", "reports.daily_closing" },
+            { "reports:getTodaySummary", "reports.sales" },
+            { "reports:getSalesReport", "reports.sales" },
+            { "reports:getSalesTrends", "reports.sales" },
+            { "reports:getProfitAndLoss", "reports.profit" },
             { "reports:getItemProfitability", "reports.profit" },
+            { "reports:getCashierSummary", "reports.cashier" },
+            { "reports:getDashboardAnalytics", "reports.sales" },
             { "expenses:create", "expenses.create" },
             { "epay:createTransaction", "epay.transact" },
             { "epay:fundTerminal", "epay.fund" },
@@ -238,8 +245,11 @@ namespace RafiqPOS.Bridge
             { "updates:apply", REQUIRE_ADMIN },
 
             { "users:createSubUser", "users.create" },
+            { "users:update", REQUIRE_ADMIN },
             { "users:updatePermissions", "users.edit" },
             { "users:setDelegation", "users.delegate" },
+            { "users:changePin", REQUIRE_ADMIN },
+            { "security:setIdleTimeout", REQUIRE_ADMIN },
 
             { "system:factoryReset", REQUIRE_ADMIN },
             { "templates:seedProducts", REQUIRE_ADMIN },

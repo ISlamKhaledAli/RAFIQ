@@ -45,9 +45,17 @@ namespace RafiqPOS.Services
                 {
                     throw new InvalidOperationException(string.Format("كمية المرتجع للصنف '{0}' يجب أن تكون أكبر من الصفر.", vItem.ProductName ?? vItem.ProductId));
                 }
+                if (vItem.QuantityMilli > SaleService.MAX_QUANTITY_MILLI)
+                {
+                    throw new InvalidOperationException(string.Format("كمية المرتجع للصنف '{0}' تتجاوز الحد الأقصى المسموح به للنظام.", vItem.ProductName ?? vItem.ProductId));
+                }
                 if (vItem.UnitPricePiasters < 0)
                 {
                     throw new InvalidOperationException(string.Format("سعر المرتجع للصنف '{0}' لا يمكن أن يكون سالباً.", vItem.ProductName ?? vItem.ProductId));
+                }
+                if (vItem.UnitPricePiasters > SaleService.MAX_PRICE_PIASTERS)
+                {
+                    throw new InvalidOperationException(string.Format("سعر المرتجع للصنف '{0}' يتجاوز الحد الأقصى المسموح به للنظام.", vItem.ProductName ?? vItem.ProductId));
                 }
             }
 
@@ -282,6 +290,11 @@ namespace RafiqPOS.Services
                     }
 
                     long allowableCashRefund = Math.Max(0, netCashPaidOnOrig - pastCashRefunds);
+                    long currentReturnTotal = 0;
+                    for (int ri = 0; ri < returnObj.Items.Count; ri++)
+                    {
+                        currentReturnTotal += returnObj.Items[ri].TotalPiasters;
+                    }
 
                     if (string.Equals(returnObj.RefundMethod, "cash", StringComparison.OrdinalIgnoreCase))
                     {
@@ -296,9 +309,18 @@ namespace RafiqPOS.Services
                                 throw new InvalidOperationException("لا يمكن صرف مرتجع نقدي من الدرج لفاتورة بيع آجل لم يُسدد منها مبالغ نقدية. يجب اختيار استرداد كرصيد آجل (credit).");
                             }
                         }
-                        else if (allowableCashRefund == 0 && !string.IsNullOrEmpty(returnObj.CustomerId))
+                        else if (currentReturnTotal > allowableCashRefund)
                         {
-                            returnObj.RefundMethod = "credit";
+                            if (!string.IsNullOrEmpty(returnObj.CustomerId) && allowableCashRefund == 0)
+                            {
+                                returnObj.RefundMethod = "credit";
+                            }
+                            else
+                            {
+                                throw new InvalidOperationException(string.Format(
+                                    "لا يمكن صرف مرتجع نقدي من الدرج بمبلغ ({0:N2} ج.م) يتجاوز النقد المسدد فعلياً في الفاتورة الأصلية ({1:N2} ج.م). يجب اختيار الاسترداد كرصيد آجل (credit) لخصم القيمة من حساب العميل.",
+                                    currentReturnTotal / 100.0, allowableCashRefund / 100.0));
+                            }
                         }
                     }
                 }

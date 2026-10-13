@@ -40,7 +40,7 @@ namespace RafiqPOS.Services
                 Notes = string.IsNullOrEmpty(request.Notes) ? null : request.Notes.Trim(),
                 CreatedBy = string.IsNullOrEmpty(request.CreatedBy) ? "الكاشير" : request.CreatedBy.Trim(),
                 BusinessDate = businessDate,
-                CreatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                CreatedAt = DateTime.UtcNow.ToString("o")
             };
 
             return _expenseRepo.Insert(expense);

@@ -321,6 +321,38 @@ namespace RafiqPOS.Services
                     }
                 }
 
+                // Adjust gross profit by deducting gross profit of items returned on this business date
+                using (var checkRetCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='returns';", conn))
+                {
+                    if (checkRetCmd.ExecuteScalar() != null)
+                    {
+                        string retProfitSql = @"
+                            SELECT COALESCE(SUM(
+                                CASE 
+                                    WHEN ri.is_damaged = 1 THEN ri.total_piasters
+                                    ELSE (ri.total_piasters - (ri.quantity_milli * COALESCE(si.unit_cost_piasters, p.cost_piasters, 0) / 1000))
+                                END
+                            ), 0) AS returned_profit
+                            FROM return_items ri
+                            JOIN returns r ON ri.return_id = r.id
+                            LEFT JOIN sale_items si ON ri.sale_item_id = si.id
+                            LEFT JOIN products p ON ri.product_id = p.id
+                            WHERE date(datetime(r.created_at, 'localtime', '-' || @cutoff || ' hours')) = @bdate;
+                        ";
+                        using (var cmd = new SQLiteCommand(retProfitSql, conn))
+                        {
+                            cmd.Parameters.AddWithValue("@cutoff", cutoff);
+                            cmd.Parameters.AddWithValue("@bdate", businessDate);
+                            object retProfRes = cmd.ExecuteScalar();
+                            if (retProfRes != null && retProfRes != DBNull.Value)
+                            {
+                                long returnedProfit = Convert.ToInt64(retProfRes);
+                                preview.GrossProfitPiasters = Math.Max(0, preview.GrossProfitPiasters - returnedProfit);
+                            }
+                        }
+                    }
+                }
+
                 // 7. Cash Drawer Expenses for the business date
                 string expensesSql = @"
                     SELECT 
@@ -406,6 +438,14 @@ namespace RafiqPOS.Services
         }
 
         public DailyClosing SaveClosing(DailyClosingSaveRequest request)
+        {
+            lock (SaleService.FinancialWriteLock)
+            {
+                return SaveClosingCore(request);
+            }
+        }
+
+        private DailyClosing SaveClosingCore(DailyClosingSaveRequest request)
         {
             if (request == null)
             {

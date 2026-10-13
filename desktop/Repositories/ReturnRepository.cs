@@ -302,20 +302,49 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
-                        // 5. Update original sale status to 'refunded' if linked to a sale
-                        if (!string.IsNullOrEmpty(returnObj.SaleId))
+                        // 5. Update original sale status: differentiate fully refunded vs partially refunded
+                        string targetSaleId = returnObj.SaleId;
+                        if (string.IsNullOrEmpty(targetSaleId) && returnObj.InvoiceNumber.HasValue)
                         {
-                            using (var uSaleCmd = new SQLiteCommand("UPDATE sales SET status = 'refunded' WHERE id = @sid AND status != 'cancelled';", conn, trans))
+                            using (var findIdCmd = new SQLiteCommand("SELECT id FROM sales WHERE invoice_number = @inv LIMIT 1;", conn, trans))
                             {
-                                uSaleCmd.Parameters.AddWithValue("@sid", returnObj.SaleId);
-                                uSaleCmd.ExecuteNonQuery();
+                                findIdCmd.Parameters.AddWithValue("@inv", returnObj.InvoiceNumber.Value);
+                                object foundIdObj = findIdCmd.ExecuteScalar();
+                                if (foundIdObj != null && foundIdObj != DBNull.Value)
+                                {
+                                    targetSaleId = foundIdObj.ToString();
+                                }
                             }
                         }
-                        else if (returnObj.InvoiceNumber.HasValue)
+
+                        if (!string.IsNullOrEmpty(targetSaleId))
                         {
-                            using (var uSaleCmd = new SQLiteCommand("UPDATE sales SET status = 'refunded' WHERE invoice_number = @inv AND status != 'cancelled';", conn, trans))
+                            long totalSoldMilli = 0;
+                            using (var qCmd = new SQLiteCommand("SELECT COALESCE(SUM(quantity_milli), 0) FROM sale_items WHERE sale_id = @sid;", conn, trans))
                             {
-                                uSaleCmd.Parameters.AddWithValue("@inv", returnObj.InvoiceNumber.Value);
+                                qCmd.Parameters.AddWithValue("@sid", targetSaleId);
+                                object sRes = qCmd.ExecuteScalar();
+                                if (sRes != null && sRes != DBNull.Value) totalSoldMilli = Convert.ToInt64(sRes);
+                            }
+
+                            long totalRetMilli = 0;
+                            using (var rqCmd = new SQLiteCommand(@"
+                                SELECT COALESCE(SUM(ri.quantity_milli), 0)
+                                FROM return_items ri
+                                JOIN returns r ON ri.return_id = r.id
+                                WHERE r.sale_id = @sid;", conn, trans))
+                            {
+                                rqCmd.Parameters.AddWithValue("@sid", targetSaleId);
+                                object rRes = rqCmd.ExecuteScalar();
+                                if (rRes != null && rRes != DBNull.Value) totalRetMilli = Convert.ToInt64(rRes);
+                            }
+
+                            string newStatus = (totalSoldMilli > 0 && totalRetMilli >= totalSoldMilli) ? "refunded" : "partially_refunded";
+
+                            using (var uSaleCmd = new SQLiteCommand("UPDATE sales SET status = @st WHERE id = @sid AND status != 'cancelled';", conn, trans))
+                            {
+                                uSaleCmd.Parameters.AddWithValue("@st", newStatus);
+                                uSaleCmd.Parameters.AddWithValue("@sid", targetSaleId);
                                 uSaleCmd.ExecuteNonQuery();
                             }
                         }

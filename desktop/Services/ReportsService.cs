@@ -177,7 +177,7 @@ namespace RafiqPOS.Services
                 {
                     string expenseSql = @"
                         SELECT COALESCE(SUM(amount_piasters), 0) FROM expenses
-                        WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'));
+                        WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR business_date = date('now', 'localtime') OR date(created_at) = date('now'));
                     ";
                     using (var cmd = new SQLiteCommand(expenseSql, conn))
                     {

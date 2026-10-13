@@ -16,7 +16,10 @@ namespace RafiqPOS.Services
 
         public Purchase CreatePurchase(Purchase purchase, string costingMethod = "LATEST", string userId = null)
         {
-            return _purchaseRepo.CreatePurchase(purchase, costingMethod, userId);
+            lock (SaleService.FinancialWriteLock)
+            {
+                return _purchaseRepo.CreatePurchase(purchase, costingMethod, userId);
+            }
         }
 
         public List<Purchase> GetAll(string supplierId = null, string startDate = null, string endDate = null, int limit = 100)

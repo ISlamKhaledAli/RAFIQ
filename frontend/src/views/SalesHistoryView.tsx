@@ -290,7 +290,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
       const sStatus = s.status || 'completed';
       if (statusFilter === 'completed' && sStatus !== 'completed') return false;
       if (statusFilter === 'cancelled' && sStatus !== 'cancelled') return false;
-      if (statusFilter === 'refunded' && sStatus !== 'refunded') return false;
+      if (statusFilter === 'refunded' && sStatus !== 'refunded' && sStatus !== 'partially_refunded') return false;
     }
 
     // 2. Date Filter
@@ -602,7 +602,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
           ) : (
             pagedSales.map((sale) => {
               const isCancelled = sale.status === 'cancelled';
-              const isRefunded = sale.status === 'refunded';
+              const isRefunded = sale.status === 'refunded' || sale.status === 'partially_refunded';
               return (
                 <div 
                   key={sale.id || sale.invoiceNumber} 
@@ -645,7 +645,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                       </span>
                     ) : isRefunded ? (
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-warn border border-amber-200">
-                        فيها مرتجع
+                        {sale.status === 'partially_refunded' ? 'مرتجع جزئي' : 'مستردة بالكامل'}
                       </span>
                     ) : (
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-paid-soft text-paid border border-paid/20">
