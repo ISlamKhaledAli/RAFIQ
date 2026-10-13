@@ -355,9 +355,9 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
       <div className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-xl overflow-hidden flex flex-col max-h-[92vh]">
         
         {/* Header */}
-        <div className="px-5 py-3.5 bg-slate-100/90 dark:bg-slate-900 border-b border-line flex items-center justify-between shrink-0">
+        <div className="px-5 py-3.5 bg-surface-2 border-b border-line flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/70 text-paid dark:text-emerald-400 flex items-center justify-center shadow-2xs">
+            <div className="w-8 h-8 rounded-lg bg-paid-soft text-paid flex items-center justify-center shadow-2xs">
               <Sparkles className="w-4 h-4" />
             </div>
             <div>

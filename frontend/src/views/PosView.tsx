@@ -257,7 +257,10 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       }, 0);
 
       const existingIndex = prev.findIndex((item) => 
-        item.productId === prod.id && (item.unitId || '') === (unitId || '')
+        item.productId === prod.id && 
+        (item.unitId || '') === (unitId || '') &&
+        item.unitPricePiasters === unitPrice &&
+        item.productName === prod.name
       );
 
       const currentItemBaseMilli = existingIndex >= 0 
@@ -265,7 +268,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         : 0;
 
       const newQty = existingIndex >= 0 
-        ? (customWeightMilli !== undefined ? customWeightMilli : (prev[existingIndex].quantityMilli + 1000))
+        ? (customWeightMilli !== undefined ? (prev[existingIndex].quantityMilli + customWeightMilli) : (prev[existingIndex].quantityMilli + 1000))
         : qtyMilli;
 
       const newItemBaseMilli = newQty * factor;

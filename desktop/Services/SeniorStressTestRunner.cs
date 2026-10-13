@@ -65,6 +65,12 @@ namespace RafiqPOS.Services
                 var returnRepo = new ReturnRepository(tempConnStr, counterRepo, auditRepo);
                 var returnService = new ReturnService(returnRepo, saleRepo);
                 var heldRepo = new HeldSaleRepository(tempConnStr);
+                var heldService = new HeldSaleService(heldRepo);
+                var userRepo = new UserRepository(tempConnStr);
+                var securityService = new SecurityService(settingsRepo, auditRepo, userRepo);
+                DatabaseService.Security = securityService;
+                DatabaseService.QuickItems = quickService;
+                DatabaseService.HeldSales = heldService;
                 var supplierRepo = new SupplierRepository(tempConnStr, auditRepo);
                 var closingRepo = new DailyClosingRepository(tempConnStr);
                 var closingService = new DailyClosingService(tempConnStr, closingRepo, counterRepo, auditRepo, settingsRepo);
@@ -1989,6 +1995,252 @@ namespace RafiqPOS.Services
                 }
 
                 Assert(!standaloneReturnThrewException && createdStandaloneReturn != null, "استرجاع صنف سريع مستقل بنجاح دون أخطاء مفاتيح أجنبية واستقرار القيود المالية", result);
+
+                // =========================================================================
+                // SCENARIO 24: فحص السينيور الاحترافي المعمق للأصناف السريعة وعروض الكومبو وحماية الأسعار
+                // =========================================================================
+                Console.WriteLine("--> Scenario 24: Deep Senior Stress Suite for Quick Items, Combos & Price Authority");
+
+                // 1. Fixed-price standalone quick item: unauthorized price change must be blocked
+                var fixedService = quickService.Save(new QuickItem
+                {
+                    Name = "خدمة شحن رصيد فورية",
+                    PricePiasters = 5000, // 50.00 EGP
+                    IsOpenPrice = false,
+                    Unit = "خدمة",
+                    CategoryName = "خدمات",
+                    DisplayOrder = 20
+                });
+
+                // Create and set logged in user as cashier without price override permission
+                var cashierUser = new User
+                {
+                    Id = "cashier-strict-guard-id",
+                    Username = "cashier1",
+                    Role = "cashier",
+                    IsActive = true
+                };
+                userRepo.Insert(cashierUser);
+                var cashierDto = SecurityService.MapToDto(cashierUser);
+                SecurityService.SetCurrentUserForTesting(cashierDto);
+
+                var saleTamperedPrice = new Sale
+                {
+                    Id = Guid.NewGuid().ToString("D"),
+                    CashierId = cashierUser.Id,
+                    TotalPiasters = 1000,
+                    SubtotalPiasters = 1000,
+                    PaidPiasters = 1000,
+                    PaymentMethod = "cash",
+                    CreatedAt = DateTime.UtcNow.ToString("o"),
+                    Items = new List<SaleItem>()
+                };
+                saleTamperedPrice.Items.Add(new SaleItem
+                {
+                    Id = Guid.NewGuid().ToString("D"),
+                    ProductId = fixedService.Id,
+                    ProductName = fixedService.Name,
+                    QuantityMilli = 1000,
+                    UnitPricePiasters = 1000, // Tampered: 10.00 EGP instead of 50.00 EGP!
+                    TotalPiasters = 1000,
+                    Unit = "خدمة"
+                });
+
+                bool tamperedPriceBlocked = false;
+                try
+                {
+                    saleService.ProcessSale(saleTamperedPrice, "idemp-tamper-" + Guid.NewGuid().ToString("N"));
+                }
+                catch (InvalidOperationException ex)
+                {
+                    if (ex.Message.Contains("تعديله يتطلب صلاحية تعديل السعر"))
+                    {
+                        tamperedPriceBlocked = true;
+                    }
+                }
+                Assert(tamperedPriceBlocked, "حظر تلاعب الكاشير بسعر الصنف السريع محدد السعر دون امتلاك صلاحية تعديل الأسعار", result);
+
+                // 2. Fixed-price standalone quick item sold at legitimate price
+                var saleLegitPrice = new Sale
+                {
+                    Id = Guid.NewGuid().ToString("D"),
+                    CashierId = cashierUser.Id,
+                    TotalPiasters = 5000,
+                    SubtotalPiasters = 5000,
+                    PaidPiasters = 5000,
+                    PaymentMethod = "cash",
+                    CreatedAt = DateTime.UtcNow.ToString("o"),
+                    Items = new List<SaleItem>()
+                };
+                saleLegitPrice.Items.Add(new SaleItem
+                {
+                    Id = Guid.NewGuid().ToString("D"),
+                    ProductId = fixedService.Id,
+                    ProductName = fixedService.Name,
+                    QuantityMilli = 1000,
+                    UnitPricePiasters = 5000, // Exact 50.00 EGP
+                    TotalPiasters = 5000,
+                    Unit = "خدمة"
+                });
+
+                var legitProcessed = saleService.ProcessSale(saleLegitPrice, "idemp-legit-" + Guid.NewGuid().ToString("N"));
+                Assert(legitProcessed != null && legitProcessed.TotalPiasters == 5000, "إتمام بيع الصنف السريع المستقل بالسعر المعتمد بنجاح", result);
+
+                // Verify that unit_cost_piasters was recorded as 0 in sale_items (100% operating profit)
+                long storedCost = -1;
+                using (var chkConn = new SQLiteConnection(tempConnStr))
+                {
+                    chkConn.Open();
+                    using (var chkCostCmd = new SQLiteCommand("SELECT unit_cost_piasters FROM sale_items WHERE sale_id = @sid LIMIT 1;", chkConn))
+                    {
+                        chkCostCmd.Parameters.AddWithValue("@sid", legitProcessed.Id);
+                        object costRes = chkCostCmd.ExecuteScalar();
+                        if (costRes != null && costRes != DBNull.Value) storedCost = Convert.ToInt64(costRes);
+                    }
+                }
+                Assert(storedCost == 0, "تسجيل تكلفة الأصناف الخدمية والمستقلة بـ 0 قرش لضمان دقة أرباح التشغيل 100%", result);
+
+                // 3. Ghost / Unregistered Product ID blocked when price authority enforced
+                var saleGhost = new Sale
+                {
+                    Id = Guid.NewGuid().ToString("D"),
+                    CashierId = cashierUser.Id,
+                    TotalPiasters = 3000,
+                    SubtotalPiasters = 3000,
+                    PaidPiasters = 3000,
+                    PaymentMethod = "cash",
+                    CreatedAt = DateTime.UtcNow.ToString("o"),
+                    Items = new List<SaleItem>()
+                };
+                saleGhost.Items.Add(new SaleItem
+                {
+                    Id = Guid.NewGuid().ToString("D"),
+                    ProductId = "ghost-product-xyz-999",
+                    ProductName = "صنف وهمي مجهول",
+                    QuantityMilli = 1000,
+                    UnitPricePiasters = 3000,
+                    TotalPiasters = 3000,
+                    Unit = "قطعة"
+                });
+
+                bool ghostBlocked = false;
+                try
+                {
+                    saleService.ProcessSale(saleGhost, "idemp-ghost-" + Guid.NewGuid().ToString("N"));
+                }
+                catch (InvalidOperationException ex)
+                {
+                    if (ex.Message.Contains("غير مسجل في الكتالوج أو الأصناف السريعة"))
+                    {
+                        ghostBlocked = true;
+                    }
+                }
+                Assert(ghostBlocked, "حظر بيع صنف وهمي مجهول الهوية للكاشير غير المصرح له بتعديل الأسعار", result);
+
+                // 4. Multiple Open-Price items with different prices inside the same sale
+                var openItem2 = quickService.Save(new QuickItem
+                {
+                    Name = "خدمة صيانة متنوعة",
+                    PricePiasters = 0,
+                    IsOpenPrice = true,
+                    Unit = "خدمة",
+                    CategoryName = "خدمات",
+                    DisplayOrder = 21
+                });
+
+                var saleMultiOpen = new Sale
+                {
+                    Id = Guid.NewGuid().ToString("D"),
+                    CashierId = cashierUser.Id,
+                    TotalPiasters = 17000, // 50 EGP + 120 EGP = 170 EGP
+                    SubtotalPiasters = 17000,
+                    PaidPiasters = 20000,
+                    ChangePiasters = 3000,
+                    PaymentMethod = "cash",
+                    CreatedAt = DateTime.UtcNow.ToString("o"),
+                    Items = new List<SaleItem>()
+                };
+                saleMultiOpen.Items.Add(new SaleItem
+                {
+                    Id = Guid.NewGuid().ToString("D"),
+                    ProductId = openItem2.Id,
+                    ProductName = openItem2.Name + " (صيانة شاشة)",
+                    QuantityMilli = 1000,
+                    UnitPricePiasters = 5000,
+                    TotalPiasters = 5000,
+                    Unit = "خدمة"
+                });
+                saleMultiOpen.Items.Add(new SaleItem
+                {
+                    Id = Guid.NewGuid().ToString("D"),
+                    ProductId = openItem2.Id,
+                    ProductName = openItem2.Name + " (تغيير بطارية)",
+                    QuantityMilli = 1000,
+                    UnitPricePiasters = 12000,
+                    TotalPiasters = 12000,
+                    Unit = "خدمة"
+                });
+
+                var multiOpenProcessed = saleService.ProcessSale(saleMultiOpen, "idemp-multi-open-" + Guid.NewGuid().ToString("N"));
+                Assert(multiOpenProcessed != null && multiOpenProcessed.TotalPiasters == 17000, "إتمام فاتورة تحتوي على أكثر من سعر مفتوح لنفس الصنف السريع دون أي تصادم أو فقدان مالي", result);
+
+                // 5. Held sale with Quick Items and complete recall
+                var heldSaleWithQuick = new HeldSale
+                {
+                    Id = "held-quick-mix-" + Guid.NewGuid().ToString("N"),
+                    HoldLabel = "معلقة أصناف سريعة",
+                    ItemsCount = 2,
+                    SubtotalPiasters = 17000,
+                    TotalPiasters = 17000,
+                    CartJson = "[{\"productId\":\"" + openItem2.Id + "\",\"unitPricePiasters\":5000},{\"productId\":\"" + openItem2.Id + "\",\"unitPricePiasters\":12000}]",
+                    CashierId = cashierUser.Id
+                };
+                var savedHeldQuick = heldService.HoldSale(heldSaleWithQuick);
+                Assert(savedHeldQuick != null && savedHeldQuick.Id == heldSaleWithQuick.Id, "تعليق فاتورة تحتوي على أصناف سريعة بنجاح", result);
+
+                var recalledHeldQuick = heldService.RecallHeldSale(heldSaleWithQuick.Id);
+                Assert(recalledHeldQuick != null && recalledHeldQuick.TotalPiasters == 17000, "استرجاع الفاتورة المعلقة المحتوية على أصناف سريعة بكامل بياناتها بدقة", result);
+
+                // 6. Return without invoice for standalone item requires supervisor PIN
+                var noInvStandaloneReturn = new Return
+                {
+                    Id = Guid.NewGuid().ToString("D"),
+                    TotalPiasters = 5000,
+                    RefundMethod = "cash",
+                    IsWithoutInvoice = true,
+                    Reason = "استرجاع خدمة فورية",
+                    CashierId = cashierUser.Id,
+                    CreatedAt = DateTime.UtcNow.ToString("o"),
+                    Items = new List<ReturnItem>()
+                };
+                noInvStandaloneReturn.Items.Add(new ReturnItem
+                {
+                    Id = Guid.NewGuid().ToString("D"),
+                    ProductId = fixedService.Id,
+                    ProductName = fixedService.Name,
+                    QuantityMilli = 1000,
+                    UnitPricePiasters = 5000,
+                    TotalPiasters = 5000,
+                    Unit = "خدمة"
+                });
+
+                bool noPinBlocked = false;
+                try
+                {
+                    returnService.ProcessReturn(noInvStandaloneReturn, null); // No PIN
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    if (ex.Message.Contains("يتطلب إدخال الرقم السري للمشرف")) noPinBlocked = true;
+                }
+                Assert(noPinBlocked, "حظر إرجاع صنف سريع بدون فاتورة أصلية عند عدم تقديم الرقم السري للمشرف", result);
+
+                // Authorized return with valid PIN
+                var authorizedNoInvReturn = returnService.ProcessReturn(noInvStandaloneReturn, "1234");
+                Assert(authorizedNoInvReturn != null && authorizedNoInvReturn.ReturnNumber > 0, "إتمام المرتجع بدون فاتورة للصنف السريع بنجاح عند إدخال PIN المشرف الصحيح", result);
+
+                // Reset logged-in user
+                SecurityService.SetCurrentUserForTesting(null);
 
                 result.Success = (result.PassedAssertions == result.TotalAssertions);
                 result.Message = string.Format("اكتمل فحص السينيور الاحترافي: {0}/{1} بنجاح تام", result.PassedAssertions, result.TotalAssertions);
