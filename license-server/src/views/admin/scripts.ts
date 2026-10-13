@@ -1332,6 +1332,7 @@ export const adminScripts = `    const DEFAULT_SECRET = '';
 
     function initDashboard() {
       initCustomSelect('durationSelect');
+      initCustomSelect('offlineDurationSelect');
       initCustomSelect('editExtendAction');
       loadLicenses();
       loadLogs();
