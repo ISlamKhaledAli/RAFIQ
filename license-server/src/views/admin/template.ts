@@ -65,6 +65,11 @@ export const adminTemplate = `
           <span>سجل حركات وتدقيق التفعيل (Audit Logs)</span>
           <span class="tab-badge" id="badgeLogsCount">0</span>
         </button>
+
+        <button class="nav-tab" id="tabBtnOffline" onclick="switchMainTab('offline')">
+          <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          <span>توليد كود أوفلاين (بدون نت)</span>
+        </button>
       </div>
 
       <div style="font-size:11.5px; font-weight:700; color:var(--text-muted);">
@@ -432,6 +437,74 @@ export const adminTemplate = `
           </div>
 
           <div class="pagination-controls" id="logsPaginationControls"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 3: OFFLINE SUPPORT CODE GENERATOR     -->
+    <!-- ========================================== -->
+    <div id="offlineView" style="display:none; flex-direction:column; gap:20px;">
+      <div class="panel panel-form" style="overflow: visible;">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">توليد كود تفعيل أوفلاين للأجهزة بدون إنترنت (RFQ-SUP)</div>
+            <div class="panel-desc">أدخل بصمة جهاز العميل الظاهرة في شاشة رفيق لتوليد كود دعم فني مشفر بـ RS256 يعمل أوفلاين للأبد بدون نت</div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <form onsubmit="handleGenerateSupportCode(event)">
+            <div class="create-grid">
+              <div class="field">
+                <label>بصمة جهاز العميل (Device Fingerprint) *</label>
+                <input type="text" id="offlineDeviceFp" required placeholder="مثال: A1B2C3D4E5F6" dir="ltr" style="text-align:right; font-family:monospace; font-weight:700;">
+              </div>
+
+              <div class="field">
+                <label>اسم المنشأة أو المحل (اختياري)</label>
+                <input type="text" id="offlineShopName" placeholder="مثال: سوبرماركت البركة">
+              </div>
+
+              <div class="field">
+                <label>نوع وصلاحية الترخيص *</label>
+                <select id="offlineDurationSelect" onchange="toggleOfflineCustomDays()">
+                  <option value="lifetime" selected>دائم مدى الحياة (Lifetime)</option>
+                  <option value="365">سنوي (365 يوم)</option>
+                  <option value="180">نصف سنوي (180 يوم)</option>
+                  <option value="90">ربع سنوي (90 يوم)</option>
+                  <option value="30">شهري (30 يوم)</option>
+                  <option value="14">تجريبي (14 يوم)</option>
+                  <option value="7">تجريبي (7 أيام)</option>
+                  <option value="custom">مدة مخصصة (أيام محددة)...</option>
+                </select>
+              </div>
+
+              <div class="field" id="offlineCustomDaysWrapper" style="display:none;">
+                <label>عدد الأيام</label>
+                <input type="number" id="offlineCustomDaysInput" min="1" max="3650" placeholder="مثلاً: 60">
+              </div>
+            </div>
+
+            <div style="margin-top:20px; display:flex; justify-content:flex-end;">
+              <button type="submit" class="btn-create" id="btnGenSupport">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>
+                <span>توليد كود الدعم الأوفلاين المشفر</span>
+              </button>
+            </div>
+          </form>
+
+          <!-- Result Box -->
+          <div id="offlineResultBox" style="display:none; margin-top:24px; padding:20px; background:var(--bg-card); border:1.5px solid var(--primary); border-radius:12px;">
+            <div style="font-weight:700; color:var(--primary); margin-bottom:8px; font-size:15px;">تم توليد كود التفعيل الأوفلاين بنجاح! 🎉</div>
+            <div style="font-size:12.5px; color:var(--text-muted); margin-bottom:12px;">انسخ هذا الكود وابعته للعميل في الواتساب ليضعه في خانة (تفعيل بكود الدعم الفني):</div>
+            <div style="display:flex; gap:10px; align-items:center;">
+              <input type="text" id="offlineResultCode" readonly style="font-family:monospace; font-size:14px; font-weight:700; padding:12px; background:#fff; border:1px solid var(--border); border-radius:8px; flex:1; direction:ltr;" onclick="this.select()">
+              <button type="button" class="btn-create" onclick="copyOfflineResultCode()" style="height:44px; white-space:nowrap;">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                <span>نسخ الكود</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
