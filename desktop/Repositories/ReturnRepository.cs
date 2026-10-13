@@ -178,8 +178,9 @@ namespace RafiqPOS.Repositories
                                 cmd.ExecuteNonQuery();
                             }
 
-                            // Fetch product cost
+                            // Fetch product cost and verify warehouse existence (Audit F-28 / Quick Items Support)
                             long unitCost = 0;
+                            bool prodExistsInDb = false;
                             using (var cCmd = new SQLiteCommand("SELECT cost_piasters FROM products WHERE id = @pid LIMIT 1;", conn, trans))
                             {
                                 cCmd.Parameters.AddWithValue("@pid", item.ProductId);
@@ -187,6 +188,7 @@ namespace RafiqPOS.Repositories
                                 if (cRes != null && cRes != DBNull.Value)
                                 {
                                     unitCost = Convert.ToInt64(cRes);
+                                    prodExistsInDb = true;
                                 }
                             }
 
@@ -223,15 +225,17 @@ namespace RafiqPOS.Repositories
                             }
                             long baseQtyMilli = item.QuantityMilli * factor;
 
-                            if (!item.IsDamaged)
+                            if (prodExistsInDb)
                             {
-                                // Restore stock for undamaged returned items
-                                string updateStockSql = @"
-                                    UPDATE products 
-                                    SET stock_quantity_milli = stock_quantity_milli + @qty,
-                                        updated_at = @now
-                                    WHERE id = @prodId;
-                                ";
+                                if (!item.IsDamaged)
+                                {
+                                    // Restore stock for undamaged returned items
+                                    string updateStockSql = @"
+                                        UPDATE products 
+                                        SET stock_quantity_milli = stock_quantity_milli + @qty,
+                                            updated_at = @now
+                                        WHERE id = @prodId;
+                                    ";
                                 using (var cmd = new SQLiteCommand(updateStockSql, conn, trans))
                                 {
                                     cmd.Parameters.AddWithValue("@qty", baseQtyMilli);
@@ -485,6 +489,7 @@ namespace RafiqPOS.Repositories
                                     cmd.Parameters.AddWithValue("@mNow", nowIso);
                                     cmd.ExecuteNonQuery();
                                 }
+                            }
                             }
                         }
 

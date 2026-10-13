@@ -59,6 +59,19 @@ namespace RafiqPOS.Services
                 }
             }
 
+            // Validation: Credit refunds must be attached to a specific registered customer
+            if (string.Equals(returnObj.RefundMethod, "credit", StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.IsNullOrWhiteSpace(returnObj.CustomerId))
+                {
+                    throw new InvalidOperationException("لا يمكن اختيار الاسترداد كرصيد آجل (credit) بدون تحديد عميل مسجل في النظام.");
+                }
+                if (string.Equals(returnObj.CustomerId, "cust_general_cash", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("لا يمكن استرداد المرتجع كرصيد آجل للعميل النقدي العام. يجب اختيار عميل مسجل بالاسم أو صرف المرتجع نقداً.");
+                }
+            }
+
             // 1. If return is without invoice, require Supervisor PIN
             if (returnObj.IsWithoutInvoice || string.IsNullOrEmpty(returnObj.SaleId))
             {

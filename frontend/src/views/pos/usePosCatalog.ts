@@ -258,20 +258,40 @@ export const usePosCatalog = ({
     }
 
     if (bundleList && bundleList.length > 0) {
-      const totalOriginalPiasters = bundleList.reduce((sum, b) => sum + Math.round((b.originalPricePiasters * b.quantityMilli) / 1000), 0);
-      const ratio = totalOriginalPiasters > 0 ? (item.pricePiasters / totalOriginalPiasters) : 1;
+      const originalLines = bundleList.map((b) => Math.max(1, Math.round((b.originalPricePiasters * b.quantityMilli) / 1000)));
+      const totalOrig = originalLines.reduce((sum, v) => sum + v, 0);
 
-      for (const bItem of bundleList) {
-        const linePrice = Math.max(1, Math.round(bItem.originalPricePiasters * ratio));
+      // Allocate target bundle price with remainder exactness (Zero piaster loss)
+      let allocatedLines: number[];
+      if (totalOrig > 0 && item.pricePiasters > 0) {
+        let distributedSum = 0;
+        allocatedLines = originalLines.map((orig, idx) => {
+          if (idx === bundleList.length - 1) {
+            return Math.max(1, item.pricePiasters - distributedSum);
+          }
+          const alloc = Math.max(1, Math.round((orig * item.pricePiasters) / totalOrig));
+          distributedSum += alloc;
+          return alloc;
+        });
+      } else {
+        allocatedLines = originalLines;
+      }
+
+      for (let idx = 0; idx < bundleList.length; idx++) {
+        const bItem = bundleList[idx];
+        const realProd = catalogProducts.find((p) => p.id === bItem.productId);
+        const allocatedLineTotal = allocatedLines[idx];
+        const lineUnitPrice = Math.max(1, Math.round((allocatedLineTotal * 1000) / bItem.quantityMilli));
+
         const bundleProd: Product = {
           id: bItem.productId,
           name: `${bItem.productName} (ضمن ${item.name})`,
-          barcode: bItem.barcode || null,
-          pricePiasters: linePrice,
-          costPiasters: Math.round((linePrice * 75) / 100),
-          stockQuantityMilli: 100000,
-          unit: bItem.unit || 'piece',
-          taxRatePercent: 0,
+          barcode: bItem.barcode || realProd?.barcode || null,
+          pricePiasters: lineUnitPrice,
+          costPiasters: realProd ? realProd.costPiasters : Math.round((lineUnitPrice * 75) / 100),
+          stockQuantityMilli: realProd && typeof realProd.stockQuantityMilli === 'number' ? realProd.stockQuantityMilli : 100000,
+          unit: bItem.unit || realProd?.unit || 'piece',
+          taxRatePercent: realProd ? realProd.taxRatePercent : 0,
           isActive: true,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
@@ -369,7 +389,7 @@ export const usePosCatalog = ({
       showStatus(`تمت إضافة: ${item.name}${unitSuffix}`, 'success');
     }
     barcodeInputRef.current?.focus();
-  }, [addProductToCart, showStatus, barcodeInputRef, setInitialWeightMilli, setWeightModalProduct, setUnitPickerProduct, quickItems]);
+  }, [addProductToCart, showStatus, barcodeInputRef, setInitialWeightMilli, setWeightModalProduct, setUnitPickerProduct, quickItems, catalogProducts]);
 
   const handleConfirmOpenPrice = (e: FormEvent) => {
     e.preventDefault();
@@ -378,21 +398,38 @@ export const usePosCatalog = ({
     if (isNaN(parsedPrice) || parsedPrice <= 0) return;
 
     const pricePiasters = Math.round(parsedPrice * 100);
-    const dummyProduct: Product = {
-      id: openPriceItem.productId || openPriceItem.id,
+    const targetProdId = openPriceItem.productId || openPriceItem.id;
+    const realProd = catalogProducts.find((p) => p.id === targetProdId);
+
+    const productToAdd: Product = {
+      id: targetProdId,
       name: openPriceItem.name,
-      barcode: null,
+      barcode: realProd ? realProd.barcode : null,
       pricePiasters: pricePiasters,
-      costPiasters: Math.round(pricePiasters * 0.75),
-      stockQuantityMilli: 100000,
-      unit: openPriceItem.unit || 'piece',
-      taxRatePercent: 0,
+      costPiasters: realProd ? realProd.costPiasters : Math.round(pricePiasters * 0.75),
+      stockQuantityMilli: realProd && typeof realProd.stockQuantityMilli === 'number' ? realProd.stockQuantityMilli : 100000,
+      unit: openPriceItem.unit || realProd?.unit || 'piece',
+      taxRatePercent: realProd ? realProd.taxRatePercent : 0,
       isActive: true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
 
-    addProductToCart(dummyProduct);
+    if (openPriceItem.unit === 'kg') {
+      setInitialWeightMilli(1000);
+      setWeightModalProduct({
+        id: productToAdd.id,
+        name: productToAdd.name,
+        pricePiasters: pricePiasters,
+        barcode: productToAdd.barcode || null,
+        unit: 'kg',
+      });
+      setOpenPriceItem(null);
+      setOpenPriceInputEgp('');
+      return;
+    }
+
+    addProductToCart(productToAdd);
     showStatus(`تمت إضافة: ${openPriceItem.name} (${parsedPrice.toFixed(2)} ج.م)`, 'success');
     setOpenPriceItem(null);
     setOpenPriceInputEgp('');

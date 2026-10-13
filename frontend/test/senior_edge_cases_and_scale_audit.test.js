@@ -17,7 +17,7 @@ describe('Senior Edge Cases & Scale Audit Tests (فحص السنيور للمي�
       assert.equal(parsed.itemPlu, '00045');
       assert.equal(parsed.itemPluTrimmed, '45');
       assert.equal(parsed.weightGrams, 1250);
-      assert.equal(parsed.weightMilli, 1250000); // 1,250,000 milli = 1.250 kg
+      assert.equal(parsed.weightMilli, 1250); // 1,250 milli = 1.250 kg
       assert.equal(parsed.weightKg, 1.25);
     });
 
@@ -30,7 +30,7 @@ describe('Senior Edge Cases & Scale Audit Tests (فحص السنيور للمي�
       assert.equal(parsed.prefix, '20');
       assert.equal(parsed.itemPluTrimmed, '128');
       assert.equal(parsed.weightGrams, 375);
-      assert.equal(parsed.weightMilli, 375000);
+      assert.equal(parsed.weightMilli, 375);
       assert.equal(parsed.weightKg, 0.375);
     });
 
@@ -43,7 +43,7 @@ describe('Senior Edge Cases & Scale Audit Tests (فحص السنيور للمي�
       assert.equal(parsed.prefix, '22');
       assert.equal(parsed.itemPluTrimmed, '5001');
       assert.equal(parsed.weightGrams, 2500);
-      assert.equal(parsed.weightMilli, 2500000);
+      assert.equal(parsed.weightMilli, 2500);
       assert.equal(parsed.weightKg, 2.5);
     });
 

@@ -278,6 +278,23 @@ namespace RafiqPOS.Repositories
                                 cmd.ExecuteNonQuery();
                             }
 
+                            // Synchronize base unit in product_units (Multi-Unit pricing parity)
+                            string syncBaseUnitSql = @"
+                                UPDATE product_units 
+                                SET sell_price_piasters = @newPrice, 
+                                    cost_price_piasters = @newCost, 
+                                    updated_at = @now 
+                                WHERE product_id = @pid AND is_base_unit = 1;
+                            ";
+                            using (var cmdBaseUnit = new SQLiteCommand(syncBaseUnitSql, conn, trans))
+                            {
+                                cmdBaseUnit.Parameters.AddWithValue("@newPrice", newPriceToSet);
+                                cmdBaseUnit.Parameters.AddWithValue("@newCost", newCost);
+                                cmdBaseUnit.Parameters.AddWithValue("@now", now);
+                                cmdBaseUnit.Parameters.AddWithValue("@pid", item.ProductId);
+                                cmdBaseUnit.ExecuteNonQuery();
+                            }
+
                             // If this product is a variant, also sync product_variants normalization table and parent product's total stock
                             string syncVariantSql = @"
                                 UPDATE product_variants
