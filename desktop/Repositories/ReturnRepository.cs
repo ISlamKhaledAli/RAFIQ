@@ -46,6 +46,55 @@ namespace RafiqPOS.Repositories
                         int nextReturnNumber = (int)_counters.GetNextCounterNumber(conn, trans, "return_number", "returns", "return_number");
                         returnObj.ReturnNumber = nextReturnNumber;
 
+                        // Bidirectionally resolve SaleId and InvoiceNumber
+                        if (string.IsNullOrEmpty(returnObj.SaleId) && returnObj.InvoiceNumber.HasValue)
+                        {
+                            using (var findSaleCmd = new SQLiteCommand("SELECT id, customer_id, customer_name FROM sales WHERE invoice_number = @inv LIMIT 1;", conn, trans))
+                            {
+                                findSaleCmd.Parameters.AddWithValue("@inv", returnObj.InvoiceNumber.Value);
+                                using (var saleReader = findSaleCmd.ExecuteReader())
+                                {
+                                    if (saleReader.Read())
+                                    {
+                                        returnObj.SaleId = saleReader["id"].ToString();
+                                        if (string.IsNullOrEmpty(returnObj.CustomerId) && saleReader["customer_id"] != DBNull.Value)
+                                        {
+                                            returnObj.CustomerId = saleReader["customer_id"].ToString();
+                                        }
+                                        if (string.IsNullOrEmpty(returnObj.CustomerName) && saleReader["customer_name"] != DBNull.Value)
+                                        {
+                                            returnObj.CustomerName = saleReader["customer_name"].ToString();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        else if (!returnObj.InvoiceNumber.HasValue && !string.IsNullOrEmpty(returnObj.SaleId))
+                        {
+                            using (var findInvCmd = new SQLiteCommand("SELECT invoice_number, customer_id, customer_name FROM sales WHERE id = @sid LIMIT 1;", conn, trans))
+                            {
+                                findInvCmd.Parameters.AddWithValue("@sid", returnObj.SaleId);
+                                using (var invReader = findInvCmd.ExecuteReader())
+                                {
+                                    if (invReader.Read())
+                                    {
+                                        if (invReader["invoice_number"] != DBNull.Value)
+                                        {
+                                            returnObj.InvoiceNumber = Convert.ToInt32(invReader["invoice_number"]);
+                                        }
+                                        if (string.IsNullOrEmpty(returnObj.CustomerId) && invReader["customer_id"] != DBNull.Value)
+                                        {
+                                            returnObj.CustomerId = invReader["customer_id"].ToString();
+                                        }
+                                        if (string.IsNullOrEmpty(returnObj.CustomerName) && invReader["customer_name"] != DBNull.Value)
+                                        {
+                                            returnObj.CustomerName = invReader["customer_name"].ToString();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         // Calculate total and enforce consistency (prevent tampering)
                         long calculatedTotal = 0;
                         for (int i = 0; i < returnObj.Items.Count; i++)
@@ -320,11 +369,18 @@ namespace RafiqPOS.Repositories
                         if (!string.IsNullOrEmpty(targetSaleId))
                         {
                             long totalSoldMilli = 0;
-                            using (var qCmd = new SQLiteCommand("SELECT COALESCE(SUM(quantity_milli), 0) FROM sale_items WHERE sale_id = @sid;", conn, trans))
+                            long totalSoldPiasters = 0;
+                            using (var qCmd = new SQLiteCommand("SELECT COALESCE(SUM(quantity_milli), 0), COALESCE(SUM(total_piasters), 0) FROM sale_items WHERE sale_id = @sid;", conn, trans))
                             {
                                 qCmd.Parameters.AddWithValue("@sid", targetSaleId);
-                                object sRes = qCmd.ExecuteScalar();
-                                if (sRes != null && sRes != DBNull.Value) totalSoldMilli = Convert.ToInt64(sRes);
+                                using (var sReader = qCmd.ExecuteReader())
+                                {
+                                    if (sReader.Read())
+                                    {
+                                        totalSoldMilli = Convert.ToInt64(sReader[0]);
+                                        totalSoldPiasters = Convert.ToInt64(sReader[1]);
+                                    }
+                                }
                             }
 
                             long totalRetMilli = 0;
@@ -332,14 +388,28 @@ namespace RafiqPOS.Repositories
                                 SELECT COALESCE(SUM(ri.quantity_milli), 0)
                                 FROM return_items ri
                                 JOIN returns r ON ri.return_id = r.id
-                                WHERE r.sale_id = @sid;", conn, trans))
+                                WHERE r.sale_id = @sid OR (r.invoice_number IS NOT NULL AND r.invoice_number = (SELECT invoice_number FROM sales WHERE id = @sid));", conn, trans))
                             {
                                 rqCmd.Parameters.AddWithValue("@sid", targetSaleId);
                                 object rRes = rqCmd.ExecuteScalar();
                                 if (rRes != null && rRes != DBNull.Value) totalRetMilli = Convert.ToInt64(rRes);
                             }
 
-                            string newStatus = (totalSoldMilli > 0 && totalRetMilli >= totalSoldMilli) ? "refunded" : "partially_refunded";
+                            long totalRetPiasters = 0;
+                            using (var rpCmd = new SQLiteCommand(@"
+                                SELECT COALESCE(SUM(total_piasters), 0)
+                                FROM returns
+                                WHERE sale_id = @sid OR (invoice_number IS NOT NULL AND invoice_number = (SELECT invoice_number FROM sales WHERE id = @sid));", conn, trans))
+                            {
+                                rpCmd.Parameters.AddWithValue("@sid", targetSaleId);
+                                object pRes = rpCmd.ExecuteScalar();
+                                if (pRes != null && pRes != DBNull.Value) totalRetPiasters = Convert.ToInt64(pRes);
+                            }
+
+                            bool isFullyRefunded = (totalSoldPiasters > 0 && totalRetPiasters >= totalSoldPiasters) ||
+                                                   (totalSoldMilli > 0 && totalRetMilli >= totalSoldMilli);
+
+                            string newStatus = isFullyRefunded ? "refunded" : "partially_refunded";
 
                             using (var uSaleCmd = new SQLiteCommand("UPDATE sales SET status = @st WHERE id = @sid AND status != 'cancelled';", conn, trans))
                             {
