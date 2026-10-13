@@ -166,64 +166,67 @@ namespace RafiqPOS.Services
                 throw new ArgumentException("سبب التسوية الجردية إجباري لتوثيق العملية في السجل", "reason");
             }
 
-            var product = _productRepo.GetById(productId);
-            if (product == null)
+            lock (SaleService.FinancialWriteLock)
             {
-                throw new InvalidOperationException("المنتج غير موجود: " + productId);
-            }
-
-            long currentStock = product.StockQuantityMilli;
-            long delta = newStockQuantityMilli - currentStock;
-
-            if (delta == 0)
-            {
-                return null; // No change needed
-            }
-
-            string cleanReason = reason.Trim();
-            string cleanAdjType = string.IsNullOrWhiteSpace(adjustmentType) 
-                ? (delta > 0 ? "SURPLUS" : "SHORTAGE") 
-                : adjustmentType.Trim().ToUpperInvariant();
-
-            string fullNote = string.Format("تسوية جردية [{0}]: من {1} إلى {2} (فارق: {3}{4}) - السبب: {5}",
-                cleanAdjType,
-                (currentStock / 1000.0).ToString("0.###"),
-                (newStockQuantityMilli / 1000.0).ToString("0.###"),
-                delta > 0 ? "+" : "",
-                (delta / 1000.0).ToString("0.###"),
-                cleanReason
-            );
-
-            StockMovement m = RecordStockChange(
-                productId: product.Id,
-                movementType: "ADJUSTMENT",
-                quantityDeltaMilli: delta,
-                unitCostPiasters: product.CostPiasters,
-                referenceId: Guid.NewGuid().ToString(),
-                referenceType: "MANUAL_ADJUSTMENT",
-                note: fullNote,
-                batchNumber: cleanAdjType
-            );
-
-            // Audit Log (ACID compliant, Task 37-2)
-            if (_auditRepo != null)
-            {
-                try
+                var product = _productRepo.GetById(productId);
+                if (product == null)
                 {
-                    _auditRepo.Log(new AuditLog
-                    {
-                        Action = "stock_adjustment",
-                        EntityType = "product",
-                        EntityId = product.Id,
-                        UserId = userId,
-                        DetailsJson = string.Format("{{\"productName\":\"{0}\",\"oldStockMilli\":{1},\"newStockMilli\":{2},\"deltaMilli\":{3},\"adjustmentType\":\"{4}\",\"reason\":\"{5}\"}}",
-                            product.Name, currentStock, newStockQuantityMilli, delta, cleanAdjType, cleanReason)
-                    });
+                    throw new InvalidOperationException("المنتج غير موجود: " + productId);
                 }
-                catch { }
-            }
 
-            return m;
+                long currentStock = product.StockQuantityMilli;
+                long delta = newStockQuantityMilli - currentStock;
+
+                if (delta == 0)
+                {
+                    return null; // No change needed
+                }
+
+                string cleanReason = reason.Trim();
+                string cleanAdjType = string.IsNullOrWhiteSpace(adjustmentType) 
+                    ? (delta > 0 ? "SURPLUS" : "SHORTAGE") 
+                    : adjustmentType.Trim().ToUpperInvariant();
+
+                string fullNote = string.Format("تسوية جردية [{0}]: من {1} إلى {2} (فارق: {3}{4}) - السبب: {5}",
+                    cleanAdjType,
+                    (currentStock / 1000.0).ToString("0.###"),
+                    (newStockQuantityMilli / 1000.0).ToString("0.###"),
+                    delta > 0 ? "+" : "",
+                    (delta / 1000.0).ToString("0.###"),
+                    cleanReason
+                );
+
+                StockMovement m = RecordStockChange(
+                    productId: product.Id,
+                    movementType: "ADJUSTMENT",
+                    quantityDeltaMilli: delta,
+                    unitCostPiasters: product.CostPiasters,
+                    referenceId: Guid.NewGuid().ToString(),
+                    referenceType: "MANUAL_ADJUSTMENT",
+                    note: fullNote,
+                    batchNumber: cleanAdjType
+                );
+
+                // Audit Log (ACID compliant, Task 37-2)
+                if (_auditRepo != null)
+                {
+                    try
+                    {
+                        _auditRepo.Log(new AuditLog
+                        {
+                            Action = "stock_adjustment",
+                            EntityType = "product",
+                            EntityId = product.Id,
+                            UserId = userId,
+                            DetailsJson = string.Format("{{\"productName\":\"{0}\",\"oldStockMilli\":{1},\"newStockMilli\":{2},\"deltaMilli\":{3},\"adjustmentType\":\"{4}\",\"reason\":\"{5}\"}}",
+                                product.Name, currentStock, newStockQuantityMilli, delta, cleanAdjType, cleanReason)
+                        });
+                    }
+                    catch { }
+                }
+
+                return m;
+            }
         }
 
         /// <summary>
@@ -284,7 +287,9 @@ namespace RafiqPOS.Services
                 throw new ArgumentException("سعر الشراء لا يمكن أن يكون سالباً", "packageCostPiasters");
             }
 
-            var product = _productRepo.GetById(productId);
+            lock (SaleService.FinancialWriteLock)
+            {
+                var product = _productRepo.GetById(productId);
             if (product == null)
             {
                 throw new InvalidOperationException("المنتج غير موجود: " + productId);
@@ -428,7 +433,8 @@ namespace RafiqPOS.Services
                 catch { }
             }
 
-            return movement;
+                return movement;
+            }
         }
 
         public List<StockMovement> GetMovements(string productId = null, string movementType = null, string fromDate = null, string toDate = null, int limit = 200)
@@ -449,26 +455,29 @@ namespace RafiqPOS.Services
         /// </summary>
         public int RecalculateStock(string productId = null, string userId = null)
         {
-            int updatedCount = _movementRepo.RecalculateStockFromMovements(productId);
-
-            if (_auditRepo != null)
+            lock (SaleService.FinancialWriteLock)
             {
-                try
-                {
-                    _auditRepo.Log(new AuditLog
-                    {
-                        Action = "stock_recalculation",
-                        EntityType = "inventory",
-                        EntityId = string.IsNullOrEmpty(productId) ? "ALL" : productId,
-                        UserId = userId,
-                        DetailsJson = string.Format("{{\"updatedCount\":{0},\"target\":\"{1}\"}}",
-                            updatedCount, string.IsNullOrEmpty(productId) ? "ALL_PRODUCTS" : productId)
-                    });
-                }
-                catch { }
-            }
+                int updatedCount = _movementRepo.RecalculateStockFromMovements(productId);
 
-            return updatedCount;
+                if (_auditRepo != null)
+                {
+                    try
+                    {
+                        _auditRepo.Log(new AuditLog
+                        {
+                            Action = "stock_recalculation",
+                            EntityType = "inventory",
+                            EntityId = string.IsNullOrEmpty(productId) ? "ALL" : productId,
+                            UserId = userId,
+                            DetailsJson = string.Format("{{\"updatedCount\":{0},\"target\":\"{1}\"}}",
+                                updatedCount, string.IsNullOrEmpty(productId) ? "ALL_PRODUCTS" : productId)
+                        });
+                    }
+                    catch { }
+                }
+
+                return updatedCount;
+            }
         }
     }
 }

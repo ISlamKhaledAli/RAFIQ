@@ -970,7 +970,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         setBarcodeQuery('');
         setIsSearchDropdownOpen(false);
         const unitSuffix = matchedUnit ? ` [${matchedUnit.unitName}]` : '';
-        const weightDesc = scaleWeightMilli ? ` (${(scaleWeightMilli / 1000000).toFixed(3)} كجم - ميزان)` : '';
+        const weightDesc = scaleWeightMilli ? ` (${(scaleWeightMilli / 1000.0).toFixed(3)} كجم - ميزان)` : '';
         showStatus(`تم مسح الباركود وإضافة: ${exactMatch.name}${unitSuffix}${weightDesc}`, 'success');
       } else {
         setUnregisteredBarcode(scannedBarcode);
@@ -1060,7 +1060,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         setBarcodeQuery('');
         setIsSearchDropdownOpen(false);
         const unitSuffix = matchedUnit ? ` [${matchedUnit.unitName}]` : '';
-        const weightDesc = scaleWeightMilli ? ` (${(scaleWeightMilli / 1000000).toFixed(3)} كجم - ميزان)` : '';
+        const weightDesc = scaleWeightMilli ? ` (${(scaleWeightMilli / 1000.0).toFixed(3)} كجم - ميزان)` : '';
         showStatus(`تمت إضافة: ${targetProd.name}${unitSuffix}${weightDesc}`, 'success');
       } else {
         setUnregisteredBarcode(query);

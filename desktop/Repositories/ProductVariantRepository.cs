@@ -171,6 +171,34 @@ namespace RafiqPOS.Repositories
                                 cmd.ExecuteNonQuery();
                             }
 
+                            // Ensure base unit in product_units for variant product
+                            try
+                            {
+                                string insUnitSql = @"
+                                    INSERT OR IGNORE INTO product_units (
+                                        id, product_id, unit_name, conversion_factor, is_base_unit,
+                                        sell_price_piasters, cost_price_piasters, barcode, is_divisible,
+                                        sort_order, created_at, updated_at
+                                    ) VALUES (
+                                        @id, @productId, 'قطعة', 1, 1,
+                                        @sellPrice, @costPrice, @barcode, 0,
+                                        0, @createdAt, @updatedAt
+                                    );
+                                ";
+                                using (var unitCmd = new SQLiteCommand(insUnitSql, conn, trans))
+                                {
+                                    unitCmd.Parameters.AddWithValue("@id", "punit_" + variantProdId);
+                                    unitCmd.Parameters.AddWithValue("@productId", variantProdId);
+                                    unitCmd.Parameters.AddWithValue("@sellPrice", price);
+                                    unitCmd.Parameters.AddWithValue("@costPrice", cost);
+                                    unitCmd.Parameters.AddWithValue("@barcode", string.IsNullOrWhiteSpace(variantBarcode) ? (object)DBNull.Value : variantBarcode);
+                                    unitCmd.Parameters.AddWithValue("@createdAt", now);
+                                    unitCmd.Parameters.AddWithValue("@updatedAt", now);
+                                    unitCmd.ExecuteNonQuery();
+                                }
+                            }
+                            catch { }
+
                             // Insert initial stock movement if stock > 0
                             if (stock > 0)
                             {

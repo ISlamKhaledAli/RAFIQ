@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using RafiqPOS.Common;
@@ -136,6 +136,14 @@ namespace RafiqPOS.Repositories
                             WHERE product_id = @id AND is_base_unit = 1;
                         ";
 
+                        string updateVariantSql = @"
+                            UPDATE product_variants 
+                            SET price_piasters = @newPrice, 
+                                cost_price_piasters = @newCost, 
+                                updated_at = @now 
+                            WHERE variant_product_id = @id;
+                        ";
+
                         string insertHistorySql = @"
                             INSERT INTO product_price_history (
                                 id, product_id, old_price_piasters, new_price_piasters, 
@@ -174,6 +182,19 @@ namespace RafiqPOS.Repositories
                                             unitCmd.Parameters.AddWithValue("@now", now);
                                             unitCmd.Parameters.AddWithValue("@id", item.ProductId);
                                             unitCmd.ExecuteNonQuery();
+                                        }
+                                    }
+                                    catch { }
+
+                                    try
+                                    {
+                                        using (var variantCmd = new SQLiteCommand(updateVariantSql, conn, trans))
+                                        {
+                                            variantCmd.Parameters.AddWithValue("@newPrice", finalPrice);
+                                            variantCmd.Parameters.AddWithValue("@newCost", finalCost);
+                                            variantCmd.Parameters.AddWithValue("@now", now);
+                                            variantCmd.Parameters.AddWithValue("@id", item.ProductId);
+                                            variantCmd.ExecuteNonQuery();
                                         }
                                     }
                                     catch { }

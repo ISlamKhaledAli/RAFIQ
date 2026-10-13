@@ -717,7 +717,7 @@ namespace RafiqPOS.Repositories
                                 cmd.ExecuteNonQuery();
                             }
 
-                            if (row.InitialBalancePiasters > 0)
+                            if (row.InitialBalancePiasters != 0)
                             {
                                 string note = string.IsNullOrWhiteSpace(row.Notes)
                                     ? "رصيد افتتاحي (استيراد إكسل)"
@@ -731,13 +731,16 @@ namespace RafiqPOS.Repositories
                                 {
                                     lCmd.Parameters.AddWithValue("@lid", "led_" + Guid.NewGuid().ToString("N").Substring(0, 12));
                                     lCmd.Parameters.AddWithValue("@cid", customerId);
-                                    lCmd.Parameters.AddWithValue("@amt", row.InitialBalancePiasters);
+                                    lCmd.Parameters.AddWithValue("@amt", Math.Abs(row.InitialBalancePiasters));
                                     lCmd.Parameters.AddWithValue("@after", row.InitialBalancePiasters);
                                     lCmd.Parameters.AddWithValue("@notes", note);
                                     lCmd.Parameters.AddWithValue("@cat", now);
                                     lCmd.ExecuteNonQuery();
                                 }
-                                result.TotalOpeningDebtsPiasters += row.InitialBalancePiasters;
+                                if (row.InitialBalancePiasters > 0)
+                                {
+                                    result.TotalOpeningDebtsPiasters += row.InitialBalancePiasters;
+                                }
                             }
 
                             result.ImportedCount++;
