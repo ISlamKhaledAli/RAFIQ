@@ -252,6 +252,7 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
       device_fingerprint: string;
       license_type?: string;
       days?: number;
+      shop_name?: string;
     }>();
 
     if (!body.device_fingerprint || !body.device_fingerprint.trim()) {
@@ -268,7 +269,9 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
       const supportCode = await generateOfflineSupportCode(
         body.device_fingerprint.trim(),
         licType,
-        days
+        days,
+        env.LICENSE_PRIVATE_KEY,
+        body.shop_name || ''
       );
 
       return new Response(

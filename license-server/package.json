@@ -21,9 +21,9 @@
   "author": "ISlam Khaled Ali",
   "license": "UNLICENSED",
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20241230.0",
+    "@cloudflare/workers-types": "^5.20261012.1",
     "@types/node": "^26.6.3",
     "typescript": "^5.4.5",
-    "wrangler": "^3.109.0"
+    "wrangler": "^4.149.0"
   }
 }

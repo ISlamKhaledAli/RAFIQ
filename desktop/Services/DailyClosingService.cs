@@ -139,10 +139,12 @@ namespace RafiqPOS.Services
                 // 3. Sales totals (Excluding cancelled and demo sales - strictly isolating cash, card, and credit)
                 string salesSql = @"
                     SELECT 
-                        COALESCE(SUM(s.total_piasters), 0) AS total_sales,
+                        COALESCE(SUM(CASE WHEN (s.paid_piasters - s.service_fee_piasters) > s.total_piasters THEN (s.paid_piasters - s.service_fee_piasters) ELSE s.total_piasters END), 0) AS total_sales,
                         COALESCE(SUM(
                             CASE 
-                                WHEN s.payment_method IN ('cash', 'credit') THEN MAX(0, s.paid_piasters - s.change_piasters)
+                                -- Cash kept in the drawer = paid minus change handed back (includes cash deposited to a customer account - Audit F-27)
+                                WHEN s.payment_method = 'cash' THEN MAX(0, (s.paid_piasters - s.service_fee_piasters) - COALESCE(s.change_piasters, 0))
+                                WHEN s.payment_method = 'credit' THEN MIN((s.paid_piasters - s.service_fee_piasters), s.total_piasters)
                                 WHEN s.payment_method = 'multi' THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
@@ -153,7 +155,7 @@ namespace RafiqPOS.Services
                         ), 0) AS cash_sales,
                         COALESCE(SUM(
                             CASE 
-                                WHEN s.payment_method = 'instapay' THEN s.paid_piasters
+                                WHEN s.payment_method = 'instapay' THEN (s.paid_piasters - s.service_fee_piasters)
                                 WHEN s.payment_method = 'multi' THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
@@ -164,7 +166,7 @@ namespace RafiqPOS.Services
                         ), 0) AS instapay_sales,
                         COALESCE(SUM(
                             CASE 
-                                WHEN s.payment_method = 'vodafone_cash' THEN s.paid_piasters
+                                WHEN s.payment_method = 'vodafone_cash' THEN (s.paid_piasters - s.service_fee_piasters)
                                 WHEN s.payment_method = 'multi' THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
@@ -175,7 +177,7 @@ namespace RafiqPOS.Services
                         ), 0) AS vodafone_cash_sales,
                         COALESCE(SUM(
                             CASE 
-                                WHEN s.payment_method = 'card' THEN s.paid_piasters
+                                WHEN s.payment_method = 'card' THEN (s.paid_piasters - s.service_fee_piasters)
                                 WHEN s.payment_method = 'multi' THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
@@ -184,7 +186,7 @@ namespace RafiqPOS.Services
                                 ELSE 0 
                             END
                         ), 0) AS card_sales,
-                        COALESCE(SUM(CASE WHEN s.total_piasters > s.paid_piasters THEN (s.total_piasters - s.paid_piasters) ELSE 0 END), 0) AS credit_sales,
+                        COALESCE(SUM(CASE WHEN s.total_piasters > (s.paid_piasters - s.service_fee_piasters) THEN (s.total_piasters - (s.paid_piasters - s.service_fee_piasters)) ELSE 0 END), 0) AS credit_sales,
                         COUNT(*) AS inv_count
                     FROM sales s
                     WHERE date(datetime(s.created_at, 'localtime', '-' || @cutoff || ' hours')) = @bdate

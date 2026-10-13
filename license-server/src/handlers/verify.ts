@@ -29,7 +29,7 @@ export async function handleVerify(request: Request, env: Env): Promise<Response
 
   // 1. If token is provided, verify its HMAC signature (allowing expired tokens so we can renew/verify them against D1)
   if (token) {
-    const verification = await verifyActivationToken(token, env.TOKEN_SIGNING_SECRET, true /* ignoreExpiration */);
+    const verification = await verifyActivationToken(token, env.LICENSE_PRIVATE_KEY, true /* ignoreExpiration */);
     if (!verification.valid || !verification.payload) {
       return new Response(
         JSON.stringify({
@@ -155,7 +155,7 @@ export async function handleVerify(request: Request, env: Env): Promise<Response
       iat: Math.floor(Date.now() / 1000),
       exp: expTimestamp,
     },
-    env.TOKEN_SIGNING_SECRET
+    env.LICENSE_PRIVATE_KEY
   );
 
   return new Response(

@@ -53,7 +53,10 @@ namespace RafiqPOS.Repositories
                             var it = returnObj.Items[i];
                             decimal lineDec = ((decimal)it.UnitPricePiasters * it.QuantityMilli) / 1000m;
                             long expectedLineTotal = (long)Math.Round(lineDec, 0, MidpointRounding.AwayFromZero);
-                            if (it.TotalPiasters <= 0 || Math.Abs(it.TotalPiasters - expectedLineTotal) > 1)
+                            // Invoice-linked line totals are computed by ReturnService from the original sale line
+                            // (proportional, remainder-exact - Audit F-19); returns without an invoice use price x qty.
+                            bool serviceComputed = !string.IsNullOrEmpty(returnObj.SaleId);
+                            if (!serviceComputed || it.TotalPiasters < 0)
                             {
                                 it.TotalPiasters = expectedLineTotal;
                             }
@@ -138,9 +141,10 @@ namespace RafiqPOS.Repositories
                                 }
                             }
 
-                            // Determine conversion factor for multi-unit items
-                            int factor = item.ConversionFactor > 0 ? item.ConversionFactor : 1;
-                            if (factor == 1 && !string.IsNullOrEmpty(item.SaleItemId))
+                            // Determine conversion factor from stored data only - never trust the client value (Audit F-08)
+                            int factor = 1;
+                            bool factorResolved = false;
+                            if (!string.IsNullOrEmpty(item.SaleItemId))
                             {
                                 using (var fCmd = new SQLiteCommand("SELECT conversion_factor FROM sale_items WHERE id = @siId LIMIT 1;", conn, trans))
                                 {
@@ -150,10 +154,11 @@ namespace RafiqPOS.Repositories
                                     {
                                         int cf = Convert.ToInt32(fRes);
                                         if (cf > 0) factor = cf;
+                                        factorResolved = true;
                                     }
                                 }
                             }
-                            else if (factor == 1 && !string.IsNullOrEmpty(item.Unit) && item.Unit != "piece")
+                            if (!factorResolved && !string.IsNullOrEmpty(item.Unit) && item.Unit != "piece")
                             {
                                 using (var fCmd = new SQLiteCommand("SELECT conversion_factor FROM product_units WHERE product_id = @pid AND unit_name = @uname LIMIT 1;", conn, trans))
                                 {

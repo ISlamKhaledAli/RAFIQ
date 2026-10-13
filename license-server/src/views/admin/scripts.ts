@@ -1,7 +1,7 @@
 /**
  * Admin Dashboard Client-side Interactivity, Filtering & API Handlers
  */
-export const adminScripts = `    const DEFAULT_SECRET = 'rafiq_admin_super_secret_2026';
+export const adminScripts = `    const DEFAULT_SECRET = '';
     
     // State
     let activeMainTab = 'licenses'; // 'licenses' | 'logs'

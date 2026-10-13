@@ -31,6 +31,17 @@ echo [3/4] Copying Frontend Assets to Release Directory...
 if not exist "desktop\bin\Release\dist" mkdir "desktop\bin\Release\dist"
 xcopy /E /Y /Q "frontend\dist\*" "desktop\bin\Release\dist\"
 
+:: Never package developer data (Audit F-33): remove any database/WAL/backup files from the Release folder
+if exist "desktop\bin\Release\data" (
+    del /F /Q "desktop\bin\Release\data\*.db" 2>nul
+    del /F /Q "desktop\bin\Release\data\*.db-wal" 2>nul
+    del /F /Q "desktop\bin\Release\data\*.db-shm" 2>nul
+    rmdir /S /Q "desktop\bin\Release\data\backups" 2>nul
+    rmdir /S /Q "desktop\bin\Release\data\pre_restore" 2>nul
+    rmdir /S /Q "desktop\bin\Release\data\webview_profile" 2>nul
+)
+if exist "desktop\bin\Release\logs" rmdir /S /Q "desktop\bin\Release\logs"
+
 echo.
 echo [4/4] Packaging Single Executable via Inno Setup...
 "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" "installer\RafiqPOS_Setup.iss"

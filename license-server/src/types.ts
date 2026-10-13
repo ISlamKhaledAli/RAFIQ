@@ -7,7 +7,8 @@ export interface Env {
   ENVIRONMENT?: string;
   APP_API_KEY: string;
   ADMIN_SECRET: string;
-  TOKEN_SIGNING_SECRET: string;
+  /** RSA private key (PKCS#8 PEM) used to sign license tokens and support codes. Worker secret only. */
+  LICENSE_PRIVATE_KEY: string;
 }
 
 export type LicenseStatus = 'pending' | 'active' | 'disabled' | 'expired';
@@ -56,4 +57,6 @@ export interface ActivationTokenPayload {
   type: LicenseType;
   iat: number;
   exp: number | null;
+  /** 'support' marks an offline support code; absent for normal online activation tokens */
+  kind?: 'activation' | 'support';
 }

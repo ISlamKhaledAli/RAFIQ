@@ -67,7 +67,7 @@ namespace RafiqPOS.Services
                 // ==========================================
                 result.TotalAssertions++;
                 settingsRepo.Set("license_key", "RFQ-TEST-EXPIRED-KEY");
-                settingsRepo.Set("license_token", "test_token_signature_sample");
+                settingsRepo.Set("license_token", SignedTestToken("RFQ-TEST-EXPIRED-KEY", "annual", DateTime.UtcNow.AddDays(-2)));
                 settingsRepo.Set("license_status", "active");
                 settingsRepo.Set("license_type", "annual");
                 settingsRepo.Set("license_expires_at", DateTime.UtcNow.AddDays(-2).ToString("yyyy-MM-dd HH:mm:ss"));
@@ -86,6 +86,7 @@ namespace RafiqPOS.Services
                 // TEST 2: Anti-Clock Tampering (Task 171-2, 171-5)
                 // ==========================================
                 result.TotalAssertions++;
+                settingsRepo.Set("license_token", SignedTestToken("RFQ-TEST-EXPIRED-KEY", "annual", DateTime.UtcNow.AddDays(30)));
                 settingsRepo.Set("license_expires_at", DateTime.UtcNow.AddDays(30).ToString("yyyy-MM-dd HH:mm:ss"));
                 settingsRepo.Set("last_known_utc", DateTime.UtcNow.AddMinutes(30).ToString("o"));
 
@@ -103,6 +104,7 @@ namespace RafiqPOS.Services
                 // ==========================================
                 result.TotalAssertions++;
                 settingsRepo.Set("last_known_utc", DateTime.UtcNow.AddDays(-1).ToString("o"));
+                settingsRepo.Set("license_token", SignedTestToken("RFQ-TEST-EXPIRED-KEY", "annual", DateTime.UtcNow.AddDays(-1)));
                 settingsRepo.Set("license_expires_at", DateTime.UtcNow.AddDays(-1).ToString("yyyy-MM-dd HH:mm:ss"));
 
                 var fakeSaleRequest = new BridgeRequest
@@ -191,6 +193,7 @@ namespace RafiqPOS.Services
 
                 // Simulate authorized trial granted from server or support code (7 days)
                 settingsRepo.Set("license_key", "RFQ-TR-TEST-1234");
+                settingsRepo.Set("license_token", SignedTestToken("RFQ-TR-TEST-1234", "trial", DateTime.UtcNow.AddDays(7)));
                 settingsRepo.Set("license_status", "trial");
                 settingsRepo.Set("license_type", "trial");
                 settingsRepo.Set("license_expires_at", DateTime.UtcNow.AddDays(7).ToString("yyyy-MM-dd HH:mm:ss"));
@@ -203,11 +206,23 @@ namespace RafiqPOS.Services
                 }
 
                 // Simulate trial expired
+                settingsRepo.Set("license_token", SignedTestToken("RFQ-TR-TEST-1234", "trial", DateTime.UtcNow.AddDays(-1)));
                 settingsRepo.Set("license_expires_at", DateTime.UtcNow.AddDays(-1).ToString("yyyy-MM-dd HH:mm:ss"));
                 var expiredTrialInfo = DatabaseService.License.GetLicenseInfo();
                 if (expiredTrialInfo.IsActive || expiredTrialInfo.Status != "expired")
                 {
                     result.Message = "فشل اختبار انتهاء الفترة التجريبية";
+                    return result;
+                }
+                // Editing settings without a validly signed token must never unlock the app (Audit F-15)
+                settingsRepo.Set("license_status", "active");
+                settingsRepo.Set("license_type", "lifetime");
+                settingsRepo.Set("license_expires_at", "");
+                settingsRepo.Set("license_token", "forged.token.value");
+                var forgedInfo = DatabaseService.License.GetLicenseInfo();
+                if (forgedInfo.IsActive)
+                {
+                    result.Message = "فشل اختبار الحماية: تم تفعيل البرنامج بقيم إعدادات مزورة بدون توقيع صالح";
                     return result;
                 }
                 result.TrialLifecyclePassed = true;
@@ -219,7 +234,7 @@ namespace RafiqPOS.Services
                 result.TotalAssertions++;
                 string myFp = EncryptionService.GenerateDeviceFingerprint();
                 string validSupportCode = LicenseService.GenerateOfflineSupportCode(myFp, "lifetime", 9999);
-                if (string.IsNullOrEmpty(validSupportCode) || !validSupportCode.StartsWith("RFQ-SUP-L"))
+                if (string.IsNullOrEmpty(validSupportCode) || !validSupportCode.StartsWith("RFQ-SUP-"))
                 {
                     result.Message = "فشل توليد كود الدعم الفني أوفلاين";
                     return result;
@@ -317,6 +332,19 @@ namespace RafiqPOS.Services
                 settingsRepo.Set("transfer_release_code", origRel);
                 settingsRepo.Set("consumed_offline_codes", origConsumed);
             }
+        }
+
+        private static string SignedTestToken(string licenseKey, string licenseType, DateTime expiresUtc)
+        {
+            var payload = new JObject();
+            payload["iss"] = "rafiq-license-server";
+            payload["sub"] = licenseKey;
+            payload["fp"] = EncryptionService.GenerateDeviceFingerprint();
+            payload["shop"] = "";
+            payload["type"] = licenseType;
+            payload["iat"] = RafiqPOS.Common.LicenseTokenVerifier.ToUnix(DateTime.UtcNow);
+            payload["exp"] = RafiqPOS.Common.LicenseTokenVerifier.ToUnix(expiresUtc);
+            return RafiqPOS.Common.LicenseTokenVerifier.SignWithEphemeralTestKey(payload);
         }
     }
 }

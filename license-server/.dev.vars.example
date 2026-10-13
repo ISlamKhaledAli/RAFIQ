@@ -1,5 +1,6 @@
 # Cloudflare Workers local environment secrets template for Wrangler dev
 ENVIRONMENT=development
-APP_API_KEY=rafiq_pos_client_secret_k9x2m4p8
+APP_API_KEY=generated_by_scripts_setup_secrets
 ADMIN_SECRET=your_admin_secret_key_here
-TOKEN_SIGNING_SECRET=your_hmac_signing_secret_here
+# Run `node scripts/setup-secrets.mjs` to generate a real .dev.vars (git-ignored)
+LICENSE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"

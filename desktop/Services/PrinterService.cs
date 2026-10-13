@@ -430,7 +430,8 @@ namespace RafiqPOS.Services
 
                 // 6. Payment & Change
                 long totalPaid = sale.PaidPiasters > 0 ? sale.PaidPiasters : sale.TotalPiasters;
-                long changeDue = Math.Max(0, totalPaid - sale.TotalPiasters);
+                // Pass-through e-payment fee is not change and not shop revenue (Q2)
+                long changeDue = sale.ServiceFeePiasters > 0 ? 0 : Math.Max(0, sale.ChangePiasters);
 
                 string methodArabic = "نقداً";
                 if (sale.PaymentMethod == "credit") methodArabic = "آجل (على الحساب)";
@@ -442,6 +443,13 @@ namespace RafiqPOS.Services
                 g.DrawString("طريقة السداد: " + methodArabic, fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 16), rtlFormat);
                 g.DrawString((totalPaid / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 16), leftFormat);
                 y += 18;
+
+                if (sale.ServiceFeePiasters > 0)
+                {
+                    g.DrawString("رسوم خدمة الدفع (لمقدم الخدمة):", fontRegular, Brushes.Black, new RectangleF(contentWidth * 0.40f, y, contentWidth * 0.55f, 16), rtlFormat);
+                    g.DrawString((sale.ServiceFeePiasters / 100.0).ToString("0.00") + " ج.م", fontRegular, Brushes.Black, new RectangleF(5, y, contentWidth * 0.40f, 16), leftFormat);
+                    y += 18;
+                }
 
                 if (changeDue > 0)
                 {
