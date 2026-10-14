@@ -22,6 +22,7 @@ describe('Milestone 12 — Feature #176 & #177: E-Payment & Payment Terminals In
         'epay.terminals_manage',
         'epay.history',
         'epay.analytics',
+        'epay.cancel',
       ];
 
       for (const key of expectedKeys) {
@@ -47,6 +48,7 @@ describe('Milestone 12 — Feature #176 & #177: E-Payment & Payment Terminals In
       assert.ok(content.includes('epay.terminals_manage'), 'UserManagerModal.tsx must expose epay.terminals_manage');
       assert.ok(content.includes('epay.history'), 'UserManagerModal.tsx must expose epay.history');
       assert.ok(content.includes('epay.analytics'), 'UserManagerModal.tsx must expose epay.analytics');
+      assert.ok(content.includes('epay.cancel'), 'UserManagerModal.tsx must expose epay.cancel');
     });
   });
 

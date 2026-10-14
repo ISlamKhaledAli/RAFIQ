@@ -259,7 +259,14 @@ namespace RafiqPOS.Database
                     ApplyMigration29(conn);
                 }
 
-                // 33. Self-Healing Schema Guard: Automatically repair missing columns or indexes
+                // 33. Apply Migration 30: Advanced Tiered and Per-Service Fee Rules for Electronic Payment
+                if (currentVersion < 30)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration30(conn);
+                }
+
+                // 34. Self-Healing Schema Guard: Automatically repair missing columns or indexes
                 EnsureSchemaHealth(conn);
             }
         }
@@ -1153,6 +1160,63 @@ namespace RafiqPOS.Database
                     ", conn, trans))
                     {
                         createExpCmd.ExecuteNonQuery();
+                    }
+
+                    // 16. Health check for epay_terminals table (tiered & per-service fee columns)
+                    using (var checkEpayCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='epay_terminals';", conn, trans))
+                    {
+                        if (checkEpayCmd.ExecuteScalar() != null)
+                        {
+                            var epCols = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            using (var infoCmd = new SQLiteCommand("PRAGMA table_info(epay_terminals);", conn, trans))
+                            using (var reader = infoCmd.ExecuteReader())
+                            {
+                                while (reader.Read())
+                                {
+                                    epCols.Add(reader["name"].ToString());
+                                }
+                            }
+
+                            if (!epCols.Contains("customer_fee_min_piasters"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE epay_terminals ADD COLUMN customer_fee_min_piasters INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+
+                            if (!epCols.Contains("customer_fee_max_piasters"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE epay_terminals ADD COLUMN customer_fee_max_piasters INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+
+                            if (!epCols.Contains("provider_commission_min_piasters"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE epay_terminals ADD COLUMN provider_commission_min_piasters INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+
+                            if (!epCols.Contains("provider_commission_max_piasters"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE epay_terminals ADD COLUMN provider_commission_max_piasters INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+
+                            if (!epCols.Contains("service_fee_rules_json"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE epay_terminals ADD COLUMN service_fee_rules_json TEXT;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+                        }
                     }
 
                     trans.Commit();
@@ -3615,6 +3679,76 @@ namespace RafiqPOS.Database
                     using (var cmd = new SQLiteCommand(@"
                         INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
                         VALUES (29, 'Pass-through e-payment service fee column on sales', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        // Migration 30: Advanced Tiered and Per-Service Fee & Commission Rules for Electronic Payment Terminals
+        private static void ApplyMigration30(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    try
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE epay_terminals ADD COLUMN customer_fee_min_piasters INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    try
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE epay_terminals ADD COLUMN customer_fee_max_piasters INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    try
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE epay_terminals ADD COLUMN provider_commission_min_piasters INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    try
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE epay_terminals ADD COLUMN provider_commission_max_piasters INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    try
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE epay_terminals ADD COLUMN service_fee_rules_json TEXT;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    using (var cmd = new SQLiteCommand(@"
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (30, 'Electronic Payment Advanced Tiered and Per-Service Fee Rules', datetime('now'));
                     ", conn, trans))
                     {
                         cmd.ExecuteNonQuery();

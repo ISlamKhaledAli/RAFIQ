@@ -232,6 +232,7 @@ namespace RafiqPOS.Bridge
             { "reports:getDashboardAnalytics", "reports.sales" },
             { "expenses:create", "expenses.create" },
             { "epay:createTransaction", "epay.transact" },
+            { "epay:cancelTransaction", "epay.cancel" },
             { "epay:fundTerminal", "epay.fund" },
             { "epay:saveTerminal", "epay.terminals_manage" },
             { "audit:list", "audit_log.view" },

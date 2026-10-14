@@ -1148,6 +1148,37 @@ export function extractProducts(res: unknown): Product[] {
 export type EpayServiceType = 'mobile_recharge' | 'utility_bill' | 'cash_in' | 'cash_out' | 'wallet_transfer' | 'other';
 export type EpayPaymentDestination = 'cash_drawer' | 'terminal_till';
 
+export type EpayFeeType = 'fixed' | 'percent' | 'per_thousand';
+
+export interface EpayServiceFeeRule {
+  serviceType: EpayServiceType;
+  feeMode: 'default' | 'fixed' | 'percent' | 'per_thousand';
+  customerFeeType?: EpayFeeType;
+  customerFeeValue?: number; // piasters if fixed/per_thousand; basis points if percent (100 = 1%)
+  customerFeeMinPiasters?: number;
+  customerFeeMaxPiasters?: number;
+  providerCommissionType?: EpayFeeType;
+  providerCommissionValue?: number;
+  providerCommissionMinPiasters?: number;
+  providerCommissionMaxPiasters?: number;
+}
+
+export interface EpayPricingResult {
+  terminalId: string;
+  serviceType: EpayServiceType;
+  billAmountPiasters: number;
+  customerFeePiasters: number;
+  providerCommissionPiasters: number;
+  totalReceivedPiasters: number;
+  machineDeductedPiasters: number;
+  netProfitPiasters: number;
+  ruleApplied: 'service_custom' | 'terminal_default';
+  customerFeeFormatted?: string;
+  providerCommissionFormatted?: string;
+  totalReceivedFormatted?: string;
+  netProfitFormatted?: string;
+}
+
 export interface EpayTerminal {
   id: string;
   name: string;
@@ -1156,10 +1187,16 @@ export interface EpayTerminal {
   balancePiasters: number;
   lowBalanceAlertPiasters: number;
   isActive: boolean;
-  customerFeeType?: 'fixed' | 'percent';
-  customerFeeValue?: number; // piasters if fixed; basis points if percent (100 = 1%)
-  providerCommissionType?: 'fixed' | 'percent';
-  providerCommissionValue?: number; // piasters if fixed; basis points if percent (50 = 0.5%)
+  customerFeeType?: EpayFeeType;
+  customerFeeValue?: number; // piasters if fixed/per_thousand; basis points if percent (100 = 1%)
+  customerFeeMinPiasters?: number;
+  customerFeeMaxPiasters?: number;
+  providerCommissionType?: EpayFeeType;
+  providerCommissionValue?: number; // piasters if fixed/per_thousand; basis points if percent (50 = 0.5%)
+  providerCommissionMinPiasters?: number;
+  providerCommissionMaxPiasters?: number;
+  serviceFeeRulesJson?: string;
+  serviceFeeRules?: EpayServiceFeeRule[];
   customerFeeFormatted?: string;
   providerCommissionFormatted?: string;
   createdAt: string;
@@ -1187,7 +1224,7 @@ export interface EpayTransaction {
   netProfitPiasters: number;
   paymentDestination: EpayPaymentDestination;
   paymentChannel?: EpayPaymentDestination;
-  status: 'COMPLETED' | 'CANCELLED';
+  status: 'completed' | 'cancelled' | 'COMPLETED' | 'CANCELLED';
   notes?: string;
   createdBy?: string;
   createdAt: string;

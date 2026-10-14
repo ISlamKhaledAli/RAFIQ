@@ -1463,7 +1463,7 @@ namespace RafiqPOS.Services
             "settings.store", "settings.printer", "settings.barcode", "settings.features", "settings.backup", "settings.restore", "settings.license",
             "users.view", "users.create", "users.edit", "users.deactivate", "users.reset_pin", "users.delegate",
             "audit_log.view", "expenses.view", "expenses.create", "expenses.delete",
-            "epay.access", "epay.transact", "epay.fund", "epay.terminals_manage", "epay.history", "epay.analytics",
+            "epay.access", "epay.transact", "epay.fund", "epay.terminals_manage", "epay.history", "epay.analytics", "epay.cancel",
             // Legacy aliases
             "pos", "customers", "products", "inventory", "reports", "settings", "users", "epay",
             "discounts", "price_edit", "stock_adjust", "db_recovery", "refunds", "cancel_sale"
@@ -1681,6 +1681,7 @@ namespace RafiqPOS.Services
             p["epay.terminals_manage"] = isAdmin;
             p["epay.history"] = isAdmin;
             p["epay.analytics"] = isAdmin;
+            p["epay.cancel"] = isAdmin;
 
             SyncPermissionAliases(p);
 
