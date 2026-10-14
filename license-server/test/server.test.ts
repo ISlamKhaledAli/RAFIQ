@@ -6,12 +6,12 @@ import type { Env } from '../src/types.ts';
 import { verifyActivationToken } from '../src/crypto.ts';
 
 async function generateTestPrivateKeyPem(): Promise<string> {
-  const pair = await crypto.subtle.generateKey(
+  const pair = (await crypto.subtle.generateKey(
     { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' },
     true,
     ['sign', 'verify']
-  );
-  const der = new Uint8Array(await crypto.subtle.exportKey('pkcs8', pair.privateKey));
+  )) as CryptoKeyPair;
+  const der = new Uint8Array((await crypto.subtle.exportKey('pkcs8', pair.privateKey)) as ArrayBuffer);
   let binary = '';
   for (let i = 0; i < der.length; i++) binary += String.fromCharCode(der[i]);
   return `-----BEGIN PRIVATE KEY-----\n${btoa(binary)}\n-----END PRIVATE KEY-----`;

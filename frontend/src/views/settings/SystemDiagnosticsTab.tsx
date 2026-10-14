@@ -10,6 +10,7 @@ import {
   Layers, 
   Package, 
   ShieldCheck,
+  ShieldAlert,
   X,
   PhoneCall,
   DownloadCloud,
@@ -25,6 +26,7 @@ interface SystemDiagnosticsTabProps {
   sysInfo?: SystemInfo | null;
   flags: Record<string, boolean>;
   toggleFlag: (key: string, enabled: boolean) => Promise<void>;
+  canManageFeatures?: boolean;
   diagnosticsLoading: boolean;
   diagnosticResult: string | null;
   setDiagnosticResult: (res: string | null) => void;
@@ -43,6 +45,7 @@ export const SystemDiagnosticsTab = ({
   sysInfo,
   flags,
   toggleFlag,
+  canManageFeatures = true,
   onOpenWizard,
   diagnosticsLoading,
   diagnosticResult,
@@ -87,8 +90,35 @@ export const SystemDiagnosticsTab = ({
           )}
         </div>
 
+        {!canManageFeatures && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-xs text-amber-900 font-bold flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>مفاتيح الميزات للقراءة فقط: تعديل وتفعيل ميزات النظام محصور بالمشرف الفني الأعلى (Root).</span>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
           {[
+            {
+              key: 'feature_matrix_variants',
+              title: 'المقاسات والألوان ومصفوفة الملابس',
+              description: 'إدارة الصنف الواحد بأكتر من مقاس ولون مع باركود خاص لكل مقاس لمحلات الملابس والأحذية.',
+            },
+            {
+              key: 'feature_scale_weight',
+              title: 'ميزان الباركود والأصناف الموزونة',
+              description: 'قراءة باركود ميزان الجبن واللحوم والخضار وحساب الوزن والسعر تلقائياً.',
+            },
+            {
+              key: 'feature_multi_units',
+              title: 'تعدد وحدات البيع (كرتونة / دستة / قطعة)',
+              description: 'بيع وشراء الصنف بالكرتونة أو الدستة أو القطعة مع تحويل رصيد المخزن تلقائياً وبدقة.',
+            },
+            {
+              key: 'feature_expiry_dates',
+              title: 'تواريخ الصلاحية وتشغيلات البضاعة',
+              description: 'متابعة تواريخ انتهاء الصلاحية والتنبيه قبل ما البضاعة تخلص صلاحيتها وصرف الأقدم أولاً.',
+            },
             {
               key: 'feature_fast_buttons',
               title: 'أزرار الأصناف السريعة (بدون باركود)',
@@ -100,37 +130,32 @@ export const SystemDiagnosticsTab = ({
               description: 'بيع بالآجل على الحساب ومتابعة كشف الحساب والحد الأقصى للشكك لكل زبون.',
             },
             {
+              key: 'feature_epay_services',
+              title: 'خدمات وماكينات الدفع والشحن الإلكتروني',
+              description: 'إدارة ماكينات الدفع وشحن الرصيد وفواتير الكهرباء وتغذية الأرصدة والعمولات المستقلة.',
+            },
+            {
+              key: 'feature_digital_wallets',
+              title: 'مدفوعات المحافظ الإلكترونية وإنستاباي',
+              description: 'إتاحة خيارات السداد السريع عبر إنستاباي والمحافظ النقدية (فودافون كاش وغيرها) في الكاشير.',
+            },
+            {
               key: 'feature_taxes',
               title: 'منظومة الضرائب والرمز الضريبي',
               description: 'حساب ضريبة القيمة المضافة وإظهار أكواد GS1/EGS للأصناف في الفاتورة.',
-            },
-            {
-              key: 'feature_expiry_dates',
-              title: 'تواريخ الصلاحية وتشغيلات البضاعة',
-              description: 'متابعة تواريخ انتهاء الصلاحية والتنبيه قبل ما البضاعة تخلص صلاحيتها وصرف الأقدم أولاً.',
-            },
-            {
-              key: 'feature_matrix_variants',
-              title: 'المقاسات والألوان ومصفوفة الملابس',
-              description: 'إدارة الصنف الواحد بأكتر من مقاس ولون مع باركود خاص لكل مقاس لمحلات الملابس والأحذية.',
-            },
-            {
-              key: 'feature_multi_units',
-              title: 'تعدد وحدات البيع (كرتونة / دستة / قطعة)',
-              description: 'بيع وشراء الصنف بالكرتونة أو الدستة أو القطعة مع تحويل رصيد المخزن تلقائياً وبدقة.',
-            },
-            {
-              key: 'feature_scale_weight',
-              title: 'ميزان الباركود والأصناف الموزونة',
-              description: 'قراءة باركود ميزان الجبن واللحوم والخضار وحساب الوزن والسعر تلقائياً.',
             },
           ].map((feat) => {
             const isEnabled = flags[feat.key] ?? false;
             return (
               <div
                 key={feat.key}
-                onClick={() => void toggleFlag(feat.key, !isEnabled)}
-                className={`p-3.5 rounded-lg border transition-all cursor-pointer flex flex-col justify-between gap-3 ${
+                onClick={() => {
+                  if (!canManageFeatures) return;
+                  void toggleFlag(feat.key, !isEnabled);
+                }}
+                className={`p-3.5 rounded-lg border transition-all ${
+                  canManageFeatures ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'
+                } flex flex-col justify-between gap-3 ${
                   isEnabled
                     ? 'bg-brand/5 border-brand/40 shadow-xs'
                     : 'bg-canvas border-line hover:border-line-hover opacity-85'
@@ -157,7 +182,11 @@ export const SystemDiagnosticsTab = ({
                 <div className="flex justify-end pt-1 border-t border-line/50">
                   <ToggleSwitch
                     checked={isEnabled}
-                    onChange={(next) => void toggleFlag(feat.key, next)}
+                    disabled={!canManageFeatures}
+                    onChange={(next) => {
+                      if (!canManageFeatures) return;
+                      void toggleFlag(feat.key, next);
+                    }}
                   />
                 </div>
               </div>

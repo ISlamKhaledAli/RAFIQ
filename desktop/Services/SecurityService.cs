@@ -1655,7 +1655,7 @@ namespace RafiqPOS.Services
             p["settings.store"] = isAdmin;
             p["settings.printer"] = isAdmin;
             p["settings.barcode"] = isAdmin;
-            p["settings.features"] = isAdmin;
+            p["settings.features"] = isRoot; // محصورة بحساب المشرف الأعلى (Root) فقط افتراضياً
             p["settings.backup"] = isAdmin;
             p["settings.restore"] = isAdmin;
             p["settings.license"] = isAdmin;

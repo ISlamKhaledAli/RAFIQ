@@ -79,6 +79,7 @@ Source: "..\desktop\bin\Release\*"; DestDir: "{app}"; Flags: ignoreversion recur
 Source: "prerequisites\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: IsWindows10OrLater and not IsWebView2Installed
 
 ; قاعدة البيانات: تُنشأ تلقائياً عند أول تشغيل عبر DatabaseService و MigrationRunner في {commonappdata}\RafiqPOS\data
+; حماية البيانات من الحذف أو الاستبدال عند إلغاء التثبيت أو الترقية: Flags: onlyifdoesntexist uninsneveruninstall
 
 
 [Icons]

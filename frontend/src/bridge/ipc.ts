@@ -1160,7 +1160,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           description: 'مناسب لمحلات السوبرماركت ومحلات البقالة الكبيرة التي تستخدم الباركود والميزان والآجل',
           icon: 'shopping-cart',
           productsCount: 168,
-          featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: true, feature_multi_units: true },
+          featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: true, feature_multi_units: true, feature_matrix_variants: false, feature_epay_services: true, feature_digital_wallets: true },
           categories: ['معلبات وبقوليات', 'ألبان وأجبان', 'منظفات وعناية منزلية', 'بسكويت وحلويات', 'مشروبات وعصائر', 'مخبوزات', 'خضار وفاكهة', 'مجمدات', 'دخان وسجائر'],
           quickItems: [
             { Name: 'خبز بلدي طازج', PricePiasters: 100, Unit: 'piece', CategoryName: 'مخبوزات', IsOpenPrice: false },
@@ -1177,10 +1177,10 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         {
           id: 'phones_electronics',
           name: 'محلات هواتف وموبايل وإلكترونيات',
-          description: 'مخصص لمحلات الهواتف الذكية والإلكترونيات وصيانة الجوال والإكسسوارات (بدون ميزان وأوزان)',
+          description: 'مخصص لمحلات الهواتف الذكية والإلكترونيات وصيانة الجوال والإكسسوارات وخدمات الشحن',
           icon: 'smartphone',
           productsCount: 44,
-          featureFlags: { feature_scale_weight: false, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false },
+          featureFlags: { feature_scale_weight: false, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false, feature_matrix_variants: false, feature_epay_services: true, feature_digital_wallets: true },
           categories: ['كابلات وشواحن', 'سماعات وصوتيات', 'جرابات وحافظات', 'لاصقات حماية وشاشات', 'باور بانك وبطاريات', 'كروت ميموري وفلاشات', 'صيانة وخدمات سريعة'],
           quickItems: [
             { Name: 'كابل شحن سريع Type-C', PricePiasters: 4500, Unit: 'piece', CategoryName: 'كابلات وشواحن', IsOpenPrice: false },
@@ -1200,7 +1200,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           description: 'مناسب لمحلات اللبانة والأجبان والمخابز التي تعتمد على البيع بالوزن والأصناف الطازجة',
           icon: 'milk',
           productsCount: 41,
-          featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: true, feature_multi_units: false },
+          featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: true, feature_multi_units: false, feature_matrix_variants: false, feature_epay_services: false, feature_digital_wallets: true },
           categories: ['ألبان سائبة ومعبأة', 'أجبان بيضاء ومطبوخة', 'مخبوزات طازجة', 'بيض ومستلزمات', 'معلبات وعسل'],
           quickItems: [
             { Name: 'لبن جاموسي طازج كجم', PricePiasters: 3000, Unit: 'kg', CategoryName: 'ألبان سائبة ومعبأة', IsOpenPrice: false },
@@ -1219,7 +1219,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           description: 'مناسب لمحلات الخضار والفاكهة والجزارة والمجمدات التي تعتمد أساسياً على الميزان الإلكتروني',
           icon: 'apple',
           productsCount: 48,
-          featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false },
+          featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false, feature_matrix_variants: false, feature_epay_services: false, feature_digital_wallets: true },
           categories: ['خضروات طازجة', 'فواكه موسمية', 'ورقيات وأعشاب', 'لحوم ودواجن', 'مجمدات'],
           quickItems: [
             { Name: 'طماطم بلدي طازجة', PricePiasters: 1500, Unit: 'kg', CategoryName: 'خضروات طازجة', IsOpenPrice: false },
@@ -1238,7 +1238,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           description: 'مناسب للمكتبات والقرطاسية، الهدايا، الألعاب ومستلزمات الطباعة (بدون ميزان)',
           icon: 'book',
           productsCount: 42,
-          featureFlags: { feature_scale_weight: false, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false },
+          featureFlags: { feature_scale_weight: false, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false, feature_matrix_variants: false, feature_epay_services: true, feature_digital_wallets: true },
           categories: ['أدوات كتابة وأقلام', 'كشاكيل ودفاتر', 'أدوات هندسية ومدرسية', 'ألعاب وهدايا', 'طباعة وتصوير مستندات'],
           quickItems: [
             { Name: 'قلم جاف أزرق', PricePiasters: 500, Unit: 'piece', CategoryName: 'أدوات كتابة وأقلام', IsOpenPrice: false },
@@ -1257,7 +1257,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           description: 'مخصص لمحلات لعب الأطفال والهدايا والمجسمات والدمى والسيارات (بدون ميزان وأوزان)',
           icon: 'package',
           productsCount: 51,
-          featureFlags: { feature_scale_weight: false, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false },
+          featureFlags: { feature_scale_weight: false, feature_credit_debts: true, feature_fast_buttons: false, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false, feature_matrix_variants: false, feature_epay_services: false, feature_digital_wallets: true },
           categories: ['ألعاب ذكاء وتركيب', 'سيارات وطائرات تحكم', 'عرائس ومجسمات', 'ألعاب تعليمية ورضع', 'ألعاب حركية ورياضية', 'سكوتر وركوب', 'هدايا وتغليف وبطاريات'],
           quickItems: [
             { Name: 'حجارة قلم AA باكت 4 حجر', PricePiasters: 4000, Unit: 'piece', CategoryName: 'هدايا وتغليف وبطاريات', IsOpenPrice: false },
@@ -1276,7 +1276,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           description: 'مناسب لمحلات العطارة والبن والمحامص والمكسرات بالأوزان والجرامات والميزان',
           icon: 'flame',
           productsCount: 45,
-          featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: true, feature_multi_units: false },
+          featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: true, feature_multi_units: false, feature_matrix_variants: false, feature_epay_services: false, feature_digital_wallets: true },
           categories: ['بن ومشروبات ساخنة', 'مكسرات ومحامص', 'توابل وبهارات', 'أعشاب طبيعية', 'ياميش وتمور'],
           quickItems: [
             { Name: 'ثمن بن محوج وسط', PricePiasters: 4500, Unit: 'piece', CategoryName: 'بن ومشروبات ساخنة', IsOpenPrice: false },
@@ -1294,7 +1294,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           description: 'مناسب لمحلات الملابس والأحذية والأزياء والحقائب (بدون ميزان وأوزان)',
           icon: 'shirt',
           productsCount: 40,
-          featureFlags: { feature_scale_weight: false, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false, feature_matrix_variants: true },
+          featureFlags: { feature_scale_weight: false, feature_credit_debts: true, feature_fast_buttons: false, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false, feature_matrix_variants: true, feature_epay_services: false, feature_digital_wallets: true },
           categories: ['ملابس رجالي', 'ملابس حريمي', 'ملابس أطفال', 'أحذية وحقائب', 'إكسسوارات ملابس'],
           quickItems: [
             { Name: 'تيشيرت قطن أساسي', PricePiasters: 15000, Unit: 'piece', CategoryName: 'ملابس رجالي', IsOpenPrice: false },
@@ -1311,7 +1311,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
           description: 'إعداد عام متوازن يناسب كافة المحلات والأنشطة التجارية المتنوعة',
           icon: 'store',
           productsCount: 47,
-          featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false },
+          featureFlags: { feature_scale_weight: true, feature_credit_debts: true, feature_fast_buttons: true, feature_taxes: false, feature_expiry_dates: false, feature_multi_units: false, feature_matrix_variants: false, feature_epay_services: true, feature_digital_wallets: true },
           categories: ['عام', 'أغذية ومشروبات', 'منظفات', 'حلويات وتسالي', 'دخان وسجائر'],
           quickItems: [
             { Name: 'كيس تسوق', PricePiasters: 100, Unit: 'piece', CategoryName: 'عام', IsOpenPrice: false },
@@ -1336,8 +1336,8 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       return {
         success: true,
         message: 'تم تطبيق القالب وتخصيص المتجر بنجاح.',
-        categoriesCount: 7,
-        quickItemsCount: 8,
+        categoriesCount: 0,
+        quickItemsCount: 0,
         productsCount: count,
       };
     }

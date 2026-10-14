@@ -101,7 +101,22 @@ namespace RafiqPOS.Services
                 // Fallback to built-in presets if table query fails
             }
 
-            if (list.Count < 9)
+            bool needsRefresh = (list.Count < 9);
+            if (!needsRefresh)
+            {
+                for (int i = 0; i < list.Count; i++)
+                {
+                    if (list[i].FeatureFlags == null || 
+                        !list[i].FeatureFlags.ContainsKey("feature_epay_services") ||
+                        !list[i].FeatureFlags.ContainsKey("feature_digital_wallets"))
+                    {
+                        needsRefresh = true;
+                        break;
+                    }
+                }
+            }
+
+            if (needsRefresh)
             {
                 list = GetFallbackTemplates();
                 EnsureTemplatesSeeded(list);
@@ -222,7 +237,9 @@ namespace RafiqPOS.Services
                     "feature_taxes",
                     "feature_expiry_dates",
                     "feature_multi_units",
-                    "feature_matrix_variants"
+                    "feature_matrix_variants",
+                    "feature_epay_services",
+                    "feature_digital_wallets"
                 };
 
                 for (int f = 0; f < allKnownFlags.Length; f++)
@@ -254,9 +271,32 @@ namespace RafiqPOS.Services
                     _settingsRepo.SaveBatch(settingsBatch);
                 }
 
-                // 2. Zero Injected Mock Data Policy
+                // 2. Zero Injected Mock Data Policy & Clean Categories
                 // The application starts 100% clean with zero injected categories, quick items, or products.
-                // Merchants can add their own products or import complete pre-built catalogs from the provided Excel files.
+                // Any unreferenced categories are purged so the merchant starts with a fresh empty category list.
+                try
+                {
+                    using (var conn = new SQLiteConnection(_connectionString))
+                    {
+                        conn.Open();
+                        using (var trans = conn.BeginTransaction())
+                        {
+                            using (var delCmd = new SQLiteCommand(@"
+                                DELETE FROM categories 
+                                WHERE NOT EXISTS (SELECT 1 FROM products WHERE products.category_id = categories.id);
+                            ", conn, trans))
+                            {
+                                delCmd.ExecuteNonQuery();
+                            }
+                            trans.Commit();
+                        }
+                    }
+                }
+                catch (Exception catEx)
+                {
+                    Logger.Warn("Clean categories warning: " + catEx.Message);
+                }
+
                 int catsCreated = 0;
                 int itemsCreated = 0;
                 int prodsCreated = 0;
@@ -521,6 +561,9 @@ namespace RafiqPOS.Services
             t1.FeatureFlags["feature_taxes"] = false;
             t1.FeatureFlags["feature_expiry_dates"] = true;
             t1.FeatureFlags["feature_multi_units"] = true;
+            t1.FeatureFlags["feature_matrix_variants"] = false;
+            t1.FeatureFlags["feature_epay_services"] = true;
+            t1.FeatureFlags["feature_digital_wallets"] = true;
             t1.Categories = new List<string> { "معلبات وبقوليات", "ألبان وأجبان", "منظفات وعناية منزلية", "بسكويت وحلويات", "مشروبات وعصائر", "مخبوزات", "خضار وفاكهة", "مجمدات", "دخان وسجائر" };
             t1.QuickItems = new List<TemplateQuickItem>
             {
@@ -541,7 +584,7 @@ namespace RafiqPOS.Services
             var t2 = new StoreTemplate();
             t2.Id = "phones_electronics";
             t2.Name = "محلات هواتف وموبايل وإلكترونيات";
-            t2.Description = "مخصص لمحلات الهواتف الذكية والإلكترونيات وصيانة الجوال والإكسسوارات (بدون ميزان وأوزان)";
+            t2.Description = "مخصص لمحلات الهواتف الذكية والإلكترونيات وصيانة الجوال والإكسسوارات وخدمات الشحن";
             t2.Icon = "smartphone";
             t2.FeatureFlags["feature_scale_weight"] = false;
             t2.FeatureFlags["feature_credit_debts"] = true;
@@ -549,6 +592,9 @@ namespace RafiqPOS.Services
             t2.FeatureFlags["feature_taxes"] = false;
             t2.FeatureFlags["feature_expiry_dates"] = false;
             t2.FeatureFlags["feature_multi_units"] = false;
+            t2.FeatureFlags["feature_matrix_variants"] = false;
+            t2.FeatureFlags["feature_epay_services"] = true;
+            t2.FeatureFlags["feature_digital_wallets"] = true;
             t2.Categories = new List<string> { "كابلات وشواحن", "سماعات وصوتيات", "جرابات وحافظات", "لاصقات حماية وشاشات", "باور بانك وبطاريات", "كروت ميموري وفلاشات", "صيانة وخدمات سريعة" };
             t2.QuickItems = new List<TemplateQuickItem>
             {
@@ -577,6 +623,9 @@ namespace RafiqPOS.Services
             t3.FeatureFlags["feature_taxes"] = false;
             t3.FeatureFlags["feature_expiry_dates"] = true;
             t3.FeatureFlags["feature_multi_units"] = false;
+            t3.FeatureFlags["feature_matrix_variants"] = false;
+            t3.FeatureFlags["feature_epay_services"] = false;
+            t3.FeatureFlags["feature_digital_wallets"] = true;
             t3.Categories = new List<string> { "ألبان سائبة ومعبأة", "أجبان بيضاء ومطبوخة", "مخبوزات طازجة", "بيض ومستلزمات", "معلبات وعسل" };
             t3.QuickItems = new List<TemplateQuickItem>
             {
@@ -604,6 +653,9 @@ namespace RafiqPOS.Services
             t4.FeatureFlags["feature_taxes"] = false;
             t4.FeatureFlags["feature_expiry_dates"] = false;
             t4.FeatureFlags["feature_multi_units"] = false;
+            t4.FeatureFlags["feature_matrix_variants"] = false;
+            t4.FeatureFlags["feature_epay_services"] = false;
+            t4.FeatureFlags["feature_digital_wallets"] = true;
             t4.Categories = new List<string> { "خضروات طازجة", "فواكه موسمية", "ورقيات وأعشاب", "لحوم ودواجن", "مجمدات" };
             t4.QuickItems = new List<TemplateQuickItem>
             {
@@ -631,6 +683,9 @@ namespace RafiqPOS.Services
             t5.FeatureFlags["feature_taxes"] = false;
             t5.FeatureFlags["feature_expiry_dates"] = false;
             t5.FeatureFlags["feature_multi_units"] = false;
+            t5.FeatureFlags["feature_matrix_variants"] = false;
+            t5.FeatureFlags["feature_epay_services"] = true;
+            t5.FeatureFlags["feature_digital_wallets"] = true;
             t5.Categories = new List<string> { "أدوات كتابة وأقلام", "كشاكيل ودفاتر", "أدوات هندسية ومدرسية", "ألعاب وهدايا", "طباعة وتصوير مستندات" };
             t5.QuickItems = new List<TemplateQuickItem>
             {
@@ -658,6 +713,9 @@ namespace RafiqPOS.Services
             tToys.FeatureFlags["feature_taxes"] = false;
             tToys.FeatureFlags["feature_expiry_dates"] = false;
             tToys.FeatureFlags["feature_multi_units"] = false;
+            tToys.FeatureFlags["feature_matrix_variants"] = false;
+            tToys.FeatureFlags["feature_epay_services"] = false;
+            tToys.FeatureFlags["feature_digital_wallets"] = true;
             tToys.Categories = new List<string> { "ألعاب ذكاء وتركيب", "سيارات وطائرات تحكم", "عرائس ومجسمات", "ألعاب تعليمية ورضع", "ألعاب حركية ورياضية", "سكوتر وركوب", "هدايا وتغليف وبطاريات" };
             tToys.QuickItems = new List<TemplateQuickItem>
             {
@@ -685,6 +743,9 @@ namespace RafiqPOS.Services
             t6.FeatureFlags["feature_taxes"] = false;
             t6.FeatureFlags["feature_expiry_dates"] = true;
             t6.FeatureFlags["feature_multi_units"] = false;
+            t6.FeatureFlags["feature_matrix_variants"] = false;
+            t6.FeatureFlags["feature_epay_services"] = false;
+            t6.FeatureFlags["feature_digital_wallets"] = true;
             t6.Categories = new List<string> { "بن ومشروبات ساخنة", "مكسرات ومحامص", "توابل وبهارات", "أعشاب طبيعية", "ياميش وتمور" };
             t6.QuickItems = new List<TemplateQuickItem>
             {
@@ -703,15 +764,17 @@ namespace RafiqPOS.Services
             var t7 = new StoreTemplate();
             t7.Id = "clothing_apparel";
             t7.Name = "ملابس وأحذية وأزياء";
-            t7.Description = "مناسب لمحلات الملابس الجاهزة، الأحذية، الإكسسوارات والحقائب (بدون ميزان وصلاحية)";
+            t7.Description = "مناسب لمحلات الملابس الجاهزة، الأحذية، الإكسسوارات والحقائب مع دعم إدارة المقاسات والألوان (بدون ميزان وصلاحية وماكينات شحن)";
             t7.Icon = "shirt";
             t7.FeatureFlags["feature_scale_weight"] = false;
             t7.FeatureFlags["feature_credit_debts"] = true;
-            t7.FeatureFlags["feature_fast_buttons"] = true;
+            t7.FeatureFlags["feature_fast_buttons"] = false;
             t7.FeatureFlags["feature_taxes"] = false;
             t7.FeatureFlags["feature_expiry_dates"] = false;
             t7.FeatureFlags["feature_multi_units"] = false;
             t7.FeatureFlags["feature_matrix_variants"] = true;
+            t7.FeatureFlags["feature_epay_services"] = false;
+            t7.FeatureFlags["feature_digital_wallets"] = true;
             t7.Categories = new List<string> { "ملابس رجالي", "ملابس حريمي", "ملابس أطفال", "أحذية وحقائب", "إكسسوارات ملابس" };
             t7.QuickItems = new List<TemplateQuickItem>
             {
@@ -737,6 +800,9 @@ namespace RafiqPOS.Services
             t8.FeatureFlags["feature_taxes"] = false;
             t8.FeatureFlags["feature_expiry_dates"] = false;
             t8.FeatureFlags["feature_multi_units"] = false;
+            t8.FeatureFlags["feature_matrix_variants"] = false;
+            t8.FeatureFlags["feature_epay_services"] = true;
+            t8.FeatureFlags["feature_digital_wallets"] = true;
             t8.Categories = new List<string> { "عام", "أغذية ومشروبات", "منظفات", "حلويات وتسالي", "دخان وسجائر" };
             t8.QuickItems = new List<TemplateQuickItem>
             {

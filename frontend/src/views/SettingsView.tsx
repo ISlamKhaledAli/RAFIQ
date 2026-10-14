@@ -44,8 +44,11 @@ export const SettingsView = ({
   activeSubTab = 'profile', 
 }: SettingsViewProps) => {
   const { flags, toggleFlag } = useFeatures();
-  const { isRoot } = useAuth();
-  const allowedSubTabs = isRoot ? ['profile', 'backup', 'printer', 'system', 'scanner', 'security', 'demo'] : ['profile', 'backup', 'printer'];
+  const { isRoot, hasPermission } = useAuth();
+  const canManageFeatures = isRoot || hasPermission('settings.features');
+  const allowedSubTabs = isRoot 
+    ? ['profile', 'backup', 'printer', 'system', 'scanner', 'security', 'demo'] 
+    : (canManageFeatures ? ['profile', 'backup', 'printer', 'system'] : ['profile', 'backup', 'printer']);
   const subTab = allowedSubTabs.includes(activeSubTab) ? activeSubTab : 'profile';
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
@@ -527,11 +530,12 @@ export const SettingsView = ({
         />
       )}
 
-      {isRoot && subTab === 'system' && (
+      {(isRoot || canManageFeatures) && subTab === 'system' && (
         <SystemDiagnosticsTab
           sysInfo={sysInfo}
           flags={flags}
           toggleFlag={toggleFlag}
+          canManageFeatures={canManageFeatures}
           diagnosticsLoading={diagnosticsLoading}
           diagnosticResult={diagnosticResult}
           setDiagnosticResult={setDiagnosticResult}
