@@ -1,7 +1,6 @@
 import type { FormEvent } from 'react';
-import { Store, Save, Sparkles, CheckCircle2, Image as ImageIcon, Smartphone, Wallet, Sun, Moon, Monitor } from 'lucide-react';
+import { Store, Save, Sparkles, CheckCircle2, Image as ImageIcon, Smartphone, Wallet } from 'lucide-react';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
-import { useTheme } from '../../context/useTheme';
 
 interface StoreProfileTabProps {
   storeName: string;
@@ -64,8 +63,6 @@ export const StoreProfileTab = ({
   handleSave,
   onOpenWizard,
 }: StoreProfileTabProps) => {
-  const { theme, setTheme } = useTheme();
-
   return (
     <div className="grid grid-cols-12 gap-5 flex-1 items-start">
       {/* RIGHT COLUMN: Store Profile Form (7 cols) */}
@@ -354,87 +351,6 @@ export const StoreProfileTab = ({
             </div>
           </div>
 
-          {/* Senior Feature: App Appearance & Dark Mode Selector */}
-          <div className="bg-surface-2 p-3.5 rounded-lg border border-line flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sun className="w-4 h-4 text-amber-500" />
-                <span className="font-bold text-ink text-xs">مظهر البرنامج والوضع الليلي (Dark Mode)</span>
-              </div>
-              <span className="text-[10px] text-ink-muted bg-surface border border-line px-2 py-0.5 rounded font-medium">
-                تطبيق فوري بدون إعادة تشغيل
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              {/* Option 1: Light Mode */}
-              <button
-                type="button"
-                onClick={() => setTheme('light')}
-                className={`flex items-center gap-2.5 p-2.5 rounded-lg border transition-all text-right cursor-pointer ${
-                  theme === 'light'
-                    ? 'bg-surface border-paid shadow-xs ring-2 ring-paid/30'
-                    : 'bg-surface/60 hover:bg-surface border-line'
-                }`}
-              >
-                <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
-                  <Sun className="w-4 h-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-ink">فاتح (نهاري)</span>
-                    {theme === 'light' && <CheckCircle2 className="w-3.5 h-3.5 text-paid shrink-0" />}
-                  </div>
-                  <p className="text-[10px] text-ink-muted m-0 truncate">ناصع ومناسب للإضاءة العالية</p>
-                </div>
-              </button>
-
-              {/* Option 2: Dark Mode */}
-              <button
-                type="button"
-                onClick={() => setTheme('dark')}
-                className={`flex items-center gap-2.5 p-2.5 rounded-lg border transition-all text-right cursor-pointer ${
-                  theme === 'dark'
-                    ? 'bg-surface border-paid shadow-xs ring-2 ring-paid/30'
-                    : 'bg-surface/60 hover:bg-surface border-line'
-                }`}
-              >
-                <div className="w-8 h-8 rounded-lg bg-brand-soft text-brand flex items-center justify-center shrink-0">
-                  <Moon className="w-4 h-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-ink">داكن (ليلي)</span>
-                    {theme === 'dark' && <CheckCircle2 className="w-3.5 h-3.5 text-paid shrink-0" />}
-                  </div>
-                  <p className="text-[10px] text-ink-muted m-0 truncate">مريح للعين وموفر للطاقة</p>
-                </div>
-              </button>
-
-              {/* Option 3: System Mode */}
-              <button
-                type="button"
-                onClick={() => setTheme('system')}
-                className={`flex items-center gap-2.5 p-2.5 rounded-lg border transition-all text-right cursor-pointer ${
-                  theme === 'system'
-                    ? 'bg-surface border-paid shadow-xs ring-2 ring-paid/30'
-                    : 'bg-surface/60 hover:bg-surface border-line'
-                }`}
-              >
-                <div className="w-8 h-8 rounded-lg bg-surface-2 text-ink-muted flex items-center justify-center shrink-0">
-                  <Monitor className="w-4 h-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-ink">تلقائي مع ويندوز</span>
-                    {theme === 'system' && <CheckCircle2 className="w-3.5 h-3.5 text-paid shrink-0" />}
-                  </div>
-                  <p className="text-[10px] text-ink-muted m-0 truncate">يتزامن تلقائياً مع نظام الجهاز</p>
-                </div>
-              </button>
-            </div>
-          </div>
-
           {/* Save Action Button */}
           <button
             type="submit"
@@ -456,11 +372,8 @@ export const StoreProfileTab = ({
           </span>
         </div>
 
-        {/* Realistic Receipt Canvas Paper (Preserved White Thermal Emulation) */}
-        <div 
-          className="w-full max-w-[320px] bg-white text-black font-mono text-[11.5px] p-5 shadow-card border border-line rounded flex flex-col relative select-text receipt-paper" 
-          data-receipt-preview="true"
-        >
+        {/* Realistic Receipt Canvas Paper */}
+        <div className="w-full max-w-[320px] bg-white text-ink font-mono text-[11.5px] p-5 shadow-card border border-line rounded flex flex-col relative select-text">
           {/* Top Zigzag Cut */}
           <div className="w-full h-2 receipt-zigzag mb-2 opacity-30"></div>
 
