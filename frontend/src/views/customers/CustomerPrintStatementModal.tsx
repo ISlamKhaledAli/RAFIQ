@@ -95,7 +95,7 @@ export const CustomerPrintStatementModal: React.FC<CustomerPrintStatementModalPr
         {/* Printable Preview Sheet */}
         <div className="flex-1 overflow-y-auto p-4 bg-canvas flex justify-center">
           <div
-            className={`bg-white text-black p-5 shadow-md border border-neutral-300 font-sans printable-statement receipt-paper ${
+            className={`bg-white text-black p-5 shadow-md border border-neutral-300 font-sans ${
               statementPrintMode === 'thermal' ? 'w-[320px] text-xs' : 'w-full text-sm'
             }`}
           >
