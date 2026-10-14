@@ -329,26 +329,7 @@ namespace RafiqPOS.Database
                                 idxCmd.ExecuteNonQuery();
                             }
 
-                            // Ensure default categories exist if table is empty
-                            using (var countCmd = new SQLiteCommand("SELECT COUNT(*) FROM categories;", conn, trans))
-                            {
-                                long count = Convert.ToInt64(countCmd.ExecuteScalar());
-                                if (count == 0)
-                                {
-                                    using (var seedCmd = new SQLiteCommand(@"
-                                        INSERT OR IGNORE INTO categories (id, name, display_order, is_active, created_at, updated_at) VALUES
-                                        ('cat_general', 'عام / متنوع', 0, 1, datetime('now'), datetime('now')),
-                                        ('cat_dairy', 'ألبان وأجبان', 1, 1, datetime('now'), datetime('now')),
-                                        ('cat_beverages', 'مشروبات وعصائر', 2, 1, datetime('now'), datetime('now')),
-                                        ('cat_groceries', 'بقوليات ومعلبات', 3, 1, datetime('now'), datetime('now')),
-                                        ('cat_snacks', 'حلويات ومقرمشات', 4, 1, datetime('now'), datetime('now')),
-                                        ('cat_cleaning', 'منظفات وعناية شخصية', 5, 1, datetime('now'), datetime('now'));
-                                    ", conn, trans))
-                                    {
-                                        seedCmd.ExecuteNonQuery();
-                                    }
-                                }
-                            }
+                            // Zero pre-seeded categories policy: categories table starts clean without pre-seeded mock categories
                         }
                     }
 
@@ -1902,14 +1883,7 @@ namespace RafiqPOS.Database
                         CREATE INDEX IF NOT EXISTS idx_categories_display_order ON categories(display_order);
                         CREATE INDEX IF NOT EXISTS idx_categories_is_active ON categories(is_active);
 
-                        -- Seed standard Egyptian supermarket categories
-                        INSERT OR IGNORE INTO categories (id, name, display_order, is_active, created_at, updated_at) VALUES
-                        ('cat_general', 'عام / متنوع', 0, 1, datetime('now'), datetime('now')),
-                        ('cat_dairy', 'ألبان وأجبان', 1, 1, datetime('now'), datetime('now')),
-                        ('cat_beverages', 'مشروبات وعصائر', 2, 1, datetime('now'), datetime('now')),
-                        ('cat_groceries', 'بقوليات ومعلبات', 3, 1, datetime('now'), datetime('now')),
-                        ('cat_snacks', 'حلويات ومقرمشات', 4, 1, datetime('now'), datetime('now')),
-                        ('cat_cleaning', 'منظفات وعناية شخصية', 5, 1, datetime('now'), datetime('now'));
+                        -- Zero pre-seeded categories policy: categories table starts clean without pre-seeded mock categories
 
                         INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
                         VALUES (5, 'product_categories', datetime('now'));

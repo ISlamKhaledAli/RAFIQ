@@ -797,16 +797,20 @@ export default function App() {
       { id: 'backup' as SettingsSubTab, label: 'نسخة احتياطية وحماية البيانات', icon: HardDrive },
       { id: 'printer' as SettingsSubTab, label: 'إعدادات الطابعة والورق', icon: Printer },
     ];
-    if (isRoot) {
+    if (isRoot || hasPermission('settings.features')) {
       items.push(
         { id: 'system' as SettingsSubTab, label: 'مفاتيح الميزات وفحص السيستم', icon: Activity },
+      );
+    }
+    if (isRoot) {
+      items.push(
         { id: 'scanner' as SettingsSubTab, label: 'قارئ الباركود والاسكانر', icon: Barcode },
         { id: 'security' as SettingsSubTab, label: 'حماية وأرقام السر (PIN)', icon: KeyRound },
         { id: 'demo' as SettingsSubTab, label: 'بيانات تجريبية وتدريب', icon: FlaskConical },
       );
     }
     return items;
-  }, [isRoot]);
+  }, [isRoot, hasPermission]);
 
   const allNavItems = [
     { id: 'pos' as TabType, label: 'الكاشير وشاشة البيع', icon: ShoppingCart, shortcut: 'F1 / Alt+1' },
@@ -821,7 +825,7 @@ export default function App() {
   ];
 
   const canAccessPos = isRoot || hasPermission('pos.access') || hasPermission('pos');
-  const canAccessEpay = isRoot || hasPermission('epay.access') || hasPermission('epay');
+  const canAccessEpay = (isRoot || hasPermission('epay.access') || hasPermission('epay')) && isEnabled('feature_epay_services');
   const canAccessDashboard = isRoot || hasPermission('reports.sales') || hasPermission('reports');
   const canAccessCustomers = isRoot || hasPermission('customers.view') || hasPermission('customers');
   const canAccessProducts = isRoot || hasPermission('products.view') || hasPermission('products');

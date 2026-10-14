@@ -6,8 +6,7 @@ import {
   ShieldCheck,
   Key,
   Lock,
-  FolderTree,
-  List,
+  LogIn,
   Search,
   Check,
   X,
@@ -21,7 +20,6 @@ import {
   EyeOff,
   UserCheck,
   UserX,
-  Layers,
   Settings,
   ShoppingCart,
   FileText,
@@ -207,7 +205,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
   supervisorPin,
   currentUser: propCurrentUser,
 }) => {
-  const { currentUser: authUser, isRoot } = useAuth();
+  const { currentUser: authUser, isRoot, login } = useAuth();
   const currentUser = propCurrentUser || authUser;
   const isRootSession = isRoot || currentUser?.role === 'root' || currentUser?.username === 'root';
   const [users, setUsers] = useState<UserDto[]>([]);
@@ -216,11 +214,10 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  // Active Tab/View
-  const [activeTab, setActiveTab] = useState<'tree' | 'table'>('tree');
-  // Form modes: 'none' | 'add' | 'edit' | 'permissions' | 'credentials'
-  const [formMode, setFormMode] = useState<'none' | 'add' | 'edit' | 'permissions' | 'credentials'>('none');
+  // Form modes: 'none' | 'add' | 'edit' | 'permissions' | 'credentials' | 'switchLogin'
+  const [formMode, setFormMode] = useState<'none' | 'add' | 'edit' | 'permissions' | 'credentials' | 'switchLogin'>('none');
   const [selectedUser, setSelectedUser] = useState<UserDto | null>(null);
+  const [credMethod, setCredMethod] = useState<'pin' | 'password'>('pin');
 
   // Search filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -235,6 +232,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
   const [confirmPin, setConfirmPin] = useState('');
   const [currentCredential, setCurrentCredential] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [switchSecret, setSwitchSecret] = useState('');
+  const [showSwitchSecret, setShowSwitchSecret] = useState(false);
   const [canDelegate, setCanDelegate] = useState(false);
   const [maxDepth, setMaxDepth] = useState(1);
   const [isActive, setIsActive] = useState(true);
@@ -470,9 +469,49 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
     setConfirmPin('');
     setCurrentCredential('');
     setShowPassword(false);
+    setCredMethod(user.role === 'admin' || user.role === 'root' ? 'password' : 'pin');
     setFormMode('credentials');
     setError('');
     setSuccessMsg('');
+  };
+
+  // Start Switch Login
+  const handleStartSwitchLogin = (user: UserDto) => {
+    setSelectedUser(user);
+    setSwitchSecret('');
+    setShowSwitchSecret(false);
+    setFormMode('switchLogin');
+    setError('');
+    setSuccessMsg('');
+  };
+
+  // Submit Switch Login
+  const handleSubmitSwitchLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUser) return;
+    if (!switchSecret.trim()) {
+      setError('يرجى إدخال الرقم السري (PIN) أو كلمة المرور للمتابعة.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    try {
+      const res = await login(selectedUser.username, switchSecret.trim());
+      if (res.success) {
+        setSuccessMsg(`تم تسجيل الدخول بنجاح بحساب (${selectedUser.displayName}).`);
+        if (onUsersChanged) onUsersChanged();
+        setTimeout(() => {
+          onClose();
+        }, 400);
+      } else {
+        setError(res.message || 'بيانات الدخول غير صحيحة. يرجى المحاولة مجدداً.');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'تعذر تسجيل الدخول.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Submit New Sub-User
@@ -808,6 +847,20 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
     );
   };
 
+  // Format readable Arabic date/time for last login
+  const formatLastLogin = (dateStr?: string | null) => {
+    if (!dateStr) return 'لم يسجل دخول بعد';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return 'لم يسجل دخول بعد';
+      const datePart = d.toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' });
+      const timePart = d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true });
+      return `${datePart} - ${timePart}`;
+    } catch {
+      return 'لم يسجل دخول بعد';
+    }
+  };
+
   // Render Recursive Tree Node
   const renderTreeNode = (node: UserDto, level = 0) => {
     const isExpanded = expandedNodes[node.id] !== false;
@@ -874,16 +927,6 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
               <div className="flex items-center gap-2 mt-1">
                 {renderRoleBadge(node)}
 
-                {/* Delegation Tag */}
-                {node.canDelegate ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                    <Layers className="w-3 h-3" />
-                    <span>مفوّض لإنشاء حسابات (عمق: {node.maxDepth || 1})</span>
-                  </span>
-                ) : (
-                  <span className="text-[11px] text-ink-muted">غير مفوّض بالتفريع</span>
-                )}
-
                 {/* Status Indicator */}
                 <span
                   className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold ${
@@ -895,6 +938,13 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                   <span className={`w-1.5 h-1.5 rounded-full ${node.isActive ? 'bg-paid' : 'bg-danger'}`} />
                   <span>{node.isActive ? 'نشط' : 'معطّل'}</span>
                 </span>
+
+                {/* Last Login Indicator */}
+                {node.lastLoginAt && (
+                  <span className="text-[11px] text-ink-muted">
+                    آخر دخول: {formatLastLogin(node.lastLoginAt)}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -935,15 +985,28 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
               </button>
             )}
 
+            {/* Switch Account / Login */}
+            {!isSelf && node.isActive && (
+              <button
+                type="button"
+                onClick={() => handleStartSwitchLogin(node)}
+                className="px-2.5 py-1.5 bg-paid-soft hover:bg-paid/20 text-paid text-xs font-bold rounded-lg border border-paid-border transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                title={`تسجيل الدخول والتبديل إلى حساب (${node.displayName})`}
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>دخول</span>
+              </button>
+            )}
+
             {/* Change Password / PIN */}
             <button
               type="button"
               onClick={() => handleStartCredentials(node)}
               className="px-2.5 py-1.5 bg-surface hover:bg-surface-2 text-ink text-xs font-bold rounded-lg border border-line transition-colors flex items-center gap-1.5 cursor-pointer"
-              title="تغيير كلمة المرور أو الرقم السري"
+              title="تغيير كلمة المرور أو الرقم السري (PIN)"
             >
               <Key className="w-3.5 h-3.5 text-amber-600" />
-              <span>دخول</span>
+              <span>كلمة المرور</span>
             </button>
 
             {/* Edit Profile */}
@@ -985,7 +1048,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
     );
   };
 
-  const isDirty = formMode !== 'none' && Boolean(
+  const isDirty = formMode !== 'none' && formMode !== 'switchLogin' && Boolean(
     username.trim() ||
     displayName.trim() ||
     password.trim() ||
@@ -1024,11 +1087,11 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
         <div className="bg-surface px-6 py-4 flex items-center justify-between border-b border-line shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-brand/10 border border-brand/20 text-brand flex items-center justify-center shrink-0 shadow-2xs">
-              <FolderTree className="w-5 h-5 text-brand" />
+              <Users className="w-5 h-5 text-brand" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-black text-ink">إدارة الهيكل الإداري والموظفين</h2>
+                <h2 className="text-lg font-black text-ink">إدارة حسابات الموظفين والكاشير</h2>
                 {isRootSession ? (
                   <span className="bg-brand text-white text-[11px] px-2.5 py-0.5 rounded-full font-bold shadow-2xs flex items-center gap-1">
                     <ShieldCheck className="w-3 h-3" />
@@ -1036,43 +1099,17 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                   </span>
                 ) : (
                   <span className="bg-brand/10 text-brand text-[11px] px-2.5 py-0.5 rounded-full font-bold border border-brand/20">
-                    صلاحيات مفوضة
+                    صلاحيات إدارية
                   </span>
                 )}
               </div>
               <p className="text-xs text-ink-muted font-medium">
-                شجرة الحسابات والتفويض الهرمي، ضبط كلمات المرور، والتحكم الشامل في ظهور أقسام النظام
+                إدارة حسابات الموظفين والكاشيرية، ضبط كلمات المرور والـ PIN، وتحديد الصلاحيات
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            {/* View Switcher */}
-            {formMode === 'none' && (
-              <div className="flex items-center bg-surface-2 p-1 rounded-xl border border-line">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('tree')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                    activeTab === 'tree' ? 'bg-surface text-ink shadow-2xs' : 'text-ink-muted hover:text-ink'
-                  }`}
-                >
-                  <FolderTree className="w-3.5 h-3.5" />
-                  <span>الشجرة الهرمية</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('table')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                    activeTab === 'table' ? 'bg-surface text-ink shadow-2xs' : 'text-ink-muted hover:text-ink'
-                  }`}
-                >
-                  <List className="w-3.5 h-3.5" />
-                  <span>جدول الموظفين</span>
-                </button>
-              </div>
-            )}
-
             {/* Close Button */}
             <button
               type="button"
@@ -1140,161 +1177,23 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                 </div>
               </div>
 
-              {/* TREE TAB */}
-              {activeTab === 'tree' && (
-                <div className="bg-surface rounded-2xl border border-line p-4 shadow-2xs">
-                  <div className="flex items-center justify-between pb-3 mb-2 border-b border-line text-xs text-ink-muted font-bold">
-                    <span>الهيكل التنظيمي وشجرة التفويض</span>
-                    <span>{users.length} حساب مسجل</span>
-                  </div>
-
-                  {loading && users.length === 0 ? (
-                    <div className="py-12 text-center text-ink-muted text-xs">جاري تحميل شجرة الحسابات...</div>
-                  ) : userTree.length === 0 ? (
-                    <div className="py-12 text-center text-ink-muted text-xs">لا يوجد حسابات مسجلة في النظام.</div>
-                  ) : (
-                    <div>{userTree.map((rootNode) => renderTreeNode(rootNode, 0))}</div>
-                  )}
+              {/* UNIFIED EMPLOYEE LIST */}
+              <div className="bg-surface rounded-2xl border border-line p-4 shadow-2xs">
+                <div className="flex items-center justify-between pb-3 mb-2 border-b border-line text-xs text-ink-muted font-bold">
+                  <span>قائمة وحسابات الموظفين</span>
+                  <span>{users.length} حساب مسجل</span>
                 </div>
-              )}
 
-              {/* TABLE TAB */}
-              {activeTab === 'table' && (
-                <div className="overflow-x-auto rounded-2xl border border-line bg-surface shadow-2xs">
-                  <table className="w-full text-right text-xs whitespace-nowrap">
-                    <thead className="bg-surface-2 text-ink-muted font-bold uppercase border-b border-line">
-                      <tr>
-                        <th className="px-4 py-3">الموظف</th>
-                        <th className="px-4 py-3">اسم الدخول</th>
-                        <th className="px-4 py-3">المشرف المباشر</th>
-                        <th className="px-4 py-3">الدور والتفويض</th>
-                        <th className="px-4 py-3">الحالة</th>
-                        <th className="px-4 py-3">آخر دخول</th>
-                        <th className="px-4 py-3 text-center">الإجراءات</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-line">
-                      {filteredUsers.length === 0 ? (
-                        <tr>
-                          <td colSpan={7} className="text-center py-8 text-ink-muted">
-                            لا توجد نتائج تطابق البحث.
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredUsers.map((u) => {
-                          const isRoot = u.role === 'root';
-                          const isSelf = currentUser?.id === u.id;
-                          const parentUser = u.parentId ? findUserById(u.parentId) : null;
-
-                          return (
-                            <tr key={u.id} className="hover:bg-surface-2 transition-colors">
-                              <td className="px-4 py-3 font-bold text-ink">
-                                <div className="flex items-center gap-2.5">
-                                  <div
-                                    className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
-                                      isRoot
-                                        ? 'bg-brand text-white'
-                                        : u.role === 'admin'
-                                        ? 'bg-paid-soft text-paid border border-paid-border'
-                                        : 'bg-surface-2 text-ink border border-line'
-                                    }`}
-                                  >
-                                    {isRoot ? <ShieldCheck className="w-4 h-4" /> : u.displayName.slice(0, 1)}
-                                  </div>
-                                  <div className="flex flex-col">
-                                    <span>{u.displayName}</span>
-                                    {isSelf && <span className="text-[10px] text-paid font-normal">(حسابك الحالي)</span>}
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 font-mono text-ink-muted dir-ltr text-right">@{u.username}</td>
-                              <td className="px-4 py-3 text-ink-muted">
-                                {parentUser ? `${parentUser.displayName} (@${parentUser.username})` : isRoot ? 'القمة (مستقل)' : '—'}
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="flex items-center gap-2">
-                                  {renderRoleBadge(u)}
-                                  {u.canDelegate && (
-                                    <span className="text-[10px] font-bold bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200">
-                                      مفوّض
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3">
-                                <span
-                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                                    u.isActive
-                                      ? 'bg-paid-soft text-paid border border-paid-border'
-                                      : 'bg-danger-soft text-danger border border-danger-border'
-                                  }`}
-                                >
-                                  <span className={`w-1.5 h-1.5 rounded-full ${u.isActive ? 'bg-paid' : 'bg-danger'}`} />
-                                  <span>{u.isActive ? 'نشط' : 'معطّل'}</span>
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-ink-muted font-mono">
-                                {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString('ar-EG-u-nu-latn') : 'لم يسجل دخول'}
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="flex items-center justify-center gap-1.5">
-                                  {(u.role === 'root' || u.username === 'root') || (isOwnerOrAdmin(u) && !isRootSession) ? (
-                                    <span
-                                      className="px-2 py-1 bg-paid-soft text-paid rounded-lg text-xs font-bold border border-paid-border flex items-center gap-1 shadow-2xs select-none"
-                                      title="صاحب المحل يمتلك كافة صلاحيات النظام بشكل دائم"
-                                    >
-                                      <ShieldCheck className="w-3 h-3 text-paid shrink-0" />
-                                      <span>كامل الصلاحيات</span>
-                                    </span>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleStartPermissions(u)}
-                                      className="px-2 py-1 bg-surface hover:bg-surface-2 text-ink rounded-lg text-xs font-semibold border border-line transition-colors cursor-pointer"
-                                      title="تعديل الصلاحيات"
-                                    >
-                                      الصلاحيات
-                                    </button>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleStartCredentials(u)}
-                                    className="px-2 py-1 bg-surface hover:bg-surface-2 text-amber-700 rounded-lg text-xs font-semibold border border-line transition-colors cursor-pointer"
-                                    title="كلمة المرور و PIN"
-                                  >
-                                    دخول
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleStartEdit(u)}
-                                    className="px-2 py-1 bg-surface hover:bg-surface-2 text-ink rounded-lg text-xs font-semibold border border-line transition-colors cursor-pointer"
-                                    title="تعديل البيانات"
-                                  >
-                                    تعديل
-                                  </button>
-                                  {!isOwnerOrAdmin(u) && !isSelf && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleToggleStatus(u)}
-                                      className={`px-2 py-1 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
-                                        u.isActive
-                                          ? 'bg-danger-soft hover:bg-danger/20 text-danger border-danger-border'
-                                          : 'bg-paid-soft hover:bg-paid/20 text-paid border-paid-border'
-                                      }`}
-                                    >
-                                      {u.isActive ? 'تعطيل' : 'تفعيل'}
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                {loading && users.length === 0 ? (
+                  <div className="py-12 text-center text-ink-muted text-xs">جاري تحميل بيانات الموظفين...</div>
+                ) : filteredUsers.length === 0 ? (
+                  <div className="py-12 text-center text-ink-muted text-xs">لا يوجد موظفون يطابقون كلمة البحث.</div>
+                ) : searchQuery.trim() ? (
+                  <div>{filteredUsers.map((u) => renderTreeNode(u, 0))}</div>
+                ) : (
+                  <div>{userTree.map((rootNode) => renderTreeNode(rootNode, 0))}</div>
+                )}
+              </div>
             </div>
           )}
 
@@ -1872,7 +1771,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
               <div className="flex items-center justify-between pb-3 border-b border-line">
                 <div className="flex items-center gap-2">
                   <Key className="w-5 h-5 text-amber-600" />
-                  <h3 className="text-base font-black text-ink">تعديل بيانات الدخول: {selectedUser.displayName}</h3>
+                  <h3 className="text-base font-black text-ink">تغيير كلمة المرور والرمز السري (PIN): {selectedUser.displayName}</h3>
                 </div>
                 <button
                   type="button"
@@ -1881,6 +1780,11 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                 >
                   الرجوع للهيكل الإداري
                 </button>
+              </div>
+
+              {/* Informative Guidance Notice */}
+              <div className="bg-surface-2 p-3 rounded-xl border border-line text-xs text-ink-muted leading-relaxed">
+                تُستخدم هذه النافذة لإعادة تعيين كلمة المرور أو الرمز السري (PIN) الخاص بالموظف في حال نسيانه أو الحاجة لتحديثه، دون التأثير على صلاحياته أو بياناته.
               </div>
 
               {/* Current Credential Prompt if editing root or admin */}
@@ -1902,55 +1806,136 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                 </div>
               )}
 
-              {/* Set New Password */}
-              <div className="bg-surface p-4 rounded-xl border border-line space-y-2">
-                <label className="block text-xs font-bold text-ink">تعيين كلمة مرور جديدة (نصية - اختياري)</label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="اتركه فارغاً إذا كنت لا تريد تغييره"
-                    className="w-full bg-surface border border-line rounded-xl pr-3.5 pl-9 py-2 text-ink text-xs focus:outline-none focus:border-brand"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink cursor-pointer"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
+              {/* Credential Method Switcher */}
+              <div className="bg-surface-2 p-1.5 rounded-xl border border-line grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCredMethod('pin')}
+                  className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    credMethod === 'pin'
+                      ? 'bg-surface text-brand shadow-xs border border-brand/20'
+                      : 'text-ink-muted hover:text-ink'
+                  }`}
+                >
+                  <Key className="w-4 h-4 text-amber-600" />
+                  <span>رقم سري (PIN أرقام) — للكاشير</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCredMethod('password')}
+                  className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    credMethod === 'password'
+                      ? 'bg-surface text-brand shadow-xs border border-brand/20'
+                      : 'text-ink-muted hover:text-ink'
+                  }`}
+                >
+                  <Lock className="w-4 h-4 text-brand" />
+                  <span>كلمة مرور نصية — للإدارة</span>
+                </button>
               </div>
 
-              {/* Set New PIN */}
-              <div className="bg-surface p-4 rounded-xl border border-line space-y-3">
-                <label className="block text-xs font-bold text-ink">تعيين رقم سري جديد (PIN: 4 - 8 أرقام)</label>
-                <div>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={8}
-                    value={pin}
-                    onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                    placeholder="••••"
-                    className="w-full bg-surface border border-line rounded-xl px-3.5 py-2 text-ink text-sm font-mono tracking-widest text-center focus:outline-none focus:border-brand"
-                  />
-                </div>
-                {pin && (
+              {/* PIN Method Panel */}
+              {credMethod === 'pin' && (
+                <div className="bg-surface p-4 rounded-xl border border-line space-y-3">
                   <div>
-                    <label className="block text-[11px] font-semibold text-ink-muted mb-1">تأكيد الرقم السري الجديد</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-ink">الرقم السري السريع (PIN: 4 - 8 أرقام)</label>
+                      <span className="text-[11px] text-paid font-medium">موصى به لنقاط البيع وشاشات اللمس</span>
+                    </div>
                     <input
                       type="password"
                       inputMode="numeric"
                       maxLength={8}
-                      value={confirmPin}
-                      onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
+                      autoFocus
+                      value={pin}
+                      onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
                       placeholder="••••"
                       className="w-full bg-surface border border-line rounded-xl px-3.5 py-2 text-ink text-sm font-mono tracking-widest text-center focus:outline-none focus:border-brand"
                     />
+                    <p className="text-[11px] text-ink-muted mt-1.5 leading-relaxed">
+                      أرقام سريعة تسهّل على الكاشير تسجيل الدخول السريع ولمس الشاشة بدون كيبورد.
+                    </p>
                   </div>
-                )}
+
+                  {pin && (
+                    <div>
+                      <label className="block text-[11px] font-semibold text-ink-muted mb-1">تأكيد الرقم السري الجديد</label>
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        maxLength={8}
+                        value={confirmPin}
+                        onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
+                        placeholder="••••"
+                        className="w-full bg-surface border border-line rounded-xl px-3.5 py-2 text-ink text-sm font-mono tracking-widest text-center focus:outline-none focus:border-brand"
+                      />
+                    </div>
+                  )}
+
+                  {password && (
+                    <div className="p-2 bg-brand-soft/30 rounded-lg text-[11px] text-brand border border-brand/20 flex items-center justify-between">
+                      <span>كلمة المرور النصية المضبوطة مسبقاً: مفعّلة</span>
+                      <button
+                        type="button"
+                        onClick={() => setPassword('')}
+                        className="text-danger hover:underline font-bold cursor-pointer"
+                      >
+                        إلغاء النصية والاعتماد على الـ PIN فقط
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Password Method Panel */}
+              {credMethod === 'password' && (
+                <div className="bg-surface p-4 rounded-xl border border-line space-y-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-ink">تعيين كلمة مرور جديدة</label>
+                    <span className="text-[11px] text-brand font-medium">لحسابات الإدارة والكيبورد الكامل</span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      autoFocus
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="اكتب كلمة مرور جديدة (أحرف أو أرقام)"
+                      className="w-full bg-surface border border-line rounded-xl pr-3.5 pl-9 py-2 text-ink text-xs focus:outline-none focus:border-brand"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink cursor-pointer"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-ink-muted leading-relaxed">
+                    تتيح تسجيل الدخول بكتابة الحروف والأرقام عبر الكيبورد وتوفر حماية قوية لحساب المدير.
+                  </p>
+
+                  {pin && (
+                    <div className="p-2 bg-brand-soft/30 rounded-lg text-[11px] text-brand border border-brand/20 flex items-center justify-between mt-2">
+                      <span>رقم الـ PIN السريع المضبوط مسبقاً: مفعّل</span>
+                      <button
+                        type="button"
+                        onClick={() => { setPin(''); setConfirmPin(''); }}
+                        className="text-danger hover:underline font-bold cursor-pointer"
+                      >
+                        إلغاء الـ PIN والاعتماد على النصية فقط
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Summary note */}
+              <div className="p-2.5 bg-surface-2 rounded-xl border border-line text-[11px] text-ink-muted flex items-center justify-between">
+                <span>وسيلة الدخول النشطة:</span>
+                <span className="font-bold text-brand">
+                  {pin && password ? 'كلاهما (PIN أرقام + كلمة مرور نصية)' : pin ? 'الرقم السري (PIN) فقط' : password ? 'كلمة المرور النصية فقط' : 'لم يتم تحديد وسيلة جديدة بعد'}
+                </span>
               </div>
 
               <div className="flex items-center gap-3 pt-3">
@@ -1959,7 +1944,85 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                   disabled={loading}
                   className="flex-1 py-2.5 bg-brand hover:bg-brand-hover text-white font-bold text-xs rounded-xl transition-all shadow-xs disabled:opacity-40 cursor-pointer"
                 >
-                  {loading ? 'جاري التحديث...' : 'تأكيد وحفظ بيانات الدخول'}
+                  {loading ? 'جاري الحفظ...' : 'حفظ وتحديث كلمة المرور'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormMode('none')}
+                  className="px-5 py-2.5 bg-surface hover:bg-surface-2 border border-line text-ink font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* ======================================================== */}
+          {/* 6. SWITCH ACCOUNT / LOGIN AS USER                        */}
+          {/* ======================================================== */}
+          {formMode === 'switchLogin' && selectedUser && (
+            <form onSubmit={handleSubmitSwitchLogin} className="max-w-md mx-auto space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-line">
+                <div className="flex items-center gap-2">
+                  <LogIn className="w-5 h-5 text-paid" />
+                  <h3 className="text-base font-black text-ink">تسجيل الدخول كـ: {selectedUser.displayName}</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormMode('none')}
+                  className="text-xs text-ink-muted hover:text-ink font-bold cursor-pointer"
+                >
+                  الرجوع للهيكل الإداري
+                </button>
+              </div>
+
+              {/* Account Card Preview */}
+              <div className="p-3.5 bg-paid-soft/40 border border-paid-border rounded-xl flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-paid text-white flex items-center justify-center font-bold text-sm shrink-0">
+                  {selectedUser.role === 'root' ? <ShieldCheck className="w-5 h-5" /> : selectedUser.displayName.slice(0, 1)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-sm text-ink">{selectedUser.displayName}</div>
+                  <div className="text-xs text-ink-muted font-mono dir-ltr text-right">@{selectedUser.username}</div>
+                </div>
+                {renderRoleBadge(selectedUser)}
+              </div>
+
+              {/* Instructions */}
+              <p className="text-xs text-ink-muted leading-relaxed">
+                يرجى إدخال الرقم السري (PIN) أو كلمة المرور الخاصة بهذا الحساب للتحقق والتبديل الفوري للجلسة.
+              </p>
+
+              {/* PIN / Password Input */}
+              <div className="bg-surface p-4 rounded-xl border border-line space-y-2">
+                <label className="block text-xs font-bold text-ink">الرقم السري (PIN) أو كلمة المرور</label>
+                <div className="relative">
+                  <input
+                    type={showSwitchSecret ? 'text' : 'password'}
+                    autoFocus
+                    value={switchSecret}
+                    onChange={(e) => setSwitchSecret(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full bg-surface border border-line rounded-xl pr-3.5 pl-9 py-2.5 text-ink text-sm font-mono tracking-widest text-center focus:outline-none focus:border-brand"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSwitchSecret(!showSwitchSecret)}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink cursor-pointer"
+                  >
+                    {showSwitchSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 pt-3">
+                <button
+                  type="submit"
+                  disabled={loading || !switchSecret.trim()}
+                  className="flex-1 py-2.5 bg-paid hover:bg-paid-dark text-white font-bold text-xs rounded-xl transition-all shadow-xs disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>{loading ? 'جاري التحقق...' : 'تسجيل الدخول فوراً والتبديل'}</span>
                 </button>
                 <button
                   type="button"
@@ -1977,12 +2040,12 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
         <div className="px-6 py-3 bg-surface-2 border-t border-line flex items-center justify-between text-xs text-ink-muted shrink-0">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-brand" />
-            <span>نظام التفويض الهرمي اللامركزي (Hierarchical RBAC) — تشفير محلي PBKDF2</span>
+            <span>نظام أمان وحماية الحسابات — تشفير محلي PBKDF2</span>
           </div>
           <div className="flex items-center gap-3">
             <span>الحسابات المسجلة: {users.length}</span>
             <span>•</span>
-            <span>{isRootSession ? 'جلسة الروت: يمكنك تخصيص وتعديل صلاحيات صاحب المحل' : 'حساب صاحب المحل والمدير محمي بكامل الصلاحيات'}</span>
+            <span>{isRootSession ? 'جلسة الروت: يمكنك تخصيص وتعديل صلاحيات صاحب المحل' : 'حساب صاحب المحل محمي بكامل الصلاحيات'}</span>
           </div>
         </div>
       </div>

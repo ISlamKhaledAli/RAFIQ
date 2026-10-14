@@ -655,16 +655,8 @@ namespace RafiqPOS.Services
                             cmd.ExecuteNonQuery();
                         }
 
-                        // 6. Ensure default general categories exist
+                        // 6. Zero pre-seeded categories policy: keep categories clean
                         using (var cmd = new System.Data.SQLite.SQLiteCommand(@"
-                            INSERT OR IGNORE INTO categories (id, name, display_order, is_active, created_at, updated_at) VALUES
-                            ('cat_general', 'عام / متنوع', 0, 1, datetime('now'), datetime('now')),
-                            ('cat_dairy', 'ألبان وأجبان', 1, 1, datetime('now'), datetime('now')),
-                            ('cat_beverages', 'مشروبات وعصائر', 2, 1, datetime('now'), datetime('now')),
-                            ('cat_groceries', 'بقوليات ومعلبات', 3, 1, datetime('now'), datetime('now')),
-                            ('cat_snacks', 'حلويات ومقرمشات', 4, 1, datetime('now'), datetime('now')),
-                            ('cat_cleaning', 'منظفات وعناية شخصية', 5, 1, datetime('now'), datetime('now'));
-
                             DELETE FROM customer_ledger WHERE customer_id = 'cust_general_cash';
                             DELETE FROM customers WHERE id = 'cust_general_cash';
                         ", conn, trans))

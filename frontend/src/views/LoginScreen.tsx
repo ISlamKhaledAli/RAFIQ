@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Lock,
   User as UserIcon,
@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import { invoke, type UserDto } from '../bridge/ipc';
+import { CustomSelect, type SelectOption } from '../components/CustomSelect';
 
 export const LoginScreen: React.FC = () => {
   const { login } = useAuth();
@@ -26,8 +27,30 @@ export const LoginScreen: React.FC = () => {
   const [lockoutSeconds, setLockoutSeconds] = useState<number>(0);
   const [isNumericMode, setIsNumericMode] = useState<boolean>(false);
   const [storeName, setStoreName] = useState<string>('متجر رفيق');
+  const [userPickerMode, setUserPickerMode] = useState<'auto' | 'dropdown' | 'buttons'>('auto');
 
   const passwordInputRef = useRef<HTMLInputElement>(null);
+
+  const isDropdown = userPickerMode === 'dropdown' || (userPickerMode === 'auto' && activeUsers.length > 3);
+
+  const userSelectOptions: SelectOption[] = useMemo(() => {
+    return activeUsers.map((u) => ({
+      value: u.username,
+      label: u.displayName,
+      badge: u.role === 'admin' ? 'صاحب المحل' : 'كاشير',
+      icon: (
+        <div
+          className={`w-6 h-6 rounded-md flex items-center justify-center font-bold text-xs shrink-0 ${
+            u.role === 'admin'
+              ? 'bg-paid-soft text-paid border border-paid-border'
+              : 'bg-brand-soft text-brand border border-brand/20'
+          }`}
+        >
+          {u.displayName.slice(0, 1)}
+        </div>
+      ),
+    }));
+  }, [activeUsers]);
 
   useEffect(() => {
     // Load active users for fast cashier selection
@@ -206,59 +229,116 @@ export const LoginScreen: React.FC = () => {
               </div>
             ) : null}
 
-            {/* Quick User Picker */}
+            {/* Quick User Picker: Adaptive Dropdown or Quick Chips */}
             {activeUsers.length > 0 && (
-              <div className="mb-5">
-                <label className="block text-xs font-semibold text-ink-muted mb-2">
-                  اختر موظفاً سريعاً:
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {activeUsers.map((u) => {
-                    const isSelected = username.toLowerCase() === u.username.toLowerCase();
-                    return (
-                      <button
-                        key={u.id}
-                        type="button"
-                        onClick={() => {
-                          setUsername(u.username);
-                          setPassword('');
-                          setError('');
-                          if (passwordInputRef.current) {
-                            passwordInputRef.current.focus();
-                          }
-                        }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all flex items-center gap-1.5 ${
-                          isSelected
-                            ? 'bg-brand text-white border-brand shadow-sm'
-                            : 'bg-surface-2 text-ink border-line hover:border-line-hover'
-                        }`}
-                      >
-                        <UserIcon className="w-3.5 h-3.5" />
-                        <span>{u.displayName}</span>
-                        {u.role === 'admin' && (
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${isSelected ? 'bg-white/20 text-white' : 'bg-paid-soft text-paid'}`}>
-                            صاحب المحل
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-ink-muted">
+                    {isDropdown ? 'اختر حساب الموظف من القائمة:' : 'اختر موظفاً سريعاً:'}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-ink-muted">
+                      ({activeUsers.length} موظف متاح)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setUserPickerMode((prev) => {
+                          const currentIsDropdown = prev === 'dropdown' || (prev === 'auto' && activeUsers.length > 3);
+                          return currentIsDropdown ? 'buttons' : 'dropdown';
+                        })
+                      }
+                      className="text-[11px] font-bold text-brand hover:underline cursor-pointer"
+                      title="التبديل بين القائمة المنسدلة والأزرار"
+                    >
+                      {isDropdown ? 'عرض كأزرار' : 'عرض كقائمة'}
+                    </button>
+                  </div>
                 </div>
+
+                {isDropdown ? (
+                  <CustomSelect
+                    value={activeUsers.some((u) => u.username.toLowerCase() === username.toLowerCase()) ? username : ''}
+                    onChange={(val) => {
+                      setUsername(val);
+                      setPassword('');
+                      setError('');
+                      if (passwordInputRef.current) {
+                        passwordInputRef.current.focus();
+                      }
+                    }}
+                    options={userSelectOptions}
+                    placeholder="اختر موظفاً للدخول السريع..."
+                    className="w-full text-xs"
+                    searchable={activeUsers.length > 5}
+                  />
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {activeUsers.map((u) => {
+                      const isSelected = username.toLowerCase() === u.username.toLowerCase();
+                      return (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={() => {
+                            setUsername(u.username);
+                            setPassword('');
+                            setError('');
+                            if (passwordInputRef.current) {
+                              passwordInputRef.current.focus();
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all flex items-center gap-1.5 cursor-pointer ${
+                            isSelected
+                              ? 'bg-brand text-white border-brand shadow-sm'
+                              : 'bg-surface-2 text-ink border-line hover:border-line-hover'
+                          }`}
+                        >
+                          <UserIcon className="w-3.5 h-3.5" />
+                          <span>{u.displayName}</span>
+                          {u.role === 'admin' ? (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${isSelected ? 'bg-white/20 text-white' : 'bg-paid-soft text-paid'}`}>
+                              صاحب المحل
+                            </span>
+                          ) : (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${isSelected ? 'bg-white/20 text-white' : 'bg-surface text-ink-muted'}`}>
+                              كاشير
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
             {/* Login Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-ink mb-1.5">
-                  اسم المستخدم
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-ink">
+                    اسم المستخدم (أو كتابة يدوية)
+                  </label>
+                  {username && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUsername('');
+                        setPassword('');
+                      }}
+                      className="text-[11px] text-ink-muted hover:text-danger cursor-pointer"
+                    >
+                      مسح
+                    </button>
+                  )}
+                </div>
                 <div className="relative">
                   <input
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="ادخل اسم المستخدم..."
+                    placeholder="ادخل اسم المستخدم يدوياً..."
                     disabled={lockoutSeconds > 0 || isSubmitting}
                     className="w-full h-11 pr-10 pl-4 rounded-xl border border-line focus:border-brand focus:ring-2 focus:ring-brand-soft bg-surface text-ink text-sm transition-all"
                   />
