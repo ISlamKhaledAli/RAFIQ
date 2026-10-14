@@ -456,49 +456,49 @@ export const PaymentModal = ({
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
           {/* 1. Complete Invoice Meta, Financial Summary & Customer Selector Card */}
-          <div className="bg-[#f8faf9] border border-[#dce1dc] rounded-2xl p-3 sm:p-4 flex flex-col gap-3 shadow-2xs">
+          <div className="bg-surface-2 border border-line rounded-2xl p-3 sm:p-4 flex flex-col gap-3 shadow-2xs">
             {/* Top Row: Invoice # + Item Counts + Subtotal + Discount Input + Grand Total Card */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#dce1dc]/80">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-line/80">
               <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                 {/* Invoice Number Badge */}
                 <div className="flex items-center gap-1.5 font-bold">
-                  <span className="text-xs text-[#0f172a]">فاتورة:</span>
-                  <span className="text-xs font-mono font-bold text-[#006d41] bg-[#eaf5ee] border border-[#c4e3d0] px-2.5 py-0.5 rounded-md shadow-2xs">
+                  <span className="text-xs text-ink">فاتورة:</span>
+                  <span className="text-xs font-mono font-bold text-paid bg-paid-soft border border-paid-border px-2.5 py-0.5 rounded-md shadow-2xs">
                     #{invoiceNumber || '1'}
                   </span>
                 </div>
 
                 {/* Items and Pieces Count */}
-                <div className="text-[11px] text-[#52605d] font-medium bg-white px-2.5 py-0.5 rounded-md border border-[#dce1dc]">
+                <div className="text-[11px] text-ink-muted font-medium bg-surface px-2.5 py-0.5 rounded-md border border-line">
                   {itemCount} صنف ({totalItemCount} قطعة)
                 </div>
 
                 {/* Subtotal */}
                 <div className="flex items-center gap-1 text-xs">
-                  <span className="text-[#52605d]">إجمالي السلة:</span>
-                  <span className="font-bold text-[#0f172a] font-mono tabular-nums">
+                  <span className="text-ink-muted">إجمالي السلة:</span>
+                  <span className="font-bold text-ink font-mono tabular-nums">
                     {formatArabicCurrency(subtotalPiasters)}
                   </span>
                 </div>
 
                 {/* Interactive Discount Field */}
                 <div className="flex items-center gap-1 text-xs">
-                  <span className="text-[#b23a2e] font-bold shrink-0">خصم:</span>
+                  <span className="text-danger font-bold shrink-0">خصم:</span>
                   <div className="w-24">
                     <MoneyInput
                       valuePiasters={discountPiasters}
                       onChangePiasters={(val) => {
                         if (onDiscountChange) onDiscountChange(val);
                       }}
-                      className="h-7 text-xs text-[#b23a2e] font-bold border-[#b23a2e]/30 focus:border-[#b23a2e] bg-[#fdf3f2] text-right pr-1.5 pl-6 rounded-md shadow-2xs"
+                      className="h-7 text-xs text-danger font-bold border-danger/30 focus:border-danger bg-danger-soft text-right pr-1.5 pl-6 rounded-md shadow-2xs"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Grand Total Hero Box */}
-              <div className="flex items-center gap-2.5 bg-gradient-to-br from-[#00372d] to-[#004d3f] text-white px-3.5 py-1.5 rounded-xl shadow-xs">
-                <span className="text-xs text-[#83bfaf] font-semibold">المطلوب دفعه:</span>
+              <div className="flex items-center gap-2.5 bg-gradient-to-br from-brand-dark to-brand text-white px-3.5 py-1.5 rounded-xl shadow-xs">
+                <span className="text-xs text-emerald-200 font-semibold">المطلوب دفعه:</span>
                 <span className="text-xl sm:text-2xl font-black font-mono tabular-nums tracking-tight">
                   {formatArabicCurrency(netTotalPiasters)}
                 </span>
@@ -508,7 +508,7 @@ export const PaymentModal = ({
             {/* Bottom Row: Customer Selector & Quick Add Trigger */}
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 flex-1 min-w-[280px]">
-                <div className="flex items-center gap-1.5 text-xs text-[#006d41] font-bold shrink-0">
+                <div className="flex items-center gap-1.5 text-xs text-paid font-bold shrink-0">
                   <UserCheck className="w-4 h-4" />
                   <span>الزبون:</span>
                 </div>
@@ -536,7 +536,7 @@ export const PaymentModal = ({
                 <button
                   type="button"
                   onClick={() => setShowQuickAdd(true)}
-                  className="px-2.5 py-1.5 text-xs font-bold text-[#006d41] bg-[#eaf5ee] hover:bg-[#d8edd0] border border-[#c4e3d0] rounded-lg transition-colors shrink-0 shadow-2xs cursor-pointer active:scale-95 flex items-center gap-1"
+                  className="px-2.5 py-1.5 text-xs font-bold text-paid bg-paid-soft hover:bg-paid/20 border border-paid-border rounded-lg transition-colors shrink-0 shadow-2xs cursor-pointer active:scale-95 flex items-center gap-1"
                   title="تسجيل زبون جديد في النوتة فوراً"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
@@ -547,13 +547,13 @@ export const PaymentModal = ({
 
             {/* Quick Add Customer Inline Form (Toggled) */}
             {showQuickAdd && (
-              <form onSubmit={handleQuickAddCustomer} className="p-3 bg-white rounded-xl border border-[#c4e3d0] flex flex-wrap items-center gap-2 shadow-2xs mt-1">
+              <form onSubmit={handleQuickAddCustomer} className="p-3 bg-surface rounded-xl border border-paid-border flex flex-wrap items-center gap-2 shadow-2xs mt-1">
                 <input
                   type="text"
                   placeholder="اسم الزبون *"
                   value={quickName}
                   onChange={(e) => setQuickName(e.target.value)}
-                  className="flex-1 min-w-[140px] h-8 text-xs px-2.5 rounded-lg border border-[#dce1dc] focus:border-[#006d41] outline-none"
+                  className="flex-1 min-w-[140px] h-8 text-xs px-2.5 rounded-lg border border-line focus:border-paid outline-none"
                   autoFocus
                 />
                 <input
@@ -561,12 +561,12 @@ export const PaymentModal = ({
                   placeholder="رقم الموبايل"
                   value={quickPhone}
                   onChange={(e) => setQuickPhone(e.target.value)}
-                  className="flex-1 min-w-[120px] h-8 text-xs px-2.5 rounded-lg border border-[#dce1dc] focus:border-[#006d41] outline-none font-mono"
+                  className="flex-1 min-w-[120px] h-8 text-xs px-2.5 rounded-lg border border-line focus:border-paid outline-none font-mono"
                 />
                 <button
                   type="submit"
                   disabled={quickSaving || !quickName.trim()}
-                  className="px-3 h-8 bg-[#006d41] hover:bg-[#005230] text-white text-xs font-bold rounded-lg disabled:opacity-50 cursor-pointer"
+                  className="px-3 h-8 bg-paid hover:bg-paid-hover text-white text-xs font-bold rounded-lg disabled:opacity-50 cursor-pointer"
                 >
                   {quickSaving ? 'ثواني بنحفظ...' : 'حفظ واختيار الزبون'}
                 </button>

@@ -4,19 +4,129 @@
 
 @layer base {
   :root {
+    /* Color Scheme */
+    color-scheme: light;
+
+    /* Base Light Tokens (Hex) */
     --canvas: #F3F5F2;
     --surface: #FFFFFF;
+    --surface-pure: #FFFFFF;
     --surface-2: #F1F5F4;
+    --surface-3: #EBF0EE;
+    --surface-dim: #D7DADD;
+    --surface-bright: #F3F5F2;
     --ink: #0F172A;
     --ink-muted: #52605D;
     --line: #DCE1DC;
+    --line-hover: #B5C0B7;
     --brand: #004D3F;
     --brand-dark: #00372D;
     --brand-hover: #00372D;
+    --brand-container: #0B4F42;
     --brand-soft: #E6F2ED;
     --paid: #006D41;
+    --paid-hover: #005734;
+    --paid-soft: #EAF5EE;
+    --paid-border: #C4E3D0;
     --warn: #B3720E;
+    --warn-soft: #FEF7EC;
+    --warn-border: #F5DEB4;
     --danger: #B23A2E;
+    --danger-soft: #FDF3F2;
+    --danger-border: #F6CBC6;
+    --danger-ink: #7A1D14;
+
+    /* RGB Space-Separated Channels for Tailwind Opacity withOpacity() */
+    --canvas-rgb: 243 245 242;
+    --surface-rgb: 255 255 255;
+    --surface-pure-rgb: 255 255 255;
+    --surface-2-rgb: 241 245 244;
+    --surface-3-rgb: 235 240 238;
+    --surface-dim-rgb: 215 218 221;
+    --surface-bright-rgb: 243 245 242;
+    --ink-rgb: 15 23 42;
+    --ink-muted-rgb: 82 96 93;
+    --line-rgb: 220 225 220;
+    --line-hover-rgb: 181 192 183;
+    --brand-rgb: 0 77 63;
+    --brand-dark-rgb: 0 55 45;
+    --brand-hover-rgb: 0 55 45;
+    --brand-container-rgb: 11 79 66;
+    --brand-soft-rgb: 230 242 237;
+    --paid-rgb: 0 109 65;
+    --paid-hover-rgb: 0 87 52;
+    --paid-soft-rgb: 234 245 238;
+    --paid-border-rgb: 196 227 208;
+    --warn-rgb: 179 114 14;
+    --warn-soft-rgb: 254 247 236;
+    --warn-border-rgb: 245 222 180;
+    --danger-rgb: 178 58 46;
+    --danger-soft-rgb: 253 243 242;
+    --danger-border-rgb: 246 203 198;
+    --danger-ink-rgb: 122 29 20;
+  }
+
+  .dark {
+    /* Color Scheme */
+    color-scheme: dark;
+
+    /* Senior Dark Obsidian & Forest Palette */
+    --canvas: #0C110F;
+    --surface: #131B18;
+    --surface-pure: #131B18;
+    --surface-2: #1A2420;
+    --surface-3: #222F2A;
+    --surface-dim: #0F1613;
+    --surface-bright: #1A2420;
+    --ink: #F1F5F9;
+    --ink-muted: #94A3B8;
+    --line: #26342F;
+    --line-hover: #364A43;
+    --brand: #10B981;
+    --brand-dark: #064E3B;
+    --brand-hover: #059669;
+    --brand-container: #047857;
+    --brand-soft: #0F2C24;
+    --paid: #34D399;
+    --paid-hover: #10B981;
+    --paid-soft: #092E20;
+    --paid-border: #14532D;
+    --warn: #F59E0B;
+    --warn-soft: #2D2006;
+    --warn-border: #78350F;
+    --danger: #EF4444;
+    --danger-soft: #2D1210;
+    --danger-border: #7F1D1D;
+    --danger-ink: #FCA5A5;
+
+    /* RGB Space-Separated Channels for Tailwind Opacity withOpacity() */
+    --canvas-rgb: 12 17 15;
+    --surface-rgb: 19 27 24;
+    --surface-pure-rgb: 19 27 24;
+    --surface-2-rgb: 26 36 32;
+    --surface-3-rgb: 34 47 42;
+    --surface-dim-rgb: 15 22 19;
+    --surface-bright-rgb: 26 36 32;
+    --ink-rgb: 241 245 249;
+    --ink-muted-rgb: 148 163 184;
+    --line-rgb: 38 52 47;
+    --line-hover-rgb: 54 74 67;
+    --brand-rgb: 16 185 129;
+    --brand-dark-rgb: 6 78 59;
+    --brand-hover-rgb: 5 150 105;
+    --brand-container-rgb: 4 120 87;
+    --brand-soft-rgb: 15 44 36;
+    --paid-rgb: 52 211 153;
+    --paid-hover-rgb: 16 185 129;
+    --paid-soft-rgb: 9 46 32;
+    --paid-border-rgb: 20 83 45;
+    --warn-rgb: 245 158 11;
+    --warn-soft-rgb: 45 32 6;
+    --warn-border-rgb: 120 53 15;
+    --danger-rgb: 239 68 68;
+    --danger-soft-rgb: 45 18 16;
+    --danger-border-rgb: 127 29 29;
+    --danger-ink-rgb: 252 165 165;
   }
 
   *,
@@ -164,7 +274,7 @@
   tbody tr.cursor-pointer:hover,
   tbody tr[role="button"]:hover,
   tbody tr[onclick]:hover {
-    background-color: rgba(11, 79, 66, 0.04) !important;
+    background-color: rgba(var(--brand-rgb), 0.05) !important;
     cursor: pointer !important;
   }
 
@@ -172,8 +282,8 @@
     margin: 0;
     padding: 0;
     font-family: 'IBM Plex Sans Arabic', 'Cairo', 'Tajawal', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #F3F5F2;
-    color: #14181A;
+    background-color: var(--canvas);
+    color: var(--ink);
     direction: rtl;
     text-align: right;
     overflow: hidden;
@@ -183,6 +293,7 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     letter-spacing: 0;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 }
 
@@ -206,11 +317,11 @@
 }
 
 /* Hairline Grid Borders */
-.hairline-b { border-bottom: 1px solid #DCE1DC; }
-.hairline-t { border-top: 1px solid #DCE1DC; }
-.hairline-l { border-left: 1px solid #DCE1DC; }
-.hairline-r { border-right: 1px solid #DCE1DC; }
-.hairline-all { border: 1px solid #DCE1DC; }
+.hairline-b { border-bottom: 1px solid var(--line); }
+.hairline-t { border-top: 1px solid var(--line); }
+.hairline-l { border-left: 1px solid var(--line); }
+.hairline-r { border-right: 1px solid var(--line); }
+.hairline-all { border: 1px solid var(--line); }
 
 /* Custom Retail Scrollbars */
 ::-webkit-scrollbar {
@@ -219,16 +330,16 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #F7F8F6;
+  background: var(--canvas);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #DCE1DC;
+  background: var(--line);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #BFC9C4;
+  background: var(--line-hover);
 }
 
 /* Thermal Paper Cut Zigzag */
@@ -263,14 +374,102 @@
   height: 6px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #F7F8F6;
+  background: var(--canvas);
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #DCE1DC;
+  background: var(--line);
   border-radius: 3px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #BFC9C4;
+  background: var(--line-hover);
+}
+
+/* =========================================================================
+   SENIOR DARK MODE SPECIALIZED RETAIL GUARDS
+   ========================================================================= */
+
+.dark select {
+  background-color: var(--surface-2);
+  color: var(--ink);
+  border-color: var(--line);
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2310B981' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+}
+
+.dark select option {
+  background-color: #1A2420;
+  color: #F1F5F9;
+}
+
+.dark input:not([data-theme-preserve]):not([type="checkbox"]):not([type="radio"]),
+.dark textarea:not([data-theme-preserve]) {
+  color: var(--ink);
+}
+
+/* Senior Thermal Receipt & Printable Paper Protection */
+.receipt-paper,
+[data-receipt-preview],
+#printable-receipt,
+.printable-statement,
+.barcode-label-preview {
+  background-color: #FFFFFF !important;
+  color: #000000 !important;
+}
+
+.receipt-paper *,
+[data-receipt-preview] *,
+#printable-receipt *,
+.printable-statement *,
+.barcode-label-preview * {
+  color: #000000 !important;
+}
+
+/* Senior Legacy Fallback Shields for Utility Classes */
+.dark .bg-white:not(.receipt-paper):not([data-theme-preserve]):not([data-receipt-preview]):not(.barcode-label-preview) {
+  background-color: var(--surface) !important;
+}
+
+.dark .text-slate-900:not(.receipt-paper *):not([data-theme-preserve] *):not([data-receipt-preview] *) {
+  color: var(--ink) !important;
+}
+
+.dark .text-slate-800:not(.receipt-paper *):not([data-theme-preserve] *):not([data-receipt-preview] *) {
+  color: var(--ink) !important;
+}
+
+.dark .text-slate-700:not(.receipt-paper *):not([data-theme-preserve] *):not([data-receipt-preview] *) {
+  color: var(--ink-muted) !important;
+}
+
+.dark .text-slate-600:not(.receipt-paper *):not([data-theme-preserve] *):not([data-receipt-preview] *) {
+  color: var(--ink-muted) !important;
+}
+
+.dark .text-slate-500:not(.receipt-paper *):not([data-theme-preserve] *):not([data-receipt-preview] *) {
+  color: var(--ink-muted) !important;
+}
+
+.dark .bg-slate-50:not(.receipt-paper):not([data-theme-preserve]):not([data-receipt-preview]) {
+  background-color: var(--surface-2) !important;
+}
+
+.dark .bg-slate-100:not(.receipt-paper):not([data-theme-preserve]):not([data-receipt-preview]) {
+  background-color: var(--surface-2) !important;
+}
+
+.dark .bg-slate-200:not(.receipt-paper):not([data-theme-preserve]):not([data-receipt-preview]) {
+  background-color: var(--surface-3) !important;
+}
+
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark .border-slate-300 {
+  border-color: var(--line) !important;
+}
+
+.dark .shadow-card,
+.dark .shadow-lg,
+.dark .shadow-xl {
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.45) !important;
 }
 
 /* Composable Entrance Animations (Tailwind v3.4 + Chromium 109 Compatible) */
