@@ -112,6 +112,12 @@ namespace RafiqPOS.Services
                 // =========================================================================
                 TestWeightsAndSuppliersDeepStress(saleService, purchaseService, supplierService, returnService, prodRepo, result);
 
+                // =========================================================================
+                // Scenario 9: E-Payment Smart Pricing Engine & Atomic Lifecycle Stress
+                // =========================================================================
+                var epayRepo = new EpayRepository(tempConnStr, auditRepo);
+                TestEpaySmartPricingAndTransactionsLifecycle(epayRepo, auditRepo, result);
+
                 result.Message = string.Format("اكتمل فحص الحالات المتقدمة بنجاح: تم اجتياز {0} من اصل {1} تحقق.", result.PassedAssertions, result.TotalAssertions);
             }
             catch (Exception ex)
@@ -931,6 +937,270 @@ namespace RafiqPOS.Services
             Assert(successfulOps == threadCount, "تنفيذ كافة العمليات المتزامنة على المورد بنجاح تام تحت FinancialWriteLock", result);
             var finalVerify = supplierService.VerifyBalance(supplier.Id);
             Assert(finalVerify.IsBalanced && finalVerify.DiscrepancyPiasters == 0, "سلامة وتطابق كشف حساب المورد بعد اختبار الإجهاد التزامني المعقد", result);
+        }
+
+        private static void TestEpaySmartPricingAndTransactionsLifecycle(EpayRepository epayRepo, AuditLogRepository auditRepo, SeniorMasterEdgeCaseResult result)
+        {
+            Console.WriteLine("\n--- Scenario 9: E-Payment Smart Pricing Engine & Atomic Lifecycle Stress ---");
+
+            // 1. Create Terminal with Smart Pricing Defaults (Per-Thousand Fee + Percent Commission with Caps)
+            var terminal = epayRepo.SaveTerminal(new EpayTerminal
+            {
+                Name = "ماكينة فوري الذكية",
+                Provider = "fawry",
+                TerminalCode = "FWR-9988",
+                BalancePiasters = 100000, // 1000 EGP
+                LowBalanceAlertPiasters = 20000,
+                IsActive = true,
+                CustomerFeeType = "per_thousand",
+                CustomerFeeValue = 500, // 5 EGP per 1000 EGP
+                CustomerFeeMinPiasters = 200, // Min fee 2 EGP
+                CustomerFeeMaxPiasters = 3000, // Max fee 30 EGP
+                ProviderCommissionType = "percent",
+                ProviderCommissionValue = 150, // 1.5% (150 bps)
+                ProviderCommissionMinPiasters = 50, // Min commission 0.50 EGP
+                ProviderCommissionMaxPiasters = 1000 // Max commission 10 EGP
+            });
+
+            Assert(terminal != null && terminal.BalancePiasters == 100000, "انشاء ماكينة الدفع الالكتروني مع رصيد افتتاحي 1000 ج.م وضبط التسعير الذكي الافتراضي", result);
+
+            // 2. Add Custom Service Rule (Vodafone Cash In: 2% fee, Min 300, Max 5000; Fixed commission 150)
+            terminal.ServiceFeeRules = new List<EpayServiceFeeRule>
+            {
+                new EpayServiceFeeRule
+                {
+                    ServiceType = "vodafone_cash_in",
+                    FeeMode = "custom",
+                    CustomerFeeType = "percent",
+                    CustomerFeeValue = 200, // 2.0%
+                    CustomerFeeMinPiasters = 300, // Min 3 EGP
+                    CustomerFeeMaxPiasters = 5000, // Max 50 EGP
+                    ProviderCommissionType = "fixed",
+                    ProviderCommissionValue = 150, // Fixed 1.5 EGP
+                    ProviderCommissionMinPiasters = 0,
+                    ProviderCommissionMaxPiasters = 0
+                }
+            };
+            terminal = epayRepo.SaveTerminal(terminal);
+            Assert(terminal.ServiceFeeRules != null && terminal.ServiceFeeRules.Count == 1, "حفظ قاعدة تسعير مخصصة لخدمة محفظة فودافون كاش", result);
+
+            // 3. Test Server-Side CalculatePricing
+            // Case A: Standard Bill 350 EGP (35,000 piasters) under default per_thousand rule
+            // Customer fee: ceil(35000 / 100000.0) = 1 -> 1 * 500 = 500. Min 200, Max 3000 -> 500.
+            // Commission: 150 bps on 35,000 = (35000 * 150 + 5000)/10000 = 525. Min 50, Max 1000 -> 525.
+            var pricingA = epayRepo.CalculatePricing(terminal.Id, "utility_bill", 35000);
+            Assert(pricingA.CustomerFeePiasters == 500 && pricingA.ProviderCommissionPiasters == 525 && pricingA.TotalReceivedPiasters == 35500 && pricingA.NetProfitPiasters == 1025,
+                "حساب التسعير الذكي الافتراضي (شريحة الألف والنسبة المئوية) بدقة عددية تامة", result);
+
+            // Case B: Large Bill 10,000 EGP (1,000,000 piasters) testing Max Caps
+            // Customer fee: ceil(10) * 500 = 5000 -> Capped at 3000!
+            // Commission: 150 bps of 1M = 15000 -> Capped at 1000!
+            var pricingB = epayRepo.CalculatePricing(terminal.Id, "utility_bill", 1000000);
+            Assert(pricingB.CustomerFeePiasters == 3000 && pricingB.ProviderCommissionPiasters == 1000 && pricingB.NetProfitPiasters == 4000,
+                "الالتزام الصارم بالحد الأقصى للرسوم والعمولات (Max Cap) ومنع تجاوز السقف", result);
+
+            // Case C: Small Bill 10 EGP (1000 piasters) on custom service testing Min Cap Floor
+            // Customer fee: 2% of 1000 = 20 -> Clamped to Min 300!
+            // Commission: fixed 150.
+            var pricingC = epayRepo.CalculatePricing(terminal.Id, "vodafone_cash_in", 1000);
+            Assert(pricingC.CustomerFeePiasters == 300 && pricingC.ProviderCommissionPiasters == 150 && pricingC.NetProfitPiasters == 450,
+                "تطبيق قواعد الخدمة المخصصة وتفعيل الحد الأدنى للرسوم (Min Cap Floor)", result);
+
+            // 4. Stress Test Validation & Exploit Prevention
+            bool caughtZero = false;
+            try
+            {
+                epayRepo.CreateTransaction(new EpayTransaction
+                {
+                    TerminalId = terminal.Id,
+                    ServiceType = "utility_bill",
+                    BillAmountPiasters = 0
+                });
+            }
+            catch (ArgumentException) { caughtZero = true; }
+            Assert(caughtZero, "منع إنشاء عملية بمبلغ صفر وحماية النظام من السجلات الوهمية", result);
+
+            bool caughtNegative = false;
+            try
+            {
+                epayRepo.CreateTransaction(new EpayTransaction
+                {
+                    TerminalId = terminal.Id,
+                    ServiceType = "utility_bill",
+                    BillAmountPiasters = -5000
+                });
+            }
+            catch (ArgumentException) { caughtNegative = true; }
+            Assert(caughtNegative, "منع إنشاء عملية بقيمة سالبة والتصدي لثغرة تضخيم الرصيد", result);
+
+            bool caughtNegativeFee = false;
+            try
+            {
+                epayRepo.CreateTransaction(new EpayTransaction
+                {
+                    TerminalId = terminal.Id,
+                    ServiceType = "utility_bill",
+                    BillAmountPiasters = 1000,
+                    CustomerFeePiasters = -100
+                });
+            }
+            catch (ArgumentException) { caughtNegativeFee = true; }
+            Assert(caughtNegativeFee, "منع إدخال رسوم خدمة سالبة تسبب تشوهاً في القيود", result);
+
+            bool caughtNegativeCommission = false;
+            try
+            {
+                epayRepo.CreateTransaction(new EpayTransaction
+                {
+                    TerminalId = terminal.Id,
+                    ServiceType = "utility_bill",
+                    BillAmountPiasters = 1000,
+                    CustomerFeePiasters = 100,
+                    ProviderCommissionPiasters = -50
+                });
+            }
+            catch (ArgumentException) { caughtNegativeCommission = true; }
+            Assert(caughtNegativeCommission, "منع إدخال عمولة شركة سالبة لحماية الأرباح الصافية", result);
+
+            // 5. Transaction Lifecycle & Balance Tracking (Debit vs Cash-out)
+            // Initial Balance: 100,000 piasters
+            // Tx 1: Debit (Utility Bill) 250 EGP (25,000 piasters)
+            var tx1 = epayRepo.CreateTransaction(new EpayTransaction
+            {
+                TerminalId = terminal.Id,
+                ServiceType = "utility_bill",
+                ServiceName = "فاتورة كهرباء",
+                ReferenceNumber = "REF-101",
+                CustomerPhone = "01012345678",
+                BillAmountPiasters = 25000,
+                CustomerFeePiasters = 500,
+                ProviderCommissionPiasters = 375,
+                PaymentChannel = "cash_drawer",
+                CashierName = "cashier1"
+            });
+            var termAfterTx1 = epayRepo.GetTerminalById(terminal.Id);
+            Assert(termAfterTx1.BalancePiasters == 75000, "خصم رصيد الماكينة الذري لعمليات الدفع والخدمات (1000 - 250 = 750 ج.م)", result);
+
+            // Tx 2: Cash-out (سحب نقدي من محفظة) 150 EGP (15,000 piasters)
+            // In cash_out, customer withdraws cash from drawer; terminal balance is credited with the withdrawn amount!
+            var tx2 = epayRepo.CreateTransaction(new EpayTransaction
+            {
+                TerminalId = terminal.Id,
+                ServiceType = "cash_out",
+                ServiceName = "سحب فودافون كاش",
+                ReferenceNumber = "REF-102",
+                CustomerPhone = "01123456789",
+                BillAmountPiasters = 15000,
+                CustomerFeePiasters = 300,
+                ProviderCommissionPiasters = 0,
+                PaymentChannel = "cash_drawer",
+                CashierName = "cashier1"
+            });
+            var termAfterTx2 = epayRepo.GetTerminalById(terminal.Id);
+            Assert(termAfterTx2.BalancePiasters == 90000, "إضافة مبلغ السحب النقدي إلى رصيد الماكينة تلقائياً (750 + 150 = 900 ج.م)", result);
+
+            // Tx 3: Another Debit (Mobile Recharge) 50 EGP (5,000 piasters)
+            var tx3 = epayRepo.CreateTransaction(new EpayTransaction
+            {
+                TerminalId = terminal.Id,
+                ServiceType = "mobile_recharge",
+                ServiceName = "شحن رصيد اورنج",
+                ReferenceNumber = "REF-103",
+                CustomerPhone = "01234567890",
+                BillAmountPiasters = 5000,
+                CustomerFeePiasters = 200,
+                ProviderCommissionPiasters = 50,
+                PaymentChannel = "cash_drawer",
+                CashierName = "cashier1"
+            });
+            var termAfterTx3 = epayRepo.GetTerminalById(terminal.Id);
+            Assert(termAfterTx3.BalancePiasters == 85000, "تحديث رصيد الماكينة بعد عملية الشحن (900 - 50 = 850 ج.م)", result);
+
+            // 6. Transaction Cancellation & Reversal Stress
+            // Cancel Tx 1 (Debit): Should restore +25,000 to terminal balance (85,000 + 25,000 = 110,000)
+            var cancelledTx1 = epayRepo.CancelTransaction(tx1.Id, "خطأ في رقم العداد المسجل", "supervisor");
+            Assert(string.Equals(cancelledTx1.Status, "cancelled", StringComparison.OrdinalIgnoreCase), "إلغاء العملية وتغيير حالتها إلى cancelled بنجاح", result);
+
+            var termAfterCancel1 = epayRepo.GetTerminalById(terminal.Id);
+            Assert(termAfterCancel1.BalancePiasters == 110000, "استرداد رصيد الماكينة المخصوم بالكامل عند إلغاء عملية الدفع (850 + 250 = 1100 ج.م)", result);
+
+            // Double Cancellation Guard (Idempotency)
+            bool caughtDoubleCancel = false;
+            try
+            {
+                epayRepo.CancelTransaction(tx1.Id, "محاولة إلغاء ثانية غير قانونية", "supervisor");
+            }
+            catch (InvalidOperationException) { caughtDoubleCancel = true; }
+            Assert(caughtDoubleCancel, "منع إلغاء العملية الملغاة مسبقاً وحماية الرصيد من التكرار المزدوج", result);
+            Assert(epayRepo.GetTerminalById(terminal.Id).BalancePiasters == 110000, "ثبات رصيد الماكينة التام بعد رفض الإلغاء المزدوج", result);
+
+            // Cancel Tx 2 (Cash-out): Should deduct -15,000 from terminal balance (110,000 - 15,000 = 95,000)
+            var cancelledTx2 = epayRepo.CancelTransaction(tx2.Id, "إلغاء سحب نقدي بالخطأ", "supervisor");
+            Assert(string.Equals(cancelledTx2.Status, "cancelled", StringComparison.OrdinalIgnoreCase), "إلغاء عملية السحب النقدي وتحديث الحالة", result);
+            var termAfterCancel2 = epayRepo.GetTerminalById(terminal.Id);
+            Assert(termAfterCancel2.BalancePiasters == 95000, "خصم المبلغ المضاف سابقاً للماكينة عند إلغاء السحب النقدي (1100 - 150 = 950 ج.م)", result);
+
+            // Insufficient Balance on Cash-out Cancellation Guard
+            // Create a cash-out of 2000 EGP (200,000 piasters)
+            var bigCashOut = epayRepo.CreateTransaction(new EpayTransaction
+            {
+                TerminalId = terminal.Id,
+                ServiceType = "cash_out",
+                ServiceName = "سحب كبير",
+                ReferenceNumber = "REF-BIG",
+                CustomerPhone = "01000000000",
+                BillAmountPiasters = 200000,
+                CustomerFeePiasters = 500,
+                ProviderCommissionPiasters = 0,
+                PaymentChannel = "cash_drawer",
+                CashierName = "cashier1"
+            });
+            // Terminal balance is now 95,000 + 200,000 = 295,000.
+            // Now simulate another debit that consumes almost all balance down to 45,000
+            epayRepo.CreateTransaction(new EpayTransaction
+            {
+                TerminalId = terminal.Id,
+                ServiceType = "bill_payment",
+                ServiceName = "استهلاك رصيد كبير",
+                ReferenceNumber = "REF-CONSUME",
+                CustomerPhone = "01000000000",
+                BillAmountPiasters = 250000,
+                CustomerFeePiasters = 100,
+                ProviderCommissionPiasters = 0,
+                PaymentChannel = "cash_drawer",
+                CashierName = "cashier1"
+            });
+            // Terminal balance is now 295,000 - 250,000 = 45,000 piasters.
+            // Now attempt to cancel bigCashOut (which requires deducting 200,000 piasters)!
+            bool caughtInsufficientBalanceCancel = false;
+            try
+            {
+                epayRepo.CancelTransaction(bigCashOut.Id, "محاولة إلغاء سحب ورصيد الماكينة غير كاف", "supervisor");
+            }
+            catch (InvalidOperationException) { caughtInsufficientBalanceCancel = true; }
+            Assert(caughtInsufficientBalanceCancel, "منع إلغاء السحب النقدي عند عدم كفاية رصيد الماكينة لمنع حدوث رصيد سالب غير شرعي", result);
+
+            // 7. Analytics & Daily Closing Reconciliation
+            var analytics = epayRepo.GetAnalytics(null, null);
+            long sumOfAllActiveTerminals = 0;
+            var allTerminals = epayRepo.GetAllTerminals();
+            for (int i = 0; i < allTerminals.Count; i++)
+            {
+                if (allTerminals[i].IsActive) sumOfAllActiveTerminals += allTerminals[i].BalancePiasters;
+            }
+            Assert(analytics.TotalTerminalsBalancePiasters == sumOfAllActiveTerminals,
+                string.Format("تطابق إجمالي أرصدة الماكينات في شاشة التحليلات مع مجموع الأرصدة الفعلية لكافة الماكينات النشطة ({0:N2} ج.م)", sumOfAllActiveTerminals / 100.0), result);
+
+            // Verify that tx1 and tx2 (cancelled) are NOT in the completed totals
+            var allTxs = epayRepo.GetTransactions(terminal.Id, null, null, null, 100);
+            int cancelledCount = 0;
+            int completedCount = 0;
+            for (int i = 0; i < allTxs.Count; i++)
+            {
+                if (string.Equals(allTxs[i].Status, "cancelled", StringComparison.OrdinalIgnoreCase)) cancelledCount++;
+                else if (string.Equals(allTxs[i].Status, "completed", StringComparison.OrdinalIgnoreCase)) completedCount++;
+            }
+            Assert(cancelledCount == 2 && completedCount >= 2, "تسجيل وتوثيق كافة العمليات الملغاة والمكتملة بشكل مفصل ودقيق", result);
         }
 
         private static Product CreateTestProduct(ProductRepository prodRepo, string name, string barcode, long price, long cost, long stockMilli, string unit)

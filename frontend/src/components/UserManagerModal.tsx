@@ -90,6 +90,7 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'epay.terminals_manage', label: 'إدارة وضبط ماكينات الدفع', description: 'إضافة وتعديل بيانات الماكينات وحساباتها والعمولات الافتراضية' },
       { key: 'epay.history', label: 'سجل العمليات والإيصالات', description: 'الاطلاع على أرشيف عمليات الدفع والإيصالات المطبوعة' },
       { key: 'epay.analytics', label: 'الاطلاع على أرباح وتحليلات الماكينات', description: 'عرض تقارير صافي الربح وعمولات الشركات المستقلة' },
+      { key: 'epay.cancel', label: 'إلغاء واسترجاع عمليات الدفع', description: 'إلغاء عملية دفع إلكتروني مسجلة واسترجاع رصيد الماكينة تلقائياً' },
     ],
   },
   {

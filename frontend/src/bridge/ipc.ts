@@ -3093,16 +3093,84 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       return funding;
     }
 
+    case 'epay:calculatePricing': {
+      const { terminalId, serviceType, billAmountPiasters } = payload || {};
+      const terminal = mockEpayTerminals.find((t) => t.id === terminalId);
+      if (!terminal) throw new Error('ماكينة الدفع المحددة غير موجودة');
+      const billAmt = Number(billAmountPiasters) || 0;
+      if (billAmt <= 0) throw new Error('مبلغ العملية يجب أن يكون أكبر من الصفر');
+
+      let rules = terminal.serviceFeeRules || [];
+      if (rules.length === 0 && terminal.serviceFeeRulesJson) {
+        try { rules = JSON.parse(terminal.serviceFeeRulesJson); } catch {}
+      }
+      const sRule = rules?.find((r: any) => r.serviceType === serviceType);
+      const isCustom = sRule && sRule.feeMode && sRule.feeMode !== 'default';
+
+      const computeVal = (bill: number, type: string, val: number, min = 0, max = 0, defFixed = 200) => {
+        let res = 0;
+        if (type === 'percent') {
+          const bps = val > 0 ? val : 100;
+          res = Math.round((bill * bps) / 10000);
+        } else if (type === 'per_thousand') {
+          const thousands = Math.max(1, Math.ceil(bill / 100000));
+          const rate = val > 0 ? val : 1000;
+          res = thousands * rate;
+        } else {
+          res = val >= 0 ? val : defFixed;
+        }
+        if (min > 0 && res < min) res = min;
+        if (max > 0 && res > max) res = max;
+        return res;
+      };
+
+      const cType = isCustom ? (sRule.customerFeeType || sRule.feeMode) : (terminal.customerFeeType || 'fixed');
+      const cVal = isCustom ? (sRule.customerFeeValue ?? 200) : (terminal.customerFeeValue ?? 200);
+      const cMin = isCustom ? (sRule.customerFeeMinPiasters || 0) : (terminal.customerFeeMinPiasters || 0);
+      const cMax = isCustom ? (sRule.customerFeeMaxPiasters || 0) : (terminal.customerFeeMaxPiasters || 0);
+
+      const pType = isCustom ? (sRule.providerCommissionType || 'fixed') : (terminal.providerCommissionType || 'fixed');
+      const pVal = isCustom ? (sRule.providerCommissionValue ?? 100) : (terminal.providerCommissionValue ?? 100);
+      const pMin = isCustom ? (sRule.providerCommissionMinPiasters || 0) : (terminal.providerCommissionMinPiasters || 0);
+      const pMax = isCustom ? (sRule.providerCommissionMaxPiasters || 0) : (terminal.providerCommissionMaxPiasters || 0);
+
+      const custFee = computeVal(billAmt, cType, cVal, cMin, cMax, 200);
+      const provComm = computeVal(billAmt, pType, pVal, pMin, pMax, 100);
+      const isCashOut = serviceType === 'cash_out';
+
+      return {
+        terminalId: terminal.id,
+        serviceType,
+        billAmountPiasters: billAmt,
+        customerFeePiasters: custFee,
+        providerCommissionPiasters: provComm,
+        totalReceivedPiasters: billAmt + custFee,
+        machineDeductedPiasters: isCashOut ? 0 : billAmt,
+        netProfitPiasters: custFee + provComm,
+        ruleApplied: isCustom ? 'service_custom' : 'terminal_default',
+        customerFeeFormatted: (custFee / 100).toFixed(2) + ' ج.م',
+        providerCommissionFormatted: (provComm / 100).toFixed(2) + ' ج.م',
+        totalReceivedFormatted: ((billAmt + custFee) / 100).toFixed(2) + ' ج.م',
+        netProfitFormatted: ((custFee + provComm) / 100).toFixed(2) + ' ج.م',
+      };
+    }
+
     case 'epay:createTransaction': {
       const txData = payload || {};
       const terminal = mockEpayTerminals.find((t) => t.id === txData.terminalId);
       if (!terminal) throw new Error('ماكينة الدفع المحددة غير موجودة');
 
       const billAmt = Number(txData.billAmountPiasters) || 0;
+      if (billAmt <= 0) throw new Error('مبلغ العملية أو الفاتورة يجب أن يكون أكبر من الصفر');
+
       const custFee = Number(txData.customerFeePiasters) || 0;
+      if (custFee < 0) throw new Error('رسوم الخدمة لا يمكن أن تكون سالبة');
+
       const provComm = Number(txData.providerCommissionPiasters) || 0;
+      if (provComm < 0) throw new Error('عمولة الشركة لا يمكن أن تكون سالبة');
+
       const isCashOut = txData.serviceType === 'cash_out';
-      const deducted = isCashOut ? 0 : billAmt;
+      const deducted = isCashOut ? 0 : (Number(txData.machineDeductedPiasters) > 0 ? Number(txData.machineDeductedPiasters) : billAmt);
       const totalRecv = billAmt + custFee;
       const netProfit = custFee + provComm;
 
@@ -3134,11 +3202,14 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         providerCommissionPiasters: provComm,
         totalReceivedPiasters: totalRecv,
         deductedBalancePiasters: deducted,
+        machineDeductedPiasters: deducted,
         netProfitPiasters: netProfit,
         paymentDestination: txData.paymentDestination || 'cash_drawer',
-        status: 'COMPLETED',
+        paymentChannel: txData.paymentChannel || txData.paymentDestination || 'cash_drawer',
+        status: 'completed',
         notes: txData.notes || '',
         createdBy: txData.createdBy || 'كاشير المحل',
+        cashierName: txData.cashierName || txData.createdBy || 'كاشير المحل',
         createdAt: new Date().toISOString(),
         billAmountFormatted: (billAmt / 100).toFixed(2) + ' ج.م',
         customerFeeFormatted: (custFee / 100).toFixed(2) + ' ج.م',
@@ -3152,6 +3223,37 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       };
       mockEpayTransactions.unshift(newTx);
       return newTx;
+    }
+
+    case 'epay:cancelTransaction': {
+      const { transactionId, reason, cancelledBy } = payload || {};
+      const tx = mockEpayTransactions.find((t) => t.id === transactionId);
+      if (!tx) throw new Error('عملية الدفع الإلكتروني غير موجودة');
+      if (tx.status === 'cancelled') throw new Error('هذه العملية ملغاة بالفعل مسبقاً');
+
+      const terminal = mockEpayTerminals.find((t) => t.id === tx.terminalId);
+      if (!terminal) throw new Error('ماكينة الدفع الخاصة بهذه العملية غير موجودة');
+
+      const isCashOut = tx.serviceType === 'cash_out';
+      if (isCashOut) {
+        if (terminal.balancePiasters < tx.billAmountPiasters) {
+          throw new Error(`لا يمكن إلغاء عملية السحب النقدي لأن رصيد الماكينة الحالي (${(terminal.balancePiasters / 100).toFixed(2)} ج.م) أقل من المبلغ المطلوب استرجاعه (${(tx.billAmountPiasters / 100).toFixed(2)} ج.م)`);
+        }
+        terminal.balancePiasters -= tx.billAmountPiasters;
+      } else {
+        const deducted = tx.machineDeductedPiasters || tx.deductedBalancePiasters || tx.billAmountPiasters;
+        terminal.balancePiasters += deducted;
+      }
+
+      terminal.balanceFormatted = (terminal.balancePiasters / 100).toFixed(2) + ' ج.م';
+      terminal.isLowBalance = terminal.balancePiasters <= terminal.lowBalanceAlertPiasters;
+      terminal.updatedAt = new Date().toISOString();
+
+      tx.status = 'cancelled';
+      const cancelNote = `[ملغاة بواسطة ${cancelledBy || 'كاشير المحل'}: ${reason || 'بدون سبب'}]`;
+      tx.notes = tx.notes ? `${tx.notes} ${cancelNote}` : cancelNote;
+
+      return tx;
     }
 
     case 'epay:getTransactions': {

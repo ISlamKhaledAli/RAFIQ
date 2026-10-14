@@ -34,11 +34,29 @@ namespace RafiqPOS.Models
         [JsonProperty("customerFeeValue")]
         public long CustomerFeeValue { get; set; } // piasters if fixed (e.g. 200 = 2 EGP); basis points if percent (100 = 1%)
 
+        [JsonProperty("customerFeeMinPiasters")]
+        public long CustomerFeeMinPiasters { get; set; }
+
+        [JsonProperty("customerFeeMaxPiasters")]
+        public long CustomerFeeMaxPiasters { get; set; }
+
         [JsonProperty("providerCommissionType")]
         public string ProviderCommissionType { get; set; } // "fixed" or "percent"
 
         [JsonProperty("providerCommissionValue")]
         public long ProviderCommissionValue { get; set; } // piasters if fixed (e.g. 100 = 1 EGP); basis points if percent (50 = 0.50%)
+
+        [JsonProperty("providerCommissionMinPiasters")]
+        public long ProviderCommissionMinPiasters { get; set; }
+
+        [JsonProperty("providerCommissionMaxPiasters")]
+        public long ProviderCommissionMaxPiasters { get; set; }
+
+        [JsonProperty("serviceFeeRulesJson")]
+        public string ServiceFeeRulesJson { get; set; }
+
+        [JsonProperty("serviceFeeRules")]
+        public List<EpayServiceFeeRule> ServiceFeeRules { get; set; }
 
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
@@ -262,6 +280,93 @@ namespace RafiqPOS.Models
         {
             TransactionsByType = new Dictionary<string, int>();
             ProfitByTypePiasters = new Dictionary<string, long>();
+        }
+    }
+
+    public class EpayServiceFeeRule
+    {
+        [JsonProperty("serviceType")]
+        public string ServiceType { get; set; } // mobile_recharge, utility_bill, wallet_transfer, cash_in, cash_out, other
+
+        [JsonProperty("feeMode")]
+        public string FeeMode { get; set; } // "default", "fixed", "percent", "per_thousand"
+
+        [JsonProperty("customerFeeType")]
+        public string CustomerFeeType { get; set; } // "fixed", "percent", "per_thousand"
+
+        [JsonProperty("customerFeeValue")]
+        public long CustomerFeeValue { get; set; } // piasters if fixed or per_thousand; basis points if percent (100 = 1%)
+
+        [JsonProperty("customerFeeMinPiasters")]
+        public long CustomerFeeMinPiasters { get; set; }
+
+        [JsonProperty("customerFeeMaxPiasters")]
+        public long CustomerFeeMaxPiasters { get; set; }
+
+        [JsonProperty("providerCommissionType")]
+        public string ProviderCommissionType { get; set; } // "fixed", "percent", "per_thousand"
+
+        [JsonProperty("providerCommissionValue")]
+        public long ProviderCommissionValue { get; set; }
+
+        [JsonProperty("providerCommissionMinPiasters")]
+        public long ProviderCommissionMinPiasters { get; set; }
+
+        [JsonProperty("providerCommissionMaxPiasters")]
+        public long ProviderCommissionMaxPiasters { get; set; }
+    }
+
+    public class EpayPricingResult
+    {
+        [JsonProperty("terminalId")]
+        public string TerminalId { get; set; }
+
+        [JsonProperty("serviceType")]
+        public string ServiceType { get; set; }
+
+        [JsonProperty("billAmountPiasters")]
+        public long BillAmountPiasters { get; set; }
+
+        [JsonProperty("customerFeePiasters")]
+        public long CustomerFeePiasters { get; set; }
+
+        [JsonProperty("providerCommissionPiasters")]
+        public long ProviderCommissionPiasters { get; set; }
+
+        [JsonProperty("totalReceivedPiasters")]
+        public long TotalReceivedPiasters { get; set; }
+
+        [JsonProperty("machineDeductedPiasters")]
+        public long MachineDeductedPiasters { get; set; }
+
+        [JsonProperty("netProfitPiasters")]
+        public long NetProfitPiasters { get; set; }
+
+        [JsonProperty("ruleApplied")]
+        public string RuleApplied { get; set; } // "service_custom" or "terminal_default"
+
+        [JsonProperty("customerFeeFormatted")]
+        public string CustomerFeeFormatted
+        {
+            get { return Money.FormatPiasters(CustomerFeePiasters); }
+        }
+
+        [JsonProperty("providerCommissionFormatted")]
+        public string ProviderCommissionFormatted
+        {
+            get { return Money.FormatPiasters(ProviderCommissionPiasters); }
+        }
+
+        [JsonProperty("totalReceivedFormatted")]
+        public string TotalReceivedFormatted
+        {
+            get { return Money.FormatPiasters(TotalReceivedPiasters); }
+        }
+
+        [JsonProperty("netProfitFormatted")]
+        public string NetProfitFormatted
+        {
+            get { return Money.FormatPiasters(NetProfitPiasters); }
         }
     }
 }

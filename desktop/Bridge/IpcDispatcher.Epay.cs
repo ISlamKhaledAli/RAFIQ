@@ -92,6 +92,43 @@ namespace RafiqPOS.Bridge
                         return true;
                     }
 
+                case "epay:calculatePricing":
+                    {
+                        var repo = GetEpayRepo();
+                        if (request.Payload == null)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "بيانات التسعير فارغة");
+                            return true;
+                        }
+
+                        JObject payloadObj = request.Payload as JObject ?? JObject.Parse(request.Payload.ToString());
+                        string terminalId = payloadObj["terminalId"] != null ? (string)payloadObj["terminalId"] : null;
+                        string serviceType = payloadObj["serviceType"] != null ? (string)payloadObj["serviceType"] : "mobile_recharge";
+                        long billAmountPiasters = payloadObj["billAmountPiasters"] != null ? (long)payloadObj["billAmountPiasters"] : 0;
+
+                        if (string.IsNullOrWhiteSpace(terminalId))
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "يجب تحديد ماكينة الدفع الإلكتروني");
+                            return true;
+                        }
+                        if (billAmountPiasters <= 0)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "مبلغ العملية يجب أن يكون أكبر من الصفر");
+                            return true;
+                        }
+
+                        try
+                        {
+                            var pricing = repo.CalculatePricing(terminalId, serviceType, billAmountPiasters);
+                            response = BridgeResponse.Ok(request.Id, pricing);
+                        }
+                        catch (Exception ex)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "CALCULATION_FAILED", ex.Message);
+                        }
+                        return true;
+                    }
+
                 case "epay:createTransaction":
                     {
                         var repo = GetEpayRepo();
@@ -112,9 +149,19 @@ namespace RafiqPOS.Bridge
                             response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "يجب اختيار الماكينة المنفذة للعملية");
                             return true;
                         }
-                        if (tx.BillAmountPiasters <= 0 && tx.TotalReceivedPiasters <= 0)
+                        if (tx.BillAmountPiasters <= 0)
                         {
                             response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "مبلغ العملية يجب أن يكون أكبر من الصفر");
+                            return true;
+                        }
+                        if (tx.CustomerFeePiasters < 0)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "رسوم الخدمة لا يمكن أن تكون سالبة");
+                            return true;
+                        }
+                        if (tx.ProviderCommissionPiasters < 0)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "عمولة الشركة لا يمكن أن تكون سالبة");
                             return true;
                         }
 
@@ -129,6 +176,41 @@ namespace RafiqPOS.Bridge
                         catch (Exception ex)
                         {
                             response = BridgeResponse.Fail(request.Id, "TRANSACTION_FAILED", ex.Message);
+                        }
+                        return true;
+                    }
+
+                case "epay:cancelTransaction":
+                    {
+                        var repo = GetEpayRepo();
+                        if (request.Payload == null)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "بيانات الإلغاء فارغة");
+                            return true;
+                        }
+
+                        JObject payloadObj = request.Payload as JObject ?? JObject.Parse(request.Payload.ToString());
+                        string txId = payloadObj["transactionId"] != null ? (string)payloadObj["transactionId"] : null;
+                        string reason = payloadObj["reason"] != null ? (string)payloadObj["reason"] : null;
+                        string cancelledBy = payloadObj["cancelledBy"] != null ? (string)payloadObj["cancelledBy"] : null;
+
+                        if (string.IsNullOrWhiteSpace(txId))
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "يجب تحديد معرف العملية المراد إلغاؤها");
+                            return true;
+                        }
+
+                        try
+                        {
+                            lock (SaleService.FinancialWriteLock)
+                            {
+                                var cancelled = repo.CancelTransaction(txId, reason, cancelledBy);
+                                response = BridgeResponse.Ok(request.Id, cancelled);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "CANCELLATION_FAILED", ex.Message);
                         }
                         return true;
                     }

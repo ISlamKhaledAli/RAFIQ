@@ -21,7 +21,8 @@ import {
   X,
   ChevronDown,
   Sliders,
-  RotateCcw
+  RotateCcw,
+  Sparkles
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { useDataSubscription } from '../../utils/eventBus';
@@ -38,7 +39,9 @@ import type {
   EpayTerminalFunding, 
   EpayAnalyticsSummary, 
   EpayServiceType, 
-  EpayPaymentDestination 
+  EpayPaymentDestination,
+  EpayFeeType,
+  EpayServiceFeeRule
 } from '../../types/models';
 
 export type EpaySubTab = 'pos' | 'terminals' | 'history' | 'analytics';
@@ -79,6 +82,87 @@ const SERVICE_PRESETS: ServiceQuickOption[] = [
 const PRESET_AMOUNTS = [1000, 2000, 5000, 10000, 20000, 50000]; // 10, 20, 50, 100, 200, 500 ج.م
 const PRESET_FEES = [100, 200, 300, 500, 1000]; // 1, 2, 3, 5, 10 ج.م
 
+interface ServiceRuleFormItem {
+  serviceType: EpayServiceType;
+  feeMode: 'default' | 'fixed' | 'percent' | 'per_thousand';
+  customerFeeValue: number; // piasters if fixed/per_thousand
+  customerFeePercent: string;
+  customerFeeMinPiasters: number;
+  customerFeeMaxPiasters: number;
+  providerCommissionType: 'fixed' | 'percent';
+  providerCommissionValue: number;
+  providerCommissionPercent: string;
+}
+
+const DEFAULT_SERVICE_RULE_TEMPLATES: Record<EpayServiceType, ServiceRuleFormItem> = {
+  mobile_recharge: {
+    serviceType: 'mobile_recharge',
+    feeMode: 'fixed',
+    customerFeeValue: 200, // 2 EGP
+    customerFeePercent: '1.0',
+    customerFeeMinPiasters: 0,
+    customerFeeMaxPiasters: 0,
+    providerCommissionType: 'fixed',
+    providerCommissionValue: 100,
+    providerCommissionPercent: '0.5',
+  },
+  utility_bill: {
+    serviceType: 'utility_bill',
+    feeMode: 'fixed',
+    customerFeeValue: 500, // 5 EGP
+    customerFeePercent: '1.0',
+    customerFeeMinPiasters: 0,
+    customerFeeMaxPiasters: 0,
+    providerCommissionType: 'fixed',
+    providerCommissionValue: 250,
+    providerCommissionPercent: '0.5',
+  },
+  wallet_transfer: {
+    serviceType: 'wallet_transfer',
+    feeMode: 'per_thousand',
+    customerFeeValue: 1000, // 10 EGP per 1000 EGP
+    customerFeePercent: '1.0',
+    customerFeeMinPiasters: 500, // min 5 EGP
+    customerFeeMaxPiasters: 3000, // max 30 EGP cap
+    providerCommissionType: 'fixed',
+    providerCommissionValue: 150,
+    providerCommissionPercent: '0.5',
+  },
+  cash_in: {
+    serviceType: 'cash_in',
+    feeMode: 'per_thousand',
+    customerFeeValue: 1000, // 10 EGP per 1000 EGP
+    customerFeePercent: '1.0',
+    customerFeeMinPiasters: 500,
+    customerFeeMaxPiasters: 3000,
+    providerCommissionType: 'fixed',
+    providerCommissionValue: 200,
+    providerCommissionPercent: '0.5',
+  },
+  cash_out: {
+    serviceType: 'cash_out',
+    feeMode: 'percent',
+    customerFeeValue: 500,
+    customerFeePercent: '1.0',
+    customerFeeMinPiasters: 1000, // min 10 EGP
+    customerFeeMaxPiasters: 5000, // max 50 EGP
+    providerCommissionType: 'fixed',
+    providerCommissionValue: 200,
+    providerCommissionPercent: '0.5',
+  },
+  other: {
+    serviceType: 'other',
+    feeMode: 'fixed',
+    customerFeeValue: 500,
+    customerFeePercent: '1.0',
+    customerFeeMinPiasters: 0,
+    customerFeeMaxPiasters: 0,
+    providerCommissionType: 'fixed',
+    providerCommissionValue: 200,
+    providerCommissionPercent: '0.5',
+  },
+};
+
 export const EpayView: React.FC<EpayViewProps> = ({
   activeSubTab = 'pos',
   onSubTabChange: _onSubTabChange,
@@ -97,6 +181,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
   const canManageTerminals = isRoot || isAdmin || hasPermission('epay.terminals_manage');
   const canViewAnalytics = isRoot || isAdmin || hasPermission('epay.analytics');
   const canViewHistory = isRoot || isAdmin || hasPermission('epay.history');
+  const canCancel = isRoot || isAdmin || hasPermission('epay.cancel') || canManageTerminals;
   const canAccessTerminals = isRoot || isAdmin || canManageTerminals || canFund;
 
   const activeTab: EpaySubTab = useMemo(() => {
@@ -156,6 +241,11 @@ export const EpayView: React.FC<EpayViewProps> = ({
   // Receipt Modal State
   const [receiptTx, setReceiptTx] = useState<EpayTransaction | null>(null);
 
+  // Cancellation Modal State
+  const [cancellingTx, setCancellingTx] = useState<EpayTransaction | null>(null);
+  const [cancelReason, setCancelReason] = useState<string>('');
+  const [isSubmittingCancel, setIsSubmittingCancel] = useState<boolean>(false);
+
   // Funding Modal State
   const [isFundingModalOpen, setIsFundingModalOpen] = useState<boolean>(false);
   const [fundingTerminalId, setFundingTerminalId] = useState<string>('');
@@ -173,14 +263,69 @@ export const EpayView: React.FC<EpayViewProps> = ({
   const [termCode, setTermCode] = useState<string>('');
   const [termBalancePiasters, setTermBalancePiasters] = useState<number>(0);
   const [termAlertPiasters, setTermAlertPiasters] = useState<number>(30000);
-  const [termCustomerFeeType, setTermCustomerFeeType] = useState<'fixed' | 'percent'>('fixed');
+  const [termCustomerFeeType, setTermCustomerFeeType] = useState<EpayFeeType>('fixed');
   const [termCustomerFeeValue, setTermCustomerFeeValue] = useState<number>(200);
   const [termCustomerFeePercent, setTermCustomerFeePercent] = useState<string>('1.0');
+  const [termCustomerFeeMin, setTermCustomerFeeMin] = useState<number>(0);
+  const [termCustomerFeeMax, setTermCustomerFeeMax] = useState<number>(0);
   const [termProviderCommissionType, setTermProviderCommissionType] = useState<'fixed' | 'percent'>('fixed');
   const [termProviderCommissionValue, setTermProviderCommissionValue] = useState<number>(100);
   const [termProviderCommissionPercent, setTermProviderCommissionPercent] = useState<string>('0.5');
+  const [termProviderCommissionMin, setTermProviderCommissionMin] = useState<number>(0);
+  const [termProviderCommissionMax, setTermProviderCommissionMax] = useState<number>(0);
+  const [isServicePricingExpanded, setIsServicePricingExpanded] = useState<boolean>(false);
+  const [serviceRulesMap, setServiceRulesMap] = useState<Record<EpayServiceType, ServiceRuleFormItem>>(() => ({
+    mobile_recharge: { ...DEFAULT_SERVICE_RULE_TEMPLATES.mobile_recharge, feeMode: 'default' },
+    utility_bill: { ...DEFAULT_SERVICE_RULE_TEMPLATES.utility_bill, feeMode: 'default' },
+    wallet_transfer: { ...DEFAULT_SERVICE_RULE_TEMPLATES.wallet_transfer, feeMode: 'default' },
+    cash_in: { ...DEFAULT_SERVICE_RULE_TEMPLATES.cash_in, feeMode: 'default' },
+    cash_out: { ...DEFAULT_SERVICE_RULE_TEMPLATES.cash_out, feeMode: 'default' },
+    other: { ...DEFAULT_SERVICE_RULE_TEMPLATES.other, feeMode: 'default' },
+  }));
   const [isSavingTerminal, setIsSavingTerminal] = useState<boolean>(false);
   const [terminalModalError, setTerminalModalError] = useState<string | null>(null);
+
+  // Live simulation for terminal settings modal
+  const modalFeeSimulation = useMemo(() => {
+    const calc = (billPiasters: number) => {
+      let fee = 0;
+      let note = '';
+      if (termCustomerFeeType === 'fixed') {
+        fee = termCustomerFeeValue;
+        note = 'مبلغ ثابت على الوصل';
+      } else if (termCustomerFeeType === 'percent') {
+        const bps = Math.round(parseFloat(termCustomerFeePercent || '0') * 100);
+        const raw = Math.round((billPiasters * bps) / 10000);
+        if (termCustomerFeeMin > 0 && raw < termCustomerFeeMin) {
+          fee = termCustomerFeeMin;
+          note = 'رفعناه للحد الأدنى لمكسبك';
+        } else if (termCustomerFeeMax > 0 && raw > termCustomerFeeMax) {
+          fee = termCustomerFeeMax;
+          note = 'وقف عند الحد الأقصى';
+        } else {
+          fee = raw;
+          note = 'نسبتك العادية';
+        }
+      } else if (termCustomerFeeType === 'per_thousand') {
+        const thousands = Math.ceil(billPiasters / 100000);
+        const raw = thousands * termCustomerFeeValue;
+        if (termCustomerFeeMax > 0 && raw > termCustomerFeeMax) {
+          fee = termCustomerFeeMax;
+          note = 'وقف عند الحد الأقصى';
+        } else {
+          fee = raw;
+          note = thousands === 1 ? 'أول 1,000 ج' : `${thousands} آلاف`;
+        }
+      }
+      return { fee, note };
+    };
+
+    return {
+      small: calc(5000),      // 50 EGP
+      medium: calc(50000),    // 500 EGP
+      large: calc(300000),    // 3,000 EGP
+    };
+  }, [termCustomerFeeType, termCustomerFeeValue, termCustomerFeePercent, termCustomerFeeMin, termCustomerFeeMax]);
 
   // Filters for History Tab
   const [historySearch, setHistorySearch] = useState<string>('');
@@ -250,40 +395,107 @@ export const EpayView: React.FC<EpayViewProps> = ({
     return currentTerminal.balancePiasters < deductedBalancePiasters;
   }, [currentTerminal, serviceType, deductedBalancePiasters]);
 
-  // Helper to compute fee or commission from terminal settings
+  // Helper to compute fee or commission from terminal settings with support for fixed, percent, and per_thousand rules + min/max caps
   const computeFeeOrCommission = useCallback((
     billPiasters: number,
-    ruleType?: 'fixed' | 'percent',
+    ruleType?: EpayFeeType,
     ruleValue?: number,
+    minPiasters = 0,
+    maxPiasters = 0,
     defaultFixedPiasters = 0
   ): number => {
     if (billPiasters <= 0) return 0;
+    let result = 0;
     if (ruleType === 'percent') {
       const bps = ruleValue ?? 100;
-      return Math.max(0, Math.round((billPiasters * bps) / 10000));
+      result = Math.max(0, Math.round((billPiasters * bps) / 10000));
+    } else if (ruleType === 'per_thousand') {
+      const thousands = Math.max(1, Math.ceil(billPiasters / 100000));
+      const ratePerThousand = ruleValue ?? 1000;
+      result = Math.max(0, thousands * ratePerThousand);
+    } else {
+      result = Math.max(0, ruleValue ?? defaultFixedPiasters);
     }
-    return Math.max(0, ruleValue ?? defaultFixedPiasters);
+
+    if (minPiasters > 0 && result < minPiasters) {
+      result = minPiasters;
+    }
+    if (maxPiasters > 0 && result > maxPiasters) {
+      result = maxPiasters;
+    }
+    return result;
   }, []);
 
-  // Recalculate automatic fees whenever terminal or bill amount changes (unless user explicitly customized)
+  // Helper to resolve active pricing rule for a specific service on a terminal (falls back to general terminal rule)
+  const resolveActiveRule = useCallback((term: EpayTerminal | null, sType: EpayServiceType) => {
+    if (!term) return null;
+    let rules: EpayServiceFeeRule[] = term.serviceFeeRules || [];
+    if (rules.length === 0 && term.serviceFeeRulesJson) {
+      try {
+        rules = JSON.parse(term.serviceFeeRulesJson);
+      } catch { }
+    }
+
+    const sRule = rules?.find((r) => r.serviceType === sType);
+    if (sRule && sRule.feeMode && sRule.feeMode !== 'default') {
+      const cType: EpayFeeType = (sRule.customerFeeType || sRule.feeMode) as EpayFeeType;
+      return {
+        customerFeeType: cType,
+        customerFeeValue: sRule.customerFeeValue ?? 200,
+        customerFeeMinPiasters: sRule.customerFeeMinPiasters || 0,
+        customerFeeMaxPiasters: sRule.customerFeeMaxPiasters || 0,
+        providerCommissionType: (sRule.providerCommissionType || 'fixed') as EpayFeeType,
+        providerCommissionValue: sRule.providerCommissionValue ?? 100,
+        providerCommissionMinPiasters: sRule.providerCommissionMinPiasters || 0,
+        providerCommissionMaxPiasters: sRule.providerCommissionMaxPiasters || 0,
+        isCustomForService: true,
+      };
+    }
+
+    return {
+      customerFeeType: term.customerFeeType || 'fixed',
+      customerFeeValue: term.customerFeeValue ?? 200,
+      customerFeeMinPiasters: term.customerFeeMinPiasters || 0,
+      customerFeeMaxPiasters: term.customerFeeMaxPiasters || 0,
+      providerCommissionType: term.providerCommissionType || 'fixed',
+      providerCommissionValue: term.providerCommissionValue ?? 100,
+      providerCommissionMinPiasters: term.providerCommissionMinPiasters || 0,
+      providerCommissionMaxPiasters: term.providerCommissionMaxPiasters || 0,
+      isCustomForService: false,
+    };
+  }, []);
+
+  // Active pricing rule for current terminal and selected service
+  const activePricingRule = useMemo(() => {
+    return resolveActiveRule(currentTerminal, serviceType);
+  }, [currentTerminal, serviceType, resolveActiveRule]);
+
+  // Recalculate automatic fees whenever terminal, service type, or bill amount changes
   useEffect(() => {
     if (!isCustomFeeOverride && currentTerminal) {
-      const fee = computeFeeOrCommission(
-        billAmountPiasters,
-        currentTerminal.customerFeeType,
-        currentTerminal.customerFeeValue,
-        200
-      );
-      const comm = computeFeeOrCommission(
-        billAmountPiasters,
-        currentTerminal.providerCommissionType,
-        currentTerminal.providerCommissionValue,
-        100
-      );
-      setCustomerFeePiasters(fee);
-      setProviderCommissionPiasters(comm);
+      const activeRule = resolveActiveRule(currentTerminal, serviceType);
+      if (activeRule) {
+        const fee = computeFeeOrCommission(
+          billAmountPiasters,
+          activeRule.customerFeeType,
+          activeRule.customerFeeValue,
+          activeRule.customerFeeMinPiasters,
+          activeRule.customerFeeMaxPiasters,
+          200
+        );
+        const comm = computeFeeOrCommission(
+          billAmountPiasters,
+          activeRule.providerCommissionType,
+          activeRule.providerCommissionValue,
+          activeRule.providerCommissionMinPiasters,
+          activeRule.providerCommissionMaxPiasters,
+          100
+        );
+        setCustomerFeePiasters(fee);
+        setProviderCommissionPiasters(comm);
+      }
     }
-  }, [currentTerminal, billAmountPiasters, isCustomFeeOverride, computeFeeOrCommission]);
+  }, [currentTerminal, serviceType, billAmountPiasters, isCustomFeeOverride, resolveActiveRule, computeFeeOrCommission]);
 
   // Handle Select Service Preset
   const handleSelectServicePreset = (opt: ServiceQuickOption) => {
@@ -352,6 +564,29 @@ export const EpayView: React.FC<EpayViewProps> = ({
     }
   };
 
+  // Submit Cancellation of Transaction
+  const handleCancelTransaction = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!cancellingTx) return;
+
+    setIsSubmittingCancel(true);
+    setErrorMsg(null);
+    try {
+      await invoke('epay:cancelTransaction', {
+        transactionId: cancellingTx.id,
+        reason: cancelReason.trim() || 'إلغاء يدوي من سجل العمليات',
+      });
+      setSuccessMsg(`تم إلغاء عملية "${cancellingTx.serviceName}" واسترجاع رصيد الماكينة بنجاح.`);
+      setCancellingTx(null);
+      setCancelReason('');
+      await loadData();
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'فشل إلغاء العملية');
+    } finally {
+      setIsSubmittingCancel(false);
+    }
+  };
+
   // Submit Funding
   const handleFundTerminal = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -397,9 +632,22 @@ export const EpayView: React.FC<EpayViewProps> = ({
     setTermCustomerFeeType('fixed');
     setTermCustomerFeeValue(200);
     setTermCustomerFeePercent('1.0');
+    setTermCustomerFeeMin(0);
+    setTermCustomerFeeMax(0);
     setTermProviderCommissionType('fixed');
     setTermProviderCommissionValue(100);
     setTermProviderCommissionPercent('0.5');
+    setTermProviderCommissionMin(0);
+    setTermProviderCommissionMax(0);
+    setIsServicePricingExpanded(false);
+    setServiceRulesMap({
+      mobile_recharge: { ...DEFAULT_SERVICE_RULE_TEMPLATES.mobile_recharge },
+      utility_bill: { ...DEFAULT_SERVICE_RULE_TEMPLATES.utility_bill },
+      wallet_transfer: { ...DEFAULT_SERVICE_RULE_TEMPLATES.wallet_transfer },
+      cash_in: { ...DEFAULT_SERVICE_RULE_TEMPLATES.cash_in },
+      cash_out: { ...DEFAULT_SERVICE_RULE_TEMPLATES.cash_out },
+      other: { ...DEFAULT_SERVICE_RULE_TEMPLATES.other },
+    });
     setTerminalModalError(null);
     setIsTerminalModalOpen(true);
   };
@@ -414,9 +662,50 @@ export const EpayView: React.FC<EpayViewProps> = ({
     setTermCustomerFeeType(term.customerFeeType || 'fixed');
     setTermCustomerFeeValue(term.customerFeeType === 'percent' ? 200 : (term.customerFeeValue ?? 200));
     setTermCustomerFeePercent(term.customerFeeType === 'percent' ? String((term.customerFeeValue ?? 100) / 100) : '1.0');
-    setTermProviderCommissionType(term.providerCommissionType || 'fixed');
+    setTermCustomerFeeMin(term.customerFeeMinPiasters || 0);
+    setTermCustomerFeeMax(term.customerFeeMaxPiasters || 0);
+    setTermProviderCommissionType(term.providerCommissionType === 'percent' ? 'percent' : 'fixed');
     setTermProviderCommissionValue(term.providerCommissionType === 'percent' ? 100 : (term.providerCommissionValue ?? 100));
     setTermProviderCommissionPercent(term.providerCommissionType === 'percent' ? String((term.providerCommissionValue ?? 50) / 100) : '0.5');
+    setTermProviderCommissionMin(term.providerCommissionMinPiasters || 0);
+    setTermProviderCommissionMax(term.providerCommissionMaxPiasters || 0);
+    setIsServicePricingExpanded(false);
+
+    let parsedRules: EpayServiceFeeRule[] = term.serviceFeeRules || [];
+    if (parsedRules.length === 0 && term.serviceFeeRulesJson) {
+      try {
+        parsedRules = JSON.parse(term.serviceFeeRulesJson);
+      } catch { }
+    }
+
+    const newMap: Record<EpayServiceType, ServiceRuleFormItem> = {
+      mobile_recharge: { ...DEFAULT_SERVICE_RULE_TEMPLATES.mobile_recharge, feeMode: 'default' },
+      utility_bill: { ...DEFAULT_SERVICE_RULE_TEMPLATES.utility_bill, feeMode: 'default' },
+      wallet_transfer: { ...DEFAULT_SERVICE_RULE_TEMPLATES.wallet_transfer, feeMode: 'default' },
+      cash_in: { ...DEFAULT_SERVICE_RULE_TEMPLATES.cash_in, feeMode: 'default' },
+      cash_out: { ...DEFAULT_SERVICE_RULE_TEMPLATES.cash_out, feeMode: 'default' },
+      other: { ...DEFAULT_SERVICE_RULE_TEMPLATES.other, feeMode: 'default' },
+    };
+
+    if (Array.isArray(parsedRules)) {
+      parsedRules.forEach((r) => {
+        if (r && r.serviceType && newMap[r.serviceType]) {
+          newMap[r.serviceType] = {
+            serviceType: r.serviceType,
+            feeMode: r.feeMode || 'fixed',
+            customerFeeValue: r.customerFeeValue ?? 200,
+            customerFeePercent: r.customerFeeType === 'percent' ? String((r.customerFeeValue ?? 100) / 100) : '1.0',
+            customerFeeMinPiasters: r.customerFeeMinPiasters || 0,
+            customerFeeMaxPiasters: r.customerFeeMaxPiasters || 0,
+            providerCommissionType: (r.providerCommissionType as 'fixed' | 'percent') || 'fixed',
+            providerCommissionValue: r.providerCommissionValue ?? 100,
+            providerCommissionPercent: r.providerCommissionType === 'percent' ? String((r.providerCommissionValue ?? 50) / 100) : '0.5',
+          };
+        }
+      });
+    }
+
+    setServiceRulesMap(newMap);
     setTerminalModalError(null);
     setIsTerminalModalOpen(true);
   };
@@ -438,6 +727,30 @@ export const EpayView: React.FC<EpayViewProps> = ({
         ? Math.round(parseFloat(termProviderCommissionPercent || '0') * 100)
         : termProviderCommissionValue;
 
+      const serviceRulesList: EpayServiceFeeRule[] = [];
+      Object.entries(serviceRulesMap).forEach(([sType, r]) => {
+        if (r.feeMode !== 'default') {
+          const sFeeVal = r.feeMode === 'percent'
+            ? Math.round(parseFloat(r.customerFeePercent || '0') * 100)
+            : r.customerFeeValue;
+          const sCommVal = r.providerCommissionType === 'percent'
+            ? Math.round(parseFloat(r.providerCommissionPercent || '0') * 100)
+            : r.providerCommissionValue;
+          serviceRulesList.push({
+            serviceType: sType as EpayServiceType,
+            feeMode: r.feeMode,
+            customerFeeType: r.feeMode,
+            customerFeeValue: sFeeVal,
+            customerFeeMinPiasters: r.customerFeeMinPiasters,
+            customerFeeMaxPiasters: r.customerFeeMaxPiasters,
+            providerCommissionType: r.providerCommissionType,
+            providerCommissionValue: sCommVal,
+            providerCommissionMinPiasters: (r as any).providerCommissionMinPiasters || 0,
+            providerCommissionMaxPiasters: (r as any).providerCommissionMaxPiasters || 0,
+          });
+        }
+      });
+
       const saved = await invoke<EpayTerminal>('epay:saveTerminal', {
         id: editingTerminalId || undefined,
         name: termName.trim(),
@@ -447,12 +760,18 @@ export const EpayView: React.FC<EpayViewProps> = ({
         lowBalanceAlertPiasters: termAlertPiasters,
         customerFeeType: termCustomerFeeType,
         customerFeeValue: feeVal,
+        customerFeeMinPiasters: termCustomerFeeMin,
+        customerFeeMaxPiasters: termCustomerFeeMax,
         providerCommissionType: termProviderCommissionType,
         providerCommissionValue: commVal,
+        providerCommissionMinPiasters: termProviderCommissionMin,
+        providerCommissionMaxPiasters: termProviderCommissionMax,
+        serviceFeeRulesJson: serviceRulesList.length > 0 ? JSON.stringify(serviceRulesList) : undefined,
+        serviceFeeRules: serviceRulesList,
         isActive: true,
       });
 
-      setSuccessMsg(editingTerminalId ? 'تم تحديث بيانات الماكينة بنجاح' : 'تمت إضافة ماكينة الدفع بنجاح');
+      setSuccessMsg(editingTerminalId ? 'تم تحديث بيانات وقواعد تسعير الماكينة بنجاح' : 'تمت إضافة ماكينة الدفع وقواعد التسعير بنجاح');
       setIsTerminalModalOpen(false);
       setTerminalModalError(null);
       await loadData();
@@ -880,15 +1199,21 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     </span>
                     <span className="font-bold text-paid bg-paid-soft px-2 py-0.5 rounded-lg border border-paid-border">
                       رسوم الزبون: {formatArabicCurrency(customerFeePiasters)}
-                      {currentTerminal?.customerFeeType === 'percent'
-                        ? ` (${((currentTerminal.customerFeeValue ?? 100) / 100)}%)`
-                        : ' (ثابت)'}
+                      {activePricingRule ? (
+                        activePricingRule.customerFeeType === 'percent'
+                          ? ` (${activePricingRule.customerFeeValue / 100}%${activePricingRule.isCustomForService ? ' مخصص' : ''}${activePricingRule.customerFeeMinPiasters ? ` - أدنى ${formatArabicCurrency(activePricingRule.customerFeeMinPiasters, false)} ج` : ''}${activePricingRule.customerFeeMaxPiasters ? ` - أقصى ${formatArabicCurrency(activePricingRule.customerFeeMaxPiasters, false)} ج` : ''})`
+                          : activePricingRule.customerFeeType === 'per_thousand'
+                          ? ` (${formatArabicCurrency(activePricingRule.customerFeeValue, false)} ج لكل ألف${activePricingRule.isCustomForService ? ' مخصص' : ''}${activePricingRule.customerFeeMaxPiasters ? ` - أقصى ${formatArabicCurrency(activePricingRule.customerFeeMaxPiasters, false)} ج` : ''})`
+                          : ` (ثابت${activePricingRule.isCustomForService ? ' مخصص' : ''})`
+                      ) : ' (ثابت)'}
                     </span>
                     <span className="font-bold text-brand bg-brand-soft px-2 py-0.5 rounded-lg border border-brand/20">
                       عمولة الشركة: {formatArabicCurrency(providerCommissionPiasters)}
-                      {currentTerminal?.providerCommissionType === 'percent'
-                        ? ` (${((currentTerminal.providerCommissionValue ?? 50) / 100)}%)`
-                        : ' (ثابت)'}
+                      {activePricingRule ? (
+                        activePricingRule.providerCommissionType === 'percent'
+                          ? ` (${activePricingRule.providerCommissionValue / 100}%)`
+                          : ' (ثابت)'
+                      ) : ' (ثابت)'}
                     </span>
                   </div>
 
@@ -1205,6 +1530,22 @@ export const EpayView: React.FC<EpayViewProps> = ({
                         </span>
                       </div>
 
+                      <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+                        <span className="font-bold text-ink-muted">التسعير:</span>
+                        <span className="px-2 py-0.5 rounded-md bg-paid-soft text-paid font-bold border border-paid-border">
+                          {term.customerFeeType === 'percent'
+                            ? `نسبة ${((term.customerFeeValue ?? 100) / 100)}%`
+                            : term.customerFeeType === 'per_thousand'
+                            ? `${formatArabicCurrency(term.customerFeeValue ?? 1000, false)} ج / 1000`
+                            : `ثابت ${formatArabicCurrency(term.customerFeeValue ?? 200, false)} ج`}
+                        </span>
+                        {term.serviceFeeRulesJson && (
+                          <span className="px-2 py-0.5 rounded-md bg-brand-soft text-brand font-bold border border-brand/20">
+                            تسعير مخصص للخدمات
+                          </span>
+                        )}
+                      </div>
+
                       {term.isLowBalance && (
                         <div className="mt-2.5 p-2 rounded-lg bg-danger/10 border border-danger/30 text-danger text-xs font-bold flex items-center gap-1.5">
                           <AlertTriangle className="w-4 h-4 text-danger shrink-0" />
@@ -1473,7 +1814,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 </div>
               ) : (
                 <div className="overflow-x-auto rounded-xl border border-line/70">
-                  <table className="w-full text-xs text-right min-w-[960px] border-collapse">
+                  <table className="w-full text-xs text-right min-w-[1020px] border-collapse">
                     <thead className="bg-surface-2/80 border-b border-line text-ink-muted text-[11px] font-bold select-none">
                       <tr>
                         <th className="py-3 px-3.5 whitespace-nowrap">الوقت</th>
@@ -1485,12 +1826,13 @@ export const EpayView: React.FC<EpayViewProps> = ({
                         <th className="py-3 px-3.5 whitespace-nowrap">المستلم نقداً</th>
                         <th className="py-3 px-3.5 whitespace-nowrap text-center">صافي ربح المحل</th>
                         <th className="py-3 px-3.5 whitespace-nowrap text-center">وجهة النقدية</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap text-center">الحالة</th>
                         <th className="py-3 px-3.5 whitespace-nowrap text-center">إجراءات</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-line/60 bg-surface">
                       {pagedTransactions.map((tx) => (
-                        <tr key={tx.id} className="hover:bg-surface-2/60 transition-colors">
+                        <tr key={tx.id} className={`hover:bg-surface-2/60 transition-colors ${tx.status === 'cancelled' ? 'opacity-65 bg-danger/5' : ''}`}>
                           <td className="py-3.5 px-3.5 whitespace-nowrap text-xs text-ink-muted font-mono align-middle">
                             {new Date(tx.createdAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
                           </td>
@@ -1498,7 +1840,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                             {tx.terminalName}
                           </td>
                           <td className="py-3.5 px-3.5 align-middle max-w-[210px]">
-                            <span className="font-bold text-ink text-xs block leading-snug truncate" title={tx.serviceName}>
+                            <span className={`font-bold text-ink text-xs block leading-snug truncate ${tx.status === 'cancelled' ? 'line-through text-ink-muted' : ''}`} title={tx.serviceName}>
                               {tx.serviceName}
                             </span>
                             {tx.serviceTypeArabic && (
@@ -1518,17 +1860,21 @@ export const EpayView: React.FC<EpayViewProps> = ({
                               <span className="text-ink-muted/30 font-mono text-xs">—</span>
                             )}
                           </td>
-                          <td className="py-3.5 px-3.5 whitespace-nowrap font-bold text-ink font-mono tabular-nums align-middle">
+                          <td className={`py-3.5 px-3.5 whitespace-nowrap font-bold text-ink font-mono tabular-nums align-middle ${tx.status === 'cancelled' ? 'line-through' : ''}`}>
                             {formatArabicCurrency(tx.billAmountPiasters)}
                           </td>
-                          <td className="py-3.5 px-3.5 whitespace-nowrap text-paid font-mono tabular-nums font-bold align-middle">
+                          <td className={`py-3.5 px-3.5 whitespace-nowrap text-paid font-mono tabular-nums font-bold align-middle ${tx.status === 'cancelled' ? 'line-through text-ink-muted' : ''}`}>
                             +{formatArabicCurrency(tx.customerFeePiasters)}
                           </td>
-                          <td className="py-3.5 px-3.5 whitespace-nowrap font-black text-ink font-mono tabular-nums align-middle">
+                          <td className={`py-3.5 px-3.5 whitespace-nowrap font-black text-ink font-mono tabular-nums align-middle ${tx.status === 'cancelled' ? 'line-through' : ''}`}>
                             {formatArabicCurrency(tx.totalReceivedPiasters)}
                           </td>
                           <td className="py-3.5 px-3.5 whitespace-nowrap text-center align-middle">
-                            <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-md bg-paid-soft text-paid font-black font-mono text-xs tabular-nums border border-paid/20 shadow-2xs">
+                            <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-md font-black font-mono text-xs tabular-nums border shadow-2xs ${
+                              tx.status === 'cancelled'
+                                ? 'bg-danger/10 text-danger border-danger/20 line-through'
+                                : 'bg-paid-soft text-paid border-paid/20'
+                            }`}>
                               +{formatArabicCurrency(tx.netProfitPiasters)}
                             </span>
                           </td>
@@ -1542,13 +1888,38 @@ export const EpayView: React.FC<EpayViewProps> = ({
                             </span>
                           </td>
                           <td className="py-3.5 px-3.5 whitespace-nowrap text-center align-middle">
-                            <button
-                              onClick={() => setReceiptTx(tx)}
-                              className="p-1.5 text-ink-muted hover:text-brand hover:bg-brand-soft rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center"
-                              title="طباعة إيصال"
-                            >
-                              <Printer className="w-4 h-4" />
-                            </button>
+                            {tx.status === 'cancelled' ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-danger/10 text-danger border border-danger/20 line-through">
+                                ملغاة
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-paid-soft text-paid border border-paid/20">
+                                ناجحة
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-3.5 whitespace-nowrap text-center align-middle">
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={() => setReceiptTx(tx)}
+                                className="p-1.5 text-ink-muted hover:text-brand hover:bg-brand-soft rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center"
+                                title="طباعة إيصال"
+                              >
+                                <Printer className="w-4 h-4" />
+                              </button>
+                              {tx.status !== 'cancelled' && canCancel && (
+                                <button
+                                  onClick={() => {
+                                    setCancellingTx(tx);
+                                    setCancelReason('');
+                                  }}
+                                  className="p-1.5 text-danger hover:bg-danger/10 rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center text-xs font-bold"
+                                  title="إلغاء العملية واسترجاع الرصيد"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1798,7 +2169,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
       {/* MODAL: ADD / EDIT TERMINAL */}
       {isTerminalModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="bg-surface rounded-2xl max-w-md w-full p-6 shadow-xl border border-line max-h-[90vh] overflow-y-auto" dir="rtl">
+          <div className="bg-surface rounded-2xl max-w-xl w-full p-6 shadow-xl border border-line max-h-[90vh] overflow-y-auto" dir="rtl">
             <div className="flex items-center justify-between mb-4 border-b border-line pb-3">
               <h3 className="text-base font-black text-ink flex items-center gap-2">
                 <CreditCard className="w-5 h-5 text-paid" />
@@ -1876,82 +2247,218 @@ export const EpayView: React.FC<EpayViewProps> = ({
               <div className="border-t border-line pt-3 flex flex-col gap-3">
                 <div className="flex items-center gap-1.5 text-ink font-black text-xs">
                   <Sliders className="w-4 h-4 text-paid" />
-                  <span>إعدادات الرسوم والعمولة الافتراضية للماكينة</span>
+                  <span>طريقة تسعير الرسوم وأرباح الماكينة</span>
                 </div>
 
                 {/* 1. Customer Fee Rule */}
-                <div className="bg-surface-2 p-3 rounded-xl border border-line flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-ink">
-                      رسوم الخدمة من الزبون (ربح إضافي)
-                    </label>
-                    <div className="flex items-center gap-1 bg-surface p-0.5 rounded-lg border border-line">
-                      <button
-                        type="button"
-                        onClick={() => setTermCustomerFeeType('fixed')}
-                        className={`px-2 py-0.5 rounded text-[11px] font-bold transition-colors cursor-pointer ${
-                          termCustomerFeeType === 'fixed'
-                            ? 'bg-paid text-white shadow-2xs'
-                            : 'text-ink-muted hover:text-ink'
-                        }`}
-                      >
-                        مبلغ ثابت
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setTermCustomerFeeType('percent')}
-                        className={`px-2 py-0.5 rounded text-[11px] font-bold transition-colors cursor-pointer ${
-                          termCustomerFeeType === 'percent'
-                            ? 'bg-paid text-white shadow-2xs'
-                            : 'text-ink-muted hover:text-ink'
-                        }`}
-                      >
-                        نسبة مئوية (%)
-                      </button>
+                <div className="bg-surface-2 p-3.5 rounded-xl border border-line flex flex-col gap-3">
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black text-ink">
+                        طريقة حساب مكسبي من الزبون (رسوم الخدمة)
+                      </label>
+                      <span className="text-[10px] text-paid font-bold bg-paid-soft px-2 py-0.5 rounded-full border border-paid-border">
+                        اختر طريقة واحدة بس
+                      </span>
                     </div>
+                    <span className="text-[11px] text-ink-muted">
+                      السيستم هيحسب بالطريقة اللي تختارها هنا بس، ومش هيبص على الطريقتين التانيين نهائياً.
+                    </span>
                   </div>
 
-                  {termCustomerFeeType === 'fixed' ? (
-                    <MoneyInput
-                      valuePiasters={termCustomerFeeValue}
-                      onChangePiasters={setTermCustomerFeeValue}
-                      placeholder="0.00"
-                    />
-                  ) : (
-                    <div className="relative flex items-center">
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="100"
-                        value={termCustomerFeePercent}
-                        onChange={(e) => setTermCustomerFeePercent(e.target.value)}
-                        placeholder="مثال: 1.5"
-                        className="w-full px-3 py-2 bg-surface border border-line rounded-xl text-xs text-ink font-mono focus:bg-surface focus:border-brand focus:outline-none"
+                  {/* Mode Selector */}
+                  <div className="grid grid-cols-3 gap-1 bg-surface p-1 rounded-xl border border-line">
+                    <button
+                      type="button"
+                      onClick={() => setTermCustomerFeeType('fixed')}
+                      className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
+                        termCustomerFeeType === 'fixed'
+                          ? 'bg-paid text-white shadow-xs'
+                          : 'text-ink-muted hover:text-ink hover:bg-surface-2'
+                      }`}
+                    >
+                      مبلغ ثابت على الوصل
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTermCustomerFeeType('percent')}
+                      className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
+                        termCustomerFeeType === 'percent'
+                          ? 'bg-paid text-white shadow-xs'
+                          : 'text-ink-muted hover:text-ink hover:bg-surface-2'
+                      }`}
+                    >
+                      نسبة مئوية (%)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTermCustomerFeeType('per_thousand')}
+                      className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
+                        termCustomerFeeType === 'per_thousand'
+                          ? 'bg-paid text-white shadow-xs'
+                          : 'text-ink-muted hover:text-ink hover:bg-surface-2'
+                      }`}
+                    >
+                      لكل 1,000 جنيه
+                    </button>
+                  </div>
+
+                  {/* Mode A: Fixed Amount */}
+                  {termCustomerFeeType === 'fixed' && (
+                    <div className="flex flex-col gap-1.5 pt-1">
+                      <label className="text-[11px] font-bold text-ink-muted block">
+                        المبلغ الثابت اللي هتاخده من الزبون على كل وصل:
+                      </label>
+                      <MoneyInput
+                        valuePiasters={termCustomerFeeValue}
+                        onChangePiasters={setTermCustomerFeeValue}
+                        placeholder="0.00"
+                        className="text-base font-bold"
                       />
-                      <span className="absolute left-3 text-xs font-bold text-ink-muted">%</span>
+                      <span className="text-[11px] text-ink-muted leading-relaxed">
+                        رقم ثابت ومقفول الزبون هيدفعه على أي فاتورة (مثال: 2 جنيه على أي وصل كهرباء أو شحن، دفع 50 ج ياخد 2 ج، دفع 500 ج برضه 2 ج).
+                      </span>
                     </div>
                   )}
-                  <span className="text-[10px] text-ink-muted">
-                    {termCustomerFeeType === 'fixed' 
-                      ? 'مبلغ ثابت يُضاف على كل عملية بغض النظر عن قيمتها (مثال: 2.00 ج.م)' 
-                      : 'نسبة تُحسب تلقائياً من قيمة الفاتورة أو الشحنة (مثال: 1.5%)'}
-                  </span>
+
+                  {/* Mode B: Percentage with Floor & Ceiling */}
+                  {termCustomerFeeType === 'percent' && (
+                    <div className="flex flex-col gap-3 pt-1">
+                      <div>
+                        <label className="text-[11px] font-bold text-ink-muted block mb-1">
+                          نسبة مكسبك من قيمة الفاتورة:
+                        </label>
+                        <div className="relative flex items-center">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="100"
+                            value={termCustomerFeePercent}
+                            onChange={(e) => setTermCustomerFeePercent(e.target.value)}
+                            placeholder="مثال: 1.0"
+                            className="w-full px-3 py-2 bg-surface border border-line rounded-xl text-sm font-bold text-ink font-mono focus:bg-surface focus:border-brand focus:outline-none"
+                          />
+                          <span className="absolute left-3 text-xs font-bold text-ink-muted">%</span>
+                        </div>
+                        <span className="text-[10px] text-ink-muted mt-1 block">
+                          (مثال: لو كتبت 1%، فواتير الـ 100 ج مكسبك 1 ج، وفواتير الـ 1,000 ج مكسبك 10 ج).
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div className="p-2.5 rounded-xl bg-surface border border-line flex flex-col gap-1">
+                          <label className="text-[11px] font-bold text-ink block">
+                            أقل مكسب ترضى بيه (الحد الأدنى):
+                          </label>
+                          <MoneyInput
+                            valuePiasters={termCustomerFeeMin}
+                            onChangePiasters={setTermCustomerFeeMin}
+                            placeholder="0.00"
+                          />
+                          <span className="text-[10px] text-ink-muted leading-tight">
+                            لو الفاتورة صغيرة والنسبة طلعت ملاليم، يرفع مكسبك للمبلغ ده عشان متخسرش ورقة ومجهود (اكتب 0 لو مش فارق معاك).
+                          </span>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-surface border border-line flex flex-col gap-1">
+                          <label className="text-[11px] font-bold text-ink block">
+                            أعلى مكسب تاخده (الحد الأقصى):
+                          </label>
+                          <MoneyInput
+                            valuePiasters={termCustomerFeeMax}
+                            onChangePiasters={setTermCustomerFeeMax}
+                            placeholder="0.00"
+                          />
+                          <span className="text-[10px] text-ink-muted leading-tight">
+                            لو الفاتورة كبيرة جداً، يوقف المكسب عند الرقم ده وميزودش عشان متطردش الزبون (اكتب 0 لو مفتوحة بدون سقف).
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Mode C: Per 1,000 Tier */}
+                  {termCustomerFeeType === 'per_thousand' && (
+                    <div className="flex flex-col gap-3 pt-1">
+                      <div>
+                        <label className="text-[11px] font-bold text-ink-muted block mb-1">
+                          مبلغ المكسب على كل 1,000 جنيه (نظام المحافظ وكاش):
+                        </label>
+                        <MoneyInput
+                          valuePiasters={termCustomerFeeValue}
+                          onChangePiasters={setTermCustomerFeeValue}
+                          placeholder="10.00"
+                          className="text-base font-bold"
+                        />
+                        <span className="text-[11px] text-ink-muted mt-1 block leading-relaxed">
+                          مثال: لو كتبت 10 جنيه، يبقى أي سحب من 1 لـ 1,000 ج مكسبك 10 ج، ومن 1,001 لـ 2,000 ج مكسبك 20 ج، وهكذا.
+                        </span>
+                      </div>
+
+                      <div className="p-2.5 rounded-xl bg-surface border border-line flex flex-col gap-1">
+                        <label className="text-[11px] font-bold text-ink block">
+                          أعلى مبلغ تاخده كحد أقصى (اختياري):
+                        </label>
+                        <MoneyInput
+                          valuePiasters={termCustomerFeeMax}
+                          onChangePiasters={setTermCustomerFeeMax}
+                          placeholder="0.00"
+                        />
+                        <span className="text-[10px] text-ink-muted leading-tight">
+                          لو حد سحب مبالغ كبيرة زي 30 ألف مثلاً، يوقف المكسب عند الرقم ده وميزودش (اكتب 0 لو عاوز كل ألف بـ 10 وخلاص بدون أقصى).
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Live Simulation Card (تجربة حية فورية للحسبة) */}
+                  <div className="p-3 rounded-xl bg-surface border border-line flex flex-col gap-2 mt-1">
+                    <div className="flex items-center justify-between text-xs font-bold">
+                      <div className="flex items-center gap-1.5 text-paid">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>تجربة حية فورية: الزبون هيدفع كام في الحالات دي؟</span>
+                      </div>
+                      <span className="text-[10px] text-ink-muted font-normal">بتتغير لحظياً مع أرقامك</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                      <div className="p-2 rounded-lg bg-surface-2 border border-line flex flex-col items-center justify-center">
+                        <span className="text-[10px] text-ink-muted mb-0.5">لو فاتورة صغيرة (50 ج)</span>
+                        <span className="font-mono font-black text-paid text-sm">{formatArabicCurrency(modalFeeSimulation.small.fee)}</span>
+                        <span className="text-[9px] text-ink-muted font-medium mt-0.5">{modalFeeSimulation.small.note}</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-surface-2 border border-line flex flex-col items-center justify-center">
+                        <span className="text-[10px] text-ink-muted mb-0.5">لو فاتورة متوسطة (500 ج)</span>
+                        <span className="font-mono font-black text-paid text-sm">{formatArabicCurrency(modalFeeSimulation.medium.fee)}</span>
+                        <span className="text-[9px] text-ink-muted font-medium mt-0.5">{modalFeeSimulation.medium.note}</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-surface-2 border border-line flex flex-col items-center justify-center">
+                        <span className="text-[10px] text-ink-muted mb-0.5">لو فاتورة كبيرة (3,000 ج)</span>
+                        <span className="font-mono font-black text-paid text-sm">{formatArabicCurrency(modalFeeSimulation.large.fee)}</span>
+                        <span className="text-[9px] text-ink-muted font-medium mt-0.5">{modalFeeSimulation.large.note}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* 2. Provider Commission Rule */}
-                <div className="bg-surface-2 p-3 rounded-xl border border-line flex flex-col gap-2">
+                <div className="bg-surface-2 p-3.5 rounded-xl border border-line flex flex-col gap-2.5">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-ink">
-                      عمولة الشركة المضافة للمحل (من الماكينة)
-                    </label>
+                    <div>
+                      <label className="text-xs font-black text-ink block">
+                        عمولة الشركة المضافة للمحل (من الماكينة)
+                      </label>
+                      <span className="text-[10px] text-ink-muted">
+                        الربح الإضافي اللي شركة الدفع (فوري/أمان/سوبر باي) بتنزله في حسابك
+                      </span>
+                    </div>
                     <div className="flex items-center gap-1 bg-surface p-0.5 rounded-lg border border-line">
                       <button
                         type="button"
                         onClick={() => setTermProviderCommissionType('fixed')}
-                        className={`px-2 py-0.5 rounded text-[11px] font-bold transition-colors cursor-pointer ${
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
                           termProviderCommissionType === 'fixed'
-                            ? 'bg-brand text-white shadow-2xs'
+                            ? 'bg-brand text-white shadow-xs'
                             : 'text-ink-muted hover:text-ink'
                         }`}
                       >
@@ -1960,9 +2467,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
                       <button
                         type="button"
                         onClick={() => setTermProviderCommissionType('percent')}
-                        className={`px-2 py-0.5 rounded text-[11px] font-bold transition-colors cursor-pointer ${
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
                           termProviderCommissionType === 'percent'
-                            ? 'bg-brand text-white shadow-2xs'
+                            ? 'bg-brand text-white shadow-xs'
                             : 'text-ink-muted hover:text-ink'
                         }`}
                       >
@@ -1972,31 +2479,250 @@ export const EpayView: React.FC<EpayViewProps> = ({
                   </div>
 
                   {termProviderCommissionType === 'fixed' ? (
-                    <MoneyInput
-                      valuePiasters={termProviderCommissionValue}
-                      onChangePiasters={setTermProviderCommissionValue}
-                      placeholder="0.00"
-                    />
-                  ) : (
-                    <div className="relative flex items-center">
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="100"
-                        value={termProviderCommissionPercent}
-                        onChange={(e) => setTermProviderCommissionPercent(e.target.value)}
-                        placeholder="مثال: 0.5"
-                        className="w-full px-3 py-2 bg-surface border border-line rounded-xl text-xs text-ink font-mono focus:bg-surface focus:border-brand focus:outline-none"
+                    <div>
+                      <MoneyInput
+                        valuePiasters={termProviderCommissionValue}
+                        onChangePiasters={setTermProviderCommissionValue}
+                        placeholder="0.00"
+                        className="text-base font-bold"
                       />
-                      <span className="absolute left-3 text-xs font-bold text-ink-muted">%</span>
+                      <span className="text-[10px] text-ink-muted mt-1 block">
+                        مبلغ ثابت الشركة بتديهولك في رصيدك على كل عملية وكيل (مثال: 1.00 ج.م).
+                      </span>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="relative flex items-center">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="100"
+                          value={termProviderCommissionPercent}
+                          onChange={(e) => setTermProviderCommissionPercent(e.target.value)}
+                          placeholder="مثال: 0.5"
+                          className="w-full px-3 py-2 bg-surface border border-line rounded-xl text-sm font-bold text-ink font-mono focus:bg-surface focus:border-brand focus:outline-none"
+                        />
+                        <span className="absolute left-3 text-xs font-bold text-ink-muted">%</span>
+                      </div>
+                      <span className="text-[10px] text-ink-muted mt-1 block">
+                        نسبة عمولة الشركة بتنزلهالك في رصيدك من قيمة العملية (مثال: 0.5% من الفاتورة).
+                      </span>
                     </div>
                   )}
-                  <span className="text-[10px] text-ink-muted">
-                    {termProviderCommissionType === 'fixed'
-                      ? 'مبلغ ثابت تمنحه لك الشركة كعمولة وكيل (مثال: 1.00 ج.م)'
-                      : 'نسبة عمولة تمنحها لك الشركة من مبلغ العملية (مثال: 0.5%)'}
-                  </span>
+                </div>
+
+                {/* 3. Advanced Per-Service Custom Pricing Accordion */}
+                <div className="border border-line rounded-xl overflow-hidden bg-surface">
+                  <button
+                    type="button"
+                    onClick={() => setIsServicePricingExpanded(!isServicePricingExpanded)}
+                    className="w-full p-3 flex items-center justify-between text-right hover:bg-surface-2 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-paid" />
+                      <div>
+                        <span className="text-xs font-black text-ink block">
+                          تخصيص تسعير ورسوم كل خدمة على حدة
+                        </span>
+                        <span className="text-[11px] text-ink-muted">
+                          (شحن رصيد، فواتير مرافق، فودافون كاش، سحب وإيداع)
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-paid-soft text-paid border border-paid-border">
+                        موصى به للمحلات
+                      </span>
+                      <ChevronDown className={`w-4 h-4 text-ink-muted transition-transform duration-200 ${isServicePricingExpanded ? 'rotate-180' : ''}`} />
+                    </div>
+                  </button>
+
+                  {isServicePricingExpanded && (
+                    <div className="p-3 border-t border-line flex flex-col gap-3 bg-surface-2/40">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] text-ink-muted font-medium">
+                          حدد لكل خدمة طريقة حساب خاصة، أو اتركها "الافتراضي للماكينة"
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setServiceRulesMap({
+                              mobile_recharge: { ...DEFAULT_SERVICE_RULE_TEMPLATES.mobile_recharge },
+                              utility_bill: { ...DEFAULT_SERVICE_RULE_TEMPLATES.utility_bill },
+                              wallet_transfer: { ...DEFAULT_SERVICE_RULE_TEMPLATES.wallet_transfer },
+                              cash_in: { ...DEFAULT_SERVICE_RULE_TEMPLATES.cash_in },
+                              cash_out: { ...DEFAULT_SERVICE_RULE_TEMPLATES.cash_out },
+                              other: { ...DEFAULT_SERVICE_RULE_TEMPLATES.other },
+                            });
+                          }}
+                          className="text-[11px] font-bold text-brand hover:text-brand-dark flex items-center gap-1 cursor-pointer"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>تطبيق المقترح الذكي للسوق المصري</span>
+                        </button>
+                      </div>
+
+                      <div className="flex flex-col gap-2.5">
+                        {SERVICE_PRESETS.map((svc) => {
+                          const rule = serviceRulesMap[svc.type] || {
+                            ...DEFAULT_SERVICE_RULE_TEMPLATES[svc.type],
+                            feeMode: 'default',
+                          };
+                          const SvcIcon = svc.icon;
+
+                          const updateRule = (patch: Partial<ServiceRuleFormItem>) => {
+                            setServiceRulesMap((prev) => ({
+                              ...prev,
+                              [svc.type]: {
+                                ...prev[svc.type],
+                                ...patch,
+                              },
+                            }));
+                          };
+
+                          return (
+                            <div key={svc.type} className="p-3 bg-surface rounded-xl border border-line flex flex-col gap-2 shadow-2xs">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-6 h-6 rounded-lg bg-brand-soft text-brand flex items-center justify-center shrink-0">
+                                    <SvcIcon className="w-3.5 h-3.5" />
+                                  </div>
+                                  <span className="text-xs font-bold text-ink">{svc.name}</span>
+                                </div>
+
+                                <div className="flex items-center gap-1 bg-surface-2 p-0.5 rounded-lg border border-line text-[11px]">
+                                  <button
+                                    type="button"
+                                    onClick={() => updateRule({ feeMode: 'default' })}
+                                    className={`px-2 py-0.5 rounded font-bold transition-colors cursor-pointer ${
+                                      rule.feeMode === 'default'
+                                        ? 'bg-ink text-surface shadow-2xs'
+                                        : 'text-ink-muted hover:text-ink'
+                                    }`}
+                                  >
+                                    العام (زي فوق)
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateRule({ feeMode: 'fixed' })}
+                                    className={`px-2 py-0.5 rounded font-bold transition-colors cursor-pointer ${
+                                      rule.feeMode === 'fixed'
+                                        ? 'bg-paid text-white shadow-2xs'
+                                        : 'text-ink-muted hover:text-ink'
+                                    }`}
+                                  >
+                                    مبلغ ثابت
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateRule({ feeMode: 'percent' })}
+                                    className={`px-2 py-0.5 rounded font-bold transition-colors cursor-pointer ${
+                                      rule.feeMode === 'percent'
+                                        ? 'bg-paid text-white shadow-2xs'
+                                        : 'text-ink-muted hover:text-ink'
+                                    }`}
+                                  >
+                                    نسبة (%)
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateRule({ feeMode: 'per_thousand' })}
+                                    className={`px-2 py-0.5 rounded font-bold transition-colors cursor-pointer ${
+                                      rule.feeMode === 'per_thousand'
+                                        ? 'bg-paid text-white shadow-2xs'
+                                        : 'text-ink-muted hover:text-ink'
+                                    }`}
+                                  >
+                                    لكل 1,000 ج
+                                  </button>
+                                </div>
+                              </div>
+
+                              {rule.feeMode === 'default' && (
+                                <span className="text-[11px] text-ink-muted/80">
+                                  ماشية تلقائياً على نفس نظام الماكينة العام اللي فوق.
+                                </span>
+                              )}
+
+                              {rule.feeMode === 'fixed' && (
+                                <div className="flex items-center gap-2 mt-1">
+                                  <label className="text-[11px] font-bold text-ink-muted shrink-0">مبلغ ثابت على الوصل:</label>
+                                  <div className="flex-1">
+                                    <MoneyInput
+                                      valuePiasters={rule.customerFeeValue}
+                                      onChangePiasters={(v) => updateRule({ customerFeeValue: v })}
+                                      placeholder="0.00"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
+                              {rule.feeMode === 'percent' && (
+                                <div className="flex flex-col gap-2 mt-1">
+                                  <div className="grid grid-cols-3 gap-2">
+                                    <div>
+                                      <label className="text-[10px] font-bold text-ink-muted block mb-1">النسبة (%)</label>
+                                      <div className="relative flex items-center">
+                                        <input
+                                          type="number"
+                                          step="0.1"
+                                          min="0"
+                                          max="100"
+                                          value={rule.customerFeePercent}
+                                          onChange={(e) => updateRule({ customerFeePercent: e.target.value })}
+                                          placeholder="1.0"
+                                          className="w-full px-2 py-1.5 bg-surface-2 border border-line rounded-lg text-xs font-mono text-ink focus:bg-surface focus:border-brand focus:outline-none"
+                                        />
+                                        <span className="absolute left-2 text-[11px] font-bold text-ink-muted">%</span>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <label className="text-[10px] font-bold text-ink-muted block mb-1">أقل مكسب (ج.م)</label>
+                                      <MoneyInput
+                                        valuePiasters={rule.customerFeeMinPiasters}
+                                        onChangePiasters={(v) => updateRule({ customerFeeMinPiasters: v })}
+                                        placeholder="0.00"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-[10px] font-bold text-ink-muted block mb-1">أعلى مكسب (ج.م)</label>
+                                      <MoneyInput
+                                        valuePiasters={rule.customerFeeMaxPiasters}
+                                        onChangePiasters={(v) => updateRule({ customerFeeMaxPiasters: v })}
+                                        placeholder="0.00"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {rule.feeMode === 'per_thousand' && (
+                                <div className="grid grid-cols-2 gap-2 mt-1">
+                                  <div>
+                                    <label className="text-[10px] font-bold text-ink-muted block mb-1">المبلغ لكل 1,000 ج</label>
+                                    <MoneyInput
+                                      valuePiasters={rule.customerFeeValue}
+                                      onChangePiasters={(v) => updateRule({ customerFeeValue: v })}
+                                      placeholder="10.00"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] font-bold text-ink-muted block mb-1">أعلى مكسب ممكن (اختياري)</label>
+                                    <MoneyInput
+                                      valuePiasters={rule.customerFeeMaxPiasters}
+                                      onChangePiasters={(v) => updateRule({ customerFeeMaxPiasters: v })}
+                                      placeholder="0.00"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2091,6 +2817,90 @@ export const EpayView: React.FC<EpayViewProps> = ({
               >
                 إغلاق
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CANCEL / VOID TRANSACTION */}
+      {cancellingTx && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="bg-surface rounded-2xl max-w-md w-full p-6 shadow-2xl border border-line" dir="rtl">
+            <div className="flex items-center justify-between mb-4 border-b border-line pb-3">
+              <h3 className="text-base font-black text-danger flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-danger shrink-0" />
+                <span>إلغاء واسترجاع عملية دفع إلكتروني</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setCancellingTx(null)}
+                className="text-ink-muted hover:text-ink cursor-pointer p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <div className="p-3 bg-surface-2 rounded-xl border border-line text-xs flex flex-col gap-1.5">
+                <div className="flex justify-between font-bold">
+                  <span className="text-ink-muted">الخدمة:</span>
+                  <span className="text-ink">{cancellingTx.serviceName}</span>
+                </div>
+                <div className="flex justify-between font-bold">
+                  <span className="text-ink-muted">الماكينة:</span>
+                  <span className="text-ink">{cancellingTx.terminalName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-ink-muted">مبلغ العملية:</span>
+                  <span className="font-mono font-bold text-ink">{formatArabicCurrency(cancellingTx.billAmountPiasters)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-ink-muted">رسوم العميل المستلمة:</span>
+                  <span className="font-mono font-bold text-paid">+{formatArabicCurrency(cancellingTx.customerFeePiasters)}</span>
+                </div>
+                <div className="flex justify-between pt-1 border-t border-line font-bold">
+                  <span className="text-ink-muted">الأثر على رصيد الماكينة:</span>
+                  <span className="font-mono text-paid">
+                    {cancellingTx.serviceType === 'cash_out'
+                      ? `سيتم خصم ${formatArabicCurrency(cancellingTx.billAmountPiasters)} من رصيد الماكينة`
+                      : `سيتم رد ${formatArabicCurrency(cancellingTx.machineDeductedPiasters || cancellingTx.billAmountPiasters)} إلى رصيد الماكينة`}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-danger/10 border border-danger/20 rounded-xl p-3 text-danger text-[11px] leading-relaxed">
+                تنبيه: سيتم عكس أثر العملية في رصيد الماكينة لحظياً، واستبعاد نقدية وأرباح العملية من تقفيل اليومية وكشف الحساب.
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-ink-muted block mb-1">سبب الإلغاء (اختياري)</label>
+                <input
+                  type="text"
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="مثال: رقم هاتف خاطئ / طلب العميل"
+                  className="w-full px-3 py-2 bg-surface-2 border border-line rounded-xl text-xs text-ink placeholder:text-ink-muted/50 focus:bg-surface focus:border-brand focus:outline-none transition-all"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-line mt-1">
+                <button
+                  type="button"
+                  onClick={() => setCancellingTx(null)}
+                  className="px-4 py-2 bg-surface-2 hover:bg-surface border border-line text-ink rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                >
+                  تراجع
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmittingCancel}
+                  onClick={handleCancelTransaction}
+                  className="px-4 py-2 bg-danger hover:bg-danger/90 text-white rounded-xl text-xs font-bold transition-colors shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>{isSubmittingCancel ? 'جاري الإلغاء...' : 'تأكيد الإلغاء والاسترجاع'}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
