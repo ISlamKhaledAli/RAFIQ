@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import type { Supplier } from '../../types/models';
 import { formatMoney } from './types';
+import { normalizeArabicNumerals, normalizeArabicText } from '../../utils/money';
 import { PaginationBar } from '../../components/PaginationBar';
 import { useClientPagination } from '../../utils/usePagination';
 import { RafiqLoadingState } from '../../components/RafiqLoadingState';
@@ -126,15 +127,23 @@ export const SuppliersTab: React.FC<SuppliersTabProps> = ({
     });
   };
   const filteredSuppliers = useMemo(() => {
-    const q = supplierSearchQuery.trim().toLowerCase();
+    const rawQuery = supplierSearchQuery.trim();
+    if (!rawQuery) {
+      return showArchivedSuppliers ? suppliers : suppliers.filter((s) => s.isActive);
+    }
+    const normTextQuery = normalizeArabicText(rawQuery);
+    const normDigitQuery = normalizeArabicNumerals(rawQuery).replace(/[^\d]/g, '');
+
     return suppliers.filter((s) => {
       if (!showArchivedSuppliers && !s.isActive) return false;
-      if (!q) return true;
-      return (
-        s.name.toLowerCase().includes(q) ||
-        (s.companyName && s.companyName.toLowerCase().includes(q)) ||
-        (s.phone && s.phone.includes(q))
-      );
+      const sNameNorm = normalizeArabicText(s.name);
+      const sCompNorm = normalizeArabicText(s.companyName || '');
+      const sPhoneNorm = (s.phone || '').replace(/[^\d]/g, '');
+
+      const textMatch = sNameNorm.includes(normTextQuery) || sCompNorm.includes(normTextQuery);
+      const phoneMatch = normDigitQuery.length > 0 && sPhoneNorm.includes(normDigitQuery);
+
+      return textMatch || phoneMatch;
     });
   }, [suppliers, supplierSearchQuery, showArchivedSuppliers]);
 

@@ -15,13 +15,14 @@ import { CustomSelect } from './CustomSelect';
 import { MoneyInput } from './MoneyInput';
 import { normalizeArabicNumerals } from '../utils/money';
 import { useModalDismiss } from '../hooks/useModalDismiss';
-import type { Category, VariantMatrixCell, CreateVariantMatrixRequest, ParentProductWithVariants } from '../types/models';
+import type { Category, VariantMatrixCell, CreateVariantMatrixRequest, ParentProductWithVariants, Product, ProductVariant } from '../types/models';
 
 interface ProductVariantMatrixModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (result: ParentProductWithVariants) => void;
   categories: Category[];
+  parentProduct?: Product | null;
 }
 
 const PRESET_SIZES = {
@@ -48,6 +49,7 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
   onClose,
   onSuccess,
   categories,
+  parentProduct,
 }) => {
   // Base product fields
   const [parentName, setParentName] = useState('');
@@ -82,6 +84,58 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
     }
     return keys;
   }, [colors, sizes]);
+
+  // Initialize / prefill from parentProduct when opened in edit mode
+  React.useEffect(() => {
+    if (isOpen && parentProduct?.id) {
+      setParentName(parentProduct.name || '');
+      setCategoryId(parentProduct.categoryId || '');
+      setDefaultPricePiasters(parentProduct.pricePiasters || 0);
+      setDefaultCostPiasters(parentProduct.costPiasters || 0);
+      setDefaultMinStock(parentProduct.minStockQuantityMilli || 2000);
+
+      void invoke<ProductVariant[]>('variants:getByParentId', { parentId: parentProduct.id })
+        .then((existingList) => {
+          if (existingList && existingList.length > 0) {
+            const distinctSizes = Array.from(new Set(existingList.map((v) => v.size).filter(Boolean)));
+            const distinctColors = Array.from(new Set(existingList.map((v) => v.color).filter(Boolean)));
+            if (distinctSizes.length > 0) setSizes(distinctSizes);
+            if (distinctColors.length > 0) setColors(distinctColors);
+
+            setMatrixCells((prev) => {
+              const updated = { ...prev };
+              for (const ev of existingList) {
+                const key = `${ev.color}_${ev.size}`;
+                updated[key] = {
+                  color: ev.color,
+                  size: ev.size,
+                  barcode: ev.barcode || '',
+                  sku: ev.sku || '',
+                  pricePiasters: ev.pricePiasters,
+                  costPiasters: ev.costPiasters,
+                  stockQuantityMilli: ev.stockQuantityMilli,
+                  minStockQuantityMilli: ev.minStockQuantityMilli,
+                  isEnabled: true,
+                };
+              }
+              return updated;
+            });
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to prefill existing variants:', err);
+        });
+    } else if (isOpen && !parentProduct) {
+      setParentName('');
+      setCategoryId('');
+      setDefaultPricePiasters(0);
+      setDefaultCostPiasters(0);
+      setDefaultMinStock(2000);
+      setSizes(['M', 'L', 'XL']);
+      setColors(['أسود', 'كحلي']);
+      setMatrixCells({});
+    }
+  }, [isOpen, parentProduct]);
 
   // Sync cells when combinations change
   React.useEffect(() => {
@@ -215,6 +269,7 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
     setIsSubmitting(true);
     try {
       const req: CreateVariantMatrixRequest = {
+        parentProductId: parentProduct?.id || null,
         parentName: parentName.trim(),
         categoryId: categoryId || null,
         defaultPricePiasters,
@@ -261,13 +316,15 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
             </div>
             <div>
               <h2 className="text-lg font-bold text-ink flex items-center gap-2">
-                إضافة منتج متعدد المقاسات والألوان
+                {parentProduct ? `تعديل مصفوفة: ${parentProduct.name}` : 'إضافة منتج متعدد المقاسات والألوان'}
                 <span className="text-xs px-2 py-0.5 rounded-full bg-brand-soft text-brand font-medium">
                   {activeCells.length} تركيبة مفعلة
                 </span>
               </h2>
               <p className="text-xs text-ink-muted">
-                إنشاء منتج أب وجميع تركيبات المقاسات والألوان بجدول تفاعلي واحد
+                {parentProduct
+                  ? 'تعديل أو إضافة مقاسات وألوان للمنتج وتحديث الأرصدة والباركود'
+                  : 'إنشاء منتج أب وجميع تركيبات المقاسات والألوان بجدول تفاعلي واحد'}
               </p>
             </div>
           </div>

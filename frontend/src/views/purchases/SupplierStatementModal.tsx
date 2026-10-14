@@ -99,6 +99,9 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
                       {tx.transactionType === 'PURCHASE_INVOICE' && 'فاتورة بضاعة جديدة (على الحساب)'}
                       {tx.transactionType === 'PURCHASE_OVERPAYMENT' && 'دفعنا بالزيادة ونزل في حسابنا'}
                       {tx.transactionType === 'PAYMENT' && 'دفعنا له كاش (سداد)'}
+                      {tx.transactionType === 'PURCHASE_PAID_CASH' && 'فاتورة بضاعة مسددة نقداً بالكامل'}
+                      {tx.transactionType === 'MANUAL_ADJUSTMENT' && 'تسوية رصيد يدوية'}
+                      {!['OPENING_BALANCE', 'PURCHASE_INVOICE', 'PURCHASE_OVERPAYMENT', 'PAYMENT', 'PURCHASE_PAID_CASH', 'MANUAL_ADJUSTMENT'].includes(tx.transactionType) && (tx.transactionType || 'حركة حسابية')}
                     </span>
                     <span className="text-[10px] text-ink-muted">
                       {new Date(tx.createdAt).toLocaleDateString('ar-EG-u-nu-latn', {
@@ -116,9 +119,13 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
                 <div className="font-mono font-bold text-sm">
                   {tx.amountPiasters > 0 ? (
                     <span className="text-danger">+{formatMoney(tx.amountPiasters)}</span>
-                  ) : (
+                  ) : tx.amountPiasters < 0 ? (
                     <span className="text-paid">
                       -{formatMoney(Math.abs(tx.amountPiasters))}
+                    </span>
+                  ) : (
+                    <span className="text-ink-muted text-xs font-semibold">
+                      0.00 ج.م (خالص)
                     </span>
                   )}
                 </div>

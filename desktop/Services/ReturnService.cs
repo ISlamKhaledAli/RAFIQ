@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using RafiqPOS.Common;
 using RafiqPOS.Models;
 using RafiqPOS.Repositories;
 
@@ -250,7 +251,7 @@ namespace RafiqPOS.Services
                         // Refund proportionally to the original net line total; the line that exhausts the sold
                         // quantity receives the exact remainder so cumulative refunds equal what was paid (Audit F-19)
                         long proportionalTotal = (origItem.QuantityMilli > 0)
-                            ? (origItem.TotalPiasters * it.QuantityMilli) / origItem.QuantityMilli
+                            ? (long)Math.Round(((decimal)origItem.TotalPiasters * it.QuantityMilli) / (decimal)origItem.QuantityMilli, 0, MidpointRounding.AwayFromZero)
                             : 0;
                         long refundedBefore = refundedTotalSoFar.ContainsKey(origKey) ? refundedTotalSoFar[origKey] : 0;
                         if (!string.IsNullOrEmpty(origItem.Id) && refundedTotalBySaleItem.ContainsKey(origItem.Id))
@@ -261,7 +262,7 @@ namespace RafiqPOS.Services
                         {
                             proportionalTotal = Math.Max(0, origItem.TotalPiasters - refundedBefore);
                         }
-                        long priceBasedTotal = (it.UnitPricePiasters * it.QuantityMilli) / 1000;
+                        long priceBasedTotal = Money.FromPiasters(it.UnitPricePiasters).MultiplyByMilliUnits(it.QuantityMilli).Piasters;
                         it.TotalPiasters = (it.UnitPricePiasters == effectiveUnitPrice) ? proportionalTotal : Math.Min(priceBasedTotal, proportionalTotal);
                         refundedTotalSoFar[origKey] = (refundedTotalSoFar.ContainsKey(origKey) ? refundedTotalSoFar[origKey] : 0) + it.TotalPiasters;
 

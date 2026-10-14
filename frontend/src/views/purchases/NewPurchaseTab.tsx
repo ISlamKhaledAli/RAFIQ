@@ -243,33 +243,51 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
   };
 
   const handleDirectStockChange = (idx: number, val: string) => {
-    const digitsOnly = normalizeArabicNumerals(val).replace(/[^\d]/g, '');
-    const clean = digitsOnly.length > 1 ? digitsOnly.replace(/^0+/, '') || '0' : digitsOnly;
+    const isWeightItem = lineItems[idx]?.unit === 'kg' || lineItems[idx]?.unit === 'gram';
+    let clean = normalizeArabicNumerals(val);
+    if (isWeightItem) {
+      // Allow digits and a single decimal point/comma
+      clean = clean.replace(/,/g, '.').replace(/[^\d.]/g, '');
+      const parts = clean.split('.');
+      if (parts.length > 2) {
+        clean = parts[0] + '.' + parts.slice(1).join('');
+      }
+      if (clean.length > 1 && clean.startsWith('0') && !clean.startsWith('0.')) {
+        clean = clean.replace(/^0+/, '') || '0';
+      }
+    } else {
+      const digitsOnly = clean.replace(/[^\d]/g, '');
+      clean = digitsOnly.length > 1 ? digitsOnly.replace(/^0+/, '') || '0' : digitsOnly;
+    }
+
     const updated = [...lineItems];
     const item = { ...updated[idx] };
 
     item.quantityInput = clean;
-    if (clean === '') {
+    if (clean === '' || clean === '.') {
       item.quantityUnits = 0;
       item.cartonsInput = '';
       item.looseInput = '';
     } else {
-      const total = parseInt(clean, 10);
-      const totalVal = isNaN(total) ? 0 : Math.max(0, total);
-      item.quantityUnits = totalVal;
+      const totalVal = isWeightItem
+        ? (parseFloat(clean) || 0)
+        : (parseInt(clean, 10) || 0);
+      item.quantityUnits = Math.max(0, totalVal);
 
-      const p = parseInt(normalizeArabicNumerals(item.packSizeInput || ''), 10) || 0;
-      if (p > 0 && totalVal > 0) {
-        const c = Math.floor(totalVal / p);
-        const rem = Math.round(totalVal % p);
-        item.cartonsInput = c > 0 ? String(c) : '0';
-        item.looseInput = rem > 0 ? String(rem) : '0';
-      } else if (p > 0 && totalVal === 0) {
-        item.cartonsInput = '0';
-        item.looseInput = '0';
-      } else {
-        item.cartonsInput = '0';
-        item.looseInput = clean;
+      if (!isWeightItem) {
+        const p = parseInt(normalizeArabicNumerals(item.packSizeInput || ''), 10) || 0;
+        if (p > 0 && totalVal > 0) {
+          const c = Math.floor(totalVal / p);
+          const rem = Math.round(totalVal % p);
+          item.cartonsInput = c > 0 ? String(c) : '0';
+          item.looseInput = rem > 0 ? String(rem) : '0';
+        } else if (p > 0 && totalVal === 0) {
+          item.cartonsInput = '0';
+          item.looseInput = '0';
+        } else {
+          item.cartonsInput = '0';
+          item.looseInput = clean;
+        }
       }
     }
 
@@ -637,11 +655,11 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                         {/* Compact Stock Info */}
                         <div className="flex items-center gap-1.5 text-[11px] font-mono text-ink-muted mt-1 flex-wrap">
                           <span className="bg-surface-2 px-1.5 py-0.5 rounded border border-line">
-                            المخزن: <b className="text-ink font-sans">{currentStockUnits.toFixed(0)}</b> {getUnitLabel(item.unit)}
+                            المخزن: <b className="text-ink font-sans">{item.unit === 'kg' ? currentStockUnits.toFixed(3).replace(/\.?0+$/, '') : currentStockUnits.toFixed(0)}</b> {getUnitLabel(item.unit)}
                           </span>
                           {incomingUnits > 0 && (
                             <span className="bg-paid-soft text-paid-dark px-1.5 py-0.5 rounded border border-paid/20 font-bold">
-                              ← بعد الشراء: {totalStockUnits.toFixed(0)}
+                              ← بعد الشراء: {item.unit === 'kg' ? totalStockUnits.toFixed(3).replace(/\.?0+$/, '') : totalStockUnits.toFixed(0)}
                             </span>
                           )}
                         </div>
@@ -653,9 +671,11 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                           <button
                             type="button"
                             onClick={() => {
-                              const curr = parseInt(item.quantityInput || String(item.quantityUnits), 10) || 0;
+                              const isWeight = item.unit === 'kg' || item.unit === 'gram';
+                              const curr = parseFloat(item.quantityInput || String(item.quantityUnits)) || 0;
                               if (curr > 0) {
-                                handleDirectStockChange(idx, String(curr - 1));
+                                const nextVal = isWeight ? Math.max(0, parseFloat((curr - 1).toFixed(3))) : Math.max(0, curr - 1);
+                                handleDirectStockChange(idx, String(nextVal));
                               }
                             }}
                             className="w-7 h-7 rounded-lg bg-surface-2 hover:bg-line flex items-center justify-center text-xs font-bold text-ink transition-colors cursor-pointer"
@@ -665,20 +685,24 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                           </button>
                           <input
                             type="text"
-                            inputMode="numeric"
+                            inputMode="decimal"
                             value={item.quantityInput !== undefined ? item.quantityInput : (item.quantityUnits > 0 ? String(item.quantityUnits) : '')}
                             onChange={(e) => handleDirectStockChange(idx, e.target.value)}
                             onFocus={(e) => e.target.select()}
                             onKeyDown={(e) => {
+                              const isWeight = item.unit === 'kg' || item.unit === 'gram';
+                              const step = 1;
                               if (e.key === 'ArrowUp') {
                                 e.preventDefault();
-                                const curr = parseInt(item.quantityInput || String(item.quantityUnits), 10) || 0;
-                                handleDirectStockChange(idx, String(curr + 1));
+                                const curr = parseFloat(item.quantityInput || String(item.quantityUnits)) || 0;
+                                const nextVal = isWeight ? parseFloat((curr + step).toFixed(3)) : curr + step;
+                                handleDirectStockChange(idx, String(nextVal));
                               } else if (e.key === 'ArrowDown') {
                                 e.preventDefault();
-                                const curr = parseInt(item.quantityInput || String(item.quantityUnits), 10) || 0;
+                                const curr = parseFloat(item.quantityInput || String(item.quantityUnits)) || 0;
                                 if (curr > 0) {
-                                  handleDirectStockChange(idx, String(curr - 1));
+                                  const nextVal = isWeight ? Math.max(0, parseFloat((curr - step).toFixed(3))) : Math.max(0, curr - step);
+                                  handleDirectStockChange(idx, String(nextVal));
                                 }
                               }
                             }}
@@ -689,8 +713,10 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                           <button
                             type="button"
                             onClick={() => {
-                              const curr = parseInt(item.quantityInput || String(item.quantityUnits), 10) || 0;
-                              handleDirectStockChange(idx, String(curr + 1));
+                              const isWeight = item.unit === 'kg' || item.unit === 'gram';
+                              const curr = parseFloat(item.quantityInput || String(item.quantityUnits)) || 0;
+                              const nextVal = isWeight ? parseFloat((curr + 1).toFixed(3)) : curr + 1;
+                              handleDirectStockChange(idx, String(nextVal));
                             }}
                             className="w-7 h-7 rounded-lg bg-surface-2 hover:bg-line flex items-center justify-center text-xs font-bold text-ink transition-colors cursor-pointer"
                             title="زيادة الكمية"

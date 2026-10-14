@@ -18,7 +18,7 @@ import { SupplierFormModal, type SupplierFormData } from './purchases/SupplierFo
 import { SupplierPaymentModal } from './purchases/SupplierPaymentModal';
 import { SupplierStatementModal } from './purchases/SupplierStatementModal';
 import { type PurchasesSubView, type NewPurchaseLineItem } from './purchases/types';
-import { normalizeArabicNumerals } from '../utils/money';
+import { calculateLineTotal, normalizeArabicNumerals } from '../utils/money';
 
 export { type PurchasesSubView } from './purchases/types';
 
@@ -243,8 +243,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
           currentStockMilli: prod.stockQuantityMilli,
           currentCostPiasters: prod.costPiasters,
           currentPricePiasters: prod.pricePiasters,
-          quantityUnits: 0,
-          quantityInput: '',
+          quantityUnits: 1,
+          quantityInput: '1',
           unitCostPiasters: prod.costPiasters > 0 ? prod.costPiasters : prod.pricePiasters,
           newSellingPricePiasters: prod.pricePiasters,
           batchNumber: '',
@@ -256,7 +256,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
           unit: prod.unit || 'piece',
           cartonsInput: '',
           packSizeInput: '',
-          looseInput: '',
+          looseInput: '1',
         },
       ]);
     }
@@ -321,7 +321,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
         barcode: item.barcode,
         quantityMilli: Math.round(item.quantityUnits * 1000),
         unitCostPiasters: item.unitCostPiasters,
-        totalCostPiasters: Math.round(item.quantityUnits * item.unitCostPiasters),
+        totalCostPiasters: calculateLineTotal(item.unitCostPiasters, Math.round(item.quantityUnits * 1000)),
         previousCostPiasters: item.currentCostPiasters,
         newSellingPricePiasters: item.newSellingPricePiasters > 0 ? item.newSellingPricePiasters : undefined,
         batchNumber: item.batchNumber?.trim() || undefined,
@@ -700,6 +700,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
         isOpen={variantPickerParentProduct !== null}
         onClose={() => setVariantPickerParentProduct(null)}
         parentProduct={variantPickerParentProduct}
+        mode="purchase"
         onSelectVariant={(variantProd) => {
           handleAddProductToPurchase(variantProd);
           showToast(`تم اختيار وإضافة: ${variantProd.name}`);

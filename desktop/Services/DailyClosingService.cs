@@ -34,7 +34,7 @@ namespace RafiqPOS.Services
         {
             try
             {
-                string val = _settingsRepo.Get("business_day_cutoff_hour", "4");
+                string val = _settingsRepo.Get("business_day_cutoff_hour", "0");
                 int hour;
                 if (int.TryParse(val, out hour) && hour >= 0 && hour <= 12)
                 {
@@ -43,9 +43,9 @@ namespace RafiqPOS.Services
             }
             catch
             {
-                // Fallback default 4 AM
+                // Fallback default 0 (12:00 AM midnight)
             }
-            return 4;
+            return 0;
         }
 
         public string GetCurrentBusinessDate()

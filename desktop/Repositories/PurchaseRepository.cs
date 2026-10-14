@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
+using RafiqPOS.Common;
 using RafiqPOS.Models;
+using RafiqPOS.Services;
 
 namespace RafiqPOS.Repositories
 {
@@ -47,11 +49,13 @@ namespace RafiqPOS.Repositories
                 purchase.InvoiceDate = now;
             }
 
-            using (var conn = new SQLiteConnection(_connectionString))
+            lock (SaleService.FinancialWriteLock)
             {
-                conn.Open();
-                using (var trans = conn.BeginTransaction())
+                using (var conn = new SQLiteConnection(_connectionString))
                 {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction())
+                    {
                     try
                     {
                         // Validate Supplier if supplied
@@ -93,8 +97,8 @@ namespace RafiqPOS.Repositories
                                 throw new ArgumentException(string.Format("تكلفة شراء الصنف '{0}' لا يمكن أن تكون سالبة", item.ProductName ?? item.ProductId));
                             }
 
-                            // Math check: total = (quantityMilli * unitCostPiasters) / 1000
-                            item.TotalCostPiasters = (item.QuantityMilli * item.UnitCostPiasters) / 1000;
+                            // Integer Financial Arithmetic: compute exact piasters via Money struct (Half-Up AwayFromZero)
+                            item.TotalCostPiasters = Money.FromPiasters(item.UnitCostPiasters).MultiplyByMilliUnits(item.QuantityMilli).Piasters;
                             totalCost += item.TotalCostPiasters;
                         }
 
@@ -105,6 +109,12 @@ namespace RafiqPOS.Repositories
 
                         purchase.TotalCostPiasters = totalCost;
                         purchase.NetCostPiasters = Math.Max(0, totalCost - purchase.DiscountPiasters);
+
+                        // Reject unpaid/overpaid purchases without a registered supplier (Prevents orphaned debts/credits)
+                        if (purchase.PaidAmountPiasters != purchase.NetCostPiasters && string.IsNullOrWhiteSpace(purchase.SupplierId))
+                        {
+                            throw new InvalidOperationException("يجب اختيار المورد أولاً لتسجيل فاتورة شراء آجلة أو بسداد جزئي أو بمبلغ زائد.");
+                        }
 
                         // Validate paid amount and set payment status
                         if (purchase.PaidAmountPiasters < 0) purchase.PaidAmountPiasters = 0;
@@ -187,6 +197,18 @@ namespace RafiqPOS.Repositories
                                         currentPrice = Convert.ToInt64(reader["price_piasters"]);
                                         bool hasVariants = false;
                                         try { hasVariants = Convert.ToInt32(reader["has_variants"]) == 1; } catch { }
+                                        if (!hasVariants)
+                                        {
+                                            using (var vChkCmd = new SQLiteCommand("SELECT 1 FROM products WHERE parent_id = @pid AND is_active = 1 LIMIT 1;", conn, trans))
+                                            {
+                                                vChkCmd.Parameters.AddWithValue("@pid", item.ProductId);
+                                                object vChkRes = vChkCmd.ExecuteScalar();
+                                                if (vChkRes != null && vChkRes != DBNull.Value)
+                                                {
+                                                    hasVariants = true;
+                                                }
+                                            }
+                                        }
                                         if (hasVariants)
                                         {
                                             throw new InvalidOperationException(string.Format("لا يمكن إضافة كميات شراء للمنتج الرئيسي '{0}' مباشرة لوجود متغيرات (ألوان ومقاسات) مرتبطة به. يرجى اختيار المتغير المحدد للشراء.", productName));
@@ -270,8 +292,9 @@ namespace RafiqPOS.Repositories
                                 long totalQty = validCurrentStock + item.QuantityMilli;
                                 if (totalQty > 0)
                                 {
-                                    // Weighted average cost: (stock * old_cost + incoming * new_cost) / totalQty
-                                    newCost = ((validCurrentStock * currentCost) + (item.QuantityMilli * item.UnitCostPiasters)) / totalQty;
+                                    // Weighted average cost with Half-Up AwayFromZero financial rounding
+                                    decimal totalValue = ((decimal)validCurrentStock * currentCost) + ((decimal)item.QuantityMilli * item.UnitCostPiasters);
+                                    newCost = (long)Math.Round(totalValue / (decimal)totalQty, 0, MidpointRounding.AwayFromZero);
                                 }
                             }
 
@@ -410,6 +433,14 @@ namespace RafiqPOS.Repositories
                                     excessPiasters / 100.0);
                                 _supplierRepo.AdjustBalance(purchase.SupplierId, balanceDelta, "PURCHASE_OVERPAYMENT", purchase.Id, excessNote, conn, trans);
                             }
+                            else
+                            {
+                                // Fully paid on spot (cash): recorded in supplier ledger so it appears in account statement
+                                string cashNote = string.Format("فاتورة شراء #{0} (مسددة نقداً بالكامل: {1:N2} ج.م)",
+                                    purchase.InvoiceNumber,
+                                    purchase.NetCostPiasters / 100.0);
+                                _supplierRepo.AdjustBalance(purchase.SupplierId, 0, "PURCHASE_PAID_CASH", purchase.Id, cashNote, conn, trans);
+                            }
                         }
 
                         // 6. Audit Log
@@ -439,6 +470,7 @@ namespace RafiqPOS.Repositories
                         throw;
                     }
                 }
+            }
             }
 
             return GetById(purchase.Id);

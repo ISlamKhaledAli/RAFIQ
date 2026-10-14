@@ -63,6 +63,9 @@ namespace RafiqPOS.Services
                 var customerService = new CustomerService(custRepo);
                 var supplierRepo = new SupplierRepository(tempConnStr, auditRepo);
                 var supplierService = new SupplierService(supplierRepo);
+                var priceHistoryRepo = new ProductPriceHistoryRepository(tempConnStr);
+                var purchaseRepo = new PurchaseRepository(tempConnStr, counterRepo, supplierRepo, priceHistoryRepo, auditRepo, batchRepo);
+                var purchaseService = new PurchaseService(purchaseRepo);
                 var saleRepo = new SaleRepository(tempConnStr, counterRepo, auditRepo, batchRepo);
                 var saleService = new SaleService(saleRepo, prodRepo, quickRepo);
                 var returnRepo = new ReturnRepository(tempConnStr, counterRepo, auditRepo);
@@ -103,6 +106,11 @@ namespace RafiqPOS.Services
                 // Scenario 7: Advanced Return Anti-Tampering & Partial Returns (المرتجعات المتقدمة)
                 // =========================================================================
                 TestAdvancedReturns(saleService, returnService, prodRepo, custRepo, result);
+
+                // =========================================================================
+                // Scenario 8: Weights Arithmetic, Divisibility Guard, & Supplier Ledger Stress
+                // =========================================================================
+                TestWeightsAndSuppliersDeepStress(saleService, purchaseService, supplierService, returnService, prodRepo, result);
 
                 result.Message = string.Format("اكتمل فحص الحالات المتقدمة بنجاح: تم اجتياز {0} من اصل {1} تحقق.", result.PassedAssertions, result.TotalAssertions);
             }
@@ -688,6 +696,241 @@ namespace RafiqPOS.Services
             // Verify original sale status changed to 'refunded'
             var refreshedSale = saleService.GetSaleById(sale.Id);
             Assert(refreshedSale.Status == "refunded", "تحديث حالة الفاتورة الاصلية تلقائيا الى مستردة بالكامل (refunded)", result);
+        }
+
+        private static void TestWeightsAndSuppliersDeepStress(
+            SaleService saleService,
+            PurchaseService purchaseService,
+            SupplierService supplierService,
+            ReturnService returnService,
+            ProductRepository prodRepo,
+            SeniorMasterEdgeCaseResult result)
+        {
+            // 1. Divisibility Guard: A piece-based product cannot be sold in fractional quantities
+            var pieceProd = CreateTestProduct(prodRepo, "شيبسي عائلي بالجبنة", "6221199880011", 1000, 750, 10000, "piece");
+            bool threwFractionalPiece = false;
+            try
+            {
+                saleService.ProcessSale(new Sale
+                {
+                    PaymentMethod = "cash",
+                    SubtotalPiasters = 350,
+                    TotalPiasters = 350,
+                    PaidPiasters = 350,
+                    ChangePiasters = 0,
+                    Items = new List<SaleItem>
+                    {
+                        new SaleItem
+                        {
+                            ProductId = pieceProd.Id,
+                            ProductName = pieceProd.Name,
+                            Barcode = pieceProd.Barcode,
+                            QuantityMilli = 350, // 0.35 piece - forbidden!
+                            UnitPricePiasters = 1000,
+                            TotalPiasters = 350,
+                            Unit = "piece"
+                        }
+                    }
+                });
+            }
+            catch (InvalidOperationException)
+            {
+                threwFractionalPiece = true;
+            }
+            Assert(threwFractionalPiece, "حظر بيع كميات كسرية (0.35) للأصناف المباعة بالقطعة في غياب وحدة قابلة للتجزئة", result);
+
+            // 2. Weighted Product Sale with AwayFromZero Half-Up Rounding
+            var weightProd = CreateTestProduct(prodRepo, "جبنة رومي قديمة", "2010055003501", 1399, 1100, 50000, "kg");
+            var weightSale = saleService.ProcessSale(new Sale
+            {
+                PaymentMethod = "cash",
+                SubtotalPiasters = 490,
+                TotalPiasters = 490,
+                PaidPiasters = 500,
+                ChangePiasters = 10,
+                Items = new List<SaleItem>
+                {
+                    new SaleItem
+                    {
+                        ProductId = weightProd.Id,
+                        ProductName = weightProd.Name,
+                        Barcode = weightProd.Barcode,
+                        QuantityMilli = 350, // 350 grams (0.35 kg)
+                        UnitPricePiasters = 1399,
+                        TotalPiasters = 490, // (1399 * 350) / 1000 = 489.65 -> 490
+                        Unit = "kg"
+                    }
+                }
+            });
+            Assert(weightSale != null && weightSale.TotalPiasters == 490, "إتمام بيع 350 جرام جبنة رومي بحساب مالي صحيح مقرب لأقرب قرش (490 قرش)", result);
+
+            var weightProdAfterSale = prodRepo.GetById(weightProd.Id);
+            Assert(weightProdAfterSale.StockQuantityMilli == 49650, "خصم المخزون بالمليجرام بدقة متناهية (50000 - 350 = 49650)", result);
+
+            // 3. Purchase of Weighted Item: exact AwayFromZero piasters line total
+            var supplier = supplierService.Save(new Supplier
+            {
+                Name = "شركة الألبان الممتازة",
+                Phone = "01122334455",
+                BalancePiasters = 0
+            });
+
+            var pur1 = purchaseService.CreatePurchase(new Purchase
+            {
+                SupplierId = supplier.Id,
+                DiscountPiasters = 0,
+                PaidAmountPiasters = 12,
+                Items = new List<PurchaseItem>
+                {
+                    new PurchaseItem
+                    {
+                        ProductId = weightProd.Id,
+                        ProductName = weightProd.Name,
+                        Barcode = weightProd.Barcode,
+                        QuantityMilli = 350, // 350 grams
+                        UnitCostPiasters = 33 // 33 piasters/kg -> 33 * 350 / 1000 = 11.55 -> 12 piasters
+                    }
+                }
+            });
+            Assert(pur1 != null && pur1.NetCostPiasters == 12 && pur1.PaymentStatus == "PAID", "فاتورة شراء بالوزن مسددة بالكامل (12 قرش) دون ترحيل عجز أو فائض وهمي", result);
+
+            // 4. Weighted Average Cost Precision with MidpointRounding.AwayFromZero
+            var costTestProd = CreateTestProduct(prodRepo, "تفاح أحمر سكري", "2020044000001", 2500, 1000, 1000, "kg"); // 1 kg at 1000 piasters
+            purchaseService.CreatePurchase(new Purchase
+            {
+                SupplierId = supplier.Id,
+                DiscountPiasters = 0,
+                PaidAmountPiasters = 525,
+                Items = new List<PurchaseItem>
+                {
+                    new PurchaseItem
+                    {
+                        ProductId = costTestProd.Id,
+                        ProductName = costTestProd.Name,
+                        QuantityMilli = 350, // 350 grams
+                        UnitCostPiasters = 1500 // (1000 * 1000 + 350 * 1500) / 1350 = 1525000 / 1350 = 1129.629 -> 1130
+                    }
+                }
+            }, "WEIGHTED_AVERAGE");
+            var prodAfterPur = prodRepo.GetById(costTestProd.Id);
+            Assert(prodAfterPur.CostPiasters == 1130, "حساب متوسط التكلفة المرجح بدقة التقريب المالي المعتمدة (1130 قرش بدلاً من 1129)", result);
+
+            // 5. Liability Leak Guard: Credit or Partial Purchase without SupplierId MUST fail
+            bool threwNoSupplierCredit = false;
+            try
+            {
+                purchaseService.CreatePurchase(new Purchase
+                {
+                    SupplierId = null,
+                    DiscountPiasters = 0,
+                    PaidAmountPiasters = 0, // Unpaid credit purchase without supplier
+                    Items = new List<PurchaseItem>
+                    {
+                        new PurchaseItem
+                        {
+                            ProductId = weightProd.Id,
+                            ProductName = weightProd.Name,
+                            QuantityMilli = 1000,
+                            UnitCostPiasters = 1000
+                        }
+                    }
+                });
+            }
+            catch (InvalidOperationException)
+            {
+                threwNoSupplierCredit = true;
+            }
+            Assert(threwNoSupplierCredit, "منع إنشاء فاتورة شراء آجلة أو جزئية بدون تحديد مورد (حماية من تسريب الالتزامات المالية)", result);
+
+            // 6. Supplier Credit Purchase & Ledger Verification
+            var creditPur = purchaseService.CreatePurchase(new Purchase
+            {
+                SupplierId = supplier.Id,
+                DiscountPiasters = 0,
+                PaidAmountPiasters = 2000,
+                Items = new List<PurchaseItem>
+                {
+                    new PurchaseItem
+                    {
+                        ProductId = weightProd.Id,
+                        ProductName = weightProd.Name,
+                        QuantityMilli = 5000,
+                        UnitCostPiasters = 1000 // Total = 5000, Paid = 2000, Remaining = 3000
+                    }
+                }
+            });
+            Assert(creditPur.RemainingAmountPiasters == 3000 && creditPur.PaymentStatus == "PARTIAL", "تسجيل فاتورة شراء جزئية (سداد 2000 والباقي 3000 قرش)", result);
+
+            var supAfterCredit = supplierService.GetById(supplier.Id);
+            Assert(supAfterCredit.BalancePiasters == 3000, "تحديث رصيد المورد الدائن بـ 3000 قرش بدقة", result);
+
+            // 7. Supplier Payment Settlement
+            supplierService.RecordPayment(supplier.Id, 1000, "سداد نقدي على الحساب");
+            var supAfterPay = supplierService.GetById(supplier.Id);
+            Assert(supAfterPay.BalancePiasters == 2000, "خفض رصيد المورد بعد السداد النقدي إلى 2000 قرش", result);
+
+            // 8. Supplier Overpayment (Advance Credit)
+            supplierService.RecordPayment(supplier.Id, 2500, "سداد بالزيادة تحت الحساب");
+            var supAfterAdvance = supplierService.GetById(supplier.Id);
+            Assert(supAfterAdvance.BalancePiasters == -500, "تحول رصيد المورد إلى دائن لصالح المحل (-500 قرش)", result);
+
+            // 9. Audit and Discrepancy Verification
+            var verify = supplierService.VerifyBalance(supplier.Id);
+            Assert(verify.IsBalanced && verify.DiscrepancyPiasters == 0, "مطابقة كشف حساب المورد رياضياً مع الرصيد المسجل (فارق = 0 قرش)", result);
+
+            // 10. Concurrency stress on Supplier Ledger under FinancialWriteLock
+            int threadCount = 10;
+            Thread[] threads = new Thread[threadCount];
+            int successfulOps = 0;
+            object syncCount = new object();
+
+            for (int t = 0; t < threadCount; t++)
+            {
+                int tid = t;
+                threads[t] = new Thread(() =>
+                {
+                    try
+                    {
+                        if (tid % 2 == 0)
+                        {
+                            purchaseService.CreatePurchase(new Purchase
+                            {
+                                SupplierId = supplier.Id,
+                                DiscountPiasters = 0,
+                                PaidAmountPiasters = 100,
+                                Items = new List<PurchaseItem>
+                                {
+                                    new PurchaseItem
+                                    {
+                                        ProductId = weightProd.Id,
+                                        ProductName = weightProd.Name,
+                                        QuantityMilli = 1000,
+                                        UnitCostPiasters = 100 // Total = 100, Paid = 100 (Full cash)
+                                    }
+                                }
+                            });
+                        }
+                        else
+                        {
+                            supplierService.RecordPayment(supplier.Id, 50, "سداد متزامن");
+                        }
+                        lock (syncCount) { successfulOps++; }
+                    }
+                    catch (Exception)
+                    {
+                    }
+                });
+                threads[t].Start();
+            }
+
+            for (int t = 0; t < threadCount; t++)
+            {
+                threads[t].Join(5000);
+            }
+
+            Assert(successfulOps == threadCount, "تنفيذ كافة العمليات المتزامنة على المورد بنجاح تام تحت FinancialWriteLock", result);
+            var finalVerify = supplierService.VerifyBalance(supplier.Id);
+            Assert(finalVerify.IsBalanced && finalVerify.DiscrepancyPiasters == 0, "سلامة وتطابق كشف حساب المورد بعد اختبار الإجهاد التزامني المعقد", result);
         }
 
         private static Product CreateTestProduct(ProductRepository prodRepo, string name, string barcode, long price, long cost, long stockMilli, string unit)

@@ -604,33 +604,36 @@ export function DashboardView({
           );
         })()}
 
-        {/* KPI 6: Customer Debts */}
+        {/* KPI 6: Today's Credit Sales & Cumulative Debts */}
         <div 
           onClick={() => {
             if (onNavigateSubTab) onNavigateSubTab('customers');
             else if (onNavigateToCustomers) onNavigateToCustomers();
           }}
-          className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 shadow-2xs hover:border-rose-400 hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[120px] cursor-pointer"
+          className="bg-surface rounded-xl border border-line p-3 sm:p-3.5 shadow-2xs hover:border-amber-400 hover:shadow-md transition-all duration-200 flex flex-col justify-between min-h-[120px] cursor-pointer group"
+          title="مبيعات الشكك والآجل المسجلة النهاردة، مع بيان إجمالي مديونية الزبائن في دفتر الشكك"
         >
           <div>
             <div className="flex items-center justify-between text-xs text-ink-muted mb-1.5">
-              <span className="font-bold text-ink text-xs">فلوس برة (حسابات الشكك)</span>
-              <div className="w-7 h-7 rounded-lg bg-rose-50 text-danger border border-rose-200 flex items-center justify-center shadow-2xs">
+              <span className="font-bold text-ink text-xs">شكك النهاردة</span>
+              <div className="w-7 h-7 rounded-lg bg-amber-50 text-warn border border-amber-200/80 flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
                 <Users className="w-3.5 h-3.5" />
               </div>
             </div>
             <div className="flex items-baseline gap-1">
-              <span className="text-xl lg:text-2xl font-black font-mono text-danger tabular-nums leading-none">
-                {summary && summary.totalCustomerDebtsPiasters != null 
-                  ? (summary.totalCustomerDebtsPiasters / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) 
-                  : '0.00'}
+              <span className={`text-xl lg:text-2xl font-black font-mono tabular-nums leading-none ${
+                (summary?.todayCreditPiasters || 0) > 0 ? 'text-warn' : 'text-ink'
+              }`}>
+                {((summary?.todayCreditPiasters || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
               <span className="text-[11px] font-bold text-ink-muted">ج.م</span>
             </div>
           </div>
           <div className="pt-2 mt-2 border-t border-line/60 flex items-center justify-between text-[11px] text-ink-muted">
-            <span>عليهم حساب: <strong className="text-danger font-mono tabular-nums">{summary?.debtorsCount || 0}</strong></span>
-            <span className="text-paid font-bold text-[11px] flex items-center gap-0.5 hover:underline">
+            <span title={`إجمالي كل الشكك لعدد ${summary?.debtorsCount || 0} عميل`}>
+              إجمالي برة: <strong className="text-danger font-mono font-bold tabular-nums">{summary ? ((summary.totalCustomerDebtsPiasters || 0) / 100).toLocaleString('en-US', { maximumFractionDigits: 0 }) : '0'}</strong> ج.م
+            </span>
+            <span className="text-paid font-bold text-[11px] flex items-center gap-0.5 group-hover:underline">
               دفتر الشكك
               <ChevronLeft className="w-3 h-3" />
             </span>

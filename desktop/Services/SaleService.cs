@@ -345,6 +345,17 @@ namespace RafiqPOS.Services
                     {
                         item.Barcode = product.Barcode;
                     }
+
+                    // Divisibility guard for base units: non-weighted products sold in piece units cannot have fractional quantities
+                    if (product != null && !string.Equals(product.Unit, "kg", StringComparison.OrdinalIgnoreCase) && !string.Equals(product.Unit, "gram", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (item.QuantityMilli % 1000 != 0)
+                        {
+                            throw new InvalidOperationException(
+                                string.Format("الصنف '{0}' يباع بالقطعة وغير قابل للتجزئة؛ يجب إدخال كمية صحيحة بدون كسور.", product.Name)
+                            );
+                        }
+                    }
                 }
 
                 // Selling below/above the catalogue price requires the price-override permission (Audit F-11)

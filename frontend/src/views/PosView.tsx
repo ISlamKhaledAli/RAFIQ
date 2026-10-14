@@ -941,8 +941,14 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       let results = extractProducts(res);
 
       if ((!results || results.length === 0) && scaleInfo) {
-        res = await invoke<unknown>('products:search', { query: scaleInfo.itemPluTrimmed, limit: 5 });
+        // Try matching: 1) Prefix+PLU (e.g. 2100045), 2) Trimmed PLU (e.g. 45), 3) 5-digit PLU (e.g. 00045)
+        const prefixPlu = `${scaleInfo.prefix}${scaleInfo.itemPlu}`;
+        res = await invoke<unknown>('products:search', { query: prefixPlu, limit: 5 });
         results = extractProducts(res);
+        if (!results || results.length === 0) {
+          res = await invoke<unknown>('products:search', { query: scaleInfo.itemPluTrimmed, limit: 5 });
+          results = extractProducts(res);
+        }
         if (!results || results.length === 0) {
           res = await invoke<unknown>('products:search', { query: scaleInfo.itemPlu, limit: 5 });
           results = extractProducts(res);
@@ -1031,8 +1037,14 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       let results = extractProducts(res);
 
       if ((!results || results.length === 0) && scaleInfo) {
-        res = await invoke<unknown>('products:search', { query: scaleInfo.itemPluTrimmed, limit: 5 });
+        // Try matching: 1) Prefix+PLU (e.g. 2100045), 2) Trimmed PLU (e.g. 45), 3) 5-digit PLU (e.g. 00045)
+        const prefixPlu = `${scaleInfo.prefix}${scaleInfo.itemPlu}`;
+        res = await invoke<unknown>('products:search', { query: prefixPlu, limit: 5 });
         results = extractProducts(res);
+        if (!results || results.length === 0) {
+          res = await invoke<unknown>('products:search', { query: scaleInfo.itemPluTrimmed, limit: 5 });
+          results = extractProducts(res);
+        }
         if (!results || results.length === 0) {
           res = await invoke<unknown>('products:search', { query: scaleInfo.itemPlu, limit: 5 });
           results = extractProducts(res);
@@ -1096,16 +1108,18 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       showStatus(`تم تعديل وزن ${weightModalProduct.name} إلى ${(weightMilli / 1000).toFixed(3)} كجم`, 'success');
     } else {
       const dummyId = weightModalProduct.id || (weightModalProduct.barcode ? `prod_${weightModalProduct.barcode}` : `prod_${weightModalProduct.name.replace(/\s+/g, '_')}`);
-      const foundProd = catalogProducts.find((p) => p.id === weightModalProduct.id);
+      const foundProd = catalogProducts.find((p) => p.id === weightModalProduct.id || (Boolean(weightModalProduct.barcode) && p.barcode === weightModalProduct.barcode));
+      const foundQuick = quickItems.find((q) => q.id === weightModalProduct.id || q.name === weightModalProduct.name);
+      const linkedQuickProd = foundQuick?.productId ? catalogProducts.find((p) => p.id === foundQuick.productId) : null;
       const productToAdd: Product = {
         id: dummyId,
         name: weightModalProduct.name,
-        barcode: weightModalProduct.barcode || foundProd?.barcode || null,
+        barcode: weightModalProduct.barcode || foundProd?.barcode || linkedQuickProd?.barcode || null,
         pricePiasters: weightModalProduct.pricePiasters,
-        costPiasters: foundProd ? foundProd.costPiasters : Math.round(weightModalProduct.pricePiasters * 0.75),
+        costPiasters: foundProd ? foundProd.costPiasters : (linkedQuickProd ? linkedQuickProd.costPiasters : 0),
         stockQuantityMilli: foundProd && typeof foundProd.stockQuantityMilli === 'number' ? foundProd.stockQuantityMilli : 100000,
         unit: 'kg',
-        taxRatePercent: foundProd ? foundProd.taxRatePercent : 0,
+        taxRatePercent: foundProd ? foundProd.taxRatePercent : (linkedQuickProd ? linkedQuickProd.taxRatePercent : 0),
         isActive: true,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()

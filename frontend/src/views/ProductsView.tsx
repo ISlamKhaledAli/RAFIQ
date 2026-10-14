@@ -131,6 +131,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [importSuccessAlert, setImportSuccessAlert] = useState<string | null>(null);
   const [showVariantMatrixModal, setShowVariantMatrixModal] = useState(false);
+  const [matrixParentProduct, setMatrixParentProduct] = useState<Product | null>(null);
   const [selectedParentForVariants, setSelectedParentForVariants] = useState<Product | null>(null);
   const [batchesInitialSearch, setBatchesInitialSearch] = useState<string>('');
   const { isEnabled } = useFeatures();
@@ -1418,11 +1419,15 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       {/* Product Variant Matrix Modal (Story 104 - Feature #114) */}
       <ProductVariantMatrixModal
         isOpen={showVariantMatrixModal}
-        onClose={() => setShowVariantMatrixModal(false)}
+        onClose={() => {
+          setShowVariantMatrixModal(false);
+          setMatrixParentProduct(null);
+        }}
+        parentProduct={matrixParentProduct}
         onSuccess={(result) => {
           void rafiqAlert({
-            title: 'تم إنشاء مصفوفة المقاسات والألوان بنجاح!',
-            message: `تم إنشاء المنتج الأساسي "${result.parentProduct.name}" مع ${result.totalVariantsCount} تركيبة، بإجمالي رصيد ${result.totalStockMilli / 1000} قطعة.`,
+            title: 'تم حفظ مصفوفة المقاسات والألوان بنجاح!',
+            message: `تم حفظ المنتج الأساسي "${result.parentProduct.name}" مع ${result.totalVariantsCount} تركيبة، بإجمالي رصيد ${result.totalStockMilli / 1000} قطعة.`,
             variant: 'info'
           });
           void loadProducts('');
@@ -1436,6 +1441,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         onClose={() => setSelectedParentForVariants(null)}
         parentProduct={selectedParentForVariants}
         onOpenMatrixModal={() => {
+          setMatrixParentProduct(selectedParentForVariants);
           setShowVariantMatrixModal(true);
         }}
         onPrintVariantLabel={(v) => {
