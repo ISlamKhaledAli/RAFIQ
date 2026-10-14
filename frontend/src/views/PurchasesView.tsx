@@ -243,8 +243,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
           currentStockMilli: prod.stockQuantityMilli,
           currentCostPiasters: prod.costPiasters,
           currentPricePiasters: prod.pricePiasters,
-          quantityUnits: 0,
-          quantityInput: '',
+          quantityUnits: 1,
+          quantityInput: '1',
           unitCostPiasters: prod.costPiasters > 0 ? prod.costPiasters : prod.pricePiasters,
           newSellingPricePiasters: prod.pricePiasters,
           batchNumber: '',
@@ -256,7 +256,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
           unit: prod.unit || 'piece',
           cartonsInput: '',
           packSizeInput: '',
-          looseInput: '',
+          looseInput: '1',
         },
       ]);
     }
@@ -700,6 +700,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
         isOpen={variantPickerParentProduct !== null}
         onClose={() => setVariantPickerParentProduct(null)}
         parentProduct={variantPickerParentProduct}
+        mode="purchase"
         onSelectVariant={(variantProd) => {
           handleAddProductToPurchase(variantProd);
           showToast(`تم اختيار وإضافة: ${variantProd.name}`);

@@ -117,11 +117,11 @@ namespace RafiqPOS.Common
 
         /// <summary>
         /// حساب تاريخ يوم العمل للمتاجر مع الأخذ في الاعتبار ساعة الإغلاق الليلية (Feature #127 / Task 127-1)
-        /// المتجر الذي يستمر لما بعد منتصف الليل، تُحسب مبيعات حتى 3:00 ص أو 4:00 ص ضمن يوم العمل السابق
+        /// القيمة الافتراضية 0 تعني انتهاء يوم العمل في 12:00 منتصف الليل بتوقيت مصر
         /// </summary>
-        public static DateTime GetBusinessDate(DateTime localTime, int cutoffHour = 4)
+        public static DateTime GetBusinessDate(DateTime localTime, int cutoffHour = 0)
         {
-            if (localTime.Hour < cutoffHour)
+            if (cutoffHour > 0 && localTime.Hour < cutoffHour)
             {
                 return localTime.Date.AddDays(-1);
             }

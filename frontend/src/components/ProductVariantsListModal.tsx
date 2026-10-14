@@ -95,13 +95,29 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 text-ink-muted hover:text-ink hover:bg-line/40 rounded-lg transition-colors cursor-pointer"
-            title="إغلاق"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {onOpenMatrixModal && variants.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenMatrixModal();
+                }}
+                className="px-3 py-1.5 bg-brand-soft hover:bg-brand text-brand hover:text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer border border-brand/20"
+                title="تعديل أو إضافة مقاسات وألوان جديدة لهذا الصنف"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>تعديل أو إضافة مقاسات</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-1.5 text-ink-muted hover:text-ink hover:bg-line/40 rounded-lg transition-colors cursor-pointer"
+              title="إغلاق"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Table Content */}

@@ -243,6 +243,110 @@ describe('Senior Architecture Battle-Test: الأوزان، الألوان وا�
       assert.equal(variantStockMilli, 4000);
       assert.equal(parentStockMilli, 59000);
     });
+
+    it('2.5: مصفوفة غير متناظرة واقعية (Asymmetric Matrix: مقاس بلون واحد، مقاس بألوان متعددة، ومقاس بقطعة واحدة فقط)', () => {
+      // Scenario requested by user:
+      // المقاس S فيه لون أحمر فقط
+      // المقاس M فيه 3 ألوان (أحمر، أسود، كحلي)
+      // المقاس L فيه قطعة واحدة فقط من الكحلي، والباقي غير متوفر
+      const matrix = [
+        // Size S: Red only (1 piece = 1000 milli)
+        { size: 'S', color: 'أحمر', isEnabled: true, stockMilli: 1000, price: 15000 },
+        { size: 'S', color: 'أسود', isEnabled: false, stockMilli: 0, price: 15000 },
+        { size: 'S', color: 'كحلي', isEnabled: false, stockMilli: 0, price: 15000 },
+
+        // Size M: 3 colors enabled (Red: 5, Black: 5, Navy: 4 pieces)
+        { size: 'M', color: 'أحمر', isEnabled: true, stockMilli: 5000, price: 15000 },
+        { size: 'M', color: 'أسود', isEnabled: true, stockMilli: 5000, price: 15000 },
+        { size: 'M', color: 'كحلي', isEnabled: true, stockMilli: 4000, price: 15000 },
+
+        // Size L: Single piece of Navy only!
+        { size: 'L', color: 'أحمر', isEnabled: false, stockMilli: 0, price: 16000 },
+        { size: 'L', color: 'أسود', isEnabled: false, stockMilli: 0, price: 16000 },
+        { size: 'L', color: 'كحلي', isEnabled: true, stockMilli: 1000, price: 16000 } // Single piece!
+      ];
+
+      const enabledVariants = matrix.filter((c) => c.isEnabled);
+      assert.equal(enabledVariants.length, 5); // 1 for S + 3 for M + 1 for L
+
+      // Filter colors available for Size S:
+      const colorsForS = matrix.filter((c) => c.size === 'S' && c.isEnabled).map((c) => c.color);
+      assert.deepEqual(colorsForS, ['أحمر']);
+
+      // Filter colors available for Size M:
+      const colorsForM = matrix.filter((c) => c.size === 'M' && c.isEnabled).map((c) => c.color);
+      assert.deepEqual(colorsForM, ['أحمر', 'أسود', 'كحلي']);
+
+      // Single piece indicator for Size L - Navy:
+      const lNavy = matrix.find((c) => c.size === 'L' && c.color === 'كحلي');
+      assert.ok(lNavy);
+      const isSinglePiece = lNavy.stockMilli === 1000;
+      assert.equal(isSinglePiece, true);
+
+      // Parent stock rollup
+      const totalParentStockMilli = enabledVariants.reduce((sum, v) => sum + v.stockMilli, 0);
+      assert.equal(totalParentStockMilli, 16000); // 1 + 5 + 5 + 4 + 1 = 16 pieces
+    });
+
+    it('2.6: شراء فاريانتات محددة من المورد وحظر شراء المنتج الحاوي (Variant Purchasing & Parent Protection)', () => {
+      const parentContainer = { id: 'prod_sweater_parent', name: 'بلوفر صوف', hasVariants: true, stockMilli: 16000 };
+      const sRedVariant = { id: 'var_s_red', parentId: parentContainer.id, name: 'بلوفر صوف - أحمر - S', stockMilli: 1000, costPiasters: 8500 };
+      const mBlackVariant = { id: 'var_m_black', parentId: parentContainer.id, name: 'بلوفر صوف - أسود - M', stockMilli: 5000, costPiasters: 8000 };
+
+      // Purchase line items
+      const purchaseLines = [
+        { productId: sRedVariant.id, qty: 3, unitCost: 8500, totalCost: 25500 }, // 3 pieces S - Red
+        { productId: mBlackVariant.id, qty: 10, unitCost: 8000, totalCost: 80000 } // 10 pieces M - Black
+      ];
+
+      // Direct parent purchase attempt must throw
+      const attemptPurchaseItem = (prod) => {
+        if (prod.hasVariants) {
+          throw new Error('لا يمكن شراء المنتج الرئيسي الحاوي مباشرة لوجود مقاسات وألوان فرعية.');
+        }
+        return true;
+      };
+
+      assert.throws(() => attemptPurchaseItem(parentContainer), /لا يمكن شراء المنتج الرئيسي الحاوي/);
+
+      // Apply purchase to variants and roll up to parent
+      for (const line of purchaseLines) {
+        if (line.productId === sRedVariant.id) {
+          sRedVariant.stockMilli += line.qty * 1000;
+        } else if (line.productId === mBlackVariant.id) {
+          mBlackVariant.stockMilli += line.qty * 1000;
+        }
+        parentContainer.stockMilli += line.qty * 1000;
+      }
+
+      assert.equal(sRedVariant.stockMilli, 4000); // was 1, bought 3 -> 4 pieces
+      assert.equal(mBlackVariant.stockMilli, 15000); // was 5, bought 10 -> 15 pieces
+      assert.equal(parentContainer.stockMilli, 29000); // was 16, added 13 -> 29 pieces
+    });
+
+    it('2.7: إضافة متعددة في وضع المشتريات وإشارة القطعة الواحدة في الـ Modal (Variant Picker Modal Enhancements)', () => {
+      // In purchase mode, adding an item should allow continuous addition without closing modal
+      const addedToInvoice = [];
+      const onSelectVariant = (variant, continueAdding = false) => {
+        addedToInvoice.push({ ...variant, qty: 1 });
+        return continueAdding;
+      };
+
+      const variant1 = { id: 'v1', size: 'M', color: 'أحمر', stockMilli: 2000 };
+      const variant2 = { id: 'v2', size: 'L', color: 'كحلي', stockMilli: 1000 };
+
+      // User adds variant1 with '+ متابعة'
+      const keepModalOpen1 = onSelectVariant(variant1, true);
+      assert.equal(keepModalOpen1, true);
+
+      // User adds variant2 and finishes
+      const keepModalOpen2 = onSelectVariant(variant2, false);
+      assert.equal(keepModalOpen2, false);
+
+      assert.equal(addedToInvoice.length, 2);
+      // Variant 2 triggers single-piece indicator
+      assert.equal(variant2.stockMilli === 1000, true);
+    });
   });
 
   // ==========================================

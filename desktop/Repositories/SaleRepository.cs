@@ -77,6 +77,54 @@ namespace RafiqPOS.Repositories
                         // 3. Insert each Sale Item and deduct inventory
                         foreach (var item in sale.Items)
                         {
+                            if (string.IsNullOrEmpty(item.Id))
+                            {
+                                item.Id = Guid.NewGuid().ToString();
+                            }
+
+                            // Check if this item is a tracked warehouse product (Audit F-28 / Quick Items Support)
+                            bool prodExistsInDb = false;
+                            bool hasVariants = false;
+                            string dbProdName = null;
+                            using (var chkCmd = new SQLiteCommand("SELECT name, has_variants FROM products WHERE id = @chkId LIMIT 1;", conn, trans))
+                            {
+                                chkCmd.Parameters.AddWithValue("@chkId", item.ProductId);
+                                using (var chkReader = chkCmd.ExecuteReader())
+                                {
+                                    if (chkReader.Read())
+                                    {
+                                        prodExistsInDb = true;
+                                        if (chkReader["name"] != DBNull.Value)
+                                        {
+                                            dbProdName = chkReader["name"].ToString();
+                                        }
+                                        try { hasVariants = Convert.ToInt32(chkReader["has_variants"]) == 1; } catch { }
+                                        if (!hasVariants)
+                                        {
+                                            using (var vChkCmd = new SQLiteCommand("SELECT 1 FROM products WHERE parent_id = @pid AND is_active = 1 LIMIT 1;", conn, trans))
+                                            {
+                                                vChkCmd.Parameters.AddWithValue("@pid", item.ProductId);
+                                                object vChkRes = vChkCmd.ExecuteScalar();
+                                                if (vChkRes != null && vChkRes != DBNull.Value)
+                                                {
+                                                    hasVariants = true;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (hasVariants)
+                            {
+                                throw new InvalidOperationException(string.Format("لا يمكن بيع المنتج الرئيسي '{0}' مباشرة لأنه يحتوي على متغيرات (ألوان ومقاسات). يرجى اختيار الصنف الفرعي المحدد.", item.ProductName ?? dbProdName ?? item.ProductId));
+                            }
+
+                            if (string.IsNullOrEmpty(item.ProductName))
+                            {
+                                item.ProductName = dbProdName ?? "صنف غير معروف";
+                            }
+
                             int factor = item.ConversionFactor > 0 ? item.ConversionFactor : 1;
                             long baseQtyDeductionMilli = item.QuantityMilli * factor;
 
@@ -112,27 +160,6 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@unitName", (object)item.UnitName ?? (item.Unit ?? "piece"));
                                 cmd.Parameters.AddWithValue("@conversionFactor", factor);
                                 cmd.ExecuteNonQuery();
-                            }
-
-                            // Check if this item is a tracked warehouse product (Audit F-28 / Quick Items Support)
-                            bool prodExistsInDb = false;
-                            bool hasVariants = false;
-                            using (var chkCmd = new SQLiteCommand("SELECT has_variants FROM products WHERE id = @chkId LIMIT 1;", conn, trans))
-                            {
-                                chkCmd.Parameters.AddWithValue("@chkId", item.ProductId);
-                                using (var chkReader = chkCmd.ExecuteReader())
-                                {
-                                    if (chkReader.Read())
-                                    {
-                                        prodExistsInDb = true;
-                                        try { hasVariants = Convert.ToInt32(chkReader["has_variants"]) == 1; } catch { }
-                                    }
-                                }
-                            }
-
-                            if (hasVariants)
-                            {
-                                throw new InvalidOperationException(string.Format("لا يمكن بيع المنتج الرئيسي '{0}' مباشرة لأنه يحتوي على متغيرات (ألوان ومقاسات). يرجى اختيار الصنف الفرعي المحدد.", item.ProductName ?? item.ProductId));
                             }
 
                             if (prodExistsInDb)
@@ -948,7 +975,7 @@ namespace RafiqPOS.Repositories
                         }
 
                         // Business rule 33-1: cancellation is allowed only before the business day is closed (Audit F-38)
-                        int cutoffHour = 4;
+                        int cutoffHour = 0;
                         using (var cutCmd = new SQLiteCommand("SELECT value FROM app_settings WHERE key = 'business_day_cutoff_hour' LIMIT 1;", conn, trans))
                         {
                             object cutVal = cutCmd.ExecuteScalar();

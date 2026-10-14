@@ -103,26 +103,82 @@ namespace RafiqPOS.Repositories
                         var createdVariants = new List<ProductVariant>();
                         long totalParentStockMilli = 0;
 
+                        // Load existing variants if updating an existing parent product
+                        var existingMap = new Dictionary<string, ProductVariant>(StringComparer.OrdinalIgnoreCase);
+                        if (!string.IsNullOrWhiteSpace(request.ParentProductId))
+                        {
+                            string fetchExistingSql = @"
+                                SELECT pv.*, p.stock_quantity_milli as current_stock, p.price_piasters as current_price, p.cost_piasters as current_cost
+                                FROM product_variants pv
+                                INNER JOIN products p ON pv.variant_product_id = p.id
+                                WHERE pv.parent_product_id = @pid AND p.is_active = 1;
+                            ";
+                            using (var fetchCmd = new SQLiteCommand(fetchExistingSql, conn, trans))
+                            {
+                                fetchCmd.Parameters.AddWithValue("@pid", parentId);
+                                using (var rdr = fetchCmd.ExecuteReader())
+                                {
+                                    while (rdr.Read())
+                                    {
+                                        var ev = new ProductVariant
+                                        {
+                                            Id = rdr["id"].ToString(),
+                                            ParentProductId = rdr["parent_product_id"].ToString(),
+                                            VariantProductId = rdr["variant_product_id"].ToString(),
+                                            Size = rdr["size"] != DBNull.Value ? rdr["size"].ToString() : "",
+                                            Color = rdr["color"] != DBNull.Value ? rdr["color"].ToString() : "",
+                                            Sku = rdr["sku"] != DBNull.Value ? rdr["sku"].ToString() : "",
+                                            Barcode = rdr["barcode"] != DBNull.Value ? rdr["barcode"].ToString() : "",
+                                            PricePiasters = Convert.ToInt64(rdr["current_price"]),
+                                            CostPiasters = Convert.ToInt64(rdr["current_cost"]),
+                                            StockQuantityMilli = Convert.ToInt64(rdr["current_stock"]),
+                                            MinStockQuantityMilli = Convert.ToInt64(rdr["min_stock_quantity_milli"]),
+                                            CreatedAt = rdr["created_at"].ToString(),
+                                            UpdatedAt = rdr["updated_at"].ToString()
+                                        };
+                                        string k = (ev.Size ?? "").Trim() + "__" + (ev.Color ?? "").Trim();
+                                        existingMap[k] = ev;
+                                    }
+                                }
+                            }
+                        }
+
                         // 2. Insert or update each enabled matrix cell
                         foreach (var cell in request.MatrixCells)
                         {
                             if (!cell.IsEnabled) continue;
 
+                            string cellKey = (cell.Size ?? "").Trim() + "__" + (cell.Color ?? "").Trim();
+                            ProductVariant existingVar = null;
+                            if (existingMap.ContainsKey(cellKey))
+                            {
+                                existingVar = existingMap[cellKey];
+                            }
+
                             string variantBarcode = cell.Barcode;
                             if (string.IsNullOrWhiteSpace(variantBarcode))
                             {
-                                variantBarcode = GenerateUniqueVariantBarcode(conn, trans);
+                                if (existingVar != null && !string.IsNullOrWhiteSpace(existingVar.Barcode))
+                                {
+                                    variantBarcode = existingVar.Barcode;
+                                }
+                                else
+                                {
+                                    variantBarcode = GenerateUniqueVariantBarcode(conn, trans);
+                                }
                             }
                             else
                             {
                                 variantBarcode = variantBarcode.Trim();
-                                // Validate barcode is not already owned by another active product
+                                // Validate barcode is not already owned by another active product (excluding self when updating)
                                 string checkCollisionSql = @"
-                                    SELECT name FROM products WHERE is_active = 1 AND barcode = @b LIMIT 1;
+                                    SELECT name FROM products 
+                                    WHERE is_active = 1 AND barcode = @b AND (@excludeId IS NULL OR id != @excludeId) LIMIT 1;
                                 ";
                                 using (var chkCmd = new SQLiteCommand(checkCollisionSql, conn, trans))
                                 {
                                     chkCmd.Parameters.AddWithValue("@b", variantBarcode);
+                                    chkCmd.Parameters.AddWithValue("@excludeId", existingVar != null ? (object)existingVar.VariantProductId : DBNull.Value);
                                     object existingOwner = chkCmd.ExecuteScalar();
                                     if (existingOwner != null && existingOwner != DBNull.Value)
                                     {
@@ -131,8 +187,8 @@ namespace RafiqPOS.Repositories
                                 }
                             }
 
-                            string variantProdId = Guid.NewGuid().ToString("N");
-                            string variantRelationId = Guid.NewGuid().ToString("N");
+                            string variantProdId;
+                            string variantRelationId;
                             string variantName = string.Format("{0} - {1} - {2}", request.ParentName.Trim(), cell.Color ?? "", cell.Size ?? "").Trim();
 
                             long price = cell.PricePiasters > 0 ? cell.PricePiasters : request.DefaultPricePiasters;
@@ -142,123 +198,252 @@ namespace RafiqPOS.Repositories
 
                             totalParentStockMilli += stock;
 
-                            // Insert into products table as sellable item with parent_id
-                            string insertProdSql = @"
-                                INSERT INTO products (
-                                    id, barcode, name, normalized_name, category_id,
-                                    price_piasters, cost_piasters, stock_quantity_milli, min_stock_quantity_milli,
-                                    unit, is_active, parent_id, variant_size, variant_color, variant_sku,
-                                    created_at, updated_at
-                                ) VALUES (
-                                    @id, @barcode, @name, @normalized_name, @category_id,
-                                    @price_piasters, @cost_piasters, @stock, @min_stock,
-                                    'piece', 1, @parent_id, @size, @color, @sku,
-                                    @created_at, @updated_at
-                                );
-                            ";
-                            using (var cmd = new SQLiteCommand(insertProdSql, conn, trans))
+                            if (existingVar != null)
                             {
-                                cmd.Parameters.AddWithValue("@id", variantProdId);
-                                cmd.Parameters.AddWithValue("@barcode", variantBarcode);
-                                cmd.Parameters.AddWithValue("@name", variantName);
-                                cmd.Parameters.AddWithValue("@normalized_name", ArabicTextNormalizer.Normalize(variantName));
-                                cmd.Parameters.AddWithValue("@category_id", (object)request.CategoryId ?? DBNull.Value);
-                                cmd.Parameters.AddWithValue("@price_piasters", price);
-                                cmd.Parameters.AddWithValue("@cost_piasters", cost);
-                                cmd.Parameters.AddWithValue("@stock", stock);
-                                cmd.Parameters.AddWithValue("@min_stock", minStock > 0 ? minStock : 5000);
-                                cmd.Parameters.AddWithValue("@parent_id", parentId);
-                                cmd.Parameters.AddWithValue("@size", (object)cell.Size ?? DBNull.Value);
-                                cmd.Parameters.AddWithValue("@color", (object)cell.Color ?? DBNull.Value);
-                                cmd.Parameters.AddWithValue("@sku", (object)cell.Sku ?? DBNull.Value);
-                                cmd.Parameters.AddWithValue("@created_at", now);
-                                cmd.Parameters.AddWithValue("@updated_at", now);
-                                cmd.ExecuteNonQuery();
-                            }
+                                variantProdId = existingVar.VariantProductId;
+                                variantRelationId = existingVar.Id;
+                                long oldStock = existingVar.StockQuantityMilli;
 
-                            // Insert into product_variants normalization table
-                            string insertVariantSql = @"
-                                INSERT INTO product_variants (
-                                    id, parent_product_id, variant_product_id,
-                                    size, color, sku, barcode,
-                                    price_piasters, cost_piasters, stock_quantity_milli, min_stock_quantity_milli,
-                                    created_at, updated_at
-                                ) VALUES (
-                                    @id, @parent_id, @variant_prod_id,
-                                    @size, @color, @sku, @barcode,
-                                    @price, @cost, @stock, @min_stock,
-                                    @created_at, @updated_at
-                                );
-                            ";
-                            using (var cmd = new SQLiteCommand(insertVariantSql, conn, trans))
-                            {
-                                cmd.Parameters.AddWithValue("@id", variantRelationId);
-                                cmd.Parameters.AddWithValue("@parent_id", parentId);
-                                cmd.Parameters.AddWithValue("@variant_prod_id", variantProdId);
-                                cmd.Parameters.AddWithValue("@size", (object)cell.Size ?? DBNull.Value);
-                                cmd.Parameters.AddWithValue("@color", (object)cell.Color ?? DBNull.Value);
-                                cmd.Parameters.AddWithValue("@sku", (object)cell.Sku ?? DBNull.Value);
-                                cmd.Parameters.AddWithValue("@barcode", variantBarcode);
-                                cmd.Parameters.AddWithValue("@price", price);
-                                cmd.Parameters.AddWithValue("@cost", cost);
-                                cmd.Parameters.AddWithValue("@stock", stock);
-                                cmd.Parameters.AddWithValue("@min_stock", minStock > 0 ? minStock : 5000);
-                                cmd.Parameters.AddWithValue("@created_at", now);
-                                cmd.Parameters.AddWithValue("@updated_at", now);
-                                cmd.ExecuteNonQuery();
-                            }
-
-                            // Ensure base unit in product_units for variant product
-                            try
-                            {
-                                string insUnitSql = @"
-                                    INSERT OR IGNORE INTO product_units (
-                                        id, product_id, unit_name, conversion_factor, is_base_unit,
-                                        sell_price_piasters, cost_price_piasters, barcode, is_divisible,
-                                        sort_order, created_at, updated_at
-                                    ) VALUES (
-                                        @id, @productId, 'قطعة', 1, 1,
-                                        @sellPrice, @costPrice, @barcode, 0,
-                                        0, @createdAt, @updatedAt
-                                    );
+                                // Update existing product row
+                                string updateProdSql = @"
+                                    UPDATE products
+                                    SET name = @name,
+                                        normalized_name = @normalized_name,
+                                        category_id = @category_id,
+                                        price_piasters = @price_piasters,
+                                        cost_piasters = @cost_piasters,
+                                        stock_quantity_milli = @stock,
+                                        min_stock_quantity_milli = @min_stock,
+                                        barcode = @barcode,
+                                        variant_sku = @sku,
+                                        variant_size = @size,
+                                        variant_color = @color,
+                                        is_active = 1,
+                                        updated_at = @updated_at
+                                    WHERE id = @id;
                                 ";
-                                using (var unitCmd = new SQLiteCommand(insUnitSql, conn, trans))
+                                using (var cmd = new SQLiteCommand(updateProdSql, conn, trans))
                                 {
-                                    unitCmd.Parameters.AddWithValue("@id", "punit_" + variantProdId);
-                                    unitCmd.Parameters.AddWithValue("@productId", variantProdId);
-                                    unitCmd.Parameters.AddWithValue("@sellPrice", price);
-                                    unitCmd.Parameters.AddWithValue("@costPrice", cost);
-                                    unitCmd.Parameters.AddWithValue("@barcode", string.IsNullOrWhiteSpace(variantBarcode) ? (object)DBNull.Value : variantBarcode);
-                                    unitCmd.Parameters.AddWithValue("@createdAt", now);
-                                    unitCmd.Parameters.AddWithValue("@updatedAt", now);
-                                    unitCmd.ExecuteNonQuery();
+                                    cmd.Parameters.AddWithValue("@name", variantName);
+                                    cmd.Parameters.AddWithValue("@normalized_name", ArabicTextNormalizer.Normalize(variantName));
+                                    cmd.Parameters.AddWithValue("@category_id", (object)request.CategoryId ?? DBNull.Value);
+                                    cmd.Parameters.AddWithValue("@price_piasters", price);
+                                    cmd.Parameters.AddWithValue("@cost_piasters", cost);
+                                    cmd.Parameters.AddWithValue("@stock", stock);
+                                    cmd.Parameters.AddWithValue("@min_stock", minStock > 0 ? minStock : 5000);
+                                    cmd.Parameters.AddWithValue("@barcode", variantBarcode);
+                                    cmd.Parameters.AddWithValue("@sku", (object)cell.Sku ?? DBNull.Value);
+                                    cmd.Parameters.AddWithValue("@size", (object)cell.Size ?? DBNull.Value);
+                                    cmd.Parameters.AddWithValue("@color", (object)cell.Color ?? DBNull.Value);
+                                    cmd.Parameters.AddWithValue("@updated_at", now);
+                                    cmd.Parameters.AddWithValue("@id", variantProdId);
+                                    cmd.ExecuteNonQuery();
+                                }
+
+                                // Update existing product_variants relation row
+                                string updateVariantSql = @"
+                                    UPDATE product_variants
+                                    SET size = @size,
+                                        color = @color,
+                                        sku = @sku,
+                                        barcode = @barcode,
+                                        price_piasters = @price,
+                                        cost_piasters = @cost,
+                                        stock_quantity_milli = @stock,
+                                        min_stock_quantity_milli = @min_stock,
+                                        updated_at = @updated_at
+                                    WHERE id = @id;
+                                ";
+                                using (var cmd = new SQLiteCommand(updateVariantSql, conn, trans))
+                                {
+                                    cmd.Parameters.AddWithValue("@size", (object)cell.Size ?? DBNull.Value);
+                                    cmd.Parameters.AddWithValue("@color", (object)cell.Color ?? DBNull.Value);
+                                    cmd.Parameters.AddWithValue("@sku", (object)cell.Sku ?? DBNull.Value);
+                                    cmd.Parameters.AddWithValue("@barcode", variantBarcode);
+                                    cmd.Parameters.AddWithValue("@price", price);
+                                    cmd.Parameters.AddWithValue("@cost", cost);
+                                    cmd.Parameters.AddWithValue("@stock", stock);
+                                    cmd.Parameters.AddWithValue("@min_stock", minStock > 0 ? minStock : 5000);
+                                    cmd.Parameters.AddWithValue("@updated_at", now);
+                                    cmd.Parameters.AddWithValue("@id", variantRelationId);
+                                    cmd.ExecuteNonQuery();
+                                }
+
+                                // Sync base unit in product_units
+                                try
+                                {
+                                    string syncUnitSql = @"
+                                        UPDATE product_units
+                                        SET sell_price_piasters = @sellPrice,
+                                            cost_price_piasters = @costPrice,
+                                            barcode = @barcode,
+                                            updated_at = @updatedAt
+                                        WHERE product_id = @productId AND is_base_unit = 1;
+                                    ";
+                                    using (var unitCmd = new SQLiteCommand(syncUnitSql, conn, trans))
+                                    {
+                                        unitCmd.Parameters.AddWithValue("@sellPrice", price);
+                                        unitCmd.Parameters.AddWithValue("@costPrice", cost);
+                                        unitCmd.Parameters.AddWithValue("@barcode", string.IsNullOrWhiteSpace(variantBarcode) ? (object)DBNull.Value : variantBarcode);
+                                        unitCmd.Parameters.AddWithValue("@updatedAt", now);
+                                        unitCmd.Parameters.AddWithValue("@productId", variantProdId);
+                                        unitCmd.ExecuteNonQuery();
+                                    }
+                                }
+                                catch { }
+
+                                // Record stock adjustment movement if stock changed
+                                if (stock != oldStock)
+                                {
+                                    long delta = stock - oldStock;
+                                    string smSql = @"
+                                        INSERT INTO stock_movements (
+                                            id, product_id, movement_type, quantity_milli,
+                                            reference_id, reference_type, unit_cost_piasters,
+                                            note, created_at
+                                        ) VALUES (
+                                            @id, @product_id, @mtype, @qty,
+                                            @ref_id, 'INVENTORY_ADJUSTMENT', @unit_cost,
+                                            'تعديل رصيد تركيبة المنتج بالمصفوفة', @created_at
+                                        );
+                                    ";
+                                    using (var cmd = new SQLiteCommand(smSql, conn, trans))
+                                    {
+                                        cmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString("N"));
+                                        cmd.Parameters.AddWithValue("@product_id", variantProdId);
+                                        cmd.Parameters.AddWithValue("@mtype", delta > 0 ? "IN" : "OUT");
+                                        cmd.Parameters.AddWithValue("@qty", Math.Abs(delta));
+                                        cmd.Parameters.AddWithValue("@ref_id", variantRelationId);
+                                        cmd.Parameters.AddWithValue("@unit_cost", cost);
+                                        cmd.Parameters.AddWithValue("@created_at", now);
+                                        cmd.ExecuteNonQuery();
+                                    }
                                 }
                             }
-                            catch { }
-
-                            // Insert initial stock movement if stock > 0
-                            if (stock > 0)
+                            else
                             {
-                                string smSql = @"
-                                    INSERT INTO stock_movements (
-                                        id, product_id, movement_type, quantity_milli,
-                                        reference_id, reference_type, unit_cost_piasters,
-                                        note, created_at
+                                // New variant: insert brand new rows
+                                variantProdId = Guid.NewGuid().ToString("N");
+                                variantRelationId = Guid.NewGuid().ToString("N");
+
+                                // Insert into products table as sellable item with parent_id
+                                string insertProdSql = @"
+                                    INSERT INTO products (
+                                        id, barcode, name, normalized_name, category_id,
+                                        price_piasters, cost_piasters, stock_quantity_milli, min_stock_quantity_milli,
+                                        unit, is_active, parent_id, variant_size, variant_color, variant_sku,
+                                        created_at, updated_at
                                     ) VALUES (
-                                        @id, @product_id, 'IN', @qty,
-                                        @ref_id, 'OPENING_BALANCE', @unit_cost,
-                                        'رصيد افتتاحي لتركيبة المنتج', @created_at
+                                        @id, @barcode, @name, @normalized_name, @category_id,
+                                        @price_piasters, @cost_piasters, @stock, @min_stock,
+                                        'piece', 1, @parent_id, @size, @color, @sku,
+                                        @created_at, @updated_at
                                     );
                                 ";
-                                using (var cmd = new SQLiteCommand(smSql, conn, trans))
+                                using (var cmd = new SQLiteCommand(insertProdSql, conn, trans))
                                 {
-                                    cmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString("N"));
-                                    cmd.Parameters.AddWithValue("@product_id", variantProdId);
-                                    cmd.Parameters.AddWithValue("@qty", stock);
-                                    cmd.Parameters.AddWithValue("@ref_id", variantRelationId);
-                                    cmd.Parameters.AddWithValue("@unit_cost", cost);
+                                    cmd.Parameters.AddWithValue("@id", variantProdId);
+                                    cmd.Parameters.AddWithValue("@barcode", variantBarcode);
+                                    cmd.Parameters.AddWithValue("@name", variantName);
+                                    cmd.Parameters.AddWithValue("@normalized_name", ArabicTextNormalizer.Normalize(variantName));
+                                    cmd.Parameters.AddWithValue("@category_id", (object)request.CategoryId ?? DBNull.Value);
+                                    cmd.Parameters.AddWithValue("@price_piasters", price);
+                                    cmd.Parameters.AddWithValue("@cost_piasters", cost);
+                                    cmd.Parameters.AddWithValue("@stock", stock);
+                                    cmd.Parameters.AddWithValue("@min_stock", minStock > 0 ? minStock : 5000);
+                                    cmd.Parameters.AddWithValue("@parent_id", parentId);
+                                    cmd.Parameters.AddWithValue("@size", (object)cell.Size ?? DBNull.Value);
+                                    cmd.Parameters.AddWithValue("@color", (object)cell.Color ?? DBNull.Value);
+                                    cmd.Parameters.AddWithValue("@sku", (object)cell.Sku ?? DBNull.Value);
                                     cmd.Parameters.AddWithValue("@created_at", now);
+                                    cmd.Parameters.AddWithValue("@updated_at", now);
                                     cmd.ExecuteNonQuery();
+                                }
+
+                                // Insert into product_variants normalization table
+                                string insertVariantSql = @"
+                                    INSERT INTO product_variants (
+                                        id, parent_product_id, variant_product_id,
+                                        size, color, sku, barcode,
+                                        price_piasters, cost_piasters, stock_quantity_milli, min_stock_quantity_milli,
+                                        created_at, updated_at
+                                    ) VALUES (
+                                        @id, @parent_id, @variant_prod_id,
+                                        @size, @color, @sku, @barcode,
+                                        @price, @cost, @stock, @min_stock,
+                                        @created_at, @updated_at
+                                    );
+                                ";
+                                using (var cmd = new SQLiteCommand(insertVariantSql, conn, trans))
+                                {
+                                    cmd.Parameters.AddWithValue("@id", variantRelationId);
+                                    cmd.Parameters.AddWithValue("@parent_id", parentId);
+                                    cmd.Parameters.AddWithValue("@variant_prod_id", variantProdId);
+                                    cmd.Parameters.AddWithValue("@size", (object)cell.Size ?? DBNull.Value);
+                                    cmd.Parameters.AddWithValue("@color", (object)cell.Color ?? DBNull.Value);
+                                    cmd.Parameters.AddWithValue("@sku", (object)cell.Sku ?? DBNull.Value);
+                                    cmd.Parameters.AddWithValue("@barcode", variantBarcode);
+                                    cmd.Parameters.AddWithValue("@price", price);
+                                    cmd.Parameters.AddWithValue("@cost", cost);
+                                    cmd.Parameters.AddWithValue("@stock", stock);
+                                    cmd.Parameters.AddWithValue("@min_stock", minStock > 0 ? minStock : 5000);
+                                    cmd.Parameters.AddWithValue("@created_at", now);
+                                    cmd.Parameters.AddWithValue("@updated_at", now);
+                                    cmd.ExecuteNonQuery();
+                                }
+
+                                // Ensure base unit in product_units for variant product
+                                try
+                                {
+                                    string insUnitSql = @"
+                                        INSERT OR IGNORE INTO product_units (
+                                            id, product_id, unit_name, conversion_factor, is_base_unit,
+                                            sell_price_piasters, cost_price_piasters, barcode, is_divisible,
+                                            sort_order, created_at, updated_at
+                                        ) VALUES (
+                                            @id, @productId, 'قطعة', 1, 1,
+                                            @sellPrice, @costPrice, @barcode, 0,
+                                            0, @createdAt, @updatedAt
+                                        );
+                                    ";
+                                    using (var unitCmd = new SQLiteCommand(insUnitSql, conn, trans))
+                                    {
+                                        unitCmd.Parameters.AddWithValue("@id", "punit_" + variantProdId);
+                                        unitCmd.Parameters.AddWithValue("@productId", variantProdId);
+                                        unitCmd.Parameters.AddWithValue("@sellPrice", price);
+                                        unitCmd.Parameters.AddWithValue("@costPrice", cost);
+                                        unitCmd.Parameters.AddWithValue("@barcode", string.IsNullOrWhiteSpace(variantBarcode) ? (object)DBNull.Value : variantBarcode);
+                                        unitCmd.Parameters.AddWithValue("@createdAt", now);
+                                        unitCmd.Parameters.AddWithValue("@updatedAt", now);
+                                        unitCmd.ExecuteNonQuery();
+                                    }
+                                }
+                                catch { }
+
+                                // Insert initial stock movement if stock > 0
+                                if (stock > 0)
+                                {
+                                    string smSql = @"
+                                        INSERT INTO stock_movements (
+                                            id, product_id, movement_type, quantity_milli,
+                                            reference_id, reference_type, unit_cost_piasters,
+                                            note, created_at
+                                        ) VALUES (
+                                            @id, @product_id, 'IN', @qty,
+                                            @ref_id, 'OPENING_BALANCE', @unit_cost,
+                                            'رصيد افتتاحي لتركيبة المنتج', @created_at
+                                        );
+                                    ";
+                                    using (var cmd = new SQLiteCommand(smSql, conn, trans))
+                                    {
+                                        cmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString("N"));
+                                        cmd.Parameters.AddWithValue("@product_id", variantProdId);
+                                        cmd.Parameters.AddWithValue("@qty", stock);
+                                        cmd.Parameters.AddWithValue("@ref_id", variantRelationId);
+                                        cmd.Parameters.AddWithValue("@unit_cost", cost);
+                                        cmd.Parameters.AddWithValue("@created_at", now);
+                                        cmd.ExecuteNonQuery();
+                                    }
                                 }
                             }
 

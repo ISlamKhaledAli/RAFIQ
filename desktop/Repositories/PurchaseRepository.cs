@@ -197,6 +197,18 @@ namespace RafiqPOS.Repositories
                                         currentPrice = Convert.ToInt64(reader["price_piasters"]);
                                         bool hasVariants = false;
                                         try { hasVariants = Convert.ToInt32(reader["has_variants"]) == 1; } catch { }
+                                        if (!hasVariants)
+                                        {
+                                            using (var vChkCmd = new SQLiteCommand("SELECT 1 FROM products WHERE parent_id = @pid AND is_active = 1 LIMIT 1;", conn, trans))
+                                            {
+                                                vChkCmd.Parameters.AddWithValue("@pid", item.ProductId);
+                                                object vChkRes = vChkCmd.ExecuteScalar();
+                                                if (vChkRes != null && vChkRes != DBNull.Value)
+                                                {
+                                                    hasVariants = true;
+                                                }
+                                            }
+                                        }
                                         if (hasVariants)
                                         {
                                             throw new InvalidOperationException(string.Format("لا يمكن إضافة كميات شراء للمنتج الرئيسي '{0}' مباشرة لوجود متغيرات (ألوان ومقاسات) مرتبطة به. يرجى اختيار المتغير المحدد للشراء.", productName));
