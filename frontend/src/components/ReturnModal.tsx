@@ -266,7 +266,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
 
   const activeReturnItems = draftItems.filter((d) => d.returnQuantityPieces > 0);
   const totalRefundPiasters = activeReturnItems.reduce(
-    (sum, item) => sum + item.unitPricePiasters * item.returnQuantityPieces,
+    (sum, item) => sum + Math.round(item.unitPricePiasters * item.returnQuantityPieces),
     0
   );
 
@@ -563,7 +563,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                     <tbody className="divide-y divide-slate-100 bg-white">
                       {draftItems.map((item, idx) => {
                         const maxReturnable = item.originalQuantityPieces - item.previouslyReturnedPieces;
-                        const lineTotal = item.unitPricePiasters * item.returnQuantityPieces;
+                        const lineTotal = Math.round(item.unitPricePiasters * item.returnQuantityPieces);
 
                         return (
                           <tr key={idx} className={`h-11 ${item.returnQuantityPieces > 0 ? 'bg-amber-50/40' : ''}`}>

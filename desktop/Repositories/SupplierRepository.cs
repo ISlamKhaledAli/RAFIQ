@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using RafiqPOS.Models;
+using RafiqPOS.Services;
 
 namespace RafiqPOS.Repositories
 {
@@ -84,11 +85,13 @@ namespace RafiqPOS.Repositories
                 supplier.UpdatedAt = now;
             }
 
-            using (var conn = new SQLiteConnection(_connectionString))
+            lock (SaleService.FinancialWriteLock)
             {
-                conn.Open();
-                using (var trans = conn.BeginTransaction())
+                using (var conn = new SQLiteConnection(_connectionString))
                 {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction())
+                    {
                     try
                     {
                         if (isNew)
@@ -193,6 +196,7 @@ namespace RafiqPOS.Repositories
                         throw;
                     }
                 }
+            }
             }
 
             return GetById(supplier.Id);
@@ -396,20 +400,23 @@ namespace RafiqPOS.Repositories
             }
             else
             {
-                using (var localConn = new SQLiteConnection(_connectionString))
+                lock (SaleService.FinancialWriteLock)
                 {
-                    localConn.Open();
-                    using (var localTrans = localConn.BeginTransaction())
+                    using (var localConn = new SQLiteConnection(_connectionString))
                     {
-                        try
+                        localConn.Open();
+                        using (var localTrans = localConn.BeginTransaction())
                         {
-                            execute(localConn, localTrans);
-                            localTrans.Commit();
-                        }
-                        catch
-                        {
-                            localTrans.Rollback();
-                            throw;
+                            try
+                            {
+                                execute(localConn, localTrans);
+                                localTrans.Commit();
+                            }
+                            catch
+                            {
+                                localTrans.Rollback();
+                                throw;
+                            }
                         }
                     }
                 }
@@ -421,11 +428,13 @@ namespace RafiqPOS.Repositories
             if (string.IsNullOrWhiteSpace(supplierId)) throw new ArgumentException("معرف المورد مطلوب");
             if (amountPiasters <= 0) throw new ArgumentException("مبلغ السداد يجب أن يكون أكبر من الصفر");
 
-            using (var conn = new SQLiteConnection(_connectionString))
+            lock (SaleService.FinancialWriteLock)
             {
-                conn.Open();
-                using (var trans = conn.BeginTransaction())
+                using (var conn = new SQLiteConnection(_connectionString))
                 {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction())
+                    {
                     try
                     {
                         using (var sCmd = new SQLiteCommand("SELECT is_active FROM suppliers WHERE id = @id LIMIT 1;", conn, trans))
@@ -464,6 +473,7 @@ namespace RafiqPOS.Repositories
                         throw;
                     }
                 }
+            }
             }
         }
 
@@ -553,11 +563,13 @@ namespace RafiqPOS.Repositories
 
             if (!verify.IsBalanced)
             {
-                using (var conn = new SQLiteConnection(_connectionString))
+                lock (SaleService.FinancialWriteLock)
                 {
-                    conn.Open();
-                    using (var trans = conn.BeginTransaction())
+                    using (var conn = new SQLiteConnection(_connectionString))
                     {
+                        conn.Open();
+                        using (var trans = conn.BeginTransaction())
+                        {
                         try
                         {
                             string now = DateTime.UtcNow.ToString("o");
@@ -593,6 +605,7 @@ namespace RafiqPOS.Repositories
                             throw;
                         }
                     }
+                }
                 }
             }
 

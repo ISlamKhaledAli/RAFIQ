@@ -554,18 +554,18 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             </div>
 
             {/* Variant Attributes: Size & Color (Feature #114) */}
-            {isEnabled('feature_matrix_variants') && (
-              <div className="p-3 bg-purple-50/60 border border-purple-200 rounded-lg flex flex-col gap-2.5 shadow-2xs">
+            {(isEnabled('feature_matrix_variants') || Boolean(variantSize || variantColor)) && (
+              <div className="p-3 bg-brand-soft/60 border border-brand/20 rounded-lg flex flex-col gap-2.5 shadow-2xs">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-purple-950 font-bold text-[12px]">
-                    <Layers className="w-4 h-4 text-purple-700" />
+                  <div className="flex items-center gap-1.5 text-brand-dark font-bold text-[12px]">
+                    <Layers className="w-4 h-4 text-brand" />
                     <span>المقاس واللون (اختياري)</span>
                   </div>
                   {!editingId && onOpenVariantMatrix && (
                     <button
                       type="button"
                       onClick={onOpenVariantMatrix}
-                      className="text-[11px] text-purple-700 hover:text-purple-900 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                      className="text-[11px] text-brand hover:text-brand-dark font-bold hover:underline flex items-center gap-1 cursor-pointer"
                     >
                       <span>عمل مصفوفة سريعة (مقاس × لون)</span>
                     </button>

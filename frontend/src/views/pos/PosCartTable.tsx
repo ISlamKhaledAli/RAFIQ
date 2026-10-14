@@ -148,8 +148,8 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                   <div className="flex items-center gap-1.5 truncate">
                     <span className="font-bold text-ink truncate text-xs sm:text-sm">{item.productName}</span>
                     {item.unit === 'kg' && (
-                      <span className="shrink-0 px-1 py-0.2 bg-sky-50 border border-sky-200 text-sky-800 text-[9px] font-bold rounded flex items-center gap-0.5" title="يباع بالوزن (ميزان)">
-                        <Scale className="w-2.5 h-2.5 text-sky-600" />
+                      <span className="shrink-0 px-1 py-0.2 bg-brand-soft border border-brand/20 text-brand text-[9px] font-bold rounded flex items-center gap-0.5" title="يباع بالوزن (ميزان)">
+                        <Scale className="w-2.5 h-2.5 text-brand" />
                         <span>وزن</span>
                       </span>
                     )}
@@ -197,12 +197,12 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                     <button
                       type="button"
                       onClick={() => openWeightEditorForCartItem(index)}
-                      className="h-6.5 sm:h-7 px-1.5 sm:px-2 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded flex items-center gap-1 text-sky-800 transition-all shadow-2xs group cursor-pointer active:scale-95"
+                      className="h-6.5 sm:h-7 px-1.5 sm:px-2 bg-brand-soft hover:bg-brand-soft/80 border border-brand/20 rounded flex items-center gap-1 text-brand-dark transition-all shadow-2xs group cursor-pointer active:scale-95"
                       title="اضغط لتعديل الوزن بالجرام أو الكيلو"
                     >
-                      <Scale className="w-2.5 h-2.5 text-sky-600 shrink-0" />
+                      <Scale className="w-2.5 h-2.5 text-brand shrink-0" />
                       <span className="font-mono font-bold text-[10px] sm:text-[11px] tabular-nums truncate">
-                        {(item.quantityMilli / 1000).toFixed(2)} كجم
+                        {(item.quantityMilli / 1000).toFixed(3).replace(/\.?0+$/, '')} كجم
                       </span>
                     </button>
                   ) : (
