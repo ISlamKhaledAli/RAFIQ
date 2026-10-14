@@ -623,7 +623,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
                       maxWidth: '280px',
                       width: '100%',
                     }}
-                    className="bg-white rounded-md border-2 border-line/80 shadow-md p-3 flex flex-col justify-between items-center text-center relative overflow-hidden transition-all duration-200 select-none"
+                    className="bg-white rounded-md border-2 border-line/80 shadow-md p-3 flex flex-col justify-between items-center text-center relative overflow-hidden transition-all duration-200 select-none barcode-label-preview receipt-paper"
                   >
                     {/* Store Header */}
                     {config.showStoreName && config.storeName && (

@@ -10,6 +10,30 @@
     <meta name="copyright" content="Copyright © 2026 ISlam Khaled Ali. All rights reserved." />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <title>رفيق POS — ISlam Khaled Ali</title>
+    <script>
+      (function() {
+        try {
+          var mode = localStorage.getItem('rafiq_theme_mode');
+          var isDark = false;
+          if (mode === 'dark') {
+            isDark = true;
+          } else if (mode === 'system') {
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+              isDark = true;
+            }
+          }
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.documentElement.style.backgroundColor = '#0C110F';
+          } else {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.setAttribute('data-theme', 'light');
+            document.documentElement.style.backgroundColor = '#F3F5F2';
+          }
+        } catch (e) {}
+      })();
+    </script>
     <style>
       /* Clean Light Canvas Reset */
       html, body {
@@ -20,6 +44,10 @@
         height: 100%;
         overflow: hidden;
         font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+      }
+      .dark html, .dark body {
+        background-color: #0c110f !important;
+        color: #f1f5f9 !important;
       }
       #root {
         height: 100%;
@@ -117,6 +145,32 @@
         font-weight: 700;
         border-radius: 999px;
         border: 1px solid rgba(0, 109, 65, 0.15);
+      }
+      .dark .initial-splash {
+        background: #0c110f !important;
+      }
+      .dark .initial-splash-card {
+        background: #131b18 !important;
+        border-color: #26342f !important;
+        border-top-color: #10b981 !important;
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5) !important;
+      }
+      .dark .initial-splash-title {
+        color: #f1f5f9 !important;
+      }
+      .dark .initial-splash-sub {
+        color: #34d399 !important;
+      }
+      .dark .initial-splash-status {
+        color: #94a3b8 !important;
+      }
+      .dark .initial-splash-badge {
+        background: #092e20 !important;
+        color: #34d399 !important;
+        border-color: rgba(52, 211, 153, 0.25) !important;
+      }
+      .dark .initial-progress-bar {
+        background: #1a2420 !important;
       }
       @keyframes initialSpin {
         to { transform: rotate(360deg); }

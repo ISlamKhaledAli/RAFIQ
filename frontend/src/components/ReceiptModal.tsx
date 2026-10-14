@@ -147,7 +147,7 @@ export function ReceiptModal({
         <div className="overflow-y-auto p-6 bg-canvas flex justify-center">
           <div 
             id="printable-receipt"
-            className="w-[302px] bg-white text-black p-4 font-mono text-[11px] leading-relaxed shadow-sm select-text border border-[#DCE1DC]"
+            className="w-[302px] bg-white text-black p-4 font-mono text-[11px] leading-relaxed shadow-sm select-text border border-line receipt-paper"
             dir="rtl"
           >
             {/* Header */}

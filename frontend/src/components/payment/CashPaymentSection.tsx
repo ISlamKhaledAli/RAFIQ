@@ -83,8 +83,8 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
             onClick={onQuickFullCredit}
             className={`py-1.5 px-3 rounded text-xs font-bold border transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 active:scale-95 ${
               isCreditActive
-                ? 'bg-[#b3720e] text-white border-[#b3720e] shadow-xs'
-                : 'bg-[#fef7ec] text-[#b3720e] hover:bg-[#b3720e] hover:text-white border-[#f5deb4]'
+                ? 'bg-warn text-white border-warn shadow-xs'
+                : 'bg-warn-soft text-warn hover:bg-warn hover:text-white border-warn-border'
             }`}
             title="تسجيل الفاتورة على حساب العميل بالكامل (0 كاش مستلم)"
           >
@@ -135,19 +135,19 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
           </div>
         ) : (
           /* Normal full credit debt */
-          <div className="p-4 rounded-xl border border-[#f5deb4] bg-[#fef7ec] text-[#b3720e] flex flex-col gap-3 transition-all shadow-2xs">
+          <div className="p-4 rounded-xl border border-warn-border bg-warn-soft text-warn flex flex-col gap-3 transition-all shadow-2xs">
 
             {/* 3-Step Clear Debt Calculation Breakdown */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-xl bg-white/90 border border-[#f5deb4] text-center font-mono">
-              <div className="flex flex-col items-center justify-center p-2 bg-[#fef7ec] rounded-lg border border-[#f5deb4]/60">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-xl bg-surface border border-warn-border text-center font-mono">
+              <div className="flex flex-col items-center justify-center p-2 bg-warn-soft rounded-lg border border-warn-border/60">
                 <span className="text-[11px] font-sans text-ink-muted mb-0.5">كان عليه قديم:</span>
                 <span className="text-base font-black text-danger">
                   {formatArabicCurrency(selectedCustomer.balancePiasters)}
                 </span>
               </div>
-              <div className="flex flex-col items-center justify-center p-2 bg-[#fef7ec] rounded-lg border border-[#f5deb4]/60">
+              <div className="flex flex-col items-center justify-center p-2 bg-warn-soft rounded-lg border border-warn-border/60">
                 <span className="text-[11px] font-sans text-ink-muted mb-0.5">أُضيف عليه (الفاتورة الحالية):</span>
-                <span className="text-base font-black text-[#b3720e]">
+                <span className="text-base font-black text-warn">
                   +{formatArabicCurrency(netTotalPiasters)}
                 </span>
               </div>
@@ -163,40 +163,40 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
       ) : receivedPiasters === 0 ? null : isShortPayment ? (
         <div className={`p-4 rounded-xl border flex flex-col gap-3 transition-all shadow-2xs ${
           selectedCustomer
-            ? 'bg-[#FEF7EC] border-[#F5DEB4] text-[#B3720E]'
-            : 'bg-[#FDF3F2] border-[#F6CBC6] text-[#B23A2E]'
+            ? 'bg-warn-soft border-warn-border text-warn'
+            : 'bg-danger-soft border-danger-border text-danger'
         }`}>
           {selectedCustomer ? (
             <>
               <div className="flex items-center justify-between gap-2">
                 <div className="flex flex-col">
-                  <span className="text-xs font-bold text-[#B3720E] flex items-center gap-1.5 whitespace-nowrap">
-                    <AlertTriangle className="w-4 h-4 text-[#B3720E] shrink-0" />
+                  <span className="text-xs font-bold text-warn flex items-center gap-1.5 whitespace-nowrap">
+                    <AlertTriangle className="w-4 h-4 text-warn shrink-0" />
                     <span>دفع جزء كاش والباقي على الحساب (دين):</span>
                   </span>
-                  <span className="text-xs text-[#8A5200] mt-0.5">
+                  <span className="text-xs text-warn mt-0.5">
                     العميل: <strong>{selectedCustomer.name}</strong> | دفع كاش: <strong className="font-mono">{formatArabicCurrency(receivedPiasters)}</strong>
                   </span>
                 </div>
                 <div className="text-left font-mono">
-                  <span className="text-[11px] font-sans text-[#8A5200] block">المتبقي على النوتة:</span>
-                  <span className="text-xl font-black text-[#8A5200] tabular-nums">
+                  <span className="text-[11px] font-sans text-warn block">المتبقي على النوتة:</span>
+                  <span className="text-xl font-black text-warn tabular-nums">
                     +{formatArabicCurrency(shortAmountPiasters)}
                   </span>
                 </div>
               </div>
 
               {/* 3-Step Clear Debt Calculation Breakdown */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-xl bg-white/90 border border-[#F5DEB4] text-center font-mono">
-                <div className="flex flex-col items-center justify-center p-2 bg-[#FEF7EC] rounded-lg border border-[#F5DEB4]/60">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-xl bg-surface border border-warn-border text-center font-mono">
+                <div className="flex flex-col items-center justify-center p-2 bg-warn-soft rounded-lg border border-warn-border/60">
                   <span className="text-[11px] font-sans text-ink-muted mb-0.5">كان عليه قديم:</span>
                   <span className="text-base font-black text-danger">
                     {formatArabicCurrency(selectedCustomer.balancePiasters)}
                   </span>
                 </div>
-                <div className="flex flex-col items-center justify-center p-2 bg-[#FEF7EC] rounded-lg border border-[#F5DEB4]/60">
+                <div className="flex flex-col items-center justify-center p-2 bg-warn-soft rounded-lg border border-warn-border/60">
                   <span className="text-[11px] font-sans text-ink-muted mb-0.5">أُضيف عليه (باقي الفاتورة):</span>
-                  <span className="text-base font-black text-[#B3720E]">
+                  <span className="text-base font-black text-warn">
                     +{formatArabicCurrency(shortAmountPiasters)}
                   </span>
                 </div>
@@ -208,8 +208,8 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
                 </div>
               </div>
 
-              <div className="text-xs font-medium text-[#8A5200] flex items-center gap-1.5">
-                <AlertCircle className="w-4 h-4 shrink-0 text-[#B3720E]" />
+              <div className="text-xs font-medium text-warn flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 shrink-0 text-warn" />
                 <span>هيتحط {formatArabicCurrency(receivedPiasters)} في الدرج كاش، والباقي ({formatArabicCurrency(shortAmountPiasters)}) هيتسجل دين على حسابه في النوتة.</span>
               </div>
             </>
@@ -217,15 +217,15 @@ export const CashPaymentSection: React.FC<CashPaymentSectionProps> = ({
             <>
               <div className="flex items-center justify-between gap-3">
                 <div className="flex flex-col">
-                  <span className="text-xs font-bold text-[#B23A2E] whitespace-nowrap">
+                  <span className="text-xs font-bold text-danger whitespace-nowrap">
                     المبلغ ناقص (دفع جزء):
                   </span>
-                  <span className="text-2xl font-mono font-black mt-1 tabular-nums text-[#B23A2E] whitespace-nowrap">
+                  <span className="text-2xl font-mono font-black mt-1 tabular-nums text-danger whitespace-nowrap">
                     -{formatArabicCurrency(shortAmountPiasters)}
                   </span>
                 </div>
-                <div className="text-left text-xs font-bold text-[#8A241A] max-w-[260px] flex items-center gap-1.5">
-                  <AlertTriangle className="w-4 h-4 text-[#B23A2E] shrink-0" />
+                <div className="text-left text-xs font-bold text-danger-ink max-w-[260px] flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4 text-danger shrink-0" />
                   <span>مينفعش يدفع جزء من الفاتورة إلا لما تختار اسم العميل عشان نسجل الباقي عليه.</span>
                 </div>
               </div>

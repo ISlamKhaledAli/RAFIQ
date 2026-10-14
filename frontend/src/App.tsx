@@ -39,6 +39,8 @@ import {
   RefreshCw,
   Database,
   BarChart3,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { 
   NotificationBellButton, 
@@ -80,6 +82,7 @@ import { LicenseModal } from './components/LicenseModal';
 import { HelpCenterModal } from './components/HelpCenterModal';
 import { useFeatures } from './context/useFeatures';
 import { useAuth } from './context/useAuth';
+import { useTheme } from './context/useTheme';
 import { LoginScreen } from './views/LoginScreen';
 
 export interface SystemInfo {
@@ -135,6 +138,7 @@ const CASHIER_ALLOWED_TABS: TabType[] = ['pos', 'epay', 'customers'];
 export default function App() {
   const { isEnabled } = useFeatures();
   const { currentUser, isLoading, logout, hasPermission, isRoot, isAdmin, refreshUser } = useAuth();
+  const { isDark, toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<TabType>('pos');
   const isCashier = currentUser?.role === 'cashier';
   const effectiveActiveTab: TabType = isCashier && !CASHIER_ALLOWED_TABS.includes(activeTab) ? 'pos' : activeTab;
@@ -1023,6 +1027,22 @@ export default function App() {
               <Minimize2 className="w-4 h-4 text-ink-muted" />
             ) : (
               <Maximize2 className="w-4 h-4 text-paid" />
+            )}
+          </button>
+
+          {/* Senior Dark Mode / Light Mode Toggle Button */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className={`w-8 h-8 rounded-lg bg-surface hover:bg-surface-2 border border-line hover:border-brand text-ink-muted hover:text-brand flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0 ${
+              isDark ? 'border-amber-500/30 bg-amber-500/10' : ''
+            }`}
+            title={isDark ? 'الوضع الليلي مفعّل — انقر للتبديل للوضع النهاري (الفاتح)' : 'الوضع النهاري مفعّل — انقر للتبديل للوضع الليلي (الداكن)'}
+          >
+            {isDark ? (
+              <Sun className="w-4 h-4 text-amber-400 hover:text-amber-300 transition-transform duration-200" />
+            ) : (
+              <Moon className="w-4 h-4 text-ink-muted hover:text-brand transition-transform duration-200" />
             )}
           </button>
 

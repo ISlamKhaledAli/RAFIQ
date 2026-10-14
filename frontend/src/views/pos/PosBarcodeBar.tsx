@@ -43,10 +43,10 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
   onSelectProduct,
 }) => {
   return (
-    <div ref={searchContainerRef} className="p-2 sm:p-3 bg-white border-b border-[#dce1dc] shrink-0 relative">
+    <div ref={searchContainerRef} className="p-2 sm:p-3 bg-surface border-b border-line shrink-0 relative">
       <form onSubmit={handleBarcodeSubmit} className="flex items-center gap-1.5 sm:gap-2">
-        <div className="relative flex-1 h-11 flex items-center bg-[#fdfdfd] rounded-xl border-2 border-[#006d41] px-3 focus-within:ring-2 focus-within:ring-[#006d41]/20 shadow-2xs transition-all">
-          <Barcode className="w-5 h-5 text-[#006d41] ml-2 shrink-0" />
+        <div className="relative flex-1 h-11 flex items-center bg-surface-2 rounded-xl border-2 border-paid px-3 focus-within:ring-2 focus-within:ring-paid/20 shadow-2xs transition-all">
+          <Barcode className="w-5 h-5 text-paid ml-2 shrink-0" />
           <input
             ref={barcodeInputRef}
             type="text"
@@ -64,13 +64,13 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
             onFocus={() => {
               if (liveSearchResults.length > 0) setIsSearchDropdownOpen(true);
             }}
-            className="w-full h-full bg-transparent border-none text-xs sm:text-sm text-[#0f172a] placeholder:text-[#52605d] focus:outline-none font-mono font-medium"
+            className="w-full h-full bg-transparent border-none text-xs sm:text-sm text-ink placeholder:text-ink-muted focus:outline-none font-mono font-medium"
           />
           {isSearching && (
-            <Loader2 className="w-4 h-4 text-[#006d41] animate-spin ml-2 shrink-0" />
+            <Loader2 className="w-4 h-4 text-paid animate-spin ml-2 shrink-0" />
           )}
           <div className="mr-2 flex items-center shrink-0">
-            <span className="px-2 py-0.5 text-xs font-mono font-bold bg-[#f1f5f4] text-[#52605d] rounded-md border border-[#dce1dc]">
+            <span className="px-2 py-0.5 text-xs font-mono font-bold bg-surface-3 text-ink-muted rounded-md border border-line">
               F2
             </span>
           </div>

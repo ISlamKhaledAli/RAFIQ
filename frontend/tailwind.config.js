@@ -1,3 +1,12 @@
+function withOpacity(variableName) {
+  return ({ opacityValue }) => {
+    if (opacityValue !== undefined) {
+      return `rgba(var(${variableName}), ${opacityValue})`;
+    }
+    return `rgb(var(${variableName}))`;
+  };
+}
+
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: 'class',
@@ -8,51 +17,51 @@ export default {
   theme: {
     extend: {
       colors: {
-        canvas: "#F3F5F2",
+        canvas: withOpacity('--canvas-rgb'),
         surface: {
-          DEFAULT: "#FFFFFF",
-          pure: "#FFFFFF",
-          2: "#F1F5F4",
-          3: "#EBF0EE",
-          dim: "#D7DADD",
-          bright: "#F3F5F2",
+          DEFAULT: withOpacity('--surface-rgb'),
+          pure: withOpacity('--surface-pure-rgb'),
+          2: withOpacity('--surface-2-rgb'),
+          3: withOpacity('--surface-3-rgb'),
+          dim: withOpacity('--surface-dim-rgb'),
+          bright: withOpacity('--surface-bright-rgb'),
         },
         line: {
-          DEFAULT: "#DCE1DC",
-          hover: "#B5C0B7",
+          DEFAULT: withOpacity('--line-rgb'),
+          hover: withOpacity('--line-hover-rgb'),
         },
         brand: {
-          DEFAULT: "#004D3F",
-          hover: "#00372D",
-          container: "#0B4F42",
-          soft: "#E6F2ED",
-          dark: "#00372D",
+          DEFAULT: withOpacity('--brand-rgb'),
+          hover: withOpacity('--brand-hover-rgb'),
+          container: withOpacity('--brand-container-rgb'),
+          soft: withOpacity('--brand-soft-rgb'),
+          dark: withOpacity('--brand-dark-rgb'),
         },
         ink: {
-          DEFAULT: "#0F172A",
-          muted: "#52605D",
+          DEFAULT: withOpacity('--ink-rgb'),
+          muted: withOpacity('--ink-muted-rgb'),
         },
         paid: {
-          DEFAULT: "#006D41",
-          hover: "#005734",
-          soft: "#EAF5EE",
-          border: "#C4E3D0",
+          DEFAULT: withOpacity('--paid-rgb'),
+          hover: withOpacity('--paid-hover-rgb'),
+          soft: withOpacity('--paid-soft-rgb'),
+          border: withOpacity('--paid-border-rgb'),
         },
         warn: {
-          DEFAULT: "#B3720E",
-          soft: "#FEF7EC",
-          border: "#F5DEB4",
+          DEFAULT: withOpacity('--warn-rgb'),
+          soft: withOpacity('--warn-soft-rgb'),
+          border: withOpacity('--warn-border-rgb'),
         },
         danger: {
-          DEFAULT: "#B23A2E",
-          soft: "#FDF3F2",
-          border: "#F6CBC6",
-          ink: "#7A1D14",
+          DEFAULT: withOpacity('--danger-rgb'),
+          soft: withOpacity('--danger-soft-rgb'),
+          border: withOpacity('--danger-border-rgb'),
+          ink: withOpacity('--danger-ink-rgb'),
         },
         secondary: {
-          DEFAULT: "#006D41",
-          hover: "#005734",
-          soft: "#EAF5EE",
+          DEFAULT: withOpacity('--paid-rgb'),
+          hover: withOpacity('--paid-hover-rgb'),
+          soft: withOpacity('--paid-soft-rgb'),
         },
       },
       boxShadow: {

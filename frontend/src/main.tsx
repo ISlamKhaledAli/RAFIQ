@@ -14,16 +14,19 @@ import './index.css'
 import App from './App.tsx'
 import { FeaturesProvider } from './context/FeaturesProvider'
 import { AuthProvider } from './context/AuthContext'
+import { ThemeProvider } from './context/ThemeContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
-      <FeaturesProvider>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </FeaturesProvider>
+      <ThemeProvider>
+        <FeaturesProvider>
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+        </FeaturesProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   </StrictMode>,
 )
