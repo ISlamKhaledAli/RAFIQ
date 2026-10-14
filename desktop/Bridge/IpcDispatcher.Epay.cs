@@ -57,6 +57,48 @@ namespace RafiqPOS.Bridge
                         return true;
                     }
 
+                case "epay:deleteTerminal":
+                    {
+                        var repo = GetEpayRepo();
+                        if (request.Payload == null)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "معرف الماكينة فارغ");
+                            return true;
+                        }
+
+                        string terminalId = null;
+                        if (request.Payload is JValue)
+                        {
+                            terminalId = request.Payload.ToString();
+                        }
+                        else
+                        {
+                            JObject payloadObj = request.Payload as JObject ?? JObject.Parse(request.Payload.ToString());
+                            terminalId = payloadObj["terminalId"] != null ? (string)payloadObj["terminalId"] : (payloadObj["id"] != null ? (string)payloadObj["id"] : null);
+                        }
+
+                        if (string.IsNullOrWhiteSpace(terminalId))
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "يجب تحديد الماكينة المراد حذفها");
+                            return true;
+                        }
+
+                        lock (SaleService.FinancialWriteLock)
+                        {
+                            string outMessage;
+                            bool ok = repo.DeleteTerminal(terminalId, out outMessage);
+                            if (ok)
+                            {
+                                response = BridgeResponse.Ok(request.Id, new { success = true, message = outMessage });
+                            }
+                            else
+                            {
+                                response = BridgeResponse.Fail(request.Id, "DELETE_ERROR", outMessage);
+                            }
+                        }
+                        return true;
+                    }
+
                 case "epay:fundTerminal":
                     {
                         var repo = GetEpayRepo();

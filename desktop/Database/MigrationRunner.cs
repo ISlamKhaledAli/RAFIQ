@@ -3564,12 +3564,6 @@ namespace RafiqPOS.Database
                             CREATE INDEX IF NOT EXISTS idx_epay_tx_created ON epay_transactions(created_at);
                             CREATE INDEX IF NOT EXISTS idx_epay_tx_type ON epay_transactions(service_type);
 
-                            INSERT OR IGNORE INTO epay_terminals (
-                                id, name, provider, terminal_code, balance_piasters, low_balance_alert_piasters, is_active, created_at, updated_at
-                            ) VALUES (
-                                'terminal_superpay_main', 'ماكينة سوبر باي (SuperPay)', 'super_pay', 'SP-01', 100000, 30000, 1, datetime('now'), datetime('now')
-                            );
-
                             INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
                             VALUES (27, 'Electronic Payment Terminals and Services System (SuperPay / Fawry / Aman)', datetime('now'));
                         ", conn, trans))

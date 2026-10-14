@@ -22,11 +22,13 @@ import {
   ChevronDown,
   Sliders,
   RotateCcw,
-  Sparkles
+  Sparkles,
+  Trash2
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { useDataSubscription } from '../../utils/eventBus';
 import { formatArabicCurrency } from '../../utils/money';
+import { rafiqConfirm, rafiqAlert } from '../../utils/dialogService';
 import { useAuth } from '../../context/useAuth';
 import { MoneyInput } from '../../components/MoneyInput';
 import { CustomSelect } from '../../components/CustomSelect';
@@ -785,6 +787,33 @@ export const EpayView: React.FC<EpayViewProps> = ({
     }
   };
 
+  const handleDeleteTerminal = async (termId: string, customTermName?: string) => {
+    const targetName = customTermName || terminals.find((t) => t.id === termId)?.name || 'ماكينة الدفع';
+    const confirmed = await rafiqConfirm({
+      title: 'حذف ماكينة الدفع',
+      message: `هل أنت متأكد من رغبتك في حذف ماكينة "${targetName}"؟\nفي حال وجود معاملات مالية سابقة للماكينة، سيتم أرشفتها وإخفاؤها لحماية سجل الحسابات.`,
+      confirmText: 'نعم، حذف الماكينة',
+      cancelText: 'إلغاء',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+
+    try {
+      await invoke('epay:deleteTerminal', { terminalId: termId });
+      setSuccessMsg(`تم حذف / أرشفة ماكينة "${targetName}" بنجاح`);
+      if (isTerminalModalOpen && editingTerminalId === termId) {
+        setIsTerminalModalOpen(false);
+      }
+      await loadData();
+    } catch (err: any) {
+      await rafiqAlert({
+        title: 'تعذر حذف الماكينة',
+        message: err?.message || 'حدث خطأ أثناء محاولة حذف الماكينة',
+        variant: 'error',
+      });
+    }
+  };
+
   // Filtered Fundings
   const filteredFundings = useMemo(() => {
     return fundings.filter((f) => {
@@ -1510,14 +1539,24 @@ export const EpayView: React.FC<EpayViewProps> = ({
                           {PROVIDER_NAMES[term.provider] || term.provider}
                         </span>
                         {canManageTerminals && (
-                          <button
-                            type="button"
-                            onClick={() => openEditTerminalModal(term)}
-                            className="text-ink-muted hover:text-ink p-1 rounded-lg hover:bg-surface-2 transition-colors cursor-pointer"
-                            title="تعديل الماكينة"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => openEditTerminalModal(term)}
+                              className="text-ink-muted hover:text-ink p-1 rounded-lg hover:bg-surface-2 transition-colors cursor-pointer"
+                              title="تعديل الماكينة"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteTerminal(term.id, term.name)}
+                              className="text-ink-muted hover:text-danger p-1 rounded-lg hover:bg-danger/10 transition-colors cursor-pointer"
+                              title="حذف الماكينة"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         )}
                       </div>
                       <h3 className="font-black text-base text-ink">{term.name}</h3>
@@ -2228,11 +2267,25 @@ export const EpayView: React.FC<EpayViewProps> = ({
               </div>
 
               <div>
-                <label className="text-xs font-bold text-ink-muted block mb-1">الرصيد الافتتاحي</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-ink-muted">
+                    {editingTerminalId ? 'الرصيد الحالي للماكينة (تسوية رصيد)' : 'الرصيد الافتتاحي'}
+                  </label>
+                  {editingTerminalId && (
+                    <span className="text-[10px] text-brand font-bold bg-brand-soft px-2 py-0.5 rounded-full border border-brand/20">
+                      تعديل الرصيد يسجل تسوية مالية فورية
+                    </span>
+                  )}
+                </div>
                 <MoneyInput
                   valuePiasters={termBalancePiasters}
                   onChangePiasters={setTermBalancePiasters}
                 />
+                {editingTerminalId && (
+                  <span className="text-[10px] text-ink-muted mt-1 block">
+                    يمكنك تعديل الرصيد هنا لتصحيح المبلغ أو تسويته، وسيتم تحديث رصيد الماكينة مباشرة وحفظ حركة تسوية في السجل.
+                  </span>
+                )}
               </div>
 
               <div>
@@ -2726,21 +2779,35 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-line">
-                <button
-                  type="button"
-                  onClick={() => setIsTerminalModalOpen(false)}
-                  className="px-4 py-2 bg-surface-2 hover:bg-surface border border-line text-ink rounded-xl text-xs font-bold cursor-pointer transition-colors"
-                >
-                  إلغاء
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSavingTerminal}
-                  className="px-4 py-2 bg-paid hover:bg-paid-dark text-white rounded-xl text-xs font-bold cursor-pointer transition-colors shadow-xs disabled:opacity-50"
-                >
-                  {isSavingTerminal ? 'جاري الحفظ...' : 'حفظ الماكينة'}
-                </button>
+              <div className="flex items-center justify-between pt-2 border-t border-line">
+                <div>
+                  {editingTerminalId && canManageTerminals && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteTerminal(editingTerminalId, termName)}
+                      className="px-3 py-2 bg-danger/10 hover:bg-danger/20 text-danger border border-danger/30 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>حذف الماكينة</span>
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsTerminalModalOpen(false)}
+                    className="px-4 py-2 bg-surface-2 hover:bg-surface border border-line text-ink rounded-xl text-xs font-bold cursor-pointer transition-colors"
+                  >
+                    إلغاء
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingTerminal}
+                    className="px-4 py-2 bg-paid hover:bg-paid-dark text-white rounded-xl text-xs font-bold cursor-pointer transition-colors shadow-xs disabled:opacity-50"
+                  >
+                    {isSavingTerminal ? 'جاري الحفظ...' : 'حفظ الماكينة'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

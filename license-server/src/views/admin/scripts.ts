@@ -196,9 +196,15 @@ export const adminScripts = `    const DEFAULT_SECRET = '';
         }
 
         document.getElementById('offlineResultCode').value = data.support_code;
+        if (data.license_key) {
+          const keyEl = document.getElementById('offlineRegisteredKeyDisplay');
+          if (keyEl) keyEl.textContent = data.license_key;
+        }
         document.getElementById('offlineResultBox').style.display = 'block';
         document.getElementById('offlineResultBox').scrollIntoView({ behavior: 'smooth' });
-        showToast('تم توليد كود الدعم بنجاح!');
+        showToast('تم توليد كود الدعم وتسجيل الجهاز في النظام بنجاح!');
+        if (typeof loadLicenses === 'function') loadLicenses();
+        if (typeof loadLogs === 'function') loadLogs();
       } catch (err) {
         showToast('حدث خطأ أثناء الاتصال بالسيرفر', true);
       } finally {

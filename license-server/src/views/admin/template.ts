@@ -495,14 +495,21 @@ export const adminTemplate = `
 
           <!-- Result Box -->
           <div id="offlineResultBox" style="display:none; margin-top:24px; padding:20px; background:var(--bg-card); border:1.5px solid var(--primary); border-radius:12px;">
-            <div style="font-weight:700; color:var(--primary); margin-bottom:8px; font-size:15px;">تم توليد كود التفعيل الأوفلاين بنجاح! 🎉</div>
+            <div style="font-weight:700; color:var(--primary); margin-bottom:8px; font-size:15px; display:flex; align-items:center; gap:8px;">
+              <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              <span>تم توليد كود التفعيل وتسجيل الجهاز في النظام بنجاح</span>
+            </div>
             <div style="font-size:12.5px; color:var(--text-muted); margin-bottom:12px;">انسخ هذا الكود وابعته للعميل في الواتساب ليضعه في خانة (تفعيل بكود الدعم الفني):</div>
-            <div style="display:flex; gap:10px; align-items:center;">
+            <div style="display:flex; gap:10px; align-items:center; margin-bottom:14px;">
               <input type="text" id="offlineResultCode" readonly style="font-family:monospace; font-size:14px; font-weight:700; padding:12px; background:#fff; border:1px solid var(--border); border-radius:8px; flex:1; direction:ltr;" onclick="this.select()">
               <button type="button" class="btn-create" onclick="copyOfflineResultCode()" style="height:44px; white-space:nowrap;">
                 <svg class="icon icon-sm" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
                 <span>نسخ الكود</span>
               </button>
+            </div>
+            <div id="offlineRegisteredNotice" style="font-size:12px; color:var(--emerald); background:rgba(0,109,65,0.08); padding:10px 14px; border-radius:8px; display:flex; align-items:center; gap:8px;">
+              <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <span>تم إدراج هذا الجهاز تلقائياً في <strong>جدول التراخيص الصادرة</strong> برمز: <code id="offlineRegisteredKeyDisplay" style="font-family:monospace; font-weight:700; color:var(--primary);"></code> — وفي حال اتصل الجهاز بالإنترنت مستقبلاً، ستتمكن من التحكم به بالكامل (تمديد الصلاحية، إيقاف، فك ربط).</span>
             </div>
           </div>
         </div>

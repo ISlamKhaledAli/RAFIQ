@@ -1200,13 +1200,6 @@ export default function App() {
                     <div className="flex items-center gap-2.5 min-w-0">
                       <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-ink-muted'}`} />
                       <span className="truncate">{item.label}</span>
-                      {isProductsItem && lowStockCount > 0 && (
-                        <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full flex items-center gap-0.5 shrink-0 ${
-                          isActive ? 'bg-danger text-white' : 'bg-danger-soft text-danger border border-danger-border'
-                        }`}>
-                          {lowStockCount}
-                        </span>
-                      )}
                     </div>
 
                     {(isEpayItem || isDashboardItem || isProductsItem || isPurchasesItem || isSettingsItem) && (

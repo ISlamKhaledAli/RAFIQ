@@ -206,11 +206,11 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     barcodeInputRef.current?.focus();
   };
 
-  const addProductToCart = useCallback((prod: Product, customWeightMilli?: number, specificUnit?: ProductUnit) => {
+  const addProductToCart = useCallback((prod: Product, customWeightMilli?: number, specificUnit?: ProductUnit): boolean => {
     // If this product has variants (matrix parent), prompt variant picker modal
     if (prod.hasVariants) {
       setVariantPickerParentProduct(prod);
-      return;
+      return false;
     }
 
     if (isEnabled('feature_expiry_dates') && prod.isExpired) {
@@ -231,7 +231,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         barcode: prod.barcode,
         unit: prod.unit,
       });
-      return;
+      return false;
     }
 
     const qtyMilli = customWeightMilli !== undefined ? customWeightMilli : 1000;
@@ -246,61 +246,69 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     const unitId = unitToUse ? unitToUse.id : undefined;
     const isDivisible = unitToUse ? unitToUse.isDivisible : (prod.unit === 'kg');
 
-    setCart((prev) => {
-      // Upfront Zero-Stock & Insufficient Stock Prevention
-      const existingBaseMilli = prev.reduce((sum, item) => {
-        if (item.productId === prod.id) {
-          const itemFactor = item.conversionFactor && item.conversionFactor > 0 ? item.conversionFactor : 1;
-          return sum + (item.quantityMilli * itemFactor);
-        }
-        return sum;
-      }, 0);
+    // Upfront Zero-Stock & Insufficient Stock Prevention against current cart
+    const existingBaseMilli = cart.reduce((sum, item) => {
+      if (item.productId === prod.id) {
+        const itemFactor = item.conversionFactor && item.conversionFactor > 0 ? item.conversionFactor : 1;
+        return sum + (item.quantityMilli * itemFactor);
+      }
+      return sum;
+    }, 0);
 
-      const existingIndex = prev.findIndex((item) => 
+    const existingIndex = cart.findIndex((item) => 
+      item.productId === prod.id && 
+      (item.unitId || '') === (unitId || '') &&
+      item.unitPricePiasters === unitPrice &&
+      item.productName === prod.name
+    );
+
+    const currentItemBaseMilli = existingIndex >= 0 
+      ? cart[existingIndex].quantityMilli * (cart[existingIndex].conversionFactor || 1)
+      : 0;
+
+    const newQty = existingIndex >= 0 
+      ? (customWeightMilli !== undefined ? (cart[existingIndex].quantityMilli + customWeightMilli) : (cart[existingIndex].quantityMilli + 1000))
+      : qtyMilli;
+
+    const newItemBaseMilli = newQty * factor;
+    const totalRequestedBaseMilli = (existingBaseMilli - currentItemBaseMilli) + newItemBaseMilli;
+    const availableStockMilli = prod.stockQuantityMilli ?? 0;
+
+    if (!allowNegativeStock) {
+      if (availableStockMilli <= 0) {
+        showStatus(`الصنف "${prod.name}" رصيده في المخزن 0 (نفد تماماً وغير متوفر للبيع)!`, 'error');
+        return false;
+      }
+      if (totalRequestedBaseMilli > availableStockMilli) {
+        const maxRemainingBaseMilli = Math.max(0, availableStockMilli - (existingBaseMilli - currentItemBaseMilli));
+        const maxPossibleUnits = Math.floor(maxRemainingBaseMilli / (factor * 1000));
+        showStatus(
+          `رصيد الصنف "${prod.name}" غير كافٍ في المخزن! المتاح حالياً: ${Math.floor(availableStockMilli / 1000)} قطعة (يمكنك إضافة ${maxPossibleUnits} ${unitName || 'قطعة'} كحد أقصى).`,
+          'error'
+        );
+        return false;
+      }
+    }
+
+    setCart((prev) => {
+      const idx = prev.findIndex((item) => 
         item.productId === prod.id && 
         (item.unitId || '') === (unitId || '') &&
         item.unitPricePiasters === unitPrice &&
         item.productName === prod.name
       );
 
-      const currentItemBaseMilli = existingIndex >= 0 
-        ? prev[existingIndex].quantityMilli * (prev[existingIndex].conversionFactor || 1)
-        : 0;
-
-      const newQty = existingIndex >= 0 
-        ? (customWeightMilli !== undefined ? (prev[existingIndex].quantityMilli + customWeightMilli) : (prev[existingIndex].quantityMilli + 1000))
-        : qtyMilli;
-
-      const newItemBaseMilli = newQty * factor;
-      const totalRequestedBaseMilli = (existingBaseMilli - currentItemBaseMilli) + newItemBaseMilli;
-      const availableStockMilli = prod.stockQuantityMilli ?? 0;
-
-      if (!allowNegativeStock) {
-        if (availableStockMilli <= 0) {
-          showStatus(`الصنف "${prod.name}" رصيده في المخزن 0 (غير متوفر للبيع)!`, 'error');
-          return prev;
-        }
-        if (totalRequestedBaseMilli > availableStockMilli) {
-          const maxRemainingBaseMilli = Math.max(0, availableStockMilli - (existingBaseMilli - currentItemBaseMilli));
-          const maxPossibleUnits = Math.floor(maxRemainingBaseMilli / (factor * 1000));
-          showStatus(
-            `رصيد الصنف "${prod.name}" غير كافٍ في المخزن! المتاح حالياً: ${Math.floor(availableStockMilli / 1000)} قطعة (يمكنك إضافة ${maxPossibleUnits} ${unitName || 'قطعة'} كحد أقصى).`,
-            'error'
-          );
-          return prev;
-        }
-      }
-
-      if (existingIndex >= 0) {
+      if (idx >= 0) {
         const updated = [...prev];
-        const item = updated[existingIndex];
-        item.quantityMilli = newQty;
+        const item = updated[idx];
+        const updatedQty = customWeightMilli !== undefined ? (item.quantityMilli + customWeightMilli) : (item.quantityMilli + 1000);
+        item.quantityMilli = updatedQty;
         item.unit = unitName;
         item.unitName = unitName;
         item.unitId = unitId;
         item.conversionFactor = factor;
         item.isDivisible = isDivisible;
-        item.totalPiasters = calculateLineTotal(item.unitPricePiasters, newQty, item.discountPiasters);
+        item.totalPiasters = calculateLineTotal(item.unitPricePiasters, updatedQty, item.discountPiasters);
         item.taxPiasters = calculateTaxPiasters(item.totalPiasters, item.taxRatePercent || 0, true);
         return updated;
       }
@@ -328,7 +336,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       };
       return [newItem, ...prev];
     });
-  }, [allowNegativeStock, showStatus, isEnabled]);
+
+    return true;
+  }, [cart, allowNegativeStock, showStatus, isEnabled]);
 
   const changeCartItemUnit = useCallback((index: number, newUnitId: string) => {
     setCart((prev) => {
@@ -1020,10 +1030,12 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
 
     if (isSearchDropdownOpen && liveSearchResults.length > 0 && liveSearchResults[selectedDropdownIndex]) {
       const selected = liveSearchResults[selectedDropdownIndex];
-      addProductToCart(selected);
+      const added = addProductToCart(selected);
       setBarcodeQuery('');
       setIsSearchDropdownOpen(false);
-      showStatus(`تمت إضافة: ${selected.name}`, 'success');
+      if (added) {
+        showStatus(`تمت إضافة: ${selected.name}`, 'success');
+      }
       barcodeInputRef.current?.focus();
       return;
     }
@@ -1071,12 +1083,14 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           matchedUnit = targetProd.units.find(u => u.barcode === query);
         }
 
-        addProductToCart(targetProd, scaleWeightMilli, matchedUnit);
+        const added = addProductToCart(targetProd, scaleWeightMilli, matchedUnit);
         setBarcodeQuery('');
         setIsSearchDropdownOpen(false);
-        const unitSuffix = matchedUnit ? ` [${matchedUnit.unitName}]` : '';
-        const weightDesc = scaleWeightMilli ? ` (${(scaleWeightMilli / 1000.0).toFixed(3)} كجم - ميزان)` : '';
-        showStatus(`تمت إضافة: ${targetProd.name}${unitSuffix}${weightDesc}`, 'success');
+        if (added) {
+          const unitSuffix = matchedUnit ? ` [${matchedUnit.unitName}]` : '';
+          const weightDesc = scaleWeightMilli ? ` (${(scaleWeightMilli / 1000.0).toFixed(3)} كجم - ميزان)` : '';
+          showStatus(`تمت إضافة: ${targetProd.name}${unitSuffix}${weightDesc}`, 'success');
+        }
       } else {
         setUnregisteredBarcode(query);
         setIsQuickAddModalOpen(true);
@@ -1394,10 +1408,12 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             selectedDropdownIndex={selectedDropdownIndex}
             setSelectedDropdownIndex={setSelectedDropdownIndex}
             onSelectProduct={(prod, specificUnit) => {
-              addProductToCart(prod, undefined, specificUnit);
+              const added = addProductToCart(prod, undefined, specificUnit);
               setBarcodeQuery('');
               setIsSearchDropdownOpen(false);
-              showStatus(`تمت إضافة: ${prod.name}${specificUnit ? ` (${specificUnit.unitName})` : ''}`, 'success');
+              if (added) {
+                showStatus(`تمت إضافة: ${prod.name}${specificUnit ? ` (${specificUnit.unitName})` : ''}`, 'success');
+              }
               barcodeInputRef.current?.focus();
             }}
             onNavigateToEpay={onNavigateToEpay}
@@ -1774,8 +1790,10 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         }}
         parentProduct={variantPickerParentProduct}
         onSelectVariant={(variantProd) => {
-          addProductToCart(variantProd);
-          showStatus(`تمت إضافة: ${variantProd.name}`, 'success');
+          const added = addProductToCart(variantProd);
+          if (added) {
+            showStatus(`تمت إضافة: ${variantProd.name}`, 'success');
+          }
         }}
       />
 
@@ -1805,8 +1823,10 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         product={unitPickerProduct}
         onSelectUnit={(selectedUnit) => {
           if (unitPickerProduct) {
-            addProductToCart(unitPickerProduct, undefined, selectedUnit);
-            showStatus(`تمت إضافة: ${unitPickerProduct.name} (${selectedUnit.unitName})`, 'success');
+            const added = addProductToCart(unitPickerProduct, undefined, selectedUnit);
+            if (added) {
+              showStatus(`تمت إضافة: ${unitPickerProduct.name} (${selectedUnit.unitName})`, 'success');
+            }
           }
           setUnitPickerProduct(null);
           barcodeInputRef.current?.focus();

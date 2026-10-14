@@ -426,6 +426,32 @@ describe('Rafiq POS License Server & D1 Tests (Feature #170)', () => {
       tamperedParts[1] = Buffer.from(JSON.stringify(tamperedPayload)).toString('base64url');
       const tamperedCheck = await verifyActivationToken(tamperedParts.join('.'), TOKEN_SECRET);
       assert.equal(tamperedCheck.valid, false);
+
+      // Verify offline license is registered in D1 database and can be verified / controlled online
+      assert.ok(genData.license_key);
+      const dbLic = await env.DB.prepare('SELECT * FROM licenses WHERE license_key = ?').bind(genData.license_key).first() as any;
+      assert.ok(dbLic);
+      assert.equal(dbLic.status, 'active');
+      assert.equal(dbLic.machine_fingerprint, 'A1B2C3D4E5F6');
+
+      // Verify online verification works when device connects to internet
+      const verifyReq = new Request('http://localhost/api/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Rafiq-Api-Key': APP_SECRET,
+        },
+        body: JSON.stringify({
+          token: supportToken,
+          license_key: genData.license_key,
+          machine_fingerprint: 'A1B2C3D4E5F6',
+        }),
+      });
+      const verifyRes = await server.fetch(verifyReq, env);
+      assert.equal(verifyRes.status, 200);
+      const verifyData = await verifyRes.json() as any;
+      assert.equal(verifyData.success, true);
+      assert.equal(verifyData.valid, true);
     });
   });
 });

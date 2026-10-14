@@ -17,13 +17,15 @@ namespace RafiqPOS.Repositories
             _auditRepo = auditRepo ?? new AuditLogRepository(connectionString);
         }
 
-        public List<EpayTerminal> GetAllTerminals()
+        public List<EpayTerminal> GetAllTerminals(bool includeInactive = false)
         {
             var list = new List<EpayTerminal>();
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = "SELECT * FROM epay_terminals ORDER BY is_active DESC, name ASC;";
+                string sql = includeInactive 
+                    ? "SELECT * FROM epay_terminals ORDER BY is_active DESC, name ASC;"
+                    : "SELECT * FROM epay_terminals WHERE is_active = 1 ORDER BY name ASC;";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 using (var reader = cmd.ExecuteReader())
                 {
@@ -83,60 +85,255 @@ namespace RafiqPOS.Repositories
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
-                string sql = @"
-                    INSERT INTO epay_terminals (
-                        id, name, provider, terminal_code, balance_piasters, low_balance_alert_piasters, is_active,
-                        customer_fee_type, customer_fee_value, customer_fee_min_piasters, customer_fee_max_piasters,
-                        provider_commission_type, provider_commission_value, provider_commission_min_piasters, provider_commission_max_piasters,
-                        service_fee_rules_json,
-                        created_at, updated_at
-                    ) VALUES (
-                        @id, @name, @provider, @terminalCode, @balance, @lowAlert, @isActive,
-                        @feeType, @feeVal, @feeMin, @feeMax,
-                        @commType, @commVal, @commMin, @commMax,
-                        @rulesJson,
-                        @now, @now
-                    )
-                    ON CONFLICT(id) DO UPDATE SET
-                        name = @name,
-                        provider = @provider,
-                        terminal_code = @terminalCode,
-                        low_balance_alert_piasters = @lowAlert,
-                        is_active = @isActive,
-                        customer_fee_type = @feeType,
-                        customer_fee_value = @feeVal,
-                        customer_fee_min_piasters = @feeMin,
-                        customer_fee_max_piasters = @feeMax,
-                        provider_commission_type = @commType,
-                        provider_commission_value = @commVal,
-                        provider_commission_min_piasters = @commMin,
-                        provider_commission_max_piasters = @commMax,
-                        service_fee_rules_json = @rulesJson,
-                        updated_at = @now;
-                ";
-                using (var cmd = new SQLiteCommand(sql, conn))
+                using (var trans = conn.BeginTransaction())
                 {
-                    cmd.Parameters.AddWithValue("@id", terminal.Id);
-                    cmd.Parameters.AddWithValue("@name", terminal.Name ?? "ماكينة دفع");
-                    cmd.Parameters.AddWithValue("@provider", terminal.Provider ?? "super_pay");
-                    cmd.Parameters.AddWithValue("@terminalCode", (object)terminal.TerminalCode ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@balance", terminal.BalancePiasters);
-                    cmd.Parameters.AddWithValue("@lowAlert", terminal.LowBalanceAlertPiasters > 0 ? terminal.LowBalanceAlertPiasters : 50000);
-                    cmd.Parameters.AddWithValue("@isActive", terminal.IsActive ? 1 : 0);
-                    cmd.Parameters.AddWithValue("@feeType", !string.IsNullOrWhiteSpace(terminal.CustomerFeeType) ? terminal.CustomerFeeType : "fixed");
-                    cmd.Parameters.AddWithValue("@feeVal", terminal.CustomerFeeValue >= 0 ? terminal.CustomerFeeValue : 200);
-                    cmd.Parameters.AddWithValue("@feeMin", terminal.CustomerFeeMinPiasters >= 0 ? terminal.CustomerFeeMinPiasters : 0);
-                    cmd.Parameters.AddWithValue("@feeMax", terminal.CustomerFeeMaxPiasters >= 0 ? terminal.CustomerFeeMaxPiasters : 0);
-                    cmd.Parameters.AddWithValue("@commType", !string.IsNullOrWhiteSpace(terminal.ProviderCommissionType) ? terminal.ProviderCommissionType : "fixed");
-                    cmd.Parameters.AddWithValue("@commVal", terminal.ProviderCommissionValue >= 0 ? terminal.ProviderCommissionValue : 100);
-                    cmd.Parameters.AddWithValue("@commMin", terminal.ProviderCommissionMinPiasters >= 0 ? terminal.ProviderCommissionMinPiasters : 0);
-                    cmd.Parameters.AddWithValue("@commMax", terminal.ProviderCommissionMaxPiasters >= 0 ? terminal.ProviderCommissionMaxPiasters : 0);
-                    cmd.Parameters.AddWithValue("@rulesJson", (object)rulesJson ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@now", now);
-                    cmd.ExecuteNonQuery();
+                    try
+                    {
+                        long existingBal = 0;
+                        bool exists = false;
+                        string checkSql = "SELECT balance_piasters FROM epay_terminals WHERE id = @id LIMIT 1;";
+                        using (var checkCmd = new SQLiteCommand(checkSql, conn, trans))
+                        {
+                            checkCmd.Parameters.AddWithValue("@id", terminal.Id);
+                            using (var reader = checkCmd.ExecuteReader())
+                            {
+                                if (reader.Read())
+                                {
+                                    exists = true;
+                                    existingBal = Convert.ToInt64(reader["balance_piasters"]);
+                                }
+                            }
+                        }
+
+                        if (!exists)
+                        {
+                            string insertSql = @"
+                                INSERT INTO epay_terminals (
+                                    id, name, provider, terminal_code, balance_piasters, low_balance_alert_piasters, is_active,
+                                    customer_fee_type, customer_fee_value, customer_fee_min_piasters, customer_fee_max_piasters,
+                                    provider_commission_type, provider_commission_value, provider_commission_min_piasters, provider_commission_max_piasters,
+                                    service_fee_rules_json,
+                                    created_at, updated_at
+                                ) VALUES (
+                                    @id, @name, @provider, @terminalCode, @balance, @lowAlert, @isActive,
+                                    @feeType, @feeVal, @feeMin, @feeMax,
+                                    @commType, @commVal, @commMin, @commMax,
+                                    @rulesJson,
+                                    @now, @now
+                                );";
+                            using (var cmd = new SQLiteCommand(insertSql, conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@id", terminal.Id);
+                                cmd.Parameters.AddWithValue("@name", terminal.Name ?? "ماكينة دفع");
+                                cmd.Parameters.AddWithValue("@provider", terminal.Provider ?? "super_pay");
+                                cmd.Parameters.AddWithValue("@terminalCode", (object)terminal.TerminalCode ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@balance", terminal.BalancePiasters);
+                                cmd.Parameters.AddWithValue("@lowAlert", terminal.LowBalanceAlertPiasters > 0 ? terminal.LowBalanceAlertPiasters : 50000);
+                                cmd.Parameters.AddWithValue("@isActive", terminal.IsActive ? 1 : 0);
+                                cmd.Parameters.AddWithValue("@feeType", !string.IsNullOrWhiteSpace(terminal.CustomerFeeType) ? terminal.CustomerFeeType : "fixed");
+                                cmd.Parameters.AddWithValue("@feeVal", terminal.CustomerFeeValue >= 0 ? terminal.CustomerFeeValue : 200);
+                                cmd.Parameters.AddWithValue("@feeMin", terminal.CustomerFeeMinPiasters >= 0 ? terminal.CustomerFeeMinPiasters : 0);
+                                cmd.Parameters.AddWithValue("@feeMax", terminal.CustomerFeeMaxPiasters >= 0 ? terminal.CustomerFeeMaxPiasters : 0);
+                                cmd.Parameters.AddWithValue("@commType", !string.IsNullOrWhiteSpace(terminal.ProviderCommissionType) ? terminal.ProviderCommissionType : "fixed");
+                                cmd.Parameters.AddWithValue("@commVal", terminal.ProviderCommissionValue >= 0 ? terminal.ProviderCommissionValue : 100);
+                                cmd.Parameters.AddWithValue("@commMin", terminal.ProviderCommissionMinPiasters >= 0 ? terminal.ProviderCommissionMinPiasters : 0);
+                                cmd.Parameters.AddWithValue("@commMax", terminal.ProviderCommissionMaxPiasters >= 0 ? terminal.ProviderCommissionMaxPiasters : 0);
+                                cmd.Parameters.AddWithValue("@rulesJson", (object)rulesJson ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@now", now);
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+                        else
+                        {
+                            bool balanceChanged = (terminal.BalancePiasters != existingBal);
+
+                            string updateSql = @"
+                                UPDATE epay_terminals SET
+                                    name = @name,
+                                    provider = @provider,
+                                    terminal_code = @terminalCode,
+                                    balance_piasters = @balance,
+                                    low_balance_alert_piasters = @lowAlert,
+                                    is_active = @isActive,
+                                    customer_fee_type = @feeType,
+                                    customer_fee_value = @feeVal,
+                                    customer_fee_min_piasters = @feeMin,
+                                    customer_fee_max_piasters = @feeMax,
+                                    provider_commission_type = @commType,
+                                    provider_commission_value = @commVal,
+                                    provider_commission_min_piasters = @commMin,
+                                    provider_commission_max_piasters = @commMax,
+                                    service_fee_rules_json = @rulesJson,
+                                    updated_at = @now
+                                WHERE id = @id;
+                            ";
+                            using (var cmd = new SQLiteCommand(updateSql, conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@id", terminal.Id);
+                                cmd.Parameters.AddWithValue("@name", terminal.Name ?? "ماكينة دفع");
+                                cmd.Parameters.AddWithValue("@provider", terminal.Provider ?? "super_pay");
+                                cmd.Parameters.AddWithValue("@terminalCode", (object)terminal.TerminalCode ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@balance", terminal.BalancePiasters);
+                                cmd.Parameters.AddWithValue("@lowAlert", terminal.LowBalanceAlertPiasters > 0 ? terminal.LowBalanceAlertPiasters : 50000);
+                                cmd.Parameters.AddWithValue("@isActive", terminal.IsActive ? 1 : 0);
+                                cmd.Parameters.AddWithValue("@feeType", !string.IsNullOrWhiteSpace(terminal.CustomerFeeType) ? terminal.CustomerFeeType : "fixed");
+                                cmd.Parameters.AddWithValue("@feeVal", terminal.CustomerFeeValue >= 0 ? terminal.CustomerFeeValue : 200);
+                                cmd.Parameters.AddWithValue("@feeMin", terminal.CustomerFeeMinPiasters >= 0 ? terminal.CustomerFeeMinPiasters : 0);
+                                cmd.Parameters.AddWithValue("@feeMax", terminal.CustomerFeeMaxPiasters >= 0 ? terminal.CustomerFeeMaxPiasters : 0);
+                                cmd.Parameters.AddWithValue("@commType", !string.IsNullOrWhiteSpace(terminal.ProviderCommissionType) ? terminal.ProviderCommissionType : "fixed");
+                                cmd.Parameters.AddWithValue("@commVal", terminal.ProviderCommissionValue >= 0 ? terminal.ProviderCommissionValue : 100);
+                                cmd.Parameters.AddWithValue("@commMin", terminal.ProviderCommissionMinPiasters >= 0 ? terminal.ProviderCommissionMinPiasters : 0);
+                                cmd.Parameters.AddWithValue("@commMax", terminal.ProviderCommissionMaxPiasters >= 0 ? terminal.ProviderCommissionMaxPiasters : 0);
+                                cmd.Parameters.AddWithValue("@rulesJson", (object)rulesJson ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@now", now);
+                                cmd.ExecuteNonQuery();
+                            }
+
+                            if (balanceChanged)
+                            {
+                                long diff = terminal.BalancePiasters - existingBal;
+                                string fundingId = Guid.NewGuid().ToString();
+                                string insertFundingSql = @"
+                                    INSERT INTO epay_terminal_fundings (
+                                        id, terminal_id, amount_piasters, funding_source, previous_balance_piasters, new_balance_piasters, notes, created_by, created_at
+                                    ) VALUES (
+                                        @id, @termId, @amt, 'manual_adjustment', @prevBal, @newBal, 'تسوية رصيد يدوية من إعدادات الماكينة', 'admin', @now
+                                    );
+                                ";
+                                using (var fundCmd = new SQLiteCommand(insertFundingSql, conn, trans))
+                                {
+                                    fundCmd.Parameters.AddWithValue("@id", fundingId);
+                                    fundCmd.Parameters.AddWithValue("@termId", terminal.Id);
+                                    fundCmd.Parameters.AddWithValue("@amt", diff);
+                                    fundCmd.Parameters.AddWithValue("@prevBal", existingBal);
+                                    fundCmd.Parameters.AddWithValue("@newBal", terminal.BalancePiasters);
+                                    fundCmd.Parameters.AddWithValue("@now", now);
+                                    fundCmd.ExecuteNonQuery();
+                                }
+
+                                if (_auditRepo != null)
+                                {
+                                    _auditRepo.Log(conn, trans, new AuditLog
+                                    {
+                                        Id = "aud_" + Guid.NewGuid().ToString("N"),
+                                        UserId = "admin",
+                                        Action = "epay_terminal_balance_adjust",
+                                        EntityType = "epay_terminal",
+                                        EntityId = terminal.Id,
+                                        DetailsJson = string.Format("{{\"previousBalance\":{0},\"newBalance\":{1},\"diff\":{2}}}", existingBal, terminal.BalancePiasters, diff),
+                                        CreatedAt = now
+                                    });
+                                }
+                            }
+                        }
+
+                        trans.Commit();
+                    }
+                    catch
+                    {
+                        trans.Rollback();
+                        throw;
+                    }
                 }
             }
             return GetTerminalById(terminal.Id);
+        }
+
+        public bool DeleteTerminal(string terminalId, out string message)
+        {
+            message = "";
+            if (string.IsNullOrWhiteSpace(terminalId))
+            {
+                message = "معرف الماكينة غير محدد";
+                return false;
+            }
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var trans = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        string termName = "";
+                        string checkSql = "SELECT name FROM epay_terminals WHERE id = @id LIMIT 1;";
+                        using (var cmd = new SQLiteCommand(checkSql, conn, trans))
+                        {
+                            cmd.Parameters.AddWithValue("@id", terminalId);
+                            object res = cmd.ExecuteScalar();
+                            if (res == null)
+                            {
+                                message = "الماكينة غير موجودة";
+                                return false;
+                            }
+                            termName = res.ToString();
+                        }
+
+                        long txCount = 0;
+                        string countSql = @"
+                            SELECT 
+                                (SELECT COUNT(1) FROM epay_transactions WHERE terminal_id = @id) +
+                                (SELECT COUNT(1) FROM epay_terminal_fundings WHERE terminal_id = @id);
+                        ";
+                        using (var cmd = new SQLiteCommand(countSql, conn, trans))
+                        {
+                            cmd.Parameters.AddWithValue("@id", terminalId);
+                            object res = cmd.ExecuteScalar();
+                            if (res != null && res != DBNull.Value)
+                            {
+                                txCount = Convert.ToInt64(res);
+                            }
+                        }
+
+                        string now = DateTime.UtcNow.ToString("o");
+
+                        if (txCount == 0)
+                        {
+                            string delSql = "DELETE FROM epay_terminals WHERE id = @id;";
+                            using (var cmd = new SQLiteCommand(delSql, conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@id", terminalId);
+                                cmd.ExecuteNonQuery();
+                            }
+                            message = string.Format("تم حذف ماكينة \"{0}\" نهائياً بنجاح", termName);
+                        }
+                        else
+                        {
+                            string archiveSql = "UPDATE epay_terminals SET is_active = 0, updated_at = @now WHERE id = @id;";
+                            using (var cmd = new SQLiteCommand(archiveSql, conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@now", now);
+                                cmd.Parameters.AddWithValue("@id", terminalId);
+                                cmd.ExecuteNonQuery();
+                            }
+                            message = string.Format("تم أرشفة وتعطيل ماكينة \"{0}\" بنجاح للحفاظ على سجل المعاملات المالية السابقة", termName);
+                        }
+
+                        if (_auditRepo != null)
+                        {
+                            _auditRepo.Log(conn, trans, new AuditLog
+                            {
+                                Id = "aud_" + Guid.NewGuid().ToString("N"),
+                                UserId = "admin",
+                                Action = txCount == 0 ? "epay_terminal_delete" : "epay_terminal_archive",
+                                EntityType = "epay_terminal",
+                                EntityId = terminalId,
+                                DetailsJson = string.Format("{{\"name\":\"{0}\",\"historyCount\":{1}}}", termName, txCount),
+                                CreatedAt = now
+                            });
+                        }
+
+                        trans.Commit();
+                        return true;
+                    }
+                    catch (Exception ex)
+                    {
+                        trans.Rollback();
+                        message = "فشل حذف الماكينة: " + ex.Message;
+                        return false;
+                    }
+                }
+            }
         }
 
         public EpayTerminalFunding FundTerminal(string terminalId, long amountPiasters, string fundingSource, string notes, string createdBy)

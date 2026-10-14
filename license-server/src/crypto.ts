@@ -152,7 +152,8 @@ export async function generateOfflineSupportCode(
   licenseType: string,
   days: number,
   privateKeyPem: string,
-  shopName = ''
+  shopName = '',
+  customLicenseKey?: string
 ): Promise<string> {
   if (!deviceFingerprint || !deviceFingerprint.trim()) {
     throw new Error('بصمة الجهاز (Device Fingerprint) مطلوبة');
@@ -177,10 +178,14 @@ export async function generateOfflineSupportCode(
     exp = now + safeDays * 86400;
   }
 
+  const subKey = customLicenseKey && customLicenseKey.trim() 
+    ? customLicenseKey.trim() 
+    : `SUPPORT-${crypto.randomUUID()}`;
+
   const token = await signActivationToken(
     {
       iss: 'rafiq-license-server',
-      sub: `SUPPORT-${crypto.randomUUID()}`,
+      sub: subKey,
       fp: deviceFingerprint.trim().toUpperCase(),
       shop: shopName,
       type,

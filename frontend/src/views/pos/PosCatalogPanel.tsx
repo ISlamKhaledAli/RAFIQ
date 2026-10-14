@@ -190,10 +190,18 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                   handleSmartItemClick(item);
                 }
               }}
-              className="group relative flex flex-col justify-between p-2.5 rounded-xl bg-surface border border-line hover:border-paid text-right transition-all duration-150 shadow-2xs hover:shadow-card hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] cursor-pointer min-h-[105px]"
+              className={`group relative flex flex-col justify-between p-2.5 rounded-xl bg-surface border transition-all duration-150 shadow-2xs min-h-[105px] cursor-pointer ${
+                isOutOfStock
+                  ? 'border-line/80 opacity-85 hover:border-danger/50'
+                  : 'border-line hover:border-paid hover:shadow-card hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]'
+              }`}
             >
               {/* Top subtle highlight on hover */}
-              <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-paid to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-t-xl" />
+              <div className={`absolute top-0 inset-x-0 h-[2px] transition-opacity duration-200 rounded-t-xl ${
+                isOutOfStock
+                  ? 'bg-gradient-to-r from-transparent via-danger to-transparent opacity-0 group-hover:opacity-100'
+                  : 'bg-gradient-to-r from-transparent via-paid to-transparent opacity-0 group-hover:opacity-100'
+              }`} />
 
               {/* Top section: Name & Badges */}
               <div className="w-full shrink-0">

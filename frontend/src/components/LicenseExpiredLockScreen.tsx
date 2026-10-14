@@ -11,7 +11,8 @@ import {
   PhoneCall, 
   FileText,
   AlertTriangle,
-  Lock
+  Lock,
+  X
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { rafiqAlert } from '../utils/dialogService';
@@ -46,7 +47,13 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
   const [newKey, setNewKey] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [copiedFp, setCopiedFp] = useState(false);
+  const [keyActionSuccess, setKeyActionSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const triggerKeySuccess = () => {
+    setKeyActionSuccess(true);
+    setTimeout(() => setKeyActionSuccess(false), 2000);
+  };
   useEffect(() => {
     if (!isOpen) return;
     let isCancelled = false;
@@ -131,10 +138,23 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
     try {
       const text = await navigator.clipboard.readText();
       if (text) {
-        setNewKey(text.trim().toUpperCase());
+        const trimmed = text.trim();
+        if (trimmed.toUpperCase().startsWith('RFQ-SUP-')) {
+          setNewKey('RFQ-SUP-' + trimmed.slice(8));
+        } else {
+          setNewKey(trimmed.toUpperCase());
+        }
+        triggerKeySuccess();
       }
     } catch {
       // ignore
+    }
+  };
+
+  const handleCopyKey = () => {
+    if (newKey) {
+      void navigator.clipboard.writeText(newKey);
+      triggerKeySuccess();
     }
   };
 
@@ -321,19 +341,64 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
               <input
                 type="text"
                 value={newKey}
-                onChange={(e) => setNewKey(e.target.value.toUpperCase())}
+                onPaste={() => {
+                  triggerKeySuccess();
+                }}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val.trim().toUpperCase().startsWith('RFQ-SUP-')) {
+                    setNewKey('RFQ-SUP-' + val.trim().slice(8));
+                  } else {
+                    setNewKey(val.toUpperCase());
+                  }
+                }}
                 placeholder="RFQ-XXXX-XXXX-XXXX"
                 dir="ltr"
-                className="w-full bg-white border-2 border-slate-200 focus:border-[#006d41] focus:ring-4 focus:ring-emerald-500/10 rounded-xl px-3.5 py-2.5 text-slate-900 placeholder-slate-400 font-mono text-sm tracking-widest uppercase transition outline-none shadow-xs"
+                className={`w-full bg-white border-2 border-slate-200 focus:border-[#006d41] focus:ring-4 focus:ring-emerald-500/10 rounded-xl pl-3.5 ${
+                  newKey ? 'pr-16' : 'pr-10'
+                } py-2.5 text-slate-900 placeholder-slate-400 font-mono text-sm tracking-widest ${
+                  newKey.startsWith('RFQ-SUP-') ? '' : 'uppercase'
+                } transition outline-none shadow-xs`}
               />
-              <button
-                type="button"
-                onClick={() => void handlePasteKey()}
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-[#006d41] transition rounded hover:bg-slate-100"
-                title="لصق من الحافظة"
-              >
-                <ClipboardPaste className="w-4 h-4" />
-              </button>
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                {newKey && (
+                  <button
+                    type="button"
+                    onClick={() => setNewKey('')}
+                    className="p-1 text-slate-400 hover:text-rose-600 transition rounded-md hover:bg-rose-50"
+                    title="مسح الكود"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+                {newKey ? (
+                  <button
+                    type="button"
+                    onClick={handleCopyKey}
+                    className="p-1 text-slate-400 hover:text-[#006d41] transition rounded-md hover:bg-slate-100"
+                    title={keyActionSuccess ? 'تم النسخ!' : 'نسخ الكود'}
+                  >
+                    {keyActionSuccess ? (
+                      <Check className="w-4 h-4 text-emerald-600 animate-in zoom-in-75 duration-150" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void handlePasteKey()}
+                    className="p-1 text-slate-400 hover:text-[#006d41] transition rounded-md hover:bg-slate-100"
+                    title={keyActionSuccess ? 'تم اللصق!' : 'لصق من الحافظة'}
+                  >
+                    {keyActionSuccess ? (
+                      <Check className="w-4 h-4 text-emerald-600 animate-in zoom-in-75 duration-150" />
+                    ) : (
+                      <ClipboardPaste className="w-4 h-4" />
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
 
             <button

@@ -3031,19 +3031,21 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     }
 
     case 'epay:getTerminals': {
-      return mockEpayTerminals;
+      return mockEpayTerminals.filter((t) => t.isActive !== false);
     }
 
     case 'epay:saveTerminal': {
       const termData = payload || {};
       const existingIdx = mockEpayTerminals.findIndex((t) => t.id === termData.id);
       if (existingIdx >= 0) {
+        const bal = termData.balancePiasters !== undefined ? Number(termData.balancePiasters) : mockEpayTerminals[existingIdx].balancePiasters;
         mockEpayTerminals[existingIdx] = {
           ...mockEpayTerminals[existingIdx],
           ...termData,
+          balancePiasters: bal,
           updatedAt: new Date().toISOString(),
-          balanceFormatted: ((mockEpayTerminals[existingIdx].balancePiasters || 0) / 100).toFixed(2) + ' ج.م',
-          isLowBalance: (mockEpayTerminals[existingIdx].balancePiasters || 0) <= (termData.lowBalanceAlertPiasters || 30000),
+          balanceFormatted: ((bal || 0) / 100).toFixed(2) + ' ج.م',
+          isLowBalance: (bal || 0) <= (Number(termData.lowBalanceAlertPiasters) || 30000),
         };
         return mockEpayTerminals[existingIdx];
       } else {
@@ -3063,6 +3065,17 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         mockEpayTerminals.push(newTerm);
         return newTerm;
       }
+    }
+
+    case 'epay:deleteTerminal': {
+      const termId = typeof payload === 'object' && payload !== null ? (payload.terminalId || payload.id) : String(payload);
+      const existingIdx = mockEpayTerminals.findIndex((t) => t.id === termId);
+      if (existingIdx >= 0) {
+        const termName = mockEpayTerminals[existingIdx].name;
+        mockEpayTerminals.splice(existingIdx, 1);
+        return { success: true, message: `تم حذف ماكينة "${termName}" بنجاح` };
+      }
+      return { success: true };
     }
 
     case 'epay:fundTerminal': {
@@ -3645,121 +3658,10 @@ let mockPurchases: any[] = [
   },
 ];
 
-let mockEpayTerminals: any[] = [
-  {
-    id: 'terminal_superpay_main',
-    name: 'ماكينة سوبر باي (SuperPay)',
-    provider: 'super_pay',
-    terminalCode: 'SP-01',
-    balancePiasters: 125000,
-    lowBalanceAlertPiasters: 30000,
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    balanceFormatted: '1,250.00 ج.م',
-    isLowBalance: false,
-  },
-  {
-    id: 'terminal_fawry_main',
-    name: 'ماكينة فوري (Fawry)',
-    provider: 'fawry',
-    terminalCode: 'FW-102',
-    balancePiasters: 24500,
-    lowBalanceAlertPiasters: 30000,
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    balanceFormatted: '245.00 ج.م',
-    isLowBalance: true,
-  },
-  {
-    id: 'terminal_aman_main',
-    name: 'ماكينة أمان (Aman)',
-    provider: 'aman',
-    terminalCode: 'AM-05',
-    balancePiasters: 85000,
-    lowBalanceAlertPiasters: 20000,
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    balanceFormatted: '850.00 ج.م',
-    isLowBalance: false,
-  },
-];
+let mockEpayTerminals: any[] = [];
 
-let mockEpayTransactions: any[] = [
-  {
-    id: 'tx_epay_1',
-    terminalId: 'terminal_superpay_main',
-    terminalName: 'ماكينة سوبر باي (SuperPay)',
-    terminalProvider: 'super_pay',
-    serviceType: 'mobile_recharge',
-    serviceName: 'شحن رصيد فودافون كاش / فكة',
-    referenceNumber: 'REF-98124',
-    customerPhone: '01012345678',
-    customerName: 'محمد أحمد',
-    billAmountPiasters: 5000,
-    customerFeePiasters: 200,
-    providerCommissionPiasters: 100,
-    totalReceivedPiasters: 5200,
-    deductedBalancePiasters: 5000,
-    netProfitPiasters: 300,
-    paymentDestination: 'cash_drawer',
-    status: 'COMPLETED',
-    notes: 'كارت شحن فكة 50 جنيه',
-    createdBy: 'كاشير المحل',
-    createdAt: new Date(Date.now() - 3600000).toISOString(),
-    billAmountFormatted: '50.00 ج.م',
-    customerFeeFormatted: '2.00 ج.م',
-    providerCommissionFormatted: '1.00 ج.م',
-    totalReceivedFormatted: '52.00 ج.م',
-    netProfitFormatted: '3.00 ج.م',
-    serviceTypeArabic: 'شحن رصيد وكروت',
-  },
-  {
-    id: 'tx_epay_2',
-    terminalId: 'terminal_superpay_main',
-    terminalName: 'ماكينة سوبر باي (SuperPay)',
-    terminalProvider: 'super_pay',
-    serviceType: 'utility_bill',
-    serviceName: 'فاتورة كهرباء كود شمال القاهرة',
-    referenceNumber: 'BILL-44102',
-    customerPhone: '01234567890',
-    customerName: 'الحاج محمود',
-    billAmountPiasters: 18500,
-    customerFeePiasters: 500,
-    providerCommissionPiasters: 250,
-    totalReceivedPiasters: 19000,
-    deductedBalancePiasters: 18500,
-    netProfitPiasters: 750,
-    paymentDestination: 'cash_drawer',
-    status: 'COMPLETED',
-    notes: 'شحن كارت كهرباء ذكي',
-    createdBy: 'كاشير المحل',
-    createdAt: new Date(Date.now() - 7200000).toISOString(),
-    billAmountFormatted: '185.00 ج.م',
-    customerFeeFormatted: '5.00 ج.م',
-    providerCommissionFormatted: '2.50 ج.م',
-    totalReceivedFormatted: '190.00 ج.م',
-    netProfitFormatted: '7.50 ج.م',
-    serviceTypeArabic: 'فواتير ومرافق عامة',
-  },
-];
+let mockEpayTransactions: any[] = [];
 
-let mockEpayFundings: any[] = [
-  {
-    id: 'fnd_epay_1',
-    terminalId: 'terminal_superpay_main',
-    terminalName: 'ماكينة سوبر باي (SuperPay)',
-    amountPiasters: 100000,
-    fundingSource: 'cash_drawer',
-    previousBalancePiasters: 25000,
-    newBalancePiasters: 125000,
-    notes: 'تغذية رصيد الماكينة من درج الكاشير',
-    createdBy: 'المدير',
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-    amountFormatted: '1,000.00 ج.م',
-  },
-];
+let mockEpayFundings: any[] = [];
 
 

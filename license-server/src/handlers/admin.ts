@@ -262,26 +262,61 @@ export async function handleAdmin(request: Request, env: Env): Promise<Response>
       );
     }
 
-    const licType = body.license_type || 'trial';
-    const days = Number(body.days) || (licType === 'lifetime' ? 9999 : 7);
+    const licType = (body.license_type as LicenseType) || 'lifetime';
+    const safeDays = Math.max(1, Math.floor(Number(body.days) || (licType === 'lifetime' ? 9999 : 7)));
+    const licenseKey = generateLicenseKey();
+    const cleanFp = body.device_fingerprint.trim().toUpperCase();
+    const cleanShop = body.shop_name && body.shop_name.trim() ? body.shop_name.trim() : 'جهاز أوفلاين';
+
+    let expiresAt: string | null = null;
+    if (licType !== 'lifetime' && safeDays < 9000) {
+      const expDate = new Date();
+      expDate.setDate(expDate.getDate() + safeDays);
+      expiresAt = expDate.toISOString();
+    }
 
     try {
       const supportCode = await generateOfflineSupportCode(
-        body.device_fingerprint.trim(),
+        cleanFp,
         licType,
-        days,
+        safeDays,
         env.LICENSE_PRIVATE_KEY,
-        body.shop_name || ''
+        cleanShop,
+        licenseKey
       );
+
+      // Save into D1 database so it appears in the Issued Licenses table & can be managed online!
+      const id = crypto.randomUUID();
+      await env.DB.prepare(
+        `INSERT INTO licenses (id, license_key, shop_name, owner_phone, license_type, status, machine_fingerprint, max_devices, activated_at, expires_at, notes, created_at, updated_at)
+         VALUES (?, ?, ?, NULL, ?, 'active', ?, 1, datetime('now'), ?, 'ترخيص صادر بكود دعم أوفلاين (RFQ-SUP)', datetime('now'), datetime('now'))`
+      ).bind(
+        id,
+        licenseKey,
+        cleanShop,
+        licType,
+        cleanFp,
+        expiresAt
+      ).run();
+
+      // Log in activation_logs
+      try {
+        const logId = crypto.randomUUID();
+        await env.DB.prepare(
+          `INSERT INTO activation_logs (id, license_key, machine_fingerprint, action, status, failure_reason, ip_address, user_agent, created_at)
+           VALUES (?, ?, ?, 'activate', 'success', 'توليد كود دعم فني أوفلاين من لوحة المشرف', 'admin_portal', 'admin', datetime('now'))`
+        ).bind(logId, licenseKey, cleanFp).run();
+      } catch {}
 
       return new Response(
         JSON.stringify({
           success: true,
-          message: 'تم توليد كود الدعم الفني المشفر للأجهزة بدون إنترنت بنجاح',
+          message: 'تم توليد كود الدعم الفني وتسجيل الترخيص بالنظام بنجاح',
           support_code: supportCode,
-          device_fingerprint: body.device_fingerprint.trim().toUpperCase(),
+          license_key: licenseKey,
+          device_fingerprint: cleanFp,
           license_type: licType,
-          days: days,
+          days: safeDays,
         }),
         { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
       );

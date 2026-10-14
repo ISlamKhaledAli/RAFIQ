@@ -8,7 +8,7 @@ interface UsePosCatalogProps {
   catalogProducts: Product[];
   quickItems: QuickItem[];
   categories?: Category[];
-  addProductToCart: (prod: Product, customWeightMilli?: number, specificUnit?: ProductUnit) => void;
+  addProductToCart: (prod: Product, customWeightMilli?: number, specificUnit?: ProductUnit) => boolean;
   showStatus: (text: string, type?: 'success' | 'error' | 'warning') => void;
   barcodeInputRef: React.RefObject<HTMLInputElement | null>;
   setInitialWeightMilli: React.Dispatch<React.SetStateAction<number>>;
@@ -314,8 +314,8 @@ export const usePosCatalog = ({
         return;
       }
 
-      addProductToCart(productToAdd, undefined, specificUnit);
-      if (!productToAdd.hasVariants && productToAdd.unit !== 'kg') {
+      const added = addProductToCart(productToAdd, undefined, specificUnit);
+      if (added && !productToAdd.hasVariants && productToAdd.unit !== 'kg') {
         const unitSuffix = specificUnit ? ` (${specificUnit.unitName})` : '';
         showStatus(`تمت إضافة: ${item.name}${unitSuffix}`, 'success');
       }
@@ -384,8 +384,8 @@ export const usePosCatalog = ({
       return;
     }
 
-    addProductToCart(dummyProduct, undefined, specificUnit);
-    if (!dummyProduct.hasVariants && dummyProduct.unit !== 'kg') {
+    const added = addProductToCart(dummyProduct, undefined, specificUnit);
+    if (added && !dummyProduct.hasVariants && dummyProduct.unit !== 'kg') {
       const unitSuffix = specificUnit ? ` (${specificUnit.unitName})` : '';
       showStatus(`تمت إضافة: ${item.name}${unitSuffix}`, 'success');
     }
@@ -430,8 +430,10 @@ export const usePosCatalog = ({
       return;
     }
 
-    addProductToCart(productToAdd);
-    showStatus(`تمت إضافة: ${openPriceItem.name} (${parsedPrice.toFixed(2)} ج.م)`, 'success');
+    const added = addProductToCart(productToAdd);
+    if (added) {
+      showStatus(`تمت إضافة: ${openPriceItem.name} (${parsedPrice.toFixed(2)} ج.م)`, 'success');
+    }
     setOpenPriceItem(null);
     setOpenPriceInputEgp('');
     barcodeInputRef.current?.focus();
