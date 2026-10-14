@@ -40,7 +40,11 @@ if exist "desktop\bin\Release\data" (
     rmdir /S /Q "desktop\bin\Release\data\pre_restore" 2>nul
     rmdir /S /Q "desktop\bin\Release\data\webview_profile" 2>nul
 )
-if exist "desktop\bin\Release\logs" rmdir /S /Q "desktop\bin\Release\logs"
+if exist "desktop\bin\Release\logs" rmdir /S /Q "desktop\bin\Release\logs" 2>nul
+if exist "desktop\bin\Release\rollback_backup" rmdir /S /Q "desktop\bin\Release\rollback_backup" 2>nul
+if exist "desktop\bin\Release\update_staging" rmdir /S /Q "desktop\bin\Release\update_staging" 2>nul
+if exist "desktop\bin\Release\نسخة_تلقائية_أمان_قبل_التحديث_v1.0.0" rmdir /S /Q "desktop\bin\Release\نسخة_تلقائية_أمان_قبل_التحديث_v1.0.0" 2>nul
+del /F /Q "desktop\bin\Release\*_test_output.json" 2>nul
 
 echo.
 echo [4/4] Packaging Single Executable via Inno Setup...
