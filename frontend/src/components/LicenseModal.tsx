@@ -547,8 +547,15 @@ export const LicenseModal = ({ isOpen, onClose, onLicenseUpdated }: LicenseModal
                 <input
                   type="text"
                   value={supportCode}
-                  onChange={(e) => setSupportCode(e.target.value.toUpperCase())}
-                  placeholder="RFQ-SUP-L270F-XXXXXXXXXXXX"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val.trim().toUpperCase().startsWith('RFQ-SUP-')) {
+                      setSupportCode('RFQ-SUP-' + val.trim().slice(8));
+                    } else {
+                      setSupportCode(val);
+                    }
+                  }}
+                  placeholder="RFQ-SUP-eyJhbGci..."
                   className="w-full h-12 bg-surface border-2 border-line focus:border-brand rounded-2xl px-4 text-sm font-mono tracking-widest font-black text-ink placeholder:text-ink-muted/40 text-center dir-ltr shadow-2xs focus:outline-none transition-all"
                 />
               </div>
