@@ -799,7 +799,7 @@ export const HelpCenterModal = ({
 
                 {filteredArticles.length === 0 && filteredFaqs.length === 0 ? (
                   <div className="py-12 flex flex-col items-center justify-center text-center text-slate-500 gap-2">
-                    <AlertTriangle className="w-8 h-8 text-amber-500" />
+                    <AlertTriangle className="w-8 h-8 text-warn dark:text-warn-bright" />
                     <p className="font-bold text-sm">لم يتم العثور على شروحات مطابقة لهذا البحث</p>
                     <p className="text-xs text-slate-400">
                       جرب البحث بكلمات أخرى مثل "كاشير"، "باركود"، "ديون"، أو تواصل مع الدعم المباشر.
@@ -885,10 +885,10 @@ export const HelpCenterModal = ({
 
                     {/* Golden Rule Tip Card */}
                     {activeArticle.goldenRule && (
-                      <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 flex items-start gap-3 shadow-2xs">
-                        <Flame className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="p-3.5 rounded-xl bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright flex items-start gap-3 shadow-2xs">
+                        <Flame className="w-5 h-5 text-warn dark:text-warn-bright shrink-0 mt-0.5" />
                         <div className="text-xs leading-relaxed">
-                          <span className="font-bold block text-amber-800 mb-0.5">
+                          <span className="font-bold block text-warn dark:text-warn-bright mb-0.5">
                             نصيحة ذهبية لسرعة العمل:
                           </span>
                           <span>{activeArticle.goldenRule}</span>
@@ -950,7 +950,7 @@ export const HelpCenterModal = ({
                 {/* Fallback if user navigates to a section they do not have permission for */}
                 {activeSection !== 'faq' && activeSection !== 'support' && !activeArticle && (
                   <div className="py-16 flex flex-col items-center justify-center text-center text-slate-500 gap-3">
-                    <ShieldAlert className="w-12 h-12 text-amber-500" />
+                    <ShieldAlert className="w-12 h-12 text-warn dark:text-warn-bright" />
                     <p className="font-bold text-base text-[#0f172a]">هذا الدليل غير متاح لصلاحيات حسابك الحالية</p>
                     <p className="text-xs text-[#52605d] max-w-sm">
                       يرجى اختيار أحد الأدلة المصرح لك بالاطلاع عليها من القائمة الجانبية أو مراجعة مسؤول النظام.

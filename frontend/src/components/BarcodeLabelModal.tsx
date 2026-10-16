@@ -411,8 +411,8 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
           <div
             className={`px-6 py-2.5 text-xs font-semibold flex items-center gap-2 border-b ${
               statusMessage.type === 'success'
-                ? 'bg-paid-soft text-paid border-paid/20'
-                : 'bg-red-50 text-red-700 border-red-200'
+                ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/20 dark:border-paid/30'
+                : 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger/20 dark:border-danger-bright/30'
             }`}
           >
             {statusMessage.type === 'success' ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
@@ -573,7 +573,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
                         </button>
                         <button
                           onClick={() => removeProductFromQueue(idx)}
-                          className="w-6 h-6 rounded hover:bg-red-50 text-ink-muted hover:text-red-600 flex items-center justify-center mr-1"
+                          className="w-6 h-6 rounded hover:bg-danger-soft dark:hover:bg-danger-dark-soft text-ink-muted hover:text-danger dark:hover:text-danger-bright flex items-center justify-center mr-1"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

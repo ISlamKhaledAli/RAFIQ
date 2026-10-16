@@ -46,10 +46,10 @@ export const PaginationBar: React.FC<PaginationBarProps> = ({
 
   return (
     <div
-      className={`bg-surface border border-line rounded-2xl px-4 py-2.5 flex items-center justify-between gap-3 shrink-0 shadow-xs select-none ${className}`}
+      className={`bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl px-4 py-2.5 flex items-center justify-between gap-3 shrink-0 shadow-xs select-none ${className}`}
     >
       {/* Page Range Info */}
-      <div className="text-xs text-ink-muted font-bold">
+      <div className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">
         عرض {startRange} - {endRange} من إجمالي {totalCount.toLocaleString('en-US')} {itemLabel}
       </div>
 
@@ -57,8 +57,8 @@ export const PaginationBar: React.FC<PaginationBarProps> = ({
       <div className="flex items-center gap-1.5">
         {/* Page Size Selector */}
         {showPageSizeSelector && onPageSizeChange && pageSizeOptions.length > 0 && (
-          <div className="flex items-center gap-1.5 ml-3 pl-3 border-l border-line">
-            <span className="text-[11px] text-ink-muted font-bold">عرض:</span>
+          <div className="flex items-center gap-1.5 ml-3 pl-3 border-l border-line dark:border-line-dark">
+            <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold">عرض:</span>
             {pageSizeOptions.map((size) => (
               <button
                 key={size}
@@ -68,8 +68,8 @@ export const PaginationBar: React.FC<PaginationBarProps> = ({
                 }}
                 className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
                   pageSize === size
-                    ? 'bg-brand-dark text-white shadow-xs'
-                    : 'bg-surface-2 text-ink-muted border border-line hover:border-brand hover:text-brand'
+                    ? 'bg-brand dark:bg-brand text-white shadow-xs'
+                    : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark hover:border-brand dark:hover:border-brand-bright hover:text-brand dark:hover:text-brand-bright'
                 }`}
               >
                 {size}
@@ -83,7 +83,7 @@ export const PaginationBar: React.FC<PaginationBarProps> = ({
           type="button"
           disabled={currentPage <= 1}
           onClick={() => onPageChange(currentPage - 1)}
-          className="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-2 border border-line text-ink-muted hover:bg-brand-soft hover:text-brand hover:border-brand disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+          className="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:bg-brand-soft dark:hover:bg-brand-soft/20 hover:text-brand dark:hover:text-brand-bright hover:border-brand dark:hover:border-brand-bright disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
           title="الصفحة السابقة"
         >
           <ChevronRight className="w-4 h-4" />
@@ -92,7 +92,7 @@ export const PaginationBar: React.FC<PaginationBarProps> = ({
         {/* Numeric Page Buttons */}
         {pages.map((p, idx) =>
           typeof p === 'string' ? (
-            <span key={`dots-${idx}`} className="text-xs text-ink-muted px-1 select-none">
+            <span key={`dots-${idx}`} className="text-xs text-ink-muted dark:text-ink-dark-muted px-1 select-none">
               …
             </span>
           ) : (
@@ -102,8 +102,8 @@ export const PaginationBar: React.FC<PaginationBarProps> = ({
               onClick={() => onPageChange(p)}
               className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 currentPage === p
-                  ? 'bg-brand-dark text-white shadow-xs'
-                  : 'bg-surface-2 text-ink-muted border border-line hover:bg-brand-soft hover:text-brand hover:border-brand'
+                  ? 'bg-brand dark:bg-brand text-white shadow-xs'
+                  : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark hover:bg-brand-soft dark:hover:bg-brand-soft/20 hover:text-brand dark:hover:text-brand-bright hover:border-brand dark:hover:border-brand-bright'
               }`}
             >
               {p}
@@ -116,7 +116,7 @@ export const PaginationBar: React.FC<PaginationBarProps> = ({
           type="button"
           disabled={currentPage >= totalPages}
           onClick={() => onPageChange(currentPage + 1)}
-          className="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-2 border border-line text-ink-muted hover:bg-brand-soft hover:text-brand hover:border-brand disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+          className="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:bg-brand-soft dark:hover:bg-brand-soft/20 hover:text-brand dark:hover:text-brand-bright hover:border-brand dark:hover:border-brand-bright disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
           title="الصفحة التالية"
         >
           <ChevronLeft className="w-4 h-4" />

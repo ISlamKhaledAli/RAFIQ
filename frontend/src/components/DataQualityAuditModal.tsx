@@ -227,32 +227,32 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
           {/* Health Score Summary Banner */}
           <div className={`p-4 rounded-2xl border flex flex-col md:flex-row items-center justify-between gap-4 shadow-2xs ${
             isExcellent 
-              ? 'bg-paid-soft/50 border-paid/20 text-ink' 
+              ? 'bg-paid-soft/50 dark:bg-paid-dark-soft border-paid/20 dark:border-paid/40 text-ink dark:text-ink-dark' 
               : isFair 
-              ? 'bg-amber-50 border-amber-200 text-ink' 
-              : 'bg-rose-50 border-rose-200 text-ink'
+              ? 'bg-warn-soft dark:bg-warn-dark-soft border-warn/20 dark:border-warn-bright/30 text-ink dark:text-ink-dark' 
+              : 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/30 text-ink dark:text-ink-dark'
           }`}>
             <div className="flex items-center gap-4">
               <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black font-mono text-xl shadow-xs border ${
                 isExcellent 
                   ? 'bg-paid text-white border-paid' 
                   : isFair 
-                  ? 'bg-amber-600 text-white border-amber-600' 
-                  : 'bg-[#b23a2e] text-white border-[#b23a2e]'
+                  ? 'bg-warn text-white border-warn' 
+                  : 'bg-danger text-white border-danger'
               }`}>
                 {score}%
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-sm text-ink">
+                  <h3 className="font-bold text-sm text-ink dark:text-ink-dark">
                     مؤشر اكتمال وصحة البيانات بالمحل
                   </h3>
                   <span className={`text-[10.5px] font-bold px-2 py-0.5 rounded-full ${
                     isExcellent 
                       ? 'bg-paid text-white' 
                       : isFair 
-                      ? 'bg-amber-600 text-white' 
-                      : 'bg-[#b23a2e] text-white'
+                      ? 'bg-warn text-white' 
+                      : 'bg-danger text-white'
                   }`}>
                     {isExcellent ? 'بيانات ممتازة ومكتملة' : isFair ? 'بيانات مقبولة وبحاجة لمراجعة' : 'تتطلب تصحيحاً عاجلاً'}
                   </span>
@@ -304,15 +304,15 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
               onClick={() => setActiveFilter('missing_cost')}
               className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
                 activeFilter === 'missing_cost'
-                  ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
-                  : 'bg-surface border-line text-ink hover:border-amber-500'
+                  ? 'bg-warn text-white border-warn shadow-xs'
+                  : 'bg-surface border-line text-ink hover:border-warn'
               }`}
             >
               <div className="flex items-center justify-between text-xs font-bold mb-1">
                 <span>بدون تكلفة</span>
                 <Coins className="w-3.5 h-3.5 opacity-80" />
               </div>
-              <span className={`text-base font-black font-mono leading-none block ${activeFilter === 'missing_cost' ? 'text-white' : 'text-amber-700'}`}>
+              <span className={`text-base font-black font-mono leading-none block ${activeFilter === 'missing_cost' ? 'text-white' : 'text-warn dark:text-warn-bright'}`}>
                 {report?.missingCostCount ?? 0}
               </span>
             </button>
@@ -322,15 +322,15 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
               onClick={() => setActiveFilter('missing_barcode')}
               className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
                 activeFilter === 'missing_barcode'
-                  ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
-                  : 'bg-surface border-line text-ink hover:border-amber-500'
+                  ? 'bg-warn text-white border-warn shadow-xs'
+                  : 'bg-surface border-line text-ink hover:border-warn'
               }`}
             >
               <div className="flex items-center justify-between text-xs font-bold mb-1">
                 <span>بدون باركود</span>
                 <Barcode className="w-3.5 h-3.5 opacity-80" />
               </div>
-              <span className={`text-base font-black font-mono leading-none block ${activeFilter === 'missing_barcode' ? 'text-white' : 'text-amber-700'}`}>
+              <span className={`text-base font-black font-mono leading-none block ${activeFilter === 'missing_barcode' ? 'text-white' : 'text-warn dark:text-warn-bright'}`}>
                 {report?.missingBarcodeCount ?? 0}
               </span>
             </button>
@@ -516,10 +516,10 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
                           <td className="py-3 px-4">
                             <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
                               isCritical
-                                ? 'bg-rose-50 text-[#b23a2e] border-rose-200'
+                                ? 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger/20 dark:border-danger-bright/30'
                                 : isWarning
-                                ? 'bg-amber-50 text-amber-800 border-amber-200'
-                                : 'bg-blue-50 text-blue-700 border-blue-200'
+                                ? 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border-warn/20 dark:border-warn-bright/30'
+                                : 'bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border-brand/20 dark:border-brand-bright/30'
                             }`}>
                               {isCritical && <AlertTriangle className="w-3 h-3 shrink-0" />}
                               <span>{issue.issueTitle}</span>
@@ -529,9 +529,9 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
                             </div>
                           </td>
                           <td className="py-3 px-4 text-[11px] font-mono tabular-nums">
-                            <div>الرصيد: <strong className={issue.stockMilli < 0 ? 'text-[#b23a2e]' : 'text-ink'}>{(issue.stockMilli / 1000).toFixed( issue.unit === 'kg' ? 3 : 0 )} {issue.unit === 'kg' ? 'كجم' : 'ق'}</strong></div>
-                            <div>التكلفة: <strong className={issue.costPiasters <= 0 ? 'text-amber-700 font-bold' : 'text-ink'}>{formatArabicCurrency(issue.costPiasters)}</strong></div>
-                            <div>البيع: <strong className="text-ink">{formatArabicCurrency(issue.pricePiasters)}</strong></div>
+                            <div>الرصيد: <strong className={issue.stockMilli < 0 ? 'text-danger dark:text-danger-bright' : 'text-ink dark:text-ink-dark'}>{(issue.stockMilli / 1000).toFixed( issue.unit === 'kg' ? 3 : 0 )} {issue.unit === 'kg' ? 'كجم' : 'ق'}</strong></div>
+                            <div>التكلفة: <strong className={issue.costPiasters <= 0 ? 'text-warn dark:text-warn-bright font-bold' : 'text-ink dark:text-ink-dark'}>{formatArabicCurrency(issue.costPiasters)}</strong></div>
+                            <div>البيع: <strong className="text-ink dark:text-ink-dark">{formatArabicCurrency(issue.pricePiasters)}</strong></div>
                           </td>
                           <td className="py-3 px-4 text-xs text-ink-muted leading-relaxed max-w-sm">
                             <span className="font-semibold text-ink block mb-0.5">التصحيح المقترح:</span>

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -35,6 +36,7 @@ namespace RafiqPOS
         private string _splashStatusText = "جاري تهيئة قاعدة البيانات المحلية ومحرك العرض السريع...";
         private System.Windows.Forms.Timer _splashAnimTimer;
         private float _shimmerProgress = 0f;
+        private bool _isSplashDarkMode = false;
 
         // Synchronized Splash Timing & Reveal Control
         private DateTime _splashStartTime = DateTime.UtcNow;
@@ -73,10 +75,12 @@ namespace RafiqPOS
             this.Text = "رفيق POS — نظام نقاط البيع وإدارة المتاجر";
             this.Size = new Size(1280, 800);
             this.MinimumSize = new Size(1024, 768); // Support compact screens (Task 159)
-            this.StartPosition = FormStartPosition.CenterScreen;
-            this.BackColor = Color.FromArgb(248, 250, 252); // Brand Canvas #F8FAFC
+            _isSplashDarkMode = DetectSplashDarkMode();
+            Color defaultCanvas = _isSplashDarkMode ? Color.FromArgb(14, 19, 18) : Color.FromArgb(248, 250, 252);
+            this.BackColor = defaultCanvas;
 
             // Default to borderless desktop mode matching Windows WorkingArea (respecting Windows Taskbar and preventing bottom bar overflow)
+            this.StartPosition = FormStartPosition.Manual;
             this.WindowState = FormWindowState.Normal;
             this.FormBorderStyle = FormBorderStyle.None;
             this.Bounds = Screen.PrimaryScreen.WorkingArea;
@@ -114,12 +118,12 @@ namespace RafiqPOS
                 this.Icon = SystemIcons.Application;
             }
 
-            // 1. Setup WebView2 container with light default background matching brand canvas
+            // 1. Setup WebView2 container with background matching brand canvas
             _webView = new WebView2
             {
                 Dock = DockStyle.Fill,
                 Visible = true,
-                DefaultBackgroundColor = Color.FromArgb(248, 250, 252) // Brand Canvas #F8FAFC
+                DefaultBackgroundColor = defaultCanvas
             };
             this.Controls.Add(_webView);
 
@@ -138,10 +142,13 @@ namespace RafiqPOS
         {
             _splashStartTime = DateTime.UtcNow;
 
+            Color canvasBg = _isSplashDarkMode ? Color.FromArgb(14, 19, 18) : Color.FromArgb(248, 250, 252);
+            Color cardBg = _isSplashDarkMode ? Color.FromArgb(21, 27, 26) : Color.White;
+
             _splashPanel = new DoubleBufferedPanel
             {
                 Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(248, 250, 252), // Brand Canvas #F8FAFC
+                BackColor = canvasBg,
                 RightToLeft = RightToLeft.No,
                 Visible = true
             };
@@ -152,26 +159,39 @@ namespace RafiqPOS
 
             _splashCard = new DoubleBufferedPanel
             {
-                BackColor = Color.White,
+                BackColor = cardBg,
                 Size = new Size(520, 360),
                 RightToLeft = RightToLeft.No
             };
             _splashCard.Paint += SplashCard_Paint;
 
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            string[] candidateLogos = new string[]
+            List<string> candidateLogos = new List<string>();
+
+            if (_isSplashDarkMode)
             {
-                Path.Combine(baseDir, "logo_full.png"),
-                Path.Combine(baseDir, "logo.png"),
-                Path.Combine(baseDir, "branding", "logo_full.png"),
-                Path.Combine(baseDir, "branding", "logo.png"),
-                Path.Combine(baseDir, @"..\..\..\branding\logo_full.png"),
-                Path.Combine(baseDir, @"..\..\..\branding\logo.png"),
-                Path.Combine(baseDir, @"..\..\..\frontend\public\logo_full.png"),
-                Path.Combine(baseDir, @"..\..\..\frontend\public\logo.png"),
-                Path.Combine(baseDir, "dist", "logo_full.png"),
-                Path.Combine(baseDir, "dist", "logo.png")
-            };
+                candidateLogos.Add(Path.Combine(baseDir, "logo_full_dark.png"));
+                candidateLogos.Add(Path.Combine(baseDir, "logo_full_white.png"));
+                candidateLogos.Add(Path.Combine(baseDir, "logo_white.png"));
+                candidateLogos.Add(Path.Combine(baseDir, "branding", "logo_full_dark.png"));
+                candidateLogos.Add(Path.Combine(baseDir, @"..\..\..\branding\logo_full_dark.png"));
+                candidateLogos.Add(Path.Combine(baseDir, @"..\..\..\frontend\public\logo_full_dark.png"));
+                candidateLogos.Add(Path.Combine(baseDir, @"..\..\..\frontend\public\logo_full_white.png"));
+                candidateLogos.Add(Path.Combine(baseDir, @"..\..\..\frontend\public\logo_white.png"));
+                candidateLogos.Add(Path.Combine(baseDir, "dist", "logo_full_dark.png"));
+                candidateLogos.Add(Path.Combine(baseDir, "dist", "logo_full_white.png"));
+            }
+
+            candidateLogos.Add(Path.Combine(baseDir, "logo_full.png"));
+            candidateLogos.Add(Path.Combine(baseDir, "logo.png"));
+            candidateLogos.Add(Path.Combine(baseDir, "branding", "logo_full.png"));
+            candidateLogos.Add(Path.Combine(baseDir, "branding", "logo.png"));
+            candidateLogos.Add(Path.Combine(baseDir, @"..\..\..\branding\logo_full.png"));
+            candidateLogos.Add(Path.Combine(baseDir, @"..\..\..\branding\logo.png"));
+            candidateLogos.Add(Path.Combine(baseDir, @"..\..\..\frontend\public\logo_full.png"));
+            candidateLogos.Add(Path.Combine(baseDir, @"..\..\..\frontend\public\logo.png"));
+            candidateLogos.Add(Path.Combine(baseDir, "dist", "logo_full.png"));
+            candidateLogos.Add(Path.Combine(baseDir, "dist", "logo.png"));
 
             foreach (string p in candidateLogos)
             {
@@ -225,14 +245,25 @@ namespace RafiqPOS
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
 
-            // 1. Emerald Top Accent Stripe (#006D41)
-            using (SolidBrush topBrush = new SolidBrush(Color.FromArgb(0, 109, 65)))
+            bool isDark = _isSplashDarkMode;
+
+            // 0. Card Background (#151B1A in Dark Mode, #FFFFFF in Light Mode)
+            Color cardBg = isDark ? Color.FromArgb(21, 27, 26) : Color.White;
+            using (SolidBrush bgBrush = new SolidBrush(cardBg))
+            {
+                g.FillRectangle(bgBrush, 0, 0, _splashCard.Width, _splashCard.Height);
+            }
+
+            // 1. Top Accent Stripe (#5FBFA2 in Dark Mode, #006D41 in Light Mode)
+            Color stripeColor = isDark ? Color.FromArgb(95, 191, 162) : Color.FromArgb(0, 109, 65);
+            using (SolidBrush topBrush = new SolidBrush(stripeColor))
             {
                 g.FillRectangle(topBrush, 0, 0, _splashCard.Width, 4);
             }
 
-            // 2. Refined Card Border (#DCE1DC)
-            using (Pen pen = new Pen(Color.FromArgb(220, 225, 220), 1.5f))
+            // 2. Refined Card Border (#2A3532 in Dark Mode, #DCE1DC in Light Mode)
+            Color borderColor = isDark ? Color.FromArgb(42, 53, 50) : Color.FromArgb(220, 225, 220);
+            using (Pen pen = new Pen(borderColor, 1.5f))
             {
                 g.DrawRectangle(pen, 0, 0, _splashCard.Width - 1, _splashCard.Height - 1);
             }
@@ -255,17 +286,19 @@ namespace RafiqPOS
                 sf.Alignment = StringAlignment.Center;
                 sf.LineAlignment = StringAlignment.Center;
 
-                // 4. App Title (Segoe UI 20 Bold, #00372D)
+                // 4. App Title (Segoe UI 20 Bold, #E6ECEA in Dark, #00372D in Light)
+                Color titleColor = isDark ? Color.FromArgb(230, 236, 234) : Color.FromArgb(0, 55, 45);
                 using (Font titleFont = new Font("Segoe UI", 20, FontStyle.Bold))
-                using (SolidBrush titleBrush = new SolidBrush(Color.FromArgb(0, 55, 45)))
+                using (SolidBrush titleBrush = new SolidBrush(titleColor))
                 {
                     Rectangle titleRect = new Rectangle(20, 108, 480, 36);
                     g.DrawString("رفيق POS", titleFont, titleBrush, titleRect, sf);
                 }
 
-                // 5. Subtitle (Segoe UI 10.5, #006D41)
+                // 5. Subtitle (Segoe UI 10.5, #5FBFA2 in Dark, #006D41 in Light)
+                Color subColor = isDark ? Color.FromArgb(95, 191, 162) : Color.FromArgb(0, 109, 65);
                 using (Font subFont = new Font("Segoe UI", 10.5f, FontStyle.Regular))
-                using (SolidBrush subBrush = new SolidBrush(Color.FromArgb(0, 109, 65)))
+                using (SolidBrush subBrush = new SolidBrush(subColor))
                 {
                     Rectangle subRect = new Rectangle(20, 146, 480, 24);
                     g.DrawString("نظام نقاط البيع وإدارة المتاجر ومحلات التجزئة", subFont, subBrush, subRect, sf);
@@ -277,7 +310,8 @@ namespace RafiqPOS
                 int progX = (_splashCard.Width - progW) / 2;
                 int progY = 186;
                 Rectangle progTrack = new Rectangle(progX, progY, progW, progH);
-                using (SolidBrush trackBrush = new SolidBrush(Color.FromArgb(241, 245, 244)))
+                Color trackColor = isDark ? Color.FromArgb(28, 36, 35) : Color.FromArgb(241, 245, 244);
+                using (SolidBrush trackBrush = new SolidBrush(trackColor))
                 {
                     g.FillRectangle(trackBrush, progTrack);
                 }
@@ -285,30 +319,35 @@ namespace RafiqPOS
                 int shimW = 80;
                 int shimX = progX + (int)((progW - shimW) * _shimmerProgress);
                 Rectangle shimRect = new Rectangle(shimX, progY, shimW, progH);
-                using (SolidBrush progBrush = new SolidBrush(Color.FromArgb(0, 109, 65)))
+                Color shimmerColor = isDark ? Color.FromArgb(95, 191, 162) : Color.FromArgb(0, 109, 65);
+                using (SolidBrush progBrush = new SolidBrush(shimmerColor))
                 {
                     g.FillRectangle(progBrush, shimRect);
                 }
 
-                // 7. Dynamic Status Label (Segoe UI 9.5, #52605D)
+                // 7. Dynamic Status Label (Segoe UI 9.5, #93A19D in Dark, #52605D in Light)
                 string statusText = _splashStatusText ?? "جاري تهيئة قاعدة البيانات المحلية ومحرك العرض السريع...";
+                Color statusColor = isDark ? Color.FromArgb(147, 161, 157) : Color.FromArgb(82, 96, 93);
                 using (Font statusFont = new Font("Segoe UI", 9.5f, FontStyle.Regular))
-                using (SolidBrush statusBrush = new SolidBrush(Color.FromArgb(82, 96, 93)))
+                using (SolidBrush statusBrush = new SolidBrush(statusColor))
                 {
                     Rectangle statusRect = new Rectangle(20, 204, 480, 24);
                     g.DrawString(statusText, statusFont, statusBrush, statusRect, sf);
                 }
 
-                // 8. Footer Badge (Y=275, 440x32, #EAF5EE background, #006D41 text)
+                // 8. Footer Badge (Y=275, 440x32, #12302A in Dark, #EAF5EE in Light)
                 int badgeW = 440;
                 int badgeH = 32;
                 int badgeX = (_splashCard.Width - badgeW) / 2;
                 int badgeY = 275;
                 Rectangle badgeRect = new Rectangle(badgeX, badgeY, badgeW, badgeH);
-                using (SolidBrush badgeBg = new SolidBrush(Color.FromArgb(234, 245, 238)))
-                using (Pen badgeBorder = new Pen(Color.FromArgb(200, 230, 215), 1f))
+                Color badgeBgColor = isDark ? Color.FromArgb(18, 48, 42) : Color.FromArgb(234, 245, 238);
+                Color badgeBorderColor = isDark ? Color.FromArgb(38, 73, 66) : Color.FromArgb(200, 230, 215);
+                Color badgeTextColor = isDark ? Color.FromArgb(95, 191, 162) : Color.FromArgb(0, 109, 65);
+                using (SolidBrush badgeBg = new SolidBrush(badgeBgColor))
+                using (Pen badgeBorder = new Pen(badgeBorderColor, 1f))
                 using (Font footerFont = new Font("Segoe UI", 8.5f, FontStyle.Bold))
-                using (SolidBrush footerBrush = new SolidBrush(Color.FromArgb(0, 109, 65)))
+                using (SolidBrush footerBrush = new SolidBrush(badgeTextColor))
                 {
                     g.FillRectangle(badgeBg, badgeRect);
                     g.DrawRectangle(badgeBorder, badgeRect);
@@ -350,13 +389,193 @@ namespace RafiqPOS
             }
         }
 
-        public void NotifyAppReady()
+        public void NotifyAppReady(string theme = null)
         {
             if (_isSplashDismissed) return;
             _isReactReady = true;
             Logger.Info("تم استلام إشارة جاهزية واجهة React (system:appReady).");
+            if (!string.IsNullOrEmpty(theme))
+            {
+                SaveThemePreference(theme);
+            }
             UpdateSplashStatus("اكتمل التشغيل بنجاح، جاري فتح النظام...");
             CheckAndDismissSplash();
+        }
+
+        public static void SaveThemePreference(string theme)
+        {
+            if (string.IsNullOrEmpty(theme)) return;
+            try
+            {
+                string cleanTheme = theme.Trim().ToLowerInvariant();
+                if (cleanTheme != "dark" && cleanTheme != "light")
+                {
+                    return;
+                }
+
+                string appData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+                string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+
+                string[] dirsToEnsure = new string[]
+                {
+                    Path.Combine(appData, "RafiqPOS"),
+                    Path.Combine(appData, "RafiqPOS", "data"),
+                    Path.Combine(localAppData, "RafiqPOS"),
+                    Path.Combine(baseDir, "data")
+                };
+
+                for (int i = 0; i < dirsToEnsure.Length; i++)
+                {
+                    try
+                    {
+                        if (!Directory.Exists(dirsToEnsure[i]))
+                        {
+                            Directory.CreateDirectory(dirsToEnsure[i]);
+                        }
+                    }
+                    catch { }
+                }
+
+                string[] filesToWrite = new string[]
+                {
+                    Path.Combine(appData, "RafiqPOS", "theme.pref"),
+                    Path.Combine(appData, "RafiqPOS", "data", "theme.pref"),
+                    Path.Combine(localAppData, "RafiqPOS", "theme.pref"),
+                    Path.Combine(baseDir, "theme.pref"),
+                    Path.Combine(baseDir, "data", "theme.pref")
+                };
+
+                for (int i = 0; i < filesToWrite.Length; i++)
+                {
+                    try
+                    {
+                        File.WriteAllText(filesToWrite[i], cleanTheme);
+                    }
+                    catch { }
+                }
+
+                // Also save to SQLite app_settings if database repository is ready
+                try
+                {
+                    if (RafiqPOS.Services.DatabaseService.SettingsRepo != null)
+                    {
+                        RafiqPOS.Services.DatabaseService.SettingsRepo.Set("ui_theme", cleanTheme);
+                    }
+                }
+                catch { }
+            }
+            catch { }
+        }
+
+        private bool DetectSplashDarkMode()
+        {
+            try
+            {
+                string appData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+                string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+
+                string[] candidateFiles = new string[]
+                {
+                    Path.Combine(appData, "RafiqPOS", "theme.pref"),
+                    Path.Combine(appData, "RafiqPOS", "data", "theme.pref"),
+                    Path.Combine(localAppData, "RafiqPOS", "theme.pref"),
+                    Path.Combine(baseDir, "theme.pref"),
+                    Path.Combine(baseDir, "data", "theme.pref"),
+                    Path.Combine(baseDir, @"..\..\..\theme.pref")
+                };
+
+                // Pick the most recently modified theme.pref file to avoid picking up stale settings
+                FileInfo latestFile = null;
+                for (int i = 0; i < candidateFiles.Length; i++)
+                {
+                    try
+                    {
+                        string p = candidateFiles[i];
+                        if (File.Exists(p))
+                        {
+                            FileInfo fi = new FileInfo(p);
+                            if (latestFile == null || fi.LastWriteTimeUtc > latestFile.LastWriteTimeUtc)
+                            {
+                                latestFile = fi;
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
+                if (latestFile != null)
+                {
+                    try
+                    {
+                        string t = File.ReadAllText(latestFile.FullName).Trim().ToLowerInvariant();
+                        if (t == "dark") return true;
+                        if (t == "light") return false;
+                    }
+                    catch { }
+                }
+
+                // Check SQLite database if rafiq_pos.db exists
+                string[] candidateDbs = new string[]
+                {
+                    Path.Combine(appData, "RafiqPOS", "data", "rafiq_pos.db"),
+                    Path.Combine(baseDir, "data", "rafiq_pos.db"),
+                    Path.Combine(baseDir, "rafiq_pos.db"),
+                    Path.Combine(baseDir, @"..\..\..\data\rafiq_pos.db")
+                };
+
+                for (int i = 0; i < candidateDbs.Length; i++)
+                {
+                    try
+                    {
+                        string dbPath = candidateDbs[i];
+                        if (File.Exists(dbPath))
+                        {
+                            using (var conn = new System.Data.SQLite.SQLiteConnection("Data Source=" + dbPath + ";Version=3;Read Only=True;"))
+                            {
+                                conn.Open();
+                                using (var cmd = new System.Data.SQLite.SQLiteCommand("SELECT value FROM app_settings WHERE key IN ('ui_theme', 'theme') LIMIT 1;", conn))
+                                {
+                                    object res = cmd.ExecuteScalar();
+                                    if (res != null && res != DBNull.Value)
+                                    {
+                                        string s = res.ToString().Trim().ToLowerInvariant();
+                                        if (s == "dark") return true;
+                                        if (s == "light") return false;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
+                // Check Windows System Theme (Dark Mode Registry)
+                try
+                {
+                    using (Microsoft.Win32.RegistryKey key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"))
+                    {
+                        if (key != null)
+                        {
+                            object val = key.GetValue("AppsUseLightTheme");
+                            if (val != null && val is int && ((int)val) == 0)
+                            {
+                                return true;
+                            }
+                            if (val != null && val is int && ((int)val) == 1)
+                            {
+                                return false;
+                            }
+                        }
+                    }
+                }
+                catch { }
+            }
+            catch { }
+
+            // Default to light mode as requested
+            return false;
         }
 
         private void CheckAndDismissSplash()
@@ -725,13 +944,16 @@ namespace RafiqPOS
 
         private void MainForm_Load(object sender, EventArgs e)
         {
+            this.Bounds = Screen.PrimaryScreen.WorkingArea;
             // Force immediate layout and paint of the splash screen
             this.Refresh();
         }
 
         private void MainForm_Shown(object sender, EventArgs e)
         {
+            this.Bounds = Screen.PrimaryScreen.WorkingArea;
             WindowHelper.ActivateAndBringToFront(this);
+            this.Bounds = Screen.PrimaryScreen.WorkingArea;
             this.Refresh();
             Application.DoEvents();
             InitializeApplication();

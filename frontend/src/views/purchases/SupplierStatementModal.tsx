@@ -35,30 +35,30 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
-      className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
     >
-      <div className="bg-surface border border-line rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-        <div className="h-14 bg-surface border-b border-line px-5 flex items-center justify-between shrink-0">
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+        <div className="h-14 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark px-5 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-brand-soft text-brand flex items-center justify-center shadow-2xs">
+            <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright flex items-center justify-center shadow-2xs">
               <Receipt className="w-4 h-4" />
             </div>
-            <h3 className="font-bold text-sm text-ink">
+            <h3 className="font-bold text-sm text-ink dark:text-ink-dark">
               كشف حساب المورد: {supplier.name}
             </h3>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface-2 transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="p-4 bg-surface-2 border-b border-line flex items-center justify-between shrink-0">
+        <div className="p-4 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark flex items-center justify-between shrink-0">
           <div>
-            <span className="text-xs text-ink-muted block">
+            <span className="text-xs text-ink-muted dark:text-ink-dark-muted block">
               {supplier.balancePiasters > 0
                 ? 'فلوس للمورد علينا (حسابه):'
                 : supplier.balancePiasters < 0
@@ -68,10 +68,10 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
             <span
               className={`text-xl font-mono font-bold ${
                 supplier.balancePiasters > 0
-                  ? 'text-danger'
+                  ? 'text-danger dark:text-danger-bright'
                   : supplier.balancePiasters < 0
-                  ? 'text-paid'
-                  : 'text-ink-muted'
+                  ? 'text-paid dark:text-paid-bright'
+                  : 'text-ink-muted dark:text-ink-dark-muted'
               }`}
             >
               {supplier.balancePiasters !== 0
@@ -79,22 +79,22 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
                 : 'خالص تماماً (0.00 ج.م)'}
             </span>
           </div>
-          <div className="text-left text-xs text-ink-muted">
+          <div className="text-left text-xs text-ink-muted dark:text-ink-dark-muted">
             <span>عدد الحركات المسجلة: {transactions.length} حركة</span>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto divide-y divide-line p-2">
+        <div className="flex-1 overflow-y-auto divide-y divide-line dark:divide-line-dark p-2">
           {transactions.length === 0 ? (
-            <div className="h-40 flex items-center justify-center text-xs text-ink-muted">
+            <div className="h-40 flex items-center justify-center text-xs text-ink-muted dark:text-ink-dark-muted">
               مفيش حركات مسجلة للمورد ده لحد دلوقتي
             </div>
           ) : (
             transactions.map((tx) => (
-              <div key={tx.id} className="p-3 flex items-center justify-between text-xs hover:bg-surface-2/60 transition-colors">
+              <div key={tx.id} className="p-3 flex items-center justify-between text-xs hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-ink">
+                    <span className="font-bold text-ink dark:text-ink-dark">
                       {tx.transactionType === 'OPENING_BALANCE' && 'حسابه القديم (أول المدة)'}
                       {tx.transactionType === 'PURCHASE_INVOICE' && 'فاتورة بضاعة جديدة (على الحساب)'}
                       {tx.transactionType === 'PURCHASE_OVERPAYMENT' && 'دفعنا بالزيادة ونزل في حسابنا'}
@@ -103,7 +103,7 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
                       {tx.transactionType === 'MANUAL_ADJUSTMENT' && 'تسوية رصيد يدوية'}
                       {!['OPENING_BALANCE', 'PURCHASE_INVOICE', 'PURCHASE_OVERPAYMENT', 'PAYMENT', 'PURCHASE_PAID_CASH', 'MANUAL_ADJUSTMENT'].includes(tx.transactionType) && (tx.transactionType || 'حركة حسابية')}
                     </span>
-                    <span className="text-[10px] text-ink-muted">
+                    <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted">
                       {new Date(tx.createdAt).toLocaleDateString('ar-EG-u-nu-latn', {
                         year: 'numeric',
                         month: 'short',
@@ -113,18 +113,18 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
                       })}
                     </span>
                   </div>
-                  {tx.notes && <span className="text-[11px] text-ink-muted block mt-0.5">{tx.notes}</span>}
+                  {tx.notes && <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted block mt-0.5">{tx.notes}</span>}
                 </div>
 
                 <div className="font-mono font-bold text-sm">
                   {tx.amountPiasters > 0 ? (
-                    <span className="text-danger">+{formatMoney(tx.amountPiasters)}</span>
+                    <span className="text-danger dark:text-danger-bright">+{formatMoney(tx.amountPiasters)}</span>
                   ) : tx.amountPiasters < 0 ? (
-                    <span className="text-paid">
+                    <span className="text-paid dark:text-paid-bright">
                       -{formatMoney(Math.abs(tx.amountPiasters))}
                     </span>
                   ) : (
-                    <span className="text-ink-muted text-xs font-semibold">
+                    <span className="text-ink-muted dark:text-ink-dark-muted text-xs font-semibold">
                       0.00 ج.م (خالص)
                     </span>
                   )}
@@ -134,11 +134,11 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
           )}
         </div>
 
-        <div className="p-3.5 bg-surface border-t border-line flex justify-end shrink-0">
+        <div className="p-3.5 bg-surface dark:bg-surface-dark border-t border-line dark:border-line-dark flex justify-end shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="px-5 h-9 bg-surface hover:bg-surface-2 border border-line text-ink rounded-xl text-xs font-bold transition-colors cursor-pointer"
+            className="px-5 h-9 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl text-xs font-bold transition-colors cursor-pointer"
           >
             إغلاق كشف الحساب
           </button>

@@ -51,23 +51,23 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
       onClick={handleBackdropClick}
     >
-      <div className="bg-surface border border-line rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-        <div className="h-14 bg-surface border-b border-line px-5 flex items-center justify-between">
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+        <div className="h-14 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark px-5 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-brand-soft text-brand flex items-center justify-center shadow-2xs">
+            <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright flex items-center justify-center shadow-2xs">
               <Building2 className="w-4 h-4" />
             </div>
-            <h3 className="font-bold text-sm text-ink">
+            <h3 className="font-bold text-sm text-ink dark:text-ink-dark">
               {form.id ? 'تعديل بيانات المورد والشركة' : 'تسجيل مورد أو شركة جديدة'}
             </h3>
           </div>
           <button
             type="button"
             onClick={() => void requestClose()}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface-2 transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
             title="إغلاق"
           >
             <X className="w-4 h-4" />
@@ -76,8 +76,8 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
 
         <form onSubmit={onSave} className="p-5 space-y-3.5">
           <div>
-            <label className="text-xs font-bold text-ink block mb-1">
-              اسم المورد أو المندوب <span className="text-danger">*</span>
+            <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">
+              اسم المورد أو المندوب <span className="text-danger dark:text-danger-bright">*</span>
             </label>
             <input
               type="text"
@@ -85,38 +85,38 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
               placeholder="مثلاً: شركة النيل للتوزيع / أ. محمد"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full h-10 px-3 bg-surface-2 border border-line rounded-xl text-xs text-ink focus:outline-none focus:border-brand focus:bg-surface transition-colors"
+              className="w-full h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors"
             />
           </div>
 
           <div>
-            <label className="text-xs font-bold text-ink block mb-1">اسم الشركة أو التوكيل</label>
+            <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">اسم الشركة أو التوكيل</label>
             <input
               type="text"
               placeholder="مثلاً: توكيل شيبسي وأغذية"
               value={form.companyName}
               onChange={(e) => setForm({ ...form, companyName: e.target.value })}
-              className="w-full h-10 px-3 bg-surface-2 border border-line rounded-xl text-xs text-ink focus:outline-none focus:border-brand focus:bg-surface transition-colors"
+              className="w-full h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold text-ink block mb-1">رقم الموبايل / التليفون</label>
+              <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">رقم الموبايل / التليفون</label>
               <input
                 type="text"
                 placeholder="010XXXXXXXX"
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                className="w-full h-10 px-3 bg-surface-2 border border-line rounded-xl text-xs font-mono text-ink focus:outline-none focus:border-brand focus:bg-surface transition-colors"
+                className="w-full h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors"
               />
             </div>
 
             {!form.id && (
               <div>
-                <label className="text-xs font-bold text-ink block mb-1">
+                <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">
                   <span>حساب أول المدة (ج.م)</span>
-                  <span className="text-[10px] text-ink-muted font-normal block">
+                  <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted font-normal block">
                     (موجب = فلوس ليه عندنا، سالب (-) = دافعينله مقدم)
                   </span>
                 </label>
@@ -132,45 +132,45 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
                   }}
                   onFocus={(e) => e.target.select()}
                   placeholder="0.00"
-                  className="w-full h-10 px-3 bg-surface-2 border border-line rounded-xl text-xs font-mono font-bold text-ink focus:outline-none focus:border-brand focus:bg-surface transition-colors text-right"
+                  className="w-full h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs font-mono font-bold text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors text-right"
                 />
               </div>
             )}
           </div>
 
           <div>
-            <label className="text-xs font-bold text-ink block mb-1">العنوان أو مكان المخزن</label>
+            <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">العنوان أو مكان المخزن</label>
             <input
               type="text"
               placeholder="مثلاً: المنيا - ملوى"
               value={form.address}
               onChange={(e) => setForm({ ...form, address: e.target.value })}
-              className="w-full h-10 px-3 bg-surface-2 border border-line rounded-xl text-xs text-ink focus:outline-none focus:border-brand focus:bg-surface transition-colors"
+              className="w-full h-10 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors"
             />
           </div>
 
           <div>
-            <label className="text-xs font-bold text-ink block mb-1">ملاحظات إضافية</label>
+            <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">ملاحظات إضافية</label>
             <textarea
               rows={2}
               placeholder="مواعيد التوريد، أيام زيارة المندوب، إلخ..."
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              className="w-full p-2.5 bg-surface-2 border border-line rounded-xl text-xs text-ink focus:outline-none focus:border-brand focus:bg-surface resize-none transition-colors"
+              className="w-full p-2.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark resize-none transition-colors"
             />
           </div>
 
-          <div className="flex items-center gap-2 pt-3 border-t border-line">
+          <div className="flex items-center gap-2 pt-3 border-t border-line dark:border-line-dark">
             <button
               type="submit"
-              className="flex-1 h-10 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-[0.98]"
+              className="flex-1 h-10 bg-brand dark:bg-brand-bright dark:text-surface-dark hover:bg-brand-dark dark:hover:bg-emerald-400 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-[0.98]"
             >
               حفظ بيانات المورد في المحل
             </button>
             <button
               type="button"
               onClick={() => void requestClose()}
-              className="px-4 h-10 bg-surface hover:bg-surface-2 border border-line text-ink rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              className="px-4 h-10 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl text-xs font-bold transition-colors cursor-pointer"
             >
               إلغاء
             </button>

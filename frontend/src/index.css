@@ -212,6 +212,13 @@
 .hairline-r { border-right: 1px solid #DCE1DC; }
 .hairline-all { border: 1px solid #DCE1DC; }
 
+/* Dark Mode Hairline Grid Borders */
+html.dark .hairline-b { border-bottom: 1px solid #2A3532; }
+html.dark .hairline-t { border-top: 1px solid #2A3532; }
+html.dark .hairline-l { border-left: 1px solid #2A3532; }
+html.dark .hairline-r { border-right: 1px solid #2A3532; }
+html.dark .hairline-all { border: 1px solid #2A3532; }
+
 /* Custom Retail Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
@@ -229,6 +236,42 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: #BFC9C4;
+}
+
+/* Dark Mode Custom Retail Scrollbars (dark_mode_rafeeq) */
+html.dark ::-webkit-scrollbar-track {
+  background: #151B1A;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: #2A3532;
+  border-radius: 3px;
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #4A5A56;
+}
+
+html.dark body {
+  background-color: #0E1312;
+  color: #E6ECEA;
+}
+
+html.dark select option {
+  background-color: #151B1A;
+  color: #E6ECEA;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  opacity: 0.50;
+  color: #93A19D;
+}
+
+html.dark tbody tr.cursor-pointer:hover,
+html.dark tbody tr[role="button"]:hover,
+html.dark tbody tr[onclick]:hover {
+  background-color: rgba(95, 191, 162, 0.08) !important;
 }
 
 /* Thermal Paper Cut Zigzag */
@@ -271,6 +314,17 @@
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #BFC9C4;
+}
+
+/* Dark Mode Custom Retail Scrollbars Container Class */
+html.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background: #151B1A;
+}
+html.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #2A3532;
+}
+html.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #4A5A56;
 }
 
 /* Composable Entrance Animations (Tailwind v3.4 + Chromium 109 Compatible) */

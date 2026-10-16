@@ -306,7 +306,7 @@ export const ExcelImportModal = ({
 
           {/* Error Message */}
           {errorMessage && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-700 px-3.5 py-2.5 rounded-md flex items-center gap-2 text-[11.5px]">
+            <div className="bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright px-3.5 py-2.5 rounded-md flex items-center gap-2 text-[11.5px]">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMessage}</span>
             </div>
@@ -315,7 +315,7 @@ export const ExcelImportModal = ({
           {/* Validation & Preview Section */}
           {parsing ? (
             <div className="py-12 flex flex-col items-center justify-center gap-2 text-ink-muted">
-              <RefreshCw className="w-6 h-6 animate-spin text-emerald-600" />
+              <RefreshCw className="w-6 h-6 animate-spin text-brand dark:text-brand-bright" />
               <p className="text-xs font-bold">جاري قراءة وفحص بيانات الملف والتحقق من الأسعار والباركودات...</p>
             </div>
           ) : parsedRows.length > 0 ? (
@@ -327,26 +327,26 @@ export const ExcelImportModal = ({
                   <span className="text-ink-muted text-[10.5px]">إجمالي الأصناف بالملف</span>
                   <p className="text-base font-bold text-ink mt-0.5 font-mono">{parsedRows.length}</p>
                 </div>
-                <div className="bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-md">
-                  <span className="text-emerald-700 text-[10.5px] font-bold flex items-center gap-1">
+                <div className="bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 dark:border-paid/30 p-2.5 rounded-md">
+                  <span className="text-paid dark:text-paid-bright text-[10.5px] font-bold flex items-center gap-1">
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     أصناف جديدة جاهزة
                   </span>
-                  <p className="text-base font-bold text-emerald-800 mt-0.5 font-mono">{validRows.length}</p>
+                  <p className="text-base font-bold text-paid dark:text-paid-bright mt-0.5 font-mono">{validRows.length}</p>
                 </div>
-                <div className="bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-md">
-                  <span className="text-amber-700 text-[10.5px] font-bold flex items-center gap-1">
+                <div className="bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 p-2.5 rounded-md">
+                  <span className="text-warn dark:text-warn-bright text-[10.5px] font-bold flex items-center gap-1">
                     <AlertTriangle className="w-3.5 h-3.5" />
                     أصناف مسجلة مسبقاً
                   </span>
-                  <p className="text-base font-bold text-amber-800 mt-0.5 font-mono">{warningRows.length}</p>
+                  <p className="text-base font-bold text-warn dark:text-warn-bright mt-0.5 font-mono">{warningRows.length}</p>
                 </div>
-                <div className="bg-red-500/10 border border-red-500/20 p-2.5 rounded-md">
-                  <span className="text-red-700 text-[10.5px] font-bold flex items-center gap-1">
+                <div className="bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 p-2.5 rounded-md">
+                  <span className="text-danger dark:text-danger-bright text-[10.5px] font-bold flex items-center gap-1">
                     <AlertCircle className="w-3.5 h-3.5" />
                     صفوف تحتوي أخطاء
                   </span>
-                  <p className="text-base font-bold text-red-800 mt-0.5 font-mono">{errorRows.length}</p>
+                  <p className="text-base font-bold text-danger dark:text-danger-bright mt-0.5 font-mono">{errorRows.length}</p>
                 </div>
               </div>
 
@@ -377,7 +377,7 @@ export const ExcelImportModal = ({
                         type="checkbox"
                         checked={onlyValidRows}
                         onChange={(e) => setOnlyValidRows(e.target.checked)}
-                        className="rounded border-line text-emerald-600 focus:ring-0"
+                        className="rounded border-line text-brand focus:ring-0"
                       />
                       <span>استيراد الصفوف السليمة وتجاوز الأخطاء ({rowsToImport.length} صنف)</span>
                     </label>
@@ -386,7 +386,7 @@ export const ExcelImportModal = ({
                       <button
                         type="button"
                         onClick={() => downloadErrorReport(errorRows)}
-                        className="h-7 px-2.5 rounded bg-red-600/10 hover:bg-red-600/20 text-red-700 text-[10.5px] font-bold flex items-center gap-1 transition-colors border border-red-600/20"
+                        className="h-7 px-2.5 rounded bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger/20 dark:hover:bg-danger-dark-soft/80 text-danger dark:text-danger-bright text-[10.5px] font-bold flex items-center gap-1 transition-colors border border-danger/20 dark:border-danger-bright/30"
                         title="تحميل تقرير تفصيلي بأسباب أخطاء الصفوف لتصحيحها"
                       >
                         <Download className="w-3 h-3" />
@@ -420,20 +420,20 @@ export const ExcelImportModal = ({
                           <tr 
                             key={idx} 
                             className={`hover:bg-surface-2/60 transition-colors ${
-                              row.status === 'error' ? 'bg-red-500/5' : row.status === 'warning' ? 'bg-amber-500/5' : ''
+                              row.status === 'error' ? 'bg-danger-soft/30 dark:bg-danger-dark-soft/40' : row.status === 'warning' ? 'bg-warn-soft/30 dark:bg-warn-dark-soft/40' : ''
                             }`}
                           >
                             <td className="py-2 px-3 text-center">
                               {row.status === 'valid' ? (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-emerald-500/15 text-emerald-800">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid/30">
                                   سليم
                                 </span>
                               ) : row.status === 'warning' ? (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-amber-500/15 text-amber-800">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30">
                                   مكرر
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-red-500/15 text-red-800">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/20 dark:border-danger-bright/30">
                                   خطأ
                                 </span>
                               )}
@@ -466,11 +466,11 @@ export const ExcelImportModal = ({
                             </td>
                             <td className="py-2 px-3 text-[10.5px]">
                               {row.errors.length > 0 ? (
-                                <span className="text-red-700 font-bold">{row.errors.join(' • ')}</span>
+                                <span className="text-danger dark:text-danger-bright font-bold">{row.errors.join(' • ')}</span>
                               ) : row.warnings.length > 0 ? (
-                                <span className="text-amber-700">{row.warnings.join(' • ')}</span>
+                                <span className="text-warn dark:text-warn-bright">{row.warnings.join(' • ')}</span>
                               ) : (
-                                <span className="text-emerald-700">جاهز للاستيراد</span>
+                                <span className="text-paid dark:text-paid-bright">جاهز للاستيراد</span>
                               )}
                             </td>
                           </tr>
@@ -510,7 +510,7 @@ export const ExcelImportModal = ({
               disabled={!canImport || importing}
               className={`h-8 px-5 rounded font-bold text-[11.5px] flex items-center gap-1.5 transition-colors shadow-sm ${
                 canImport && !importing
-                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                  ? 'bg-paid hover:bg-paid-dark text-white'
                   : 'bg-surface-3 text-ink-muted border border-line cursor-not-allowed opacity-60'
               }`}
             >

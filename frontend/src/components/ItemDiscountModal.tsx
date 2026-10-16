@@ -193,7 +193,7 @@ export const ItemDiscountModal: React.FC<ItemDiscountModalProps> = ({
                       key={pct}
                       type="button"
                       onClick={() => setInputValue(String(pct))}
-                      className="h-8 rounded bg-surface border border-slate-300 hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-slate-700 text-xs font-bold shadow-2xs transition-all"
+                      className="h-8 rounded bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-brand hover:text-brand hover:bg-brand-soft dark:hover:bg-brand-dark-soft text-ink dark:text-ink-dark text-xs font-bold shadow-2xs transition-all"
                     >
                       {pct}%
                     </button>
@@ -203,7 +203,7 @@ export const ItemDiscountModal: React.FC<ItemDiscountModalProps> = ({
               <button
                 type="button"
                 onClick={() => setInputValue('0')}
-                className="col-span-4 h-8 rounded bg-surface border border-slate-300 hover:border-red-500 hover:text-red-600 hover:bg-red-50 text-slate-700 text-xs font-bold shadow-2xs transition-all"
+                className="col-span-4 h-8 rounded bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-danger hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft text-ink dark:text-ink-dark text-xs font-bold shadow-2xs transition-all"
               >
                 إلغاء الخصم (0)
               </button>
@@ -212,9 +212,9 @@ export const ItemDiscountModal: React.FC<ItemDiscountModalProps> = ({
 
           {/* Supervisor Warning Badge */}
           {requiresSupervisor && (
-            <div className="mb-3 p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-800 dark:text-amber-200 text-xs flex items-center justify-between">
+            <div className="mb-3 p-2 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-lg text-warn dark:text-warn-bright text-xs flex items-center justify-between">
               <span className="flex items-center gap-1.5">
-                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <AlertTriangle className="w-4 h-4 text-warn dark:text-warn-bright shrink-0" />
                 <span>يتطلب موافقة المشرف (أعلى من {maxPercentWithoutPin}%)</span>
               </span>
               <span className="font-bold whitespace-nowrap mr-2">مطلوب PIN</span>

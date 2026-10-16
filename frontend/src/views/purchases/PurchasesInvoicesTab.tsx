@@ -80,68 +80,68 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
     <div className="flex-1 flex flex-col gap-2.5 sm:gap-3 overflow-hidden">
       {/* KPI Cards Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 shrink-0">
-        <div className="bg-surface border border-line rounded-xl p-3 sm:p-3.5 flex items-center justify-between shadow-2xs">
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 sm:p-3.5 flex items-center justify-between shadow-2xs">
           <div>
-            <span className="text-[11px] text-ink-muted font-bold block">إجمالي فواتير شراء البضاعة</span>
-            <span className="text-lg sm:text-xl font-bold font-mono text-ink mt-0.5 block">
+            <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold block">إجمالي فواتير شراء البضاعة</span>
+            <span className="text-lg sm:text-xl font-bold font-mono text-ink dark:text-ink-dark mt-0.5 block">
               {formatMoney(totalPurchasesAmount)}
             </span>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-brand-soft flex items-center justify-center text-brand-dark border border-brand/20 shadow-2xs">
-            <TrendingUp className="w-4 h-4 text-brand" />
+          <div className="w-9 h-9 rounded-xl bg-brand-soft dark:bg-brand-soft/20 flex items-center justify-center text-brand-dark dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 shadow-2xs">
+            <TrendingUp className="w-4 h-4 text-brand dark:text-brand-bright" />
           </div>
         </div>
 
-        <div className="bg-surface border border-line rounded-xl p-3 sm:p-3.5 flex items-center justify-between shadow-2xs">
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 sm:p-3.5 flex items-center justify-between shadow-2xs">
           <div>
-            <span className="text-[11px] text-ink-muted font-bold block">فواتير لسه ما كملتش دفع</span>
-            <span className="text-lg sm:text-xl font-bold font-mono text-danger mt-0.5 block">
+            <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold block">فواتير لسه ما كملتش دفع</span>
+            <span className="text-lg sm:text-xl font-bold font-mono text-danger dark:text-danger-bright mt-0.5 block">
               {totalUnpaidPurchasesCount} فاتورة
             </span>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-danger-soft flex items-center justify-center text-danger border border-danger-border shadow-2xs">
+          <div className="w-9 h-9 rounded-xl bg-danger-soft dark:bg-danger-dark-soft flex items-center justify-center text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/30 shadow-2xs">
             <CreditCard className="w-4 h-4" />
           </div>
         </div>
 
-        <div className="bg-surface border border-line rounded-xl p-3 sm:p-3.5 flex items-center justify-between shadow-2xs">
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 sm:p-3.5 flex items-center justify-between shadow-2xs">
           <div>
-            <span className="text-[11px] text-ink-muted font-bold block">
+            <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold block">
               {totalSupplierCreditsAmount > 0 ? 'فلوس علينا للموردين / رصيد لنا' : 'فلوس علينا للموردين والشركات'}
             </span>
             <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-              <span className="text-lg sm:text-xl font-bold font-mono text-warn">
+              <span className="text-lg sm:text-xl font-bold font-mono text-warn dark:text-warn-bright">
                 {formatMoney(totalSupplierDebtsAmount)}
               </span>
               {totalSupplierCreditsAmount > 0 && (
-                <span className="text-[10px] font-mono font-bold text-paid bg-paid-soft px-1.5 py-0.5 rounded border border-paid/20" title="رصيد لصالحنا عند الموردين تحت الحساب">
+                <span className="text-[10px] font-mono font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft px-1.5 py-0.5 rounded border border-paid/20 dark:border-paid/40" title="رصيد لصالحنا عند الموردين تحت الحساب">
                   +{formatMoney(totalSupplierCreditsAmount)} لنا
                 </span>
               )}
             </div>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-warn-soft flex items-center justify-center text-warn border border-warn-border shadow-2xs">
+          <div className="w-9 h-9 rounded-xl bg-warn-soft dark:bg-warn-dark-soft flex items-center justify-center text-warn dark:text-warn-bright border border-warn-border dark:border-warn-bright/30 shadow-2xs">
             <Building2 className="w-4 h-4" />
           </div>
         </div>
       </div>
 
       {/* Filter and Actions Bar */}
-      <div className="bg-surface border border-line rounded-xl p-2.5 sm:p-3 flex items-center justify-between gap-3 shrink-0 shadow-2xs">
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-2.5 sm:p-3 flex items-center justify-between gap-3 shrink-0 shadow-2xs">
         <div className="flex-1 flex items-center gap-3">
           <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 text-ink-muted absolute right-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="دور برقم الفاتورة، اسم الشركة، أو رقم فاتورة المورد..."
               value={purchaseSearchQuery}
               onChange={(e) => setPurchaseSearchQuery(e.target.value)}
-              className="w-full h-10 pr-9 pl-3 bg-surface-2 border border-line rounded-xl text-xs text-ink focus:outline-none focus:border-brand focus:bg-surface transition-colors"
+              className="w-full h-10 pr-9 pl-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors"
             />
           </div>
 
-          <div className="flex items-center gap-1.5 text-xs text-ink-muted">
-            <Filter className="w-3.5 h-3.5 text-ink-muted" />
+          <div className="flex items-center gap-1.5 text-xs text-ink-muted dark:text-ink-dark-muted">
+            <Filter className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
             <span>طريقة السداد:</span>
             <CustomSelect
               value={purchasePaymentFilter}
@@ -163,7 +163,7 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
           <button
             type="button"
             onClick={() => openHelpCenter('purchases')}
-            className="h-10 w-10 flex items-center justify-center bg-surface hover:bg-surface-2 border border-line text-paid rounded-xl text-xs font-bold transition-colors shadow-2xs cursor-pointer"
+            className="h-10 w-10 flex items-center justify-center bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-paid dark:text-paid-bright rounded-xl text-xs font-bold transition-colors shadow-2xs cursor-pointer"
             title="شرح ودليل فواتير المشتريات والموردين (F1)"
           >
             <HelpCircle className="w-4 h-4" />
@@ -172,7 +172,7 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
           <button
             type="button"
             onClick={onOpenNewInvoice}
-            className="h-10 px-4 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
+            className="h-10 px-4 bg-brand dark:bg-brand-bright dark:text-surface-dark hover:bg-brand-dark dark:hover:bg-emerald-400 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
           >
             <Plus className="w-4 h-4" />
             <span>فاتورة شراء جديدة</span>
@@ -181,8 +181,8 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
       </div>
 
       {/* Invoices Table */}
-      <div className="flex-1 bg-surface border border-line rounded-xl overflow-hidden flex flex-col shadow-2xs">
-        <div className="h-11 bg-surface-2 border-b border-line grid grid-cols-12 px-4 items-center text-xs font-bold text-ink-muted">
+      <div className="flex-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl overflow-hidden flex flex-col shadow-2xs">
+        <div className="h-11 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark grid grid-cols-12 px-4 items-center text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
           <div className="col-span-1">رقم الفاتورة</div>
           <div className="col-span-2">تاريخ استلام البضاعة</div>
           <div className="col-span-3">المورد / الشركة</div>
@@ -193,14 +193,14 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
           <div className="col-span-1 text-left">تفاصيل</div>
         </div>
 
-        <div className="flex-1 overflow-y-auto divide-y divide-line">
+        <div className="flex-1 overflow-y-auto divide-y divide-line dark:divide-line-dark">
           {showLoading ? (
             <RafiqLoadingState
               label="بنحمّل فواتير الشراء والبضاعة اللي دخلت..."
               sublabel="جاري جلب فواتير التوريد وحسابات الشركات من قاعدة البيانات"
             />
           ) : filteredPurchases.length === 0 ? (
-            <div className="h-48 flex flex-col items-center justify-center text-ink-muted gap-2">
+            <div className="h-48 flex flex-col items-center justify-center text-ink-muted dark:text-ink-dark-muted gap-2">
               <ShoppingCart className="w-8 h-8 opacity-30" />
               <span className="text-sm font-medium">مفيش فواتير شراء مطابقة للي بتدور عليه</span>
             </div>
@@ -208,54 +208,54 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
             pagedPurchases.map((pur) => (
               <div
                 key={pur.id}
-                className="h-12 grid grid-cols-12 px-4 items-center text-xs hover:bg-surface-2/60 transition-colors"
+                className="h-12 grid grid-cols-12 px-4 items-center text-xs hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors"
               >
-                <div className="col-span-1 font-mono font-bold text-brand">
+                <div className="col-span-1 font-mono font-bold text-brand dark:text-brand-bright">
                   #{pur.invoiceNumber}
                 </div>
-                <div className="col-span-2 text-ink-muted">
+                <div className="col-span-2 text-ink-muted dark:text-ink-dark-muted">
                   {new Date(pur.invoiceDate).toLocaleDateString('ar-EG-u-nu-latn', {
                     year: 'numeric',
                     month: 'short',
                     day: 'numeric',
                   })}
                 </div>
-                <div className="col-span-3 font-semibold text-ink truncate">
+                <div className="col-span-3 font-semibold text-ink dark:text-ink-dark truncate">
                   {pur.supplierName || 'مورد عام / بدون تحديد'}
                 </div>
-                <div className="col-span-2 text-center font-mono text-ink-muted">
+                <div className="col-span-2 text-center font-mono text-ink-muted dark:text-ink-dark-muted">
                   {pur.supplierInvoiceNumber || '—'}
                 </div>
-                <div className="col-span-1 text-center font-mono font-bold text-ink">
+                <div className="col-span-1 text-center font-mono font-bold text-ink dark:text-ink-dark">
                   {formatMoney(pur.netCostPiasters)}
                 </div>
                 <div className="col-span-1 text-center font-mono font-semibold">
                   {pur.remainingAmountPiasters > 0 ? (
-                    <span className="text-danger">
+                    <span className="text-danger dark:text-danger-bright">
                       {formatMoney(pur.remainingAmountPiasters)}
                     </span>
                   ) : (
-                    <span className="text-paid font-medium">0.00 ج.م</span>
+                    <span className="text-paid dark:text-paid-bright font-medium">0.00 ج.م</span>
                   )}
                 </div>
                 <div className="col-span-1 text-center">
                   {pur.paymentStatus === 'PAID' && (
-                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-paid-soft text-paid border border-paid/20">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-emerald-800/40">
                       خالصة
                     </span>
                   )}
                   {pur.paymentStatus === 'OVERPAID' && (
-                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-paid text-white border border-paid shadow-2xs">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-paid dark:bg-emerald-600 text-white border border-paid dark:border-emerald-500 shadow-2xs">
                       زيادة
                     </span>
                   )}
                   {pur.paymentStatus === 'CREDIT' && (
-                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-danger-soft text-danger border border-danger-border">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/30">
                       آجل
                     </span>
                   )}
                   {pur.paymentStatus === 'PARTIAL' && (
-                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-warn-soft text-warn border border-warn-border">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn-border dark:border-warn-bright/30">
                       جزء مدفوع
                     </span>
                   )}
@@ -264,7 +264,7 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
                   <button
                     type="button"
                     onClick={() => onSelectPurchase(pur)}
-                    className="p-1.5 text-brand hover:text-brand-dark hover:bg-brand-soft rounded-lg transition-colors cursor-pointer"
+                    className="p-1.5 text-brand dark:text-brand-bright hover:text-brand-dark dark:hover:text-emerald-300 hover:bg-brand-soft dark:hover:bg-brand-soft/20 rounded-lg transition-colors cursor-pointer"
                     title="عرض تفاصيل الفاتورة وبنودها"
                   >
                     <Eye className="w-4 h-4" />

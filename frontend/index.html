@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ar" dir="rtl" style="background-color: #f8fafc; height: 100%; margin: 0; padding: 0;">
+<html lang="ar" dir="rtl" style="height: 100%; margin: 0; padding: 0;">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -10,8 +10,33 @@
     <meta name="copyright" content="Copyright © 2026 ISlam Khaled Ali. All rights reserved." />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <title>رفيق POS — ISlam Khaled Ali</title>
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem('rafiq_pos_theme');
+          var isDark = false;
+          if (saved === 'dark') {
+            isDark = true;
+          } else if (saved === 'light') {
+            isDark = false;
+          } else {
+            // 'system' or first launch -> default to light
+            isDark = false;
+          }
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.documentElement.style.backgroundColor = '#0e1312';
+          } else {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.setAttribute('data-theme', 'light');
+            document.documentElement.style.backgroundColor = '#f8fafc';
+          }
+        } catch (e) {}
+      })();
+    </script>
     <style>
-      /* Clean Light Canvas Reset */
+      /* Clean Light & Dark Canvas Reset */
       html, body {
         background-color: #f8fafc;
         color: #0f172a;
@@ -21,11 +46,15 @@
         overflow: hidden;
         font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
       }
+      html.dark, html.dark body {
+        background-color: #0e1312 !important;
+        color: #f1f5f9 !important;
+      }
       #root {
         height: 100%;
         width: 100%;
       }
-      /* Instant Branded HTML Splash Screen (Light Luxury Brand) */
+      /* Instant Branded HTML Splash Screen */
       .initial-splash {
         display: flex;
         flex-direction: column;
@@ -35,6 +64,9 @@
         width: 100vw;
         background: #f8fafc;
         user-select: none;
+      }
+      html.dark .initial-splash {
+        background: #0e1312 !important;
       }
       .initial-splash-card {
         display: flex;
@@ -50,6 +82,12 @@
         width: 90%;
         text-align: center;
       }
+      html.dark .initial-splash-card {
+        background: #151b1a !important;
+        border-color: #2a3532 !important;
+        border-top-color: #5fbfa2 !important;
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45) !important;
+      }
       .initial-splash-logo {
         height: 60px;
         max-width: 240px;
@@ -63,11 +101,17 @@
         margin: 0;
         letter-spacing: -0.5px;
       }
+      html.dark .initial-splash-title {
+        color: #e6ecea !important;
+      }
       .initial-splash-sub {
         font-size: 13px;
         color: #006d41;
         margin-top: 6px;
         font-weight: 600;
+      }
+      html.dark .initial-splash-sub {
+        color: #5fbfa2 !important;
       }
       .initial-spinner-wrap {
         position: relative;
@@ -84,6 +128,11 @@
         border-radius: 50%;
         animation: initialSpin 0.9s cubic-bezier(0.55, 0.15, 0.45, 0.85) infinite;
       }
+      html.dark .initial-spinner-ring {
+        border-color: rgba(95, 191, 162, 0.15) !important;
+        border-top-color: #5fbfa2 !important;
+        border-right-color: #34d399 !important;
+      }
       .initial-progress-bar {
         width: 200px;
         height: 4px;
@@ -91,6 +140,9 @@
         border-radius: 999px;
         overflow: hidden;
         margin-top: 10px;
+      }
+      html.dark .initial-progress-bar {
+        background: #1c2423 !important;
       }
       .initial-progress-fill {
         width: 100%;
@@ -100,12 +152,18 @@
         animation: initialShimmer 1.5s linear infinite;
         border-radius: 999px;
       }
+      html.dark .initial-progress-fill {
+        background: linear-gradient(90deg, #004d3f, #006d41, #5fbfa2) !important;
+      }
       .initial-splash-status {
         font-size: 12px;
         color: #52605d;
         margin-top: 16px;
         margin-bottom: 0;
         font-weight: 500;
+      }
+      html.dark .initial-splash-status {
+        color: #93a19d !important;
       }
       .initial-splash-badge {
         display: inline-block;
@@ -118,6 +176,11 @@
         border-radius: 999px;
         border: 1px solid rgba(0, 109, 65, 0.15);
       }
+      html.dark .initial-splash-badge {
+        background: #12302a !important;
+        color: #5fbfa2 !important;
+        border-color: #264942 !important;
+      }
       @keyframes initialSpin {
         to { transform: rotate(360deg); }
       }
@@ -127,11 +190,11 @@
       }
     </style>
   </head>
-  <body class="bg-canvas text-ink select-none antialiased">
+  <body class="bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark select-none antialiased">
     <div id="root">
       <div class="initial-splash">
         <div class="initial-splash-card">
-          <img src="/logo_full.png" onerror="this.onerror=null;this.src='/logo.png';" alt="رفيق POS" class="initial-splash-logo" />
+          <img id="splash-initial-logo" src="/logo_full.png" onerror="this.onerror=null;this.src='/logo.png';" alt="رفيق POS" class="initial-splash-logo" />
           <h1 class="initial-splash-title">رفيق POS</h1>
           <p class="initial-splash-sub">نظام نقاط البيع وإدارة المتاجر ومحلات التجزئة</p>
           <div class="initial-spinner-wrap">
@@ -145,6 +208,14 @@
         </div>
       </div>
     </div>
+    <script>
+      try {
+        if (document.documentElement.classList.contains('dark')) {
+          var logoEl = document.getElementById('splash-initial-logo');
+          if (logoEl) logoEl.src = '/logo_full_dark.png';
+        }
+      } catch (e) {}
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

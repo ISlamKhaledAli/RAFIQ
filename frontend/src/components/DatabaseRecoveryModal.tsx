@@ -147,14 +147,14 @@ export const DatabaseRecoveryModal = ({
         </div>
 
         {/* 2. Content Body */}
-        <div className="p-5 flex flex-col gap-4 text-[12.5px] text-ink overflow-y-auto max-h-[80vh]">
+        <div className="p-5 flex flex-col gap-4 text-[12.5px] text-ink dark:text-ink-dark overflow-y-auto max-h-[80vh]">
           {/* Explanation Banner */}
-          <div className="p-3.5 bg-red-50 border border-red-200 rounded-[6px] text-red-900 leading-relaxed font-sans">
+          <div className="p-3.5 bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 rounded-[6px] text-danger dark:text-danger-bright leading-relaxed font-sans">
             <span className="font-bold block mb-1">تفاصيل الحالة الفنية:</span>
             {status.isCorrupt ? (
               <>
                 حصل خلل في ملف قاعدة البيانات (زي انقطاع الكهرباء فجأة والجهاز شغال بيسجل).
-                <div className="mt-1 font-mono text-[11px] bg-red-100/60 p-1.5 rounded text-red-800 break-all">
+                <div className="mt-1 font-mono text-[11px] bg-danger-soft/80 dark:bg-danger-dark-soft/80 border border-danger/10 dark:border-danger-bright/20 p-1.5 rounded text-danger dark:text-danger-bright break-all">
                   سبب التنبيه: {status.message}
                 </div>
               </>
@@ -165,12 +165,12 @@ export const DatabaseRecoveryModal = ({
 
           {/* Reassurance Banner regarding Quarantined File (Task 124-2) */}
           {status.corruptBackupSavedPath && (
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-[6px] flex items-start gap-2.5 text-amber-900 text-[11.5px]">
-              <FileArchive className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+            <div className="p-3 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-[6px] flex items-start gap-2.5 text-warn dark:text-warn-bright text-[11.5px]">
+              <FileArchive className="w-4 h-4 text-warn dark:text-warn-bright shrink-0 mt-0.5" />
               <div>
                 <span className="font-bold block">اطمن، مفيش أي بيانات ضاعت:</span>
                 شيلنا نسخة معزولة ومحفوظة بالكامل من الملف الحالي في المسار ده لو احتجتها:
-                <div className="mt-0.5 font-mono text-[10.5px] text-amber-800 break-all select-text">
+                <div className="mt-0.5 font-mono text-[10.5px] text-warn dark:text-warn-bright break-all select-text">
                   {status.corruptBackupSavedPath}
                 </div>
               </div>
@@ -179,14 +179,14 @@ export const DatabaseRecoveryModal = ({
 
           {/* Feedback Toasts */}
           {errorMessage && (
-            <div className="p-3 bg-red-100 border border-red-300 text-red-900 rounded font-semibold text-[12px]">
+            <div className="p-3 bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright rounded font-semibold text-[12px]">
               {errorMessage}
             </div>
           )}
 
           {successMessage && (
-            <div className="p-3 bg-paid-soft border border-paid-border text-paid rounded font-bold text-[12px] flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-paid shrink-0" />
+            <div className="p-3 bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 dark:border-paid/30 text-paid dark:text-paid-bright rounded font-bold text-[12px] flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-paid dark:text-paid-bright shrink-0" />
               <span>{successMessage}</span>
             </div>
           )}

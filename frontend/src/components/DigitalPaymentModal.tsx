@@ -154,7 +154,7 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
       onKeyDown={handleKeyDown}
       dir="rtl"
     >
-      <div className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-xl max-h-[94vh] flex flex-col overflow-hidden text-ink animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-xl max-h-[94vh] flex flex-col overflow-hidden text-ink dark:text-ink-dark animate-in fade-in zoom-in-95 duration-150">
         
         {/* Header - Specialized for the active method */}
         <div className={`h-[68px] px-5 flex items-center justify-between shrink-0 text-white transition-colors duration-200 ${
@@ -196,25 +196,25 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-4">
           
           {/* 1. Complete Invoice Meta & Customer Row (Top Section) */}
-          <div className="bg-[#f8faf9] border border-[#dce1dc] rounded-2xl p-3 sm:p-4 flex flex-col gap-3 shadow-2xs">
+          <div className="bg-[#f8faf9] dark:bg-surface-dark-2 border border-[#dce1dc] dark:border-line-dark rounded-2xl p-3 sm:p-4 flex flex-col gap-3 shadow-2xs">
             {/* Meta Strip: Invoice # + Items + Subtotal + Discount */}
-            <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2.5 border-b border-[#dce1dc]/80 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2.5 border-b border-[#dce1dc]/80 dark:border-line-dark text-xs">
               <div className="flex items-center gap-2 flex-wrap">
                 <div className="flex items-center gap-1.5 font-bold">
-                  <span className="text-ink-muted">فاتورة:</span>
-                  <span className="font-mono font-bold text-paid bg-paid-soft border border-paid-border px-2.5 py-0.5 rounded-md shadow-2xs">
+                  <span className="text-ink-muted dark:text-ink-dark-muted">فاتورة:</span>
+                  <span className="font-mono font-bold text-paid dark:text-brand-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 px-2.5 py-0.5 rounded-md shadow-2xs">
                     #{invoiceNumber || '1'}
                   </span>
                 </div>
 
-                <div className="text-[11px] text-ink-muted font-medium bg-surface px-2.5 py-0.5 rounded-md border border-line flex items-center gap-1.5">
-                  <Receipt className="w-3.5 h-3.5 text-ink-muted" />
+                <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-medium bg-surface dark:bg-surface-dark-3 px-2.5 py-0.5 rounded-md border border-line dark:border-line-dark flex items-center gap-1.5">
+                  <Receipt className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
                   <span>{itemCount} صنف ({totalItemCount} قطعة)</span>
                 </div>
               </div>
 
               {discountPiasters > 0 && (
-                <span className="text-danger font-bold bg-danger-soft px-2.5 py-0.5 rounded-md border border-danger-border text-[11px]">
+                <span className="text-danger dark:text-danger-bright font-bold bg-danger-soft dark:bg-danger-dark-soft px-2.5 py-0.5 rounded-md border border-danger-border dark:border-danger-bright/30 text-[11px]">
                   خصم: −{formatArabicCurrency(discountPiasters)}
                 </span>
               )}
@@ -223,7 +223,7 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
             {/* Customer Row - Exactly matching PaymentModal (Image 2) */}
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 flex-1 min-w-[280px]">
-                <div className="flex items-center gap-1.5 text-xs text-[#006d41] font-bold shrink-0">
+                <div className="flex items-center gap-1.5 text-xs text-[#006d41] dark:text-brand-bright font-bold shrink-0">
                   <UserCheck className="w-4 h-4" />
                   <span>الزبون:</span>
                 </div>
@@ -244,12 +244,12 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
 
             {/* Customer Account Status & Debt Breakdown (موقف حساب الزبون مع انستاباي/المحفظة) */}
             {selectedCustomer && (
-              <div className={`grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-xl bg-white/95 border text-center font-mono shadow-2xs mt-1 ${
-                isInstapay ? 'border-purple-200' : 'border-red-200'
+              <div className={`grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-xl bg-white/95 dark:bg-surface-dark-3 border text-center font-mono shadow-2xs mt-1 ${
+                isInstapay ? 'border-purple-200 dark:border-purple-800/40' : 'border-red-200 dark:border-red-800/40'
               }`}>
                 {/* 1. كان عليه قديم */}
-                <div className="flex flex-col items-center justify-center p-2 rounded-lg bg-surface-2 border border-line">
-                  <span className="text-[11px] font-sans text-ink-muted mb-0.5">
+                <div className="flex flex-col items-center justify-center p-2 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark">
+                  <span className="text-[11px] font-sans text-ink-muted dark:text-ink-dark-muted mb-0.5">
                     {selectedCustomer.balancePiasters > 0
                       ? 'كان عليه قديم:'
                       : selectedCustomer.balancePiasters < 0
@@ -260,8 +260,8 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
                     selectedCustomer.balancePiasters > 0
                       ? 'text-danger'
                       : selectedCustomer.balancePiasters < 0
-                        ? 'text-paid'
-                        : 'text-ink'
+                        ? 'text-paid dark:text-brand-bright'
+                        : 'text-ink dark:text-ink-dark'
                   }`}>
                     {selectedCustomer.balancePiasters === 0 
                       ? '0.00 ج.م (خالص)' 
@@ -271,15 +271,15 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
 
                 {/* 2. الفاتورة الحالية (مسددة بالتحويل) */}
                 <div className={`flex flex-col items-center justify-center p-2 rounded-lg border ${
-                  isInstapay ? 'bg-purple-50/60 border-purple-200' : 'bg-red-50/60 border-red-200'
+                  isInstapay ? 'bg-purple-50/60 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800/30' : 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/30'
                 }`}>
-                  <span className="text-[11px] font-sans text-ink-muted mb-0.5">
+                  <span className="text-[11px] font-sans text-ink-muted dark:text-ink-dark-muted mb-0.5">
                     الفاتورة الحالية ({isInstapay ? 'انستاباي' : 'محفظة'}):
                   </span>
-                  <span className={`text-base font-black ${isInstapay ? 'text-[#582C83]' : 'text-[#e60000]'}`}>
+                  <span className={`text-base font-black ${isInstapay ? 'text-[#582C83] dark:text-purple-300' : 'text-danger dark:text-danger-bright'}`}>
                     {formatArabicCurrency(finalTotalPiasters)}
                   </span>
-                  <span className="text-[10px] font-sans font-bold text-paid mt-0.5">
+                  <span className="text-[10px] font-sans font-bold text-paid dark:text-brand-bright mt-0.5">
                     مسددة بالكامل • لا تضاف للشكك
                   </span>
                 </div>
@@ -287,10 +287,10 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
                 {/* 3. إجمالي حسابه بعد الفاتورة */}
                 <div className={`flex flex-col items-center justify-center p-2 rounded-lg border ${
                   selectedCustomer.balancePiasters > 0
-                    ? 'bg-rose-50/60 border-rose-200 text-danger'
+                    ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright'
                     : selectedCustomer.balancePiasters < 0
-                      ? 'bg-paid-soft border-paid/20 text-paid'
-                      : 'bg-surface-2 border-line text-ink'
+                      ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid/20 dark:border-paid/30 text-paid dark:text-paid-bright'
+                      : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink dark:text-ink-dark'
                 }`}>
                   <span className="text-[11px] font-sans font-bold mb-0.5">
                     {selectedCustomer.balancePiasters > 0
@@ -305,7 +305,7 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
                       : formatArabicCurrency(Math.abs(selectedCustomer.balancePiasters))}
                   </span>
                   {selectedCustomer.balancePiasters > 0 && (
-                    <span className="text-[10px] font-sans font-medium text-ink-muted mt-0.5">
+                    <span className="text-[10px] font-sans font-medium text-ink-muted dark:text-ink-dark-muted mt-0.5">
                       ديونه القديمة تظل بدون تغيير
                     </span>
                   )}
@@ -317,27 +317,27 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
           {/* 2. HERO: Required Transfer Amount Display */}
           <div className={`rounded-2xl border-2 p-5 text-center flex flex-col items-center justify-center gap-2.5 shadow-xs transition-colors duration-200 ${
             isInstapay 
-              ? 'bg-purple-50/50 border-purple-200 text-purple-950' 
-              : 'bg-red-50/50 border-red-200 text-red-950'
+              ? 'bg-purple-50/50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800/40 text-purple-950 dark:text-purple-200' 
+              : 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright'
           }`}>
-            <span className="text-xs font-bold text-ink-muted">
+            <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
               المبلغ المطلوب استلامه بالتحويل الإلكتروني
             </span>
 
             <div className={`text-4xl sm:text-5xl font-black font-mono tracking-tight tabular-nums my-0.5 ${
-              isInstapay ? 'text-[#582C83]' : 'text-[#e60000]'
+              isInstapay ? 'text-[#582C83] dark:text-purple-300' : 'text-danger dark:text-danger-bright'
             }`}>
               {formatArabicCurrency(finalTotalPiasters)}
             </div>
 
             {/* Fee Breakdown pill */}
-            <div className="inline-flex items-center gap-2 bg-surface px-3.5 py-1.5 rounded-full border border-line text-xs font-bold text-ink shadow-2xs flex-wrap justify-center">
-              <span className="text-ink-muted font-normal">إجمالي المشتريات:</span>
+            <div className="inline-flex items-center gap-2 bg-surface dark:bg-surface-dark-3 px-3.5 py-1.5 rounded-full border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark shadow-2xs flex-wrap justify-center">
+              <span className="text-ink-muted dark:text-ink-dark-muted font-normal">إجمالي المشتريات:</span>
               <span className="font-mono">{formatArabicCurrency(netTotalPiasters)}</span>
               {feePercent > 0 && (
                 <>
-                  <span className="text-line-hover font-light">•</span>
-                  <span className="flex items-center gap-1 text-amber-700">
+                  <span className="text-line-hover dark:text-line-dark-strong font-light">•</span>
+                  <span className="flex items-center gap-1 text-amber-700 dark:text-warn-bright">
                     <Percent className="w-3.5 h-3.5" />
                     <span>رسوم خدمة ({feePercent}%): +{formatArabicCurrency(feePiasters)}</span>
                   </span>
@@ -345,8 +345,8 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
               )}
             </div>
 
-            <p className="text-[11.5px] text-ink-muted font-medium mt-1 mb-0 flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-paid shrink-0" />
+            <p className="text-[11.5px] text-ink-muted dark:text-ink-dark-muted font-medium mt-1 mb-0 flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-paid dark:text-brand-bright shrink-0" />
               <span>تأكد من وصول إشعار التحويل المالي على الحساب قبل تأكيد الفاتورة</span>
             </p>
           </div>
@@ -354,11 +354,11 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="h-[68px] px-5 bg-surface-2 border-t border-line flex items-center justify-between shrink-0 gap-3">
+        <div className="h-[68px] px-5 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-between shrink-0 gap-3">
           <button
             type="button"
             onClick={() => void requestClose()}
-            className="h-10 px-4 rounded-xl text-xs font-bold text-ink-muted hover:text-ink hover:bg-surface border border-line transition-all cursor-pointer flex items-center gap-1.5 active:scale-98"
+            className="h-10 px-4 rounded-xl text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark transition-all cursor-pointer flex items-center gap-1.5 active:scale-98"
           >
             <ArrowRight className="w-4 h-4" />
             <span>رجوع للسلة</span>

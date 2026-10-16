@@ -140,9 +140,9 @@ export const LoginScreen: React.FC = () => {
   return (
     <div
       dir="rtl"
-      className="min-h-screen w-full flex items-center justify-center bg-canvas p-4 font-cairo select-none"
+      className="min-h-screen w-full flex items-center justify-center bg-canvas dark:bg-canvas-dark p-4 font-cairo select-none"
     >
-      <div className="w-full max-w-4xl bg-surface rounded-2xl shadow-xl border border-line overflow-hidden flex flex-col md:flex-row">
+      <div className="w-full max-w-4xl bg-surface dark:bg-surface-dark rounded-2xl shadow-xl border border-line dark:border-line-dark overflow-hidden flex flex-col md:flex-row">
         {/* Left Branding Panel */}
         <div className="w-full md:w-5/12 bg-gradient-to-br from-brand-dark to-brand p-8 text-white flex flex-col justify-between relative overflow-hidden">
           {/* Subtle background decoration */}
@@ -193,10 +193,10 @@ export const LoginScreen: React.FC = () => {
         {/* Right Form Panel */}
         <div className="w-full md:w-7/12 p-8 flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between pb-4 mb-6 border-b border-line">
+            <div className="flex items-center justify-between pb-4 mb-6 border-b border-line dark:border-line-dark">
               <div>
-                <h2 className="text-xl font-bold text-ink">تسجيل الدخول للنظام</h2>
-                <p className="text-xs text-ink-muted mt-0.5">
+                <h2 className="text-xl font-bold text-ink dark:text-ink-dark">تسجيل الدخول للنظام</h2>
+                <p className="text-xs text-ink-muted dark:text-ink-dark-muted mt-0.5">
                   أدخل بيانات الحساب للمتابعة
                 </p>
               </div>
@@ -204,7 +204,7 @@ export const LoginScreen: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsNumericMode(!isNumericMode)}
-                className="text-xs px-2.5 py-1.5 rounded-lg border border-line hover:border-line-hover text-ink-muted hover:text-ink transition-colors flex items-center gap-1"
+                className="text-xs px-2.5 py-1.5 rounded-lg border border-line dark:border-line-dark hover:border-line-hover dark:hover:border-line-dark-strong text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-colors flex items-center gap-1 cursor-pointer"
                 title="التبديل بين وضع لوحة الأرقام والكيبورد العادي"
               >
                 <span>{isNumericMode ? 'وضع الكيبورد' : 'لوحة الأرقام'}</span>
@@ -233,11 +233,11 @@ export const LoginScreen: React.FC = () => {
             {activeUsers.length > 0 && (
               <div className="mb-4">
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold text-ink-muted">
+                  <label className="block text-xs font-semibold text-ink-muted dark:text-ink-dark-muted">
                     {isDropdown ? 'اختر حساب الموظف من القائمة:' : 'اختر موظفاً سريعاً:'}
                   </label>
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-ink-muted">
+                    <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted">
                       ({activeUsers.length} موظف متاح)
                     </span>
                     <button
@@ -248,7 +248,7 @@ export const LoginScreen: React.FC = () => {
                           return currentIsDropdown ? 'buttons' : 'dropdown';
                         })
                       }
-                      className="text-[11px] font-bold text-brand hover:underline cursor-pointer"
+                      className="text-[11px] font-bold text-brand dark:text-brand-bright hover:underline cursor-pointer"
                       title="التبديل بين القائمة المنسدلة والأزرار"
                     >
                       {isDropdown ? 'عرض كأزرار' : 'عرض كقائمة'}
@@ -291,17 +291,17 @@ export const LoginScreen: React.FC = () => {
                           className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all flex items-center gap-1.5 cursor-pointer ${
                             isSelected
                               ? 'bg-brand text-white border-brand shadow-sm'
-                              : 'bg-surface-2 text-ink border-line hover:border-line-hover'
+                              : 'bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark border-line dark:border-line-dark hover:border-line-hover dark:hover:border-line-dark-strong'
                           }`}
                         >
                           <UserIcon className="w-3.5 h-3.5" />
                           <span>{u.displayName}</span>
                           {u.role === 'admin' ? (
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${isSelected ? 'bg-white/20 text-white' : 'bg-paid-soft text-paid'}`}>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${isSelected ? 'bg-white/20 text-white' : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-brand-bright'}`}>
                               صاحب المحل
                             </span>
                           ) : (
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${isSelected ? 'bg-white/20 text-white' : 'bg-surface text-ink-muted'}`}>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${isSelected ? 'bg-white/20 text-white' : 'bg-surface dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted'}`}>
                               كاشير
                             </span>
                           )}
@@ -317,7 +317,7 @@ export const LoginScreen: React.FC = () => {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold text-ink">
+                  <label className="block text-xs font-semibold text-ink dark:text-ink-dark">
                     اسم المستخدم (أو كتابة يدوية)
                   </label>
                   {username && (
@@ -327,7 +327,7 @@ export const LoginScreen: React.FC = () => {
                         setUsername('');
                         setPassword('');
                       }}
-                      className="text-[11px] text-ink-muted hover:text-danger cursor-pointer"
+                      className="text-[11px] text-ink-muted dark:text-ink-dark-muted hover:text-danger cursor-pointer"
                     >
                       مسح
                     </button>
@@ -340,14 +340,14 @@ export const LoginScreen: React.FC = () => {
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="ادخل اسم المستخدم يدوياً..."
                     disabled={lockoutSeconds > 0 || isSubmitting}
-                    className="w-full h-11 pr-10 pl-4 rounded-xl border border-line focus:border-brand focus:ring-2 focus:ring-brand-soft bg-surface text-ink text-sm transition-all"
+                    className="w-full h-11 pr-10 pl-4 rounded-xl border border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright focus:ring-2 focus:ring-brand-soft dark:focus:ring-brand-soft/20 bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark text-sm transition-all"
                   />
-                  <UserIcon className="w-4 h-4 text-ink-muted absolute right-3.5 top-3.5 pointer-events-none" />
+                  <UserIcon className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3.5 top-3.5 pointer-events-none" />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-ink mb-1.5">
+                <label className="block text-xs font-semibold text-ink dark:text-ink-dark mb-1.5">
                   كلمة المرور أو الرقم السري
                 </label>
                 <div className="relative">
@@ -358,15 +358,15 @@ export const LoginScreen: React.FC = () => {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="ادخل كلمة المرور أو PIN..."
                     disabled={lockoutSeconds > 0 || isSubmitting}
-                    className="w-full h-11 pr-10 pl-11 rounded-xl border border-line focus:border-brand focus:ring-2 focus:ring-brand-soft bg-surface text-ink text-sm transition-all"
+                    className="w-full h-11 pr-10 pl-11 rounded-xl border border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright focus:ring-2 focus:ring-brand-soft dark:focus:ring-brand-soft/20 bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark text-sm transition-all"
                     autoFocus
                   />
-                  <Lock className="w-4 h-4 text-ink-muted absolute right-3.5 top-3.5 pointer-events-none" />
+                  <Lock className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3.5 top-3.5 pointer-events-none" />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     tabIndex={-1}
-                    className="absolute left-3 top-3 text-ink-muted hover:text-ink transition-colors"
+                    className="absolute left-3 top-3 text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-colors cursor-pointer"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -383,7 +383,7 @@ export const LoginScreen: React.FC = () => {
                         type="button"
                         onClick={() => handleKeypadPress(digit)}
                         disabled={lockoutSeconds > 0}
-                        className="h-11 rounded-xl bg-surface-2 hover:bg-line text-ink font-bold text-lg border border-line transition-colors active:scale-95"
+                        className="h-11 rounded-xl bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark font-bold text-lg border border-line dark:border-line-dark transition-colors active:scale-95 cursor-pointer"
                       >
                         {digit}
                       </button>
@@ -392,7 +392,7 @@ export const LoginScreen: React.FC = () => {
                       type="button"
                       onClick={handleKeypadClear}
                       disabled={lockoutSeconds > 0}
-                      className="h-11 rounded-xl bg-surface-2 hover:bg-line text-ink-muted font-medium text-xs border border-line transition-colors flex items-center justify-center gap-1 active:scale-95"
+                      className="h-11 rounded-xl bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted font-medium text-xs border border-line dark:border-line-dark transition-colors flex items-center justify-center gap-1 active:scale-95 cursor-pointer"
                       title="مسح الكل"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
@@ -402,7 +402,7 @@ export const LoginScreen: React.FC = () => {
                       type="button"
                       onClick={() => handleKeypadPress('0')}
                       disabled={lockoutSeconds > 0}
-                      className="h-11 rounded-xl bg-surface-2 hover:bg-line text-ink font-bold text-lg border border-line transition-colors active:scale-95"
+                      className="h-11 rounded-xl bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark font-bold text-lg border border-line dark:border-line-dark transition-colors active:scale-95 cursor-pointer"
                     >
                       0
                     </button>
@@ -410,7 +410,7 @@ export const LoginScreen: React.FC = () => {
                       type="button"
                       onClick={handleKeypadBackspace}
                       disabled={lockoutSeconds > 0}
-                      className="h-11 rounded-xl bg-surface-2 hover:bg-line text-ink-muted border border-line transition-colors flex items-center justify-center active:scale-95"
+                      className="h-11 rounded-xl bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark transition-colors flex items-center justify-center active:scale-95 cursor-pointer"
                       title="مسح رقم"
                     >
                       <Delete className="w-4 h-4" />
@@ -422,7 +422,7 @@ export const LoginScreen: React.FC = () => {
               <button
                 type="submit"
                 disabled={lockoutSeconds > 0 || isSubmitting}
-                className="w-full h-11 mt-4 rounded-xl bg-brand hover:bg-brand-dark text-white font-semibold text-sm transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-98"
+                className="w-full h-11 mt-4 rounded-xl bg-brand hover:bg-brand-dark text-white font-semibold text-sm transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-98 cursor-pointer"
               >
                 {isSubmitting ? (
                   <span>جاري تسجيل الدخول...</span>

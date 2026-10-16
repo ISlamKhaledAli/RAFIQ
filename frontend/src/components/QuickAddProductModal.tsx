@@ -162,8 +162,8 @@ export function QuickAddProductModal({
         {/* Header */}
         <div className="h-12 bg-surface-2 hairline-b px-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="w-7 h-7 rounded-lg bg-amber-500/15 text-amber-600 flex items-center justify-center">
-              <Zap className="w-4 h-4 fill-amber-500/30" />
+            <span className="w-7 h-7 rounded-lg bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright flex items-center justify-center">
+              <Zap className="w-4 h-4 fill-warn/30 dark:fill-warn-bright/30" />
             </span>
             <div>
               <span className="text-sm font-bold text-ink">إضافة صنف غير مسجل سريعاً</span>
@@ -350,8 +350,8 @@ export function QuickAddProductModal({
           )}
 
           {/* Incomplete Data Notice (Task 108-3) */}
-          <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-start gap-2 text-[11px] text-amber-800 dark:text-amber-300">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+          <div className="p-2.5 rounded-lg bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 flex items-start gap-2 text-[11px] text-warn dark:text-warn-bright">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-warn dark:text-warn-bright" />
             <span>
               سيتم وسم هذا الصنف كـ «ناقص البيانات» لكي يراجعه صاحب المحل في شاشة إدارة الأصناف لاحقاً.
             </span>

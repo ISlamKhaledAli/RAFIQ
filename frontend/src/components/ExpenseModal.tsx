@@ -122,23 +122,23 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
       onClick={handleBackdropClick}
       dir="rtl"
     >
-      <div className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}
-        <div className="px-5 py-4 bg-brand-dark text-white flex items-center justify-between">
+        <div className="px-5 py-4 bg-brand-dark dark:bg-surface-dark-2 text-white dark:text-ink-dark border-b dark:border-line-dark flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-white/10 text-white flex items-center justify-center">
-              <Receipt className="w-5 h-5 text-white" />
+            <div className="p-2 rounded-xl bg-white/10 dark:bg-surface-dark-3 text-white dark:text-brand-bright flex items-center justify-center">
+              <Receipt className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-base">تسجيل مصروف من الدرج</h3>
-              <p className="text-xs text-white/70">يُخصم مباشرة من النقد المتوقع في الدرج عند تقفيل اليومية</p>
+              <h3 className="font-bold text-base text-white dark:text-ink-dark">تسجيل مصروف من الدرج</h3>
+              <p className="text-xs text-white/70 dark:text-ink-dark-muted">يُخصم مباشرة من النقد المتوقع في الدرج عند تقفيل اليومية</p>
             </div>
           </div>
           <button
             type="button"
             onClick={() => void requestClose()}
-            className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition"
+            className="p-1.5 rounded-lg text-white/80 dark:text-ink-dark-muted hover:text-white dark:hover:text-ink-dark hover:bg-white/10 dark:hover:bg-surface-dark-3 transition cursor-pointer"
             title="إغلاق"
           >
             <X className="w-5 h-5" />
@@ -146,16 +146,16 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-canvas">
+        <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-canvas dark:bg-canvas-dark">
           {error && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-danger text-xs flex items-center gap-2">
+            <div className="p-3 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           {successMsg && (
-            <div className="p-3 rounded-xl bg-paid-soft border border-paid/20 text-paid text-xs flex items-center gap-2">
+            <div className="p-3 rounded-xl bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 dark:border-paid/40 text-paid dark:text-paid-bright text-xs flex items-center gap-2">
               <Check className="w-4 h-4 shrink-0" />
               <span>{successMsg}</span>
             </div>
@@ -164,21 +164,21 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Amount input */}
             <div>
-              <label className="block text-xs font-bold text-ink mb-1.5">
+              <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1.5">
                 المبلغ المنصرف من الدرج (ج.م) *
               </label>
               <MoneyInput
                 valuePiasters={amountPiasters}
                 onChangePiasters={setAmountPiasters}
                 placeholder="0.00"
-                className="text-2xl font-black bg-white"
+                className="text-2xl font-black bg-white dark:bg-surface-dark dark:text-ink-dark"
                 autoFocus
               />
             </div>
 
             {/* Category */}
             <div>
-              <label className="block text-xs font-bold text-ink mb-1.5">
+              <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1.5">
                 بند المصروف *
               </label>
               <CustomSelect
@@ -191,7 +191,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
 
             {/* Notes / Description */}
             <div>
-              <label className="block text-xs font-bold text-ink mb-1.5">
+              <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1.5">
                 تفاصيل المصروف أو البيان (اختياري)
               </label>
               <input
@@ -199,7 +199,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="مثال: شراء شاي وسكر للبوفيه، تصليح لمبة..."
-                className="w-full px-3 py-2 text-sm bg-white border border-line rounded-xl focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                className="w-full px-3 py-2 text-sm bg-white dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:ring-1 focus:ring-brand dark:focus:ring-brand-bright placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 transition-colors"
               />
             </div>
 
@@ -207,7 +207,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting || amountPiasters <= 0}
-              className="w-full py-2.5 px-4 rounded-xl bg-danger hover:bg-red-700 active:bg-red-800 disabled:bg-surface-2 disabled:text-ink-muted text-white font-bold text-sm shadow-xs transition cursor-pointer flex items-center justify-center gap-2"
+              className="w-full py-2.5 px-4 rounded-xl bg-danger hover:bg-red-700 active:bg-red-800 disabled:bg-surface-2 dark:disabled:bg-surface-dark-2 disabled:text-ink-muted dark:disabled:text-ink-dark-muted text-white font-bold text-sm shadow-xs transition cursor-pointer flex items-center justify-center gap-2"
             >
               <Receipt className="w-4 h-4" />
               <span>{isSubmitting ? 'جاري التسجيل والخصم...' : 'خصم من الدرج وتسجيل المصروف'}</span>
@@ -215,35 +215,35 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
           </form>
 
           {/* Today's Expenses Summary */}
-          <div className="pt-3 border-t border-line space-y-2">
+          <div className="pt-3 border-t border-line dark:border-line-dark space-y-2">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-bold text-ink">مصروفات درج اليوم ({todayExpenses.length}):</span>
-              <span className="font-bold font-mono text-danger">
+              <span className="font-bold text-ink dark:text-ink-dark">مصروفات درج اليوم ({todayExpenses.length}):</span>
+              <span className="font-bold font-mono text-danger dark:text-danger-bright">
                 إجمالي: {formatArabicCurrency(totalTodayExpensesPiasters)}
               </span>
             </div>
 
             {loadingList ? (
-              <div className="py-4 text-center text-xs text-ink-muted">جاري التحميل...</div>
+              <div className="py-4 text-center text-xs text-ink-muted dark:text-ink-dark-muted">جاري التحميل...</div>
             ) : todayExpenses.length === 0 ? (
-              <div className="p-3 text-center text-xs text-ink-muted bg-surface rounded-xl border border-line">
+              <div className="p-3 text-center text-xs text-ink-muted dark:text-ink-dark-muted bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark">
                 لم يتم تسجيل أي مصروفات من الدرج اليوم حتى الآن.
               </div>
             ) : (
-              <div className="max-h-40 overflow-y-auto space-y-1.5 pr-0.5">
+              <div className="max-h-40 overflow-y-auto space-y-1.5 pr-0.5 custom-scrollbar">
                 {todayExpenses.map((exp) => (
-                  <div key={exp.id} className="p-2.5 rounded-lg bg-surface border border-line text-xs flex items-center justify-between">
+                  <div key={exp.id} className="p-2.5 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs flex items-center justify-between">
                     <div>
-                      <div className="font-semibold text-ink flex items-center gap-1.5">
+                      <div className="font-semibold text-ink dark:text-ink-dark flex items-center gap-1.5">
                         <span>{exp.category}</span>
-                        {exp.notes && <span className="text-[11px] text-ink-muted">({exp.notes})</span>}
+                        {exp.notes && <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted">({exp.notes})</span>}
                       </div>
-                      <div className="text-[10px] text-ink-muted flex items-center gap-1 mt-0.5" dir="ltr">
+                      <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted flex items-center gap-1 mt-0.5" dir="ltr">
                         <Clock className="w-3 h-3" />
                         <span>{exp.createdAt ? exp.createdAt.substring(11, 16) : ''}</span>
                       </div>
                     </div>
-                    <span className="font-bold font-mono text-danger">
+                    <span className="font-bold font-mono text-danger dark:text-danger-bright">
                       -{formatArabicCurrency(exp.amountPiasters)}
                     </span>
                   </div>
@@ -254,11 +254,11 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 bg-surface border-t border-line flex justify-end">
+        <div className="px-5 py-3 bg-surface dark:bg-surface-dark border-t border-line dark:border-line-dark flex justify-end">
           <button
             type="button"
             onClick={() => void requestClose()}
-            className="px-4 py-1.5 rounded-lg border border-line text-ink hover:bg-surface-2 text-xs font-semibold cursor-pointer transition"
+            className="px-4 py-1.5 rounded-lg border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-xs font-semibold cursor-pointer transition"
           >
             إغلاق
           </button>

@@ -13,9 +13,9 @@ export const CreditPaymentSection = ({
 }: CreditPaymentSectionProps) => {
   if (!selectedCustomer) {
     return (
-      <div className="bg-surface p-4 rounded-lg border border-line flex flex-col gap-3">
-        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2.5 text-xs text-amber-900 animate-in fade-in">
-          <AlertCircle className="w-5 h-5 text-amber-700 shrink-0" />
+      <div className="bg-surface dark:bg-surface-dark p-4 rounded-lg border border-line dark:border-line-dark flex flex-col gap-3">
+        <div className="p-3 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-xl flex items-center gap-2.5 text-xs text-warn dark:text-warn-bright animate-in fade-in">
+          <AlertCircle className="w-5 h-5 text-warn dark:text-warn-bright shrink-0" />
           <div className="flex-1 font-bold">
             لتسجيل الفاتورة شكك (على الحساب)، يرجى تحديد الزبون من خانة «الزبون» بأعلى الشاشة.
           </div>
@@ -64,10 +64,10 @@ export const CreditPaymentSection = ({
         {(isOverLimit || isHighExistingDebt) && (
           <div className={`p-3 rounded-lg border text-xs flex items-start gap-2.5 animate-in fade-in ${
             isOverLimit
-              ? 'bg-danger-soft/25 border-danger/50 text-danger-ink dark:text-red-300'
-              : 'bg-amber-500/15 border-amber-400/40 text-amber-900 dark:text-amber-200'
+              ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger/30 dark:border-danger-bright/30 text-danger dark:text-danger-bright'
+              : 'bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright'
           }`}>
-            <AlertTriangle className={`w-5 h-5 shrink-0 mt-0.5 ${isOverLimit ? 'text-danger' : 'text-amber-600'}`} />
+            <AlertTriangle className={`w-5 h-5 shrink-0 mt-0.5 ${isOverLimit ? 'text-danger dark:text-danger-bright' : 'text-warn dark:text-warn-bright'}`} />
             <div className="flex-1 flex flex-col gap-0.5">
               <span className="font-bold">
                 {isOverLimit 

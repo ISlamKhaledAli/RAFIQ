@@ -317,18 +317,18 @@ export const BarcodeScannerSettingsModal = ({
                         {log.decodedBarcode}
                       </div>
                       <div className="w-[20%] text-center font-mono text-[11px] font-bold">
-                        <span className={log.avgDeltaMs <= settings.speedThresholdMs ? 'text-paid' : 'text-amber-600'}>
+                        <span className={log.avgDeltaMs <= settings.speedThresholdMs ? 'text-paid dark:text-paid-bright font-bold' : 'text-warn dark:text-warn-bright font-bold'}>
                           {log.avgDeltaMs} ms/مفتاح
                         </span>
                       </div>
                       <div className="w-[30%] text-center">
                         {log.sourceType === 'hardware_scanner' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-paid-soft border border-paid-border text-paid">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 dark:border-paid/30 text-paid dark:text-paid-bright">
                             <Zap className="w-3 h-3" />
                             <span>قارئ أجهزة سريع</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 border border-amber-300 text-amber-800">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright">
                             <Keyboard className="w-3 h-3" />
                             <span>كتابة يدوية بالكيبورد</span>
                           </span>

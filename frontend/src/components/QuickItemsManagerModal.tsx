@@ -387,13 +387,13 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
 
         {/* Alerts */}
         {errorMessage && (
-          <div className="p-3 bg-red-500/10 border-b border-red-500/20 text-red-600 text-xs flex items-center gap-2">
+          <div className="p-3 bg-danger-soft dark:bg-danger-dark-soft border-b border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-xs flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{errorMessage}</span>
           </div>
         )}
         {successMessage && (
-          <div className="p-3 bg-emerald-500/10 border-b border-emerald-500/20 text-emerald-600 text-xs flex items-center gap-2">
+          <div className="p-3 bg-paid-soft dark:bg-paid-dark-soft border-b border-paid/20 dark:border-paid/30 text-paid dark:text-paid-bright text-xs flex items-center gap-2">
             <Check className="w-4 h-4 shrink-0" />
             <span>{successMessage}</span>
           </div>
@@ -658,19 +658,19 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold text-ink">{item.name}</span>
                           {item.productId && (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-blue-500/10 text-blue-600 font-medium">
+                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright font-medium">
                               مربوط بالمخزن
                             </span>
                           )}
                           {item.unit === 'kg' && (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-600 font-medium">
+                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30 font-medium">
                               بالميزان (كجم)
                             </span>
                           )}
                         </div>
                         <div className="text-[11px] text-ink-muted mt-0.5">
                           {item.isOpenPrice ? (
-                            <span className="text-amber-600 font-bold">سعر مفتوح عند البيع</span>
+                            <span className="text-warn dark:text-warn-bright font-bold">سعر مفتوح عند البيع</span>
                           ) : (
                             <span className="font-mono text-brand font-bold">
                               {(item.pricePiasters / 100).toFixed(2)} ج.م
@@ -683,11 +683,11 @@ export const QuickItemsManagerModal: React.FC<QuickItemsManagerModalProps> = ({ 
                     {/* Actions */}
                     <div className="flex items-center gap-1.5">
                       {deleteConfirmId === item.id ? (
-                        <div className="flex items-center gap-1 bg-red-500/10 p-1 rounded border border-red-500/20">
-                          <span className="text-[11px] text-red-600 font-bold px-1">تأكيد الحذف؟</span>
+                        <div className="flex items-center gap-1 bg-danger-soft dark:bg-danger-dark-soft p-1 rounded border border-danger/20 dark:border-danger-bright/30">
+                          <span className="text-[11px] text-danger dark:text-danger-bright font-bold px-1">تأكيد الحذف؟</span>
                           <button
                             onClick={() => handleDeleteItem(item.id)}
-                            className="px-2 py-0.5 bg-red-600 text-white rounded text-[10px] font-bold hover:bg-red-700"
+                            className="px-2 py-0.5 bg-danger hover:bg-red-700 text-white rounded text-[10px] font-bold"
                           >
                             نعم
                           </button>

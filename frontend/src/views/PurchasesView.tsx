@@ -530,14 +530,14 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
   }, [suppliers]);
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-canvas overflow-hidden text-ink">
+    <div className="flex-1 flex flex-col h-full bg-canvas dark:bg-canvas-dark overflow-hidden text-ink dark:text-ink-dark">
       {/* Toast Notification */}
       {notification && (
         <div
           className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-xl border font-bold text-xs shadow-md transition-all ${
             notification.type === 'success'
-              ? 'bg-paid-soft border-paid/30 text-paid'
-              : 'bg-danger-soft border-danger-border text-danger'
+              ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid/30 dark:border-emerald-800/40 text-paid dark:text-paid-bright'
+              : 'bg-danger-soft dark:bg-danger-dark-soft border-danger-border dark:border-danger-bright/30 text-danger dark:text-danger-bright'
           }`}
         >
           {notification.message}
@@ -545,14 +545,14 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
       )}
 
       {/* Top Header */}
-      <header className="h-[52px] bg-surface border-b border-line px-4 flex items-center justify-between shrink-0">
+      <header className="h-[52px] bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark px-4 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-brand-soft border border-brand/20 flex items-center justify-center text-brand shadow-2xs">
+          <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-soft/20 border border-brand/20 dark:border-brand-bright/30 flex items-center justify-center text-brand dark:text-brand-bright shadow-2xs">
             <ShoppingCart className="w-4 h-4" />
           </div>
           <div>
-            <h1 className="text-sm sm:text-base font-bold text-ink leading-tight">إدارة المشتريات والموردين</h1>
-            <p className="text-[11px] text-ink-muted hidden sm:block">
+            <h1 className="text-sm sm:text-base font-bold text-ink dark:text-ink-dark leading-tight">إدارة المشتريات والموردين</h1>
+            <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted hidden sm:block">
               {activeTab === 'invoices' && 'سجل واستعراض فواتير الشراء، متابعة التكاليف، وحالات السداد'}
               {activeTab === 'new_invoice' && 'تسجيل استلام بضائع وتحديث تكلفة الشراء والمخزون الفوري'}
               {activeTab === 'suppliers' && 'دليل الموردين، حسابات المديونية الآجلة، وكشوف الحساب'}
@@ -566,23 +566,23 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
             <button
               type="button"
               onClick={handleRequestCancelNewPurchase}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface hover:bg-surface-2 border border-line text-xs font-bold text-ink-muted hover:text-ink transition-colors cursor-pointer shadow-2xs"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-xs font-bold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark transition-colors cursor-pointer shadow-2xs"
               title="العودة إلى قائمة الفواتير"
             >
               <ArrowRight className="w-3.5 h-3.5" />
               <span>العودة للفواتير</span>
             </button>
           ) : (
-            <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-surface-2 border border-line text-xs font-bold text-ink shadow-2xs">
+            <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark shadow-2xs">
               {activeTab === 'invoices' && (
                 <>
-                  <Receipt className="w-3.5 h-3.5 text-brand" />
+                  <Receipt className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                   <span>فواتير المشتريات</span>
                 </>
               )}
               {activeTab === 'suppliers' && (
                 <>
-                  <Building2 className="w-3.5 h-3.5 text-brand" />
+                  <Building2 className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                   <span>دليل الموردين</span>
                 </>
               )}

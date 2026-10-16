@@ -201,10 +201,10 @@ export const AppUpdateModal = ({ isOpen, onClose, autoCheck = false }: AppUpdate
           {statusMessage && (
             <div className={`p-4 rounded-xl flex items-start gap-3 border ${
               statusMessage.type === 'success' 
-                ? 'bg-paid-soft text-paid border-paid/20' 
+                ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/20 dark:border-paid/30' 
                 : statusMessage.type === 'error'
-                ? 'bg-red-50 text-danger border-danger/20'
-                : 'bg-brand-soft text-brand-dark border-brand/20'
+                ? 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger/20 dark:border-danger-bright/30'
+                : 'bg-brand-soft dark:bg-brand-dark-soft text-brand-dark dark:text-brand-bright border-brand/20 dark:border-brand-bright/30'
             }`}>
               {statusMessage.type === 'success' ? (
                 <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" />

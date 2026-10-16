@@ -355,19 +355,19 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
       onClick={handleBackdropClick}
     >
       <div 
-        className="w-full max-w-[700px] bg-white rounded-xl border border-slate-300 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150 border-t-4 border-t-amber-600"
+        className="w-full max-w-[700px] bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150 border-t-4 border-t-warn"
         dir="rtl"
       >
         {/* Modal Header */}
-        <div className="h-[52px] px-4 border-b border-amber-200 flex items-center justify-between bg-amber-50/70 shrink-0">
+        <div className="h-[52px] px-4 border-b border-warn/20 dark:border-warn-bright/30 flex items-center justify-between bg-warn-soft dark:bg-warn-dark-soft shrink-0">
           <div className="flex items-center gap-2">
-            <RotateCcw className="w-5 h-5 text-amber-700" />
-            <h2 className="text-[17px] font-bold text-amber-900 m-0">مرتجع بضاعة واسترجاع فلوس</h2>
+            <RotateCcw className="w-5 h-5 text-warn dark:text-warn-bright" />
+            <h2 className="text-[17px] font-bold text-ink dark:text-ink-dark m-0">مرتجع بضاعة واسترجاع فلوس</h2>
           </div>
           <button 
             type="button"
             onClick={() => void requestClose()}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-slate-100 transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
             title="إغلاق"
           >
             <X className="w-4 h-4" />
@@ -379,32 +379,32 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
           {completedReturn ? (
             /* Success State */
             <div className="py-8 text-center space-y-4">
-              <div className="w-14 h-14 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto shadow-sm">
+              <div className="w-14 h-14 bg-emerald-100 dark:bg-paid-dark-soft text-emerald-700 dark:text-brand-bright rounded-full flex items-center justify-center mx-auto shadow-sm">
                 <Check className="w-7 h-7 stroke-[3]" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-900">تم تسجيل المرتجع ورجعت البضاعة بنجاح</h3>
-                <p className="text-xs text-slate-500 font-mono mt-1">
-                  إيصال مرتجع رقم: <strong className="text-slate-800 font-bold">#{completedReturn.returnNumber}</strong>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-ink-dark">تم تسجيل المرتجع ورجعت البضاعة بنجاح</h3>
+                <p className="text-xs text-slate-500 dark:text-ink-dark-muted font-mono mt-1">
+                  إيصال مرتجع رقم: <strong className="text-slate-800 dark:text-ink-dark font-bold">#{completedReturn.returnNumber}</strong>
                 </p>
               </div>
 
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 max-w-sm mx-auto space-y-2 text-xs">
-                <div className="flex justify-between text-slate-600">
+              <div className="bg-slate-50 dark:bg-surface-dark-2 border border-slate-200 dark:border-line-dark rounded-xl p-4 max-w-sm mx-auto space-y-2 text-xs">
+                <div className="flex justify-between text-slate-600 dark:text-ink-dark-muted">
                   <span>إجمالي الفلوس اللي خرجت للزبون:</span>
-                  <strong className="font-bold text-amber-700 font-mono text-sm">
+                  <strong className="font-bold text-amber-700 dark:text-warn-bright font-mono text-sm">
                     {formatArabicCurrency(completedReturn.totalPiasters)}
                   </strong>
                 </div>
-                <div className="flex justify-between text-slate-600">
+                <div className="flex justify-between text-slate-600 dark:text-ink-dark-muted">
                   <span>الفلوس خرجت إزاي:</span>
-                  <span className="font-bold text-slate-800">
+                  <span className="font-bold text-slate-800 dark:text-ink-dark">
                     {completedReturn.refundMethod === 'credit' ? 'اتخصمت من حسابه الشكك' : 'كاش طلع من الدرج'}
                   </span>
                 </div>
-                <div className="flex justify-between text-slate-600">
+                <div className="flex justify-between text-slate-600 dark:text-ink-dark-muted">
                   <span>عدد الأصناف اللي رجعت:</span>
-                  <span className="font-mono text-slate-800">{completedReturn.items?.length || 0} صنف</span>
+                  <span className="font-mono text-slate-800 dark:text-ink-dark">{completedReturn.items?.length || 0} صنف</span>
                 </div>
               </div>
 
@@ -412,7 +412,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                 <button
                   type="button"
                   onClick={handlePrintReceipt}
-                  className="h-10 px-4 bg-[#0B4F42] hover:bg-[#0F6A57] text-white font-bold text-xs rounded-lg flex items-center gap-2 transition-colors shadow-xs"
+                  className="h-10 px-4 bg-brand hover:bg-brand-hover text-white font-bold text-xs rounded-lg flex items-center gap-2 transition-colors shadow-xs"
                 >
                   <Printer className="w-4 h-4" />
                   <span>طباعة وصل المرتجع</span>
@@ -420,7 +420,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="h-10 px-5 border border-slate-300 bg-white hover:bg-slate-50 font-bold text-xs text-slate-700 rounded-lg transition-colors"
+                  className="h-10 px-5 border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-3 hover:bg-surface-2 dark:hover:bg-surface-dark-2 font-bold text-xs text-ink dark:text-ink-dark rounded-lg transition-colors"
                 >
                   إغلاق
                 </button>
@@ -430,32 +430,32 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
             /* Return Form */
             <>
               {/* Mode Tabs */}
-              <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-lg">
+              <div className="grid grid-cols-2 gap-2 bg-slate-100 dark:bg-surface-dark-2 p-1 rounded-lg">
                 <button
                   type="button"
                   onClick={() => setMode('withInvoice')}
                   className={`h-8 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                    mode === 'withInvoice' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                    mode === 'withInvoice' ? 'bg-white dark:bg-surface-dark text-slate-900 dark:text-ink-dark shadow-xs' : 'text-slate-500 dark:text-ink-dark-muted hover:text-slate-800 dark:hover:text-ink-dark'
                   }`}
                 >
-                  <FileText className="w-3.5 h-3.5 text-amber-600" />
+                  <FileText className="w-3.5 h-3.5 text-amber-600 dark:text-warn" />
                   <span>مرتجع برقم الفاتورة (الأفضل)</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setMode('withoutInvoice')}
                   className={`h-8 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                    mode === 'withoutInvoice' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                    mode === 'withoutInvoice' ? 'bg-white dark:bg-surface-dark text-slate-900 dark:text-ink-dark shadow-xs' : 'text-slate-500 dark:text-ink-dark-muted hover:text-slate-800 dark:hover:text-ink-dark'
                   }`}
                 >
-                  <Lock className="w-3.5 h-3.5 text-amber-600" />
+                  <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-warn" />
                   <span>مرتجع حر بدون فاتورة (مشرف)</span>
                 </button>
               </div>
 
               {submitError && (
-                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold rounded-lg flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <div className="p-3 bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-xs font-bold rounded-lg flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-danger dark:text-danger-bright shrink-0" />
                   <span>{submitError}</span>
                 </div>
               )}
@@ -470,35 +470,35 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                         placeholder="اكتب رقم الفاتورة هنا..."
                         value={invoiceQuery}
                         onChange={(e) => setInvoiceQuery(e.target.value)}
-                        className="w-full h-10 px-3 pr-9 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white"
+                        className="w-full h-10 px-3 pr-9 bg-slate-50 dark:bg-surface-dark-2 border border-slate-300 dark:border-line-dark rounded-lg text-xs font-mono font-bold text-slate-900 dark:text-ink-dark focus:outline-none focus:border-amber-500 dark:focus:border-warn focus:bg-white dark:focus:bg-surface-dark"
                       />
                       <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
                     </div>
                     <button
                       type="submit"
                       disabled={searchingSale || !invoiceQuery.trim()}
-                      className="h-10 px-4 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs"
+                      className="h-10 px-4 bg-warn hover:bg-warn-dark disabled:opacity-50 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
                     >
                       <span>{searchingSale ? 'بندور عليها...' : 'هات الفاتورة'}</span>
                     </button>
                   </form>
 
                   {saleError && (
-                    <div className="text-xs text-rose-600 font-bold bg-rose-50 p-2 rounded border border-rose-200">
+                    <div className="text-xs text-danger dark:text-danger-bright font-bold bg-danger-soft dark:bg-danger-dark-soft p-2 rounded border border-danger/20 dark:border-danger-bright/30">
                       {saleError}
                     </div>
                   )}
 
                   {loadedSale && (
-                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs flex items-center justify-between">
+                    <div className="bg-slate-50 dark:bg-surface-dark-2 border border-slate-200 dark:border-line-dark rounded-lg p-3 text-xs flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-900">فاتورة رقم #{loadedSale.invoiceNumber}</span>
+                        <span className="font-bold text-slate-900 dark:text-ink-dark">فاتورة رقم #{loadedSale.invoiceNumber}</span>
                         <span className="text-slate-400">•</span>
-                        <span className="text-slate-600 font-mono">{formatArabicCurrency(loadedSale.totalPiasters)}</span>
+                        <span className="text-slate-600 dark:text-ink-dark-muted font-mono">{formatArabicCurrency(loadedSale.totalPiasters)}</span>
                         {loadedSale.customerName && (
                           <>
                             <span className="text-slate-400">•</span>
-                            <span className="text-[#0B4F42] font-semibold">{loadedSale.customerName}</span>
+                            <span className="text-brand dark:text-brand-bright font-semibold">{loadedSale.customerName}</span>
                           </>
                         )}
                       </div>
@@ -517,7 +517,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                       placeholder="اكتب اسم الصنف أو اضرب الباركود عشان تضيفه للمرتجع..."
                       value={catalogQuery}
                       onChange={(e) => void handleSearchCatalog(e.target.value)}
-                      className="w-full h-10 px-3 pr-9 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white"
+                      className="w-full h-10 px-3 pr-9 bg-slate-50 dark:bg-surface-dark-2 border border-slate-300 dark:border-line-dark rounded-lg text-xs font-bold text-slate-900 dark:text-ink-dark focus:outline-none focus:border-amber-500 dark:focus:border-warn focus:bg-white dark:focus:bg-surface-dark"
                     />
                     <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
                   </div>
@@ -527,18 +527,18 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                   )}
 
                   {catalogResults.length > 0 && (
-                    <div className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-md divide-y divide-slate-100 max-h-40 overflow-y-auto">
+                    <div className="border border-slate-200 dark:border-line-dark rounded-lg overflow-hidden bg-white dark:bg-surface-dark shadow-md divide-y divide-slate-100 dark:divide-line-dark max-h-40 overflow-y-auto">
                       {catalogResults.map((p) => (
                         <div
                           key={p.id}
                           onClick={() => addCatalogProductToDraft(p)}
-                          className="px-3 py-2 flex items-center justify-between text-xs hover:bg-amber-50 cursor-pointer"
+                          className="px-3 py-2 flex items-center justify-between text-xs hover:bg-surface-2 dark:hover:bg-surface-dark-2 cursor-pointer"
                         >
                           <div>
-                            <span className="font-bold text-slate-800">{p.name}</span>
-                            <span className="text-[10px] text-slate-400 block font-mono">{p.barcode}</span>
+                            <span className="font-bold text-ink dark:text-ink-dark">{p.name}</span>
+                            <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted block font-mono">{p.barcode}</span>
                           </div>
-                          <span className="font-bold font-mono text-amber-700">{formatArabicCurrency(p.pricePiasters)}</span>
+                          <span className="font-bold font-mono text-warn dark:text-warn-bright">{formatArabicCurrency(p.pricePiasters)}</span>
                         </div>
                       ))}
                     </div>
@@ -548,10 +548,10 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
 
               {/* Items List */}
               {draftItems.length > 0 ? (
-                <div className="border border-slate-200 rounded-lg overflow-hidden shadow-2xs">
+                <div className="border border-line dark:border-line-dark rounded-lg overflow-hidden shadow-2xs">
                   <table className="w-full text-right border-collapse text-xs">
                     <thead>
-                      <tr className="h-8 bg-[#F7F8F6] border-b border-slate-200 text-slate-600 font-bold text-[11px]">
+                      <tr className="h-8 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold text-[11px]">
                         <th className="px-3">اسم الصنف</th>
                         <th className="px-2 text-center">سعر البيع</th>
                         <th className="px-2 text-center">العدد في الفاتورة</th>
@@ -560,20 +560,20 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                         <th className="px-3 text-left">فلوس المرتجع</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 bg-white">
+                    <tbody className="divide-y divide-line dark:divide-line-dark bg-surface dark:bg-surface-dark">
                       {draftItems.map((item, idx) => {
                         const maxReturnable = item.originalQuantityPieces - item.previouslyReturnedPieces;
                         const lineTotal = Math.round(item.unitPricePiasters * item.returnQuantityPieces);
 
                         return (
-                          <tr key={idx} className={`h-11 ${item.returnQuantityPieces > 0 ? 'bg-amber-50/40' : ''}`}>
-                            <td className="px-3 font-semibold text-slate-800">
+                          <tr key={idx} className={`h-11 ${item.returnQuantityPieces > 0 ? 'bg-warn-soft/40 dark:bg-warn-dark-soft/40' : ''}`}>
+                            <td className="px-3 font-semibold text-slate-800 dark:text-ink-dark">
                               <span className="truncate block max-w-[150px]">{item.productName}</span>
                             </td>
-                            <td className="px-2 text-center font-mono text-slate-600">
+                            <td className="px-2 text-center font-mono text-slate-600 dark:text-ink-dark-muted">
                               {formatArabicCurrency(item.unitPricePiasters)}
                             </td>
-                            <td className="px-2 text-center font-mono text-slate-500">
+                            <td className="px-2 text-center font-mono text-slate-500 dark:text-ink-dark-muted">
                               {mode === 'withInvoice' ? (
                                 <span>{item.originalQuantityPieces} {item.previouslyReturnedPieces > 0 && `(-${item.previouslyReturnedPieces})`}</span>
                               ) : (
@@ -585,7 +585,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => updateItemQty(idx, item.returnQuantityPieces - 1)}
-                                  className="w-6 h-6 rounded bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-800 font-bold flex items-center justify-center"
+                                  className="w-6 h-6 rounded bg-slate-100 dark:bg-surface-dark-2 border border-slate-300 dark:border-line-dark hover:bg-slate-200 dark:hover:bg-surface-dark-3 text-slate-800 dark:text-ink-dark font-bold flex items-center justify-center"
                                 >
                                   -
                                 </button>
@@ -595,12 +595,12 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                                   max={maxReturnable}
                                   value={item.returnQuantityPieces}
                                   onChange={(e) => updateItemQty(idx, parseFloat(e.target.value) || 0)}
-                                  className="w-12 h-6 text-center font-mono font-bold text-xs bg-white border border-slate-300 rounded focus:border-amber-500 focus:outline-none"
+                                  className="w-12 h-6 text-center font-mono font-bold text-xs bg-white dark:bg-surface-dark-2 border border-slate-300 dark:border-line-dark rounded focus:border-amber-500 dark:focus:border-warn text-slate-900 dark:text-ink-dark focus:outline-none"
                                 />
                                 <button
                                   type="button"
                                   onClick={() => updateItemQty(idx, item.returnQuantityPieces + 1)}
-                                  className="w-6 h-6 rounded bg-slate-100 border border-slate-300 hover:bg-slate-200 text-slate-800 font-bold flex items-center justify-center"
+                                  className="w-6 h-6 rounded bg-slate-100 dark:bg-surface-dark-2 border border-slate-300 dark:border-line-dark hover:bg-slate-200 dark:hover:bg-surface-dark-3 text-slate-800 dark:text-ink-dark font-bold flex items-center justify-center"
                                 >
                                   +
                                 </button>
@@ -612,25 +612,25 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                                 onClick={() => toggleItemDamaged(idx)}
                                 className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors inline-flex items-center gap-1 ${
                                   item.isDamaged
-                                    ? 'bg-[#FDF3F2] text-[#B23A2E] border-[#F6CBC6]'
-                                    : 'bg-[#EAF5EE] text-[#006D41] border-[#C4E3D0]'
+                                    ? 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger-border dark:border-danger-bright/30'
+                                    : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid-border dark:border-paid/30'
                                 }`}
                                 title={item.isDamaged ? 'بضاعة تالفة: مش هتدخل المخزن' : 'بضاعة سليمة: هترجع رصيد في المخزن'}
                               >
                                 {item.isDamaged ? (
                                   <>
-                                    <AlertTriangle className="w-3 h-3 text-[#B23A2E] shrink-0" />
+                                    <AlertTriangle className="w-3 h-3 text-danger dark:text-danger-bright shrink-0" />
                                     <span>بايظ / تالف</span>
                                   </>
                                 ) : (
                                   <>
-                                    <Check className="w-3 h-3 text-[#006D41] shrink-0" />
+                                    <Check className="w-3 h-3 text-[#006D41] dark:text-brand-bright shrink-0" />
                                     <span>سليم</span>
                                   </>
                                 )}
                               </button>
                             </td>
-                            <td className="px-3 text-left font-mono font-bold text-amber-700">
+                            <td className="px-3 text-left font-mono font-bold text-amber-700 dark:text-warn">
                               {formatArabicCurrency(lineTotal)}
                             </td>
                           </tr>
@@ -640,8 +640,8 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                   </table>
                 </div>
               ) : (
-                <div className="py-8 text-center text-slate-400 bg-slate-50 border border-dashed border-slate-200 rounded-lg">
-                  <ShoppingBag className="w-8 h-8 mx-auto mb-1 stroke-[1.5] text-slate-300" />
+                <div className="py-8 text-center text-slate-400 dark:text-ink-dark-muted bg-slate-50 dark:bg-surface-dark-2 border border-dashed border-slate-200 dark:border-line-dark rounded-lg">
+                  <ShoppingBag className="w-8 h-8 mx-auto mb-1 stroke-[1.5] text-slate-300 dark:text-line-dark-strong" />
                   <p className="text-xs font-semibold">
                     {mode === 'withInvoice' ? 'اكتب رقم الفاتورة واضغط "هات الفاتورة" عشان تختار البضاعة اللي هترجع' : 'اضرب باركود أو دور على الصنف عشان تضيفه للمرتجع'}
                   </p>
@@ -649,9 +649,9 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
               )}
 
               {/* Bottom Options & Financial Refund Method */}
-              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200">
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200 dark:border-line-dark">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-ink-dark mb-1">
                     هترجع الفلوس إزاي؟:
                   </label>
                   <div className="grid grid-cols-2 gap-1.5">
@@ -662,10 +662,10 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                       title={isUnpaidCreditSale ? 'الفاتورة شكك لم يُسدد منها كاش، الاسترداد يتم كرصيد آجل لخصم المديونية' : undefined}
                       className={`h-8 rounded-lg text-xs font-bold border flex items-center justify-center gap-1.5 transition-colors ${
                         isUnpaidCreditSale
-                          ? 'opacity-40 cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400'
+                          ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-surface-dark-2 border-slate-200 dark:border-line-dark text-slate-400 dark:text-ink-dark-muted'
                           : refundMethod === 'cash'
-                            ? 'bg-amber-100/70 border-amber-400 text-amber-900 shadow-2xs'
-                            : 'bg-slate-50 border-slate-200 text-slate-600'
+                            ? 'bg-warn-soft dark:bg-warn-dark-soft border-warn/30 dark:border-warn-bright/50 text-warn dark:text-warn-bright shadow-2xs'
+                            : 'bg-slate-50 dark:bg-surface-dark-2 border-slate-200 dark:border-line-dark text-slate-600 dark:text-ink-dark-muted'
                       }`}
                     >
                       <Banknote className="w-3.5 h-3.5" />
@@ -676,8 +676,8 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                       onClick={() => setRefundMethod('credit')}
                       className={`h-8 rounded-lg text-xs font-bold border flex items-center justify-center gap-1.5 transition-colors ${
                         refundMethod === 'credit'
-                          ? 'bg-amber-100/70 border-amber-400 text-amber-900 shadow-2xs'
-                          : 'bg-slate-50 border-slate-200 text-slate-600'
+                          ? 'bg-warn-soft dark:bg-warn-dark-soft border-warn/30 dark:border-warn-bright/50 text-warn dark:text-warn-bright shadow-2xs'
+                          : 'bg-slate-50 dark:bg-surface-dark-2 border-slate-200 dark:border-line-dark text-slate-600 dark:text-ink-dark-muted'
                       }`}
                     >
                       <CreditCard className="w-3.5 h-3.5" />
@@ -687,7 +687,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-ink-dark mb-1">
                     سبب الترجيع (ملاحظة):
                   </label>
                   <input
@@ -695,19 +695,19 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
                     placeholder="مثلاً: الصنف بايظ، أو الزبون غير رأيه..."
-                    className="w-full h-8 px-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 font-medium focus:outline-none focus:border-amber-500"
+                    className="w-full h-8 px-2.5 bg-slate-50 dark:bg-surface-dark-2 border border-slate-300 dark:border-line-dark rounded-lg text-xs text-slate-800 dark:text-ink-dark font-medium focus:outline-none focus:border-warn"
                   />
                 </div>
               </div>
 
               {/* Supervisor PIN if without invoice or needed */}
               {mode === 'withoutInvoice' && (
-                <div className="bg-amber-50/60 border border-amber-200 rounded-lg p-2.5 flex items-center justify-between gap-3">
+                <div className="bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-lg p-2.5 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-amber-700 shrink-0" />
+                    <Lock className="w-4 h-4 text-warn dark:text-warn-bright shrink-0" />
                     <div>
-                      <span className="text-xs font-bold text-amber-900 block">لازم موافقة المشرف (رقم سري)</span>
-                      <span className="text-[10px] text-amber-700 block">اكتب الرقم السري للمشرف عشان تصرف المرتجع ده من غير فاتورة</span>
+                      <span className="text-xs font-bold text-ink dark:text-ink-dark block">لازم موافقة المشرف (رقم سري)</span>
+                      <span className="text-[10px] text-warn dark:text-warn-bright block">اكتب الرقم السري للمشرف عشان تصرف المرتجع ده من غير فاتورة</span>
                     </div>
                   </div>
                   <input
@@ -715,7 +715,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                     placeholder="••••"
                     value={supervisorPin}
                     onChange={(e) => setSupervisorPin(e.target.value)}
-                    className="w-24 h-8 px-2 text-center text-sm font-bold font-mono tracking-widest bg-white border border-amber-300 rounded-lg focus:outline-none focus:border-amber-600 text-slate-900"
+                    className="w-24 h-8 px-2 text-center text-sm font-bold font-mono tracking-widest bg-surface dark:bg-surface-dark-3 border border-warn/30 dark:border-warn-bright/40 rounded-lg focus:outline-none focus:border-warn text-ink dark:text-ink-dark"
                   />
                 </div>
               )}
@@ -725,10 +725,10 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
 
         {/* Modal Footer */}
         {!completedReturn && (
-          <div className="h-[56px] px-4 bg-[#F7F8F6] border-t border-slate-200 flex items-center justify-between shrink-0">
+          <div className="h-[56px] px-4 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-between shrink-0">
             <div className="flex items-baseline gap-1">
-              <span className="text-xs text-slate-500 font-bold">إجمالي الفلوس اللي هترجع:</span>
-              <span className="text-lg font-black font-mono text-amber-800 tabular-nums">
+              <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">إجمالي الفلوس اللي هترجع:</span>
+              <span className="text-lg font-black font-mono text-warn dark:text-warn-bright tabular-nums">
                 {formatArabicCurrency(totalRefundPiasters)}
               </span>
             </div>
@@ -738,7 +738,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                 type="button"
                 onClick={() => void requestClose()}
                 disabled={loading}
-                className="h-9 px-4 border border-slate-300 bg-white hover:bg-slate-50 font-bold text-xs text-slate-700 rounded-lg transition-colors cursor-pointer"
+                className="h-9 px-4 border border-slate-300 dark:border-line-dark bg-white dark:bg-surface-dark-3 hover:bg-slate-50 dark:hover:bg-surface-dark-2 font-bold text-xs text-slate-700 dark:text-ink-dark rounded-lg transition-colors cursor-pointer"
               >
                 رجوع
               </button>
@@ -746,7 +746,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                 type="button"
                 onClick={() => void handleSubmitReturn()}
                 disabled={loading || activeReturnItems.length === 0}
-                className="h-9 px-5 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+                className="h-9 px-5 bg-warn hover:bg-warn-dark active:bg-warn/90 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>{loading ? 'بنحفظ المرتجع...' : 'تأكيد وصرف فلوس المرتجع'}</span>

@@ -82,16 +82,16 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
       onClick={handleBackdropClick}
     >
-      <div className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-sm p-5 animate-in fade-in zoom-in-95 duration-150 text-right select-none">
+      <div className="bg-surface dark:bg-surface-dark rounded-xl shadow-2xl border border-line dark:border-line-dark w-full max-w-sm p-5 animate-in fade-in zoom-in-95 duration-150 text-right select-none">
         <div className="flex items-center justify-between mb-4 pb-2 hairline-b">
           <div className="flex items-center gap-2">
-            <Tag className="w-5 h-5 text-brand" />
-            <h3 className="text-base font-bold text-ink m-0">إضافة خصم على الفاتورة</h3>
+            <Tag className="w-5 h-5 text-brand dark:text-brand-bright" />
+            <h3 className="text-base font-bold text-ink dark:text-ink-dark m-0">إضافة خصم على الفاتورة</h3>
           </div>
           <button 
             type="button"
             onClick={() => void requestClose()}
-            className="text-ink-muted hover:text-ink p-1 rounded hover:bg-surface-2 transition-colors cursor-pointer"
+            className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark p-1 rounded hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
             title="إغلاق"
           >
             <X className="w-5 h-5" />
@@ -100,7 +100,7 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
 
         <form onSubmit={handleSubmit}>
           {/* Type Toggle (Amount vs Percent) */}
-          <div className="flex bg-surface-2 p-1 rounded-lg border border-line mb-3">
+          <div className="flex bg-surface-2 dark:bg-surface-dark-2 p-1 rounded-lg border border-line dark:border-line-dark mb-3">
             <button
               type="button"
               onClick={() => {
@@ -110,7 +110,7 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
               className={`flex-1 py-1.5 px-3 rounded-md text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
                 invoiceDiscountType === 'amount'
                   ? 'bg-brand text-white shadow-xs'
-                  : 'text-ink-muted hover:text-ink'
+                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
               <Banknote className="w-3.5 h-3.5" />
@@ -125,7 +125,7 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
               className={`flex-1 py-1.5 px-3 rounded-md text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
                 invoiceDiscountType === 'percent'
                   ? 'bg-brand text-white shadow-xs'
-                  : 'text-ink-muted hover:text-ink'
+                  : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
               <Percent className="w-3.5 h-3.5" />
@@ -133,7 +133,7 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
             </button>
           </div>
 
-          <label className="block text-xs font-bold text-ink-muted mb-1.5">
+          <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1.5">
             {invoiceDiscountType === 'amount' ? 'أدخل قيمة الخصم المالي بالجنيه (ج.م):' : 'أدخل نسبة الخصم المئوية (%):'}
           </label>
           <div className="relative mb-3">
@@ -149,16 +149,16 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
                   setDiscountInputEgp(norm);
                 }
               }}
-              className="w-full text-center text-3xl font-mono font-bold text-brand bg-surface-2 border-2 border-brand/50 focus:border-brand rounded-lg p-3 text-ink focus:outline-none shadow-inner"
+              className="w-full text-center text-3xl font-mono font-bold text-brand dark:text-brand-bright bg-surface-2 dark:bg-surface-dark-2 border-2 border-brand/50 dark:border-brand-bright/50 focus:border-brand dark:focus:border-brand-bright rounded-lg p-3 text-ink dark:text-ink-dark focus:outline-none shadow-inner"
             />
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-muted font-sans">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-muted dark:text-ink-dark-muted font-sans">
               {invoiceDiscountType === 'amount' ? 'جنيه مصري' : '%'}
             </span>
           </div>
 
           {/* Quick Preset Buttons */}
           <div className="mb-4">
-            <span className="block text-[11px] font-bold text-ink-muted mb-1.5">اختصارات سريعة للخصم:</span>
+            <span className="block text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted mb-1.5">اختصارات سريعة للخصم:</span>
             <div className="grid grid-cols-4 gap-1.5">
               {invoiceDiscountType === 'amount' ? (
                 <>
@@ -167,7 +167,7 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
                       key={val}
                       type="button"
                       onClick={() => setDiscountInputEgp(String(val))}
-                      className="h-8 rounded bg-surface border border-line hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-ink text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
+                      className="h-8 rounded bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-brand dark:hover:border-brand-bright hover:text-brand dark:hover:text-brand-bright hover:bg-brand-soft/40 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
                     >
                       {val} ج.م
                     </button>
@@ -180,7 +180,7 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
                       key={pct}
                       type="button"
                       onClick={() => setDiscountInputEgp(String(pct))}
-                      className="h-8 rounded bg-surface border border-line hover:border-brand hover:text-brand hover:bg-brand-soft/40 text-ink text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
+                      className="h-8 rounded bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-brand dark:hover:border-brand-bright hover:text-brand dark:hover:text-brand-bright hover:bg-brand-soft/40 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
                     >
                       {pct}%
                     </button>
@@ -190,7 +190,7 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
               <button
                 type="button"
                 onClick={() => setDiscountInputEgp('0')}
-                className="col-span-4 h-8 rounded bg-surface border border-line hover:border-danger hover:text-danger hover:bg-danger-soft text-ink text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
+                className="col-span-4 h-8 rounded bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-danger hover:text-danger hover:bg-danger-soft dark:hover:bg-danger/20 text-ink dark:text-ink-dark text-xs font-bold shadow-2xs transition-all hover:-translate-y-0.5"
               >
                 إلغاء الخصم (0)
               </button>
@@ -199,9 +199,9 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
 
           {/* Supervisor Warning */}
           {reqSup && piastersVal > 0 && (
-            <div className="mb-3 p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-800 dark:text-amber-200 text-xs flex items-center justify-between">
+            <div className="mb-3 p-2 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-lg text-warn dark:text-warn-bright text-xs flex items-center justify-between">
               <span className="flex items-center gap-1.5">
-                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <AlertTriangle className="w-4 h-4 text-warn dark:text-warn-bright shrink-0" />
                 <span>الخصم يتجاوز صلاحية الكاشير (أقصى حد {maxDiscountPercentCashier}% أو {formatArabicCurrency(maxDiscountAmountCashierPiasters)})</span>
               </span>
               <span className="font-bold whitespace-nowrap mr-2">مطلوب موافقة المشرف</span>
@@ -209,9 +209,9 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
           )}
 
           {/* Real-time Preview */}
-          <div className="p-2.5 rounded-lg bg-surface-2 border border-line flex items-center justify-between mb-4 text-xs font-bold">
-            <span className="text-ink-muted">الصافي المطلوب بعد الخصم:</span>
-            <span className="font-mono text-brand text-sm">{formatArabicCurrency(previewNet)}</span>
+          <div className="p-2.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex items-center justify-between mb-4 text-xs font-bold">
+            <span className="text-ink-muted dark:text-ink-dark-muted">الصافي المطلوب بعد الخصم:</span>
+            <span className="font-mono text-brand dark:text-brand-bright text-sm">{formatArabicCurrency(previewNet)}</span>
           </div>
 
           <div className="flex gap-2">
@@ -224,7 +224,7 @@ export const PosInvoiceDiscountModal: React.FC<PosInvoiceDiscountModalProps> = (
             <button
               type="button"
               onClick={() => void requestClose()}
-              className="px-4 h-10 bg-surface hover:bg-surface-2 border border-line text-ink font-semibold rounded-lg transition-colors cursor-pointer"
+              className="px-4 h-10 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark text-ink dark:text-ink-dark font-semibold rounded-lg transition-colors cursor-pointer"
             >
               إلغاء (Esc)
             </button>

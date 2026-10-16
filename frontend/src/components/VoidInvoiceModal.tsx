@@ -87,15 +87,15 @@ export const VoidInvoiceModal: React.FC<VoidInvoiceModalProps> = ({
         dir="rtl"
       >
         {/* Modal Header */}
-        <div className="h-[52px] px-4 border-b border-danger/20 flex items-center justify-between bg-danger-soft shrink-0">
+        <div className="h-[52px] px-4 border-b border-danger/20 dark:border-danger-bright/30 flex items-center justify-between bg-danger-soft dark:bg-danger-dark-soft shrink-0">
           <div className="flex items-center gap-2">
-            <Ban className="w-5 h-5 text-danger" />
-            <h2 className="text-[17px] font-bold text-danger m-0">إلغاء الفاتورة بالكامل</h2>
+            <Ban className="w-5 h-5 text-danger dark:text-danger-bright" />
+            <h2 className="text-[17px] font-bold text-danger dark:text-danger-bright m-0">إلغاء الفاتورة بالكامل</h2>
           </div>
           <button 
             type="button"
             onClick={requestClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-danger hover:bg-danger-soft transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -104,29 +104,29 @@ export const VoidInvoiceModal: React.FC<VoidInvoiceModalProps> = ({
         {/* Modal Form */}
         <form onSubmit={handleConfirmCancel} className="p-4 space-y-4">
           {/* Warning Banner */}
-          <div className="bg-danger-soft border border-danger/20 rounded-lg p-3 text-[13px] text-ink leading-relaxed flex items-start gap-2.5">
-            <AlertTriangle className="w-5 h-5 text-danger shrink-0 mt-0.5" />
+          <div className="bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 rounded-lg p-3 text-[13px] text-ink dark:text-ink-dark leading-relaxed flex items-start gap-2.5">
+            <AlertTriangle className="w-5 h-5 text-danger dark:text-danger-bright shrink-0 mt-0.5" />
             <div>
               <span>سيتم إلغاء الفاتورة رقم </span>
-              <strong className="font-bold font-mono text-ink">#{sale.invoiceNumber || (sale.id ? sale.id.slice(0, 8) : '---')}</strong>
+              <strong className="font-bold font-mono text-ink dark:text-ink-dark">#{sale.invoiceNumber || (sale.id ? sale.id.slice(0, 8) : '---')}</strong>
               <span> بقيمة </span>
-              <strong className="font-bold font-mono text-danger">{formatArabicCurrency(sale.totalPiasters)}</strong>
+              <strong className="font-bold font-mono text-danger dark:text-danger-bright">{formatArabicCurrency(sale.totalPiasters)}</strong>
               <span>، وكل الأصناف هترجع للمخزن فوراً وهيتلغي القيد المالي.</span>
             </div>
           </div>
 
           {errorMessage && (
-            <div className="p-2.5 bg-red-100 border border-red-300 rounded-lg text-danger text-xs font-bold">
+            <div className="p-2.5 bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 rounded-lg text-danger dark:text-danger-bright text-xs font-bold">
               {errorMessage}
             </div>
           )}
 
           {/* Reason Selection */}
           <div>
-            <label className="block text-[13px] font-bold text-ink mb-1.5">
-              سبب الإلغاء <span className="text-danger">*</span>
+            <label className="block text-[13px] font-bold text-ink dark:text-ink-dark mb-1.5">
+              سبب الإلغاء <span className="text-danger dark:text-danger-bright">*</span>
             </label>
-            <div className="border border-line rounded-lg overflow-hidden bg-surface shadow-2xs divide-y divide-line">
+            <div className="border border-line dark:border-line-dark rounded-lg overflow-hidden bg-surface dark:bg-surface-dark shadow-2xs divide-y divide-line dark:divide-line-dark">
               {PRESET_REASONS.map((r) => {
                 const isSelected = selectedReason === r;
                 return (
@@ -134,19 +134,19 @@ export const VoidInvoiceModal: React.FC<VoidInvoiceModalProps> = ({
                     key={r}
                     onClick={() => setSelectedReason(r)}
                     className={`px-3 py-2.5 flex items-center justify-between cursor-pointer transition-colors text-xs font-semibold ${
-                      isSelected ? 'bg-danger-soft text-danger font-bold' : 'text-ink hover:bg-surface-2'
+                      isSelected ? 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright font-bold' : 'text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
                     }`}
                   >
                     <div className="flex items-center gap-2">
                       <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center border ${
-                        isSelected ? 'border-danger bg-danger text-white' : 'border-line'
+                        isSelected ? 'border-danger dark:border-danger-bright bg-danger text-white' : 'border-line dark:border-line-dark'
                       }`}>
                         {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
                       </span>
                       <span>{r}</span>
                     </div>
                     {isSelected && (
-                      <span className="text-[10px] text-danger font-bold bg-surface px-2 py-0.5 rounded border border-danger/20">
+                      <span className="text-[10px] text-danger dark:text-danger-bright font-bold bg-surface dark:bg-surface-dark-2 px-2 py-0.5 rounded border border-danger/20 dark:border-danger-bright/30">
                         محدد
                       </span>
                     )}

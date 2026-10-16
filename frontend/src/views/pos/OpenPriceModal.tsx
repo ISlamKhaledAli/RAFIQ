@@ -34,22 +34,22 @@ export const OpenPriceModal: React.FC<OpenPriceModalProps> = ({
 
   return (
     <div onClick={handleBackdropClick} className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-surface rounded-lg shadow-xl border border-line w-full max-w-sm p-5 animate-in fade-in zoom-in duration-150">
+      <div className="bg-surface dark:bg-surface-dark rounded-lg shadow-xl border border-line dark:border-line-dark w-full max-w-sm p-5 animate-in fade-in zoom-in duration-150">
         <div className="flex items-center justify-between mb-4 pb-2 hairline-b">
-          <h3 className="text-base font-bold text-ink flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-brand" />
+          <h3 className="text-base font-bold text-ink dark:text-ink-dark flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-brand dark:text-brand-bright" />
             <span>تحديد سعر البيع: {openPriceItem.name}</span>
           </h3>
           <button 
             type="button"
             onClick={requestClose}
-            className="text-ink-muted hover:text-ink p-1 rounded cursor-pointer"
+            className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark p-1 rounded cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
         <form onSubmit={onConfirm}>
-          <label className="block text-xs font-bold text-ink-muted mb-1.5">
+          <label className="block text-xs font-bold text-ink-muted dark:text-ink-dark-muted mb-1.5">
             أدخل المبلغ بالجنيه (EGP):
           </label>
           <input
@@ -65,20 +65,20 @@ export const OpenPriceModal: React.FC<OpenPriceModalProps> = ({
               }
             }}
             onFocus={(e) => e.target.select()}
-            className="w-full text-center text-2xl font-mono font-bold text-brand bg-surface-2 border-2 border-brand rounded p-3 mb-4 focus:outline-none"
+            className="w-full text-center text-2xl font-mono font-bold text-brand dark:text-brand-bright bg-surface-2 dark:bg-surface-dark-2 border-2 border-brand dark:border-brand-bright rounded p-3 mb-4 focus:outline-none"
           />
           <div className="flex gap-2">
             <button
               type="submit"
               disabled={!openPriceInputEgp || parseFloat(openPriceInputEgp) <= 0}
-              className="flex-1 py-2.5 bg-brand hover:bg-brand-hover disabled:bg-surface-2 disabled:text-ink-muted text-white font-bold rounded transition-colors"
+              className="flex-1 py-2.5 bg-brand hover:bg-brand-hover disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted dark:disabled:text-ink-dark-muted text-white font-bold rounded transition-colors"
             >
               تأكيد وإضافة للسلة
             </button>
             <button
               type="button"
               onClick={requestClose}
-              className="px-4 py-2.5 bg-surface-2 hover:bg-line text-ink font-semibold rounded transition-colors cursor-pointer"
+              className="px-4 py-2.5 bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-line-dark text-ink dark:text-ink-dark font-semibold rounded transition-colors cursor-pointer"
             >
               إلغاء
             </button>

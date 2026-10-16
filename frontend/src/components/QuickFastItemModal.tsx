@@ -612,14 +612,14 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                       />
                     </div>
                     {originalPriceEgp && (
-                      <div className="mt-1.5 flex items-center justify-between text-[11px] text-paid bg-emerald-50 dark:bg-emerald-950/30 px-2 py-1 rounded">
+                      <div className="mt-1.5 flex items-center justify-between text-[11px] text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft px-2 py-1 rounded">
                         <span>السعر الأساسي في المخزن: <strong>{originalPriceEgp} ج.م</strong></span>
-                        <span className="text-ink-muted text-[10px]">(يمكنك تركه كما هو أو تعديله لهذا الزر)</span>
+                        <span className="text-ink-muted dark:text-ink-dark-muted text-[10px]">(يمكنك تركه كما هو أو تعديله لهذا الزر)</span>
                       </div>
                     )}
                   </div>
                 ) : (
-                  <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-md text-[11.5px] text-amber-800 dark:text-amber-300 font-medium">
+                  <div className="p-2 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-md text-[11.5px] text-warn dark:text-warn-bright font-medium">
                     عند النقر على هذا الزر، سيطلب النظام من الكاشير كتابة السعر فورياً.
                   </div>
                 )}
@@ -1023,7 +1023,7 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
                     />
                   </div>
                 ) : (
-                  <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-md text-[11.5px] text-amber-800 dark:text-amber-300 font-medium">
+                  <div className="p-2 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-md text-[11.5px] text-warn dark:text-warn-bright font-medium">
                     عند النقر على هذا الزر، سيطلب النظام من الكاشير كتابة السعر المطلوب لحظياً.
                   </div>
                 )}

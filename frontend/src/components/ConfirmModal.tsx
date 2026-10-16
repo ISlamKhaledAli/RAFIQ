@@ -49,41 +49,41 @@ export const ConfirmModal = ({
       }}
     >
       <div 
-        className="w-full max-w-md bg-surface hairline-all rounded-[8px] shadow-2xl overflow-hidden flex flex-col transform transition-all"
+        className="w-full max-w-md bg-surface dark:bg-surface-dark hairline-all rounded-[8px] shadow-2xl overflow-hidden flex flex-col transform transition-all"
         role="dialog"
         aria-modal="true"
       >
         {/* Header Strip */}
         <div className={`px-5 py-4 border-b flex items-center justify-between ${
-          isDanger ? 'bg-danger-soft border-danger/20' : 'bg-brand-soft border-brand/20'
+          isDanger ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/30' : 'bg-brand-soft dark:bg-surface-dark-2 border-brand/20 dark:border-line-dark'
         }`}>
           <div className="flex items-center gap-2.5">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-              isDanger ? 'bg-danger text-white' : 'bg-brand text-white'
+              isDanger ? 'bg-danger dark:bg-danger text-white' : 'bg-brand text-white'
             }`}>
               {isDanger ? <AlertTriangle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
             </div>
-            <h3 className="text-[14px] font-bold text-ink m-0">{title}</h3>
+            <h3 className="text-[14px] font-bold text-ink dark:text-ink-dark m-0">{title}</h3>
           </div>
 
           <button
             type="button"
             onClick={onCancel}
-            className="w-7 h-7 rounded flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface-2 transition-colors cursor-pointer"
+            className="w-7 h-7 rounded flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Content Body */}
-        <div className="p-5 flex flex-col gap-3 text-[13px] text-ink">
+        <div className="p-5 flex flex-col gap-3 text-[13px] text-ink dark:text-ink-dark">
           <p className="leading-relaxed m-0 font-medium">{message}</p>
 
           {consequence && (
             <div className={`p-3 rounded text-[11.5px] border leading-relaxed flex items-start gap-2 ${
               isDanger 
-                ? 'bg-danger-soft border-danger/20 text-danger' 
-                : 'bg-warn-soft border-warn/20 text-warn'
+                ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright' 
+                : 'bg-warn-soft dark:bg-warn-dark-soft border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright'
             }`}>
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{consequence}</span>
@@ -92,11 +92,11 @@ export const ConfirmModal = ({
         </div>
 
         {/* Action Buttons Footer */}
-        <div className="px-5 py-3.5 bg-surface-2 hairline-t flex items-center justify-end gap-2.5">
+        <div className="px-5 py-3.5 bg-surface-2 dark:bg-surface-dark-2 hairline-t flex items-center justify-end gap-2.5">
           <button
             type="button"
             onClick={onCancel}
-            className="h-[38px] px-4 rounded border border-line bg-surface hover:bg-surface-2 text-ink text-[12.5px] font-semibold transition-colors cursor-pointer"
+            className="h-[38px] px-4 rounded border border-line dark:border-line-dark bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-3 text-ink dark:text-ink-dark text-[12.5px] font-semibold transition-colors cursor-pointer"
           >
             {cancelText}
           </button>

@@ -85,12 +85,12 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({
         onFocus={handleFocus}
         onBlur={onBlur}
         onKeyDown={onKeyDown}
-        className={`w-full bg-surface border border-line rounded px-3 py-1.5 ${
+        className={`w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded px-3 py-1.5 ${
           hideCurrency ? '' : 'pl-11'
-        } text-ink font-mono font-bold focus:outline-none focus:border-brand transition-colors text-right tabular-nums ${className}`}
+        } text-ink dark:text-ink-dark font-mono font-bold focus:outline-none focus:border-brand dark:focus:border-brand-bright transition-colors text-right tabular-nums ${className}`}
       />
       {!hideCurrency && (
-        <span className="absolute left-2.5 text-[11px] font-bold text-ink-muted pointer-events-none select-none">
+        <span className="absolute left-2.5 text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted pointer-events-none select-none">
           {currencyLabel}
         </span>
       )}
