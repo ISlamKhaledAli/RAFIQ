@@ -73,9 +73,9 @@ export const QuickAddCustomerForm = ({
       </div>
 
       {duplicateQuickCustomer && (
-        <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center justify-between gap-2 shadow-2xs">
+        <div className="p-2.5 rounded-lg bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright text-xs flex items-center justify-between gap-2 shadow-2xs">
           <div className="flex items-center gap-1.5 min-w-0">
-            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <AlertTriangle className="w-4 h-4 text-warn dark:text-warn-bright shrink-0" />
             <span className="truncate">هذا الرقم مسجل بالفعل للعميل: <strong>{duplicateQuickCustomer.name}</strong></span>
           </div>
           <button

@@ -12,6 +12,7 @@ import '@fontsource/cairo/700.css'
 import '@fontsource/cairo/800.css'
 import './index.css'
 import App from './App.tsx'
+import { ThemeProvider } from './context/ThemeProvider'
 import { FeaturesProvider } from './context/FeaturesProvider'
 import { AuthProvider } from './context/AuthContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -19,11 +20,13 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
-      <FeaturesProvider>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </FeaturesProvider>
+      <ThemeProvider>
+        <FeaturesProvider>
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+        </FeaturesProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   </StrictMode>,
 )

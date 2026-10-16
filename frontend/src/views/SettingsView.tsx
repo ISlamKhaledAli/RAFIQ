@@ -435,22 +435,22 @@ export const SettingsView = ({
   const TabIcon = currentTabConfig.icon;
 
   return (
-    <div className="flex flex-col h-full bg-canvas p-4 gap-3.5 overflow-y-auto select-none">
+    <div className="flex flex-col h-full bg-canvas dark:bg-canvas-dark p-4 gap-3.5 overflow-y-auto select-none">
       {/* 1. Top Header */}
-      <div className="h-16 bg-surface border border-line shadow-xs rounded-2xl px-5 flex items-center justify-between shrink-0">
+      <div className="h-16 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark shadow-xs rounded-2xl px-5 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-paid-soft text-paid border border-paid/20 flex items-center justify-center font-bold shrink-0 shadow-2xs">
-            <TabIcon className="w-5 h-5 text-paid" />
+          <div className="w-10 h-10 rounded-xl bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid-bright/20 flex items-center justify-center font-bold shrink-0 shadow-2xs">
+            <TabIcon className="w-5 h-5 text-paid dark:text-paid-bright" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-ink-muted">إعدادات المحل والنظام</span>
-              <span className="text-ink-muted/40 font-bold">/</span>
-              <h2 className="text-sm font-black text-ink leading-tight m-0">
+              <span className="text-[11px] font-bold text-ink-muted dark:text-ink-muted-dark">إعدادات المحل والنظام</span>
+              <span className="text-ink-muted/40 dark:text-ink-muted-dark/40 font-bold">/</span>
+              <h2 className="text-sm font-black text-ink dark:text-ink-dark leading-tight m-0">
                 {currentTabConfig.title}
               </h2>
             </div>
-            <p className="text-[11px] text-ink-muted m-0 mt-0.5">
+            <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark m-0 mt-0.5">
               {currentTabConfig.subtitle}
             </p>
           </div>
@@ -458,8 +458,8 @@ export const SettingsView = ({
 
         <div className="flex items-center gap-2">
           {saved && (
-            <div className="flex items-center gap-1.5 text-xs text-paid font-bold bg-paid-soft border border-paid/30 px-3.5 py-1.5 rounded-xl animate-in fade-in shadow-2xs">
-              <CheckCircle className="w-4 h-4 text-paid" />
+            <div className="flex items-center gap-1.5 text-xs text-paid dark:text-paid-bright font-bold bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 dark:border-paid-bright/30 px-3.5 py-1.5 rounded-xl animate-in fade-in shadow-2xs">
+              <CheckCircle className="w-4 h-4 text-paid dark:text-paid-bright" />
               <span>تم حفظ بيانات المحل بنجاح</span>
             </div>
           )}
@@ -552,15 +552,15 @@ export const SettingsView = ({
       )}
 
       {isRoot && subTab === 'security' && (
-        <div className="bg-surface border border-line rounded-2xl p-6 flex flex-col gap-4 shadow-xs animate-in fade-in">
-          <div className="flex items-center justify-between border-b border-line pb-4">
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl p-6 flex flex-col gap-4 shadow-xs animate-in fade-in">
+          <div className="flex items-center justify-between border-b border-line dark:border-line-dark pb-4">
             <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-paid-soft text-paid border border-paid/20 flex items-center justify-center font-bold shrink-0 shadow-2xs">
-                <KeyRound className="w-5 h-5 text-paid" />
+              <div className="w-10 h-10 rounded-xl bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid-bright/20 flex items-center justify-center font-bold shrink-0 shadow-2xs">
+                <KeyRound className="w-5 h-5 text-paid dark:text-paid-bright" />
               </div>
               <div>
-                <h3 className="text-sm font-black text-ink m-0">حماية الشاشات والعمليات الحساسة بالرقم السري (PIN)</h3>
-                <p className="text-xs text-ink-muted m-0 mt-0.5">
+                <h3 className="text-sm font-black text-ink dark:text-ink-dark m-0">حماية الشاشات والعمليات الحساسة بالرقم السري (PIN)</h3>
+                <p className="text-xs text-ink-muted dark:text-ink-muted-dark m-0 mt-0.5">
                   قفل تعديل الأسعار، ومسح الفواتير، والتقارير المالية، واسترجاع قاعدة البيانات برقم سري مشفر.
                 </p>
               </div>
@@ -574,7 +574,7 @@ export const SettingsView = ({
               <span>إعدادات وتغيير الرقم السري</span>
             </button>
           </div>
-          <p className="text-xs text-ink-muted leading-relaxed">
+          <p className="text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed">
             يمكنك تفعيل أو تعطيل الحماية واختيار العمليات المحمية وتوليد كود الطوارئ لحماية متجرك من التلاعب غير المصرح به.
           </p>
         </div>

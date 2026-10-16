@@ -39,6 +39,8 @@ import {
   RefreshCw,
   Database,
   BarChart3,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { 
   NotificationBellButton, 
@@ -46,6 +48,7 @@ import {
   CompactAlertTickerBar 
 } from './components/NotificationCenter';
 import { useSystemNotifications } from './utils/useSystemNotifications';
+import { useTheme } from './context/useTheme';
 import { invoke } from './bridge/ipc';
 import { useDataSubscription, emitDataChanged } from './utils/eventBus';
 import { PosView } from './views/PosView';
@@ -120,11 +123,11 @@ const HeaderClock: FC = memo(() => {
   }, []);
 
   return (
-    <div className="flex items-center gap-1.5 sm:gap-2 bg-white border border-line px-2.5 py-1 rounded-lg tabular-nums text-xs font-semibold text-ink shadow-2xs shrink-0">
-      <Clock className="w-3.5 h-3.5 text-ink-muted shrink-0" />
-      <span className="text-ink-muted font-normal text-[11px] hidden xl:inline">{date}</span>
-      <span className="text-line hidden xl:inline">|</span>
-      <span className="font-mono text-paid font-bold tracking-wide text-xs">{time || '00:00:00'}</span>
+    <div className="flex items-center gap-1.5 sm:gap-2 bg-white dark:bg-surface-dark-2 border border-line dark:border-line-dark px-2.5 py-1 rounded-lg tabular-nums text-xs font-semibold text-ink dark:text-ink-dark shadow-2xs shrink-0">
+      <Clock className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted shrink-0" />
+      <span className="text-ink-muted dark:text-ink-dark-muted font-normal text-[11px] hidden xl:inline">{date}</span>
+      <span className="text-line dark:text-line-dark hidden xl:inline">|</span>
+      <span className="font-mono text-paid dark:text-brand-bright font-bold tracking-wide text-xs">{time || '00:00:00'}</span>
     </div>
   );
 });
@@ -135,6 +138,7 @@ const CASHIER_ALLOWED_TABS: TabType[] = ['pos', 'epay', 'customers'];
 export default function App() {
   const { isEnabled } = useFeatures();
   const { currentUser, isLoading, logout, hasPermission, isRoot, isAdmin, refreshUser } = useAuth();
+  const { isDark, toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<TabType>('pos');
   const isCashier = currentUser?.role === 'cashier';
   const effectiveActiveTab: TabType = isCashier && !CASHIER_ALLOWED_TABS.includes(activeTab) ? 'pos' : activeTab;
@@ -206,46 +210,6 @@ export default function App() {
   const [isReadinessOpen, setIsReadinessOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(true);
   const [storeName, setStoreName] = useState('رفيق POS');
-  const [logoVariant, setLogoVariant] = useState<'classic' | 'modern'>(() => {
-    try {
-      const saved = localStorage.getItem('rafiq_logo_variant');
-      return saved === 'modern' ? 'modern' : 'classic';
-    } catch {
-      return 'classic';
-    }
-  });
-
-  useEffect(() => {
-    const handleVariantChange = () => {
-      try {
-        const saved = localStorage.getItem('rafiq_logo_variant');
-        if (saved === 'modern' || saved === 'classic') {
-          setLogoVariant(saved);
-        }
-      } catch {
-        // ignore
-      }
-    };
-    window.addEventListener('rafiq_logo_variant_changed', handleVariantChange);
-    window.addEventListener('storage', handleVariantChange);
-    return () => {
-      window.removeEventListener('rafiq_logo_variant_changed', handleVariantChange);
-      window.removeEventListener('storage', handleVariantChange);
-    };
-  }, []);
-
-  const toggleLogoVariant = useCallback(() => {
-    setLogoVariant((prev) => {
-      const next = prev === 'classic' ? 'modern' : 'classic';
-      try {
-        localStorage.setItem('rafiq_logo_variant', next);
-        window.dispatchEvent(new Event('rafiq_logo_variant_changed'));
-      } catch {
-        // ignore
-      }
-      return next;
-    });
-  }, []);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isUserManagerOpen, setIsUserManagerOpen] = useState(false);
   const [idleTimeoutMinutes, setIdleTimeoutMinutes] = useState(15);
@@ -453,7 +417,8 @@ export default function App() {
       }
     };
     void loadInfo();
-    void invoke('system:appReady').catch(() => {});
+    const isAppDark = document.documentElement.classList.contains('dark') || localStorage.getItem('rafiq_pos_theme') === 'dark';
+    void invoke('system:appReady', { theme: isAppDark ? 'dark' : 'light' }).catch(() => {});
 
     const checkClock = async () => {
       try {
@@ -544,14 +509,6 @@ export default function App() {
       const s: any = await invoke('settings:getAll');
       if (s) {
         if (s.store_name) setStoreName(s.store_name);
-        if (s.logo_variant === 'modern' || s.logo_variant === 'classic') {
-          setLogoVariant(s.logo_variant);
-          try {
-            localStorage.setItem('rafiq_logo_variant', s.logo_variant);
-          } catch {
-            // ignore
-          }
-        }
       }
       void refreshUser();
       const sec: any = await invoke('security:getStatus');
@@ -924,7 +881,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-canvas text-ink select-none overflow-hidden relative">
+    <div className="flex flex-col h-screen w-screen bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark select-none overflow-hidden relative">
       {/* Floating Refresh Toast Feedback */}
       {refreshToastMsg && (
         <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-paid text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2 pointer-events-none">
@@ -933,29 +890,22 @@ export default function App() {
         </div>
       )}
       {/* 1. TOP BAR (52px professional high, hairline-b, Spans across top) */}
-      <header className="h-[52px] w-full bg-surface hairline-b flex items-center justify-between px-3 sm:px-4 shrink-0 z-20 shadow-2xs">
+      <header className="h-[52px] w-full bg-surface dark:bg-surface-dark hairline-b flex items-center justify-between px-3 sm:px-4 shrink-0 z-20 shadow-2xs">
         {/* Right Side: Store Title & Status Badges */}
         <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-          <button
-            type="button"
-            onClick={toggleLogoVariant}
-            title={logoVariant === 'classic' 
-              ? 'الشعار الكلاسيكي عالي التباين (مفعّل) — انقر للتبديل للشعار المودرن الفاتح' 
-              : 'الشعار المودرن الفاتح (مفعّل) — انقر للتبديل للشعار الكلاسيكي عالي التباين'}
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white border border-[#DCE1DC] hover:border-paid/60 flex items-center justify-center p-1 shadow-2xs shrink-0 cursor-pointer transition-all hover:scale-105 active:scale-95 group relative"
+          <div
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white dark:bg-surface-dark-2 border border-[#DCE1DC] dark:border-line-dark flex items-center justify-center p-1 shadow-2xs shrink-0 select-none"
+            title="رفيق POS"
           >
             <img 
-              src={logoVariant === 'classic' ? '/logo_classic.png' : '/logo_modern.png'} 
+              src={isDark ? '/logo_modern.png' : '/logo_classic.png'} 
               alt="شعار رفيق" 
               className="w-full h-full object-contain" 
             />
-            <span className="absolute -bottom-1 -left-1 px-1 py-0.2 rounded text-[7.5px] font-bold bg-[#004D3F] text-white opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-2xs whitespace-nowrap">
-              {logoVariant === 'classic' ? 'كلاسيك' : 'مودرن'}
-            </span>
-          </button>
+          </div>
           <div className="min-w-0">
-            <h1 className="text-sm sm:text-base font-extrabold text-ink leading-tight m-0 truncate">{storeName || 'رفيق POS'}</h1>
-            <p className="text-[10px] sm:text-[11px] font-medium text-ink-muted m-0 truncate">نظام نقاط البيع وإدارة المتاجر والمحلات</p>
+            <h1 className="text-sm sm:text-base font-extrabold text-ink dark:text-ink-dark leading-tight m-0 truncate">{storeName || 'رفيق POS'}</h1>
+            <p className="text-[10px] sm:text-[11px] font-medium text-ink-muted dark:text-ink-dark-muted m-0 truncate">نظام نقاط البيع وإدارة المتاجر والمحلات</p>
           </div>
         </div>
 
@@ -966,10 +916,10 @@ export default function App() {
             <button
               type="button"
               onClick={() => setIsUserManagerOpen(true)}
-              className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-surface hover:bg-amber-50/70 border border-amber-200 hover:border-amber-300 text-amber-900 font-bold text-xs shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer shrink-0"
+              className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-warn-soft/60 dark:hover:bg-warn-dark-soft border border-line dark:border-line-dark hover:border-warn/40 dark:hover:border-warn-bright/40 text-ink dark:text-ink-dark hover:text-warn dark:hover:text-warn-bright font-bold text-xs shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer shrink-0"
               title="إدارة حسابات الموظفين والصلاحيات والشجرة"
             >
-              <Users className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              <Users className="w-3.5 h-3.5 text-warn dark:text-warn-bright shrink-0" />
               <span>الموظفون</span>
             </button>
           )}
@@ -979,7 +929,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setIsReadinessOpen(true)}
-              className="w-8 h-8 rounded-lg bg-surface hover:bg-paid-soft border border-line hover:border-paid text-paid flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
+              className="w-8 h-8 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-paid-soft dark:hover:bg-brand-dark-soft border border-line dark:border-line-dark hover:border-paid dark:hover:border-brand-bright text-paid dark:text-brand-bright flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
               title="فحص جاهزية التشغيل والعتاد (Root)"
             >
               <CheckCircle2 className="w-4 h-4" />
@@ -1000,7 +950,7 @@ export default function App() {
                 await logout();
               }
             }}
-            className="w-8 h-8 rounded-lg bg-surface hover:bg-danger/10 border border-line hover:border-danger/30 text-ink-muted hover:text-danger flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
+            className="w-8 h-8 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-danger/10 dark:hover:bg-danger-dark-soft border border-line dark:border-line-dark hover:border-danger/30 text-ink-muted dark:text-ink-dark-muted hover:text-danger flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
             title="تسجيل الخروج وقفل النظام"
           >
             <Power className="w-4 h-4 text-danger" />
@@ -1010,7 +960,7 @@ export default function App() {
           <button
             type="button"
             onClick={handleMinimizeWindow}
-            className="w-8 h-8 rounded-lg bg-surface hover:bg-surface-2 border border-line hover:border-ink-muted text-ink-muted hover:text-ink flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
+            className="w-8 h-8 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark hover:border-ink-muted dark:hover:border-line-dark-hover text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
             title="تصغير التطبيق إلى شريط المهام"
           >
             <Minus className="w-4 h-4" />
@@ -1020,13 +970,13 @@ export default function App() {
           <button
             type="button"
             onClick={handleToggleFullscreen}
-            className="w-8 h-8 rounded-lg bg-surface hover:bg-surface-2 border border-line hover:border-ink-muted text-ink-muted hover:text-ink flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
+            className="w-8 h-8 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark hover:border-ink-muted dark:hover:border-line-dark-hover text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
             title={isFullscreen ? 'الخروج من ملء الشاشة (F11)' : 'ملء الشاشة بالكامل (F11)'}
           >
             {isFullscreen ? (
-              <Minimize2 className="w-4 h-4 text-ink-muted" />
+              <Minimize2 className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted" />
             ) : (
-              <Maximize2 className="w-4 h-4 text-paid" />
+              <Maximize2 className="w-4 h-4 text-paid dark:text-brand-bright" />
             )}
           </button>
 
@@ -1035,12 +985,26 @@ export default function App() {
             type="button"
             onClick={() => void handleUniversalRefresh()}
             disabled={isUniversalRefreshing}
-            className={`w-8 h-8 rounded-lg bg-surface hover:bg-paid-soft border border-line hover:border-paid text-ink-muted hover:text-paid flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0 disabled:opacity-60 ${
+            className={`w-8 h-8 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-paid-soft dark:hover:bg-brand-dark-soft border border-line dark:border-line-dark hover:border-paid dark:hover:border-brand-bright text-ink-muted dark:text-ink-dark-muted hover:text-paid dark:hover:text-brand-bright flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0 disabled:opacity-60 ${
               isUniversalRefreshing ? 'bg-paid-soft text-paid border-paid/50' : ''
             }`}
             title="تحديث شامل لكافة البيانات والعمليات في النظام (F5)"
           >
-            <RefreshCw className={`w-4 h-4 ${isUniversalRefreshing ? 'animate-spin text-paid' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${isUniversalRefreshing ? 'animate-spin text-paid dark:text-brand-bright' : ''}`} />
+          </button>
+
+          {/* Quick Theme Toggle (Light / Dark) */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="w-8 h-8 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark-3 border border-line dark:border-line-dark hover:border-ink-muted dark:hover:border-line-dark-hover text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark flex items-center justify-center shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
+            title={isDark ? 'التبديل إلى الوضع النهاري (الفاتح)' : 'التبديل إلى الوضع الليلي (الداكن)'}
+          >
+            {isDark ? (
+              <Sun className="w-4 h-4 text-amber-500" />
+            ) : (
+              <Moon className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted" />
+            )}
           </button>
 
           {/* Notification Bell Button with live Badge */}
@@ -1078,14 +1042,14 @@ export default function App() {
         <aside 
           className={`${
             isSidebarCollapsed ? 'w-[64px] px-1.5 py-2.5 items-center' : 'w-[215px] p-2.5'
-          } bg-surface hairline-l flex flex-col shrink-0 select-none transition-all duration-150 h-full min-h-0 overflow-hidden shadow-2xs`}
+          } bg-surface dark:bg-surface-dark hairline-l flex flex-col shrink-0 select-none transition-all duration-150 h-full min-h-0 overflow-hidden shadow-2xs`}
         >
           {/* Top Header of Sidebar: Title + Toggle Icon Button */}
-          <div className={`w-full flex items-center mb-1.5 pb-1.5 border-b border-line shrink-0 ${
+          <div className={`w-full flex items-center mb-1.5 pb-1.5 border-b border-line dark:border-line-dark shrink-0 ${
             isSidebarCollapsed ? 'justify-center' : 'justify-between px-1'
           }`}>
             {!isSidebarCollapsed && (
-              <span className="text-[11px] font-bold text-ink-muted uppercase tracking-wider">
+              <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted uppercase tracking-wider">
                 القوائم الرئيسية
               </span>
             )}
@@ -1103,12 +1067,12 @@ export default function App() {
                 });
               }}
               title={isSidebarCollapsed ? 'توسيع القائمة الجانبية' : 'تصغير القائمة الجانبية'}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-muted hover:text-brand-dark hover:bg-brand-soft transition-colors cursor-pointer"
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-brand-dark dark:hover:text-brand-bright hover:bg-brand-soft dark:hover:bg-brand-dark-soft transition-colors cursor-pointer"
             >
               {isSidebarCollapsed ? (
-                <PanelRightOpen className="w-4 h-4 text-brand-dark" />
+                <PanelRightOpen className="w-4 h-4 text-brand-dark dark:text-brand-bright" />
               ) : (
-                <PanelRightClose className="w-4 h-4 text-ink-muted hover:text-brand-dark" />
+                <PanelRightClose className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted hover:text-brand-dark dark:hover:text-brand-bright" />
               )}
             </button>
           </div>
@@ -1141,13 +1105,13 @@ export default function App() {
                     title={item.label}
                     className={`relative w-full h-[42px] rounded-xl flex items-center justify-center transition-all duration-150 group cursor-pointer ${
                       isActive
-                        ? 'bg-brand-dark text-white shadow-xs'
-                        : 'text-ink-muted hover:bg-surface-2 hover:text-ink'
+                        ? 'bg-brand-dark dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright shadow-xs'
+                        : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white'
                     }`}
                   >
-                    <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-ink-muted group-hover:text-ink'}`} />
+                    <Icon className={`w-5 h-5 ${isActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/80 group-hover:text-ink dark:group-hover:text-white'}`} />
                     {isProductsItem && lowStockCount > 0 && (
-                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-danger text-white text-[9px] font-bold flex items-center justify-center animate-pulse border-2 border-surface shadow-2xs">
+                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-danger text-white text-[9px] font-bold flex items-center justify-center animate-pulse border-2 border-surface dark:border-surface-dark shadow-2xs">
                         {lowStockCount > 9 ? '+9' : lowStockCount}
                       </span>
                     )}
@@ -1197,17 +1161,17 @@ export default function App() {
                     }}
                     className={`w-full relative flex items-center justify-between px-2.5 h-[40px] rounded-xl text-xs transition-all duration-150 cursor-pointer ${
                       isActive
-                        ? 'bg-brand-dark text-white font-bold shadow-xs'
-                        : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
+                        ? 'bg-brand-dark dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-bold shadow-xs'
+                        : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-medium'
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-ink-muted'}`} />
+                      <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/80 group-hover:dark:text-white'}`} />
                       <span className="truncate">{item.label}</span>
                     </div>
 
                     {(isEpayItem || isDashboardItem || isProductsItem || isPurchasesItem || isSettingsItem) && (
-                      <span className={`shrink-0 ${isActive ? 'text-white/80' : 'text-[#52605d]'}`}>
+                      <span className={`shrink-0 ${isActive ? 'text-white/80 dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/70'}`}>
                         {(isEpayItem ? isEpayMenuExpanded : isDashboardItem ? isDashboardMenuExpanded : isProductsItem ? isProductsMenuExpanded : isPurchasesItem ? isPurchasesMenuExpanded : isSettingsMenuExpanded) ? (
                           <ChevronDown className="w-3.5 h-3.5" />
                         ) : (
@@ -1219,7 +1183,7 @@ export default function App() {
 
                   {/* Sub-tree for Epay (SuperPay / Terminals / POS / Analytics) */}
                   {isEpayItem && isEpayMenuExpanded && (
-                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-[#00372d]/25 animate-in slide-in-from-top-1 duration-150">
+                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-[#00372d]/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
                       {epayTreeItems.map((sub) => {
                         const SubIcon = sub.icon;
                         const isSubActive = effectiveActiveTab === 'epay' && epaySubTab === sub.id;
@@ -1234,12 +1198,12 @@ export default function App() {
                             }}
                             className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
                               isSubActive
-                                ? 'bg-[#006d41] text-white font-bold shadow-2xs'
-                                : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
+                                ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-bold shadow-2xs'
+                                : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-medium'
                             }`}
                           >
                             <div className="flex items-center gap-2 truncate">
-                              <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white' : 'text-[#52605d]'}`} />
+                              <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/75'}`} />
                               <span className="truncate">{sub.label}</span>
                             </div>
                           </button>
@@ -1250,7 +1214,7 @@ export default function App() {
 
                   {/* Sub-tree for Dashboard & Executive Analytics */}
                   {isDashboardItem && isDashboardMenuExpanded && (
-                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-[#00372d]/25 animate-in slide-in-from-top-1 duration-150">
+                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-[#00372d]/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
                       {dashboardTreeItems.map((sub) => {
                         const SubIcon = sub.icon;
                         const isSubActive = effectiveActiveTab === 'dashboard' && dashboardSubTab === sub.id;
@@ -1265,12 +1229,12 @@ export default function App() {
                             }}
                             className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
                               isSubActive
-                                ? 'bg-[#006d41] text-white font-bold shadow-2xs'
-                                : 'text-[#52605d] hover:bg-[#f1f5f4] hover:text-[#0f172a] font-medium'
+                                ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-bold shadow-2xs'
+                                : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-medium'
                             }`}
                           >
                             <div className="flex items-center gap-2 truncate">
-                              <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white' : 'text-[#52605d]'}`} />
+                              <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/75'}`} />
                               <span className="truncate">{sub.label}</span>
                             </div>
                           </button>
@@ -1281,7 +1245,7 @@ export default function App() {
 
                   {/* Sub-tree for Products & Inventory */}
                   {isProductsItem && isProductsMenuExpanded && (
-                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 animate-in slide-in-from-top-1 duration-150">
+                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
                       <button
                         type="button"
                         onClick={() => {
@@ -1291,8 +1255,8 @@ export default function App() {
                         }}
                         className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
                           effectiveActiveTab === 'products' && productsSubView === 'catalog'
-                            ? 'bg-paid text-white font-bold shadow-2xs'
-                            : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
+                            ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-bold shadow-2xs'
+                            : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-medium'
                         }`}
                         title="كتالوج الأصناف والأسعار"
                       >
@@ -1310,8 +1274,8 @@ export default function App() {
                         }}
                         className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
                           effectiveActiveTab === 'products' && productsSubView === 'movements'
-                            ? 'bg-paid text-white font-bold shadow-2xs'
-                            : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
+                            ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-bold shadow-2xs'
+                            : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-medium'
                         }`}
                         title="حركات وجرد المخزن"
                       >
@@ -1330,8 +1294,8 @@ export default function App() {
                           }}
                           className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
                             effectiveActiveTab === 'products' && productsSubView === 'batches'
-                              ? 'bg-paid text-white font-bold shadow-2xs'
-                              : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
+                              ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-bold shadow-2xs'
+                              : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-medium'
                           }`}
                           title="تواريخ الصلاحية والدفعات"
                         >
@@ -1346,7 +1310,7 @@ export default function App() {
 
                   {/* Sub-tree for Purchases & Suppliers */}
                   {isPurchasesItem && isPurchasesMenuExpanded && (
-                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 animate-in slide-in-from-top-1 duration-150">
+                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
                       <button
                         type="button"
                         onClick={() => {
@@ -1355,8 +1319,8 @@ export default function App() {
                         }}
                         className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
                           effectiveActiveTab === 'purchases' && purchasesSubView === 'new_invoice'
-                            ? 'bg-paid text-white font-bold shadow-2xs'
-                            : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
+                            ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-bold shadow-2xs'
+                            : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-medium'
                         }`}
                         title="فاتورة شراء بضاعة جديدة"
                       >
@@ -1374,8 +1338,8 @@ export default function App() {
                         }}
                         className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
                           effectiveActiveTab === 'purchases' && purchasesSubView === 'invoices'
-                            ? 'bg-paid text-white font-bold shadow-2xs'
-                            : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
+                            ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-bold shadow-2xs'
+                            : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-medium'
                         }`}
                         title="سجل فواتير الشراء"
                       >
@@ -1393,8 +1357,8 @@ export default function App() {
                         }}
                         className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
                           effectiveActiveTab === 'purchases' && purchasesSubView === 'suppliers'
-                            ? 'bg-paid text-white font-bold shadow-2xs'
-                            : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
+                            ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-bold shadow-2xs'
+                            : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-medium'
                         }`}
                         title="دليل الموردين والشركات"
                       >
@@ -1408,7 +1372,7 @@ export default function App() {
 
                   {/* Sub-tree for Settings */}
                   {isSettingsItem && isSettingsMenuExpanded && (
-                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 animate-in slide-in-from-top-1 duration-150">
+                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
                       {settingsTreeItems.map((sub) => {
                         const SubIcon = sub.icon;
                         const isSubActive = activeTab === 'settings' && settingsSubTab === sub.id;
@@ -1423,12 +1387,12 @@ export default function App() {
                             }}
                             className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
                               isSubActive
-                                ? 'bg-paid text-white font-bold shadow-2xs'
-                                : 'text-ink-muted hover:bg-surface-2 hover:text-ink font-medium'
+                                ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-bold shadow-2xs'
+                                : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-medium'
                             }`}
                           >
                             <div className="flex items-center gap-2 min-w-0 truncate">
-                              <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white' : 'text-ink-muted'}`} />
+                              <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/75'}`} />
                               <span className="truncate whitespace-nowrap">{sub.label}</span>
                             </div>
                             {sub.id === 'demo' && hasDemoData && (
@@ -1445,22 +1409,22 @@ export default function App() {
           </nav>
 
           {/* Help Center & Support Button (Feature #147) */}
-          <div className="pt-2 mt-auto border-t border-line shrink-0 w-full flex flex-col gap-1.5">
+          <div className="pt-2 mt-auto border-t border-line dark:border-line-dark shrink-0 w-full flex flex-col gap-1.5">
             <button
               type="button"
               onClick={() => openHelpCenterModal(effectiveActiveTab)}
               title="مركز المساعدة والشروحات والدعم الفني (F1)"
               className={`w-full rounded-xl transition-all duration-150 flex items-center gap-2 font-bold cursor-pointer ${
                 isSidebarCollapsed
-                  ? 'h-[40px] justify-center text-paid hover:bg-paid-soft border border-transparent hover:border-paid/30'
-                  : 'px-2.5 py-1.5 text-xs text-paid hover:text-brand-dark bg-paid-soft hover:bg-paid-soft/80 border border-paid-border shadow-2xs'
+                  ? 'h-[40px] justify-center text-paid dark:text-brand-bright hover:bg-paid-soft dark:hover:bg-brand-dark-soft border border-transparent hover:border-paid/30'
+                  : 'px-2.5 py-1.5 text-xs text-paid dark:text-brand-bright hover:text-brand-dark dark:hover:text-white bg-paid-soft dark:bg-paid-dark-soft hover:bg-paid-soft/80 dark:hover:bg-paid-dark-soft/80 border border-paid-border dark:border-paid/30 shadow-2xs'
               }`}
             >
-              <HelpCircle className="w-4 h-4 text-paid shrink-0" />
+              <HelpCircle className="w-4 h-4 text-paid dark:text-brand-bright shrink-0" />
               {!isSidebarCollapsed && (
                 <div className="flex items-center justify-between flex-1 min-w-0">
                   <span className="truncate">مركز المساعدة والدعم</span>
-                  <span className="font-mono text-[10px] text-paid bg-surface px-1.5 py-0.2 rounded border border-paid-border">
+                  <span className="font-mono text-[10px] text-paid dark:text-brand-bright bg-surface dark:bg-surface-dark-2 px-1.5 py-0.2 rounded border border-paid-border dark:border-paid/30">
                     F1
                   </span>
                 </div>
@@ -1474,15 +1438,15 @@ export default function App() {
               title="إغلاق البرنامج والخروج بأمان"
               className={`w-full rounded-xl transition-all duration-150 flex items-center gap-2 font-bold cursor-pointer ${
                 isSidebarCollapsed
-                  ? 'h-[40px] justify-center text-danger hover:bg-danger-soft border border-transparent hover:border-danger/30'
-                  : 'px-2.5 py-1.5 text-xs text-danger hover:text-danger-ink bg-danger-soft hover:bg-danger-soft/80 border border-danger-border shadow-2xs'
+                  ? 'h-[40px] justify-center text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft border border-transparent hover:border-danger/30 dark:hover:border-danger-bright/30'
+                  : 'px-2.5 py-1.5 text-xs text-danger dark:text-danger-bright hover:text-danger-ink dark:hover:text-white bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger-soft/80 dark:hover:bg-danger-dark-soft/80 border border-danger/20 dark:border-danger-bright/30 shadow-2xs'
               }`}
             >
-              <Power className="w-4 h-4 text-danger shrink-0" />
+              <Power className="w-4 h-4 text-danger dark:text-danger-bright shrink-0" />
               {!isSidebarCollapsed && (
                 <div className="flex items-center justify-between flex-1 min-w-0">
                   <span className="truncate">إغلاق البرنامج</span>
-                  <span className="font-mono text-[10px] text-danger bg-surface px-1.5 py-0.2 rounded border border-danger-border">خروج</span>
+                  <span className="font-mono text-[10px] text-danger dark:text-danger-bright bg-surface dark:bg-surface-dark px-1.5 py-0.2 rounded border border-danger/20 dark:border-danger-bright/30">خروج</span>
                 </div>
               )}
             </button>
@@ -1490,11 +1454,11 @@ export default function App() {
         </aside>
 
         {/* Dynamic Views Viewport - Lazy Keep-Alive Architecture */}
-        <main className="flex-1 h-full overflow-hidden bg-canvas relative">
+        <main className="flex-1 h-full overflow-hidden bg-canvas dark:bg-canvas-dark relative">
           {/* Universal Context-Aware Refresh Loading Overlay */}
           {isUniversalRefreshing && (
-            <div className="absolute inset-0 z-50 bg-canvas/85 backdrop-blur-[2px] flex items-center justify-center animate-in fade-in duration-150 select-none">
-              <div className="bg-surface border border-line shadow-2xl rounded-2xl p-6 sm:p-8 flex flex-col items-center max-w-md w-full mx-4 animate-in zoom-in-95 duration-150">
+            <div className="absolute inset-0 z-50 bg-canvas/85 dark:bg-canvas-dark/85 backdrop-blur-[2px] flex items-center justify-center animate-in fade-in duration-150 select-none">
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark shadow-2xl rounded-2xl p-6 sm:p-8 flex flex-col items-center max-w-md w-full mx-4 animate-in zoom-in-95 duration-150">
                 <RafiqLoadingState
                   label={currentRefreshInfo.label}
                   sublabel={currentRefreshInfo.sublabel}

@@ -833,14 +833,14 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
     }
     if (u.role === 'admin') {
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-paid-soft text-paid border border-paid-border">
-          <Shield className="w-3.5 h-3.5" />
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-dark-border">
+          <Shield className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
           <span>صاحب المحل / مدير</span>
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-surface-2 text-ink-muted border border-line">
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-muted-dark border border-line dark:border-line-dark">
         <Users className="w-3.5 h-3.5" />
         <span>كاشير / موظف</span>
       </span>
@@ -875,10 +875,10 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
         <div
           className={`flex items-center justify-between p-3.5 rounded-2xl border transition-all my-2 ${
             isRoot
-              ? 'bg-brand-soft/40 border-brand/40 shadow-xs'
+              ? 'bg-brand-soft/40 dark:bg-brand-dark-soft border-brand/40 dark:border-brand-bright/40 shadow-xs'
               : !node.isActive
-              ? 'bg-surface-2/60 border-line opacity-75'
-              : 'bg-surface border-line hover:border-brand/40 hover:shadow-xs'
+              ? 'bg-surface-2/60 dark:bg-surface-dark-2/60 border-line dark:border-line-dark opacity-75'
+              : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:border-brand/40 dark:hover:border-brand-bright/40 hover:shadow-xs'
           }`}
           style={{ marginRight: `${level * 28}px` }}
         >
@@ -888,14 +888,14 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
               <button
                 type="button"
                 onClick={() => toggleNode(node.id)}
-                className="w-7 h-7 rounded-lg bg-surface-2 border border-line flex items-center justify-center text-ink-muted hover:text-ink transition-colors cursor-pointer"
+                className="w-7 h-7 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex items-center justify-center text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark transition-colors cursor-pointer"
                 title={isExpanded ? 'طي الفروع' : 'توسيع الفروع'}
               >
                 {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
               </button>
             ) : (
               <div className="w-7 h-7 flex items-center justify-center">
-                <span className="w-2 h-2 rounded-full bg-line" />
+                <span className="w-2 h-2 rounded-full bg-line dark:bg-line-dark" />
               </div>
             )}
 
@@ -905,8 +905,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                 isRoot
                   ? 'bg-brand text-white'
                   : node.role === 'admin'
-                  ? 'bg-paid-soft text-paid border border-paid-border'
-                  : 'bg-surface-2 text-ink border border-line'
+                  ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-dark-border'
+                  : 'bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark border border-line dark:border-line-dark'
               }`}
             >
               {isRoot ? <ShieldCheck className="w-5 h-5" /> : node.displayName.slice(0, 1)}
@@ -915,10 +915,10 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
             {/* Info */}
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
-                <span className="font-bold text-sm text-ink">{node.displayName}</span>
-                <span className="font-mono text-xs text-ink-muted dir-ltr">@{node.username}</span>
+                <span className="font-bold text-sm text-ink dark:text-ink-dark">{node.displayName}</span>
+                <span className="font-mono text-xs text-ink-muted dark:text-ink-muted-dark dir-ltr">@{node.username}</span>
                 {isSelf && (
-                  <span className="text-[10px] font-bold bg-paid/10 text-paid px-2 py-0.5 rounded-full border border-paid/20">
+                  <span className="text-[10px] font-bold bg-paid/10 dark:bg-paid-dark-soft text-paid dark:text-paid-bright px-2 py-0.5 rounded-full border border-paid/20 dark:border-paid-dark-border">
                     أنت
                   </span>
                 )}
@@ -931,17 +931,17 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                 <span
                   className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold ${
                     node.isActive
-                      ? 'bg-paid-soft text-paid border border-paid-border'
-                      : 'bg-danger-soft text-danger border border-danger-border'
+                      ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-dark-border'
+                      : 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-dark-soft'
                   }`}
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full ${node.isActive ? 'bg-paid' : 'bg-danger'}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full ${node.isActive ? 'bg-paid dark:bg-paid-bright' : 'bg-danger dark:bg-danger-bright'}`} />
                   <span>{node.isActive ? 'نشط' : 'معطّل'}</span>
                 </span>
 
                 {/* Last Login Indicator */}
                 {node.lastLoginAt && (
-                  <span className="text-[11px] text-ink-muted">
+                  <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
                     آخر دخول: {formatLastLogin(node.lastLoginAt)}
                   </span>
                 )}
@@ -956,7 +956,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
               <button
                 type="button"
                 onClick={() => handleStartAdd(node.id)}
-                className="px-2.5 py-1.5 bg-brand-soft hover:bg-brand/20 text-brand text-xs font-bold rounded-lg border border-brand/20 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                className="px-2.5 py-1.5 bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand/20 dark:hover:bg-brand-container text-brand dark:text-brand-bright text-xs font-bold rounded-lg border border-brand/20 dark:border-brand-bright/30 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
                 title="إضافة حساب فرعي يتبع هذا الحساب"
               >
                 <UserPlus className="w-3.5 h-3.5" />
@@ -967,20 +967,20 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
             {/* Manage Permissions */}
             {(node.role === 'root' || node.username === 'root') || (isOwnerOrAdmin(node) && !isRootSession) ? (
               <span
-                className="px-2.5 py-1.5 bg-paid-soft text-paid text-xs font-bold rounded-lg border border-paid-border flex items-center gap-1.5 shadow-2xs select-none"
+                className="px-2.5 py-1.5 bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright text-xs font-bold rounded-lg border border-paid-border dark:border-paid-dark-border flex items-center gap-1.5 shadow-2xs select-none"
                 title={node.role === 'root' ? 'حساب الروت محمي بكامل الصلاحيات دائماً' : 'صاحب المحل محمي بكامل الصلاحيات أمام الموظفين'}
               >
-                <ShieldCheck className="w-3.5 h-3.5 text-paid shrink-0" />
+                <ShieldCheck className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />
                 <span>كامل الصلاحيات</span>
               </span>
             ) : (
               <button
                 type="button"
                 onClick={() => handleStartPermissions(node)}
-                className="px-2.5 py-1.5 bg-surface hover:bg-surface-2 text-ink text-xs font-bold rounded-lg border border-line transition-colors flex items-center gap-1.5 cursor-pointer"
+                className="px-2.5 py-1.5 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark text-ink dark:text-ink-dark text-xs font-bold rounded-lg border border-line dark:border-line-dark transition-colors flex items-center gap-1.5 cursor-pointer"
                 title={isOwnerOrAdmin(node) ? 'تعديل وتحديد صلاحيات صاحب المحل' : 'تعديل مصفوفة الصلاحيات'}
               >
-                <Shield className="w-3.5 h-3.5 text-brand" />
+                <Shield className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                 <span>الصلاحيات</span>
               </button>
             )}
@@ -990,10 +990,10 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
               <button
                 type="button"
                 onClick={() => handleStartSwitchLogin(node)}
-                className="px-2.5 py-1.5 bg-paid-soft hover:bg-paid/20 text-paid text-xs font-bold rounded-lg border border-paid-border transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                className="px-2.5 py-1.5 bg-paid-soft dark:bg-paid-dark-soft hover:bg-paid/20 dark:hover:bg-brand-container text-paid dark:text-paid-bright text-xs font-bold rounded-lg border border-paid-border dark:border-paid-dark-border transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
                 title={`تسجيل الدخول والتبديل إلى حساب (${node.displayName})`}
               >
-                <LogIn className="w-3.5 h-3.5" />
+                <LogIn className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
                 <span>دخول</span>
               </button>
             )}
@@ -1002,10 +1002,10 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
             <button
               type="button"
               onClick={() => handleStartCredentials(node)}
-              className="px-2.5 py-1.5 bg-surface hover:bg-surface-2 text-ink text-xs font-bold rounded-lg border border-line transition-colors flex items-center gap-1.5 cursor-pointer"
+              className="px-2.5 py-1.5 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark text-ink dark:text-ink-dark text-xs font-bold rounded-lg border border-line dark:border-line-dark transition-colors flex items-center gap-1.5 cursor-pointer"
               title="تغيير كلمة المرور أو الرقم السري (PIN)"
             >
-              <Key className="w-3.5 h-3.5 text-amber-600" />
+              <Key className="w-3.5 h-3.5 text-warn dark:text-warn-bright" />
               <span>كلمة المرور</span>
             </button>
 
@@ -1013,10 +1013,10 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
             <button
               type="button"
               onClick={() => handleStartEdit(node)}
-              className="px-2.5 py-1.5 bg-surface hover:bg-surface-2 text-ink text-xs font-bold rounded-lg border border-line transition-colors flex items-center gap-1.5 cursor-pointer"
+              className="px-2.5 py-1.5 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark text-ink dark:text-ink-dark text-xs font-bold rounded-lg border border-line dark:border-line-dark transition-colors flex items-center gap-1.5 cursor-pointer"
               title="تعديل بيانات الحساب"
             >
-              <Edit3 className="w-3.5 h-3.5 text-ink-muted" />
+              <Edit3 className="w-3.5 h-3.5 text-ink-muted dark:text-ink-muted-dark" />
               <span>تعديل</span>
             </button>
 
@@ -1027,8 +1027,8 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                 onClick={() => handleToggleStatus(node)}
                 className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
                   node.isActive
-                    ? 'bg-danger-soft hover:bg-danger/20 text-danger border-danger-border'
-                    : 'bg-paid-soft hover:bg-paid/20 text-paid border-paid-border'
+                    ? 'bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger/20 dark:hover:bg-danger-dark-soft/80 text-danger dark:text-danger-bright border-danger-border dark:border-danger-dark-soft'
+                    : 'bg-paid-soft dark:bg-paid-dark-soft hover:bg-paid/20 dark:hover:bg-brand-container text-paid dark:text-paid-bright border-paid-border dark:border-paid-dark-border'
                 }`}
                 title={node.isActive ? 'تعطيل الحساب وتجميد فروعه' : 'تفعيل الحساب'}
               >
@@ -1040,7 +1040,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
 
         {/* Render Children Nodes */}
         {hasChildren && isExpanded && (
-          <div className="relative border-r-2 border-line/70 pr-2 mr-4 my-1">
+          <div className="relative border-r-2 border-line/70 dark:border-line-dark/70 pr-2 mr-4 my-1">
             {node.children!.map((child) => renderTreeNode(child, level + 1))}
           </div>
         )}
@@ -1079,31 +1079,31 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
       dir="rtl"
     >
-      <div className="bg-surface border border-line rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Top Accent Line */}
         <div className="h-1.5 w-full bg-gradient-to-r from-brand-dark via-brand to-paid" />
 
         {/* Modal Header */}
-        <div className="bg-surface px-6 py-4 flex items-center justify-between border-b border-line shrink-0">
+        <div className="bg-surface dark:bg-surface-dark px-6 py-4 flex items-center justify-between border-b border-line dark:border-line-dark shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-brand/10 border border-brand/20 text-brand flex items-center justify-center shrink-0 shadow-2xs">
-              <Users className="w-5 h-5 text-brand" />
+            <div className="w-10 h-10 rounded-xl bg-brand/10 dark:bg-brand-dark-soft border border-brand/20 dark:border-brand-bright/20 text-brand dark:text-brand-bright flex items-center justify-center shrink-0 shadow-2xs">
+              <Users className="w-5 h-5 text-brand dark:text-brand-bright" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-black text-ink">إدارة حسابات الموظفين والكاشير</h2>
+                <h2 className="text-lg font-black text-ink dark:text-ink-dark">إدارة حسابات الموظفين والكاشير</h2>
                 {isRootSession ? (
                   <span className="bg-brand text-white text-[11px] px-2.5 py-0.5 rounded-full font-bold shadow-2xs flex items-center gap-1">
                     <ShieldCheck className="w-3 h-3" />
                     <span>جلسة الروت الكاملة</span>
                   </span>
                 ) : (
-                  <span className="bg-brand/10 text-brand text-[11px] px-2.5 py-0.5 rounded-full font-bold border border-brand/20">
+                  <span className="bg-brand/10 dark:bg-brand-dark-soft text-brand dark:text-brand-bright text-[11px] px-2.5 py-0.5 rounded-full font-bold border border-brand/20 dark:border-brand-bright/20">
                     صلاحيات إدارية
                   </span>
                 )}
               </div>
-              <p className="text-xs text-ink-muted font-medium">
+              <p className="text-xs text-ink-muted dark:text-ink-muted-dark font-medium">
                 إدارة حسابات الموظفين والكاشيرية، ضبط كلمات المرور والـ PIN، وتحديد الصلاحيات
               </p>
             </div>
@@ -1114,7 +1114,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
             <button
               type="button"
               onClick={requestClose}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface-2 transition-colors cursor-pointer"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
               title="إغلاق"
             >
               <X className="w-4 h-4" />
@@ -1124,30 +1124,30 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
 
         {/* Alerts */}
         {error && (
-          <div className="bg-danger-soft border-b border-danger-border text-danger px-6 py-2.5 text-xs flex items-center justify-between shrink-0">
+          <div className="bg-danger-soft dark:bg-danger-dark-soft border-b border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright px-6 py-2.5 text-xs flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0 text-danger" />
+              <AlertTriangle className="w-4 h-4 shrink-0 text-danger dark:text-danger-bright" />
               <span>{error}</span>
             </div>
-            <button type="button" onClick={() => setError('')} className="text-danger hover:text-ink font-bold cursor-pointer">
+            <button type="button" onClick={() => setError('')} className="text-danger dark:text-danger-bright hover:text-ink dark:hover:text-ink-dark font-bold cursor-pointer">
               <X className="w-4 h-4" />
             </button>
           </div>
         )}
         {successMsg && (
-          <div className="bg-paid-soft border-b border-paid-border text-paid px-6 py-2.5 text-xs flex items-center justify-between shrink-0">
+          <div className="bg-paid-soft dark:bg-paid-dark-soft border-b border-paid-border dark:border-paid-dark-border text-paid dark:text-paid-bright px-6 py-2.5 text-xs flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
-              <Check className="w-4 h-4 shrink-0 text-paid" />
+              <Check className="w-4 h-4 shrink-0 text-paid dark:text-paid-bright" />
               <span>{successMsg}</span>
             </div>
-            <button type="button" onClick={() => setSuccessMsg('')} className="text-paid hover:text-ink font-bold cursor-pointer">
+            <button type="button" onClick={() => setSuccessMsg('')} className="text-paid dark:text-paid-bright hover:text-ink dark:hover:text-ink-dark font-bold cursor-pointer">
               <X className="w-4 h-4" />
             </button>
           </div>
         )}
 
         {/* Body Content */}
-        <div className="p-6 bg-canvas overflow-y-auto flex-1 custom-scrollbar">
+        <div className="p-6 bg-canvas dark:bg-canvas-dark overflow-y-auto flex-1 custom-scrollbar">
           {/* ======================================================== */}
           {/* 1. MAIN LIST / TREE VIEW                                 */}
           {/* ======================================================== */}
@@ -1155,13 +1155,13 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
             <div className="space-y-4">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex-1 max-w-sm relative">
-                  <Search className="w-4 h-4 text-ink-muted absolute right-3 top-1/2 -translate-y-1/2" />
+                  <Search className="w-4 h-4 text-ink-muted dark:text-ink-muted-dark absolute right-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="بحث بالاسم أو اسم الدخول أو الدور..."
-                    className="w-full bg-surface border border-line rounded-xl pr-9 pl-3.5 py-2 text-ink text-xs focus:outline-none focus:border-brand"
+                    className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl pr-9 pl-3.5 py-2 text-ink dark:text-ink-dark placeholder:text-ink-muted/60 dark:placeholder:text-ink-muted-dark/60 focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                   />
                 </div>
 
@@ -1178,16 +1178,16 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
               </div>
 
               {/* UNIFIED EMPLOYEE LIST */}
-              <div className="bg-surface rounded-2xl border border-line p-4 shadow-2xs">
-                <div className="flex items-center justify-between pb-3 mb-2 border-b border-line text-xs text-ink-muted font-bold">
+              <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark p-4 shadow-2xs">
+                <div className="flex items-center justify-between pb-3 mb-2 border-b border-line dark:border-line-dark text-xs text-ink-muted dark:text-ink-muted-dark font-bold">
                   <span>قائمة وحسابات الموظفين</span>
                   <span>{users.length} حساب مسجل</span>
                 </div>
 
                 {loading && users.length === 0 ? (
-                  <div className="py-12 text-center text-ink-muted text-xs">جاري تحميل بيانات الموظفين...</div>
+                  <div className="py-12 text-center text-ink-muted dark:text-ink-muted-dark text-xs">جاري تحميل بيانات الموظفين...</div>
                 ) : filteredUsers.length === 0 ? (
-                  <div className="py-12 text-center text-ink-muted text-xs">لا يوجد موظفون يطابقون كلمة البحث.</div>
+                  <div className="py-12 text-center text-ink-muted dark:text-ink-muted-dark text-xs">لا يوجد موظفون يطابقون كلمة البحث.</div>
                 ) : searchQuery.trim() ? (
                   <div>{filteredUsers.map((u) => renderTreeNode(u, 0))}</div>
                 ) : (
@@ -1202,30 +1202,30 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
           {/* ======================================================== */}
           {formMode === 'add' && (
             <form onSubmit={handleSubmitAdd} className="max-w-3xl mx-auto space-y-5">
-              <div className="flex items-center justify-between pb-3 border-b border-line">
+              <div className="flex items-center justify-between pb-3 border-b border-line dark:border-line-dark">
                 <div className="flex items-center gap-2">
-                  <UserPlus className="w-5 h-5 text-brand" />
-                  <h3 className="text-base font-black text-ink">إضافة حساب موظف / حساب فرعي جديد</h3>
+                  <UserPlus className="w-5 h-5 text-brand dark:text-brand-bright" />
+                  <h3 className="text-base font-black text-ink dark:text-ink-dark">إضافة حساب موظف / حساب فرعي جديد</h3>
                 </div>
                 <button
                   type="button"
                   onClick={() => setFormMode('none')}
-                  className="text-xs text-ink-muted hover:text-ink font-bold cursor-pointer"
+                  className="text-xs text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark font-bold cursor-pointer"
                 >
                   الرجوع للهيكل الإداري
                 </button>
               </div>
 
               {/* Hierarchy Parent Selection */}
-              <div className="bg-surface p-4 rounded-2xl border border-line space-y-3">
-                <label className="block text-xs font-bold text-ink">المشرف المباشر (الأصل في شجرة الصلاحيات)</label>
+              <div className="bg-surface dark:bg-surface-dark p-4 rounded-2xl border border-line dark:border-line-dark space-y-3">
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark">المشرف المباشر (الأصل في شجرة الصلاحيات)</label>
                 <CustomSelect
                   value={parentId}
                   onChange={(val) => setParentId(val)}
                   options={eligibleParents}
                   placeholder="اختر المشرف المسؤول عن هذا الحساب..."
                 />
-                <p className="text-[11px] text-ink-muted">
+                <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
                   ملاحظة معمارية هامة: الحساب الجديد لن يتمكن من امتلاك أي صلاحية لا يمتلكها المشرف المختار أعلاه.
                 </p>
               </div>
@@ -1233,44 +1233,44 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
               {/* Basic Info */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-ink mb-1">اسم الموظف الكامل</label>
+                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">اسم الموظف الكامل</label>
                   <input
                     type="text"
                     required
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     placeholder="مثال: محمد أحمد (كاشير الوردية الأولى)"
-                    className="w-full bg-surface border border-line rounded-xl px-3.5 py-2.5 text-ink text-xs focus:outline-none focus:border-brand"
+                    className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3.5 py-2.5 text-ink dark:text-ink-dark text-xs focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-ink mb-1">اسم المستخدم (للدخول السريع)</label>
+                  <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">اسم المستخدم (للدخول السريع)</label>
                   <input
                     type="text"
                     required
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="مثال: cashier1"
-                    className="w-full bg-surface border border-line rounded-xl px-3.5 py-2.5 text-ink text-xs font-mono focus:outline-none focus:border-brand"
+                    className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3.5 py-2.5 text-ink dark:text-ink-dark text-xs font-mono focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                   />
                 </div>
               </div>
 
               {/* Role Selection */}
-              <div className="bg-surface p-4 rounded-2xl border border-line space-y-3">
-                <label className="block text-xs font-bold text-ink">الدور الوظيفي</label>
+              <div className="bg-surface dark:bg-surface-dark p-4 rounded-2xl border border-line dark:border-line-dark space-y-3">
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark">الدور الوظيفي</label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => setRole('cashier')}
                     className={`p-3 rounded-xl border text-right transition-all cursor-pointer ${
                       role === 'cashier'
-                        ? 'bg-brand-soft border-brand ring-1 ring-brand/50'
-                        : 'bg-surface border-line hover:border-brand/40'
+                        ? 'bg-brand-soft dark:bg-brand-dark-soft border-brand dark:border-brand-bright ring-1 ring-brand/50 dark:ring-brand-bright/50'
+                        : 'bg-surface dark:bg-surface-dark-2 border-line dark:border-line-dark hover:border-brand/40'
                     }`}
                   >
-                    <div className="font-bold text-ink text-xs">كاشير / نقطة البيع</div>
-                    <div className="text-[11px] text-ink-muted mt-0.5">
+                    <div className="font-bold text-ink dark:text-ink-dark text-xs">كاشير / نقطة البيع</div>
+                    <div className="text-[11px] text-ink-muted dark:text-ink-muted-dark mt-0.5">
                       مخصص للمبيعات المباشرة وخدمة العملاء وفق الصلاحيات الممنوحة
                     </div>
                   </button>
@@ -1280,12 +1280,12 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                     onClick={() => setRole('admin')}
                     className={`p-3 rounded-xl border text-right transition-all cursor-pointer ${
                       role === 'admin'
-                        ? 'bg-paid-soft border-paid ring-1 ring-paid/50'
-                        : 'bg-surface border-line hover:border-paid/40'
+                        ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid dark:border-paid-bright ring-1 ring-paid/50 dark:ring-paid-bright/50'
+                        : 'bg-surface dark:bg-surface-dark-2 border-line dark:border-line-dark hover:border-paid/40'
                     }`}
                   >
-                    <div className="font-bold text-ink text-xs">مدير فرعي / مشرف</div>
-                    <div className="text-[11px] text-ink-muted mt-0.5">
+                    <div className="font-bold text-ink dark:text-ink-dark text-xs">مدير فرعي / مشرف</div>
+                    <div className="text-[11px] text-ink-muted dark:text-ink-muted-dark mt-0.5">
                       يمتلك صلاحيات إشرافية ورقابية موسعة على الورديات والمخزن
                     </div>
                   </button>
@@ -1293,15 +1293,15 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
               </div>
 
               {/* Dual Credentials: Password & PIN */}
-              <div className="bg-surface p-4 rounded-2xl border border-line space-y-3">
+              <div className="bg-surface dark:bg-surface-dark p-4 rounded-2xl border border-line dark:border-line-dark space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-ink">بيانات تسجيل الدخول (كلمة مرور أو PIN)</label>
-                  <span className="text-[11px] text-ink-muted">يمكن استخدام أحدهما أو كليهما</span>
+                  <label className="block text-xs font-bold text-ink dark:text-ink-dark">بيانات تسجيل الدخول (كلمة مرور أو PIN)</label>
+                  <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">يمكن استخدام أحدهما أو كليهما</span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[11px] font-semibold text-ink-muted mb-1">
+                    <label className="block text-[11px] font-semibold text-ink-muted dark:text-ink-muted-dark mb-1">
                       كلمة المرور (نصية - اختياري)
                     </label>
                     <div className="relative">
@@ -1310,12 +1310,12 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="w-full bg-surface border border-line rounded-xl pr-3.5 pl-9 py-2 text-ink text-xs focus:outline-none focus:border-brand"
+                        className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl pr-3.5 pl-9 py-2 text-ink dark:text-ink-dark text-xs focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink cursor-pointer"
+                        className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark cursor-pointer"
                       >
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
@@ -1323,7 +1323,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-semibold text-ink-muted mb-1">
+                    <label className="block text-[11px] font-semibold text-ink-muted dark:text-ink-muted-dark mb-1">
                       الرقم السري السريع (PIN: 4 - 8 أرقام)
                     </label>
                     <input
@@ -1333,14 +1333,14 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                       value={pin}
                       onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
                       placeholder="••••"
-                      className="w-full bg-surface border border-line rounded-xl px-3.5 py-2 text-ink text-xs font-mono tracking-widest text-center focus:outline-none focus:border-brand"
+                      className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3.5 py-2 text-ink dark:text-ink-dark text-xs font-mono tracking-widest text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                     />
                   </div>
                 </div>
 
                 {pin && (
                   <div>
-                    <label className="block text-[11px] font-semibold text-ink-muted mb-1">تأكيد الرقم السري (PIN)</label>
+                    <label className="block text-[11px] font-semibold text-ink-muted dark:text-ink-muted-dark mb-1">تأكيد الرقم السري (PIN)</label>
                     <input
                       type="password"
                       inputMode="numeric"
@@ -1348,7 +1348,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                       value={confirmPin}
                       onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
                       placeholder="••••"
-                      className="w-full max-w-xs bg-surface border border-line rounded-xl px-3.5 py-2 text-ink text-xs font-mono tracking-widest text-center focus:outline-none focus:border-brand"
+                      className="w-full max-w-xs bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3.5 py-2 text-ink dark:text-ink-dark text-xs font-mono tracking-widest text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                     />
                   </div>
                 )}
@@ -1356,11 +1356,11 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
 
               {/* Delegation Authority Settings */}
               {(isRootSession || currentUser?.canDelegate) && (
-                <div className="bg-surface p-4 rounded-2xl border border-line space-y-3">
+                <div className="bg-surface dark:bg-surface-dark p-4 rounded-2xl border border-line dark:border-line-dark space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="font-bold text-xs text-ink">حق التفويض وإنشاء حسابات فرعية (Delegation)</div>
-                      <div className="text-[11px] text-ink-muted">
+                      <div className="font-bold text-xs text-ink dark:text-ink-dark">حق التفويض وإنشاء حسابات فرعية (Delegation)</div>
+                      <div className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
                         السماح لهذا الموظف بإنشاء حسابات تحت إشرافه وتفويض صلاحياته لهم
                       </div>
                     </div>
@@ -1368,17 +1368,17 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                   </div>
 
                   {canDelegate && (
-                    <div className="pt-2 border-t border-line flex items-center gap-3">
-                      <label className="text-xs font-bold text-ink whitespace-nowrap">أقصى عمق للتفريع (Max Depth):</label>
+                    <div className="pt-2 border-t border-line dark:border-line-dark flex items-center gap-3">
+                      <label className="text-xs font-bold text-ink dark:text-ink-dark whitespace-nowrap">أقصى عمق للتفريع (Max Depth):</label>
                       <input
                         type="number"
                         min={1}
                         max={5}
                         value={maxDepth}
                         onChange={(e) => setMaxDepth(parseInt(e.target.value) || 1)}
-                        className="w-20 bg-surface border border-line rounded-xl px-3 py-1.5 text-xs text-ink font-bold text-center focus:outline-none focus:border-brand"
+                        className="w-20 bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3 py-1.5 text-xs text-ink dark:text-ink-dark font-bold text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                       />
-                      <span className="text-[11px] text-ink-muted">
+                      <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
                         يحدد كم مستوى فرعي يمكن للحساب إنشاؤه تحت شجرته
                       </span>
                     </div>
@@ -1387,11 +1387,11 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
               )}
 
               {/* Permissions Matrix */}
-              <div className="bg-surface p-4 rounded-2xl border border-line space-y-4">
+              <div className="bg-surface dark:bg-surface-dark p-4 rounded-2xl border border-line dark:border-line-dark space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="font-bold text-xs text-ink">مصفوفة الصلاحيات الممنوحة</div>
-                    <div className="text-[11px] text-ink-muted">
+                    <div className="font-bold text-xs text-ink dark:text-ink-dark">مصفوفة الصلاحيات الممنوحة</div>
+                    <div className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
                       أي صلاحية يتم تفعيلها هنا ستظهر للموظف في واجهته، وتختفي تماماً الصلاحيات غير المحددة
                     </div>
                   </div>
@@ -1399,15 +1399,15 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                     <button
                       type="button"
                       onClick={() => handleToggleAllPermissions(true)}
-                      className="text-xs font-bold text-brand hover:underline cursor-pointer"
+                      className="text-xs font-bold text-brand dark:text-brand-bright hover:underline cursor-pointer"
                     >
                       تحديد الكل المتاح
                     </button>
-                    <span className="text-ink-muted">|</span>
+                    <span className="text-ink-muted dark:text-ink-muted-dark">|</span>
                     <button
                       type="button"
                       onClick={() => handleToggleAllPermissions(false)}
-                      className="text-xs font-bold text-danger hover:underline cursor-pointer"
+                      className="text-xs font-bold text-danger dark:text-danger-bright hover:underline cursor-pointer"
                     >
                       إلغاء الكل
                     </button>
@@ -1420,16 +1420,16 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                     const allChecked = availableItems.length > 0 && availableItems.every((item) => !!permissionsState[item.key]);
 
                     return (
-                      <div key={group.id} className="border border-line rounded-xl p-3 bg-canvas/40">
-                        <div className="flex items-center justify-between pb-2 mb-2 border-b border-line">
+                      <div key={group.id} className="border border-line dark:border-line-dark rounded-xl p-3 bg-canvas/40 dark:bg-canvas-dark/40">
+                        <div className="flex items-center justify-between pb-2 mb-2 border-b border-line dark:border-line-dark">
                           <div className="flex items-center gap-2">
                             {group.icon}
-                            <span className="font-bold text-xs text-ink">{group.name}</span>
+                            <span className="font-bold text-xs text-ink dark:text-ink-dark">{group.name}</span>
                           </div>
                           <button
                             type="button"
                             onClick={() => handleToggleGroup(group, !allChecked)}
-                            className="text-[11px] font-bold text-brand hover:underline cursor-pointer"
+                            className="text-[11px] font-bold text-brand dark:text-brand-bright hover:underline cursor-pointer"
                           >
                             {allChecked ? 'إلغاء تحديد القسم' : 'تحديد القسم بالكامل'}
                           </button>
@@ -1446,24 +1446,24 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                                 onClick={() => allowedByParent && handleTogglePermission(item.key)}
                                 className={`flex items-start gap-2 p-2 rounded-lg border transition-all ${
                                   !allowedByParent
-                                    ? 'bg-surface-2/40 border-line/50 opacity-40 cursor-not-allowed'
+                                    ? 'bg-surface-2/40 dark:bg-surface-dark-2/40 border-line/50 dark:border-line-dark/50 opacity-40 cursor-not-allowed'
                                     : isChecked
-                                    ? 'bg-brand-soft/50 border-brand/40 cursor-pointer'
-                                    : 'bg-surface border-line hover:border-brand/30 cursor-pointer'
+                                    ? 'bg-brand-soft/50 dark:bg-brand-dark/50 border-brand/40 dark:border-brand-bright/40 cursor-pointer'
+                                    : 'bg-surface dark:bg-surface-dark-2 border-line dark:border-line-dark hover:border-brand/30 cursor-pointer'
                                 }`}
                               >
                                 <div className="mt-0.5 shrink-0">
                                   {!allowedByParent ? (
-                                    <Lock className="w-3.5 h-3.5 text-ink-muted" />
+                                    <Lock className="w-3.5 h-3.5 text-ink-muted dark:text-ink-muted-dark" />
                                   ) : isChecked ? (
-                                    <CheckSquare className="w-4 h-4 text-brand" />
+                                    <CheckSquare className="w-4 h-4 text-brand dark:text-brand-bright" />
                                   ) : (
-                                    <Square className="w-4 h-4 text-ink-muted" />
+                                    <Square className="w-4 h-4 text-ink-muted dark:text-ink-muted-dark" />
                                   )}
                                 </div>
                                 <div className="flex flex-col">
-                                  <span className="text-xs font-bold text-ink">{item.label}</span>
-                                  <span className="text-[10px] text-ink-muted leading-tight">
+                                  <span className="text-xs font-bold text-ink dark:text-ink-dark">{item.label}</span>
+                                  <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark leading-tight">
                                     {!allowedByParent ? 'محجوبة: لا يمتلكها المشرف' : item.description}
                                   </span>
                                 </div>
@@ -1489,7 +1489,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setFormMode('none')}
-                  className="px-5 py-2.5 bg-surface hover:bg-surface-2 border border-line text-ink font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                  className="px-5 py-2.5 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark font-bold text-xs rounded-xl transition-colors cursor-pointer"
                 >
                   إلغاء
                 </button>
@@ -1502,76 +1502,76 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
           {/* ======================================================== */}
           {formMode === 'edit' && selectedUser && (
             <form onSubmit={handleSubmitEdit} className="max-w-xl mx-auto space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-line">
-                <h3 className="text-base font-black text-ink">تعديل بيانات الحساب: {selectedUser.displayName}</h3>
+              <div className="flex items-center justify-between pb-3 border-b border-line dark:border-line-dark">
+                <h3 className="text-base font-black text-ink dark:text-ink-dark">تعديل بيانات الحساب: {selectedUser.displayName}</h3>
                 <button
                   type="button"
                   onClick={() => setFormMode('none')}
-                  className="text-xs text-ink-muted hover:text-ink font-bold cursor-pointer"
+                  className="text-xs text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark font-bold cursor-pointer"
                 >
                   الرجوع للهيكل الإداري
                 </button>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-ink-muted mb-1">اسم المستخدم</label>
+                <label className="block text-xs font-bold text-ink-muted dark:text-ink-muted-dark mb-1">اسم المستخدم</label>
                 <input
                   type="text"
                   disabled
                   value={username}
-                  className="w-full bg-surface-2 border border-line rounded-xl px-3.5 py-2.5 text-ink-muted text-xs font-mono cursor-not-allowed"
+                  className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3.5 py-2.5 text-ink-muted dark:text-ink-muted-dark text-xs font-mono cursor-not-allowed"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-ink mb-1">اسم الموظف الظاهر</label>
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">اسم الموظف الظاهر</label>
                 <input
                   type="text"
                   required
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  className="w-full bg-surface border border-line rounded-xl px-3.5 py-2.5 text-ink text-xs focus:outline-none focus:border-brand"
+                  className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3.5 py-2.5 text-ink dark:text-ink-dark text-xs focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                 />
               </div>
 
               {selectedUser.role === 'root' ? (
-                <div className="p-3 bg-brand-soft border border-brand/30 rounded-xl text-brand text-xs font-bold">
+                <div className="p-3 bg-brand-soft dark:bg-brand-dark/40 border border-brand/30 dark:border-brand-bright/30 rounded-xl text-brand dark:text-brand-bright text-xs font-bold">
                   حساب الروت الرئيسي يتمتع بصلاحيات مطلقة ودائمة ولا يمكن تخفيض دوره أو تعطيله.
                 </div>
               ) : (
                 <>
                   <div>
-                    <label className="block text-xs font-bold text-ink mb-1">الدور الوظيفي</label>
+                    <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1">الدور الوظيفي</label>
                     <div className="grid grid-cols-2 gap-3">
                       <button
                         type="button"
                         onClick={() => setRole('cashier')}
                         className={`p-3 rounded-xl border text-right transition-all cursor-pointer ${
                           role === 'cashier'
-                            ? 'bg-brand-soft border-brand ring-1 ring-brand/50'
-                            : 'bg-surface border-line hover:border-brand/40'
+                            ? 'bg-brand-soft dark:bg-brand-dark-soft border-brand dark:border-brand-bright ring-1 ring-brand/50 dark:ring-brand-bright/50'
+                            : 'bg-surface dark:bg-surface-dark-2 border-line dark:border-line-dark hover:border-brand/40'
                         }`}
                       >
-                        <div className="font-bold text-ink text-xs">كاشير (نقطة البيع)</div>
+                        <div className="font-bold text-ink dark:text-ink-dark text-xs">كاشير (نقطة البيع)</div>
                       </button>
                       <button
                         type="button"
                         onClick={() => setRole('admin')}
                         className={`p-3 rounded-xl border text-right transition-all cursor-pointer ${
                           role === 'admin'
-                            ? 'bg-paid-soft border-paid ring-1 ring-paid/50'
-                            : 'bg-surface border-line hover:border-paid/40'
+                            ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid dark:border-paid-bright ring-1 ring-paid/50 dark:ring-paid-bright/50'
+                            : 'bg-surface dark:bg-surface-dark-2 border-line dark:border-line-dark hover:border-paid/40'
                         }`}
                       >
-                        <div className="font-bold text-ink text-xs">ترقية إلى مدير فرعي</div>
+                        <div className="font-bold text-ink dark:text-ink-dark text-xs">ترقية إلى مدير فرعي</div>
                       </button>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between p-3.5 bg-surface border border-line rounded-xl">
+                  <div className="flex items-center justify-between p-3.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl">
                     <div className="flex flex-col">
-                      <span className="text-xs font-bold text-ink">حساب نشط</span>
-                      <span className="text-[11px] text-ink-muted">
+                      <span className="text-xs font-bold text-ink dark:text-ink-dark">حساب نشط</span>
+                      <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
                         عند التعطيل، يتم حظر تسجيل دخول الموظف وكافة الحسابات المتفرعة منه
                       </span>
                     </div>
@@ -1579,11 +1579,11 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                   </div>
 
                   {/* Delegation toggle */}
-                  <div className="bg-surface p-3.5 border border-line rounded-xl space-y-2">
+                  <div className="bg-surface dark:bg-surface-dark p-3.5 border border-line dark:border-line-dark rounded-xl space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex flex-col">
-                        <span className="text-xs font-bold text-ink">حق التفويض (إنشاء حسابات تابعة)</span>
-                        <span className="text-[11px] text-ink-muted">
+                        <span className="text-xs font-bold text-ink dark:text-ink-dark">حق التفويض (إنشاء حسابات تابعة)</span>
+                        <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
                           تحديد ما إذا كان هذا الموظف يستطيع إضافة موظفين تحت إشرافه
                         </span>
                       </div>
@@ -1591,15 +1591,15 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                     </div>
 
                     {canDelegate && (
-                      <div className="pt-2 border-t border-line flex items-center gap-3">
-                        <label className="text-xs font-bold text-ink whitespace-nowrap">أقصى عمق للتفريع:</label>
+                      <div className="pt-2 border-t border-line dark:border-line-dark flex items-center gap-3">
+                        <label className="text-xs font-bold text-ink dark:text-ink-dark whitespace-nowrap">أقصى عمق للتفريع:</label>
                         <input
                           type="number"
                           min={1}
                           max={5}
                           value={maxDepth}
                           onChange={(e) => setMaxDepth(parseInt(e.target.value) || 1)}
-                          className="w-16 bg-surface border border-line rounded-lg px-2 py-1 text-xs text-ink font-bold text-center focus:outline-none focus:border-brand"
+                          className="w-16 bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg px-2 py-1 text-xs text-ink dark:text-ink-dark font-bold text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                         />
                       </div>
                     )}
@@ -1618,7 +1618,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setFormMode('none')}
-                  className="px-5 py-2.5 bg-surface hover:bg-surface-2 border border-line text-ink font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                  className="px-5 py-2.5 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark font-bold text-xs rounded-xl transition-colors cursor-pointer"
                 >
                   إلغاء
                 </button>
@@ -1631,12 +1631,12 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
           {/* ======================================================== */}
           {formMode === 'permissions' && selectedUser && (
             <form onSubmit={handleSubmitPermissions} className="max-w-3xl mx-auto space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-line">
+              <div className="flex items-center justify-between pb-3 border-b border-line dark:border-line-dark">
                 <div className="flex items-center gap-2">
-                  <Shield className="w-5 h-5 text-brand" />
+                  <Shield className="w-5 h-5 text-brand dark:text-brand-bright" />
                   <div>
-                    <h3 className="text-base font-black text-ink">تعديل مصفوفة صلاحيات: {selectedUser.displayName}</h3>
-                    <p className="text-[11px] text-ink-muted">
+                    <h3 className="text-base font-black text-ink dark:text-ink-dark">تعديل مصفوفة صلاحيات: {selectedUser.displayName}</h3>
+                    <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
                       التحكم الدقيق في ظهور وإخفاء أقسام وميزات البرنامج لهذا الموظف
                     </p>
                   </div>
@@ -1644,14 +1644,14 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setFormMode('none')}
-                  className="text-xs text-ink-muted hover:text-ink font-bold cursor-pointer"
+                  className="text-xs text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark font-bold cursor-pointer"
                 >
                   الرجوع للهيكل الإداري
                 </button>
               </div>
 
               {/* Cascade Warning Alert */}
-              <div className="p-3 bg-warn-soft border border-warn-border rounded-xl flex items-start gap-2.5 text-xs text-warn">
+              <div className="p-3 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-xl flex items-start gap-2.5 text-xs text-warn dark:text-warn-bright">
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                 <div>
                   <span className="font-bold">قاعدة سحب الصلاحيات الهرمية (Cascade Revoke):</span>
@@ -1662,20 +1662,20 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-ink">مجموعات الصلاحيات:</span>
+                <span className="text-xs font-bold text-ink dark:text-ink-dark">مجموعات الصلاحيات:</span>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => handleToggleAllPermissions(true)}
-                    className="text-xs font-bold text-brand hover:underline cursor-pointer"
+                    className="text-xs font-bold text-brand dark:text-brand-bright hover:underline cursor-pointer"
                   >
                     تحديد الكل المتاح
                   </button>
-                  <span className="text-ink-muted">|</span>
+                  <span className="text-ink-muted dark:text-ink-muted-dark">|</span>
                   <button
                     type="button"
                     onClick={() => handleToggleAllPermissions(false)}
-                    className="text-xs font-bold text-danger hover:underline cursor-pointer"
+                    className="text-xs font-bold text-danger dark:text-danger-bright hover:underline cursor-pointer"
                   >
                     إلغاء الكل
                   </button>
@@ -1688,16 +1688,16 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                   const allChecked = availableItems.length > 0 && availableItems.every((item) => !!permissionsState[item.key]);
 
                   return (
-                    <div key={group.id} className="border border-line rounded-xl p-3 bg-surface">
-                      <div className="flex items-center justify-between pb-2 mb-2 border-b border-line">
+                    <div key={group.id} className="border border-line dark:border-line-dark rounded-xl p-3 bg-surface dark:bg-surface-dark">
+                      <div className="flex items-center justify-between pb-2 mb-2 border-b border-line dark:border-line-dark">
                         <div className="flex items-center gap-2">
                           {group.icon}
-                          <span className="font-bold text-xs text-ink">{group.name}</span>
+                          <span className="font-bold text-xs text-ink dark:text-ink-dark">{group.name}</span>
                         </div>
                         <button
                           type="button"
                           onClick={() => handleToggleGroup(group, !allChecked)}
-                          className="text-[11px] font-bold text-brand hover:underline cursor-pointer"
+                          className="text-[11px] font-bold text-brand dark:text-brand-bright hover:underline cursor-pointer"
                         >
                           {allChecked ? 'إلغاء تحديد القسم' : 'تحديد القسم بالكامل'}
                         </button>
@@ -1714,24 +1714,24 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                               onClick={() => allowedByParent && handleTogglePermission(item.key)}
                               className={`flex items-start gap-2 p-2 rounded-lg border transition-all ${
                                 !allowedByParent
-                                  ? 'bg-surface-2/40 border-line/50 opacity-40 cursor-not-allowed'
+                                  ? 'bg-surface-2/40 dark:bg-surface-dark-2/40 border-line/50 dark:border-line-dark/50 opacity-40 cursor-not-allowed'
                                   : isChecked
-                                  ? 'bg-brand-soft/50 border-brand/40 cursor-pointer'
-                                  : 'bg-surface border-line hover:border-brand/30 cursor-pointer'
+                                  ? 'bg-brand-soft/50 dark:bg-brand-dark/50 border-brand/40 dark:border-brand-bright/40 cursor-pointer'
+                                  : 'bg-surface dark:bg-surface-dark-2 border-line dark:border-line-dark hover:border-brand/30 cursor-pointer'
                               }`}
                             >
                               <div className="mt-0.5 shrink-0">
                                 {!allowedByParent ? (
-                                  <Lock className="w-3.5 h-3.5 text-ink-muted" />
+                                  <Lock className="w-3.5 h-3.5 text-ink-muted dark:text-ink-muted-dark" />
                                 ) : isChecked ? (
-                                  <CheckSquare className="w-4 h-4 text-brand" />
+                                  <CheckSquare className="w-4 h-4 text-brand dark:text-brand-bright" />
                                 ) : (
-                                  <Square className="w-4 h-4 text-ink-muted" />
+                                  <Square className="w-4 h-4 text-ink-muted dark:text-ink-muted-dark" />
                                 )}
                               </div>
                               <div className="flex flex-col">
-                                <span className="text-xs font-bold text-ink">{item.label}</span>
-                                <span className="text-[10px] text-ink-muted leading-tight">
+                                <span className="text-xs font-bold text-ink dark:text-ink-dark">{item.label}</span>
+                                <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark leading-tight">
                                   {!allowedByParent ? 'محجوبة: لا يمتلكها المشرف' : item.description}
                                 </span>
                               </div>
@@ -1755,7 +1755,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setFormMode('none')}
-                  className="px-5 py-2.5 bg-surface hover:bg-surface-2 border border-line text-ink font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                  className="px-5 py-2.5 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark font-bold text-xs rounded-xl transition-colors cursor-pointer"
                 >
                   إلغاء
                 </button>
@@ -1768,29 +1768,29 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
           {/* ======================================================== */}
           {formMode === 'credentials' && selectedUser && (
             <form onSubmit={handleSubmitCredentials} className="max-w-md mx-auto space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-line">
+              <div className="flex items-center justify-between pb-3 border-b border-line dark:border-line-dark">
                 <div className="flex items-center gap-2">
-                  <Key className="w-5 h-5 text-amber-600" />
-                  <h3 className="text-base font-black text-ink">تغيير كلمة المرور والرمز السري (PIN): {selectedUser.displayName}</h3>
+                  <Key className="w-5 h-5 text-warn dark:text-warn-bright" />
+                  <h3 className="text-base font-black text-ink dark:text-ink-dark">تغيير كلمة المرور والرمز السري (PIN): {selectedUser.displayName}</h3>
                 </div>
                 <button
                   type="button"
                   onClick={() => setFormMode('none')}
-                  className="text-xs text-ink-muted hover:text-ink font-bold cursor-pointer"
+                  className="text-xs text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark font-bold cursor-pointer"
                 >
                   الرجوع للهيكل الإداري
                 </button>
               </div>
 
               {/* Informative Guidance Notice */}
-              <div className="bg-surface-2 p-3 rounded-xl border border-line text-xs text-ink-muted leading-relaxed">
+              <div className="bg-surface-2 dark:bg-surface-dark-2 p-3 rounded-xl border border-line dark:border-line-dark text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed">
                 تُستخدم هذه النافذة لإعادة تعيين كلمة المرور أو الرمز السري (PIN) الخاص بالموظف في حال نسيانه أو الحاجة لتحديثه، دون التأثير على صلاحياته أو بياناته.
               </div>
 
               {/* Current Credential Prompt if editing root or admin */}
               {(selectedUser.role === 'root' || selectedUser.role === 'admin') && (
-                <div className="bg-warn-soft/60 p-3 rounded-xl border border-warn-border space-y-1.5">
-                  <label className="block text-xs font-bold text-warn">
+                <div className="bg-warn-soft dark:bg-warn-dark-soft p-3 rounded-xl border border-warn/20 dark:border-warn-bright/30 space-y-1.5">
+                  <label className="block text-xs font-bold text-warn dark:text-warn-bright">
                     كلمة المرور الحالية أو PIN الحالي (لتأكيد الهوية)
                   </label>
                   <input
@@ -1798,26 +1798,26 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                     value={currentCredential}
                     onChange={(e) => setCurrentCredential(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-surface border border-warn rounded-xl px-3 py-2 text-ink text-xs focus:outline-none focus:border-warn font-mono"
+                    className="w-full bg-surface dark:bg-surface-dark-2 border border-warn/40 dark:border-warn-bright/40 rounded-xl px-3 py-2 text-ink dark:text-ink-dark text-xs focus:outline-none focus:border-warn font-mono"
                   />
-                  <p className="text-[11px] text-warn font-medium">
+                  <p className="text-[11px] text-warn dark:text-warn-bright font-medium">
                     لحماية النظام: تعديل حسابات الإدارة يتطلب تأكيد بيانات الحساب الحالية.
                   </p>
                 </div>
               )}
 
               {/* Credential Method Switcher */}
-              <div className="bg-surface-2 p-1.5 rounded-xl border border-line grid grid-cols-2 gap-2">
+              <div className="bg-surface-2 dark:bg-surface-dark-2 p-1.5 rounded-xl border border-line dark:border-line-dark grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setCredMethod('pin')}
                   className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                     credMethod === 'pin'
-                      ? 'bg-surface text-brand shadow-xs border border-brand/20'
-                      : 'text-ink-muted hover:text-ink'
+                      ? 'bg-surface dark:bg-surface-dark text-brand dark:text-brand-bright shadow-xs border border-brand/20 dark:border-brand-bright/30'
+                      : 'text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark'
                   }`}
                 >
-                  <Key className="w-4 h-4 text-amber-600" />
+                  <Key className="w-4 h-4 text-warn dark:text-warn-bright" />
                   <span>رقم سري (PIN أرقام) — للكاشير</span>
                 </button>
                 <button
@@ -1825,22 +1825,22 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                   onClick={() => setCredMethod('password')}
                   className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                     credMethod === 'password'
-                      ? 'bg-surface text-brand shadow-xs border border-brand/20'
-                      : 'text-ink-muted hover:text-ink'
+                      ? 'bg-surface dark:bg-surface-dark text-brand dark:text-brand-bright shadow-xs border border-brand/20 dark:border-brand-bright/30'
+                      : 'text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark'
                   }`}
                 >
-                  <Lock className="w-4 h-4 text-brand" />
+                  <Lock className="w-4 h-4 text-brand dark:text-brand-bright" />
                   <span>كلمة مرور نصية — للإدارة</span>
                 </button>
               </div>
 
               {/* PIN Method Panel */}
               {credMethod === 'pin' && (
-                <div className="bg-surface p-4 rounded-xl border border-line space-y-3">
+                <div className="bg-surface dark:bg-surface-dark p-4 rounded-xl border border-line dark:border-line-dark space-y-3">
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-bold text-ink">الرقم السري السريع (PIN: 4 - 8 أرقام)</label>
-                      <span className="text-[11px] text-paid font-medium">موصى به لنقاط البيع وشاشات اللمس</span>
+                      <label className="block text-xs font-bold text-ink dark:text-ink-dark">الرقم السري السريع (PIN: 4 - 8 أرقام)</label>
+                      <span className="text-[11px] text-paid dark:text-paid-bright font-medium">موصى به لنقاط البيع وشاشات اللمس</span>
                     </div>
                     <input
                       type="password"
@@ -1850,16 +1850,16 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                       value={pin}
                       onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
                       placeholder="••••"
-                      className="w-full bg-surface border border-line rounded-xl px-3.5 py-2 text-ink text-sm font-mono tracking-widest text-center focus:outline-none focus:border-brand"
+                      className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3.5 py-2 text-ink dark:text-ink-dark text-sm font-mono tracking-widest text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                     />
-                    <p className="text-[11px] text-ink-muted mt-1.5 leading-relaxed">
+                    <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark mt-1.5 leading-relaxed">
                       أرقام سريعة تسهّل على الكاشير تسجيل الدخول السريع ولمس الشاشة بدون كيبورد.
                     </p>
                   </div>
 
                   {pin && (
                     <div>
-                      <label className="block text-[11px] font-semibold text-ink-muted mb-1">تأكيد الرقم السري الجديد</label>
+                      <label className="block text-[11px] font-semibold text-ink-muted dark:text-ink-muted-dark mb-1">تأكيد الرقم السري الجديد</label>
                       <input
                         type="password"
                         inputMode="numeric"
@@ -1867,18 +1867,18 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                         value={confirmPin}
                         onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
                         placeholder="••••"
-                        className="w-full bg-surface border border-line rounded-xl px-3.5 py-2 text-ink text-sm font-mono tracking-widest text-center focus:outline-none focus:border-brand"
+                        className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-3.5 py-2 text-ink dark:text-ink-dark text-sm font-mono tracking-widest text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                       />
                     </div>
                   )}
 
                   {password && (
-                    <div className="p-2 bg-brand-soft/30 rounded-lg text-[11px] text-brand border border-brand/20 flex items-center justify-between">
+                    <div className="p-2 bg-brand-soft/30 dark:bg-brand-dark/30 rounded-lg text-[11px] text-brand dark:text-brand-bright border border-brand/20 dark:border-brand/40 flex items-center justify-between">
                       <span>كلمة المرور النصية المضبوطة مسبقاً: مفعّلة</span>
                       <button
                         type="button"
                         onClick={() => setPassword('')}
-                        className="text-danger hover:underline font-bold cursor-pointer"
+                        className="text-danger dark:text-danger-bright hover:underline font-bold cursor-pointer"
                       >
                         إلغاء النصية والاعتماد على الـ PIN فقط
                       </button>
@@ -1889,10 +1889,10 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
 
               {/* Password Method Panel */}
               {credMethod === 'password' && (
-                <div className="bg-surface p-4 rounded-xl border border-line space-y-2">
+                <div className="bg-surface dark:bg-surface-dark p-4 rounded-xl border border-line dark:border-line-dark space-y-2">
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold text-ink">تعيين كلمة مرور جديدة</label>
-                    <span className="text-[11px] text-brand font-medium">لحسابات الإدارة والكيبورد الكامل</span>
+                    <label className="block text-xs font-bold text-ink dark:text-ink-dark">تعيين كلمة مرور جديدة</label>
+                    <span className="text-[11px] text-brand dark:text-brand-bright font-medium">لحسابات الإدارة والكيبورد الكامل</span>
                   </div>
                   <div className="relative">
                     <input
@@ -1901,27 +1901,27 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="اكتب كلمة مرور جديدة (أحرف أو أرقام)"
-                      className="w-full bg-surface border border-line rounded-xl pr-3.5 pl-9 py-2 text-ink text-xs focus:outline-none focus:border-brand"
+                      className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl pr-3.5 pl-9 py-2 text-ink dark:text-ink-dark text-xs focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink cursor-pointer"
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark cursor-pointer"
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                  <p className="text-[11px] text-ink-muted leading-relaxed">
+                  <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
                     تتيح تسجيل الدخول بكتابة الحروف والأرقام عبر الكيبورد وتوفر حماية قوية لحساب المدير.
                   </p>
 
                   {pin && (
-                    <div className="p-2 bg-brand-soft/30 rounded-lg text-[11px] text-brand border border-brand/20 flex items-center justify-between mt-2">
+                    <div className="p-2 bg-brand-soft/30 dark:bg-brand-dark/30 rounded-lg text-[11px] text-brand dark:text-brand-bright border border-brand/20 dark:border-brand/40 flex items-center justify-between mt-2">
                       <span>رقم الـ PIN السريع المضبوط مسبقاً: مفعّل</span>
                       <button
                         type="button"
                         onClick={() => { setPin(''); setConfirmPin(''); }}
-                        className="text-danger hover:underline font-bold cursor-pointer"
+                        className="text-danger dark:text-danger-bright hover:underline font-bold cursor-pointer"
                       >
                         إلغاء الـ PIN والاعتماد على النصية فقط
                       </button>
@@ -1931,9 +1931,9 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
               )}
 
               {/* Summary note */}
-              <div className="p-2.5 bg-surface-2 rounded-xl border border-line text-[11px] text-ink-muted flex items-center justify-between">
+              <div className="p-2.5 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark text-[11px] text-ink-muted dark:text-ink-muted-dark flex items-center justify-between">
                 <span>وسيلة الدخول النشطة:</span>
-                <span className="font-bold text-brand">
+                <span className="font-bold text-brand dark:text-brand-bright">
                   {pin && password ? 'كلاهما (PIN أرقام + كلمة مرور نصية)' : pin ? 'الرقم السري (PIN) فقط' : password ? 'كلمة المرور النصية فقط' : 'لم يتم تحديد وسيلة جديدة بعد'}
                 </span>
               </div>
@@ -1949,7 +1949,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setFormMode('none')}
-                  className="px-5 py-2.5 bg-surface hover:bg-surface-2 border border-line text-ink font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                  className="px-5 py-2.5 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark font-bold text-xs rounded-xl transition-colors cursor-pointer"
                 >
                   إلغاء
                 </button>
@@ -1962,40 +1962,40 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
           {/* ======================================================== */}
           {formMode === 'switchLogin' && selectedUser && (
             <form onSubmit={handleSubmitSwitchLogin} className="max-w-md mx-auto space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-line">
+              <div className="flex items-center justify-between pb-3 border-b border-line dark:border-line-dark">
                 <div className="flex items-center gap-2">
-                  <LogIn className="w-5 h-5 text-paid" />
-                  <h3 className="text-base font-black text-ink">تسجيل الدخول كـ: {selectedUser.displayName}</h3>
+                  <LogIn className="w-5 h-5 text-paid dark:text-paid-bright" />
+                  <h3 className="text-base font-black text-ink dark:text-ink-dark">تسجيل الدخول كـ: {selectedUser.displayName}</h3>
                 </div>
                 <button
                   type="button"
                   onClick={() => setFormMode('none')}
-                  className="text-xs text-ink-muted hover:text-ink font-bold cursor-pointer"
+                  className="text-xs text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark font-bold cursor-pointer"
                 >
                   الرجوع للهيكل الإداري
                 </button>
               </div>
 
               {/* Account Card Preview */}
-              <div className="p-3.5 bg-paid-soft/40 border border-paid-border rounded-xl flex items-center gap-3">
+              <div className="p-3.5 bg-paid-soft/40 dark:bg-paid-dark-soft border border-paid-border dark:border-paid-dark-border rounded-xl flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-paid text-white flex items-center justify-center font-bold text-sm shrink-0">
                   {selectedUser.role === 'root' ? <ShieldCheck className="w-5 h-5" /> : selectedUser.displayName.slice(0, 1)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-bold text-sm text-ink">{selectedUser.displayName}</div>
-                  <div className="text-xs text-ink-muted font-mono dir-ltr text-right">@{selectedUser.username}</div>
+                  <div className="font-bold text-sm text-ink dark:text-ink-dark">{selectedUser.displayName}</div>
+                  <div className="text-xs text-ink-muted dark:text-ink-muted-dark font-mono dir-ltr text-right">@{selectedUser.username}</div>
                 </div>
                 {renderRoleBadge(selectedUser)}
               </div>
 
               {/* Instructions */}
-              <p className="text-xs text-ink-muted leading-relaxed">
+              <p className="text-xs text-ink-muted dark:text-ink-muted-dark leading-relaxed">
                 يرجى إدخال الرقم السري (PIN) أو كلمة المرور الخاصة بهذا الحساب للتحقق والتبديل الفوري للجلسة.
               </p>
 
               {/* PIN / Password Input */}
-              <div className="bg-surface p-4 rounded-xl border border-line space-y-2">
-                <label className="block text-xs font-bold text-ink">الرقم السري (PIN) أو كلمة المرور</label>
+              <div className="bg-surface dark:bg-surface-dark p-4 rounded-xl border border-line dark:border-line-dark space-y-2">
+                <label className="block text-xs font-bold text-ink dark:text-ink-dark">الرقم السري (PIN) أو كلمة المرور</label>
                 <div className="relative">
                   <input
                     type={showSwitchSecret ? 'text' : 'password'}
@@ -2003,12 +2003,12 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                     value={switchSecret}
                     onChange={(e) => setSwitchSecret(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-surface border border-line rounded-xl pr-3.5 pl-9 py-2.5 text-ink text-sm font-mono tracking-widest text-center focus:outline-none focus:border-brand"
+                    className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl pr-3.5 pl-9 py-2.5 text-ink dark:text-ink-dark text-sm font-mono tracking-widest text-center focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                   />
                   <button
                     type="button"
                     onClick={() => setShowSwitchSecret(!showSwitchSecret)}
-                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink cursor-pointer"
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark cursor-pointer"
                   >
                     {showSwitchSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -2027,7 +2027,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setFormMode('none')}
-                  className="px-5 py-2.5 bg-surface hover:bg-surface-2 border border-line text-ink font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                  className="px-5 py-2.5 bg-surface dark:bg-surface-dark-2 hover:bg-surface-2 dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark font-bold text-xs rounded-xl transition-colors cursor-pointer"
                 >
                   إلغاء
                 </button>
@@ -2037,9 +2037,9 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 bg-surface-2 border-t border-line flex items-center justify-between text-xs text-ink-muted shrink-0">
+        <div className="px-6 py-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-between text-xs text-ink-muted dark:text-ink-muted-dark shrink-0">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-brand" />
+            <ShieldCheck className="w-4 h-4 text-brand dark:text-brand-bright" />
             <span>نظام أمان وحماية الحسابات — تشفير محلي PBKDF2</span>
           </div>
           <div className="flex items-center gap-3">

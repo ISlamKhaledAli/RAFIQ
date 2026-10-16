@@ -45,9 +45,47 @@ namespace RafiqPOS.Bridge
                 case "system:appReady":
                     if (RafiqPOS.MainForm.Instance != null)
                     {
-                        RafiqPOS.MainForm.Instance.NotifyAppReady();
+                        string appTheme = null;
+                        if (request.Payload != null)
+                        {
+                            try
+                            {
+                                Newtonsoft.Json.Linq.JObject obj = request.Payload as Newtonsoft.Json.Linq.JObject;
+                                if (obj != null && obj["theme"] != null)
+                                {
+                                    appTheme = obj["theme"].ToString();
+                                }
+                            }
+                            catch { }
+                        }
+                        RafiqPOS.MainForm.Instance.NotifyAppReady(appTheme);
                     }
                     response = BridgeResponse.Ok(request.Id, new { ready = true });
+                    return true;
+
+                case "system:setTheme":
+                    string newTheme = null;
+                    if (request.Payload != null)
+                    {
+                        try
+                        {
+                            Newtonsoft.Json.Linq.JObject obj = request.Payload as Newtonsoft.Json.Linq.JObject;
+                            if (obj != null && obj["theme"] != null)
+                            {
+                                newTheme = obj["theme"].ToString();
+                            }
+                            else
+                            {
+                                newTheme = request.Payload.ToString().Trim('"', ' ');
+                            }
+                        }
+                        catch { }
+                    }
+                    if (!string.IsNullOrEmpty(newTheme))
+                    {
+                        RafiqPOS.MainForm.SaveThemePreference(newTheme);
+                    }
+                    response = BridgeResponse.Ok(request.Id, new { success = true });
                     return true;
 
                 case "system:getInfo":

@@ -31,6 +31,10 @@ namespace RafiqPOS.Common
         private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
         [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool IsIconic(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
         private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, int dwExtraInfo);
 
         private const byte VK_MENU = 0x12; // Virtual key code for ALT
@@ -55,6 +59,8 @@ namespace RafiqPOS.Common
                 keybd_event(VK_MENU, 0, 0, 0);
                 keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0);
 
+                bool isMinimized = IsIconic(hWnd);
+
                 if (foreWnd != hWnd && foreWnd != IntPtr.Zero)
                 {
                     uint foreThread = GetWindowThreadProcessId(foreWnd, IntPtr.Zero);
@@ -63,21 +69,21 @@ namespace RafiqPOS.Common
                     if (foreThread != 0 && foreThread != appThread)
                     {
                         AttachThreadInput(foreThread, appThread, true);
-                        ShowWindow(hWnd, SW_RESTORE);
+                        if (isMinimized) ShowWindow(hWnd, SW_RESTORE);
                         BringWindowToTop(hWnd);
                         SetForegroundWindow(hWnd);
                         AttachThreadInput(foreThread, appThread, false);
                     }
                     else
                     {
-                        ShowWindow(hWnd, SW_RESTORE);
+                        if (isMinimized) ShowWindow(hWnd, SW_RESTORE);
                         BringWindowToTop(hWnd);
                         SetForegroundWindow(hWnd);
                     }
                 }
                 else
                 {
-                    ShowWindow(hWnd, SW_RESTORE);
+                    if (isMinimized) ShowWindow(hWnd, SW_RESTORE);
                     BringWindowToTop(hWnd);
                     SetForegroundWindow(hWnd);
                 }

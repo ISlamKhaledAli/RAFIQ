@@ -770,58 +770,58 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const displayedProducts = products;
 
   return (
-    <div className="flex flex-col h-full bg-canvas p-3.5 gap-3 overflow-hidden select-none">
+    <div className="flex flex-col h-full bg-canvas dark:bg-canvas-dark p-3.5 gap-3 overflow-hidden select-none">
       {/* 1. Header Toolbar (Title, Count Badge, Search, Add Button) */}
-      <div className="min-h-[58px] py-2 bg-surface border border-line rounded-2xl px-4 flex flex-wrap items-center justify-between gap-2 shrink-0 shadow-xs">
+      <div className="min-h-[58px] py-2 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl px-4 flex flex-wrap items-center justify-between gap-2 shrink-0 shadow-xs">
         <div className="flex items-center gap-3">
           {activeSubView === 'catalog' ? (
             <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-xl bg-brand-soft text-brand flex items-center justify-center border border-brand/20 shadow-2xs">
+              <div className="w-10 h-10 rounded-xl bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright flex items-center justify-center border border-brand/20 shadow-2xs">
                 <Package className="w-5 h-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-black text-ink leading-tight">أصناف وبضاعة المحل</h2>
-                  <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-surface-2 text-ink font-bold border border-line tabular-nums">
+                  <h2 className="text-sm font-black text-ink dark:text-ink-dark leading-tight">أصناف وبضاعة المحل</h2>
+                  <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark font-bold border border-line dark:border-line-dark tabular-nums">
                     {totalCount.toLocaleString('en-US')} صنف
                   </span>
                 </div>
-                <p className="text-[11px] text-ink-muted">أسعار البضاعة، الباركود، رصيد المخزن، وتنبيهات النواقص</p>
+                <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted">أسعار البضاعة، الباركود، رصيد المخزن، وتنبيهات النواقص</p>
               </div>
             </div>
           ) : activeSubView === 'movements' ? (
             <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-xl bg-brand-soft text-brand flex items-center justify-center border border-brand/20 shadow-2xs">
+              <div className="w-10 h-10 rounded-xl bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright flex items-center justify-center border border-brand/20 shadow-2xs">
                 <Boxes className="w-5 h-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-black text-ink leading-tight">دفتر حركة وجرد بضاعة المخزن</h2>
-                  <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-surface-2 text-ink font-bold border border-line tabular-nums">
+                  <h2 className="text-sm font-black text-ink dark:text-ink-dark leading-tight">دفتر حركة وجرد بضاعة المخزن</h2>
+                  <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark font-bold border border-line dark:border-line-dark tabular-nums">
                     {allMovements.length} حركة
                   </span>
                   {discrepancies.length > 0 && (
-                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 animate-pulse">
+                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright animate-pulse">
                       {discrepancies.length} صنف محتاج مطابقة وعدّ في المخزن
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-ink-muted">سجل الوارد والمبيعات والمرتجعات وتسويات وعدّ بضاعة المحل</p>
+                <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted">سجل الوارد والمبيعات والمرتجعات وتسويات وعدّ بضاعة المحل</p>
               </div>
             </div>
           ) : (
             <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-800 flex items-center justify-center border border-amber-200 shadow-2xs">
+              <div className="w-10 h-10 rounded-xl bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright flex items-center justify-center border border-warn/20 dark:border-warn-bright/30 shadow-2xs">
                 <Calendar className="w-5 h-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-black text-ink leading-tight">تواريخ الصلاحية والتشغيلات</h2>
-                  <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-paid-soft text-paid font-bold border border-paid/20">
+                  <h2 className="text-sm font-black text-ink dark:text-ink-dark leading-tight">تواريخ الصلاحية والتشغيلات</h2>
+                  <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright font-bold border border-paid/20 dark:border-paid/40">
                     اللي قرب ينتهي يتباع الأول
                   </span>
                 </div>
-                <p className="text-[11px] text-ink-muted">متابعة صلاحية البضاعة، تنبيهات قرب الانتهاء، وتوالف الصلاحية</p>
+                <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted">متابعة صلاحية البضاعة، تنبيهات قرب الانتهاء، وتوالف الصلاحية</p>
               </div>
             </div>
           )}
@@ -832,14 +832,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           {activeSubView === 'catalog' ? (
             <>
               <form onSubmit={handleSearch} className="flex items-center gap-1.5">
-                <div className="relative w-48 sm:w-60 h-9 flex items-center bg-surface-2 border border-line rounded-xl px-2.5 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/20 focus-within:bg-surface transition-all">
-                  <Search className="w-4 h-4 text-ink-muted ml-2 shrink-0 pointer-events-none" />
+                <div className="relative w-48 sm:w-60 h-9 flex items-center bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl px-2.5 focus-within:border-brand dark:focus-within:border-brand-bright focus-within:ring-2 focus-within:ring-brand/20 focus-within:bg-surface dark:focus-within:bg-surface-dark transition-all">
+                  <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted ml-2 shrink-0 pointer-events-none" />
                   <input
                     type="text"
                     placeholder="اكتب اسم الصنف أو اضرب الباركود..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(normalizeArabicNumerals(e.target.value))}
-                    className="w-full bg-transparent border-none text-xs text-ink placeholder:text-ink-muted focus:outline-none"
+                    className="w-full bg-transparent border-none text-xs text-ink dark:text-ink-dark placeholder:text-ink-muted dark:placeholder:text-ink-dark-muted focus:outline-none"
                   />
                   {searchQuery && (
                     <button
@@ -849,7 +849,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                         setCurrentPage(1);
                         void loadProducts('', 1, pageSize);
                       }}
-                      className="text-ink-muted hover:text-ink text-xs cursor-pointer"
+                      className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark text-xs cursor-pointer"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -858,7 +858,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
                 <button
                   type="submit"
-                  className="h-9 px-3 bg-surface hover:bg-surface-2 border border-line text-ink rounded-xl text-xs font-bold transition-colors shadow-2xs cursor-pointer"
+                  className="h-9 px-3 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl text-xs font-bold transition-colors shadow-2xs cursor-pointer"
                 >
                   بحث
                 </button>
@@ -869,14 +869,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsToolsDropdownOpen((prev) => !prev)}
-                  className={`h-9 px-3 bg-surface hover:bg-surface-2 border text-ink rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer ${
-                    isToolsDropdownOpen ? 'border-brand ring-2 ring-brand/20 bg-surface-2' : 'border-line'
+                  className={`h-9 px-3 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border text-ink dark:text-ink-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer ${
+                    isToolsDropdownOpen ? 'border-brand dark:border-brand-bright ring-2 ring-brand/20 bg-surface-2 dark:bg-surface-dark-2' : 'border-line dark:border-line-dark'
                   }`}
                   title="العمليات المتقدمة، الاستيراد والتصدير، والباركود"
                 >
-                  <Tag className="w-4 h-4 text-brand" />
+                  <Tag className="w-4 h-4 text-brand dark:text-brand-bright" />
                   <span>أدوات وبضاعة المحل</span>
-                  <ChevronDown className={`w-3.5 h-3.5 text-ink-muted transition-transform duration-150 ${isToolsDropdownOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted transition-transform duration-150 ${isToolsDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 {isToolsDropdownOpen && (
@@ -885,16 +885,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                       className="fixed inset-0 z-40" 
                       onClick={() => setIsToolsDropdownOpen(false)} 
                     />
-                    <div className="absolute left-0 top-full mt-1.5 w-64 bg-surface border border-line rounded-xl shadow-card py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100 flex flex-col">
+                    <div className="absolute left-0 top-full mt-1.5 w-64 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-card py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100 flex flex-col">
                       <button
                         type="button"
                         onClick={() => {
                           setIsToolsDropdownOpen(false);
                           setShowExcelImportModal(true);
                         }}
-                        className="w-full px-3 py-2 text-right text-xs font-bold text-ink hover:bg-surface-2 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        className="w-full px-3 py-2 text-right text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
-                        <FileSpreadsheet className="w-4 h-4 text-brand" />
+                        <FileSpreadsheet className="w-4 h-4 text-brand dark:text-brand-bright" />
                         <span>استيراد بضاعة من شيت إكسل</span>
                       </button>
 
@@ -905,13 +905,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           void handleExportProductsToExcel();
                         }}
                         disabled={isExportingExcel}
-                        className="w-full px-3 py-2 text-right text-xs font-bold text-ink hover:bg-surface-2 flex items-center gap-2.5 transition-colors cursor-pointer disabled:opacity-50"
+                        className="w-full px-3 py-2 text-right text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer disabled:opacity-50"
                       >
-                        <Download className="w-4 h-4 text-brand" />
+                        <Download className="w-4 h-4 text-brand dark:text-brand-bright" />
                         <span>تصدير كل البضاعة لملف إكسل</span>
                       </button>
 
-                      <div className="h-px bg-line my-1" />
+                      <div className="h-px bg-line dark:bg-line-dark my-1" />
 
                       <button
                         type="button"
@@ -920,9 +920,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           setLabelModalProduct(null);
                           setShowBarcodeLabelModal(true);
                         }}
-                        className="w-full px-3 py-2 text-right text-xs font-bold text-ink hover:bg-surface-2 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        className="w-full px-3 py-2 text-right text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
-                        <Tag className="w-4 h-4 text-brand" />
+                        <Tag className="w-4 h-4 text-brand dark:text-brand-bright" />
                         <span>طباعة استيكرات الباركود والأسعار (F8)</span>
                       </button>
 
@@ -933,9 +933,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           void handleStartBulkBarcodeGeneration();
                         }}
                         disabled={isGeneratingBarcodes || loading}
-                        className="w-full px-3 py-2 text-right text-xs font-bold text-ink hover:bg-surface-2 flex items-center gap-2.5 transition-colors cursor-pointer disabled:opacity-50"
+                        className="w-full px-3 py-2 text-right text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer disabled:opacity-50"
                       >
-                        <Barcode className="w-4 h-4 text-brand" />
+                        <Barcode className="w-4 h-4 text-brand dark:text-brand-bright" />
                         <span>عمل باركود تلقائي للأصناف اللي من غير كود</span>
                       </button>
 
@@ -945,9 +945,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           setIsToolsDropdownOpen(false);
                           setShowBulkPriceModal(true);
                         }}
-                        className="w-full px-3 py-2 text-right text-xs font-bold text-ink hover:bg-surface-2 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        className="w-full px-3 py-2 text-right text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
-                        <TrendingUp className="w-4 h-4 text-brand" />
+                        <TrendingUp className="w-4 h-4 text-brand dark:text-brand-bright" />
                         <span>تعديل أسعار وتكلفة البضاعة بالجملة</span>
                       </button>
 
@@ -957,13 +957,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           setIsToolsDropdownOpen(false);
                           setShowVariantMatrixModal(true);
                         }}
-                        className="w-full px-3 py-2 text-right text-xs font-bold text-ink hover:bg-surface-2 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        className="w-full px-3 py-2 text-right text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
-                        <Layers className="w-4 h-4 text-brand" />
+                        <Layers className="w-4 h-4 text-brand dark:text-brand-bright" />
                         <span>جدول المقاسات والألوان (الأصناف المتفرعة)</span>
                       </button>
 
-                      <div className="h-px bg-line my-1" />
+                      <div className="h-px bg-line dark:bg-line-dark my-1" />
 
                       <button
                         type="button"
@@ -971,9 +971,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           setIsToolsDropdownOpen(false);
                           setShowDataQualityModal(true);
                         }}
-                        className="w-full px-3 py-2 text-right text-xs font-bold text-paid hover:bg-paid-soft flex items-center gap-2.5 transition-colors cursor-pointer"
+                        className="w-full px-3 py-2 text-right text-xs font-bold text-paid dark:text-paid-bright hover:bg-paid-soft dark:hover:bg-paid-dark-soft flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
-                        <ShieldCheck className="w-4 h-4 text-paid" />
+                        <ShieldCheck className="w-4 h-4 text-paid dark:text-paid-bright" />
                         <span>فحص وتدقيق بيانات وأسعار الأصناف</span>
                       </button>
                     </div>
@@ -984,7 +984,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               <button
                 type="button"
                 onClick={() => openHelpCenter('products')}
-                className="h-9 w-9 flex items-center justify-center bg-surface hover:bg-surface-2 border border-line text-paid rounded-xl transition-colors shadow-2xs cursor-pointer shrink-0"
+                className="h-9 w-9 flex items-center justify-center bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-paid dark:text-paid-bright rounded-xl transition-colors shadow-2xs cursor-pointer shrink-0"
                 title="شرح ودليل إدارة الأصناف والمخزون والباركود (F1)"
               >
                 <HelpCircle className="w-4 h-4" />
@@ -994,10 +994,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowVariantMatrixModal(true)}
-                  className="h-9 px-3 bg-brand-soft hover:bg-emerald-100 text-brand border border-brand/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-[0.98] shrink-0"
+                  className="h-9 px-3 bg-brand-soft dark:bg-brand-soft/20 hover:bg-emerald-100 dark:hover:bg-brand-soft/30 text-brand dark:text-brand-bright border border-brand/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-[0.98] shrink-0"
                   title="إنشاء صنف أب مع جدول تركيبات المقاسات والألوان والباركود"
                 >
-                  <Layers className="w-4 h-4 text-brand" />
+                  <Layers className="w-4 h-4 text-brand dark:text-brand-bright" />
                   <span>مقاسات وألوان</span>
                 </button>
               )}
@@ -1005,16 +1005,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               <button
                 type="button"
                 onClick={() => setShowCategoryModal(true)}
-                className="h-9 px-3 bg-surface hover:bg-surface-2 border border-line text-ink-muted hover:text-ink rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-[0.98] shrink-0"
+                className="h-9 px-3 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-[0.98] shrink-0"
                 title="إضافة وتعديل وأرشفة وترتيب أقسام السلع"
               >
-                <Tags className="w-4 h-4 text-brand" />
+                <Tags className="w-4 h-4 text-brand dark:text-brand-bright" />
                 <span>إدارة الأقسام</span>
               </button>
 
               <button
                 onClick={openAddModal}
-                className="h-9 px-3.5 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-[0.98] shrink-0"
+                className="h-9 px-3.5 bg-brand hover:bg-brand-dark dark:hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-[0.98] shrink-0"
               >
                 <Plus className="w-4 h-4" />
                 <span>صنف جديد</span>
@@ -1026,15 +1026,15 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
       {/* Success Notification Alert */}
       {importSuccessAlert && (
-        <div className="bg-emerald-50 border border-emerald-200 text-[#006D41] px-4 py-2.5 rounded-2xl flex items-center justify-between text-xs font-bold animate-in fade-in shrink-0 shadow-xs">
+        <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40 text-[#006D41] dark:text-paid-bright px-4 py-2.5 rounded-2xl flex items-center justify-between text-xs font-bold animate-in fade-in shrink-0 shadow-xs">
           <div className="flex items-center gap-2">
-            <Check className="w-4 h-4 text-[#006D41]" />
+            <Check className="w-4 h-4 text-[#006D41] dark:text-paid-bright" />
             <span>{importSuccessAlert}</span>
           </div>
           <button
             type="button"
             onClick={() => setImportSuccessAlert(null)}
-            className="text-[#006D41] hover:text-[#00372D] p-1 cursor-pointer"
+            className="text-[#006D41] dark:text-paid-bright hover:text-[#00372D] dark:hover:text-white p-1 cursor-pointer"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -1044,9 +1044,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       {activeSubView === 'catalog' ? (
         <>
           {/* Unified Filter Toolbar (Stock Levels + Categories + Category Management) */}
-          <div className="bg-surface border border-line rounded-2xl p-1.5 flex flex-wrap items-center justify-between gap-2 shrink-0 select-none shadow-xs">
+          <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl p-1.5 flex flex-wrap items-center justify-between gap-2 shrink-0 select-none shadow-xs">
             {/* Quick Stock Level Tabs */}
-            <div className="flex items-center gap-1 bg-surface-2 p-1 rounded-xl border border-line">
+            <div className="flex items-center gap-1 bg-surface-2 dark:bg-surface-dark-2 p-1 rounded-xl border border-line dark:border-line-dark">
               <button
                 type="button"
                 onClick={() => {
@@ -1057,8 +1057,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   stockStatusFilter === 'all'
-                    ? 'bg-brand text-white shadow-xs'
-                    : 'text-ink-muted hover:text-ink hover:bg-surface'
+                    ? 'bg-brand dark:bg-brand text-white shadow-xs'
+                    : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark'
                 }`}
               >
                 <span>كل الأصناف</span>
@@ -1072,8 +1072,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                   stockStatusFilter === 'lowStock'
-                    ? 'bg-amber-600 text-white shadow-xs'
-                    : 'text-amber-800 hover:bg-amber-50'
+                    ? 'bg-warn text-white shadow-xs'
+                    : 'text-warn dark:text-warn-bright hover:bg-warn-soft dark:hover:bg-warn-dark-soft'
                 }`}
               >
                 <AlertTriangle className="w-3.5 h-3.5" />
@@ -1088,8 +1088,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                   stockStatusFilter === 'outOfStock'
-                    ? 'bg-rose-600 text-white shadow-xs'
-                    : 'text-rose-800 hover:bg-rose-50'
+                    ? 'bg-danger text-white shadow-xs'
+                    : 'text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft'
                 }`}
               >
                 <span>خلصان</span>
@@ -1108,8 +1108,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   }}
                   className={`px-2.5 py-1 rounded-lg text-[11.5px] font-bold transition-all shrink-0 cursor-pointer ${
                     selectedCategoryFilter === 'all'
-                      ? 'bg-brand-dark text-white shadow-2xs'
-                      : 'bg-surface-2 text-ink-muted border border-line hover:text-brand hover:border-brand'
+                      ? 'bg-brand-dark dark:bg-brand text-white shadow-2xs'
+                      : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark hover:text-brand dark:hover:text-brand-bright hover:border-brand dark:hover:border-brand-bright'
                   }`}
                 >
                   كل الأقسام
@@ -1127,8 +1127,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                       }}
                       className={`px-2.5 py-1 rounded-lg text-[11.5px] font-bold transition-all shrink-0 cursor-pointer ${
                         isSelected
-                          ? 'bg-brand-dark text-white shadow-2xs'
-                          : 'bg-surface-2 text-ink-muted border border-line hover:text-brand hover:border-brand'
+                          ? 'bg-brand-dark dark:bg-brand text-white shadow-2xs'
+                          : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark hover:text-brand dark:hover:text-brand-bright hover:border-brand dark:hover:border-brand-bright'
                       }`}
                     >
                       {cat.name}
@@ -1141,9 +1141,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
           {/* Active Stock Filter Notification */}
           {stockStatusFilter !== 'all' && (
-            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold shrink-0 animate-in fade-in">
+            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright text-xs font-bold shrink-0 animate-in fade-in">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <AlertTriangle className="w-4 h-4 text-warn dark:text-warn-bright shrink-0" />
                 <span>
                   {stockStatusFilter === 'lowStock'
                     ? `تصفية النواقص: الأصناف اللي قربت تخلص في المخزن (${totalCount.toLocaleString('en-US')} صنف)`
@@ -1158,7 +1158,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   onResetFilter?.();
                   void loadProducts(searchQuery, 1, pageSize, 'all');
                 }}
-                className="px-2 py-0.5 rounded bg-white hover:bg-amber-100 border border-amber-300 text-amber-800 text-[11px] font-bold transition-colors cursor-pointer"
+                className="px-2 py-0.5 rounded bg-white dark:bg-surface-dark hover:bg-warn-soft dark:hover:bg-warn-dark-soft border border-warn/30 dark:border-warn-bright/30 text-warn dark:text-warn-bright text-[11px] font-bold transition-colors cursor-pointer"
               >
                 إلغاء التصفية وعرض كل البضاعة
               </button>

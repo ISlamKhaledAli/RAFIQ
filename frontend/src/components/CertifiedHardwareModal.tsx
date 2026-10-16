@@ -488,11 +488,11 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
                         <span className="font-bold text-xs text-[#0f172a] truncate">
                           {device.brand} — {device.model}
                         </span>
-                        <span className="text-[10px] font-bold px-2 py-0.2 rounded-md bg-emerald-100 text-[#006d41] border border-emerald-200">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid/30">
                           {device.type}
                         </span>
                         {device.status === 'recommended' && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300">
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30">
                             موصى به للمتاجر المزدحمة
                           </span>
                         )}
@@ -508,7 +508,7 @@ export const CertifiedHardwareModal: React.FC<CertifiedHardwareModalProps> = ({
                       <span className="font-mono bg-white px-2 py-0.5 rounded border border-[#dce1dc]">
                         {device.connectionType}
                       </span>
-                      <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      <span className="text-paid dark:text-paid-bright font-bold bg-paid-soft dark:bg-paid-dark-soft px-2 py-0.5 rounded border border-paid/20 dark:border-paid/30">
                         {device.testResults.latency}
                       </span>
                     </div>

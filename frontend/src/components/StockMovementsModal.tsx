@@ -101,17 +101,17 @@ export const StockMovementsModal: React.FC<StockMovementsModalProps> = ({
   const getBadgeStyle = (type: string) => {
     switch (type) {
       case 'INITIAL':
-        return 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20';
+        return 'bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright border-brand/20 dark:border-brand/30';
       case 'SALE':
-        return 'bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/20';
+        return 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger/20 dark:border-danger-bright/30';
       case 'PURCHASE':
-        return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20';
+        return 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/20 dark:border-paid/30';
       case 'ADJUSTMENT':
-        return 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20';
+        return 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border-warn/20 dark:border-warn-bright/30';
       case 'RETURN':
-        return 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20';
+        return 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/20 dark:border-paid/30';
       default:
-        return 'bg-surface-2 text-ink-muted border-line';
+        return 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border-line dark:border-line-dark';
     }
   };
 

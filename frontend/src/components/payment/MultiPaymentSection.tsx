@@ -33,8 +33,8 @@ export const MultiPaymentSection = ({
         </div>
         <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded ${
           splitRemainingPiasters === 0 
-            ? 'bg-paid-soft text-paid' 
-            : 'bg-amber-50 text-amber-800 border border-amber-200'
+            ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright' 
+            : 'bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30'
         }`}>
           {splitRemainingPiasters === 0 
             ? 'الحساب متطابق بالمليم' 
@@ -209,9 +209,9 @@ export const MultiPaymentSection = ({
               })()}
             </div>
           ) : (
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-900">
+            <div className="p-3 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-xl flex items-center justify-between text-xs text-warn dark:text-warn-bright">
               <div className="flex items-center gap-2 font-bold">
-                <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                <AlertCircle className="w-4 h-4 text-warn dark:text-warn-bright shrink-0" />
                 <span>فيه جزء شكك ({formatArabicCurrency(totalCreditPartPiasters)}) — يرجى تحديد الزبون من خانة «الزبون» بأعلى الفاتورة لتسجيله.</span>
               </div>
             </div>

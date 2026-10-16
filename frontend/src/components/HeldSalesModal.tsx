@@ -107,23 +107,23 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
       onClick={onClose}
     >
       <div 
-        className="w-full max-w-[640px] bg-surface rounded-2xl border border-line shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150 border-t-4 border-t-brand"
+        className="w-full max-w-[640px] bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150 border-t-4 border-t-brand dark:border-t-brand-bright"
         onClick={(e) => e.stopPropagation()}
         dir="rtl"
       >
         {/* Modal Header */}
-        <div className="h-14 px-5 border-b border-line flex items-center justify-between bg-surface-2">
+        <div className="h-14 px-5 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2">
           <div className="flex items-center gap-2.5">
-            <PauseCircle className="w-5 h-5 text-brand" />
-            <h2 className="text-base font-bold text-ink m-0">الفواتير المعلقة (المحجوزة مؤقتاً)</h2>
-            <span className="text-xs font-mono font-bold bg-brand-soft text-brand px-2.5 py-0.5 rounded-full border border-brand/20">
+            <PauseCircle className="w-5 h-5 text-brand dark:text-brand-bright" />
+            <h2 className="text-base font-bold text-ink dark:text-ink-dark m-0">الفواتير المعلقة (المحجوزة مؤقتاً)</h2>
+            <span className="text-xs font-mono font-bold bg-brand-soft dark:bg-surface-dark-3 text-brand dark:text-brand-bright px-2.5 py-0.5 rounded-full border border-brand/20 dark:border-brand-bright/20">
               {heldSales.length} معلقة
             </span>
           </div>
           <button 
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-danger hover:bg-surface transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-danger hover:bg-surface dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
             title="إغلاق النافذة"
           >
             <X className="w-4 h-4" />
@@ -133,29 +133,29 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
         {/* Modal Body */}
         <div className="p-4 space-y-3 overflow-y-auto max-h-[60vh]">
           {/* Informational Note */}
-          <div className="flex items-center gap-2 text-xs text-ink-muted bg-surface-2 px-3.5 py-2.5 rounded-xl border border-line">
-            <Info className="w-4 h-4 text-brand shrink-0" />
+          <div className="flex items-center gap-2 text-xs text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 px-3.5 py-2.5 rounded-xl border border-line dark:border-line-dark">
+            <Info className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
             <span>الفاتورة المعلقة بتفضل شايلة أصناف الزبون من غير ما تخصم من المخزن لحد ما يرجع يكملها ويدفع.</span>
           </div>
 
           {actionError && (
-            <div className="p-3 bg-danger-soft border border-danger/20 text-danger text-xs font-bold rounded-xl flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 text-danger" />
+            <div className="p-3 bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-xs font-bold rounded-xl flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-danger dark:text-danger-bright" />
               <span>{actionError}</span>
             </div>
           )}
 
           {/* Held Invoices Table or States */}
           {loading && heldSales.length === 0 ? (
-            <div className="py-14 text-center text-ink-muted flex flex-col items-center justify-center gap-2">
-              <Loader2 className="w-8 h-8 text-brand animate-spin" />
-              <p className="text-xs font-bold text-ink-muted m-0">ثواني، بنجيب الفواتير المعلقة...</p>
+            <div className="py-14 text-center text-ink-muted dark:text-ink-dark-muted flex flex-col items-center justify-center gap-2">
+              <Loader2 className="w-8 h-8 text-brand dark:text-brand-bright animate-spin" />
+              <p className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted m-0">ثواني، بنجيب الفواتير المعلقة...</p>
             </div>
           ) : heldSales.length > 0 ? (
-            <div className="border border-line rounded-xl overflow-hidden shadow-2xs">
+            <div className="border border-line dark:border-line-dark rounded-xl overflow-hidden shadow-2xs">
               <table className="w-full text-right border-collapse text-xs">
                 <thead>
-                  <tr className="h-9 bg-surface-2 border-b border-line text-[11px] font-bold text-ink-muted">
+                  <tr className="h-9 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted">
                     <th className="px-3">اسم الزبون / الملاحظة</th>
                     <th className="px-3">الساعة</th>
                     <th className="px-3">الأصناف</th>
@@ -163,35 +163,35 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
                     <th className="px-3 text-center w-[165px]">التحكم</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-line bg-surface">
+                <tbody className="divide-y divide-line dark:divide-line-dark bg-surface dark:bg-surface-dark">
                   {heldSales.map((sale, idx) => (
-                    <tr key={sale.id} className="h-12 hover:bg-surface-2/60 transition-colors">
-                      <td className="px-3 font-bold text-ink text-xs">
+                    <tr key={sale.id} className="h-12 hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors">
+                      <td className="px-3 font-bold text-ink dark:text-ink-dark text-xs">
                         <div className="flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-warn shrink-0" />
                           <div className="truncate max-w-[140px]">
                             <span>{sale.customerName || sale.notes || `معلقة #${idx + 1}`}</span>
                             {sale.notes && sale.customerName && (
-                              <span className="block text-[10px] text-ink-muted font-normal truncate">
+                              <span className="block text-[10px] text-ink-muted dark:text-ink-dark-muted font-normal truncate">
                                 {sale.notes}
                               </span>
                             )}
                           </div>
                         </div>
                       </td>
-                      <td className="px-3 text-ink-muted text-xs font-mono tabular-nums">
+                      <td className="px-3 text-ink-muted dark:text-ink-dark-muted text-xs font-mono tabular-nums">
                         <div className="flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5 text-ink-muted/70" />
+                          <Clock className="w-3.5 h-3.5 text-ink-muted/70 dark:text-ink-dark-muted/70" />
                           <span>{formatHeldTime(sale.createdAt)}</span>
                         </div>
                       </td>
-                      <td className="px-3 text-ink text-xs tabular-nums">
+                      <td className="px-3 text-ink dark:text-ink-dark text-xs tabular-nums">
                         <div className="flex items-center gap-1">
-                          <ShoppingBag className="w-3.5 h-3.5 text-ink-muted/70" />
+                          <ShoppingBag className="w-3.5 h-3.5 text-ink-muted/70 dark:text-ink-dark-muted/70" />
                           <span>{sale.itemsCount} صنف</span>
                         </div>
                       </td>
-                      <td className="px-3 font-bold text-paid text-xs font-mono tabular-nums">
+                      <td className="px-3 font-bold text-paid dark:text-brand-bright text-xs font-mono tabular-nums">
                         {formatArabicCurrency(sale.totalPiasters)}
                       </td>
                       <td className="px-3 text-center">
@@ -212,7 +212,7 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
                               if (sale.id) void handleDelete(sale.id);
                             }}
                             disabled={deletingId === sale.id || loading}
-                            className="h-7.5 w-7.5 bg-surface border border-line text-ink-muted hover:text-danger hover:border-danger/30 hover:bg-danger-soft rounded-lg flex items-center justify-center transition-colors shadow-2xs cursor-pointer shrink-0"
+                            className="h-7.5 w-7.5 bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-danger hover:border-danger/30 hover:bg-danger-soft dark:hover:bg-danger/20 rounded-lg flex items-center justify-center transition-colors shadow-2xs cursor-pointer shrink-0"
                             title="مسح الفاتورة المعلقة"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -225,28 +225,28 @@ export const HeldSalesModal: React.FC<HeldSalesModalProps> = ({
               </table>
             </div>
           ) : (
-            <div className="py-12 text-center text-ink-muted flex flex-col items-center justify-center">
-              <PauseCircle className="w-12 h-12 mb-2 stroke-[1.2] text-line-hover" />
-              <p className="text-sm font-bold text-ink">مفيش أي فواتير معلقة دلوقتي</p>
-              <p className="text-xs text-ink-muted mt-1">
+            <div className="py-12 text-center text-ink-muted dark:text-ink-dark-muted flex flex-col items-center justify-center">
+              <PauseCircle className="w-12 h-12 mb-2 stroke-[1.2] text-line-hover dark:text-line-dark-strong" />
+              <p className="text-sm font-bold text-ink dark:text-ink-dark">مفيش أي فواتير معلقة دلوقتي</p>
+              <p className="text-xs text-ink-muted dark:text-ink-dark-muted mt-1">
                 تقدر تعلق أي فاتورة في السلة وانت شغال بالضغط على زرار تعليق الفاتورة
               </p>
             </div>
           )}
 
           {/* Indicator */}
-          <div className="text-[11px] text-ink-muted flex items-center justify-between px-1">
+          <div className="text-[11px] text-ink-muted dark:text-ink-dark-muted flex items-center justify-between px-1">
             <span>السيستم بيشيل لحد 50 فاتورة معلقة وبينظفهم تلقائي بعد أسبوع</span>
-            <span className="font-semibold text-brand">النشطة: {heldSales.length}</span>
+            <span className="font-semibold text-brand dark:text-brand-bright">النشطة: {heldSales.length}</span>
           </div>
         </div>
 
         {/* Modal Footer */}
-        <div className="h-13 px-5 bg-surface-2 border-t border-line flex items-center justify-end">
+        <div className="h-13 px-5 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-end">
           <button
             type="button"
             onClick={onClose}
-            className="h-9 px-5 border border-line bg-surface hover:bg-surface-2 text-xs font-bold text-ink rounded-xl transition-colors cursor-pointer shadow-2xs"
+            className="h-9 px-5 border border-line dark:border-line-dark bg-surface dark:bg-surface-dark-3 hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-xs font-bold text-ink dark:text-ink-dark rounded-xl transition-colors cursor-pointer shadow-2xs"
           >
             إغلاق
           </button>

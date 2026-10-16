@@ -91,7 +91,7 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
       }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 print:p-0 print:bg-white print:static"
     >
-      <div className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 print:shadow-none print:border-none print:max-h-none print:w-full">
+      <div className="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl border border-line dark:border-line-dark w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 print:shadow-none print:border-none print:max-h-none print:w-full">
         
         {/* Header (hidden in print) */}
         <div className="px-6 py-4 bg-brand-dark text-white flex items-center justify-between print:hidden">
@@ -134,46 +134,46 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
         </div>
 
         {/* Summary Metric Cards */}
-        <div className="p-5 bg-canvas border-b border-line grid grid-cols-1 md:grid-cols-3 gap-3 print:grid-cols-3">
-          <div className="bg-surface p-3.5 rounded-xl border border-line shadow-xs">
-            <span className="text-xs text-ink-muted block mb-1">إجمالي الديون المستحقة للمحل</span>
-            <span className="text-xl font-black text-danger">
+        <div className="p-5 bg-canvas dark:bg-canvas-dark border-b border-line dark:border-line-dark grid grid-cols-1 md:grid-cols-3 gap-3 print:grid-cols-3">
+          <div className="bg-surface dark:bg-surface-dark p-3.5 rounded-xl border border-line dark:border-line-dark shadow-xs">
+            <span className="text-xs text-ink-muted dark:text-ink-dark-muted block mb-1">إجمالي الديون المستحقة للمحل</span>
+            <span className="text-xl font-black text-danger dark:text-danger-bright">
               {formatArabicCurrency(totalDebtsPiasters)}
             </span>
-            <span className="text-[11px] text-ink-muted mt-1 block">رصيد آجل قائم طرف الزبائن</span>
+            <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-1 block">رصيد آجل قائم طرف الزبائن</span>
           </div>
 
-          <div className="bg-surface p-3.5 rounded-xl border border-line shadow-xs">
-            <span className="text-xs text-ink-muted block mb-1">عدد العملاء المدينين</span>
-            <span className="text-xl font-black text-ink">{debtors.length} عميل</span>
-            <span className="text-[11px] text-ink-muted mt-1 block">عليهم مبالغ غير مسددة</span>
+          <div className="bg-surface dark:bg-surface-dark p-3.5 rounded-xl border border-line dark:border-line-dark shadow-xs">
+            <span className="text-xs text-ink-muted dark:text-ink-dark-muted block mb-1">عدد العملاء المدينين</span>
+            <span className="text-xl font-black text-ink dark:text-ink-dark">{debtors.length} عميل</span>
+            <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-1 block">عليهم مبالغ غير مسددة</span>
           </div>
 
-          <div className="bg-surface p-3.5 rounded-xl border border-line shadow-xs">
-            <span className="text-xs text-ink-muted block mb-1">تجاوزوا الحد الائتماني المسموح</span>
-            <span className="text-xl font-black text-warn">{overLimitCount} عميل</span>
-            <span className="text-[11px] text-warn mt-1 block">يتطلب التوقف عن منح الآجل</span>
+          <div className="bg-surface dark:bg-surface-dark p-3.5 rounded-xl border border-line dark:border-line-dark shadow-xs">
+            <span className="text-xs text-ink-muted dark:text-ink-dark-muted block mb-1">تجاوزوا الحد الائتماني المسموح</span>
+            <span className="text-xl font-black text-warn dark:text-warn-bright">{overLimitCount} عميل</span>
+            <span className="text-[11px] text-warn dark:text-warn-bright mt-1 block">يتطلب التوقف عن منح الآجل</span>
           </div>
         </div>
 
         {/* Filters and Search Bar (hidden in print) */}
-        <div className="px-6 py-3 bg-surface border-b border-line flex flex-wrap items-center justify-between gap-3 print:hidden">
+        <div className="px-6 py-3 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark flex flex-wrap items-center justify-between gap-3 print:hidden">
           <div className="relative flex-1 min-w-[240px]">
-            <Search className="w-4 h-4 text-ink-muted absolute right-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted absolute right-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="بحث بالاسم أو رقم الهاتف..."
-              className="w-full text-xs pr-9 pl-3 py-2 rounded-xl border border-line bg-canvas text-ink focus:outline-none focus:border-brand"
+              className="w-full text-xs pr-9 pl-3 py-2 rounded-xl border border-line dark:border-line-dark bg-canvas dark:bg-canvas-dark text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
             />
           </div>
 
-          <div className="flex items-center gap-1.5 bg-canvas p-1 rounded-xl border border-line text-xs">
+          <div className="flex items-center gap-1.5 bg-canvas dark:bg-canvas-dark p-1 rounded-xl border border-line dark:border-line-dark text-xs">
             <button
               onClick={() => setFilterMode('all')}
               className={`px-3 py-1.5 rounded-lg font-medium transition ${
-                filterMode === 'all' ? 'bg-surface text-brand shadow-xs font-bold' : 'text-ink-muted hover:text-ink'
+                filterMode === 'all' ? 'bg-surface dark:bg-surface-dark text-brand dark:text-brand-bright shadow-xs font-bold' : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
               جميع المدينين ({debtors.length})
@@ -181,7 +181,7 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
             <button
               onClick={() => setFilterMode('overlimit')}
               className={`px-3 py-1.5 rounded-lg font-medium transition ${
-                filterMode === 'overlimit' ? 'bg-surface text-warn shadow-xs font-bold' : 'text-ink-muted hover:text-ink'
+                filterMode === 'overlimit' ? 'bg-surface dark:bg-surface-dark text-warn dark:text-warn-bright shadow-xs font-bold' : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
               }`}
             >
               تجاوزوا الحد ({overLimitCount})
@@ -190,62 +190,62 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
         </div>
 
         {/* Table content */}
-        <div className="flex-1 overflow-y-auto p-6 bg-canvas print:p-0 print:bg-white">
+        <div className="flex-1 overflow-y-auto p-6 bg-canvas dark:bg-canvas-dark print:p-0 print:bg-white">
           {loading ? (
-            <div className="py-20 text-center text-ink-muted text-sm">جاري جلب أرصدة العملاء وسجلات الذمم...</div>
+            <div className="py-20 text-center text-ink-muted dark:text-ink-dark-muted text-sm">جاري جلب أرصدة العملاء وسجلات الذمم...</div>
           ) : filteredDebtors.length === 0 ? (
-            <div className="py-16 text-center text-ink-muted bg-surface rounded-2xl border border-line">
-              <Users className="w-12 h-12 text-ink-muted/40 mx-auto mb-2" />
+            <div className="py-16 text-center text-ink-muted dark:text-ink-dark-muted bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark">
+              <Users className="w-12 h-12 text-ink-muted/40 dark:text-ink-dark-muted/40 mx-auto mb-2" />
               <p className="font-semibold text-sm">لا يوجد أي عملاء مدينين مطابقين للبحث حالياً.</p>
             </div>
           ) : (
-            <div className="bg-surface rounded-xl border border-line overflow-hidden shadow-xs print:border-none print:shadow-none">
+            <div className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark overflow-hidden shadow-xs print:border-none print:shadow-none">
               <table className="w-full text-sm text-right">
-                <thead className="bg-surface-2 text-ink-muted text-xs border-b border-line">
+                <thead className="bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted text-xs border-b border-line dark:border-line-dark">
                   <tr>
                     <th className="p-3 w-10 text-center print:table-cell">#</th>
                     <th className="p-3">اسم العميل</th>
                     <th className="p-3">رقم الهاتف</th>
-                    <th className="p-3 font-bold text-danger">المبلغ المستحق</th>
+                    <th className="p-3 font-bold text-danger dark:text-danger-bright">المبلغ المستحق</th>
                     <th className="p-3">الحد الائتماني</th>
                     <th className="p-3 text-center">حالة السقف</th>
                     <th className="p-3 text-xs">آخر حركة</th>
                     <th className="p-3 text-center print:table-cell hidden print:table-cell">توقيع المستلم</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-line">
+                <tbody className="divide-y divide-line dark:divide-line-dark">
                   {filteredDebtors.map((d, idx) => {
                     const isOverLimit = d.creditLimitPiasters > 0 && d.balancePiasters > d.creditLimitPiasters;
                     const lastDateFormatted = d.lastTransactionDate 
-                      ? d.lastTransactionDate.substring(0, 10) 
+                       ? d.lastTransactionDate.substring(0, 10) 
                       : '-';
 
                     return (
-                      <tr key={d.customerId} className="hover:bg-surface-2/40 transition">
-                        <td className="p-3 text-xs text-ink-muted text-center">{idx + 1}</td>
-                        <td className="p-3 font-bold text-ink">{d.name}</td>
-                        <td className="p-3 font-mono text-xs text-ink-muted" dir="ltr">{d.phone || '-'}</td>
-                        <td className="p-3 font-black text-danger">{formatArabicCurrency(d.balancePiasters)}</td>
-                        <td className="p-3 text-xs text-ink-muted">
+                      <tr key={d.customerId} className="hover:bg-surface-2/40 dark:hover:bg-surface-dark-2/40 transition">
+                        <td className="p-3 text-xs text-ink-muted dark:text-ink-dark-muted text-center">{idx + 1}</td>
+                        <td className="p-3 font-bold text-ink dark:text-ink-dark">{d.name}</td>
+                        <td className="p-3 font-mono text-xs text-ink-muted dark:text-ink-dark-muted" dir="ltr">{d.phone || '-'}</td>
+                        <td className="p-3 font-black text-danger dark:text-danger-bright">{formatArabicCurrency(d.balancePiasters)}</td>
+                        <td className="p-3 text-xs text-ink-muted dark:text-ink-dark-muted">
                           {d.creditLimitPiasters > 0 ? formatArabicCurrency(d.creditLimitPiasters) : 'بلا حد'}
                         </td>
                         <td className="p-3 text-center">
                           {isOverLimit ? (
-                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-danger flex items-center gap-1 justify-center">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright flex items-center gap-1 justify-center">
                               <AlertTriangle className="w-3 h-3" />
                               <span>متجاوز</span>
                             </span>
                           ) : (
-                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-paid-soft text-paid">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright">
                               ضمن الحد
                             </span>
                           )}
                         </td>
-                        <td className="p-3 text-xs text-ink-muted font-mono" dir="ltr">
+                        <td className="p-3 text-xs text-ink-muted dark:text-ink-dark-muted font-mono" dir="ltr">
                           {lastDateFormatted}
                         </td>
                         <td className="p-3 text-center hidden print:table-cell">
-                          <div className="w-24 h-6 border-b border-ink-muted mx-auto" />
+                          <div className="w-24 h-6 border-b border-ink-muted dark:border-ink-dark-muted mx-auto" />
                         </td>
                       </tr>
                     );
@@ -257,13 +257,13 @@ export const DebtorsReportModal: React.FC<DebtorsReportModalProps> = ({
         </div>
 
         {/* Footer (hidden in print) */}
-        <div className="px-6 py-3 bg-surface border-t border-line flex items-center justify-between print:hidden">
-          <span className="text-xs text-ink-muted">
+        <div className="px-6 py-3 bg-surface dark:bg-surface-dark border-t border-line dark:border-line-dark flex items-center justify-between print:hidden">
+          <span className="text-xs text-ink-muted dark:text-ink-dark-muted">
             جميع المبالغ مسجلة بالجنيه المصري ومطابقة لأرصدة حركة الحسابات التراكمية.
           </span>
           <button
             onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-ink-muted hover:text-ink hover:bg-surface-2 rounded-xl transition"
+            className="px-4 py-2 text-xs font-semibold text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-xl transition"
           >
             إغلاق
           </button>

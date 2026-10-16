@@ -58,18 +58,18 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/75 backdrop-blur-sm p-4"
       onClick={handleBackdropClick}
     >
-      <div className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-        <div className="h-12 bg-surface-2 hairline-b px-4 flex items-center justify-between shrink-0">
-          <span className="text-sm font-bold text-ink">
+      <div className="bg-surface dark:bg-surface-dark rounded-xl shadow-2xl border border-line dark:border-line-dark w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="h-12 bg-surface-2 dark:bg-surface-dark-2 hairline-b border-line dark:border-line-dark px-4 flex items-center justify-between shrink-0">
+          <span className="text-sm font-bold text-ink dark:text-ink-dark">
             {editingCustomer ? 'تعديل بيانات الزبون' : 'تسجيل زبون جديد في النوتة'}
           </span>
           <button 
             type="button"
             onClick={() => void requestClose()} 
-            className="text-ink-muted hover:text-ink cursor-pointer"
+            className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer"
             title="إغلاق"
           >
             <X className="w-4 h-4" />
@@ -78,21 +78,21 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
         <form onSubmit={onSave} className="p-4 space-y-3.5 text-xs flex-1 min-h-0 overflow-y-auto">
           <div>
-            <label className="block text-ink font-semibold mb-1">اسم الزبون *</label>
+            <label className="block text-ink dark:text-ink-dark font-semibold mb-1">اسم الزبون *</label>
             <input 
               type="text"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="مثال: الحاج أحمد محمود"
-              className="w-full h-8 px-3 bg-canvas border border-line rounded focus:outline-none focus:border-brand text-ink"
+              className="w-full h-8 px-3 bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark rounded focus:outline-none focus:border-brand dark:focus:border-brand-bright text-ink dark:text-ink-dark"
             />
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-ink font-semibold">رقم الموبايل</label>
-              {isCheckingPhone && <span className="text-[10px] text-ink-muted">بنتأكد من الرقم...</span>}
+              <label className="block text-ink dark:text-ink-dark font-semibold">رقم الموبايل</label>
+              {isCheckingPhone && <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted">بنتأكد من الرقم...</span>}
             </div>
             <input 
               type="text"
@@ -103,15 +103,15 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                 void checkPhoneDuplicate(val, editingCustomer?.id);
               }}
               placeholder="مثال: 01012345678"
-              className={`w-full h-8 px-3 bg-canvas border rounded focus:outline-none text-ink font-mono ${
-                duplicateCustomer ? 'border-amber-500 bg-amber-50/20' : 'border-line focus:border-brand'
+              className={`w-full h-8 px-3 bg-canvas dark:bg-canvas-dark border rounded focus:outline-none text-ink dark:text-ink-dark font-mono ${
+                duplicateCustomer ? 'border-warn bg-warn-soft/20 dark:bg-warn-dark-soft/40' : 'border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright'
               }`}
             />
 
             {duplicateCustomer && (
-              <div className="mt-1.5 p-2.5 rounded bg-amber-500/10 border border-amber-400/40 text-amber-900 dark:text-amber-200 text-[11px] flex flex-col gap-1.5">
+              <div className="mt-1.5 p-2.5 rounded bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright text-[11px] flex flex-col gap-1.5">
                 <div className="flex items-start gap-1.5">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <AlertTriangle className="w-4 h-4 text-warn dark:text-warn-bright shrink-0 mt-0.5" />
                   <div>
                     <span className="font-bold">تنبيه: الرقم ده متسجل قبل كده!</span> رقم الموبايل ده متسجل للزبون{' '}
                     <strong className="underline font-bold">{duplicateCustomer.name}</strong> (حسابه في المحل:{' '}
@@ -125,7 +125,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                       onClose();
                       onOpenStatementForDuplicate(duplicateCustomer);
                     }}
-                    className="text-[11px] text-brand font-bold hover:underline cursor-pointer"
+                    className="text-[11px] text-brand dark:text-brand-bright font-bold hover:underline cursor-pointer"
                   >
                     افتح كشف حساب الزبون ده ←
                   </button>
@@ -135,7 +135,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-ink font-semibold mb-1">سقف الشكك المسموح (أقصى مبلغ شكك)</label>
+            <label className="block text-ink dark:text-ink-dark font-semibold mb-1">سقف الشكك المسموح (أقصى مبلغ شكك)</label>
             <MoneyInput 
               valuePiasters={creditLimitPiasters}
               onChangePiasters={setCreditLimitPiasters}
@@ -144,20 +144,20 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
           {!editingCustomer && (
             <div>
-              <label className="block text-ink font-semibold mb-1">حساب قديم عليه قبل ما تسجله (إن وجد)</label>
+              <label className="block text-ink dark:text-ink-dark font-semibold mb-1">حساب قديم عليه قبل ما تسجله (إن وجد)</label>
               <MoneyInput 
                 valuePiasters={initialBalancePiasters}
                 onChangePiasters={setInitialBalancePiasters}
               />
-              <p className="text-[10px] text-ink-muted mt-1">سيبه صفر لو زبون جديد ومفيش عليه أي حساب قديم.</p>
+              <p className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1">سيبه صفر لو زبون جديد ومفيش عليه أي حساب قديم.</p>
             </div>
           )}
 
-          <div className="pt-2 flex justify-end gap-2 hairline-t">
+          <div className="pt-2 flex justify-end gap-2 hairline-t border-line dark:border-line-dark">
             <button
               type="button"
               onClick={() => void requestClose()}
-              className="px-4 py-1.5 rounded bg-surface border border-line hover:bg-surface-2 text-ink font-medium cursor-pointer"
+              className="px-4 py-1.5 rounded bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink dark:text-ink-dark font-medium cursor-pointer"
             >
               رجوع
             </button>

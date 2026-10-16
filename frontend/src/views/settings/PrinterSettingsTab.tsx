@@ -111,16 +111,16 @@ export const PrinterSettingsTab = ({
   };
 
   return (
-    <div className="bg-surface rounded-lg border border-line shadow-subtle p-5 flex flex-col gap-5 text-xs text-ink">
+    <div className="bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark shadow-subtle p-5 flex flex-col gap-5 text-xs text-ink dark:text-ink-dark">
       {/* Top Header Card */}
-      <div className="flex items-center justify-between border-b border-line pb-3.5">
+      <div className="flex items-center justify-between border-b border-line dark:border-line-dark pb-3.5">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded bg-brand/10 text-brand flex items-center justify-center font-bold">
-            <Printer className="w-5 h-5 text-brand" />
+          <div className="w-9 h-9 rounded bg-brand/10 dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center font-bold">
+            <Printer className="w-5 h-5 text-brand dark:text-brand-bright" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-ink m-0">طابعة فواتير الكاشير ومقاس البكرة</h3>
-            <p className="text-[11px] text-ink-muted m-0">تحديد طابعة الفواتير والوصل الحراري، مقاس البكرة (80مم / 57مم)، والطباعة التلقائية</p>
+            <h3 className="text-sm font-bold text-ink dark:text-ink-dark m-0">طابعة فواتير الكاشير ومقاس البكرة</h3>
+            <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark m-0">تحديد طابعة الفواتير والوصل الحراري، مقاس البكرة (80مم / 57مم)، والطباعة التلقائية</p>
           </div>
         </div>
 
@@ -128,10 +128,10 @@ export const PrinterSettingsTab = ({
           <button
             type="button"
             onClick={() => setIsHardwareModalOpen(true)}
-            className="px-3 py-1.5 rounded-lg bg-paid-soft hover:bg-paid-soft/80 border border-paid/30 text-paid text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="px-3 py-1.5 rounded-lg bg-paid-soft dark:bg-paid-dark-soft hover:bg-paid-soft/80 dark:hover:bg-paid-dark-soft/80 border border-paid/30 dark:border-paid-bright/30 text-paid dark:text-paid-bright text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
             title="عرض قائمة الطابعات والأجهزة المعتمدة والمجربة مع طريقة إعدادها"
           >
-            <Server className="w-3.5 h-3.5 text-paid" />
+            <Server className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
             <span>الأجهزة والطابعات المعتمدة</span>
           </button>
 
@@ -139,7 +139,7 @@ export const PrinterSettingsTab = ({
             type="button"
             onClick={fetchPrinters}
             disabled={printersLoading}
-            className="px-3 py-1.5 rounded-lg bg-surface-2 hover:bg-surface border border-line text-ink text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="px-3 py-1.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
             title="إعادة فحص الطابعات المتصلة بالجهاز"
           >
             <Cpu className={`w-3.5 h-3.5 ${printersLoading ? 'animate-spin' : ''}`} />
@@ -150,7 +150,7 @@ export const PrinterSettingsTab = ({
             type="button"
             onClick={onTestPrint}
             disabled={testPrinting || !selectedPrinter}
-            className="px-4 py-1.5 rounded-lg bg-brand hover:bg-brand-dark disabled:bg-surface-2 disabled:text-ink-muted text-white text-xs font-bold flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
+            className="px-4 py-1.5 rounded-lg bg-brand dark:bg-brand-dark hover:bg-brand-dark dark:hover:bg-brand disabled:bg-surface-2 dark:disabled:bg-surface-dark-2 disabled:text-ink-muted dark:disabled:text-ink-muted-dark text-white text-xs font-bold flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
           >
             <Zap className="w-3.5 h-3.5" />
             <span>{testPrinting ? 'جاري إرسال التجربة...' : 'تجربة طباعة وصل (Test Print)'}</span>
@@ -160,7 +160,9 @@ export const PrinterSettingsTab = ({
 
       {testPrintMessage && (
         <div className={`p-3 rounded-lg text-xs font-semibold flex items-center gap-2 border ${
-          testPrintMessage.isError ? 'bg-danger-soft border-danger-border text-danger' : 'bg-paid-soft border-paid-border text-paid'
+          testPrintMessage.isError
+            ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger-border dark:border-danger-bright/30 text-danger dark:text-danger-bright'
+            : 'bg-paid-soft dark:bg-paid-dark-soft border-paid-border dark:border-paid-bright/30 text-paid dark:text-paid-bright'
         }`}>
           {testPrintMessage.isError ? <Zap className="w-4 h-4 shrink-0" /> : <CheckCircle className="w-4 h-4 shrink-0" />}
           <span>{testPrintMessage.text}</span>
@@ -168,7 +170,7 @@ export const PrinterSettingsTab = ({
       )}
 
       {printerSaveSuccess && (
-        <div className="p-3 bg-paid-soft border border-paid-border text-paid rounded-lg text-xs font-semibold flex items-center gap-2">
+        <div className="p-3 bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid-bright/30 text-paid dark:text-paid-bright rounded-lg text-xs font-semibold flex items-center gap-2">
           <CheckCircle className="w-4 h-4" />
           <span>تم حفظ وتفعيل إعدادات طابعة الفواتير بنجاح!</span>
         </div>
@@ -178,7 +180,7 @@ export const PrinterSettingsTab = ({
         {/* Left: Printer & Paper Selection */}
         <div className="flex flex-col gap-4">
           <div>
-            <label className="block text-ink font-semibold text-xs mb-1.5">طابعة فواتير ووصولات الكاشير</label>
+            <label className="block text-ink dark:text-ink-dark font-semibold text-xs mb-1.5">طابعة فواتير ووصولات الكاشير</label>
             <CustomSelect
               value={selectedPrinter}
               onChange={(val) => setSelectedPrinter(val)}
@@ -193,13 +195,13 @@ export const PrinterSettingsTab = ({
               size="lg"
               placeholder="اختار طابعة الفواتير..."
             />
-            <p className="text-[11px] text-ink-muted mt-1.5 m-0 leading-relaxed">
+            <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark mt-1.5 m-0 leading-relaxed">
               رفيق بيدعم كل طابعات الـ USB والشبكة وطابعات الكاشير الحرارية (Xprinter, Rongta, Epson, Bixolon, Sunmi وغيرها) بدون أي تعريفات معقدة.
             </p>
           </div>
 
           <div>
-            <label className="block text-ink font-semibold text-xs mb-2">مقاس بكرة ورق الفاتورة</label>
+            <label className="block text-ink dark:text-ink-dark font-semibold text-xs mb-2">مقاس بكرة ورق الفاتورة</label>
             <div className="grid grid-cols-3 gap-2.5">
               {[
                 { id: '80mm', title: '80 مم (حراري عريض)', desc: 'المقاس القياسي لأغلب طابعات الكاشير' },
@@ -211,12 +213,12 @@ export const PrinterSettingsTab = ({
                   onClick={() => setPaperWidth(pw.id as '80mm' | '57mm' | 'a4')}
                   className={`p-3 rounded-lg border cursor-pointer flex flex-col gap-1 transition-all ${
                     paperWidth === pw.id
-                      ? 'bg-brand/10 border-brand text-brand font-bold shadow-xs'
-                      : 'bg-surface-2 border-line hover:border-line-hover text-ink'
+                      ? 'bg-brand/10 dark:bg-brand-dark-soft border-brand dark:border-brand-bright text-brand dark:text-brand-bright font-bold shadow-xs'
+                      : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark hover:border-line-hover dark:hover:border-line-dark text-ink dark:text-ink-dark'
                   }`}
                 >
                   <span className="font-bold text-xs">{pw.title}</span>
-                  <span className="text-[10px] text-ink-muted leading-tight">{pw.desc}</span>
+                  <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark leading-tight">{pw.desc}</span>
                 </div>
               ))}
             </div>
@@ -225,7 +227,7 @@ export const PrinterSettingsTab = ({
 
         {/* Right: Automation & Drawer Toggles */}
         <div className="flex flex-col gap-4">
-          <label className="block text-ink font-semibold text-xs mb-0.5">خيارات وأتمتة الكاشير والدرج</label>
+          <label className="block text-ink dark:text-ink-dark font-semibold text-xs mb-0.5">خيارات وأتمتة الكاشير والدرج</label>
           
           <div 
             onClick={() => {
@@ -234,12 +236,12 @@ export const PrinterSettingsTab = ({
               if (onToggleAutoPrint) onToggleAutoPrint(next);
             }}
             className={`p-3.5 rounded-lg border cursor-pointer flex items-center justify-between gap-3 transition-all ${
-              autoPrintOnSale ? 'bg-brand/5 border-brand/40' : 'bg-surface-2 border-line'
+              autoPrintOnSale ? 'bg-brand/5 dark:bg-brand-dark-soft/40 border-brand/40 dark:border-brand-bright/40' : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark'
             }`}
           >
             <div className="flex flex-col gap-0.5">
-              <span className="font-bold text-ink text-xs">طباعة وصل فورية أول ما البيع يخلص</span>
-              <span className="text-[11px] text-ink-muted leading-relaxed">
+              <span className="font-bold text-ink dark:text-ink-dark text-xs">طباعة وصل فورية أول ما البيع يخلص</span>
+              <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
                 إرسال أمر الطباعة تلقائياً أول ما تدوس تأكيد الدفع من غير ما يفتح شاشة معاينة
               </span>
             </div>
@@ -259,12 +261,12 @@ export const PrinterSettingsTab = ({
               if (onToggleOpenDrawer) onToggleOpenDrawer(next);
             }}
             className={`p-3.5 rounded-lg border cursor-pointer flex items-center justify-between gap-3 transition-all ${
-              openDrawerOnSale ? 'bg-brand/5 border-brand/40' : 'bg-surface-2 border-line'
+              openDrawerOnSale ? 'bg-brand/5 dark:bg-brand-dark-soft/40 border-brand/40 dark:border-brand-bright/40' : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark'
             }`}
           >
             <div className="flex flex-col gap-0.5">
-              <span className="font-bold text-ink text-xs">فتح درج النقدية والفلوس تلقائياً مع البيع (Cash Drawer)</span>
-              <span className="text-[11px] text-ink-muted leading-relaxed">
+              <span className="font-bold text-ink dark:text-ink-dark text-xs">فتح درج النقدية والفلوس تلقائياً مع البيع (Cash Drawer)</span>
+              <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
                 إرسال نبضة فتح الدرج تلقائياً مع كل عملية بيع كاش
               </span>
             </div>
@@ -280,15 +282,15 @@ export const PrinterSettingsTab = ({
       </div>
 
       {/* Feature #57: Barcode Label Printer Settings */}
-      <div className="border-t border-line pt-5 mt-1 flex flex-col gap-4">
+      <div className="border-t border-line dark:border-line-dark pt-5 mt-1 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded bg-brand-soft text-brand flex items-center justify-center font-bold">
-              <Tag className="w-4 h-4 text-brand" />
+            <div className="w-7 h-7 rounded bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center font-bold">
+              <Tag className="w-4 h-4 text-brand dark:text-brand-bright" />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-ink m-0">طابعة استيكرات الباركود والأسعار</h4>
-              <p className="text-[11px] text-ink-muted m-0">تحديد طابعة استيكرات البضاعة ومقاس بكرة الباركود (Roll & Sheet)</p>
+              <h4 className="text-xs font-bold text-ink dark:text-ink-dark m-0">طابعة استيكرات الباركود والأسعار</h4>
+              <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark m-0">تحديد طابعة استيكرات البضاعة ومقاس بكرة الباركود (Roll & Sheet)</p>
             </div>
           </div>
 
@@ -296,16 +298,18 @@ export const PrinterSettingsTab = ({
             type="button"
             onClick={handleTestLabel}
             disabled={labelTestPrinting || printersList.length === 0}
-            className="px-3 py-1.5 rounded-lg bg-surface-2 hover:bg-surface border border-line text-ink text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+            className="px-3 py-1.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
           >
-            <Zap className={`w-3.5 h-3.5 text-brand ${labelTestPrinting ? 'animate-spin' : ''}`} />
+            <Zap className={`w-3.5 h-3.5 text-brand dark:text-brand-bright ${labelTestPrinting ? 'animate-spin' : ''}`} />
             <span>{labelTestPrinting ? 'جاري إرسال الاستيكر...' : 'طباعة استيكر تجريبي'}</span>
           </button>
         </div>
 
         {labelTestMessage && (
           <div className={`p-2.5 rounded-lg text-xs font-semibold flex items-center gap-2 border ${
-            labelTestMessage.isError ? 'bg-danger-soft border-danger-border text-danger' : 'bg-paid-soft border-paid-border text-paid'
+            labelTestMessage.isError
+              ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger-border dark:border-danger-bright/30 text-danger dark:text-danger-bright'
+              : 'bg-paid-soft dark:bg-paid-dark-soft border-paid-border dark:border-paid-bright/30 text-paid dark:text-paid-bright'
           }`}>
             <span>{labelTestMessage.text}</span>
           </div>
@@ -313,7 +317,7 @@ export const PrinterSettingsTab = ({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-ink font-semibold text-xs mb-1.5">طابعة استيكرات الباركود</label>
+            <label className="block text-ink dark:text-ink-dark font-semibold text-xs mb-1.5">طابعة استيكرات الباركود</label>
             <CustomSelect
               value={labelPrinter}
               onChange={(val) => setLabelPrinter(val)}
@@ -330,7 +334,7 @@ export const PrinterSettingsTab = ({
           </div>
 
           <div>
-            <label className="block text-ink font-semibold text-xs mb-1.5">المقاس الافتراضي لاستيكر الباركود</label>
+            <label className="block text-ink dark:text-ink-dark font-semibold text-xs mb-1.5">المقاس الافتراضي لاستيكر الباركود</label>
             <CustomSelect
               value={labelPaperSize}
               onChange={(val) => setLabelPaperSize(val)}
@@ -353,7 +357,7 @@ export const PrinterSettingsTab = ({
           type="button"
           onClick={handleSaveAll}
           disabled={saveLoading}
-          className="mt-2 h-11 bg-brand hover:bg-brand-dark text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
+          className="mt-2 h-11 bg-brand dark:bg-brand-dark hover:bg-brand-dark dark:hover:bg-brand text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
         >
           <Save className="w-4 h-4" />
           <span>{saveLoading ? 'جاري الحفظ...' : 'حفظ وتفعيل كافة إعدادات الطابعات والاستيكرات'}</span>

@@ -410,12 +410,12 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
       {/* Left: Line Items & Search (Canvas) */}
       <div className="flex-1 flex flex-col gap-3 overflow-hidden">
         {/* Invoice Master Header Inputs */}
-        <div className="bg-surface border border-line rounded-xl p-3 sm:p-3.5 shadow-2xs shrink-0 flex flex-col gap-2.5">
+        <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 sm:p-3.5 shadow-2xs shrink-0 flex flex-col gap-2.5">
           <div className="grid grid-cols-12 gap-2.5 sm:gap-3 items-center">
             {/* Supplier Selection */}
             <div className="col-span-12 sm:col-span-5 md:col-span-4">
-              <label className="text-[11px] font-bold text-ink-muted block mb-1">
-                المورد <span className="text-danger">*</span>
+              <label className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">
+                المورد <span className="text-danger dark:text-danger-bright">*</span>
               </label>
               <div className="flex items-center gap-1.5">
                 <CustomSelect
@@ -444,7 +444,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                 <button
                   type="button"
                   onClick={onOpenAddSupplier}
-                  className="h-8 px-2.5 bg-brand-soft hover:bg-brand/20 text-brand-dark rounded-lg text-xs font-bold flex items-center gap-1 shrink-0 border border-brand/20 transition-colors cursor-pointer"
+                  className="h-8 px-2.5 bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand/20 dark:hover:bg-brand/30 text-brand-dark dark:text-brand-bright rounded-lg text-xs font-bold flex items-center gap-1 shrink-0 border border-brand/20 dark:border-brand-bright/40 shadow-2xs transition-colors cursor-pointer"
                   title="إضافة مورد جديد سريعاً"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -455,7 +455,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
 
             {/* Supplier Invoice Number */}
             <div className="col-span-6 sm:col-span-3 md:col-span-3">
-              <label className="text-[11px] font-bold text-ink-muted block mb-1">
+              <label className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">
                 رقم فاتورة المورد (الورقية)
               </label>
               <input
@@ -463,17 +463,17 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                 placeholder="مثال: INV-8840"
                 value={supplierInvoiceNumber}
                 onChange={(e) => setSupplierInvoiceNumber(e.target.value)}
-                className="w-full h-8 px-2.5 bg-surface-2 border border-line rounded-lg text-xs font-mono font-medium text-ink focus:outline-none focus:border-brand focus:bg-surface transition-colors"
+                className="w-full h-8 px-2.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg text-xs font-mono font-medium text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors"
               />
             </div>
 
             {/* Costing Method */}
             <div className="col-span-6 sm:col-span-4 md:col-span-3">
-              <label className="text-[11px] font-bold text-ink-muted flex items-center gap-1 mb-1">
+              <label className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted flex items-center gap-1 mb-1">
                 <span>تحديث التكلفة</span>
                 <div className="group relative inline-flex items-center justify-center cursor-help">
-                  <Info className="w-3.5 h-3.5 text-ink-muted hover:text-brand transition-colors" />
-                  <div className="absolute top-full mt-1.5 right-0 hidden group-hover:block w-64 p-2.5 bg-ink text-white text-[10px] rounded-xl shadow-xl z-50 pointer-events-none leading-relaxed border border-white/10">
+                  <Info className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright transition-colors" />
+                  <div className="absolute top-full mt-1.5 right-0 hidden group-hover:block w-64 p-2.5 bg-ink dark:bg-surface-dark-3 text-white text-[10px] rounded-xl shadow-xl z-50 pointer-events-none leading-relaxed border border-white/10">
                     <div className="font-bold text-emerald-300 mb-1 border-b border-white/10 pb-1">
                       طريقة تحديث سعر التكلفة في كارت الصنف:
                     </div>
@@ -498,9 +498,9 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
 
             {/* Invoice Date */}
             <div className="col-span-12 sm:col-span-2 md:col-span-2">
-              <span className="text-[11px] font-bold text-ink-muted block mb-1">تاريخ الفاتورة</span>
-              <div className="h-8 px-2.5 bg-surface-2 border border-line rounded-lg flex items-center gap-1.5 text-xs font-mono font-bold text-ink">
-                <Calendar className="w-3.5 h-3.5 text-ink-muted shrink-0" />
+              <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">تاريخ الفاتورة</span>
+              <div className="h-8 px-2.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg flex items-center gap-1.5 text-xs font-mono font-bold text-ink dark:text-ink-dark">
+                <Calendar className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted shrink-0" />
                 <span>{new Date().toLocaleDateString('ar-EG-u-nu-latn', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
               </div>
             </div>
@@ -509,60 +509,60 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
 
         {/* Barcode & Product Scanner Search Bar */}
         <div ref={searchContainerRef} className="relative shrink-0">
-          <div className="h-11 bg-surface border border-line focus-within:border-brand rounded-xl flex items-center px-3 gap-2.5 shadow-2xs transition-colors">
-            <Search className="w-4 h-4 text-ink-muted" />
+          <div className="h-11 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark focus-within:border-brand dark:focus-within:border-brand-bright rounded-xl flex items-center px-3 gap-2.5 shadow-2xs transition-colors">
+            <Search className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted" />
             <input
               type="text"
               placeholder="اضرب باركود الصنف بالاسكانر أو اكتب اسمه عشان ينزل في الفاتورة..."
               value={productSearchQuery}
               onChange={(e) => setProductSearchQuery(e.target.value)}
               onKeyDown={handleSearchKeyDown}
-              className="flex-1 bg-transparent border-none text-sm text-ink placeholder:text-ink-muted/70 focus:outline-none"
+              className="flex-1 bg-transparent border-none text-sm text-ink dark:text-ink-dark placeholder:text-ink-muted/70 dark:placeholder:text-ink-dark-muted/70 focus:outline-none"
               autoFocus
             />
             {isSearchingProduct && (
-              <span className="text-xs text-ink-muted animate-pulse">بندور على الصنف...</span>
+              <span className="text-xs text-ink-muted dark:text-ink-dark-muted animate-pulse">بندور على الصنف...</span>
             )}
           </div>
 
           {/* Dropdown Results */}
           {displayedCatalogProducts.length > 0 && (
-            <div className="absolute top-14 left-0 right-0 z-40 bg-surface border border-line rounded-xl shadow-xl overflow-hidden divide-y divide-line max-h-72 overflow-y-auto">
+            <div className="absolute top-14 left-0 right-0 z-40 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-xl overflow-hidden divide-y divide-line dark:divide-line-dark max-h-72 overflow-y-auto">
               {displayedCatalogProducts.map((p, idx) => (
                 <button
                   type="button"
                   key={p.id}
                   onClick={() => onAddProduct(p)}
                   className={`w-full p-3 text-right flex items-center justify-between transition-colors cursor-pointer ${
-                    idx === selectedProductIndex ? 'bg-surface-2 ring-1 ring-inset ring-brand/30' : 'hover:bg-surface-2'
+                    idx === selectedProductIndex ? 'bg-surface-2 dark:bg-surface-dark-2 ring-1 ring-inset ring-brand/30 dark:ring-brand-bright/30' : 'hover:bg-surface-2 dark:hover:bg-surface-dark-2'
                   }`}
                 >
                   <div>
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-bold text-xs text-ink">{p.name}</span>
+                      <span className="font-bold text-xs text-ink dark:text-ink-dark">{p.name}</span>
                       {p.hasVariants && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-brand-soft border border-brand/20 text-brand text-[10px] font-bold">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-brand-soft dark:bg-brand-soft/20 border border-brand/20 dark:border-brand-bright/30 text-brand dark:text-brand-bright text-[10px] font-bold">
                           <Layers className="w-2.5 h-2.5" />
                           <span>مقاسات وألوان</span>
                         </span>
                       )}
                       {(p.variantColor || p.variantSize) && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-2 border border-line text-ink-muted text-[10px] font-mono">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted text-[10px] font-mono">
                           {p.variantColor && <span>{p.variantColor}</span>}
                           {p.variantColor && p.variantSize && <span>/</span>}
                           {p.variantSize && <span>{p.variantSize}</span>}
                         </span>
                       )}
                     </div>
-                    <span className="text-[11px] text-ink-muted font-mono block mt-0.5">
+                    <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-mono block mt-0.5">
                       باركود: {p.barcode || 'بدون'} | الرصيد الحالي: {(p.stockQuantityMilli / 1000).toFixed(0)} {p.unit}
                     </span>
                   </div>
                   <div className="text-left">
-                    <span className="text-xs font-bold font-mono text-paid block">
+                    <span className="text-xs font-bold font-mono text-paid dark:text-paid-bright block">
                       سعر البيع: {formatMoney(p.pricePiasters)}
                     </span>
-                    <span className="text-[11px] font-mono text-ink-muted">
+                    <span className="text-[11px] font-mono text-ink-muted dark:text-ink-dark-muted">
                       التكلفة السابقة: {formatMoney(p.costPiasters)}
                     </span>
                   </div>
@@ -573,9 +573,9 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
         </div>
 
         {/* Line Items Table */}
-        <div className="flex-1 bg-surface border border-line rounded-xl overflow-hidden flex flex-col shadow-2xs">
+        <div className="flex-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl overflow-hidden flex flex-col shadow-2xs">
           {/* Table Header */}
-          <div className="h-9 bg-surface-2 border-b border-line px-5 sm:px-6 grid grid-cols-12 gap-2 items-center text-xs font-bold text-ink-muted shrink-0">
+          <div className="h-9 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-5 sm:px-6 grid grid-cols-12 gap-2 items-center text-xs font-bold text-ink-muted dark:text-ink-dark-muted shrink-0">
             <div className="col-span-12 sm:col-span-3 text-right">اسم الصنف / الباركود والرصيد</div>
             <div className="col-span-4 sm:col-span-2 text-center">العدد اللي دخل</div>
             <div className="col-span-4 sm:col-span-2 text-center">سعر الشراء (التكلفة)</div>
@@ -584,12 +584,12 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
             <div className="col-span-12 sm:col-span-1 text-center">إجراءات</div>
           </div>
 
-          <div className="flex-1 overflow-y-auto divide-y divide-line p-2 sm:p-2.5 space-y-2">
+          <div className="flex-1 overflow-y-auto divide-y divide-line dark:divide-line-dark p-2 sm:p-2.5 space-y-2">
             {lineItems.length === 0 ? (
-              <div className="h-56 flex flex-col items-center justify-center text-ink-muted gap-2">
+              <div className="h-56 flex flex-col items-center justify-center text-ink-muted dark:text-ink-dark-muted gap-2">
                 <ShoppingCart className="w-10 h-10 opacity-30" />
                 <span className="text-sm font-semibold">لسه ما ضفتش أصناف للفاتورة</span>
-                <span className="text-xs text-ink-muted">اضرب الباركود بالاسكانر أو اكتب اسم الصنف فوق عشان ينزل هنا</span>
+                <span className="text-xs text-ink-muted dark:text-ink-dark-muted">اضرب الباركود بالاسكانر أو اكتب اسم الصنف فوق عشان ينزل هنا</span>
               </div>
             ) : (
               lineItems.map((item, idx) => {
@@ -624,18 +624,18 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                 return (
                   <div
                     key={item.productId}
-                    className="bg-surface rounded-xl border border-line hover:border-brand/40 p-3 sm:p-3.5 flex flex-col gap-2.5 shadow-2xs transition-colors"
+                    className="bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark hover:border-brand/40 dark:hover:border-brand-bright/40 p-3 sm:p-3.5 flex flex-col gap-2.5 shadow-2xs transition-colors"
                   >
                     {/* Main Row: Core Columns */}
                     <div className="grid grid-cols-12 items-center gap-2 text-xs">
                       {/* 1. Product Name & Info (col-span-3) */}
                       <div className="col-span-12 sm:col-span-3 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-extrabold text-ink text-sm block truncate" title={item.productName}>
+                          <span className="font-extrabold text-ink dark:text-ink-dark text-sm block truncate" title={item.productName}>
                             {item.productName}
                           </span>
                           {(item.variantColor || item.variantSize) && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-brand-soft border border-brand/20 text-brand text-[10px] font-bold shrink-0">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-brand-soft dark:bg-brand-soft/20 border border-brand/20 dark:border-brand-bright/30 text-brand dark:text-brand-bright text-[10px] font-bold shrink-0">
                               <Layers className="w-2.5 h-2.5" />
                               {item.variantColor && <span>{item.variantColor}</span>}
                               {item.variantColor && item.variantSize && <span>/</span>}
@@ -644,21 +644,21 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                           )}
                         </div>
                         <div className="flex items-center gap-2 flex-wrap mt-1">
-                          <span className="text-xs font-mono text-ink-muted">
+                          <span className="text-xs font-mono text-ink-muted dark:text-ink-dark-muted">
                             كود: {item.barcode || '—'}
                           </span>
-                          <span className="text-line">•</span>
-                          <span className="text-xs font-mono text-ink-muted">
-                            السابق: <b className="text-ink font-sans">{(item.currentCostPiasters / 100).toFixed(2)} ج.م</b>
+                          <span className="text-line dark:text-line-dark">•</span>
+                          <span className="text-xs font-mono text-ink-muted dark:text-ink-dark-muted">
+                            السابق: <b className="text-ink dark:text-ink-dark font-sans">{(item.currentCostPiasters / 100).toFixed(2)} ج.م</b>
                           </span>
                         </div>
                         {/* Compact Stock Info */}
-                        <div className="flex items-center gap-1.5 text-[11px] font-mono text-ink-muted mt-1 flex-wrap">
-                          <span className="bg-surface-2 px-1.5 py-0.5 rounded border border-line">
-                            المخزن: <b className="text-ink font-sans">{item.unit === 'kg' ? currentStockUnits.toFixed(3).replace(/\.?0+$/, '') : currentStockUnits.toFixed(0)}</b> {getUnitLabel(item.unit)}
+                        <div className="flex items-center gap-1.5 text-[11px] font-mono text-ink-muted dark:text-ink-dark-muted mt-1 flex-wrap">
+                          <span className="bg-surface-2 dark:bg-surface-dark-2 px-1.5 py-0.5 rounded border border-line dark:border-line-dark">
+                            المخزن: <b className="text-ink dark:text-ink-dark font-sans">{item.unit === 'kg' ? currentStockUnits.toFixed(3).replace(/\.?0+$/, '') : currentStockUnits.toFixed(0)}</b> {getUnitLabel(item.unit)}
                           </span>
                           {incomingUnits > 0 && (
-                            <span className="bg-paid-soft text-paid-dark px-1.5 py-0.5 rounded border border-paid/20 font-bold">
+                            <span className="bg-paid-soft dark:bg-paid-dark-soft text-paid-dark dark:text-paid-bright px-1.5 py-0.5 rounded border border-paid/20 dark:border-emerald-800/40 font-bold">
                               ← بعد الشراء: {item.unit === 'kg' ? totalStockUnits.toFixed(3).replace(/\.?0+$/, '') : totalStockUnits.toFixed(0)}
                             </span>
                           )}
@@ -678,7 +678,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                 handleDirectStockChange(idx, String(nextVal));
                               }
                             }}
-                            className="w-7 h-7 rounded-lg bg-surface-2 hover:bg-line flex items-center justify-center text-xs font-bold text-ink transition-colors cursor-pointer"
+                            className="w-7 h-7 rounded-lg bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 flex items-center justify-center text-xs font-bold text-ink dark:text-ink-dark transition-colors cursor-pointer"
                             title="إنقاص الكمية"
                           >
                             -
@@ -707,7 +707,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               }
                             }}
                             placeholder="0"
-                            className="w-16 h-7 text-center font-mono font-bold bg-brand-soft border border-brand/30 rounded-lg text-xs text-brand focus:outline-none focus:border-brand"
+                            className="w-16 h-7 text-center font-mono font-bold bg-brand-soft dark:bg-brand-soft/20 border border-brand/30 dark:border-brand-bright/30 rounded-lg text-xs text-brand dark:text-brand-bright focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                             title="الكمية المشتراة"
                           />
                           <button
@@ -718,7 +718,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               const nextVal = isWeight ? parseFloat((curr + 1).toFixed(3)) : curr + 1;
                               handleDirectStockChange(idx, String(nextVal));
                             }}
-                            className="w-7 h-7 rounded-lg bg-surface-2 hover:bg-line flex items-center justify-center text-xs font-bold text-ink transition-colors cursor-pointer"
+                            className="w-7 h-7 rounded-lg bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 flex items-center justify-center text-xs font-bold text-ink dark:text-ink-dark transition-colors cursor-pointer"
                             title="زيادة الكمية"
                           >
                             +
@@ -727,7 +727,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
 
                         {/* Cartons Summary / Shortcut */}
                         {((item.cartonsInput && parseInt(item.cartonsInput, 10) > 0) || (item.looseInput && parseInt(item.looseInput, 10) > 0)) ? (
-                          <span className="text-[10.5px] font-mono text-brand font-bold bg-brand-soft px-1.5 py-0.5 rounded border border-brand/20">
+                          <span className="text-[10.5px] font-mono text-brand dark:text-brand-bright font-bold bg-brand-soft dark:bg-brand-soft/20 px-1.5 py-0.5 rounded border border-brand/20 dark:border-brand-bright/30">
                             {parseInt(item.cartonsInput || '0', 10) > 0 ? `${item.cartonsInput} كرتونة ` : ''}
                             {parseInt(item.looseInput || '0', 10) > 0 ? `+ ${item.looseInput} فرط` : ''}
                           </span>
@@ -735,7 +735,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                           <button
                             type="button"
                             onClick={() => toggleItemExpand(item.productId)}
-                            className="text-[10px] text-ink-muted hover:text-brand font-medium flex items-center gap-0.5 cursor-pointer transition-colors"
+                            className="text-[10px] text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright font-medium flex items-center gap-0.5 cursor-pointer transition-colors"
                           >
                             <Layers className="w-2.5 h-2.5" />
                             <span>حاسبة الكراتين</span>
@@ -754,16 +754,16 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               setLineItems(updated);
                             }}
                             hideCurrency
-                            className="!w-20 !h-7 !px-1.5 !py-0 !text-center !text-xs !font-bold !bg-surface-2 !border-line !rounded-lg"
+                            className="!w-20 !h-7 !px-1.5 !py-0 !text-center !text-xs !font-bold !bg-surface-2 dark:!bg-surface-dark-2 !border-line dark:!border-line-dark !rounded-lg text-ink dark:text-ink-dark"
                           />
-                          <span className="text-xs text-ink-muted font-bold">ج.م</span>
+                          <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">ج.م</span>
                         </div>
 
                         {/* Price Change Indicator */}
                         {hasPrevCost ? (
                           costDiffPiasters > 0 ? (
                             <div
-                              className="flex items-center gap-1 text-[10.5px] text-danger font-extrabold bg-danger-soft px-1.5 py-0.5 rounded border border-danger/20"
+                              className="flex items-center gap-1 text-[10.5px] text-danger dark:text-danger-bright font-extrabold bg-danger-soft dark:bg-danger-dark-soft px-1.5 py-0.5 rounded border border-danger/20 dark:border-danger-bright/30"
                               title="ارتفاع في سعر الشراء"
                             >
                               <TrendingUp className="w-3 h-3 shrink-0" />
@@ -771,20 +771,20 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                             </div>
                           ) : costDiffPiasters < 0 ? (
                             <div
-                              className="flex items-center gap-1 text-[10.5px] text-paid font-extrabold bg-paid-soft px-1.5 py-0.5 rounded border border-paid/20"
+                              className="flex items-center gap-1 text-[10.5px] text-paid dark:text-paid-bright font-extrabold bg-paid-soft dark:bg-paid-dark-soft px-1.5 py-0.5 rounded border border-paid/20 dark:border-emerald-800/40"
                               title="انخفاض في سعر الشراء (وفر)"
                             >
                               <TrendingDown className="w-3 h-3 shrink-0" />
                               <span>وفر -{(Math.abs(costDiffPiasters) / 100).toFixed(2)} ({costDiffPercent}%)</span>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-0.5 text-[10.5px] text-ink-muted bg-surface-2 px-1.5 py-0.5 rounded border border-line">
+                            <div className="flex items-center gap-0.5 text-[10.5px] text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 px-1.5 py-0.5 rounded border border-line dark:border-line-dark">
                               <Minus className="w-3 h-3 shrink-0" />
                               <span>نفس التكلفة</span>
                             </div>
                           )
                         ) : (
-                          <span className="text-[10.5px] text-brand font-bold bg-brand-soft px-1.5 py-0.5 rounded border border-brand/20">تكلفة أول مرة</span>
+                          <span className="text-[10.5px] text-brand dark:text-brand-bright font-bold bg-brand-soft dark:bg-brand-soft/20 px-1.5 py-0.5 rounded border border-brand/20 dark:border-brand-bright/30">تكلفة أول مرة</span>
                         )}
                       </div>
 
@@ -799,24 +799,24 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               setLineItems(updated);
                             }}
                             hideCurrency
-                            className="!w-20 !h-7 !px-1.5 !py-0 !text-center !text-xs !font-bold !bg-surface-2 !border-line !rounded-lg"
+                            className="!w-20 !h-7 !px-1.5 !py-0 !text-center !text-xs !font-bold !bg-surface-2 dark:!bg-surface-dark-2 !border-line dark:!border-line-dark !rounded-lg text-ink dark:text-ink-dark"
                           />
-                          <span className="text-xs text-ink-muted font-bold">ج.م</span>
+                          <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">ج.م</span>
                         </div>
 
                         {/* Profit margin badge */}
                         {profitPiasters < 0 ? (
-                          <div className="flex items-center gap-1 text-[10.5px] text-danger font-extrabold bg-danger-soft px-1.5 py-0.5 rounded border border-danger/20">
+                          <div className="flex items-center gap-1 text-[10.5px] text-danger dark:text-danger-bright font-extrabold bg-danger-soft dark:bg-danger-dark-soft px-1.5 py-0.5 rounded border border-danger/20 dark:border-danger-bright/30">
                             <AlertCircle className="w-3 h-3 shrink-0" />
                             <span>خسارة: {(profitPiasters / 100).toFixed(2)}</span>
                           </div>
                         ) : profitPiasters === 0 ? (
-                          <div className="text-[10.5px] text-warn font-extrabold bg-warn/10 px-1.5 py-0.5 rounded border border-warn/30">
+                          <div className="text-[10.5px] text-warn dark:text-warn-bright font-extrabold bg-warn-soft dark:bg-warn-dark-soft px-1.5 py-0.5 rounded border border-warn-border dark:border-warn-bright/30">
                             <span>بيع = تكلفة</span>
                           </div>
                         ) : (
                           <div
-                            className="flex items-center gap-1 text-[10.5px] text-paid font-extrabold bg-paid-soft px-1.5 py-0.5 rounded border border-paid/20"
+                            className="flex items-center gap-1 text-[10.5px] text-paid dark:text-paid-bright font-extrabold bg-paid-soft dark:bg-paid-dark-soft px-1.5 py-0.5 rounded border border-paid/20 dark:border-emerald-800/40"
                             title={`هامش مجمل الربح: ${marginPercent}%`}
                           >
                             <span>الربح: +{(profitPiasters / 100).toFixed(2)}</span>
@@ -830,10 +830,10 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                             <button
                               type="button"
                               onClick={() => handleApplySuggestedPrice(idx, weightedSuggestedPricePiasters)}
-                              className="text-[10px] font-bold text-brand hover:text-brand-dark flex items-center gap-1 bg-brand-soft hover:bg-brand/20 px-1.5 py-0.5 rounded border border-brand/20 transition-colors cursor-pointer"
+                              className="text-[10px] font-bold text-brand dark:text-brand-bright hover:text-brand-dark dark:hover:text-emerald-300 flex items-center gap-1 bg-brand-soft dark:bg-brand-soft/20 hover:bg-brand/20 dark:hover:bg-brand-bright/20 px-1.5 py-0.5 rounded border border-brand/20 dark:border-brand-bright/30 transition-colors cursor-pointer"
                               title="تعديل سعر البيع لاعتماد متوسط التكلفة"
                             >
-                              <Sparkles className="w-2.5 h-2.5 text-brand shrink-0" />
+                              <Sparkles className="w-2.5 h-2.5 text-brand dark:text-brand-bright shrink-0" />
                               <span>مقترح: {(weightedSuggestedPricePiasters / 100).toFixed(2)}</span>
                             </button>
                           )}
@@ -841,10 +841,10 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
 
                       {/* 5. Line Total (col-span-2) */}
                       <div className="col-span-6 sm:col-span-2 text-center">
-                        <div className="font-mono font-extrabold text-ink text-sm sm:text-base">
+                        <div className="font-mono font-extrabold text-ink dark:text-ink-dark text-sm sm:text-base">
                           {formatMoney(lineTotal)}
                         </div>
-                        <span className="text-[11px] font-mono text-ink-muted block mt-0.5">
+                        <span className="text-[11px] font-mono text-ink-muted dark:text-ink-dark-muted block mt-0.5">
                           {item.quantityUnits} × {(item.unitCostPiasters / 100).toFixed(2)} ج.م
                         </span>
                       </div>
@@ -856,8 +856,8 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                           onClick={() => toggleItemExpand(item.productId)}
                           className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
                             isItemExpanded(item.productId, item)
-                              ? 'text-brand bg-brand-soft'
-                              : 'text-ink-muted hover:text-ink hover:bg-surface-2'
+                              ? 'text-brand dark:text-brand-bright bg-brand-soft dark:bg-brand-soft/20'
+                              : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
                           }`}
                           title="عرض / إخفاء تفاصيل وحاسبة الكراتين"
                         >
@@ -872,7 +872,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                           onClick={() => {
                             setLineItems(lineItems.filter((_, i) => i !== idx));
                           }}
-                          className="p-1.5 text-ink-muted hover:text-danger hover:bg-danger-soft rounded-lg transition-colors cursor-pointer"
+                          className="p-1.5 text-ink-muted dark:text-ink-dark-muted hover:text-danger dark:hover:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft rounded-lg transition-colors cursor-pointer"
                           title="حذف هذا الصنف من الفاتورة"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -882,16 +882,16 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
 
                     {/* Integrated Sub-Tools: Cartons Breakdown & Smart Pricing Insights */}
                     {isItemExpanded(item.productId, item) && (
-                      <div className="bg-surface-2/60 border border-line rounded-xl p-3 flex flex-col gap-3 transition-all">
+                      <div className="bg-surface-2/60 dark:bg-surface-dark-2/60 border border-line dark:border-line-dark rounded-xl p-3 flex flex-col gap-3 transition-all">
                         {/* 1. Cartons Formula Strip */}
-                        <div className="bg-surface rounded-lg p-2.5 border border-line flex items-center justify-between gap-3 flex-wrap">
-                          <div className="flex items-center gap-2 text-xs font-bold text-ink shrink-0">
-                            <Layers className="w-4 h-4 text-brand shrink-0" />
+                        <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex items-center justify-between gap-3 flex-wrap">
+                          <div className="flex items-center gap-2 text-xs font-bold text-ink dark:text-ink-dark shrink-0">
+                            <Layers className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
                             <span>حاسبة الكراتين والشكاير:</span>
                           </div>
                           <div className="flex items-center gap-2 flex-wrap text-xs">
                             <div className="flex items-center gap-1.5">
-                              <span className="text-ink-muted font-medium text-[11px]">عدد الكراتين:</span>
+                              <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">عدد الكراتين:</span>
                               <input
                                 type="text"
                                 inputMode="numeric"
@@ -899,12 +899,12 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                 onChange={(e) => handleCartonsChange(idx, e.target.value)}
                                 onFocus={(e) => e.target.select()}
                                 placeholder="0"
-                                className="w-14 h-7 text-center font-mono font-bold bg-surface-2 border border-line rounded-md text-xs text-brand focus:border-brand focus:outline-none"
+                                className="w-14 h-7 text-center font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-md text-xs text-brand dark:text-brand-bright focus:border-brand dark:focus:border-brand-bright focus:outline-none"
                               />
                             </div>
-                            <span className="text-ink-muted font-bold">×</span>
+                            <span className="text-ink-muted dark:text-ink-dark-muted font-bold">×</span>
                             <div className="flex items-center gap-1.5">
-                              <span className="text-ink-muted font-medium text-[11px]">سعة الكرتونة:</span>
+                              <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">سعة الكرتونة:</span>
                               <input
                                 type="text"
                                 inputMode="numeric"
@@ -912,13 +912,13 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                 onChange={(e) => handlePackSizeChange(idx, e.target.value)}
                                 onFocus={(e) => e.target.select()}
                                 placeholder="0"
-                                className="w-14 h-7 text-center font-mono font-bold bg-surface-2 border border-line rounded-md text-xs text-ink focus:border-brand focus:outline-none"
+                                className="w-14 h-7 text-center font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-md text-xs text-ink dark:text-ink-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none"
                               />
-                              <span className="text-ink-muted text-[11px]">قطعة</span>
+                              <span className="text-ink-muted dark:text-ink-dark-muted text-[11px]">قطعة</span>
                             </div>
-                            <span className="text-ink-muted font-bold">+</span>
+                            <span className="text-ink-muted dark:text-ink-dark-muted font-bold">+</span>
                             <div className="flex items-center gap-1.5">
-                              <span className="text-ink-muted font-medium text-[11px]">فرط:</span>
+                              <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">فرط:</span>
                               <input
                                 type="text"
                                 inputMode="numeric"
@@ -926,12 +926,12 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                 onChange={(e) => handleLoosePiecesChange(idx, e.target.value)}
                                 onFocus={(e) => e.target.select()}
                                 placeholder="0"
-                                className="w-14 h-7 text-center font-mono font-bold bg-surface-2 border border-line rounded-md text-xs text-ink focus:border-brand focus:outline-none"
+                                className="w-14 h-7 text-center font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-md text-xs text-ink dark:text-ink-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none"
                               />
-                              <span className="text-ink-muted text-[11px]">قطعة</span>
+                              <span className="text-ink-muted dark:text-ink-dark-muted text-[11px]">قطعة</span>
                             </div>
-                            <span className="text-ink-muted font-bold">=</span>
-                            <div className="px-2.5 py-1 bg-brand-soft border border-brand/20 text-brand font-mono font-extrabold rounded-md text-xs">
+                            <span className="text-ink-muted dark:text-ink-dark-muted font-bold">=</span>
+                            <div className="px-2.5 py-1 bg-brand-soft dark:bg-brand-soft/20 border border-brand/20 dark:border-brand-bright/30 text-brand dark:text-brand-bright font-mono font-extrabold rounded-md text-xs">
                               {incomingUnits} قطعة إجمالي
                             </div>
                           </div>
@@ -940,21 +940,21 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                         {/* 2. Smart Cost & Selling Price Analysis Cards */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 text-xs">
                           {/* Card 1: Projected Cost */}
-                          <div className="bg-surface rounded-lg p-2.5 border border-line flex flex-col justify-between gap-1.5 shadow-2xs">
+                          <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex flex-col justify-between gap-1.5 shadow-2xs">
                             <div className="flex items-center justify-between">
-                              <span className="font-bold text-ink flex items-center gap-1.5 text-xs">
+                              <span className="font-bold text-ink dark:text-ink-dark flex items-center gap-1.5 text-xs">
                                 {costingMethod === 'LATEST' ? (
-                                  <Zap className="w-3.5 h-3.5 text-brand shrink-0" />
+                                  <Zap className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
                                 ) : (
-                                  <Calculator className="w-3.5 h-3.5 text-brand shrink-0" />
+                                  <Calculator className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
                                 )}
                                 <span>متوسط التكلفة الجديد:</span>
                               </span>
-                              <span className="font-mono font-extrabold text-brand bg-brand-soft px-2 py-0.5 rounded border border-brand/20 text-xs">
+                              <span className="font-mono font-extrabold text-brand dark:text-brand-bright bg-brand-soft dark:bg-brand-soft/20 px-2 py-0.5 rounded border border-brand/20 dark:border-brand-bright/30 text-xs">
                                 {(projectedCostPiasters / 100).toFixed(2)} ج.م
                               </span>
                             </div>
-                            <p className="text-ink-muted text-[11px] leading-relaxed m-0">
+                            <p className="text-ink-muted dark:text-ink-dark-muted text-[11px] leading-relaxed m-0">
                               {costingMethod === 'LATEST'
                                 ? 'اعتماد سعر الشراء الأخير كتكلفة للمخزن.'
                                 : `متوسط مرجح بين ${currentStockUnits.toFixed(0)} قديمة و ${incomingUnits.toFixed(0)} جديدة (الإجمالي: ${totalStockUnits.toFixed(0)} قطعة).`}
@@ -962,21 +962,21 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                           </div>
 
                           {/* Card 2: Weighted Selling Price */}
-                          <div className="bg-surface rounded-lg p-2.5 border border-line flex flex-col justify-between gap-1.5 shadow-2xs">
+                          <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex flex-col justify-between gap-1.5 shadow-2xs">
                             <div className="flex items-center justify-between">
-                              <span className="font-bold text-ink flex items-center gap-1.5 text-xs">
-                                <Sparkles className="w-3.5 h-3.5 text-paid shrink-0" />
+                              <span className="font-bold text-ink dark:text-ink-dark flex items-center gap-1.5 text-xs">
+                                <Sparkles className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />
                                 <span>سعر البيع المقترح:</span>
                               </span>
                               {weightedSuggestedPricePiasters ? (
-                                <span className="font-mono font-extrabold text-paid bg-paid-soft px-2 py-0.5 rounded border border-paid/20 text-xs">
+                                <span className="font-mono font-extrabold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft px-2 py-0.5 rounded border border-paid/20 dark:border-emerald-800/40 text-xs">
                                   {(weightedSuggestedPricePiasters / 100).toFixed(2)} ج.م
                                 </span>
                               ) : (
-                                <span className="text-ink-muted text-xs font-mono">—</span>
+                                <span className="text-ink-muted dark:text-ink-dark-muted text-xs font-mono">—</span>
                               )}
                             </div>
-                            <p className="text-ink-muted text-[11px] leading-relaxed m-0">
+                            <p className="text-ink-muted dark:text-ink-dark-muted text-[11px] leading-relaxed m-0">
                               {weightedSuggestedPricePiasters
                                 ? `يحافظ على نفس نسبة مكسبك السابقة (${marginPercent}%).`
                                 : 'لا توجد بيانات سابقة لاحتساب المتوسط.'}
@@ -986,7 +986,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => handleApplySuggestedPrice(idx, weightedSuggestedPricePiasters)}
-                                  className="w-full py-1 px-2.5 bg-paid text-white hover:bg-paid/90 rounded-md text-[11px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                                  className="w-full py-1 px-2.5 bg-paid dark:bg-emerald-600 text-white hover:bg-paid/90 rounded-md text-[11px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-2xs"
                                 >
                                   <Sparkles className="w-3 h-3 shrink-0" />
                                   <span>تطبيق متوسط البيع ({(weightedSuggestedPricePiasters / 100).toFixed(2)} ج.م)</span>
@@ -996,7 +996,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => handleApplySuggestedPrice(idx, latestSuggestedPricePiasters)}
-                                  className="w-full py-0.5 px-2 bg-brand-soft text-brand hover:bg-brand/20 rounded-md text-[10.5px] font-bold border border-brand/20 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                                  className="w-full py-0.5 px-2 bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright hover:bg-brand/20 dark:hover:bg-brand-bright/20 rounded-md text-[10.5px] font-bold border border-brand/20 dark:border-brand-bright/30 flex items-center justify-center gap-1 transition-colors cursor-pointer"
                                 >
                                   <span>بسعر اليوم فقط: {(latestSuggestedPricePiasters / 100).toFixed(2)} ج.م</span>
                                 </button>
@@ -1005,26 +1005,26 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                           </div>
 
                           {/* Card 3: Batch Profit */}
-                          <div className="bg-surface rounded-lg p-2.5 border border-line flex flex-col justify-between gap-1.5 shadow-2xs">
+                          <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex flex-col justify-between gap-1.5 shadow-2xs">
                             <div className="flex items-center justify-between">
-                              <span className="font-bold text-ink flex items-center gap-1.5 text-xs">
-                                <Banknote className="w-3.5 h-3.5 text-brand shrink-0" />
+                              <span className="font-bold text-ink dark:text-ink-dark flex items-center gap-1.5 text-xs">
+                                <Banknote className="w-3.5 h-3.5 text-brand dark:text-brand-bright shrink-0" />
                                 <span>إجمالي مكسب الشحنة:</span>
                               </span>
                               <span
                                 className={`font-mono font-extrabold px-2 py-0.5 rounded text-xs ${
                                   totalBatchProfitPiasters > 0
-                                    ? 'text-paid bg-paid-soft border border-paid/20'
+                                    ? 'text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 dark:border-emerald-800/40'
                                     : totalBatchProfitPiasters < 0
-                                    ? 'text-danger bg-danger-soft border border-danger/20'
-                                    : 'text-ink-muted bg-surface-2 border border-line'
+                                    ? 'text-danger dark:text-danger-bright bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30'
+                                    : 'text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark'
                                 }`}
                               >
                                 {totalBatchProfitPiasters > 0 ? '+' : ''}
                                 {(totalBatchProfitPiasters / 100).toFixed(2)} ج.م
                               </span>
                             </div>
-                            <p className="text-ink-muted text-[11px] leading-relaxed m-0">
+                            <p className="text-ink-muted dark:text-ink-dark-muted text-[11px] leading-relaxed m-0">
                               {incomingUnits > 0
                                 ? `مكسب ${incomingUnits.toFixed(0)} قطعة (ربح القطعة: ${(profitPiasters / 100).toFixed(2)} ج.م | هامش الربح: ${marginPercent}%).`
                                 : 'حدد الكمية لحساب إجمالي المكسب.'}
@@ -1034,9 +1034,9 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
 
                         {/* 3. Batch & Expiry Dates */}
                         {isEnabled('feature_expiry_dates') && (
-                          <div className="bg-surface rounded-lg p-2.5 border border-line flex items-center gap-4 flex-wrap text-xs">
+                          <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex items-center gap-4 flex-wrap text-xs">
                             <div className="flex items-center gap-1.5">
-                              <span className="text-ink-muted font-bold text-[11px]">رقم الشحنة:</span>
+                              <span className="text-ink-muted dark:text-ink-dark-muted font-bold text-[11px]">رقم الشحنة:</span>
                               <input
                                 type="text"
                                 placeholder="رقم الشحنة"
@@ -1046,11 +1046,11 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                   updated[idx].batchNumber = e.target.value;
                                   setLineItems(updated);
                                 }}
-                                className="h-7 w-28 px-2 bg-surface-2 border border-line rounded text-xs font-mono focus:border-brand focus:outline-none"
+                                className="h-7 w-28 px-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded text-xs font-mono focus:border-brand dark:focus:border-brand-bright focus:outline-none"
                               />
                             </div>
                             <div className="flex items-center gap-1.5">
-                              <span className="text-ink-muted font-bold text-[11px]">تاريخ الانتهاء:</span>
+                              <span className="text-ink-muted dark:text-ink-dark-muted font-bold text-[11px]">تاريخ الانتهاء:</span>
                               <CustomDatePicker
                                 value={item.expiryDate || ''}
                                 onChange={(val) => {
@@ -1065,7 +1065,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               />
                             </div>
                             <div className="flex items-center gap-1.5">
-                              <span className="text-ink-muted font-bold text-[11px]">تاريخ الإنتاج:</span>
+                              <span className="text-ink-muted dark:text-ink-dark-muted font-bold text-[11px]">تاريخ الإنتاج:</span>
                               <CustomDatePicker
                                 value={item.productionDate || ''}
                                 onChange={(val) => {
@@ -1093,50 +1093,50 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
       </div>
 
       {/* Right: Settlement & Totals Dock */}
-      <div className="w-[280px] sm:w-[300px] xl:w-[320px] bg-surface border border-line rounded-xl flex flex-col h-full min-h-0 shrink-0 shadow-2xs overflow-hidden">
+      <div className="w-[280px] sm:w-[300px] xl:w-[320px] bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl flex flex-col h-full min-h-0 shrink-0 shadow-2xs overflow-hidden">
         <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3 custom-scrollbar">
           {/* Header */}
-          <div className="pb-2.5 border-b border-line flex items-center justify-between">
+          <div className="pb-2.5 border-b border-line dark:border-line-dark flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <Receipt className="w-4 h-4 text-brand" />
-              <h2 className="text-[13px] font-bold text-ink">حساب الفاتورة</h2>
+              <Receipt className="w-4 h-4 text-brand dark:text-brand-bright" />
+              <h2 className="text-[13px] font-bold text-ink dark:text-ink-dark">حساب الفاتورة</h2>
             </div>
-            <span className="text-[10px] font-mono font-bold bg-brand-soft text-brand-dark px-2 py-0.5 rounded-full border border-brand/20">
+            <span className="text-[10px] font-mono font-bold bg-brand-soft dark:bg-brand-soft/20 text-brand-dark dark:text-brand-bright px-2 py-0.5 rounded-full border border-brand/20 dark:border-brand-bright/20">
               {lineItems.length} صنف ({totalItemsPieces} قطعة)
             </span>
           </div>
 
           {/* Totals Breakdown */}
           <div className="space-y-2 text-xs">
-            <div className="flex justify-between items-center text-ink-muted">
+            <div className="flex justify-between items-center text-ink-muted dark:text-ink-dark-muted">
               <span className="text-[11.5px]">إجمالي الأصناف:</span>
-              <span className="font-mono font-bold text-ink text-xs">
+              <span className="font-mono font-bold text-ink dark:text-ink-dark text-xs">
                 {formatMoney(totalCostPiasters)}
               </span>
             </div>
 
-            <div className="flex items-center justify-between text-ink-muted">
+            <div className="flex items-center justify-between text-ink-muted dark:text-ink-dark-muted">
               <span className="text-[11.5px]">خصم المورد:</span>
               <div className="flex items-center gap-1">
                 <MoneyInput
                   valuePiasters={discountPiasters}
                   onChangePiasters={setDiscountPiasters}
                   hideCurrency
-                  className="!w-16 !h-6 !px-1.5 !py-0 !text-center !text-xs !bg-surface-2 !border-line !rounded-lg"
+                  className="!w-16 !h-6 !px-1.5 !py-0 !text-center !text-xs !bg-surface-2 dark:!bg-surface-dark-2 !border-line dark:!border-line-dark !rounded-lg text-ink dark:text-ink-dark"
                 />
                 <span className="text-[10.5px]">ج.م</span>
               </div>
             </div>
 
             {/* Net Payable Highlight Card */}
-            <div className="p-2.5 rounded-xl bg-paid-soft/80 border border-paid/20 flex flex-col gap-0.5">
+            <div className="p-2.5 rounded-xl bg-paid-soft/80 dark:bg-paid-dark-soft/80 border border-paid/20 dark:border-paid/40 flex flex-col gap-0.5">
               <div className="flex justify-between items-baseline">
-                <span className="font-bold text-[11.5px] text-paid-dark">المطلوب دفعه للشركة:</span>
-                <span className="text-base font-extrabold font-mono text-paid-dark">
+                <span className="font-bold text-[11.5px] text-paid-dark dark:text-paid-bright">المطلوب دفعه للشركة:</span>
+                <span className="text-base font-extrabold font-mono text-paid-dark dark:text-paid-bright">
                   {formatMoney(netCostPiasters)}
                 </span>
               </div>
-              <div className="flex justify-between text-[10px] text-paid font-medium">
+              <div className="flex justify-between text-[10px] text-paid dark:text-paid-bright font-medium">
                 <span>حالة السداد:</span>
                 <span>
                   {paidAmountPiasters >= netCostPiasters
@@ -1156,15 +1156,15 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
 
             {/* Advance Credit Notice for Selected Supplier */}
             {advanceCreditPiasters > 0 && (
-              <div className="p-2.5 rounded-xl bg-paid-soft border border-paid/30 flex flex-col gap-1 text-[11px] text-paid-dark">
+              <div className="p-2.5 rounded-xl bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 dark:border-paid/40 flex flex-col gap-1 text-[11px] text-paid-dark dark:text-paid-bright">
                 <div className="flex items-center justify-between font-bold">
                   <span className="flex items-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5 text-paid shrink-0" />
+                    <Sparkles className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />
                     <span>رصيد متاح لنا عند الشركة:</span>
                   </span>
-                  <span className="font-mono text-paid font-extrabold text-xs">{formatMoney(advanceCreditPiasters)}</span>
+                  <span className="font-mono text-paid dark:text-paid-bright font-extrabold text-xs">{formatMoney(advanceCreditPiasters)}</span>
                 </div>
-                <p className="text-[10px] text-paid leading-tight">
+                <p className="text-[10px] text-paid dark:text-paid-bright leading-tight">
                   {netCostPiasters <= advanceCreditPiasters
                     ? `رصيدنا السابق يغطي الفاتورة بالكامل، وهيتبقى لنا ${formatMoney(advanceCreditPiasters - netCostPiasters)} تحت الحساب.`
                     : `هيغطي من رصيدنا ${formatMoney(advanceCreditPiasters)}، والباقي ندفعه ${formatMoney(netCostPiasters - advanceCreditPiasters)}.`}
@@ -1173,17 +1173,17 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
             )}
 
             {supplierDebtPiasters > 0 && (
-              <div className="p-2 rounded-xl bg-warn-soft border border-warn/20 flex items-center justify-between text-[11px]">
-                <span className="font-bold text-warn-dark">حساب قديم علينا للمورد:</span>
-                <span className="font-mono font-bold text-warn-dark">{formatMoney(supplierDebtPiasters)}</span>
+              <div className="p-2 rounded-xl bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 flex items-center justify-between text-[11px]">
+                <span className="font-bold text-warn-dark dark:text-warn-bright">حساب قديم علينا للمورد:</span>
+                <span className="font-mono font-bold text-warn-dark dark:text-warn-bright">{formatMoney(supplierDebtPiasters)}</span>
               </div>
             )}
           </div>
 
           {/* Payment Options */}
-          <div className="pt-2 border-t border-line space-y-1.5">
-            <label className="text-[11px] font-bold text-ink-muted block">هتدفع للمورد إزاي؟</label>
-            <div className="grid grid-cols-3 gap-1 bg-surface-2 p-1 rounded-xl border border-line">
+          <div className="pt-2 border-t border-line dark:border-line-dark space-y-1.5">
+            <label className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted block">هتدفع للمورد إزاي؟</label>
+            <div className="grid grid-cols-3 gap-1 bg-surface-2 dark:bg-surface-dark-2 p-1 rounded-xl border border-line dark:border-line-dark">
               {/* Option 1 */}
               <button
                 type="button"
@@ -1193,8 +1193,8 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                 }}
                 className={`h-7 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
                   (advanceCreditPiasters > 0 && paymentMode === 'CREDIT') || (advanceCreditPiasters === 0 && paymentMode === 'PAID')
-                    ? 'bg-paid text-white shadow-2xs'
-                    : 'text-ink-muted hover:text-ink'
+                    ? 'bg-paid dark:bg-paid-bright dark:text-surface-dark text-white shadow-2xs'
+                    : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                 }`}
               >
                 {advanceCreditPiasters > 0 ? (
@@ -1220,9 +1220,9 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                 className={`h-7 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
                   (advanceCreditPiasters > 0 && paymentMode === 'PAID') || (advanceCreditPiasters === 0 && paymentMode === 'CREDIT')
                     ? advanceCreditPiasters > 0
-                      ? 'bg-brand text-white shadow-2xs'
-                      : 'bg-warn text-white shadow-2xs'
-                    : 'text-ink-muted hover:text-ink'
+                      ? 'bg-brand dark:bg-brand-bright dark:text-surface-dark text-white shadow-2xs'
+                      : 'bg-warn dark:bg-warn text-white shadow-2xs'
+                    : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                 }`}
               >
                 {advanceCreditPiasters > 0 ? (
@@ -1249,8 +1249,8 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                 }}
                 className={`h-7 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
                   paymentMode === 'PARTIAL'
-                    ? 'bg-brand text-white shadow-2xs'
-                    : 'text-ink-muted hover:text-ink'
+                    ? 'bg-brand dark:bg-brand-bright dark:text-surface-dark text-white shadow-2xs'
+                    : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                 }`}
               >
                 <Calculator className="w-3 h-3" />
@@ -1260,11 +1260,11 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
 
             {/* Credit Notice Details */}
             {paymentMode === 'CREDIT' && (
-              <div className="p-2 bg-surface-2 border border-line rounded-lg text-[10.5px] mt-1 space-y-1">
+              <div className="p-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg text-[10.5px] mt-1 space-y-1">
                 {advanceCreditPiasters > 0 ? (
-                  <div className="p-1.5 bg-paid-soft border border-paid/20 text-paid-dark rounded flex flex-col gap-1">
+                  <div className="p-1.5 bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 dark:border-paid/40 text-paid-dark dark:text-paid-bright rounded flex flex-col gap-1">
                     <div className="flex items-center gap-1 font-bold">
-                      <Sparkles className="w-3.5 h-3.5 text-paid shrink-0" />
+                      <Sparkles className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />
                       <span>خصم تلقائي من رصيدنا المتاح (0 كاش من الخزينة):</span>
                     </div>
                     <span className="leading-tight">
@@ -1279,14 +1279,14 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                           setPaymentMode('PARTIAL');
                           setCustomPaidAmountPiasters(netCostPiasters - advanceCreditPiasters);
                         }}
-                        className="self-start mt-0.5 px-2 py-0.5 rounded bg-paid text-white text-[10px] font-bold cursor-pointer hover:bg-paid/90 transition-colors"
+                        className="self-start mt-0.5 px-2 py-0.5 rounded bg-paid dark:bg-paid-bright dark:text-surface-dark text-white text-[10px] font-bold cursor-pointer hover:bg-paid/90 transition-colors"
                       >
                         دفع الفرق كاش الآن ({formatMoney(netCostPiasters - advanceCreditPiasters)})
                       </button>
                     )}
                   </div>
                 ) : (
-                  <div className="p-1.5 bg-warn-soft border border-warn/20 text-warn-dark rounded flex items-center gap-1.5">
+                  <div className="p-1.5 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn-dark dark:text-warn-bright rounded flex items-center gap-1.5">
                     <CreditCard className="w-3.5 h-3.5 shrink-0" />
                     <span>
                       {supplierDebtPiasters > 0
@@ -1300,29 +1300,29 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
 
             {/* Cash & Custom Amount Section */}
             {(paymentMode === 'PAID' || paymentMode === 'PARTIAL') && (
-              <div className="p-2 bg-surface-2 border border-line rounded-lg space-y-1.5 mt-1 text-[11px]">
+              <div className="p-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg space-y-1.5 mt-1 text-[11px]">
                 <div className="flex justify-between items-center">
-                  <span className="text-ink-muted font-bold">المبلغ اللي دفعته كاش:</span>
+                  <span className="text-ink-muted dark:text-ink-dark-muted font-bold">المبلغ اللي دفعته كاش:</span>
                   <div className="flex items-center gap-1">
                     <MoneyInput
                       valuePiasters={customPaidAmountPiasters !== null ? customPaidAmountPiasters : netCostPiasters}
                       onChangePiasters={(val) => setCustomPaidAmountPiasters(val)}
                       hideCurrency
-                      className="!w-24 !h-6 !px-1.5 !py-0 !text-center !text-xs !bg-surface !border-line !rounded font-mono font-bold"
+                      className="!w-24 !h-6 !px-1.5 !py-0 !text-center !text-xs !bg-surface dark:!bg-surface-dark !border-line dark:!border-line-dark !rounded font-mono font-bold text-ink dark:text-ink-dark"
                     />
-                    <span className="text-[10px] text-ink-muted">ج.م</span>
+                    <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted">ج.م</span>
                   </div>
                 </div>
 
                 {/* Quick Shortcuts */}
-                <div className="flex flex-wrap items-center gap-1 pt-1 border-t border-line/60">
+                <div className="flex flex-wrap items-center gap-1 pt-1 border-t border-line/60 dark:border-line-dark/60">
                   <button
                     type="button"
                     onClick={() => setCustomPaidAmountPiasters(0)}
                     className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold transition-colors cursor-pointer ${
                       paidAmountPiasters === 0
-                        ? 'bg-ink text-white'
-                        : 'bg-surface border border-line text-ink-muted hover:text-ink'
+                        ? 'bg-ink dark:bg-surface-dark-3 text-white dark:text-ink-dark'
+                        : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                     }`}
                   >
                     0 كاش
@@ -1333,8 +1333,8 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                     onClick={() => setCustomPaidAmountPiasters(netCostPiasters)}
                     className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold transition-colors cursor-pointer ${
                       paidAmountPiasters === netCostPiasters
-                        ? 'bg-ink text-white'
-                        : 'bg-surface border border-line text-ink-muted hover:text-ink'
+                        ? 'bg-ink dark:bg-surface-dark-3 text-white dark:text-ink-dark'
+                        : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                     }`}
                   >
                     الفاتورة كاملة ({formatMoney(netCostPiasters)})
@@ -1346,8 +1346,8 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                       onClick={() => setCustomPaidAmountPiasters(netCostPiasters - advanceCreditPiasters)}
                       className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold transition-colors cursor-pointer ${
                         paidAmountPiasters === netCostPiasters - advanceCreditPiasters
-                          ? 'bg-paid text-white'
-                          : 'bg-paid-soft border border-paid/30 text-paid-dark hover:bg-paid hover:text-white'
+                          ? 'bg-paid dark:bg-paid-bright dark:text-surface-dark text-white'
+                          : 'bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 dark:border-paid/40 text-paid-dark dark:text-paid-bright hover:bg-paid hover:text-white'
                       }`}
                     >
                       سداد الفرق ({formatMoney(netCostPiasters - advanceCreditPiasters)})
@@ -1360,8 +1360,8 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                       onClick={() => setCustomPaidAmountPiasters(supplierDebtPiasters + netCostPiasters)}
                       className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold transition-colors cursor-pointer ${
                         paidAmountPiasters === supplierDebtPiasters + netCostPiasters
-                          ? 'bg-brand text-white'
-                          : 'bg-surface border border-line text-brand-dark hover:bg-brand-soft'
+                          ? 'bg-brand dark:bg-brand-bright dark:text-surface-dark text-white'
+                          : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-brand-dark dark:text-brand-bright hover:bg-brand-soft dark:hover:bg-brand-soft/20'
                       }`}
                     >
                       تصفية الدين بالكامل ({formatMoney(supplierDebtPiasters + netCostPiasters)})
@@ -1370,13 +1370,13 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                 </div>
 
                 {excessPaidPiasters > 0 && (
-                  <div className="p-1.5 bg-paid-soft border border-paid/30 rounded-lg text-paid-dark text-[10px] flex flex-col gap-0.5">
+                  <div className="p-1.5 bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 dark:border-paid/40 rounded-lg text-paid-dark dark:text-paid-bright text-[10px] flex flex-col gap-0.5">
                     <div className="flex justify-between items-center font-bold">
                       <span className="flex items-center gap-1">
-                        <Sparkles className="w-3 h-3 text-paid" />
+                        <Sparkles className="w-3 h-3 text-paid dark:text-paid-bright" />
                         <span>فلوس زيادة سايبينها تحت الحساب:</span>
                       </span>
-                      <span className="font-mono font-extrabold text-paid">+{formatMoney(excessPaidPiasters)}</span>
+                      <span className="font-mono font-extrabold text-paid dark:text-paid-bright">+{formatMoney(excessPaidPiasters)}</span>
                     </div>
                     <span className="leading-tight">
                       {supplierDebtPiasters > 0
@@ -1387,7 +1387,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                 )}
 
                 {paidAmountPiasters < netCostPiasters && (
-                  <div className="flex justify-between text-danger font-bold text-[10.5px]">
+                  <div className="flex justify-between text-danger dark:text-danger-bright font-bold text-[10.5px]">
                     <span>{advanceCreditPiasters > 0 ? 'المتبقي يُخصم من رصيدنا:' : 'الباقي علينا آجل:'}</span>
                     <span className="font-mono">{formatMoney(remainingAmountPiasters)}</span>
                   </div>
@@ -1397,36 +1397,36 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
 
             {/* Interactive Supplier Ledger Impact Card */}
             {selectedSupplier && (
-              <div className="p-2.5 rounded-xl border border-line bg-surface-2/80 space-y-1.5 mt-1.5">
-                <div className="flex items-center justify-between text-[10.5px] font-bold border-b border-line pb-1">
-                  <span className="text-ink flex items-center gap-1">
-                    <Receipt className="w-3.5 h-3.5 text-brand" />
+              <div className="p-2.5 rounded-xl border border-line dark:border-line-dark bg-surface-2/80 dark:bg-surface-dark-2/80 space-y-1.5 mt-1.5">
+                <div className="flex items-center justify-between text-[10.5px] font-bold border-b border-line dark:border-line-dark pb-1">
+                  <span className="text-ink dark:text-ink-dark flex items-center gap-1">
+                    <Receipt className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                     <span>كشف حساب المورد بعد العملية:</span>
                   </span>
                   <span className="font-mono text-[11px]">
                     {selectedSupplier.balancePiasters < 0 ? (
-                      <span className="text-paid">رصيد متاح لنا: {formatMoney(Math.abs(selectedSupplier.balancePiasters))}</span>
+                      <span className="text-paid dark:text-paid-bright">رصيد متاح لنا: {formatMoney(Math.abs(selectedSupplier.balancePiasters))}</span>
                     ) : selectedSupplier.balancePiasters > 0 ? (
-                      <span className="text-warn-dark">مديونية قديمة علينا: {formatMoney(selectedSupplier.balancePiasters)}</span>
+                      <span className="text-warn-dark dark:text-warn-bright">مديونية قديمة علينا: {formatMoney(selectedSupplier.balancePiasters)}</span>
                     ) : (
-                      <span className="text-ink-muted">الحساب السابق خالص</span>
+                      <span className="text-ink-muted dark:text-ink-dark-muted">الحساب السابق خالص</span>
                     )}
                   </span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-1.5 text-[10px]">
-                  <div className="bg-surface p-1 rounded-lg border border-line flex flex-col">
-                    <span className="text-ink-muted">المدفوع كاش الآن:</span>
-                    <span className="font-mono font-bold text-ink text-[11px] mt-0.5">{formatMoney(paidAmountPiasters)}</span>
+                  <div className="bg-surface dark:bg-surface-dark p-1 rounded-lg border border-line dark:border-line-dark flex flex-col">
+                    <span className="text-ink-muted dark:text-ink-dark-muted">المدفوع كاش الآن:</span>
+                    <span className="font-mono font-bold text-ink dark:text-ink-dark text-[11px] mt-0.5">{formatMoney(paidAmountPiasters)}</span>
                   </div>
-                  <div className="bg-surface p-1 rounded-lg border border-line flex flex-col">
-                    <span className="text-ink-muted">
+                  <div className="bg-surface dark:bg-surface-dark p-1 rounded-lg border border-line dark:border-line-dark flex flex-col">
+                    <span className="text-ink-muted dark:text-ink-dark-muted">
                       {paidAmountPiasters >= netCostPiasters
                         ? (paidAmountPiasters > netCostPiasters ? 'زيادة تضاف لرصيدنا:' : 'المتبقي من الفاتورة:')
                         : (advanceCreditPiasters > 0 ? 'يُخصم من رصيدنا:' : 'المتبقي دين علينا:')
                       }
                     </span>
-                    <span className="font-mono font-bold text-[11px] mt-0.5">
+                    <span className="font-mono font-bold text-ink dark:text-ink-dark text-[11px] mt-0.5">
                       {paidAmountPiasters > netCostPiasters
                         ? `+${formatMoney(paidAmountPiasters - netCostPiasters)}`
                         : advanceCreditPiasters > 0
@@ -1440,18 +1440,18 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                 {/* Final Projected Outcome Banner */}
                 <div className={`p-1.5 rounded-lg border flex items-center justify-between text-[10.5px] font-bold ${
                   projectedBalance < 0
-                    ? 'bg-paid-soft text-paid-dark border-paid/30'
+                    ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid-dark dark:text-paid-bright border-paid/30 dark:border-paid/40'
                     : projectedBalance > 0
-                    ? 'bg-warn-soft text-warn-dark border-warn/30'
-                    : 'bg-paid-soft text-paid-dark border-paid/30'
+                    ? 'bg-warn-soft dark:bg-warn-dark-soft text-warn-dark dark:text-warn-bright border-warn/30 dark:border-warn-bright/30'
+                    : 'bg-paid-soft dark:bg-paid-dark-soft text-paid-dark dark:text-paid-bright border-paid/30 dark:border-paid/40'
                 }`}>
                   <span className="flex items-center gap-1">
                     {projectedBalance < 0 ? (
-                      <Sparkles className="w-3.5 h-3.5 text-paid shrink-0" />
+                      <Sparkles className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />
                     ) : projectedBalance > 0 ? (
-                      <AlertCircle className="w-3.5 h-3.5 text-warn shrink-0" />
+                      <AlertCircle className="w-3.5 h-3.5 text-warn dark:text-warn-bright shrink-0" />
                     ) : (
-                      <Receipt className="w-3.5 h-3.5 text-paid shrink-0" />
+                      <Receipt className="w-3.5 h-3.5 text-paid dark:text-paid-bright shrink-0" />
                     )}
                     <span>
                       {projectedBalance < 0
@@ -1471,24 +1471,24 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
 
           {/* Notes Input */}
           <div className="pt-2">
-            <label className="text-[10.5px] font-bold text-ink-muted block mb-1">ملاحظات على الفاتورة</label>
+            <label className="text-[10.5px] font-bold text-ink-muted dark:text-ink-dark-muted block mb-1">ملاحظات على الفاتورة</label>
             <input
               type="text"
               placeholder="اكتب أي ملاحظة أو رقم إذن الاستلام..."
               value={purchaseNotes}
               onChange={(e) => setPurchaseNotes(e.target.value)}
-              className="w-full h-8 px-2.5 bg-surface-2 border border-line rounded-lg text-xs text-ink focus:outline-none focus:border-brand focus:bg-surface transition-colors"
+              className="w-full h-8 px-2.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg text-xs text-ink dark:text-ink-dark placeholder:text-ink-muted/50 dark:placeholder:text-ink-dark-muted/50 focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark transition-colors"
             />
           </div>
         </div>
 
         {/* Action Buttons (Pinned Bottom) */}
-        <div className="p-3 border-t border-line bg-surface shrink-0 space-y-1.5 shadow-[0_-4px_10px_rgba(0,0,0,0.03)]">
+        <div className="p-3 border-t border-line dark:border-line-dark bg-surface dark:bg-surface-dark shrink-0 space-y-1.5 shadow-[0_-4px_10px_rgba(0,0,0,0.03)] dark:shadow-[0_-4px_10px_rgba(0,0,0,0.2)]">
           <button
             type="button"
             onClick={onSavePurchase}
             disabled={lineItems.length === 0}
-            className="w-full h-10 bg-paid hover:bg-paid-hover disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
+            className="w-full h-10 bg-paid hover:bg-paid-hover dark:bg-paid-bright dark:text-surface-dark dark:hover:bg-emerald-400 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
           >
             <Receipt className="w-4 h-4" />
             <span>حفظ الفاتورة وتزويد رصيد البضاعة</span>
@@ -1496,7 +1496,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
           <button
             type="button"
             onClick={onRequestCancel}
-            className="w-full h-8 bg-surface hover:bg-surface-2 border border-line text-ink-muted hover:text-ink rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+            className="w-full h-8 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-lg text-xs font-semibold transition-colors cursor-pointer"
           >
             إلغاء وتراجع
           </button>

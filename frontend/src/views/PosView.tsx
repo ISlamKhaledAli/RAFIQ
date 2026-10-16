@@ -1385,12 +1385,12 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   ]);
 
   return (
-    <div className="flex flex-col h-full w-full bg-canvas overflow-hidden">
+    <div className="flex flex-col h-full w-full bg-canvas dark:bg-canvas-dark overflow-hidden">
       {/* 1. THREE-PANE MAIN WORKSPACE */}
       <div className="flex-1 flex flex-row overflow-hidden">
         
         {/* ================= REGION A: BARCODE SEARCH & CART TABLE ================= */}
-        <section className={`${showFastItems ? 'flex-1 min-w-[360px]' : 'flex-1'} h-full bg-surface hairline-l flex flex-col overflow-hidden`}>
+        <section className={`${showFastItems ? 'flex-1 min-w-[360px]' : 'flex-1'} h-full bg-surface dark:bg-surface-dark hairline-l flex flex-col overflow-hidden`}>
           <PosBarcodeBar
             searchContainerRef={searchContainerRef}
             barcodeInputRef={barcodeInputRef}
@@ -1467,8 +1467,6 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             handleInstapayCheckout={handleInstapayCheckout}
             handleVodafoneCashCheckout={handleVodafoneCashCheckout}
             requestClearCart={requestClearCart}
-            lastCompletedSale={lastCompletedSale}
-            onOpenReceipt={() => setIsReceiptOpen(true)}
             handleHoldCurrentSale={handleHoldCurrentSale}
             heldSalesCount={heldSalesCount}
             onOpenHeldSales={() => setIsHeldSalesModalOpen(true)}

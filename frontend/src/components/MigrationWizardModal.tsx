@@ -307,8 +307,8 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
         <div className="p-6 overflow-y-auto flex-1 space-y-6">
           {/* Error Banner */}
           {errorMessage && (
-            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-danger text-[12.5px] flex items-center gap-2 animate-in fade-in">
-              <AlertTriangle className="w-4 h-4 shrink-0 text-danger" />
+            <div className="p-3.5 rounded-xl bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 text-danger dark:text-danger-bright text-[12.5px] flex items-center gap-2 animate-in fade-in">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-danger dark:text-danger-bright" />
               <span>{errorMessage}</span>
             </div>
           )}
@@ -710,13 +710,13 @@ export const MigrationWizardModal: React.FC<MigrationWizardModalProps> = ({
                         </td>
                         <td className="py-2.5 px-4 text-center">
                           {c.isMatched ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-paid-soft text-paid font-bold text-[11px]">
-                              <CheckCircle2 className="w-3 h-3 text-paid" />
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright font-bold text-[11px] border border-paid/20 dark:border-paid/30">
+                              <CheckCircle2 className="w-3 h-3 text-paid dark:text-paid-bright" />
                               <span>100% متطابق</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-100 text-danger font-bold text-[11px]">
-                              <AlertTriangle className="w-3 h-3 text-danger" />
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright font-bold text-[11px] border border-danger/20 dark:border-danger-bright/30">
+                              <AlertTriangle className="w-3 h-3 text-danger dark:text-danger-bright" />
                               <span>يوجد اختلاف</span>
                             </span>
                           )}

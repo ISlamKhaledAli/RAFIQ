@@ -85,23 +85,23 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
   };
 
   return (
-    <div onClick={handleBackdropClick} className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-surface border border-line rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[92vh]">
+    <div onClick={handleBackdropClick} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[92vh]">
         {/* Header */}
-        <div className="h-14 bg-surface-2 border-b border-line px-5 flex items-center justify-between shrink-0">
+        <div className="h-14 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-5 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-paid-soft text-paid flex items-center justify-center shadow-2xs">
+            <div className="w-8 h-8 rounded-lg bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright flex items-center justify-center shadow-2xs">
               <Banknote className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-ink">سداد دفعة نقدية للمورد</h3>
-              <span className="text-[11px] text-ink-muted block -mt-0.5">{supplier.name}</span>
+              <h3 className="font-bold text-sm text-ink dark:text-ink-dark">سداد دفعة نقدية للمورد</h3>
+              <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted block -mt-0.5">{supplier.name}</span>
             </div>
           </div>
           <button
             type="button"
             onClick={requestClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface dark:hover:bg-surface-dark transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -110,13 +110,13 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs flex-1 min-h-0 overflow-y-auto">
           {/* Supplier Info Box */}
-          <div className="p-3.5 bg-surface-2 border border-line rounded-xl space-y-2">
+          <div className="p-3.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl space-y-2">
             <div className="flex justify-between items-center text-xs">
-              <span className="text-ink-muted font-medium">المورد أو الشركة:</span>
-              <span className="text-sm font-bold text-ink">{supplier.name}</span>
+              <span className="text-ink-muted dark:text-ink-dark-muted font-medium">المورد أو الشركة:</span>
+              <span className="text-sm font-bold text-ink dark:text-ink-dark">{supplier.name}</span>
             </div>
-            <div className="flex justify-between items-center pt-2 border-t border-line text-xs">
-              <span className="text-ink-muted">
+            <div className="flex justify-between items-center pt-2 border-t border-line dark:border-line-dark text-xs">
+              <span className="text-ink-muted dark:text-ink-dark-muted">
                 {currentBal > 0
                   ? 'المبلغ المستحق للمورد علينا:'
                   : currentBal < 0
@@ -126,10 +126,10 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
               <span
                 className={`font-mono font-black text-sm ${
                   currentBal > 0
-                    ? 'text-danger'
+                    ? 'text-danger dark:text-danger-bright'
                     : currentBal < 0
-                    ? 'text-paid'
-                    : 'text-ink-muted'
+                    ? 'text-paid dark:text-paid-bright'
+                    : 'text-ink-muted dark:text-ink-dark-muted'
                 }`}
               >
                 {currentBal !== 0
@@ -142,14 +142,14 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
           {/* Amount Field */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-bold text-ink block">
-                المبلغ المراد سداده <span className="text-danger">*</span>
+              <label className="text-xs font-bold text-ink dark:text-ink-dark block">
+                المبلغ المراد سداده <span className="text-danger dark:text-danger-bright">*</span>
               </label>
               {isDebt && (
                 <button
                   type="button"
                   onClick={() => setPaymentAmountPiasters(currentBal)}
-                  className="text-[11px] font-bold text-paid hover:underline flex items-center gap-1 cursor-pointer"
+                  className="text-[11px] font-bold text-paid dark:text-paid-bright hover:underline flex items-center gap-1 cursor-pointer"
                 >
                   <CheckCheck className="w-3.5 h-3.5" />
                   <span>سداد كامل الدين بالظبط ({formatMoney(currentBal)})</span>
@@ -159,20 +159,20 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
             <MoneyInput
               valuePiasters={paymentAmountPiasters}
               onChangePiasters={setPaymentAmountPiasters}
-              className="h-11 text-base text-paid font-black"
+              className="h-11 text-base text-paid dark:text-paid-bright font-black"
               autoFocus
             />
           </div>
 
           {/* Smart Excess Resolution Box */}
           {hasExcess && (
-            <div className="p-3 bg-surface-2 border border-line rounded-xl space-y-2 animate-in fade-in duration-200">
-              <div className="flex items-center justify-between bg-amber-500/10 border border-warn/20 px-3 py-1.5 rounded-lg text-xs">
-                <div className="flex items-center gap-1.5 font-bold text-ink">
-                  <AlertCircle className="w-3.5 h-3.5 text-warn shrink-0" />
+            <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl space-y-2 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 px-3 py-1.5 rounded-lg text-xs">
+                <div className="flex items-center gap-1.5 font-bold text-ink dark:text-ink-dark">
+                  <AlertCircle className="w-3.5 h-3.5 text-warn dark:text-warn-bright shrink-0" />
                   <span>زيادة عن حساب المورد:</span>
                 </div>
-                <span className="font-mono font-black text-warn text-xs">
+                <span className="font-mono font-black text-warn dark:text-warn-bright text-xs">
                   {formatMoney(excessPiasters)}
                 </span>
               </div>
@@ -183,25 +183,25 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
                 onClick={() => setExcessAction('pay_exact')}
                 className={`w-full p-2.5 rounded-lg border text-right transition-all flex items-start gap-2.5 cursor-pointer ${
                   excessAction === 'pay_exact'
-                    ? 'bg-surface border-brand ring-1 ring-brand text-ink shadow-2xs'
-                    : 'bg-surface/50 border-line text-ink-muted hover:bg-surface hover:text-ink'
+                    ? 'bg-surface dark:bg-surface-dark border-brand dark:border-brand-bright ring-1 ring-brand dark:ring-brand-bright text-ink dark:text-ink-dark shadow-2xs'
+                    : 'bg-surface/50 dark:bg-surface-dark/50 border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:bg-surface dark:hover:bg-surface-dark hover:text-ink dark:hover:text-ink-dark'
                 }`}
               >
                 <div className={`w-4 h-4 rounded-full border mt-0.5 flex items-center justify-center shrink-0 ${
                   excessAction === 'pay_exact'
-                    ? 'border-brand bg-brand text-white'
-                    : 'border-line'
+                    ? 'border-brand dark:border-brand-bright bg-brand dark:bg-brand-bright text-white dark:text-surface-dark'
+                    : 'border-line dark:border-line-dark'
                 }`}>
                   {excessAction === 'pay_exact' && <Check className="w-2.5 h-2.5" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs text-ink flex items-center gap-1.5">
-                      <Coins className="w-3.5 h-3.5 text-brand" />
+                    <span className="font-bold text-xs text-ink dark:text-ink-dark flex items-center gap-1.5">
+                      <Coins className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                       <span>صرف المستحق فقط والباقي في الدرج</span>
                     </span>
                   </div>
-                  <p className="text-[11px] text-ink-muted mt-0.5 leading-normal">
+                  <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-0.5 leading-normal">
                     صرف {formatMoney(currentBal)} لتسوية الحساب، والاحتفاظ بـ {formatMoney(excessPiasters)} في الدرج.
                   </p>
                 </div>
@@ -213,25 +213,25 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
                 onClick={() => setExcessAction('advance_credit')}
                 className={`w-full p-2.5 rounded-lg border text-right transition-all flex items-start gap-2.5 cursor-pointer ${
                   excessAction === 'advance_credit'
-                    ? 'bg-surface border-paid ring-1 ring-paid text-ink shadow-2xs'
-                    : 'bg-surface/50 border-line text-ink-muted hover:bg-surface hover:text-ink'
+                    ? 'bg-surface dark:bg-surface-dark border-paid dark:border-emerald-500 ring-1 ring-paid dark:ring-emerald-500 text-ink dark:text-ink-dark shadow-2xs'
+                    : 'bg-surface/50 dark:bg-surface-dark/50 border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:bg-surface dark:hover:bg-surface-dark hover:text-ink dark:hover:text-ink-dark'
                 }`}
               >
                 <div className={`w-4 h-4 rounded-full border mt-0.5 flex items-center justify-center shrink-0 ${
                   excessAction === 'advance_credit'
-                    ? 'border-paid bg-paid text-white'
-                    : 'border-line'
+                    ? 'border-paid dark:border-emerald-500 bg-paid dark:bg-emerald-600 text-white'
+                    : 'border-line dark:border-line-dark'
                 }`}>
                   {excessAction === 'advance_credit' && <Check className="w-2.5 h-2.5" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs text-ink flex items-center gap-1.5">
-                      <ArrowLeftRight className="w-3.5 h-3.5 text-paid" />
+                    <span className="font-bold text-xs text-ink dark:text-ink-dark flex items-center gap-1.5">
+                      <ArrowLeftRight className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
                       <span>صرف المبلغ كاملاً وترحيل الباقي كرصيد</span>
                     </span>
                   </div>
-                  <p className="text-[11px] text-ink-muted mt-0.5 leading-normal">
+                  <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-0.5 leading-normal">
                     صرف {formatMoney(paymentAmountPiasters)} بالكامل، وتسجيل {formatMoney(excessPiasters)} رصيد لنا عنده.
                   </p>
                 </div>
@@ -241,8 +241,8 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
 
           {/* Supplier had no debt initially */}
           {!isDebt && paymentAmountPiasters > 0 && (
-            <div className="p-3 bg-paid-soft border border-paid/30 rounded-xl text-[11px] text-paid-dark flex items-start gap-2">
-              <Sparkles className="w-4 h-4 text-paid shrink-0 mt-0.5" />
+            <div className="p-3 bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 dark:border-emerald-800/40 rounded-xl text-[11px] text-paid-dark dark:text-emerald-200 flex items-start gap-2">
+              <Sparkles className="w-4 h-4 text-paid dark:text-paid-bright shrink-0 mt-0.5" />
               <div>
                 <span className="font-bold block">تسجيل دفعة مقدمة تحت الحساب:</span>
                 <span className="leading-relaxed block mt-0.5">
@@ -256,10 +256,10 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
           {paymentAmountPiasters > 0 && (
             <div className={`p-3 rounded-xl border text-[11.5px] flex items-center justify-between font-medium ${
               balanceAfter > 0
-                ? 'bg-amber-50 border-amber-200 text-amber-900'
+                ? 'bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright'
                 : balanceAfter < 0
-                ? 'bg-paid-soft border-paid-border text-paid'
-                : 'bg-surface-2 border-line text-ink'
+                ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid-border dark:border-emerald-800/40 text-paid dark:text-paid-bright'
+                : 'bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark text-ink dark:text-ink-dark'
             }`}>
               <span className="font-semibold">حساب المورد بعد التنفيذ:</span>
               <span className="font-mono font-bold text-xs">
@@ -274,7 +274,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
 
           {/* Notes Input */}
           <div>
-            <label className="text-xs font-bold text-ink block mb-1">
+            <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">
               ملاحظات / رقم إذن الصرف أو الوصل
             </label>
             <input
@@ -288,23 +288,23 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
               }
               value={paymentNotes}
               onChange={(e) => setPaymentNotes(e.target.value)}
-              className="w-full h-9 px-3 bg-canvas border border-line rounded-lg text-xs text-ink focus:outline-none focus:border-brand transition-colors"
+              className="w-full h-9 px-3 bg-canvas dark:bg-canvas-dark border border-line dark:border-line-dark rounded-lg text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright transition-colors"
             />
           </div>
 
           {/* Action Buttons */}
-          <div className="pt-2 flex items-center justify-end gap-2 border-t border-line">
+          <div className="pt-2 flex items-center justify-end gap-2 border-t border-line dark:border-line-dark">
             <button
               type="button"
               onClick={requestClose}
-              className="px-4 py-2 rounded-xl bg-surface border border-line hover:bg-surface-2 text-ink font-semibold transition-colors cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink dark:text-ink-dark font-semibold transition-colors cursor-pointer"
             >
               إلغاء
             </button>
             <button
               type="submit"
               disabled={paymentAmountPiasters <= 0}
-              className="px-5 py-2 rounded-xl bg-paid hover:bg-paid-hover text-white font-bold transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
+              className="px-5 py-2 rounded-xl bg-paid dark:bg-emerald-600 hover:bg-paid-hover dark:hover:bg-emerald-500 text-white font-bold transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
             >
               <Check className="w-4 h-4" />
               <span>تأكيد الصرف</span>

@@ -33,35 +33,35 @@ export const BulkMinStockModal: React.FC<BulkMinStockModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div onClick={handleBackdropClick} className="fixed inset-0 bg-ink/40 z-50 flex items-center justify-center p-4 animate-fade-in select-none">
-      <div className="w-full max-w-sm max-h-[90vh] bg-surface rounded-[8px] border border-line p-5 shadow-2xl flex flex-col gap-3.5 overflow-y-auto">
-        <div className="flex items-center justify-between pb-2 border-b border-line">
-          <h3 className="text-[14px] font-bold text-ink m-0">تعديل حد النواقص للأصناف المحددة</h3>
-          <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-brand-soft text-brand">
+    <div onClick={handleBackdropClick} className="fixed inset-0 bg-ink/40 dark:bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in select-none">
+      <div className="w-full max-w-sm max-h-[90vh] bg-surface dark:bg-surface-dark rounded-[8px] border border-line dark:border-line-dark p-5 shadow-2xl flex flex-col gap-3.5 overflow-y-auto">
+        <div className="flex items-center justify-between pb-2 border-b border-line dark:border-line-dark">
+          <h3 className="text-[14px] font-bold text-ink dark:text-ink-dark m-0">تعديل حد النواقص للأصناف المحددة</h3>
+          <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright">
             {selectedCount} صنف محدد
           </span>
         </div>
         
-        <p className="text-[12px] text-ink-muted m-0 leading-relaxed">
+        <p className="text-[12px] text-ink-muted dark:text-ink-dark-muted m-0 leading-relaxed">
           اكتب أقل كمية (حد النواقص) بالقطعة عشان النظام ينبهك تلقائياً لما بضاعة الأصناف دي تقرب تخلص.
         </p>
 
         <div>
-          <label className="block text-ink font-semibold mb-1 text-[12px]">حد تنبيه النواقص (بالقطعة)</label>
+          <label className="block text-ink dark:text-ink-dark font-semibold mb-1 text-[12px]">حد تنبيه النواقص (بالقطعة)</label>
           <input
             type="text"
             value={bulkMinStockValue}
             onChange={(e) => setBulkMinStockValue(parseInt(normalizeArabicNumerals(e.target.value), 10) || 0)}
-            className="w-full bg-surface border border-line rounded h-[38px] px-3 font-mono text-[13px] text-ink focus:outline-none focus:border-brand"
+            className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[38px] px-3 font-mono text-[13px] text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
             autoFocus
           />
         </div>
 
-        <div className="flex items-center justify-end gap-2 pt-2 border-t border-line">
+        <div className="flex items-center justify-end gap-2 pt-2 border-t border-line dark:border-line-dark">
           <button
             type="button"
             onClick={requestClose}
-            className="px-3.5 h-[34px] rounded border border-line text-[12px] font-semibold text-ink hover:bg-surface-2 transition-colors cursor-pointer"
+            className="px-3.5 h-[34px] rounded border border-line dark:border-line-dark text-[12px] font-semibold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
           >
             إلغاء
           </button>

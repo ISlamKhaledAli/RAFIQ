@@ -128,26 +128,26 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setIsOpen((prev) => !prev)}
-        className={`w-full ${sizeClasses} bg-surface border rounded-md flex items-center justify-between gap-2 transition-all font-semibold ${
+        className={`w-full ${sizeClasses} bg-surface dark:bg-surface-dark border rounded-md flex items-center justify-between gap-2 transition-all font-semibold ${
           isOpen
-            ? 'border-brand ring-1 ring-brand/30 shadow-xs'
-            : 'border-line hover:border-brand/60'
-        } ${disabled ? 'opacity-50 cursor-not-allowed bg-surface-2' : 'cursor-pointer text-ink'}`}
+            ? 'border-brand dark:border-brand-bright ring-1 ring-brand/30 dark:ring-brand-bright/30 shadow-xs'
+            : 'border-line dark:border-line-dark hover:border-brand/60 dark:hover:border-brand-bright/60'
+        } ${disabled ? 'opacity-50 cursor-not-allowed bg-surface-2 dark:bg-surface-dark-2' : 'cursor-pointer text-ink dark:text-ink-dark'}`}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
         <div className="flex items-center gap-1.5 truncate">
           {selectedOption?.icon}
           {selectedOption ? (
-            <span className="truncate text-ink font-bold">{selectedOption.label}</span>
+            <span className="truncate text-ink dark:text-ink-dark font-bold">{selectedOption.label}</span>
           ) : (
-            <span className="text-ink-muted">{placeholder}</span>
+            <span className="text-ink-muted dark:text-ink-dark-muted">{placeholder}</span>
           )}
         </div>
 
         <ChevronDown
-          className={`w-3.5 h-3.5 text-ink-muted shrink-0 transition-transform duration-150 ${
-            isOpen ? 'rotate-180 text-brand' : ''
+          className={`w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted shrink-0 transition-transform duration-150 ${
+            isOpen ? 'rotate-180 text-brand dark:text-brand-bright' : ''
           }`}
         />
       </button>
@@ -166,34 +166,34 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
 
       {/* Floating Menu */}
       {isOpen && (
-        <div className="absolute right-0 left-0 top-full mt-1 z-50 bg-surface border border-line rounded-lg shadow-xl py-1 max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-100 flex flex-col">
+        <div className="absolute right-0 left-0 top-full mt-1 z-50 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg shadow-xl py-1 max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-100 flex flex-col">
           {isSearchEnabled && (
-            <div className="p-1.5 border-b border-line/60 sticky top-0 bg-surface z-10">
+            <div className="p-1.5 border-b border-line/60 dark:border-line-dark/60 sticky top-0 bg-surface dark:bg-surface-dark z-10">
               <input
                 ref={searchInputRef}
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="بحث في الخيارات..."
-                className="w-full h-7 px-2 text-xs bg-surface-2 border border-line rounded text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none"
+                className="w-full h-7 px-2 text-xs bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded text-ink dark:text-ink-dark placeholder:text-ink-muted dark:placeholder:text-ink-dark-muted focus:border-brand dark:focus:border-brand-bright focus:outline-none"
               />
             </div>
           )}
 
           {filteredOptions.length === 0 ? (
-            <div className="px-3 py-2 text-xs text-ink-muted text-center">لا توجد خيارات مطابقة</div>
+            <div className="px-3 py-2 text-xs text-ink-muted dark:text-ink-dark-muted text-center">لا توجد خيارات مطابقة</div>
           ) : (
             filteredOptions.map((opt) => {
               const isSelected = opt.value === value;
 
               if (opt.isAction) {
                 return (
-                  <div key={opt.value} className="mt-1 pt-1 border-t border-line/60">
+                  <div key={opt.value} className="mt-1 pt-1 border-t border-line/60 dark:border-line-dark/60">
                     <button
                       type="button"
                       onClick={() => handleSelect(opt.value)}
-                      className={`w-full px-3 py-2 text-xs font-bold text-brand hover:bg-brand hover:text-white flex items-center justify-between gap-1.5 transition-colors text-right ${
-                        isSelected ? 'bg-brand text-white' : 'bg-brand-soft/20'
+                      className={`w-full px-3 py-2 text-xs font-bold text-brand dark:text-brand-bright hover:bg-brand dark:hover:bg-brand-bright hover:text-white dark:hover:text-ink flex items-center justify-between gap-1.5 transition-colors text-right ${
+                        isSelected ? 'bg-brand dark:bg-brand-bright text-white dark:text-ink' : 'bg-brand-soft/20 dark:bg-brand-dark-soft'
                       }`}
                     >
                       <div className="flex items-center gap-1.5 truncate">
@@ -213,8 +213,8 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                   onClick={() => handleSelect(opt.value)}
                   className={`w-full px-3 py-1.5 text-xs font-semibold flex items-center justify-between gap-2 transition-colors text-right ${
                     isSelected
-                      ? 'bg-brand-soft text-brand font-bold'
-                      : 'text-ink hover:bg-surface-2 hover:text-brand'
+                      ? 'bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright font-bold'
+                      : 'text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-brand dark:hover:text-brand-bright'
                   }`}
                 >
                   <div className="flex items-center gap-2 truncate">
@@ -224,11 +224,11 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
 
                   <div className="flex items-center gap-1.5 shrink-0">
                     {opt.badge && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded font-mono bg-surface-2 border border-line text-ink-muted">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded font-mono bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted">
                         {opt.badge}
                       </span>
                     )}
-                    {isSelected && <Check className="w-3.5 h-3.5 text-brand" />}
+                    {isSelected && <Check className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />}
                   </div>
                 </button>
               );

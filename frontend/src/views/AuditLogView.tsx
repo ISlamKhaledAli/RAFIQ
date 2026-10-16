@@ -126,7 +126,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
   });
 
   const renderDetails = (log: AuditLogEntry) => {
-    if (!log.detailsJson) return <span className="text-ink-muted text-xs">—</span>;
+    if (!log.detailsJson) return <span className="text-ink-muted dark:text-ink-muted-dark text-xs">—</span>;
 
     try {
       const details = JSON.parse(log.detailsJson) as Record<string, unknown>;
@@ -136,10 +136,10 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
         const newP = piastersToPounds(Number(details.newPrice) || 0).toFixed(2);
         return (
           <div className="flex items-center gap-1.5 text-xs font-mono">
-            <span className="font-sans text-ink font-semibold">{String(details.productName || '')}:</span>
-            <span className="text-danger line-through">{oldP} ج.م</span>
-            <ArrowRightLeft className="w-3 h-3 text-ink-muted" />
-            <span className="text-paid font-bold">{newP} ج.م</span>
+            <span className="font-sans text-ink dark:text-ink-dark font-semibold">{String(details.productName || '')}:</span>
+            <span className="text-danger dark:text-danger-bright line-through">{oldP} ج.م</span>
+            <ArrowRightLeft className="w-3 h-3 text-ink-muted dark:text-ink-muted-dark" />
+            <span className="text-paid dark:text-paid-bright font-bold">{newP} ج.م</span>
           </div>
         );
       }
@@ -149,10 +149,10 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
         const newC = piastersToPounds(Number(details.newCost) || 0).toFixed(2);
         return (
           <div className="flex items-center gap-1.5 text-xs font-mono">
-            <span className="font-sans text-ink font-semibold">{String(details.productName || '')}:</span>
-            <span className="text-ink-muted line-through">{oldC} ج.م</span>
-            <ArrowRightLeft className="w-3 h-3 text-ink-muted" />
-            <span className="text-brand font-bold">{newC} ج.م</span>
+            <span className="font-sans text-ink dark:text-ink-dark font-semibold">{String(details.productName || '')}:</span>
+            <span className="text-ink-muted dark:text-ink-muted-dark line-through">{oldC} ج.م</span>
+            <ArrowRightLeft className="w-3 h-3 text-ink-muted dark:text-ink-muted-dark" />
+            <span className="text-brand dark:text-brand-bright font-bold">{newC} ج.م</span>
           </div>
         );
       }
@@ -162,10 +162,10 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
         const newS = ((Number(details.newStock) || 0) / 1000).toFixed(0);
         return (
           <div className="flex items-center gap-1.5 text-xs font-mono">
-            <span className="font-sans text-ink font-semibold">{String(details.productName || '')}:</span>
-            <span className="text-ink-muted">{oldS} قطعة</span>
-            <ArrowRightLeft className="w-3 h-3 text-ink-muted" />
-            <span className="text-brand font-bold">{newS} قطعة</span>
+            <span className="font-sans text-ink dark:text-ink-dark font-semibold">{String(details.productName || '')}:</span>
+            <span className="text-ink-muted dark:text-ink-muted-dark">{oldS} قطعة</span>
+            <ArrowRightLeft className="w-3 h-3 text-ink-muted dark:text-ink-muted-dark" />
+            <span className="text-brand dark:text-brand-bright font-bold">{newS} قطعة</span>
           </div>
         );
       }
@@ -173,20 +173,20 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
       if (log.action === 'sale_create') {
         const total = piastersToPounds(Number(details.totalPiasters) || 0).toFixed(2);
         return (
-          <div className="text-xs text-ink font-sans">
-            فاتورة بيع رقم <span className="font-mono font-bold text-brand">#{String(details.invoiceNumber || '')}</span> بمبلغ{' '}
+          <div className="text-xs text-ink dark:text-ink-dark font-sans">
+            فاتورة بيع رقم <span className="font-mono font-bold text-brand dark:text-brand-bright">#{String(details.invoiceNumber || '')}</span> بمبلغ{' '}
             <span className="font-mono font-bold">{total} ج.م</span> ({String(details.itemCount || 0)} صنف)
           </div>
         );
       }
 
       return (
-        <span className="text-xs font-mono text-ink-muted truncate max-w-xs block">
+        <span className="text-xs font-mono text-ink-muted dark:text-ink-muted-dark truncate max-w-xs block">
           {log.detailsJson}
         </span>
       );
     } catch {
-      return <span className="text-xs font-mono text-ink-muted truncate">{log.detailsJson}</span>;
+      return <span className="text-xs font-mono text-ink-muted dark:text-ink-muted-dark truncate">{log.detailsJson}</span>;
     }
   };
 
@@ -194,35 +194,35 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
     switch (action) {
       case 'price_update':
         return (
-          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-danger-soft text-danger border border-danger-border flex items-center gap-1">
+          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger-border dark:border-danger-bright/30 flex items-center gap-1">
             <AlertTriangle className="w-3 h-3" />
             <span>{label || 'تعديل سعر بيع'}</span>
           </span>
         );
       case 'cost_update':
         return (
-          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-warn-soft text-warn border border-warn-border flex items-center gap-1">
+          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn-border dark:border-warn-bright/30 flex items-center gap-1">
             <Tag className="w-3 h-3" />
             <span>{label || 'تعديل تكلفة شراء'}</span>
           </span>
         );
       case 'stock_adjust':
         return (
-          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-brand-soft text-brand border border-brand/20 flex items-center gap-1">
+          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/20 flex items-center gap-1">
             <ArrowRightLeft className="w-3 h-3" />
             <span>{label || 'تسوية مخزن'}</span>
           </span>
         );
       case 'sale_create':
         return (
-          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-paid-soft text-paid border border-paid-border flex items-center gap-1">
+          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-bright/20 flex items-center gap-1">
             <FileText className="w-3 h-3" />
             <span>{label || 'إصدار فاتورة'}</span>
           </span>
         );
       default:
         return (
-          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-surface-2 text-ink border border-line">
+          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark border border-line dark:border-line-dark">
             {label || action}
           </span>
         );
@@ -230,18 +230,18 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
   };
 
   return (
-    <div className="flex flex-col h-full bg-canvas p-3 sm:p-3.5 gap-2.5 sm:gap-3 overflow-hidden select-none">
+    <div className="flex flex-col h-full bg-canvas dark:bg-canvas-dark p-3 sm:p-3.5 gap-2.5 sm:gap-3 overflow-hidden select-none">
       {/* 1. Top Header Toolbar */}
-      <div className="h-[52px] bg-surface border border-line rounded-xl px-4 flex items-center justify-between shrink-0">
+      <div className="h-[52px] bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl px-4 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-danger-soft text-danger flex items-center justify-center font-bold">
+          <div className="w-8 h-8 rounded-lg bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright flex items-center justify-center font-bold">
             <ShieldAlert className="w-4 h-4" />
           </div>
           <div>
-            <h2 className="text-sm sm:text-base font-bold text-ink leading-tight m-0">
+            <h2 className="text-sm sm:text-base font-bold text-ink dark:text-ink-dark leading-tight m-0">
               سجل العمليات الحساسة والأمان (Audit Log)
             </h2>
-            <p className="text-[11px] text-ink-muted m-0 hidden sm:block">
+            <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark m-0 hidden sm:block">
               توثيق لحظي غير قابل للحذف لتعديل الأسعار والخصومات وحركات البيع لحماية المحل
             </p>
           </div>
@@ -250,7 +250,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
         {/* Filters and Actions */}
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5">
-            <Filter className="w-3.5 h-3.5 text-ink-muted" />
+            <Filter className="w-3.5 h-3.5 text-ink-muted dark:text-ink-muted-dark" />
             <CustomSelect
               value={selectedAction}
               onChange={(val) => setSelectedAction(val)}
@@ -263,7 +263,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
           <button
             onClick={() => void handleVerifyChain()}
             disabled={verifying}
-            className="h-8 px-2.5 sm:px-3 flex items-center gap-1.5 bg-brand-soft hover:bg-brand/20 border border-brand/30 text-brand text-xs font-bold rounded-lg transition-colors cursor-pointer"
+            className="h-8 px-2.5 sm:px-3 flex items-center gap-1.5 bg-brand-soft dark:bg-brand-dark-soft hover:bg-brand/20 dark:hover:bg-brand-dark border border-brand/30 dark:border-brand-bright/30 text-brand dark:text-brand-bright text-xs font-bold rounded-lg transition-colors cursor-pointer"
             title="فحص السلسلة المشفرة للتأكد من عدم التلاعب بقاعدة البيانات من بره البرنامج"
           >
             <ShieldCheck className={`w-4 h-4 ${verifying ? 'animate-spin' : ''}`} />
@@ -276,14 +276,14 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
       {verification && (
         <div className={`p-3 rounded-xl border flex items-center justify-between text-xs transition-all ${
           verification.isTampered 
-            ? 'bg-danger-soft border-danger-border text-danger' 
-            : 'bg-paid-soft border-paid/20 text-paid'
+            ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger-border dark:border-danger-bright/30 text-danger dark:text-danger-bright' 
+            : 'bg-paid-soft dark:bg-paid-dark-soft border-paid/20 dark:border-paid-bright/20 text-paid dark:text-paid-bright'
         }`}>
           <div className="flex items-center gap-2.5">
             {verification.isTampered ? (
-              <AlertTriangle className="w-5 h-5 shrink-0 text-danger" />
+              <AlertTriangle className="w-5 h-5 shrink-0 text-danger dark:text-danger-bright" />
             ) : (
-              <CheckCircle2 className="w-5 h-5 shrink-0 text-paid" />
+              <CheckCircle2 className="w-5 h-5 shrink-0 text-paid dark:text-paid-bright" />
             )}
             <div>
               <p className="font-bold m-0 text-xs sm:text-[13px]">
@@ -311,8 +311,8 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
                 <span>{resealing ? 'جارِ التأمين...' : 'إعادة ختم وتأمين السلسلة'}</span>
               </button>
             )}
-            <div className="flex items-center gap-1 font-mono text-[11px] bg-surface/80 px-2.5 py-1 rounded-lg border border-line text-ink">
-              <Lock className="w-3 h-3 text-paid" />
+            <div className="flex items-center gap-1 font-mono text-[11px] bg-surface/80 dark:bg-surface-dark/80 px-2.5 py-1 rounded-lg border border-line dark:border-line-dark text-ink dark:text-ink-dark">
+              <Lock className="w-3 h-3 text-paid dark:text-paid-bright" />
               <span>SHA-256 Tamper-Proof</span>
             </div>
           </div>
@@ -320,9 +320,9 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
       )}
 
       {/* 2. Audit Log Data Table */}
-      <div className="flex-1 bg-surface border border-line rounded-xl flex flex-col overflow-hidden">
+      <div className="flex-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl flex flex-col overflow-hidden">
         {/* Table Header */}
-        <div className="h-10 bg-surface-2 border-b border-line px-4 grid grid-cols-12 items-center text-xs font-bold text-ink-muted shrink-0 select-none">
+        <div className="h-10 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-4 grid grid-cols-12 items-center text-xs font-bold text-ink-muted dark:text-ink-muted-dark shrink-0 select-none">
           <span className="col-span-1 text-center">#</span>
           <span className="col-span-2">الوقت والتاريخ</span>
           <span className="col-span-2">الموظف المسؤول</span>
@@ -332,17 +332,17 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
         </div>
 
         {/* Table Body */}
-        <div className="flex-1 overflow-y-auto divide-y divide-line">
+        <div className="flex-1 overflow-y-auto divide-y divide-line dark:divide-line-dark">
           {showLoading ? (
             <RafiqLoadingState
               label="جاري فحص وتدقيق سجل العمليات الحساسة..."
               sublabel="التحقق من أختام السلسلة المشفرة وسجلات الأمان الرقمية"
             />
           ) : logs.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-ink-muted gap-2 p-6">
-              <ShieldAlert className="w-12 h-12 stroke-[1.2] text-ink-muted opacity-40" />
-              <p className="text-[14px] font-semibold text-ink m-0">مفيش أي عمليات متسجلة في التصنيف ده</p>
-              <p className="text-[12px] text-ink-muted m-0">
+            <div className="h-full flex flex-col items-center justify-center text-ink-muted dark:text-ink-muted-dark gap-2 p-6">
+              <ShieldAlert className="w-12 h-12 stroke-[1.2] text-ink-muted dark:text-ink-muted-dark opacity-40" />
+              <p className="text-[14px] font-semibold text-ink dark:text-ink-dark m-0">مفيش أي عمليات متسجلة في التصنيف ده</p>
+              <p className="text-[12px] text-ink-muted dark:text-ink-muted-dark m-0">
                 كل تعديل في الأسعار أو بيع أو حذف بيتسجل ويتوثق هنا تلقائياً لحماية المحل
               </p>
             </div>
@@ -360,19 +360,19 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
               return (
                 <div
                   key={log.id}
-                  className="h-11 sm:h-12 border-b border-line px-4 grid grid-cols-12 items-center text-xs hover:bg-surface-2 transition-colors"
+                  className="h-11 sm:h-12 border-b border-line dark:border-line-dark px-4 grid grid-cols-12 items-center text-xs hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors"
                 >
-                  <span className="col-span-1 text-center font-mono text-xs text-ink-muted">
+                  <span className="col-span-1 text-center font-mono text-xs text-ink-muted dark:text-ink-muted-dark">
                     {((currentPage - 1) * pageSize) + index + 1}
                   </span>
 
-                  <span className="col-span-2 flex items-center gap-1.5 text-xs text-ink-muted font-sans truncate">
-                    <Clock className="w-3.5 h-3.5 shrink-0 text-ink-muted" />
+                  <span className="col-span-2 flex items-center gap-1.5 text-xs text-ink-muted dark:text-ink-muted-dark font-sans truncate">
+                    <Clock className="w-3.5 h-3.5 shrink-0 text-ink-muted dark:text-ink-muted-dark" />
                     <span>{formattedDate}</span>
                   </span>
 
-                  <span className="col-span-2 flex items-center gap-1.5 text-xs font-semibold text-ink truncate">
-                    <User className="w-3.5 h-3.5 shrink-0 text-brand" />
+                  <span className="col-span-2 flex items-center gap-1.5 text-xs font-semibold text-ink dark:text-ink-dark truncate">
+                    <User className="w-3.5 h-3.5 shrink-0 text-brand dark:text-brand-bright" />
                     <span>{log.userDisplayName || 'مدير النظام'}</span>
                   </span>
 
@@ -385,10 +385,10 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
                   </div>
 
                   <div 
-                    className="col-span-1 flex items-center justify-end gap-1 font-mono text-[10px] text-ink-muted truncate" 
+                    className="col-span-1 flex items-center justify-end gap-1 font-mono text-[10px] text-ink-muted dark:text-ink-muted-dark truncate" 
                     title={`معرف السجل: ${log.id}\nبصمة التشفير: ${log.recordHash || 'محسوبة'}\nبصمة السجل السابق: ${log.prevHash || 'Genesis'}`}
                   >
-                    <Lock className="w-2.5 h-2.5 text-paid shrink-0" />
+                    <Lock className="w-2.5 h-2.5 text-paid dark:text-paid-bright shrink-0" />
                     <span className="truncate">{log.recordHash ? log.recordHash.slice(0, 6) : log.id.slice(0, 6)}</span>
                   </div>
                 </div>
@@ -398,10 +398,10 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ isActive = true }) =
         </div>
 
         {/* Table Footer */}
-        <div className="h-9 bg-surface-2 border-t border-line px-4 flex items-center justify-between text-xs text-ink-muted shrink-0">
+        <div className="h-9 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark px-4 flex items-center justify-between text-xs text-ink-muted dark:text-ink-muted-dark shrink-0">
           <span>كل عمليات النظام مسجلة ومؤمنة محلياً</span>
-          <span className="font-mono text-[11px] text-paid flex items-center gap-1">
-            <Lock className="w-3 h-3 text-paid" />
+          <span className="font-mono text-[11px] text-paid dark:text-paid-bright flex items-center gap-1">
+            <Lock className="w-3 h-3 text-paid dark:text-paid-bright" />
             سجل أمان غير قابل للتعديل مشفر ببصمة SHA-256
           </span>
         </div>

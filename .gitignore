@@ -43,6 +43,7 @@ data/
 *.db-shm
 webview_profile/
 backups/
+*.pref
 *نسخة_*
 
 # Large Installer Output & Packages
