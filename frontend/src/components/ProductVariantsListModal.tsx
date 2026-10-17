@@ -10,6 +10,7 @@ import {
   Plus
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 import type { Product, ProductVariant } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
 
@@ -50,17 +51,11 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
     }
   }, [isOpen, parentProduct]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen: Boolean(isOpen && parentProduct),
+    onClose,
+    isDirty: false,
+  });
 
   if (!isOpen || !parentProduct) return null;
 
@@ -68,9 +63,7 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
 
   return (
     <div
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      onClick={handleBackdropClick}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150"
     >
       <div
@@ -111,7 +104,7 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
               </button>
             )}
             <button
-              onClick={onClose}
+              onClick={() => void requestClose()}
               className="p-1.5 text-ink-muted hover:text-ink hover:bg-line/40 rounded-lg transition-colors cursor-pointer"
               title="إغلاق"
             >

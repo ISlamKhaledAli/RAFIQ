@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { Store, Save, Sparkles, CheckCircle2, Smartphone, Wallet, Sun, Moon, Monitor, Palette } from 'lucide-react';
+import { Store, Save, Sparkles, CheckCircle2, Sun, Moon, Monitor, Palette } from 'lucide-react';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { useTheme } from '../../context/useTheme';
 
@@ -23,10 +23,6 @@ interface StoreProfileTabProps {
   onToggleNegativeStock?: (val: boolean) => void;
   defaultCustomerCreditLimitEgp: number;
   setDefaultCustomerCreditLimitEgp: (val: number) => void;
-  instapayFeePercent?: number;
-  setInstapayFeePercent?: (val: number) => void;
-  vodafoneCashFeePercent?: number;
-  setVodafoneCashFeePercent?: (val: number) => void;
   logoVariant?: 'classic' | 'modern';
   setLogoVariant?: (val: 'classic' | 'modern') => void;
   saveLoading: boolean;
@@ -54,10 +50,6 @@ export const StoreProfileTab = ({
   onToggleNegativeStock,
   defaultCustomerCreditLimitEgp,
   setDefaultCustomerCreditLimitEgp,
-  instapayFeePercent = 1,
-  setInstapayFeePercent,
-  vodafoneCashFeePercent = 1,
-  setVodafoneCashFeePercent,
   saveLoading,
   handleSave,
   onOpenWizard,
@@ -221,73 +213,7 @@ export const StoreProfileTab = ({
             </div>
           </div>
 
-          {/* Digital Payment Surcharges (InstaPay & Vodafone Cash) */}
-          <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Smartphone className="w-4 h-4 text-paid dark:text-paid-bright" />
-                <span className="font-bold text-ink dark:text-ink-dark text-xs">رسوم الدفع الإلكتروني (انستاباي وفودافون كاش / محافظ)</span>
-              </div>
-              <span className="text-[10px] text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid/30 dark:border-paid-bright/30 px-2 py-0.5 rounded font-bold">
-                تضاف على إجمالي الفاتورة وتُعزل عن الدرج
-              </span>
-            </div>
-            <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed m-0">
-              النسبة المئوية التي يتم تحصيلها زيادة من العميل عند الدفع عبر انستاباي أو المحفظة الإلكترونية. هذه المبالغ تُعزل في التحليلات والتقفيل اليومي لأنها لا تدخل درج الكاشير.
-            </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              {/* InstaPay Fee % */}
-              <div className="bg-surface dark:bg-surface-dark p-2.5 rounded-lg border border-line dark:border-line-dark flex items-center justify-between gap-3 shadow-2xs">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-7 h-7 rounded-lg bg-[#582C83]/10 text-[#582C83] dark:text-[#b088e8] dark:bg-[#582C83]/20 flex items-center justify-center shrink-0">
-                    <Smartphone className="w-4 h-4" />
-                  </div>
-                  <div className="flex flex-col min-w-0">
-                    <span className="font-bold text-ink dark:text-ink-dark text-xs truncate">زيادة انستاباي (InstaPay)</span>
-                    <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark">نسبة التحصيل من العميل</span>
-                  </div>
-                </div>
-                <div className="w-20 shrink-0 flex items-center gap-1">
-                  <input
-                    type="number"
-                    min="0"
-                    max="50"
-                    step="0.5"
-                    value={instapayFeePercent}
-                    onChange={(e) => setInstapayFeePercent?.(Math.max(0, Number(e.target.value) || 0))}
-                    className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-8 px-1.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright text-center font-bold tabular-nums font-mono"
-                  />
-                  <span className="text-xs text-ink-muted dark:text-ink-muted-dark font-bold">%</span>
-                </div>
-              </div>
-
-              {/* Vodafone Cash Fee % */}
-              <div className="bg-surface dark:bg-surface-dark p-2.5 rounded-lg border border-line dark:border-line-dark flex items-center justify-between gap-3 shadow-2xs">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-7 h-7 rounded-lg bg-[#e60000]/10 text-[#e60000] dark:text-[#ff6b6b] dark:bg-[#e60000]/20 flex items-center justify-center shrink-0">
-                    <Wallet className="w-4 h-4" />
-                  </div>
-                  <div className="flex flex-col min-w-0">
-                    <span className="font-bold text-ink dark:text-ink-dark text-xs truncate">زيادة المحافظ الإلكترونية</span>
-                    <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark">فودافون، أورانج، اتصالات، وي</span>
-                  </div>
-                </div>
-                <div className="w-20 shrink-0 flex items-center gap-1">
-                  <input
-                    type="number"
-                    min="0"
-                    max="50"
-                    step="0.5"
-                    value={vodafoneCashFeePercent}
-                    onChange={(e) => setVodafoneCashFeePercent?.(Math.max(0, Number(e.target.value) || 0))}
-                    className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-8 px-1.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright text-center font-bold tabular-nums font-mono"
-                  />
-                  <span className="text-xs text-ink-muted dark:text-ink-muted-dark font-bold">%</span>
-                </div>
-              </div>
-            </div>
-          </div>
 
           {/* Feature: Theme Mode (Light / Dark / System) */}
           <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex flex-col gap-3">

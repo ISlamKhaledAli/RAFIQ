@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Barcode, 
   Settings, 
@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { rafiqAlert } from '../utils/dialogService';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 import { 
   type BarcodeScannerSettings, 
   DEFAULT_SCANNER_SETTINGS, 
@@ -47,6 +48,7 @@ export const BarcodeScannerSettingsModal = ({
   const lastKeyTimeRef = useRef<number>(0);
   const currentBufferRef = useRef<string>('');
   const rawCodesRef = useRef<string[]>([]);
+  const initialSettingsRef = useRef<BarcodeScannerSettings>(DEFAULT_SCANNER_SETTINGS);
 
   // Load existing settings from SQLite
   useEffect(() => {
@@ -58,12 +60,14 @@ export const BarcodeScannerSettingsModal = ({
       try {
         const all = await invoke<Record<string, string>>('settings:getAll');
         if (active && all) {
-          setSettings({
+          const loaded: BarcodeScannerSettings = {
             speedThresholdMs: all.scanner_speed_ms ? parseInt(all.scanner_speed_ms, 10) || 65 : 65,
             prefix: all.scanner_prefix || '',
             suffix: (all.scanner_suffix as 'Enter' | 'Tab' | 'None') || 'Enter',
             minBarcodeLength: all.scanner_min_length ? parseInt(all.scanner_min_length, 10) || 3 : 3,
-          });
+          };
+          setSettings(loaded);
+          initialSettingsRef.current = loaded;
         }
       } catch {
         // Fallback to defaults
@@ -76,6 +80,23 @@ export const BarcodeScannerSettingsModal = ({
     return () => { active = false; };
   }, [isOpen]);
 
+  const isSettingsDirty = useCallback(() => {
+    return (
+      settings.speedThresholdMs !== initialSettingsRef.current.speedThresholdMs ||
+      settings.prefix !== initialSettingsRef.current.prefix ||
+      settings.suffix !== initialSettingsRef.current.suffix ||
+      settings.minBarcodeLength !== initialSettingsRef.current.minBarcodeLength
+    );
+  }, [settings]);
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onClose,
+    isDirty: isSettingsDirty,
+    confirmTitle: 'تعديلات إعدادات الباركود غير محفوظة',
+    confirmMessage: 'هناك تعديلات على إعدادات قارئ الباركود لم يتم حفظها. هل أنت متأكد من الخروج وتجاهل التعديلات؟',
+  });
+
   // Focus testing input when modal opens
   useEffect(() => {
     if (isOpen) {
@@ -84,17 +105,6 @@ export const BarcodeScannerSettingsModal = ({
       }, 100);
     }
   }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
 
   const handleSaveSettings = async () => {
     setSaving(true);
@@ -106,6 +116,7 @@ export const BarcodeScannerSettingsModal = ({
         scanner_min_length: settings.minBarcodeLength.toString(),
       };
       await invoke('settings:save', payload);
+      initialSettingsRef.current = { ...settings };
       setSavedSuccess(true);
       if (onSettingsSaved) {
         onSettingsSaved(settings);
@@ -204,9 +215,7 @@ export const BarcodeScannerSettingsModal = ({
   return (
     <div 
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      onClick={handleBackdropClick}
     >
       <div className="bg-surface rounded-xl shadow-2xl border border-line w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden text-ink">
         {/* Header */}
@@ -226,7 +235,7 @@ export const BarcodeScannerSettingsModal = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => void requestClose()}
             className="w-8 h-8 rounded hover:bg-surface flex items-center justify-center text-ink-muted hover:text-ink transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -462,7 +471,7 @@ export const BarcodeScannerSettingsModal = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => void requestClose()}
               className="px-4 py-2 rounded text-xs font-semibold text-ink-muted hover:text-ink hover:bg-surface border border-line transition-colors"
             >
               إغلاق

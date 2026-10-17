@@ -34,6 +34,7 @@ import {
   TrendingUp,
   CreditCard,
   Smartphone,
+  Wallet,
   Layers,
   KeyRound,
   RefreshCw,
@@ -53,6 +54,7 @@ import { invoke } from './bridge/ipc';
 import { useDataSubscription, emitDataChanged } from './utils/eventBus';
 import { PosView } from './views/PosView';
 import { EpayView, type EpaySubTab } from './views/epay/EpayView';
+import { WalletsView, type WalletsSubTab } from './views/wallets/WalletsView';
 import { DashboardView } from './views/DashboardView';
 import { RevenueAnalyticsView } from './views/analytics/RevenueAnalyticsView';
 import { InventoryAnalyticsView } from './views/analytics/InventoryAnalyticsView';
@@ -93,10 +95,7 @@ export interface SystemInfo {
   dbStatus: string;
 }
 
-export type TabType = 'pos' | 'epay' | 'dashboard' | 'customers' | 'products' | 'purchases' | 'sales' | 'audit' | 'settings';
-
-
-
+export type TabType = 'pos' | 'epay' | 'wallets' | 'dashboard' | 'customers' | 'products' | 'purchases' | 'sales' | 'audit' | 'settings';
 
 const HeaderClock: FC = memo(() => {
   const [time, setTime] = useState('');
@@ -133,7 +132,7 @@ const HeaderClock: FC = memo(() => {
 });
 
 const ADMIN_ONLY_TABS: TabType[] = ['dashboard', 'products', 'purchases', 'sales', 'audit', 'settings'];
-const CASHIER_ALLOWED_TABS: TabType[] = ['pos', 'epay', 'customers'];
+const CASHIER_ALLOWED_TABS: TabType[] = ['pos', 'epay', 'wallets', 'customers'];
 
 export default function App() {
   const { isEnabled } = useFeatures();
@@ -150,6 +149,8 @@ export default function App() {
   const [isProductsMenuExpanded, setIsProductsMenuExpanded] = useState(false);
   const [epaySubTab, setEpaySubTab] = useState<EpaySubTab>('pos');
   const [isEpayMenuExpanded, setIsEpayMenuExpanded] = useState(false);
+  const [walletsSubTab, setWalletsSubTab] = useState<WalletsSubTab>('transact');
+  const [isWalletsMenuExpanded, setIsWalletsMenuExpanded] = useState(false);
   const [dashboardSubTab, setDashboardSubTab] = useState<DashboardSubTab>('today');
   const [isDashboardMenuExpanded, setIsDashboardMenuExpanded] = useState(false);
   const [purchasesSubView, setPurchasesSubView] = useState<PurchasesSubView>('new_invoice');
@@ -554,6 +555,12 @@ export default function App() {
           sublabel: 'استرجاع أرصدة الماكينات وسجل العمليات والتحليلات',
           icon: <Smartphone className="w-6 h-6 text-brand" />,
         };
+      case 'wallets':
+        return {
+          label: 'جاري تحديث أرصدة المحافظ وإنستاباي...',
+          sublabel: 'استرجاع الأرصدة الحالية، وسجل المعاملات، وصافي الأرباح',
+          icon: <Wallet className="w-6 h-6 text-brand" />,
+        };
       case 'dashboard':
         return {
           label: dashboardSubTab === 'revenue' 
@@ -647,15 +654,14 @@ export default function App() {
           setActiveTab('epay');
         } else if (e.key === '3') {
           e.preventDefault();
-          setActiveTab('customers');
+          setActiveTab('wallets');
+        } else if (e.key === '4') {
+          e.preventDefault();
+          setActiveTab('dashboard');
         } else if (currentUser?.role !== 'cashier') {
-          if (e.key === '4') {
+          if (e.key === '5') {
             e.preventDefault();
-            setActiveTab('dashboard');
-          } else if (e.key === '5') {
-            e.preventDefault();
-            setActiveTab('products');
-            setIsProductsMenuExpanded(true);
+            setActiveTab('customers');
           } else if (e.key === '6') {
             e.preventDefault();
             setActiveTab('purchases');
@@ -772,17 +778,19 @@ export default function App() {
   const allNavItems = [
     { id: 'pos' as TabType, label: 'الكاشير وشاشة البيع', icon: ShoppingCart, shortcut: 'F1 / Alt+1' },
     { id: 'epay' as TabType, label: 'خدمات وماكينات الدفع', icon: CreditCard, shortcut: 'Alt+2' },
-    { id: 'dashboard' as TabType, label: 'لوحة اليوم والوردية', icon: LayoutDashboard, shortcut: 'Alt+3' },
-    { id: 'customers' as TabType, label: 'العملاء وحسابات الشكك', icon: Users, shortcut: 'Alt+4' },
-    { id: 'products' as TabType, label: 'الأصناف والمخزن', icon: Package, shortcut: 'Alt+5' },
-    { id: 'purchases' as TabType, label: 'فواتير الشراء والموردين', icon: Truck, shortcut: 'Alt+6' },
-    { id: 'sales' as TabType, label: 'سجل وفواتير البيع', icon: FileText, shortcut: 'Alt+7' },
-    { id: 'audit' as TabType, label: 'سجل المراقبة والأمان', icon: ShieldAlert, shortcut: 'Alt+8' },
-    { id: 'settings' as TabType, label: 'إعدادات المحل والسيستم', icon: Settings, shortcut: 'Alt+9' },
+    { id: 'wallets' as TabType, label: 'المحافظ وإنستاباي', icon: Wallet, shortcut: 'Alt+3' },
+    { id: 'dashboard' as TabType, label: 'لوحة اليوم والوردية', icon: LayoutDashboard, shortcut: 'Alt+4' },
+    { id: 'customers' as TabType, label: 'العملاء وحسابات الشكك', icon: Users, shortcut: 'Alt+5' },
+    { id: 'products' as TabType, label: 'الأصناف والمخزن', icon: Package, shortcut: 'Alt+6' },
+    { id: 'purchases' as TabType, label: 'فواتير الشراء والموردين', icon: Truck, shortcut: 'Alt+7' },
+    { id: 'sales' as TabType, label: 'سجل وفواتير البيع', icon: FileText, shortcut: 'Alt+8' },
+    { id: 'audit' as TabType, label: 'سجل المراقبة والأمان', icon: ShieldAlert, shortcut: 'Alt+9' },
+    { id: 'settings' as TabType, label: 'إعدادات المحل والسيستم', icon: Settings, shortcut: '' },
   ];
 
   const canAccessPos = isRoot || hasPermission('pos.access') || hasPermission('pos');
   const canAccessEpay = (isRoot || hasPermission('epay.access') || hasPermission('epay')) && isEnabled('feature_epay_services');
+  const canAccessWallets = isRoot || hasPermission('wallets.access') || hasPermission('wallets');
   const canAccessDashboard = isRoot || hasPermission('reports.sales') || hasPermission('reports');
   const canAccessCustomers = isRoot || hasPermission('customers.view') || hasPermission('customers');
   const canAccessProducts = isRoot || hasPermission('products.view') || hasPermission('products');
@@ -794,6 +802,28 @@ export default function App() {
   const canAccessEpayTerminals = isRoot || isAdmin || hasPermission('epay.terminals_manage') || hasPermission('epay.fund');
   const canAccessEpayHistory = isRoot || isAdmin || hasPermission('epay.history');
   const canAccessEpayAnalytics = isRoot || isAdmin || hasPermission('epay.analytics');
+
+  const canAccessWalletsTransact = isRoot || isAdmin || hasPermission('wallets.transact');
+  const canAccessWalletsAccounts = isRoot || isAdmin || hasPermission('wallets.accounts_manage') || hasPermission('wallets.fund');
+  const canAccessWalletsHistory = isRoot || isAdmin || hasPermission('wallets.history');
+  const canAccessWalletsAnalytics = isRoot || isAdmin || hasPermission('wallets.analytics');
+
+  const walletsTreeItems = useMemo(() => {
+    const items = [];
+    if (canAccessWalletsTransact) {
+      items.push({ id: 'transact' as WalletsSubTab, label: 'تنفيذ عملية (سحب / إيداع)', icon: Smartphone });
+    }
+    if (canAccessWalletsAccounts) {
+      items.push({ id: 'accounts' as WalletsSubTab, label: 'أرصدة المحافظ والحسابات', icon: Layers });
+    }
+    if (canAccessWalletsHistory) {
+      items.push({ id: 'history' as WalletsSubTab, label: 'سجل العمليات والإيصالات', icon: Receipt });
+    }
+    if (canAccessWalletsAnalytics) {
+      items.push({ id: 'analytics' as WalletsSubTab, label: 'أرباح وتحليلات المحافظ', icon: TrendingUp });
+    }
+    return items;
+  }, [canAccessWalletsTransact, canAccessWalletsAccounts, canAccessWalletsHistory, canAccessWalletsAnalytics]);
 
   const epayTreeItems = useMemo(() => {
     const items = [
@@ -825,6 +855,7 @@ export default function App() {
     switch (item.id) {
       case 'pos': return canAccessPos;
       case 'epay': return canAccessEpay;
+      case 'wallets': return canAccessWallets;
       case 'dashboard': return canAccessDashboard;
       case 'customers': return canAccessCustomers;
       case 'products': return canAccessProducts;
@@ -1038,10 +1069,10 @@ export default function App() {
 
       {/* 2. MAIN APP SHELL (Sidebar Navigation + Dynamic Content Canvas) */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Navigation Sidebar (RTL Right side, Responsive Collapsible: 64px collapsed / 215px expanded) */}
+        {/* Navigation Sidebar (RTL Right side, Perfectly Balanced: 64px collapsed / 240px expanded) */}
         <aside 
           className={`${
-            isSidebarCollapsed ? 'w-[64px] px-1.5 py-2.5 items-center' : 'w-[215px] p-2.5'
+            isSidebarCollapsed ? 'w-[64px] px-1.5 py-2.5 items-center' : 'w-[240px] p-2.5'
           } bg-surface dark:bg-surface-dark hairline-l flex flex-col shrink-0 select-none transition-all duration-150 h-full min-h-0 overflow-hidden shadow-2xs`}
         >
           {/* Top Header of Sidebar: Title + Toggle Icon Button */}
@@ -1049,7 +1080,7 @@ export default function App() {
             isSidebarCollapsed ? 'justify-center' : 'justify-between px-1'
           }`}>
             {!isSidebarCollapsed && (
-              <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted uppercase tracking-wider">
+              <span className="text-[11px] font-medium text-ink-muted dark:text-ink-dark-muted uppercase tracking-wider">
                 القوائم الرئيسية
               </span>
             )}
@@ -1083,6 +1114,7 @@ export default function App() {
               const Icon = item.icon;
               const isActive = effectiveActiveTab === item.id;
               const isEpayItem = item.id === 'epay';
+              const isWalletsItem = item.id === 'wallets';
               const isDashboardItem = item.id === 'dashboard';
               const isProductsItem = item.id === 'products';
               const isPurchasesItem = item.id === 'purchases';
@@ -1096,6 +1128,7 @@ export default function App() {
                     onClick={() => {
                       handleNavClick(item.id, () => {
                         if (isEpayItem) setEpaySubTab('pos');
+                        if (isWalletsItem) setWalletsSubTab('transact');
                         if (isDashboardItem) setDashboardSubTab('today');
                         if (isProductsItem) setProductsSubView('catalog');
                         if (isPurchasesItem) setPurchasesSubView('invoices');
@@ -1111,7 +1144,7 @@ export default function App() {
                   >
                     <Icon className={`w-5 h-5 ${isActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/80 group-hover:text-ink dark:group-hover:text-white'}`} />
                     {isProductsItem && lowStockCount > 0 && (
-                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-danger text-white text-[9px] font-bold flex items-center justify-center animate-pulse border-2 border-surface dark:border-surface-dark shadow-2xs">
+                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-danger text-white text-[9px] font-medium flex items-center justify-center animate-pulse border-2 border-surface dark:border-surface-dark shadow-2xs">
                         {lowStockCount > 9 ? '+9' : lowStockCount}
                       </span>
                     )}
@@ -1130,6 +1163,12 @@ export default function App() {
                           handleNavClick('epay', () => setIsEpayMenuExpanded(true));
                         } else {
                           setIsEpayMenuExpanded(!isEpayMenuExpanded);
+                        }
+                      } else if (isWalletsItem) {
+                        if (effectiveActiveTab !== 'wallets') {
+                          handleNavClick('wallets', () => setIsWalletsMenuExpanded(true));
+                        } else {
+                          setIsWalletsMenuExpanded(!isWalletsMenuExpanded);
                         }
                       } else if (isDashboardItem) {
                         if (effectiveActiveTab !== 'dashboard') {
@@ -1159,20 +1198,20 @@ export default function App() {
                         handleNavClick(item.id);
                       }
                     }}
-                    className={`w-full relative flex items-center justify-between px-2.5 h-[40px] rounded-xl text-xs transition-all duration-150 cursor-pointer ${
+                    className={`w-full relative flex items-center justify-between px-3 h-[41px] rounded-xl text-[13px] transition-all duration-150 cursor-pointer ${
                       isActive
-                        ? 'bg-brand-dark dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-bold shadow-xs'
-                        : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-medium'
+                        ? 'bg-brand-dark dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-xs'
+                        : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/80 group-hover:dark:text-white'}`} />
-                      <span className="truncate">{item.label}</span>
+                      <Icon className={`w-4.5 h-4.5 shrink-0 ${isActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/80 group-hover:dark:text-white'}`} />
+                      <span className="truncate whitespace-nowrap">{item.label}</span>
                     </div>
 
-                    {(isEpayItem || isDashboardItem || isProductsItem || isPurchasesItem || isSettingsItem) && (
+                    {(isEpayItem || isWalletsItem || isDashboardItem || isProductsItem || isPurchasesItem || isSettingsItem) && (
                       <span className={`shrink-0 ${isActive ? 'text-white/80 dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/70'}`}>
-                        {(isEpayItem ? isEpayMenuExpanded : isDashboardItem ? isDashboardMenuExpanded : isProductsItem ? isProductsMenuExpanded : isPurchasesItem ? isPurchasesMenuExpanded : isSettingsMenuExpanded) ? (
+                        {(isEpayItem ? isEpayMenuExpanded : isWalletsItem ? isWalletsMenuExpanded : isDashboardItem ? isDashboardMenuExpanded : isProductsItem ? isProductsMenuExpanded : isPurchasesItem ? isPurchasesMenuExpanded : isSettingsMenuExpanded) ? (
                           <ChevronDown className="w-3.5 h-3.5" />
                         ) : (
                           <ChevronLeft className="w-3.5 h-3.5" />
@@ -1183,7 +1222,7 @@ export default function App() {
 
                   {/* Sub-tree for Epay (SuperPay / Terminals / POS / Analytics) */}
                   {isEpayItem && isEpayMenuExpanded && (
-                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-[#00372d]/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
+                    <div className="mr-2.5 pr-2 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
                       {epayTreeItems.map((sub) => {
                         const SubIcon = sub.icon;
                         const isSubActive = effectiveActiveTab === 'epay' && epaySubTab === sub.id;
@@ -1196,15 +1235,46 @@ export default function App() {
                               setActiveTab('epay');
                               setEpaySubTab(sub.id);
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
+                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
                               isSubActive
-                                ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-bold shadow-2xs'
-                                : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-medium'
+                                ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
+                                : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
                             }`}
                           >
                             <div className="flex items-center gap-2 truncate">
                               <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/75'}`} />
-                              <span className="truncate">{sub.label}</span>
+                              <span className="truncate whitespace-nowrap">{sub.label}</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Sub-tree for Wallets & InstaPay */}
+                  {isWalletsItem && isWalletsMenuExpanded && (
+                    <div className="mr-2.5 pr-2 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
+                      {walletsTreeItems.map((sub) => {
+                        const SubIcon = sub.icon;
+                        const isSubActive = effectiveActiveTab === 'wallets' && walletsSubTab === sub.id;
+                        return (
+                          <button
+                            key={sub.id}
+                            type="button"
+                            title={sub.label}
+                            onClick={() => {
+                              setActiveTab('wallets');
+                              setWalletsSubTab(sub.id);
+                            }}
+                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
+                              isSubActive
+                                ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
+                                : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/75'}`} />
+                              <span className="truncate whitespace-nowrap">{sub.label}</span>
                             </div>
                           </button>
                         );
@@ -1214,7 +1284,7 @@ export default function App() {
 
                   {/* Sub-tree for Dashboard & Executive Analytics */}
                   {isDashboardItem && isDashboardMenuExpanded && (
-                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-[#00372d]/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
+                    <div className="mr-2.5 pr-2 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
                       {dashboardTreeItems.map((sub) => {
                         const SubIcon = sub.icon;
                         const isSubActive = effectiveActiveTab === 'dashboard' && dashboardSubTab === sub.id;
@@ -1227,15 +1297,15 @@ export default function App() {
                               setActiveTab('dashboard');
                               setDashboardSubTab(sub.id);
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
+                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
                               isSubActive
-                                ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-bold shadow-2xs'
-                                : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-medium'
+                                ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
+                                : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
                             }`}
                           >
                             <div className="flex items-center gap-2 truncate">
                               <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/75'}`} />
-                              <span className="truncate">{sub.label}</span>
+                              <span className="truncate whitespace-nowrap">{sub.label}</span>
                             </div>
                           </button>
                         );
@@ -1245,7 +1315,7 @@ export default function App() {
 
                   {/* Sub-tree for Products & Inventory */}
                   {isProductsItem && isProductsMenuExpanded && (
-                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
+                    <div className="mr-2.5 pr-2 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
                       <button
                         type="button"
                         onClick={() => {
@@ -1253,10 +1323,10 @@ export default function App() {
                           setProductsSubView('catalog');
                           setInitialProductFilter('all');
                         }}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
                           effectiveActiveTab === 'products' && productsSubView === 'catalog'
-                            ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-bold shadow-2xs'
-                            : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-medium'
+                            ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
+                            : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
                         }`}
                         title="كتالوج الأصناف والأسعار"
                       >
@@ -1272,10 +1342,10 @@ export default function App() {
                           setActiveTab('products');
                           setProductsSubView('movements');
                         }}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
                           effectiveActiveTab === 'products' && productsSubView === 'movements'
-                            ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-bold shadow-2xs'
-                            : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-medium'
+                            ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
+                            : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
                         }`}
                         title="حركات وجرد المخزن"
                       >
@@ -1292,10 +1362,10 @@ export default function App() {
                             setActiveTab('products');
                             setProductsSubView('batches');
                           }}
-                          className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
+                          className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
                             effectiveActiveTab === 'products' && productsSubView === 'batches'
-                              ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-bold shadow-2xs'
-                              : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-medium'
+                              ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
+                              : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
                           }`}
                           title="تواريخ الصلاحية والدفعات"
                         >
@@ -1310,17 +1380,17 @@ export default function App() {
 
                   {/* Sub-tree for Purchases & Suppliers */}
                   {isPurchasesItem && isPurchasesMenuExpanded && (
-                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
+                    <div className="mr-2.5 pr-2 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
                       <button
                         type="button"
                         onClick={() => {
                           setActiveTab('purchases');
                           setPurchasesSubView('new_invoice');
                         }}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
                           effectiveActiveTab === 'purchases' && purchasesSubView === 'new_invoice'
-                            ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-bold shadow-2xs'
-                            : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-medium'
+                            ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
+                            : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
                         }`}
                         title="فاتورة شراء بضاعة جديدة"
                       >
@@ -1336,10 +1406,10 @@ export default function App() {
                           setActiveTab('purchases');
                           setPurchasesSubView('invoices');
                         }}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
                           effectiveActiveTab === 'purchases' && purchasesSubView === 'invoices'
-                            ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-bold shadow-2xs'
-                            : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-medium'
+                            ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
+                            : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
                         }`}
                         title="سجل فواتير الشراء"
                       >
@@ -1355,10 +1425,10 @@ export default function App() {
                           setActiveTab('purchases');
                           setPurchasesSubView('suppliers');
                         }}
-                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
                           effectiveActiveTab === 'purchases' && purchasesSubView === 'suppliers'
-                            ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-bold shadow-2xs'
-                            : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-medium'
+                            ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
+                            : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
                         }`}
                         title="دليل الموردين والشركات"
                       >
@@ -1372,7 +1442,7 @@ export default function App() {
 
                   {/* Sub-tree for Settings */}
                   {isSettingsItem && isSettingsMenuExpanded && (
-                    <div className="mr-3 pr-2.5 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
+                    <div className="mr-2.5 pr-2 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
                       {settingsTreeItems.map((sub) => {
                         const SubIcon = sub.icon;
                         const isSubActive = activeTab === 'settings' && settingsSubTab === sub.id;
@@ -1385,10 +1455,10 @@ export default function App() {
                               setActiveTab('settings');
                               setSettingsSubTab(sub.id);
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12px] transition-all duration-150 cursor-pointer ${
+                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
                               isSubActive
-                                ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-bold shadow-2xs'
-                                : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-medium'
+                                ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
+                                : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
                             }`}
                           >
                             <div className="flex items-center gap-2 min-w-0 truncate">
@@ -1414,17 +1484,17 @@ export default function App() {
               type="button"
               onClick={() => openHelpCenterModal(effectiveActiveTab)}
               title="مركز المساعدة والشروحات والدعم الفني (F1)"
-              className={`w-full rounded-xl transition-all duration-150 flex items-center gap-2 font-bold cursor-pointer ${
+              className={`w-full rounded-xl transition-all duration-150 flex items-center gap-2.5 font-medium cursor-pointer ${
                 isSidebarCollapsed
                   ? 'h-[40px] justify-center text-paid dark:text-brand-bright hover:bg-paid-soft dark:hover:bg-brand-dark-soft border border-transparent hover:border-paid/30'
-                  : 'px-2.5 py-1.5 text-xs text-paid dark:text-brand-bright hover:text-brand-dark dark:hover:text-white bg-paid-soft dark:bg-paid-dark-soft hover:bg-paid-soft/80 dark:hover:bg-paid-dark-soft/80 border border-paid-border dark:border-paid/30 shadow-2xs'
+                  : 'px-3 h-[39px] text-[12.5px] text-paid dark:text-brand-bright hover:text-brand-dark dark:hover:text-white bg-paid-soft dark:bg-paid-dark-soft hover:bg-paid-soft/80 dark:hover:bg-paid-dark-soft/80 border border-paid-border dark:border-paid/30 shadow-2xs'
               }`}
             >
-              <HelpCircle className="w-4 h-4 text-paid dark:text-brand-bright shrink-0" />
+              <HelpCircle className="w-4.5 h-4.5 text-paid dark:text-brand-bright shrink-0" />
               {!isSidebarCollapsed && (
                 <div className="flex items-center justify-between flex-1 min-w-0">
-                  <span className="truncate">مركز المساعدة والدعم</span>
-                  <span className="font-mono text-[10px] text-paid dark:text-brand-bright bg-surface dark:bg-surface-dark-2 px-1.5 py-0.2 rounded border border-paid-border dark:border-paid/30">
+                  <span className="truncate whitespace-nowrap">مركز المساعدة والدعم</span>
+                  <span className="font-mono text-[10.5px] font-medium text-paid dark:text-brand-bright bg-surface dark:bg-surface-dark-2 px-1.5 py-0.5 rounded border border-paid-border dark:border-paid/30">
                     F1
                   </span>
                 </div>
@@ -1436,17 +1506,17 @@ export default function App() {
               type="button"
               onClick={() => void handleExitApp()}
               title="إغلاق البرنامج والخروج بأمان"
-              className={`w-full rounded-xl transition-all duration-150 flex items-center gap-2 font-bold cursor-pointer ${
+              className={`w-full rounded-xl transition-all duration-150 flex items-center gap-2.5 font-medium cursor-pointer ${
                 isSidebarCollapsed
                   ? 'h-[40px] justify-center text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft border border-transparent hover:border-danger/30 dark:hover:border-danger-bright/30'
-                  : 'px-2.5 py-1.5 text-xs text-danger dark:text-danger-bright hover:text-danger-ink dark:hover:text-white bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger-soft/80 dark:hover:bg-danger-dark-soft/80 border border-danger/20 dark:border-danger-bright/30 shadow-2xs'
+                  : 'px-3 h-[39px] text-[12.5px] text-danger dark:text-danger-bright hover:text-danger-ink dark:hover:text-white bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger-soft/80 dark:hover:bg-danger-dark-soft/80 border border-danger/20 dark:border-danger-bright/30 shadow-2xs'
               }`}
             >
-              <Power className="w-4 h-4 text-danger dark:text-danger-bright shrink-0" />
+              <Power className="w-4.5 h-4.5 text-danger dark:text-danger-bright shrink-0" />
               {!isSidebarCollapsed && (
                 <div className="flex items-center justify-between flex-1 min-w-0">
-                  <span className="truncate">إغلاق البرنامج</span>
-                  <span className="font-mono text-[10px] text-danger dark:text-danger-bright bg-surface dark:bg-surface-dark px-1.5 py-0.2 rounded border border-danger/20 dark:border-danger-bright/30">خروج</span>
+                  <span className="truncate whitespace-nowrap">إغلاق البرنامج</span>
+                  <span className="font-mono text-[10.5px] font-medium text-danger dark:text-danger-bright bg-surface dark:bg-surface-dark px-1.5 py-0.5 rounded border border-danger/20 dark:border-danger-bright/30">خروج</span>
                 </div>
               )}
             </button>
@@ -1471,7 +1541,11 @@ export default function App() {
 
           {/* POS View is always mounted, kept alive, and instant */}
           <div className={`h-full w-full ${effectiveActiveTab === 'pos' ? '' : 'hidden'}`}>
-            <PosView isActive={effectiveActiveTab === 'pos'} onNavigateToEpay={() => { setActiveTab('epay'); setEpaySubTab('pos'); setIsEpayMenuExpanded(true); }} />
+            <PosView 
+              isActive={effectiveActiveTab === 'pos'} 
+              onNavigateToEpay={() => { setActiveTab('epay'); setEpaySubTab('pos'); setIsEpayMenuExpanded(true); }} 
+              onNavigateToWallets={(subTab = 'accounts') => { setActiveTab('wallets'); setWalletsSubTab(subTab); setIsWalletsMenuExpanded(true); }}
+            />
           </div>
 
           {/* E-Payment Terminals & Services View (SuperPay / Fawry / Aman) */}
@@ -1480,6 +1554,16 @@ export default function App() {
               <EpayView 
                 activeSubTab={epaySubTab}
                 onSubTabChange={(tab) => setEpaySubTab(tab)}
+              />
+            </div>
+          )}
+
+          {/* Digital Accounts & Wallets View (Vodafone Cash / InstaPay) */}
+          {canAccessWallets && visitedTabs.has('wallets') && (
+            <div className={`h-full w-full ${effectiveActiveTab === 'wallets' ? '' : 'hidden'}`}>
+              <WalletsView 
+                activeSubTab={walletsSubTab}
+                onSubTabChange={(tab) => setWalletsSubTab(tab)}
               />
             </div>
           )}

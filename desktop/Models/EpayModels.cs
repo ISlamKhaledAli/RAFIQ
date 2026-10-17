@@ -228,14 +228,37 @@ namespace RafiqPOS.Models
         [JsonProperty("totalBillVolumePiasters")]
         public long TotalBillVolumePiasters { get; set; }
 
+        [JsonProperty("totalVolumePiasters")]
+        public long TotalVolumePiasters
+        {
+            get { return TotalBillVolumePiasters; }
+            set { TotalBillVolumePiasters = value; }
+        }
+
         [JsonProperty("totalCustomerFeesPiasters")]
         public long TotalCustomerFeesPiasters { get; set; }
 
         [JsonProperty("totalProviderCommissionsPiasters")]
         public long TotalProviderCommissionsPiasters { get; set; }
 
+        [JsonProperty("totalCommissionsPiasters")]
+        public long TotalCommissionsPiasters
+        {
+            get { return TotalProviderCommissionsPiasters; }
+            set { TotalProviderCommissionsPiasters = value; }
+        }
+
         [JsonProperty("totalNetProfitPiasters")]
         public long TotalNetProfitPiasters { get; set; }
+
+        [JsonProperty("totalInCashDrawerPiasters")]
+        public long TotalInCashDrawerPiasters { get; set; }
+
+        [JsonProperty("totalInTerminalTillPiasters")]
+        public long TotalInTerminalTillPiasters { get; set; }
+
+        [JsonProperty("activeTerminalsCount")]
+        public int ActiveTerminalsCount { get; set; }
 
         [JsonProperty("totalTerminalsBalancePiasters")]
         public long TotalTerminalsBalancePiasters { get; set; }

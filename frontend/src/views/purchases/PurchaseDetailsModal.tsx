@@ -1,6 +1,7 @@
 import React from 'react';
 import { Receipt, X } from 'lucide-react';
 import type { Purchase } from '../../types/models';
+import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { formatMoney } from './types';
 
 interface PurchaseDetailsModalProps {
@@ -9,25 +10,17 @@ interface PurchaseDetailsModalProps {
 }
 
 export const PurchaseDetailsModal: React.FC<PurchaseDetailsModalProps> = ({ purchase, onClose }) => {
-  React.useEffect(() => {
-    if (!purchase) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [purchase, onClose]);
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen: Boolean(purchase),
+    onClose,
+    isDirty: false,
+  });
 
   if (!purchase) return null;
 
   return (
     <div
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      onClick={handleBackdropClick}
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
     >
       <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
@@ -42,7 +35,7 @@ export const PurchaseDetailsModal: React.FC<PurchaseDetailsModalProps> = ({ purc
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => void requestClose()}
             className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
@@ -178,7 +171,7 @@ export const PurchaseDetailsModal: React.FC<PurchaseDetailsModalProps> = ({ purc
         <div className="p-3.5 bg-surface dark:bg-surface-dark border-t border-line dark:border-line-dark flex justify-end shrink-0">
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => void requestClose()}
             className="px-5 h-9 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl text-xs font-bold transition-colors cursor-pointer"
           >
             إغلاق

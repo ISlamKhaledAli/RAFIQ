@@ -6,7 +6,7 @@ namespace RafiqPOS.Database
 {
     public static class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 29;
+        public const int LATEST_SUPPORTED_VERSION = 31;
 
         public static void ApplyMigrations(string connectionString, string dbPath)
         {
@@ -266,7 +266,14 @@ namespace RafiqPOS.Database
                     ApplyMigration30(conn);
                 }
 
-                // 34. Self-Healing Schema Guard: Automatically repair missing columns or indexes
+                // 34. Apply Migration 31: Digital Wallets (Vodafone Cash, etc.) and InstaPay Accounts
+                if (currentVersion < 31)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration31(conn);
+                }
+
+                // 35. Self-Healing Schema Guard: Automatically repair missing columns or indexes
                 EnsureSchemaHealth(conn);
             }
         }
@@ -1198,6 +1205,67 @@ namespace RafiqPOS.Database
                                 }
                             }
                         }
+                    }
+
+                    // 17. Health check for digital_accounts table
+                    using (var checkDigitalCmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS digital_accounts (
+                            id TEXT PRIMARY KEY,
+                            name TEXT NOT NULL,
+                            type TEXT NOT NULL DEFAULT 'wallet',
+                            provider TEXT NOT NULL DEFAULT 'vodafone_cash',
+                            account_number TEXT,
+                            balance_piasters INTEGER NOT NULL DEFAULT 0,
+                            low_balance_alert_piasters INTEGER NOT NULL DEFAULT 50000,
+                            is_default INTEGER NOT NULL DEFAULT 0,
+                            is_active INTEGER NOT NULL DEFAULT 1,
+                            notes TEXT,
+                            created_at TEXT NOT NULL,
+                            updated_at TEXT NOT NULL
+                        );
+
+                        CREATE TABLE IF NOT EXISTS digital_transactions (
+                            id TEXT PRIMARY KEY,
+                            account_id TEXT NOT NULL REFERENCES digital_accounts(id),
+                            tx_type TEXT NOT NULL,
+                            amount_piasters INTEGER NOT NULL DEFAULT 0,
+                            profit_piasters INTEGER NOT NULL DEFAULT 0,
+                            total_collected_piasters INTEGER NOT NULL DEFAULT 0,
+                            customer_phone TEXT,
+                            customer_name TEXT,
+                            reference_number TEXT,
+                            sale_id TEXT,
+                            cashier_name TEXT,
+                            payment_destination TEXT NOT NULL DEFAULT 'cash_drawer',
+                            status TEXT NOT NULL DEFAULT 'completed',
+                            notes TEXT,
+                            created_at TEXT NOT NULL
+                        );
+
+                        CREATE TABLE IF NOT EXISTS digital_account_fundings (
+                            id TEXT PRIMARY KEY,
+                            account_id TEXT NOT NULL REFERENCES digital_accounts(id),
+                            amount_piasters INTEGER NOT NULL,
+                            funding_source TEXT NOT NULL DEFAULT 'cash_drawer',
+                            previous_balance_piasters INTEGER NOT NULL,
+                            new_balance_piasters INTEGER NOT NULL,
+                            notes TEXT,
+                            created_by TEXT,
+                            created_at TEXT NOT NULL
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_digital_tx_acc ON digital_transactions(account_id);
+                        CREATE INDEX IF NOT EXISTS idx_digital_tx_created ON digital_transactions(created_at);
+                        CREATE INDEX IF NOT EXISTS idx_digital_tx_sale ON digital_transactions(sale_id);
+
+                        INSERT OR IGNORE INTO digital_accounts (id, name, type, provider, account_number, balance_piasters, low_balance_alert_piasters, is_default, is_active, created_at, updated_at)
+                        VALUES ('acc_default_wallet', 'محفظة كاش الأساسية (فودافون كاش)', 'wallet', 'vodafone_cash', '', 0, 50000, 1, 1, datetime('now'), datetime('now'));
+
+                        INSERT OR IGNORE INTO digital_accounts (id, name, type, provider, account_number, balance_piasters, low_balance_alert_piasters, is_default, is_active, created_at, updated_at)
+                        VALUES ('acc_default_instapay', 'حساب إنستاباي الأساسي', 'instapay', 'instapay', '', 0, 50000, 1, 1, datetime('now'), datetime('now'));
+                    ", conn, trans))
+                    {
+                        checkDigitalCmd.ExecuteNonQuery();
                     }
 
                     trans.Commit();
@@ -3731,6 +3799,86 @@ namespace RafiqPOS.Database
                 }
             }
         }
+
+        // Migration 31: Digital Wallets (Vodafone Cash, etc.) and InstaPay Accounts
+        private static void ApplyMigration31(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand(@"
+                            CREATE TABLE IF NOT EXISTS digital_accounts (
+                                id TEXT PRIMARY KEY,
+                                name TEXT NOT NULL,
+                                type TEXT NOT NULL DEFAULT 'wallet',
+                                provider TEXT NOT NULL DEFAULT 'vodafone_cash',
+                                account_number TEXT,
+                                balance_piasters INTEGER NOT NULL DEFAULT 0,
+                                low_balance_alert_piasters INTEGER NOT NULL DEFAULT 50000,
+                                is_default INTEGER NOT NULL DEFAULT 0,
+                                is_active INTEGER NOT NULL DEFAULT 1,
+                                notes TEXT,
+                                created_at TEXT NOT NULL,
+                                updated_at TEXT NOT NULL
+                            );
+
+                            CREATE TABLE IF NOT EXISTS digital_transactions (
+                                id TEXT PRIMARY KEY,
+                                account_id TEXT NOT NULL REFERENCES digital_accounts(id),
+                                tx_type TEXT NOT NULL,
+                                amount_piasters INTEGER NOT NULL DEFAULT 0,
+                                profit_piasters INTEGER NOT NULL DEFAULT 0,
+                                total_collected_piasters INTEGER NOT NULL DEFAULT 0,
+                                customer_phone TEXT,
+                                customer_name TEXT,
+                                reference_number TEXT,
+                                sale_id TEXT,
+                                cashier_name TEXT,
+                                payment_destination TEXT NOT NULL DEFAULT 'cash_drawer',
+                                status TEXT NOT NULL DEFAULT 'completed',
+                                notes TEXT,
+                                created_at TEXT NOT NULL
+                            );
+
+                            CREATE TABLE IF NOT EXISTS digital_account_fundings (
+                                id TEXT PRIMARY KEY,
+                                account_id TEXT NOT NULL REFERENCES digital_accounts(id),
+                                amount_piasters INTEGER NOT NULL,
+                                funding_source TEXT NOT NULL DEFAULT 'cash_drawer',
+                                previous_balance_piasters INTEGER NOT NULL,
+                                new_balance_piasters INTEGER NOT NULL,
+                                notes TEXT,
+                                created_by TEXT,
+                                created_at TEXT NOT NULL
+                            );
+
+                            CREATE INDEX IF NOT EXISTS idx_digital_tx_acc ON digital_transactions(account_id);
+                            CREATE INDEX IF NOT EXISTS idx_digital_tx_created ON digital_transactions(created_at);
+                            CREATE INDEX IF NOT EXISTS idx_digital_tx_sale ON digital_transactions(sale_id);
+
+                            INSERT OR IGNORE INTO digital_accounts (id, name, type, provider, account_number, balance_piasters, low_balance_alert_piasters, is_default, is_active, created_at, updated_at)
+                            VALUES ('acc_default_wallet', 'محفظة كاش الأساسية (فودافون كاش)', 'wallet', 'vodafone_cash', '', 0, 50000, 1, 1, datetime('now'), datetime('now'));
+
+                            INSERT OR IGNORE INTO digital_accounts (id, name, type, provider, account_number, balance_piasters, low_balance_alert_piasters, is_default, is_active, created_at, updated_at)
+                            VALUES ('acc_default_instapay', 'حساب إنستاباي الأساسي', 'instapay', 'instapay', '', 0, 50000, 1, 1, datetime('now'), datetime('now'));
+
+                            INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                            VALUES (31, 'Digital Wallets and InstaPay Accounts Management and Transactions', datetime('now'));
+                        ", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+
+                        trans.Commit();
+                    }
+                    catch
+                    {
+                        trans.Rollback();
+                        throw;
+                    }
+                }
+            }
 
         public static string ComputeAuditHash(string prevHash, string id, string userId, string action, string entityType, string entityId, string detailsJson, string createdAt)
         {

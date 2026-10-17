@@ -1464,8 +1464,9 @@ namespace RafiqPOS.Services
             "users.view", "users.create", "users.edit", "users.deactivate", "users.reset_pin", "users.delegate",
             "audit_log.view", "expenses.view", "expenses.create", "expenses.delete",
             "epay.access", "epay.transact", "epay.fund", "epay.terminals_manage", "epay.history", "epay.analytics", "epay.cancel",
+            "wallets.access", "wallets.transact", "wallets.fund", "wallets.accounts_manage", "wallets.history", "wallets.analytics",
             // Legacy aliases
-            "pos", "customers", "products", "inventory", "reports", "settings", "users", "epay",
+            "pos", "customers", "products", "inventory", "reports", "settings", "users", "epay", "wallets",
             "discounts", "price_edit", "stock_adjust", "db_recovery", "refunds", "cancel_sale"
         };
 
@@ -1546,6 +1547,9 @@ namespace RafiqPOS.Services
 
             if (p.ContainsKey("epay.access")) p["epay"] = p["epay.access"];
             else if (p.ContainsKey("epay")) p["epay.access"] = p["epay"];
+
+            if (p.ContainsKey("wallets.access")) p["wallets"] = p["wallets.access"];
+            else if (p.ContainsKey("wallets")) p["wallets.access"] = p["wallets"];
         }
 
         public static UserDto MapToDto(User u)
@@ -1682,6 +1686,14 @@ namespace RafiqPOS.Services
             p["epay.history"] = isAdmin;
             p["epay.analytics"] = isAdmin;
             p["epay.cancel"] = isAdmin;
+
+            // Digital Wallets & InstaPay
+            p["wallets.access"] = true;
+            p["wallets.transact"] = true;
+            p["wallets.fund"] = isAdmin;
+            p["wallets.accounts_manage"] = isAdmin;
+            p["wallets.history"] = isAdmin;
+            p["wallets.analytics"] = isAdmin;
 
             SyncPermissionAliases(p);
 

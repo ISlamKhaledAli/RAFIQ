@@ -113,6 +113,7 @@ namespace RafiqPOS.Services
         public static ProductVariantService ProductVariants { get; private set; }
         public static BarcodeLabelService BarcodeLabels { get; private set; }
         public static AppUpdateService Updates { get; private set; }
+        public static DigitalAccountRepository DigitalAccounts { get; private set; }
 
         public static void Initialize(string customBaseFolder = null)
         {
@@ -214,6 +215,7 @@ namespace RafiqPOS.Services
             Migration = new MigrationService(_connectionString, _dbPath, SettingsRepo, AuditRepo);
             Updates = new AppUpdateService(SettingsRepo, Backup, Audit);
             BarcodeLabels = new BarcodeLabelService(Settings, Printer);
+            DigitalAccounts = new DigitalAccountRepository(_connectionString, AuditRepo);
 
             // Cleanup old held sales (> 7 days) on startup (Task 25-4)
             try

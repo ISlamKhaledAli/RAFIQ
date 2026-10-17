@@ -29,6 +29,7 @@ import {
   BarChart2,
   DollarSign,
   Smartphone,
+  Wallet,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { UserDto } from '../bridge/ipc';
@@ -89,6 +90,19 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'epay.history', label: 'سجل العمليات والإيصالات', description: 'الاطلاع على أرشيف عمليات الدفع والإيصالات المطبوعة' },
       { key: 'epay.analytics', label: 'الاطلاع على أرباح وتحليلات الماكينات', description: 'عرض تقارير صافي الربح وعمولات الشركات المستقلة' },
       { key: 'epay.cancel', label: 'إلغاء واسترجاع عمليات الدفع', description: 'إلغاء عملية دفع إلكتروني مسجلة واسترجاع رصيد الماكينة تلقائياً' },
+    ],
+  },
+  {
+    id: 'wallets',
+    name: 'المحافظ الإلكترونية وإنستاباي',
+    icon: <Wallet className="w-4 h-4 text-brand" />,
+    items: [
+      { key: 'wallets.access', label: 'دخول شاشة المحافظ وإنستاباي', description: 'السماح بفتح قسم المحافظ وإنستاباي وإجراء العمليات' },
+      { key: 'wallets.transact', label: 'تنفيذ عمليات السحب والإيداع', description: 'تسجيل عمليات سحب كاش وإيداع مع تحديد الربح والمبلغ' },
+      { key: 'wallets.fund', label: 'تغذية وشحن أرصدة المحافظ', description: 'إيداع وشحن رصيد جديد للمحافظ وإنستاباي من الدرج أو البنك' },
+      { key: 'wallets.accounts_manage', label: 'إدارة وتعديل المحافظ والحسابات', description: 'إضافة وتعديل بيانات المحافظ وأرقام الهواتف والحدود الشهرية' },
+      { key: 'wallets.history', label: 'سجل حركات وعمليات المحافظ', description: 'الاطلاع على سجل المعاملات والإيصالات لكل محفظة' },
+      { key: 'wallets.analytics', label: 'أرباح وتحليلات المحافظ وإنستاباي', description: 'الاطلاع على إجمالي الأرصدة وصافي أرباح العمليات المباشرة' },
     ],
   },
   {

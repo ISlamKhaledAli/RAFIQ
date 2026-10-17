@@ -208,6 +208,9 @@
     <Compile Include="Models\EpayModels.cs" />
     <Compile Include="Repositories\EpayRepository.cs" />
     <Compile Include="Bridge\IpcDispatcher.Epay.cs" />
+    <Compile Include="Models\DigitalAccountModels.cs" />
+    <Compile Include="Repositories\DigitalAccountRepository.cs" />
+    <Compile Include="Bridge\IpcDispatcher.Wallets.cs" />
     <Compile Include="Services\SeniorStressTestRunner.cs" />
     <Compile Include="Services\SeniorMasterEdgeCaseRunner.cs" />
     <Compile Include="Services\SeniorDomainStressTestRunner.cs" />

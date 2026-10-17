@@ -196,6 +196,13 @@ function dispatchAutoTopicsForAction(action: string) {
   ) {
     emitDataChanged(['epay', 'dashboard']);
   } else if (
+    action.startsWith('wallets:process') ||
+    action.startsWith('wallets:fund') ||
+    action.startsWith('wallets:save') ||
+    action.startsWith('wallets:delete')
+  ) {
+    emitDataChanged(['wallets', 'dashboard']);
+  } else if (
     action.startsWith('batch:save') ||
     action.startsWith('batch:adjust') ||
     action.startsWith('batch:disposeExpired') ||
@@ -3183,9 +3190,9 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       if (provComm < 0) throw new Error('عمولة الشركة لا يمكن أن تكون سالبة');
 
       const isCashOut = txData.serviceType === 'cash_out';
-      const deducted = isCashOut ? 0 : (Number(txData.machineDeductedPiasters) > 0 ? Number(txData.machineDeductedPiasters) : billAmt);
-      const totalRecv = billAmt + custFee;
-      const netProfit = custFee + provComm;
+      const deducted = isCashOut ? 0 : (Number(txData.machineDeductedPiasters) > 0 ? Number(txData.machineDeductedPiasters) : (billAmt + provComm));
+      const totalRecv = billAmt + provComm + custFee;
+      const netProfit = custFee;
 
       if (!isCashOut && terminal.balancePiasters < deducted) {
         throw new Error(`رصيد الماكينة غير كافٍ. المتاح: ${(terminal.balancePiasters / 100).toFixed(2)} ج.م والمطلوب: ${(deducted / 100).toFixed(2)} ج.م`);
@@ -3289,7 +3296,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     }
 
     case 'epay:getAnalytics': {
-      let filtered = [...mockEpayTransactions];
+      let filtered = [...mockEpayTransactions].filter((t) => t.status !== 'cancelled');
       if (payload?.terminalId) {
         filtered = filtered.filter((t) => t.terminalId === payload.terminalId);
       }
@@ -3297,16 +3304,18 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       const totalFees = filtered.reduce((s, t) => s + (t.customerFeePiasters || 0), 0);
       const totalComms = filtered.reduce((s, t) => s + (t.providerCommissionPiasters || 0), 0);
       const totalNetProf = filtered.reduce((s, t) => s + (t.netProfitPiasters || 0), 0);
-      const totalInDrawer = filtered.filter((t) => t.paymentDestination === 'cash_drawer').reduce((s, t) => s + (t.totalReceivedPiasters || 0), 0);
-      const totalInTill = filtered.filter((t) => t.paymentDestination === 'terminal_till').reduce((s, t) => s + (t.totalReceivedPiasters || 0), 0);
+      const totalInDrawer = filtered.filter((t) => (t.paymentChannel || t.paymentDestination) === 'cash_drawer').reduce((s, t) => s + (t.totalReceivedPiasters || 0), 0);
+      const totalInTill = filtered.filter((t) => (t.paymentChannel || t.paymentDestination) === 'terminal_till').reduce((s, t) => s + (t.totalReceivedPiasters || 0), 0);
       const activeTerminals = mockEpayTerminals.filter((t) => t.isActive);
       const totalTerminalsBal = activeTerminals.reduce((s, t) => s + (t.balancePiasters || 0), 0);
 
       return {
         totalTransactionsCount: filtered.length,
         totalVolumePiasters: totalVolume,
+        totalBillVolumePiasters: totalVolume,
         totalCustomerFeesPiasters: totalFees,
         totalCommissionsPiasters: totalComms,
+        totalProviderCommissionsPiasters: totalComms,
         totalNetProfitPiasters: totalNetProf,
         totalInCashDrawerPiasters: totalInDrawer,
         totalInTerminalTillPiasters: totalInTill,
@@ -3317,6 +3326,202 @@ async function mockHandler(action: string, payload: any): Promise<any> {
         totalCustomerFeesFormatted: (totalFees / 100).toFixed(2) + ' ج.م',
         totalCommissionsFormatted: (totalComms / 100).toFixed(2) + ' ج.م',
         totalTerminalsBalanceFormatted: (totalTerminalsBal / 100).toFixed(2) + ' ج.م',
+      };
+    }
+
+    // ==========================================
+    // Wallets & InstaPay Mock Handlers
+    // ==========================================
+    case 'wallets:getAccounts': {
+      return mockDigitalAccounts.filter((a) => a.isActive !== false);
+    }
+
+    case 'wallets:saveAccount': {
+      const accData = payload || {};
+      const existingIdx = mockDigitalAccounts.findIndex((a) => a.id === accData.id);
+      if (existingIdx >= 0) {
+        const bal = accData.balancePiasters !== undefined ? Number(accData.balancePiasters) : mockDigitalAccounts[existingIdx].balancePiasters;
+        mockDigitalAccounts[existingIdx] = {
+          ...mockDigitalAccounts[existingIdx],
+          ...accData,
+          balancePiasters: bal,
+          updatedAt: new Date().toISOString(),
+          balanceFormatted: ((bal || 0) / 100).toFixed(2) + ' ج.م',
+        };
+        return mockDigitalAccounts[existingIdx];
+      } else {
+        const newAcc = {
+          id: accData.id || `acc_${Date.now()}`,
+          name: accData.name || (accData.accountType === 'instapay' ? 'حساب إنستاباي جديد' : 'محفظة كاش جديدة'),
+          accountType: accData.accountType || 'wallet',
+          provider: accData.provider || (accData.accountType === 'instapay' ? 'instapay' : 'vodafone_cash'),
+          phoneNumber: accData.phoneNumber || '',
+          identifier: accData.identifier || '',
+          balancePiasters: Number(accData.balancePiasters) || 0,
+          dailyLimitPiasters: Number(accData.dailyLimitPiasters) || 6000000,
+          monthlyLimitPiasters: Number(accData.monthlyLimitPiasters) || 20000000,
+          isActive: accData.isActive !== false,
+          notes: accData.notes || '',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          balanceFormatted: ((Number(accData.balancePiasters) || 0) / 100).toFixed(2) + ' ج.م',
+        };
+        mockDigitalAccounts.push(newAcc);
+        return newAcc;
+      }
+    }
+
+    case 'wallets:deleteAccount': {
+      const accId = typeof payload === 'object' && payload !== null ? (payload.accountId || payload.id) : String(payload);
+      const existingIdx = mockDigitalAccounts.findIndex((a) => a.id === accId);
+      if (existingIdx >= 0) {
+        const accName = mockDigitalAccounts[existingIdx].name;
+        mockDigitalAccounts.splice(existingIdx, 1);
+        return { success: true, message: `تم حذف الحساب "${accName}" بنجاح` };
+      }
+      return { success: true };
+    }
+
+    case 'wallets:fundAccount': {
+      const { accountId, amountPiasters, fundingSource, notes, createdBy } = payload || {};
+      const acc = mockDigitalAccounts.find((a) => a.id === accountId);
+      if (!acc) throw new Error('الحساب الرقمي غير موجود');
+      const prevBal = acc.balancePiasters;
+      const newBal = prevBal + Number(amountPiasters);
+      acc.balancePiasters = newBal;
+      acc.balanceFormatted = (newBal / 100).toFixed(2) + ' ج.م';
+      acc.updatedAt = new Date().toISOString();
+
+      const funding = {
+        id: `dfnd_${Date.now()}`,
+        accountId,
+        accountName: acc.name,
+        amountPiasters: Number(amountPiasters),
+        fundingSource: fundingSource || 'cash_drawer',
+        previousBalancePiasters: prevBal,
+        newBalancePiasters: newBal,
+        notes: notes || '',
+        createdBy: createdBy || 'كاشير المحل',
+        createdAt: new Date().toISOString(),
+        amountFormatted: (Number(amountPiasters) / 100).toFixed(2) + ' ج.م',
+      };
+      mockDigitalFundings.unshift(funding);
+      return funding;
+    }
+
+    case 'wallets:processTransaction': {
+      const txData = payload || {};
+      const acc = mockDigitalAccounts.find((a) => a.id === txData.accountId);
+      if (!acc) throw new Error('الحساب الرقمي المحدد غير موجود');
+
+      const amountPiasters = Number(txData.amountPiasters) || 0;
+      if (amountPiasters <= 0) throw new Error('مبلغ العملية يجب أن يكون أكبر من الصفر');
+
+      const profitPiasters = Number(txData.profitPiasters) || 0;
+      if (profitPiasters < 0) throw new Error('الربح لا يمكن أن يكون سالباً');
+
+      const isCashOut = txData.txType === 'cash_out';
+      const prevBal = acc.balancePiasters;
+
+      if (isCashOut) {
+        if (prevBal < amountPiasters) {
+          throw new Error(`رصيد المحفظة / الحساب غير كافٍ. المتاح: ${(prevBal / 100).toFixed(2)} ج.م والمطلوب تحويله: ${(amountPiasters / 100).toFixed(2)} ج.م`);
+        }
+        acc.balancePiasters -= amountPiasters;
+      } else {
+        acc.balancePiasters += amountPiasters;
+      }
+
+      const newBal = acc.balancePiasters;
+      acc.balanceFormatted = (newBal / 100).toFixed(2) + ' ج.م';
+      acc.updatedAt = new Date().toISOString();
+
+      const newTx = {
+        id: `dtx_${Date.now()}`,
+        transactionNumber: `DTX-${Date.now().toString().slice(-6)}`,
+        accountId: acc.id,
+        accountName: acc.name,
+        accountType: acc.accountType,
+        provider: acc.provider,
+        txType: txData.txType || 'cash_out',
+        amountPiasters,
+        profitPiasters,
+        cashGivenPiasters: isCashOut ? 0 : amountPiasters,
+        cashTakenPiasters: isCashOut ? (amountPiasters + profitPiasters) : 0,
+        balanceBeforePiasters: prevBal,
+        balanceAfterPiasters: newBal,
+        customerPhone: txData.customerPhone || '',
+        customerName: txData.customerName || '',
+        referenceNumber: txData.referenceNumber || '',
+        notes: txData.notes || '',
+        saleId: txData.saleId || null,
+        createdBy: txData.createdBy || 'كاشير المحل',
+        createdByName: txData.createdByName || 'كاشير المحل',
+        createdAt: new Date().toISOString(),
+        amountFormatted: (amountPiasters / 100).toFixed(2) + ' ج.م',
+        profitFormatted: (profitPiasters / 100).toFixed(2) + ' ج.م',
+        balanceAfterFormatted: (newBal / 100).toFixed(2) + ' ج.م',
+        txTypeArabic: isCashOut ? 'سحب كاش / تحويل خارج' : 'إيداع / استلام في المحفظة',
+      };
+
+      mockDigitalTransactions.unshift(newTx);
+      return newTx;
+    }
+
+    case 'wallets:getTransactions': {
+      let filtered = [...mockDigitalTransactions];
+      if (payload?.accountId) {
+        filtered = filtered.filter((t) => t.accountId === payload.accountId);
+      }
+      if (payload?.accountType) {
+        filtered = filtered.filter((t) => t.accountType === payload.accountType);
+      }
+      if (payload?.txType) {
+        filtered = filtered.filter((t) => t.txType === payload.txType);
+      }
+      return filtered;
+    }
+
+    case 'wallets:getFundings': {
+      let filtered = [...mockDigitalFundings];
+      if (payload?.accountId) {
+        filtered = filtered.filter((f) => f.accountId === payload.accountId);
+      }
+      return filtered;
+    }
+
+    case 'wallets:getAnalytics': {
+      const activeAccounts = mockDigitalAccounts.filter((a) => a.isActive !== false);
+      const walletsBal = activeAccounts
+        .filter((a) => a.accountType === 'wallet')
+        .reduce((sum, a) => sum + (a.balancePiasters || 0), 0);
+      const instapayBal = activeAccounts
+        .filter((a) => a.accountType === 'instapay')
+        .reduce((sum, a) => sum + (a.balancePiasters || 0), 0);
+      const totalBal = walletsBal + instapayBal;
+
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayTxs = mockDigitalTransactions.filter((t) => t.createdAt && t.createdAt.slice(0, 10) === todayStr);
+
+      const todayProfit = todayTxs.reduce((sum, t) => sum + (t.profitPiasters || 0), 0);
+      const monthProfit = mockDigitalTransactions.reduce((sum, t) => sum + (t.profitPiasters || 0), 0);
+      const todayVolume = todayTxs.reduce((sum, t) => sum + (t.amountPiasters || 0), 0);
+
+      return {
+        walletsBalancePiasters: walletsBal,
+        instapayBalancePiasters: instapayBal,
+        totalBalancePiasters: totalBal,
+        todayProfitPiasters: todayProfit,
+        monthProfitPiasters: monthProfit,
+        todayTransactionsCount: todayTxs.length,
+        todayVolumePiasters: todayVolume,
+        activeAccountsCount: activeAccounts.length,
+        walletsBalanceFormatted: (walletsBal / 100).toFixed(2) + ' ج.م',
+        instapayBalanceFormatted: (instapayBal / 100).toFixed(2) + ' ج.م',
+        totalBalanceFormatted: (totalBal / 100).toFixed(2) + ' ج.م',
+        todayProfitFormatted: (todayProfit / 100).toFixed(2) + ' ج.م',
+        monthProfitFormatted: (monthProfit / 100).toFixed(2) + ' ج.م',
+        todayVolumeFormatted: (todayVolume / 100).toFixed(2) + ' ج.م',
       };
     }
 
@@ -3335,8 +3540,8 @@ const DEFAULT_APP_SETTINGS: Record<string, string> = {
   receipt_footer: 'شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل خلال 14 يوماً بموجب الفاتورة.',
   allow_negative_stock: '0',
   default_customer_credit_limit_egp: '1000',
-  instapay_fee_percent: '1',
-  vodafone_cash_fee_percent: '1',
+  instapay_fee_percent: '0',
+  vodafone_cash_fee_percent: '0',
   default_printer_name: '',
   receipt_paper_width: '80mm',
   printer_auto_print: '1',
@@ -3663,5 +3868,42 @@ let mockEpayTerminals: any[] = [];
 let mockEpayTransactions: any[] = [];
 
 let mockEpayFundings: any[] = [];
+
+let mockDigitalAccounts: any[] = [
+  {
+    id: 'acc_default_wallet',
+    name: 'محفظة كاش فودافون الرئيسية',
+    accountType: 'wallet',
+    provider: 'vodafone_cash',
+    phoneNumber: '01012345678',
+    balancePiasters: 500000,
+    dailyLimitPiasters: 6000000,
+    monthlyLimitPiasters: 20000000,
+    isActive: true,
+    notes: 'المحفظة الافتراضية للكاشير',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    balanceFormatted: '5000.00 ج.م',
+  },
+  {
+    id: 'acc_default_instapay',
+    name: 'حساب إنستاباي التجاري',
+    accountType: 'instapay',
+    provider: 'instapay',
+    identifier: 'shop@instapay',
+    phoneNumber: '01012345678',
+    balancePiasters: 1200000,
+    dailyLimitPiasters: 12000000,
+    monthlyLimitPiasters: 40000000,
+    isActive: true,
+    notes: 'معرّف إنستاباي للمحل التجاري',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    balanceFormatted: '12000.00 ج.م',
+  },
+];
+
+let mockDigitalTransactions: any[] = [];
+let mockDigitalFundings: any[] = [];
 
 

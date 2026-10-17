@@ -20,6 +20,7 @@ import { CustomSelect } from '../../components/CustomSelect';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { PaginationBar } from '../../components/PaginationBar';
 import { useClientPagination } from '../../utils/usePagination';
+import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { rafiqAlert } from '../../utils/dialogService';
 import { RafiqLoadingState } from '../../components/RafiqLoadingState';
 import { useSmoothLoading } from '../../utils/useSmoothLoading';
@@ -68,6 +69,24 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
   const [adjustQtyInput, setAdjustQtyInput] = useState('');
   const [adjustNote, setAdjustNote] = useState('');
   const [adjustLoading, setAdjustLoading] = useState(false);
+
+  const isAdjustDirty = useCallback(() => {
+    if (!adjustingBatch) return false;
+    const initialQty = (adjustingBatch.quantityMilli / 1000).toString();
+    return adjustQtyInput !== initialQty || adjustNote.trim().length > 0;
+  }, [adjustingBatch, adjustQtyInput, adjustNote]);
+
+  const { requestClose: requestCloseAdjust, handleBackdropClick: handleAdjustBackdropClick } = useModalDismiss({
+    isOpen: Boolean(adjustingBatch),
+    onClose: () => {
+      setAdjustingBatch(null);
+      setAdjustQtyInput('');
+      setAdjustNote('');
+    },
+    isDirty: isAdjustDirty,
+    confirmTitle: 'تعديلات تسوية الدفعة غير محفوظة',
+    confirmMessage: 'لقد قمت بإدخال تعديلات على رصيد الدفعة. هل أنت متأكد من الخروج وتجاهل التعديلات؟',
+  });
 
   const [disposingBatch, setDisposingBatch] = useState<ProductBatch | null>(null);
   const [disposalReason, setDisposalReason] = useState('تالف ومنتهي الصلاحية');
@@ -664,7 +683,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
 
       {/* Adjust Batch Quantity Modal */}
       {adjustingBatch && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
+        <div onClick={handleAdjustBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
           <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95">
             <div className="px-5 py-4 border-b border-line dark:border-line-dark bg-surface-2 dark:bg-surface-dark-2 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -673,7 +692,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
               </div>
               <button
                 type="button"
-                onClick={() => setAdjustingBatch(null)}
+                onClick={() => void requestCloseAdjust()}
                 className="text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -722,7 +741,7 @@ export const BatchesTab: React.FC<BatchesTabProps> = ({ onBatchChanged, initialS
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-line dark:border-line-dark">
                 <button
                   type="button"
-                  onClick={() => setAdjustingBatch(null)}
+                  onClick={() => void requestCloseAdjust()}
                   className="px-4 py-2 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark rounded-xl text-xs font-bold text-ink dark:text-ink-dark cursor-pointer"
                 >
                   إلغاء

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { FormEvent } from 'react';
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
-import { extractProducts, type Product, type Sale, type Customer, type QuickItem, type SalePayment, type ProductUnit, type HeldSale, type Category } from '../types/models';
+import { extractProducts, type Product, type Sale, type Customer, type QuickItem, type SalePayment, type ProductUnit, type HeldSale, type Category, type DigitalAccount } from '../types/models';
 import { 
   formatArabicCurrency, 
   calculateLineTotal, 
@@ -53,9 +53,10 @@ import { usePosShortcuts } from './pos/usePosShortcuts';
 export interface PosViewProps {
   isActive?: boolean;
   onNavigateToEpay?: () => void;
+  onNavigateToWallets?: (subTab?: 'accounts' | 'transact') => void;
 }
 
-export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToEpay }) => {
+export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToEpay, onNavigateToWallets }) => {
   const { isEnabled } = useFeatures();
   const showFastItems = isEnabled('feature_fast_buttons');
   const showCredit = isEnabled('feature_credit_debts');
@@ -77,6 +78,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'credit'>('cash');
+  const [digitalAccounts, setDigitalAccounts] = useState<DigitalAccount[]>([]);
   const [isDigitalPaymentModalOpen, setIsDigitalPaymentModalOpen] = useState(false);
   const [digitalPaymentMethod, setDigitalPaymentMethod] = useState<'instapay' | 'vodafone_cash'>('instapay');
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
@@ -128,8 +130,6 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
   const [maxDiscountPercentCashier, setMaxDiscountPercentCashier] = useState(10);
   const [maxDiscountAmountCashierPiasters, setMaxDiscountAmountCashierPiasters] = useState(5000); // 50 EGP
-  const [instapayFeePercent, setInstapayFeePercent] = useState<number>(1);
-  const [vodafoneCashFeePercent, setVodafoneCashFeePercent] = useState<number>(1);
   const [currentUserRole, setCurrentUserRole] = useState<string>('cashier');
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
 
@@ -623,6 +623,22 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
 
   const loadQuickItems = loadSmartCatalog;
 
+  // Load Digital Accounts (InstaPay & Wallets) to verify linkage in POS
+  const loadDigitalAccounts = useCallback(async () => {
+    try {
+      const data = await invoke<DigitalAccount[]>('wallets:getAccounts');
+      if (Array.isArray(data)) {
+        setDigitalAccounts(data);
+      }
+    } catch {
+      // Offline fallback
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadDigitalAccounts();
+  }, [loadDigitalAccounts]);
+
   // Automatic real-time subscriptions across all views
   useDataSubscription(['products', 'all'], () => {
     void loadSmartCatalog();
@@ -636,6 +652,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   });
   useDataSubscription(['held_sales', 'all'], () => {
     void loadHeldSalesCount();
+  });
+  useDataSubscription(['wallets', 'all'], () => {
+    void loadDigitalAccounts();
   });
 
   useEffect(() => {
@@ -687,12 +706,6 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           }
           if (appSettings.allow_negative_stock !== undefined) {
             setAllowNegativeStock(appSettings.allow_negative_stock === '1' || appSettings.allow_negative_stock.toLowerCase() === 'true');
-          }
-          if (appSettings.instapay_fee_percent !== undefined) {
-            setInstapayFeePercent(parseFloat(appSettings.instapay_fee_percent) || 0);
-          }
-          if (appSettings.vodafone_cash_fee_percent !== undefined) {
-            setVodafoneCashFeePercent(parseFloat(appSettings.vodafone_cash_fee_percent) || 0);
           }
         }
         const cnt = await invoke<{ nextInvoiceNumber: number }>('counters:getNextExpectedInvoiceNumber');
@@ -1472,6 +1485,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             onOpenHeldSales={() => setIsHeldSalesModalOpen(true)}
             onOpenReturnModal={() => setIsReturnModalOpen(true)}
             onOpenExpenseModal={() => setIsExpenseModalOpen(true)}
+            hasInstapayAccount={digitalAccounts.some((a) => a.accountType === 'instapay' && a.isActive)}
+            hasWalletAccount={digitalAccounts.some((a) => a.accountType === 'wallet' && a.isActive)}
+            onNavigateToWallets={onNavigateToWallets}
           />
         </section>
 
@@ -1644,9 +1660,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           setIsDigitalPaymentModalOpen(false);
           await handleConfirmPayment(paymentData);
         }}
-        instapayFeePercent={instapayFeePercent}
-        vodafoneCashFeePercent={vodafoneCashFeePercent}
         loading={loading}
+        onNavigateToWallets={onNavigateToWallets}
       />
 
       {/* 11. BARCODE SCANNER SETTINGS & LIVE DIAGNOSTIC MODAL (Feature #131) */}

@@ -11,6 +11,7 @@ export type RafiqDataTopic =
   | 'held_sales' 
   | 'dashboard' 
   | 'epay' 
+  | 'wallets' 
   | 'all';
 
 interface RafiqDataEventDetail {
