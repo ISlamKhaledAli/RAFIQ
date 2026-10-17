@@ -82,6 +82,52 @@ namespace RafiqPOS.Repositories
             return null;
         }
 
+        private static bool _schemaEnsured = false;
+        private static readonly object _schemaLock = new object();
+
+        private void EnsureSchema(SQLiteConnection conn, SQLiteTransaction trans)
+        {
+            if (_schemaEnsured) return;
+            lock (_schemaLock)
+            {
+                if (_schemaEnsured) return;
+                try
+                {
+                    var cols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    using (var pragmaCmd = new SQLiteCommand("PRAGMA table_info(digital_accounts);", conn, trans))
+                    using (var reader = pragmaCmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            cols.Add(reader["name"].ToString());
+                        }
+                    }
+                    if (cols.Count > 0)
+                    {
+                        if (!cols.Contains("daily_limit_piasters"))
+                        {
+                            using (var cmd = new SQLiteCommand("ALTER TABLE digital_accounts ADD COLUMN daily_limit_piasters INTEGER NOT NULL DEFAULT 6000000;", conn, trans))
+                            {
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+                        if (!cols.Contains("monthly_limit_piasters"))
+                        {
+                            using (var cmd = new SQLiteCommand("ALTER TABLE digital_accounts ADD COLUMN monthly_limit_piasters INTEGER NOT NULL DEFAULT 20000000;", conn, trans))
+                            {
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+                    }
+                    _schemaEnsured = true;
+                }
+                catch
+                {
+                    // Non-fatal fallback
+                }
+            }
+        }
+
         public DigitalAccount SaveAccount(DigitalAccount account)
         {
             if (account == null) throw new ArgumentNullException("account");
@@ -94,6 +140,7 @@ namespace RafiqPOS.Repositories
                 {
                     try
                     {
+                        EnsureSchema(conn, trans);
                         string now = DateTime.UtcNow.ToString("o");
                         if (string.IsNullOrEmpty(account.Id))
                         {
@@ -128,12 +175,19 @@ namespace RafiqPOS.Repositories
 
                         if (!exists)
                         {
+                            long defaultDaily = string.Equals(account.Type, "instapay", StringComparison.OrdinalIgnoreCase) ? 7000000 : 6000000;
+                            long defaultMonthly = string.Equals(account.Type, "instapay", StringComparison.OrdinalIgnoreCase) ? 40000000 : 20000000;
+                            long dailyLimit = account.DailyLimitPiasters > 0 ? account.DailyLimitPiasters : defaultDaily;
+                            long monthlyLimit = account.MonthlyLimitPiasters > 0 ? account.MonthlyLimitPiasters : defaultMonthly;
+
                             string insertSql = @"
                                 INSERT INTO digital_accounts (
                                     id, name, type, provider, account_number, balance_piasters, low_balance_alert_piasters,
+                                    daily_limit_piasters, monthly_limit_piasters,
                                     is_default, is_active, notes, created_at, updated_at
                                 ) VALUES (
                                     @id, @name, @type, @provider, @accountNumber, @balance, @lowAlert,
+                                    @dailyLimit, @monthlyLimit,
                                     @isDefault, @isActive, @notes, @now, @now
                                 );";
                             using (var cmd = new SQLiteCommand(insertSql, conn, trans))
@@ -145,6 +199,8 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@accountNumber", (object)account.AccountNumber ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@balance", account.BalancePiasters);
                                 cmd.Parameters.AddWithValue("@lowAlert", account.LowBalanceAlertPiasters > 0 ? account.LowBalanceAlertPiasters : 50000);
+                                cmd.Parameters.AddWithValue("@dailyLimit", dailyLimit);
+                                cmd.Parameters.AddWithValue("@monthlyLimit", monthlyLimit);
                                 cmd.Parameters.AddWithValue("@isDefault", account.IsDefault ? 1 : 0);
                                 cmd.Parameters.AddWithValue("@isActive", account.IsActive ? 1 : 0);
                                 cmd.Parameters.AddWithValue("@notes", (object)account.Notes ?? DBNull.Value);
@@ -167,6 +223,11 @@ namespace RafiqPOS.Repositories
                         }
                         else
                         {
+                            long defaultDaily = string.Equals(account.Type, "instapay", StringComparison.OrdinalIgnoreCase) ? 7000000 : 6000000;
+                            long defaultMonthly = string.Equals(account.Type, "instapay", StringComparison.OrdinalIgnoreCase) ? 40000000 : 20000000;
+                            long dailyLimit = account.DailyLimitPiasters > 0 ? account.DailyLimitPiasters : defaultDaily;
+                            long monthlyLimit = account.MonthlyLimitPiasters > 0 ? account.MonthlyLimitPiasters : defaultMonthly;
+
                             string updateSql = @"
                                 UPDATE digital_accounts SET
                                     name = @name,
@@ -175,6 +236,8 @@ namespace RafiqPOS.Repositories
                                     account_number = @accountNumber,
                                     balance_piasters = @balance,
                                     low_balance_alert_piasters = @lowAlert,
+                                    daily_limit_piasters = @dailyLimit,
+                                    monthly_limit_piasters = @monthlyLimit,
                                     is_default = @isDefault,
                                     is_active = @isActive,
                                     notes = @notes,
@@ -188,6 +251,8 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@accountNumber", (object)account.AccountNumber ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@balance", account.BalancePiasters);
                                 cmd.Parameters.AddWithValue("@lowAlert", account.LowBalanceAlertPiasters > 0 ? account.LowBalanceAlertPiasters : 50000);
+                                cmd.Parameters.AddWithValue("@dailyLimit", dailyLimit);
+                                cmd.Parameters.AddWithValue("@monthlyLimit", monthlyLimit);
                                 cmd.Parameters.AddWithValue("@isDefault", account.IsDefault ? 1 : 0);
                                 cmd.Parameters.AddWithValue("@isActive", account.IsActive ? 1 : 0);
                                 cmd.Parameters.AddWithValue("@notes", (object)account.Notes ?? DBNull.Value);
@@ -767,15 +832,33 @@ namespace RafiqPOS.Repositories
 
         private static DigitalAccount MapAccount(SQLiteDataReader r)
         {
+            string accType = r["type"].ToString();
+            long dailyLimit = string.Equals(accType, "instapay", StringComparison.OrdinalIgnoreCase) ? 7000000 : 6000000;
+            long monthlyLimit = string.Equals(accType, "instapay", StringComparison.OrdinalIgnoreCase) ? 40000000 : 20000000;
+
+            for (int i = 0; i < r.FieldCount; i++)
+            {
+                if (string.Equals(r.GetName(i), "daily_limit_piasters", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (r[i] != DBNull.Value) dailyLimit = Convert.ToInt64(r[i]);
+                }
+                else if (string.Equals(r.GetName(i), "monthly_limit_piasters", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (r[i] != DBNull.Value) monthlyLimit = Convert.ToInt64(r[i]);
+                }
+            }
+
             return new DigitalAccount
             {
                 Id = r["id"].ToString(),
                 Name = r["name"].ToString(),
-                Type = r["type"].ToString(),
+                Type = accType,
                 Provider = r["provider"].ToString(),
                 AccountNumber = r["account_number"] != DBNull.Value ? r["account_number"].ToString() : null,
                 BalancePiasters = Convert.ToInt64(r["balance_piasters"]),
                 LowBalanceAlertPiasters = Convert.ToInt64(r["low_balance_alert_piasters"]),
+                DailyLimitPiasters = dailyLimit,
+                MonthlyLimitPiasters = monthlyLimit,
                 IsDefault = Convert.ToInt32(r["is_default"]) == 1,
                 IsActive = Convert.ToInt32(r["is_active"]) == 1,
                 Notes = r["notes"] != DBNull.Value ? r["notes"].ToString() : null,

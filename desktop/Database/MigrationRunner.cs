@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Data.SQLite;
 
@@ -1217,6 +1218,8 @@ namespace RafiqPOS.Database
                             account_number TEXT,
                             balance_piasters INTEGER NOT NULL DEFAULT 0,
                             low_balance_alert_piasters INTEGER NOT NULL DEFAULT 50000,
+                            daily_limit_piasters INTEGER NOT NULL DEFAULT 6000000,
+                            monthly_limit_piasters INTEGER NOT NULL DEFAULT 20000000,
                             is_default INTEGER NOT NULL DEFAULT 0,
                             is_active INTEGER NOT NULL DEFAULT 1,
                             notes TEXT,
@@ -1258,14 +1261,39 @@ namespace RafiqPOS.Database
                         CREATE INDEX IF NOT EXISTS idx_digital_tx_created ON digital_transactions(created_at);
                         CREATE INDEX IF NOT EXISTS idx_digital_tx_sale ON digital_transactions(sale_id);
 
-                        INSERT OR IGNORE INTO digital_accounts (id, name, type, provider, account_number, balance_piasters, low_balance_alert_piasters, is_default, is_active, created_at, updated_at)
-                        VALUES ('acc_default_wallet', 'محفظة كاش الأساسية (فودافون كاش)', 'wallet', 'vodafone_cash', '', 0, 50000, 1, 1, datetime('now'), datetime('now'));
+                        INSERT OR IGNORE INTO digital_accounts (id, name, type, provider, account_number, balance_piasters, low_balance_alert_piasters, daily_limit_piasters, monthly_limit_piasters, is_default, is_active, created_at, updated_at)
+                        VALUES ('acc_default_wallet', 'محفظة كاش الأساسية (فودافون كاش)', 'wallet', 'vodafone_cash', '', 0, 50000, 6000000, 20000000, 1, 1, datetime('now'), datetime('now'));
 
-                        INSERT OR IGNORE INTO digital_accounts (id, name, type, provider, account_number, balance_piasters, low_balance_alert_piasters, is_default, is_active, created_at, updated_at)
-                        VALUES ('acc_default_instapay', 'حساب إنستاباي الأساسي', 'instapay', 'instapay', '', 0, 50000, 1, 1, datetime('now'), datetime('now'));
+                        INSERT OR IGNORE INTO digital_accounts (id, name, type, provider, account_number, balance_piasters, low_balance_alert_piasters, daily_limit_piasters, monthly_limit_piasters, is_default, is_active, created_at, updated_at)
+                        VALUES ('acc_default_instapay', 'حساب إنستاباي الأساسي', 'instapay', 'instapay', '', 0, 50000, 7000000, 40000000, 1, 1, datetime('now'), datetime('now'));
                     ", conn, trans))
                     {
                         checkDigitalCmd.ExecuteNonQuery();
+                    }
+
+                    // Ensure daily_limit_piasters and monthly_limit_piasters exist on digital_accounts
+                    var daCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    using (var pragmaCmd = new SQLiteCommand("PRAGMA table_info(digital_accounts);", conn, trans))
+                    using (var reader = pragmaCmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            daCols.Add(reader["name"].ToString());
+                        }
+                    }
+                    if (!daCols.Contains("daily_limit_piasters"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE digital_accounts ADD COLUMN daily_limit_piasters INTEGER NOT NULL DEFAULT 6000000;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (!daCols.Contains("monthly_limit_piasters"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE digital_accounts ADD COLUMN monthly_limit_piasters INTEGER NOT NULL DEFAULT 20000000;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
                     }
 
                     trans.Commit();
@@ -3816,6 +3844,8 @@ namespace RafiqPOS.Database
                                 account_number TEXT,
                                 balance_piasters INTEGER NOT NULL DEFAULT 0,
                                 low_balance_alert_piasters INTEGER NOT NULL DEFAULT 50000,
+                                daily_limit_piasters INTEGER NOT NULL DEFAULT 6000000,
+                                monthly_limit_piasters INTEGER NOT NULL DEFAULT 20000000,
                                 is_default INTEGER NOT NULL DEFAULT 0,
                                 is_active INTEGER NOT NULL DEFAULT 1,
                                 notes TEXT,

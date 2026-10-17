@@ -16,17 +16,44 @@ namespace RafiqPOS.Models
         [JsonProperty("type")]
         public string Type { get; set; } // "wallet" or "instapay"
 
+        [JsonProperty("accountType")]
+        public string AccountType
+        {
+            get { return Type; }
+            set { if (string.IsNullOrEmpty(Type)) Type = value; }
+        }
+
         [JsonProperty("provider")]
         public string Provider { get; set; } // "vodafone_cash", "orange_cash", "etisalat_cash", "we_pay", "instapay", "bank_account", "other"
 
         [JsonProperty("accountNumber")]
         public string AccountNumber { get; set; }
 
+        [JsonProperty("phoneNumber")]
+        public string PhoneNumber
+        {
+            get { return AccountNumber; }
+            set { if (string.IsNullOrEmpty(AccountNumber)) AccountNumber = value; }
+        }
+
+        [JsonProperty("identifier")]
+        public string Identifier
+        {
+            get { return AccountNumber; }
+            set { if (string.IsNullOrEmpty(AccountNumber)) AccountNumber = value; }
+        }
+
         [JsonProperty("balancePiasters")]
         public long BalancePiasters { get; set; }
 
         [JsonProperty("lowBalanceAlertPiasters")]
         public long LowBalanceAlertPiasters { get; set; }
+
+        [JsonProperty("dailyLimitPiasters")]
+        public long DailyLimitPiasters { get; set; }
+
+        [JsonProperty("monthlyLimitPiasters")]
+        public long MonthlyLimitPiasters { get; set; }
 
         [JsonProperty("isDefault")]
         public bool IsDefault { get; set; }
