@@ -806,11 +806,7 @@ namespace RafiqPOS.Repositories
 
                 if (customerId == "cust_general_cash")
                 {
-                    using (var delCmd = new SQLiteCommand("DELETE FROM customers WHERE id = 'cust_general_cash';", conn))
-                    {
-                        delCmd.ExecuteNonQuery();
-                    }
-                    return;
+                    throw new InvalidOperationException("لا يمكن أرشفة أو حذف العميل النقدي العام الافتراضي للنظام.");
                 }
 
                 // 2. Fetch current customer
@@ -832,12 +828,18 @@ namespace RafiqPOS.Repositories
                     throw new InvalidOperationException("العميل غير موجود في قاعدة البيانات");
                 }
 
-                // 3. Block archive if customer has active debt
+                // 3. Block archive if customer has active balance (debt or advance credit)
                 if (cust.BalancePiasters > 0)
                 {
                     throw new InvalidOperationException(
-                        string.Format("لا يمكن حذف العميل \"{0}\" لأن عليه رصيد دين مستحق ({1}). يجب تسوية حسابه أولاً.",
+                        string.Format("لا يمكن أرشفة العميل \"{0}\" لأن عليه رصيد دين مستحق ({1}). يجب تسوية حسابه أولاً.",
                             cust.Name, Common.Money.FormatPiasters(cust.BalancePiasters)));
+                }
+                if (cust.BalancePiasters < 0)
+                {
+                    throw new InvalidOperationException(
+                        string.Format("لا يمكن أرشفة العميل \"{0}\" لأن له رصيد دائن / أمانات مستحقة ({1}). يجب تسوية حسابه أولاً.",
+                            cust.Name, Common.Money.FormatPiasters(Math.Abs(cust.BalancePiasters))));
                 }
 
                 using (var trans = conn.BeginTransaction())
