@@ -1296,6 +1296,42 @@ namespace RafiqPOS.Database
                         }
                     }
 
+                    // Ensure payment_source exists on purchases
+                    var purCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    using (var pragmaCmd = new SQLiteCommand("PRAGMA table_info(purchases);", conn, trans))
+                    using (var reader = pragmaCmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            purCols.Add(reader["name"].ToString());
+                        }
+                    }
+                    if (purCols.Count > 0 && !purCols.Contains("payment_source"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE purchases ADD COLUMN payment_source TEXT NOT NULL DEFAULT 'cash_drawer';", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    // Ensure payment_source exists on supplier_transactions
+                    var suppTxCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    using (var pragmaCmd = new SQLiteCommand("PRAGMA table_info(supplier_transactions);", conn, trans))
+                    using (var reader = pragmaCmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            suppTxCols.Add(reader["name"].ToString());
+                        }
+                    }
+                    if (suppTxCols.Count > 0 && !suppTxCols.Contains("payment_source"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE supplier_transactions ADD COLUMN payment_source TEXT NOT NULL DEFAULT 'cash_drawer';", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
                     trans.Commit();
                 }
                 catch

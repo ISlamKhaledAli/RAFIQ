@@ -136,13 +136,13 @@ namespace RafiqPOS.Repositories
                                 id, invoice_number, supplier_id, supplier_invoice_number,
                                 invoice_date, total_cost_piasters, discount_piasters,
                                 net_cost_piasters, paid_amount_piasters, remaining_amount_piasters,
-                                payment_status, status, notes, created_by_user_id,
+                                payment_status, payment_source, status, notes, created_by_user_id,
                                 created_at, updated_at
                             ) VALUES (
                                 @id, @invNum, @supId, @supInvNum,
                                 @invDate, @totalCost, @discount,
                                 @netCost, @paidAmt, @remAmt,
-                                @payStatus, @status, @notes, @userId,
+                                @payStatus, @paySource, @status, @notes, @userId,
                                 @createdAt, @updatedAt
                             );
                         ";
@@ -159,6 +159,7 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@paidAmt", purchase.PaidAmountPiasters);
                             cmd.Parameters.AddWithValue("@remAmt", purchase.RemainingAmountPiasters);
                             cmd.Parameters.AddWithValue("@payStatus", purchase.PaymentStatus);
+                            cmd.Parameters.AddWithValue("@paySource", !string.IsNullOrWhiteSpace(purchase.PaymentSource) ? purchase.PaymentSource : "cash_drawer");
                             cmd.Parameters.AddWithValue("@status", purchase.Status);
                             cmd.Parameters.AddWithValue("@notes", (object)purchase.Notes ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@userId", (object)userId ?? DBNull.Value);
@@ -574,12 +575,25 @@ namespace RafiqPOS.Repositories
                 PaidAmountPiasters = Convert.ToInt64(reader["paid_amount_piasters"]),
                 RemainingAmountPiasters = Convert.ToInt64(reader["remaining_amount_piasters"]),
                 PaymentStatus = reader["payment_status"].ToString(),
+                PaymentSource = HasColumn(reader, "payment_source") && reader["payment_source"] != DBNull.Value ? reader["payment_source"].ToString() : "cash_drawer",
                 Status = reader["status"].ToString(),
                 Notes = reader["notes"] != DBNull.Value ? reader["notes"].ToString() : null,
                 CreatedByUserId = reader["created_by_user_id"] != DBNull.Value ? reader["created_by_user_id"].ToString() : null,
                 CreatedAt = reader["created_at"].ToString(),
                 UpdatedAt = reader["updated_at"].ToString()
             };
+        }
+
+        private static bool HasColumn(SQLiteDataReader reader, string columnName)
+        {
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                if (string.Equals(reader.GetName(i), columnName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private static PurchaseItem MapReaderToPurchaseItem(SQLiteDataReader reader)

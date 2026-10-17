@@ -351,7 +351,7 @@ namespace RafiqPOS.Repositories
             }
         }
 
-        public void AdjustBalance(string supplierId, long deltaPiasters, string transactionType, string referenceId, string notes, SQLiteConnection conn = null, SQLiteTransaction trans = null)
+        public void AdjustBalance(string supplierId, long deltaPiasters, string transactionType, string referenceId, string notes, SQLiteConnection conn = null, SQLiteTransaction trans = null, string paymentSource = "cash_drawer")
         {
             if (string.IsNullOrWhiteSpace(supplierId)) return;
             string now = DateTime.UtcNow.ToString("o");
@@ -375,10 +375,10 @@ namespace RafiqPOS.Repositories
                 string insertSql = @"
                     INSERT INTO supplier_transactions (
                         id, supplier_id, transaction_type, reference_id,
-                        amount_piasters, notes, created_at
+                        amount_piasters, payment_source, notes, created_at
                     ) VALUES (
                         @id, @supplierId, @transType, @refId,
-                        @amount, @notes, @createdAt
+                        @amount, @paymentSource, @notes, @createdAt
                     );
                 ";
                 using (var cmd = new SQLiteCommand(insertSql, c, t))
@@ -388,6 +388,7 @@ namespace RafiqPOS.Repositories
                     cmd.Parameters.AddWithValue("@transType", transactionType);
                     cmd.Parameters.AddWithValue("@refId", (object)referenceId ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@amount", deltaPiasters);
+                    cmd.Parameters.AddWithValue("@paymentSource", !string.IsNullOrWhiteSpace(paymentSource) ? paymentSource : "cash_drawer");
                     cmd.Parameters.AddWithValue("@notes", (object)notes ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@createdAt", now);
                     cmd.ExecuteNonQuery();
@@ -423,7 +424,7 @@ namespace RafiqPOS.Repositories
             }
         }
 
-        public void RecordPayment(string supplierId, long amountPiasters, string notes, string userId = null)
+        public void RecordPayment(string supplierId, long amountPiasters, string notes, string userId = null, string paymentSource = "cash_drawer")
         {
             if (string.IsNullOrWhiteSpace(supplierId)) throw new ArgumentException("معرف المورد مطلوب");
             if (amountPiasters <= 0) throw new ArgumentException("مبلغ السداد يجب أن يكون أكبر من الصفر");
@@ -452,7 +453,7 @@ namespace RafiqPOS.Repositories
                         }
 
                         // Payment to supplier reduces what we owe (delta is negative balance)
-                        AdjustBalance(supplierId, -amountPiasters, "PAYMENT", null, notes, conn, trans);
+                        AdjustBalance(supplierId, -amountPiasters, "PAYMENT", null, notes, conn, trans, paymentSource);
 
                         _auditRepo.Log(conn, trans, new AuditLog
                         {
@@ -501,6 +502,7 @@ namespace RafiqPOS.Repositories
                                 TransactionType = reader["transaction_type"].ToString(),
                                 ReferenceId = reader["reference_id"] != DBNull.Value ? reader["reference_id"].ToString() : null,
                                 AmountPiasters = Convert.ToInt64(reader["amount_piasters"]),
+                                PaymentSource = HasColumn(reader, "payment_source") && reader["payment_source"] != DBNull.Value ? reader["payment_source"].ToString() : "cash_drawer",
                                 Notes = reader["notes"] != DBNull.Value ? reader["notes"].ToString() : null,
                                 CreatedAt = reader["created_at"].ToString()
                             });
@@ -642,6 +644,18 @@ namespace RafiqPOS.Repositories
                 CreatedAt = reader["created_at"].ToString(),
                 UpdatedAt = reader["updated_at"].ToString()
             };
+        }
+
+        private static bool HasColumn(SQLiteDataReader reader, string columnName)
+        {
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                if (string.Equals(reader.GetName(i), columnName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 }

@@ -42,6 +42,9 @@ namespace RafiqPOS.Models
         [JsonProperty("paymentStatus")]
         public string PaymentStatus { get; set; }
 
+        [JsonProperty("paymentSource")]
+        public string PaymentSource { get; set; }
+
         [JsonProperty("status")]
         public string Status { get; set; }
 

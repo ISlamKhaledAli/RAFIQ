@@ -266,11 +266,56 @@ namespace RafiqPOS.Models
         [JsonProperty("postClosingSalesPiasters")]
         public long PostClosingSalesPiasters { get; set; }
 
+        [JsonProperty("purchasesDrawerCashPiasters")]
+        public long PurchasesDrawerCashPiasters { get; set; }
+
+        [JsonProperty("supplierPaymentsDrawerCashPiasters")]
+        public long SupplierPaymentsDrawerCashPiasters { get; set; }
+
         [JsonProperty("isDateSuspicious")]
         public bool IsDateSuspicious { get; set; }
 
         [JsonProperty("dateSuspiciousReason")]
         public string DateSuspiciousReason { get; set; }
+    }
+
+    public class LiveDrawerBalanceResult
+    {
+        [JsonProperty("businessDate")]
+        public string BusinessDate { get; set; }
+
+        [JsonProperty("availableCashPiasters")]
+        public long AvailableCashPiasters { get; set; }
+
+        [JsonProperty("cashSalesPiasters")]
+        public long CashSalesPiasters { get; set; }
+
+        [JsonProperty("returnsCashPiasters")]
+        public long ReturnsCashPiasters { get; set; }
+
+        [JsonProperty("debtPaymentsPiasters")]
+        public long DebtPaymentsPiasters { get; set; }
+
+        [JsonProperty("expensesPiasters")]
+        public long ExpensesPiasters { get; set; }
+
+        [JsonProperty("epayDrawerCashPiasters")]
+        public long EpayDrawerCashPiasters { get; set; }
+
+        [JsonProperty("epayDrawerFundingPiasters")]
+        public long EpayDrawerFundingPiasters { get; set; }
+
+        [JsonProperty("walletsDrawerCashPiasters")]
+        public long WalletsDrawerCashPiasters { get; set; }
+
+        [JsonProperty("walletsDrawerFundingPiasters")]
+        public long WalletsDrawerFundingPiasters { get; set; }
+
+        [JsonProperty("purchasesDrawerCashPiasters")]
+        public long PurchasesDrawerCashPiasters { get; set; }
+
+        [JsonProperty("supplierPaymentsDrawerCashPiasters")]
+        public long SupplierPaymentsDrawerCashPiasters { get; set; }
     }
 
     public class DailyClosingSaveRequest

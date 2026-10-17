@@ -44,11 +44,11 @@ namespace RafiqPOS.Services
             return _supplierRepo.Delete(id, userId);
         }
 
-        public void RecordPayment(string supplierId, long amountPiasters, string notes, string userId = null)
+        public void RecordPayment(string supplierId, long amountPiasters, string notes, string userId = null, string paymentSource = "cash_drawer")
         {
             lock (SaleService.FinancialWriteLock)
             {
-                _supplierRepo.RecordPayment(supplierId, amountPiasters, notes, userId);
+                _supplierRepo.RecordPayment(supplierId, amountPiasters, notes, userId, paymentSource);
             }
         }
 

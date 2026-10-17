@@ -557,6 +557,7 @@ export interface Purchase {
   status: 'COMPLETED' | 'CANCELLED' | string;
   notes?: string | null;
   createdByUserId?: string | null;
+  paymentSource?: 'cash_drawer' | 'owner_pocket' | 'external_cash' | string;
   createdAt: string;
   updatedAt: string;
   items?: PurchaseItem[];
@@ -568,8 +569,24 @@ export interface SupplierTransaction {
   transactionType: 'OPENING_BALANCE' | 'PURCHASE_INVOICE' | 'PAYMENT' | 'RETURN' | string;
   referenceId?: string | null;
   amountPiasters: number;
+  paymentSource?: 'cash_drawer' | 'owner_pocket' | 'external_cash' | string;
   notes?: string | null;
   createdAt: string;
+}
+
+export interface LiveDrawerBalance {
+  businessDate: string;
+  availableCashPiasters: number;
+  cashSalesPiasters: number;
+  returnsCashPiasters: number;
+  debtPaymentsPiasters: number;
+  expensesPiasters: number;
+  epayDrawerCashPiasters: number;
+  epayDrawerFundingPiasters: number;
+  walletsDrawerCashPiasters: number;
+  walletsDrawerFundingPiasters: number;
+  purchasesDrawerCashPiasters: number;
+  supplierPaymentsDrawerCashPiasters: number;
 }
 
 export interface DailyClosing {

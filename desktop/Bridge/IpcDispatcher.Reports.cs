@@ -263,6 +263,17 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, closingPreview);
                     return true;
 
+                case "drawer:getBalance":
+                    string drwDate = null;
+                    JObject drwObj = request.Payload as JObject;
+                    if (drwObj != null && drwObj["businessDate"] != null)
+                    {
+                        drwDate = drwObj["businessDate"].ToString();
+                    }
+                    var liveDrawer = DatabaseService.DailyClosing.GetLiveDrawerBalance(drwDate);
+                    response = BridgeResponse.Ok(request.Id, liveDrawer);
+                    return true;
+
                 case "closing:save":
                     JObject savePayload = request.Payload as JObject;
                     if (savePayload == null)
