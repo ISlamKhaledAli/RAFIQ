@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using RafiqPOS.Models;
+using RafiqPOS.Common;
 
 namespace RafiqPOS.Repositories
 {
@@ -350,6 +351,83 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@method", sale.PaymentMethod ?? "cash");
                                 cmd.Parameters.AddWithValue("@createdAt", sale.CreatedAt ?? DateTime.UtcNow.ToString("o"));
                                 cmd.ExecuteNonQuery();
+                            }
+                        }
+
+                        // 4.B Credit Digital Accounts (Wallets & InstaPay) atomically when customer pays via them
+                        var digitalPayments = new List<SalePayment>();
+                        if (sale.Payments != null && sale.Payments.Count > 0)
+                        {
+                            foreach (var p in sale.Payments)
+                            {
+                                if (p != null && (string.Equals(p.Method, "instapay", StringComparison.OrdinalIgnoreCase) || string.Equals(p.Method, "vodafone_cash", StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    digitalPayments.Add(p);
+                                }
+                            }
+                        }
+                        else if (string.Equals(sale.PaymentMethod, "instapay", StringComparison.OrdinalIgnoreCase) || string.Equals(sale.PaymentMethod, "vodafone_cash", StringComparison.OrdinalIgnoreCase))
+                        {
+                            digitalPayments.Add(new SalePayment { Method = sale.PaymentMethod, AmountPiasters = sale.PaidPiasters });
+                        }
+
+                        if (digitalPayments.Count > 0)
+                        {
+                            try
+                            {
+                                foreach (var dp in digitalPayments)
+                                {
+                                    string dType = string.Equals(dp.Method, "instapay", StringComparison.OrdinalIgnoreCase) ? "instapay" : "wallet";
+                                    string targetAccId = null;
+
+                                    using (var fCmd = new SQLiteCommand("SELECT id FROM digital_accounts WHERE type = @t AND is_active = 1 ORDER BY is_default DESC, created_at ASC LIMIT 1;", conn, trans))
+                                    {
+                                        fCmd.Parameters.AddWithValue("@t", dType);
+                                        using (var fRdr = fCmd.ExecuteReader())
+                                        {
+                                            if (fRdr.Read())
+                                            {
+                                                targetAccId = fRdr["id"].ToString();
+                                            }
+                                        }
+                                    }
+
+                                    if (!string.IsNullOrEmpty(targetAccId))
+                                    {
+                                        using (var uCmd = new SQLiteCommand("UPDATE digital_accounts SET balance_piasters = balance_piasters + @amt, updated_at = @now WHERE id = @id;", conn, trans))
+                                        {
+                                            uCmd.Parameters.AddWithValue("@amt", dp.AmountPiasters);
+                                            uCmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
+                                            uCmd.Parameters.AddWithValue("@id", targetAccId);
+                                            uCmd.ExecuteNonQuery();
+                                        }
+
+                                        string insTx = @"
+                                            INSERT INTO digital_transactions (
+                                                id, account_id, tx_type, amount_piasters, profit_piasters, total_collected_piasters,
+                                                customer_name, sale_id, cashier_name, payment_destination, status, notes, created_at
+                                            ) VALUES (
+                                                @id, @accId, 'pos_sale', @amt, 0, @amt,
+                                                @cust, @saleId, @cashier, 'wallet', 'completed', @notes, @now
+                                            );";
+                                        using (var iCmd = new SQLiteCommand(insTx, conn, trans))
+                                        {
+                                            iCmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
+                                            iCmd.Parameters.AddWithValue("@accId", targetAccId);
+                                            iCmd.Parameters.AddWithValue("@amt", dp.AmountPiasters);
+                                            iCmd.Parameters.AddWithValue("@cust", (object)sale.CustomerId ?? DBNull.Value);
+                                            iCmd.Parameters.AddWithValue("@saleId", sale.Id);
+                                            iCmd.Parameters.AddWithValue("@cashier", (object)sale.CashierName ?? DBNull.Value);
+                                            iCmd.Parameters.AddWithValue("@notes", string.Format("سداد فاتورة بيع كاشير #{0} عبر {1}", sale.InvoiceNumber, dType == "instapay" ? "إنستاباي" : "محفظة كاش"));
+                                            iCmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
+                                            iCmd.ExecuteNonQuery();
+                                        }
+                                    }
+                                }
+                            }
+                            catch (Exception digEx)
+                            {
+                                Logger.Warn("تنبيه أثناء ربط الفاتورة بمحفظة الدفع: " + digEx.Message);
                             }
                         }
 

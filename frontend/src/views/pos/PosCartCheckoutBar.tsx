@@ -7,7 +7,8 @@ import {
   Undo2,
   Receipt,
   Smartphone,
-  Wallet
+  Wallet,
+  Link2,
 } from 'lucide-react';
 import type { Customer } from '../../types/models';
 import type { CartItem } from './types';
@@ -37,6 +38,9 @@ interface PosCartCheckoutBarProps {
   onOpenHeldSales: () => void;
   onOpenReturnModal: () => void;
   onOpenExpenseModal?: () => void;
+  hasInstapayAccount?: boolean;
+  hasWalletAccount?: boolean;
+  onNavigateToWallets?: (subTab?: 'accounts' | 'transact') => void;
 }
 
 export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
@@ -62,6 +66,9 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
   onOpenHeldSales,
   onOpenReturnModal,
   onOpenExpenseModal,
+  hasInstapayAccount = true,
+  hasWalletAccount = true,
+  onNavigateToWallets,
 }) => {
   const { isEnabled } = useFeatures();
   const showWallets = isEnabled('feature_digital_wallets');
@@ -220,26 +227,50 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
                 <>
                   <button 
                     type="button"
-                    onClick={() => handleOpenCheckout('instapay')}
+                    onClick={() => {
+                      if (!hasInstapayAccount && onNavigateToWallets) {
+                        onNavigateToWallets('accounts');
+                      } else {
+                        handleOpenCheckout('instapay');
+                      }
+                    }}
                     disabled={loading || cart.length === 0}
-                    className="flex-1 min-w-0 h-full bg-[#582C83] hover:bg-[#462269] active:bg-[#371954] disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted/50 dark:disabled:text-ink-dark-muted/40 text-white rounded-xl px-2 py-1 flex flex-col justify-center items-center gap-0.5 transition-all shadow-sm active:scale-[0.98] cursor-pointer"
-                    title="سداد عبر تطبيق انستاباي"
+                    className="relative flex-1 min-w-0 h-full bg-[#582C83] hover:bg-[#49226e] active:bg-[#3b195a] disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted/50 dark:disabled:text-ink-dark-muted/40 text-white rounded-xl px-2 py-1 flex flex-col justify-center items-center gap-0.5 transition-all shadow-sm active:scale-[0.98] cursor-pointer"
+                    title={hasInstapayAccount ? "سداد عبر تطبيق انستاباي" : "لم يتم ربط حساب انستاباي بعد - اضغط للربط الآن"}
                   >
-                    <Smartphone className="w-3.5 h-3.5 shrink-0 text-white/90" />
-                    <span className="text-[11px] sm:text-xs font-black truncate text-center leading-none">
+                    {!hasInstapayAccount && (
+                      <span className="absolute top-1 left-1.5 px-1.5 py-0.5 bg-white/20 backdrop-blur-xs text-white text-[8px] font-black rounded-md border border-white/25 flex items-center gap-0.5 shadow-2xs leading-none">
+                        <Link2 className="w-2 h-2 text-white/90" />
+                        <span>ربط</span>
+                      </span>
+                    )}
+                    <Smartphone className="w-3.5 h-3.5 shrink-0 text-white" />
+                    <span className="text-[11px] sm:text-xs font-black truncate text-center leading-none text-white">
                       انستاباي
                     </span>
                   </button>
 
                   <button 
                     type="button"
-                    onClick={() => handleOpenCheckout('vodafone_cash')}
+                    onClick={() => {
+                      if (!hasWalletAccount && onNavigateToWallets) {
+                        onNavigateToWallets('accounts');
+                      } else {
+                        handleOpenCheckout('vodafone_cash');
+                      }
+                    }}
                     disabled={loading || cart.length === 0}
-                    className="flex-1 min-w-0 h-full bg-[#e60000] hover:bg-[#cc0000] active:bg-[#b30000] disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted/50 dark:disabled:text-ink-dark-muted/40 text-white rounded-xl px-2 py-1 flex flex-col justify-center items-center gap-0.5 transition-all shadow-sm active:scale-[0.98] cursor-pointer"
-                    title="سداد عبر المحفظة الإلكترونية (فودافون كاش، أورانج، اتصالات، وي)"
+                    className="relative flex-1 min-w-0 h-full bg-[#D92D20] hover:bg-[#B42318] active:bg-[#912018] disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted/50 dark:disabled:text-ink-dark-muted/40 text-white rounded-xl px-2 py-1 flex flex-col justify-center items-center gap-0.5 transition-all shadow-sm active:scale-[0.98] cursor-pointer"
+                    title={hasWalletAccount ? "سداد عبر المحفظة الإلكترونية (فودافون كاش، أورانج، اتصالات، وي)" : "لم يتم ربط محفظة كاش بعد - اضغط للربط الآن"}
                   >
-                    <Wallet className="w-3.5 h-3.5 shrink-0 text-white/90" />
-                    <span className="text-[11px] sm:text-xs font-black truncate text-center leading-none">
+                    {!hasWalletAccount && (
+                      <span className="absolute top-1 left-1.5 px-1.5 py-0.5 bg-white/20 backdrop-blur-xs text-white text-[8px] font-black rounded-md border border-white/25 flex items-center gap-0.5 shadow-2xs leading-none">
+                        <Link2 className="w-2 h-2 text-white/90" />
+                        <span>ربط</span>
+                      </span>
+                    )}
+                    <Wallet className="w-3.5 h-3.5 shrink-0 text-white" />
+                    <span className="text-[11px] sm:text-xs font-black truncate text-center leading-none text-white">
                       محفظة
                     </span>
                   </button>

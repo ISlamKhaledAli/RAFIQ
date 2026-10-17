@@ -546,7 +546,7 @@ namespace RafiqPOS.Repositories
             long customerFee = ComputeFeeOrCommission(billAmountPiasters, feeType, feeVal, feeMin, feeMax, 200);
             long providerComm = ComputeFeeOrCommission(billAmountPiasters, commType, commVal, commMin, commMax, 100);
 
-            long machineDeducted = (serviceType == "cash_out") ? 0 : billAmountPiasters;
+            long machineDeducted = (serviceType == "cash_out") ? 0 : (billAmountPiasters + providerComm);
 
             return new EpayPricingResult
             {
@@ -555,9 +555,9 @@ namespace RafiqPOS.Repositories
                 BillAmountPiasters = billAmountPiasters,
                 CustomerFeePiasters = customerFee,
                 ProviderCommissionPiasters = providerComm,
-                TotalReceivedPiasters = billAmountPiasters + customerFee,
+                TotalReceivedPiasters = billAmountPiasters + providerComm + customerFee,
                 MachineDeductedPiasters = machineDeducted,
-                NetProfitPiasters = customerFee + providerComm,
+                NetProfitPiasters = customerFee,
                 RuleApplied = ruleApplied
             };
         }
@@ -595,18 +595,21 @@ namespace RafiqPOS.Repositories
             tx.CreatedAt = now;
             tx.Status = string.IsNullOrWhiteSpace(tx.Status) ? "completed" : tx.Status;
 
-            // Financial Calculations
-            tx.TotalReceivedPiasters = tx.BillAmountPiasters + tx.CustomerFeePiasters;
-            tx.NetProfitPiasters = tx.CustomerFeePiasters + tx.ProviderCommissionPiasters;
+            // Financial Calculations:
+            // Total from customer = bill amount + machine commission + shop profit
+            // Machine deducted = bill amount + machine commission (profit is NOT deducted from machine)
+            // Net profit for the shop = customer fee (shop profit)
+            tx.TotalReceivedPiasters = tx.BillAmountPiasters + tx.ProviderCommissionPiasters + tx.CustomerFeePiasters;
+            tx.NetProfitPiasters = tx.CustomerFeePiasters;
 
-            // Machine deducted amount: for cash_out it's 0; for debit operations default to billAmountPiasters
+            // Machine deducted amount: for cash_out it's 0; for debit operations default to billAmount + providerCommission
             if (tx.ServiceType == "cash_out")
             {
                 tx.MachineDeductedPiasters = 0;
             }
             else if (tx.MachineDeductedPiasters <= 0)
             {
-                tx.MachineDeductedPiasters = tx.BillAmountPiasters;
+                tx.MachineDeductedPiasters = tx.BillAmountPiasters + tx.ProviderCommissionPiasters;
             }
 
             using (var conn = new SQLiteConnection(_connectionString))
@@ -986,11 +989,17 @@ namespace RafiqPOS.Repositories
             {
                 conn.Open();
 
-                // 1. Total terminal balance
-                using (var cmd = new SQLiteCommand("SELECT COALESCE(SUM(balance_piasters), 0) FROM epay_terminals WHERE is_active = 1;", conn))
+                // 1. Total terminal balance & active count
+                using (var cmd = new SQLiteCommand("SELECT COUNT(*), COALESCE(SUM(balance_piasters), 0) FROM epay_terminals WHERE is_active = 1;", conn))
                 {
-                    object res = cmd.ExecuteScalar();
-                    summary.TotalTerminalsBalancePiasters = (res != null && res != DBNull.Value) ? Convert.ToInt64(res) : 0;
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            summary.ActiveTerminalsCount = (reader[0] != DBNull.Value) ? Convert.ToInt32(reader[0]) : 0;
+                            summary.TotalTerminalsBalancePiasters = (reader[1] != DBNull.Value) ? Convert.ToInt64(reader[1]) : 0;
+                        }
+                    }
                 }
 
                 // 2. Aggregate transactions metrics
@@ -1005,7 +1014,9 @@ namespace RafiqPOS.Repositories
                         COALESCE(SUM(bill_amount_piasters), 0) as total_bill,
                         COALESCE(SUM(customer_fee_piasters), 0) as total_fees,
                         COALESCE(SUM(provider_commission_piasters), 0) as total_comm,
-                        COALESCE(SUM(net_profit_piasters), 0) as total_profit
+                        COALESCE(SUM(net_profit_piasters), 0) as total_profit,
+                        COALESCE(SUM(CASE WHEN payment_channel = 'cash_drawer' THEN total_received_piasters ELSE 0 END), 0) as total_cash_drawer,
+                        COALESCE(SUM(CASE WHEN payment_channel = 'terminal_till' THEN total_received_piasters ELSE 0 END), 0) as total_terminal_till
                     FROM epay_transactions
                     WHERE {0};
                 ", string.Join(" AND ", whereClauses.ToArray()));
@@ -1024,6 +1035,8 @@ namespace RafiqPOS.Repositories
                             summary.TotalCustomerFeesPiasters = Convert.ToInt64(reader["total_fees"]);
                             summary.TotalProviderCommissionsPiasters = Convert.ToInt64(reader["total_comm"]);
                             summary.TotalNetProfitPiasters = Convert.ToInt64(reader["total_profit"]);
+                            summary.TotalInCashDrawerPiasters = Convert.ToInt64(reader["total_cash_drawer"]);
+                            summary.TotalInTerminalTillPiasters = Convert.ToInt64(reader["total_terminal_till"]);
                         }
                     }
                 }

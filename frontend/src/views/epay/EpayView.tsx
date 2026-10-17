@@ -19,10 +19,7 @@ import {
   Clock, 
   Edit3, 
   X,
-  ChevronDown,
-  Sliders,
   RotateCcw,
-  Sparkles,
   Trash2
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
@@ -35,15 +32,14 @@ import { CustomSelect } from '../../components/CustomSelect';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { PaginationBar } from '../../components/PaginationBar';
 import { useClientPagination } from '../../utils/usePagination';
+import { useModalDismiss } from '../../hooks/useModalDismiss';
 import type { 
   EpayTerminal, 
   EpayTransaction, 
   EpayTerminalFunding, 
   EpayAnalyticsSummary, 
   EpayServiceType, 
-  EpayPaymentDestination,
-  EpayFeeType,
-  EpayServiceFeeRule
+  EpayPaymentDestination
 } from '../../types/models';
 
 export type EpaySubTab = 'pos' | 'terminals' | 'history' | 'analytics';
@@ -68,102 +64,17 @@ interface ServiceQuickOption {
   type: EpayServiceType;
   name: string;
   icon: typeof Smartphone;
-  defaultFeePiasters: number;
-  defaultCommissionPiasters: number;
 }
 
 const SERVICE_PRESETS: ServiceQuickOption[] = [
-  { type: 'mobile_recharge', name: 'شحن رصيد / كروت فكة', icon: Smartphone, defaultFeePiasters: 200, defaultCommissionPiasters: 100 },
-  { type: 'utility_bill', name: 'فواتير كهرباء ومياه وغاز', icon: Zap, defaultFeePiasters: 500, defaultCommissionPiasters: 250 },
-  { type: 'wallet_transfer', name: 'تحويل محافظ إلكترونية (فودافون كاش / إنستاباي)', icon: Wallet, defaultFeePiasters: 300, defaultCommissionPiasters: 150 },
-  { type: 'cash_in', name: 'إيداع نقدي للمحافظ والحسابات', icon: ArrowDownLeft, defaultFeePiasters: 500, defaultCommissionPiasters: 200 },
-  { type: 'cash_out', name: 'سحب نقدي من محفظة أو كارت', icon: ArrowUpRight, defaultFeePiasters: 500, defaultCommissionPiasters: 200 },
-  { type: 'other', name: 'خدمات حكومية وجامعات ومصاريف أخرى', icon: FileText, defaultFeePiasters: 500, defaultCommissionPiasters: 300 },
+  { type: 'mobile_recharge', name: 'شحن رصيد / كروت فكة', icon: Smartphone },
+  { type: 'utility_bill', name: 'فواتير كهرباء ومياه وغاز', icon: Zap },
+  { type: 'wallet_transfer', name: 'تحويل محافظ إلكترونية (فودافون كاش / إنستاباي)', icon: Wallet },
+  { type: 'cash_in', name: 'إيداع نقدي للمحافظ والحسابات', icon: ArrowDownLeft },
+  { type: 'cash_out', name: 'سحب نقدي من محفظة أو كارت', icon: ArrowUpRight },
+  { type: 'other', name: 'خدمات حكومية وجامعات ومصاريف أخرى', icon: FileText },
 ];
 
-const PRESET_AMOUNTS = [1000, 2000, 5000, 10000, 20000, 50000]; // 10, 20, 50, 100, 200, 500 ج.م
-const PRESET_FEES = [100, 200, 300, 500, 1000]; // 1, 2, 3, 5, 10 ج.م
-
-interface ServiceRuleFormItem {
-  serviceType: EpayServiceType;
-  feeMode: 'default' | 'fixed' | 'percent' | 'per_thousand';
-  customerFeeValue: number; // piasters if fixed/per_thousand
-  customerFeePercent: string;
-  customerFeeMinPiasters: number;
-  customerFeeMaxPiasters: number;
-  providerCommissionType: 'fixed' | 'percent';
-  providerCommissionValue: number;
-  providerCommissionPercent: string;
-}
-
-const DEFAULT_SERVICE_RULE_TEMPLATES: Record<EpayServiceType, ServiceRuleFormItem> = {
-  mobile_recharge: {
-    serviceType: 'mobile_recharge',
-    feeMode: 'fixed',
-    customerFeeValue: 200, // 2 EGP
-    customerFeePercent: '1.0',
-    customerFeeMinPiasters: 0,
-    customerFeeMaxPiasters: 0,
-    providerCommissionType: 'fixed',
-    providerCommissionValue: 100,
-    providerCommissionPercent: '0.5',
-  },
-  utility_bill: {
-    serviceType: 'utility_bill',
-    feeMode: 'fixed',
-    customerFeeValue: 500, // 5 EGP
-    customerFeePercent: '1.0',
-    customerFeeMinPiasters: 0,
-    customerFeeMaxPiasters: 0,
-    providerCommissionType: 'fixed',
-    providerCommissionValue: 250,
-    providerCommissionPercent: '0.5',
-  },
-  wallet_transfer: {
-    serviceType: 'wallet_transfer',
-    feeMode: 'per_thousand',
-    customerFeeValue: 1000, // 10 EGP per 1000 EGP
-    customerFeePercent: '1.0',
-    customerFeeMinPiasters: 500, // min 5 EGP
-    customerFeeMaxPiasters: 3000, // max 30 EGP cap
-    providerCommissionType: 'fixed',
-    providerCommissionValue: 150,
-    providerCommissionPercent: '0.5',
-  },
-  cash_in: {
-    serviceType: 'cash_in',
-    feeMode: 'per_thousand',
-    customerFeeValue: 1000, // 10 EGP per 1000 EGP
-    customerFeePercent: '1.0',
-    customerFeeMinPiasters: 500,
-    customerFeeMaxPiasters: 3000,
-    providerCommissionType: 'fixed',
-    providerCommissionValue: 200,
-    providerCommissionPercent: '0.5',
-  },
-  cash_out: {
-    serviceType: 'cash_out',
-    feeMode: 'percent',
-    customerFeeValue: 500,
-    customerFeePercent: '1.0',
-    customerFeeMinPiasters: 1000, // min 10 EGP
-    customerFeeMaxPiasters: 5000, // max 50 EGP
-    providerCommissionType: 'fixed',
-    providerCommissionValue: 200,
-    providerCommissionPercent: '0.5',
-  },
-  other: {
-    serviceType: 'other',
-    feeMode: 'fixed',
-    customerFeeValue: 500,
-    customerFeePercent: '1.0',
-    customerFeeMinPiasters: 0,
-    customerFeeMaxPiasters: 0,
-    providerCommissionType: 'fixed',
-    providerCommissionValue: 200,
-    providerCommissionPercent: '0.5',
-  },
-};
 
 export const EpayView: React.FC<EpayViewProps> = ({
   activeSubTab = 'pos',
@@ -231,10 +142,9 @@ export const EpayView: React.FC<EpayViewProps> = ({
   const [customerPhone, setCustomerPhone] = useState<string>('');
   const [customerName, setCustomerName] = useState<string>('');
   const [referenceNumber, setReferenceNumber] = useState<string>('');
-  const [billAmountPiasters, setBillAmountPiasters] = useState<number>(0); // Starts empty!
-  const [customerFeePiasters, setCustomerFeePiasters] = useState<number>(0);
-  const [providerCommissionPiasters, setProviderCommissionPiasters] = useState<number>(0);
-  const [isCustomFeeOverride, setIsCustomFeeOverride] = useState<boolean>(false);
+  const [billAmountPiasters, setBillAmountPiasters] = useState<number>(0);
+  const [machineCommissionPiasters, setMachineCommissionPiasters] = useState<number>(0);
+  const [shopProfitPiasters, setShopProfitPiasters] = useState<number>(0);
   const [paymentDestination, setPaymentDestination] = useState<EpayPaymentDestination>('terminal_till');
   const [notes, setNotes] = useState<string>('');
   const [isSubmittingTx, setIsSubmittingTx] = useState<boolean>(false);
@@ -265,69 +175,69 @@ export const EpayView: React.FC<EpayViewProps> = ({
   const [termCode, setTermCode] = useState<string>('');
   const [termBalancePiasters, setTermBalancePiasters] = useState<number>(0);
   const [termAlertPiasters, setTermAlertPiasters] = useState<number>(30000);
-  const [termCustomerFeeType, setTermCustomerFeeType] = useState<EpayFeeType>('fixed');
-  const [termCustomerFeeValue, setTermCustomerFeeValue] = useState<number>(200);
-  const [termCustomerFeePercent, setTermCustomerFeePercent] = useState<string>('1.0');
-  const [termCustomerFeeMin, setTermCustomerFeeMin] = useState<number>(0);
-  const [termCustomerFeeMax, setTermCustomerFeeMax] = useState<number>(0);
-  const [termProviderCommissionType, setTermProviderCommissionType] = useState<'fixed' | 'percent'>('fixed');
-  const [termProviderCommissionValue, setTermProviderCommissionValue] = useState<number>(100);
-  const [termProviderCommissionPercent, setTermProviderCommissionPercent] = useState<string>('0.5');
-  const [termProviderCommissionMin, setTermProviderCommissionMin] = useState<number>(0);
-  const [termProviderCommissionMax, setTermProviderCommissionMax] = useState<number>(0);
-  const [isServicePricingExpanded, setIsServicePricingExpanded] = useState<boolean>(false);
-  const [serviceRulesMap, setServiceRulesMap] = useState<Record<EpayServiceType, ServiceRuleFormItem>>(() => ({
-    mobile_recharge: { ...DEFAULT_SERVICE_RULE_TEMPLATES.mobile_recharge, feeMode: 'default' },
-    utility_bill: { ...DEFAULT_SERVICE_RULE_TEMPLATES.utility_bill, feeMode: 'default' },
-    wallet_transfer: { ...DEFAULT_SERVICE_RULE_TEMPLATES.wallet_transfer, feeMode: 'default' },
-    cash_in: { ...DEFAULT_SERVICE_RULE_TEMPLATES.cash_in, feeMode: 'default' },
-    cash_out: { ...DEFAULT_SERVICE_RULE_TEMPLATES.cash_out, feeMode: 'default' },
-    other: { ...DEFAULT_SERVICE_RULE_TEMPLATES.other, feeMode: 'default' },
-  }));
   const [isSavingTerminal, setIsSavingTerminal] = useState<boolean>(false);
   const [terminalModalError, setTerminalModalError] = useState<string | null>(null);
 
-  // Live simulation for terminal settings modal
-  const modalFeeSimulation = useMemo(() => {
-    const calc = (billPiasters: number) => {
-      let fee = 0;
-      let note = '';
-      if (termCustomerFeeType === 'fixed') {
-        fee = termCustomerFeeValue;
-        note = 'مبلغ ثابت على الوصل';
-      } else if (termCustomerFeeType === 'percent') {
-        const bps = Math.round(parseFloat(termCustomerFeePercent || '0') * 100);
-        const raw = Math.round((billPiasters * bps) / 10000);
-        if (termCustomerFeeMin > 0 && raw < termCustomerFeeMin) {
-          fee = termCustomerFeeMin;
-          note = 'رفعناه للحد الأدنى لمكسبك';
-        } else if (termCustomerFeeMax > 0 && raw > termCustomerFeeMax) {
-          fee = termCustomerFeeMax;
-          note = 'وقف عند الحد الأقصى';
-        } else {
-          fee = raw;
-          note = 'نسبتك العادية';
-        }
-      } else if (termCustomerFeeType === 'per_thousand') {
-        const thousands = Math.ceil(billPiasters / 100000);
-        const raw = thousands * termCustomerFeeValue;
-        if (termCustomerFeeMax > 0 && raw > termCustomerFeeMax) {
-          fee = termCustomerFeeMax;
-          note = 'وقف عند الحد الأقصى';
-        } else {
-          fee = raw;
-          note = thousands === 1 ? 'أول 1,000 ج' : `${thousands} آلاف`;
-        }
-      }
-      return { fee, note };
-    };
+  // Modal Dismiss & Unsaved Changes Protection (ESC key and Outside click)
+  const isFundingDirty = useCallback(() => {
+    return fundingAmountPiasters > 0 || fundingNotes.trim().length > 0;
+  }, [fundingAmountPiasters, fundingNotes]);
 
-    return {
-      small: calc(5000),      // 50 EGP
-      medium: calc(50000),    // 500 EGP
-      large: calc(300000),    // 3,000 EGP
-    };
-  }, [termCustomerFeeType, termCustomerFeeValue, termCustomerFeePercent, termCustomerFeeMin, termCustomerFeeMax]);
+  const { requestClose: requestCloseFunding, handleBackdropClick: handleFundingBackdropClick } = useModalDismiss({
+    isOpen: isFundingModalOpen,
+    onClose: () => setIsFundingModalOpen(false),
+    isDirty: isFundingDirty,
+    confirmTitle: 'تعديلات شحن الرصيد غير محفوظة',
+    confirmMessage: 'لقد قمت بإدخال بيانات لشحن رصيد الماكينة. هل أنت متأكد من الخروج وتجاهل العملية؟',
+  });
+
+  const editingTerminal = useMemo(() => {
+    return terminals.find((t) => t.id === editingTerminalId) || null;
+  }, [terminals, editingTerminalId]);
+
+  const isTerminalDirty = useCallback(() => {
+    if (editingTerminal) {
+      return (
+        termName !== editingTerminal.name ||
+        termProvider !== editingTerminal.provider ||
+        termCode !== (editingTerminal.terminalCode || '') ||
+        termBalancePiasters !== editingTerminal.balancePiasters ||
+        termAlertPiasters !== editingTerminal.lowBalanceAlertPiasters
+      );
+    }
+    return Boolean(
+      termName.trim() ||
+      termCode.trim() ||
+      termBalancePiasters > 0 ||
+      termProvider !== 'super_pay'
+    );
+  }, [editingTerminal, termName, termProvider, termCode, termBalancePiasters, termAlertPiasters]);
+
+  const { requestClose: requestCloseTerminal, handleBackdropClick: handleTerminalBackdropClick } = useModalDismiss({
+    isOpen: isTerminalModalOpen,
+    onClose: () => setIsTerminalModalOpen(false),
+    isDirty: isTerminalDirty,
+    confirmTitle: 'بيانات الماكينة غير محفوظة',
+    confirmMessage: 'هناك تعديلات على بيانات ماكينة الدفع لم تُحفظ بعد، هل أنت متأكد من الخروج وتجاهلها؟',
+  });
+
+  const { requestClose: requestCloseReceipt, handleBackdropClick: handleReceiptBackdropClick } = useModalDismiss({
+    isOpen: Boolean(receiptTx),
+    onClose: () => setReceiptTx(null),
+    isDirty: false,
+  });
+
+  const isCancelDirty = useCallback(() => {
+    return cancelReason.trim().length > 0;
+  }, [cancelReason]);
+
+  const { requestClose: requestCloseCancel, handleBackdropClick: handleCancelBackdropClick } = useModalDismiss({
+    isOpen: Boolean(cancellingTx),
+    onClose: () => setCancellingTx(null),
+    isDirty: isCancelDirty,
+    confirmTitle: 'إلغاء العملية',
+    confirmMessage: 'لقد كتبت سبباً لإلغاء العملية. هل تريد التراجع وتجاهل التعديلات؟',
+  });
 
   // Filters for History Tab
   const [historySearch, setHistorySearch] = useState<string>('');
@@ -378,135 +288,32 @@ export const EpayView: React.FC<EpayViewProps> = ({
     return terminals.find((t) => t.id === selectedTerminalId) || terminals[0] || null;
   }, [terminals, selectedTerminalId]);
 
-  // Financial preview calculation
+  // Financial calculation based on 3 direct inputs:
+  // 1. Bill amount (deducted from terminal)
+  // 2. Machine commission (deducted from terminal)
+  // 3. Shop profit (kept by shop, NOT deducted from terminal)
   const totalReceivedPiasters = useMemo(() => {
-    return billAmountPiasters + customerFeePiasters;
-  }, [billAmountPiasters, customerFeePiasters]);
+    return billAmountPiasters + machineCommissionPiasters + shopProfitPiasters;
+  }, [billAmountPiasters, machineCommissionPiasters, shopProfitPiasters]);
 
   const deductedBalancePiasters = useMemo(() => {
-    return serviceType === 'cash_out' ? 0 : billAmountPiasters;
-  }, [serviceType, billAmountPiasters]);
+    return serviceType === 'cash_out' ? 0 : (billAmountPiasters + machineCommissionPiasters);
+  }, [serviceType, billAmountPiasters, machineCommissionPiasters]);
 
   const netProfitPiasters = useMemo(() => {
-    return customerFeePiasters + providerCommissionPiasters;
-  }, [customerFeePiasters, providerCommissionPiasters]);
+    return shopProfitPiasters;
+  }, [shopProfitPiasters]);
 
   const isBalanceInsufficient = useMemo(() => {
     if (!currentTerminal) return false;
-    if (serviceType === 'cash_out') return false; // cash_out adds credit to machine, doesn't deduct
+    if (serviceType === 'cash_out') return false;
     return currentTerminal.balancePiasters < deductedBalancePiasters;
   }, [currentTerminal, serviceType, deductedBalancePiasters]);
 
-  // Helper to compute fee or commission from terminal settings with support for fixed, percent, and per_thousand rules + min/max caps
-  const computeFeeOrCommission = useCallback((
-    billPiasters: number,
-    ruleType?: EpayFeeType,
-    ruleValue?: number,
-    minPiasters = 0,
-    maxPiasters = 0,
-    defaultFixedPiasters = 0
-  ): number => {
-    if (billPiasters <= 0) return 0;
-    let result = 0;
-    if (ruleType === 'percent') {
-      const bps = ruleValue ?? 100;
-      result = Math.max(0, Math.round((billPiasters * bps) / 10000));
-    } else if (ruleType === 'per_thousand') {
-      const thousands = Math.max(1, Math.ceil(billPiasters / 100000));
-      const ratePerThousand = ruleValue ?? 1000;
-      result = Math.max(0, thousands * ratePerThousand);
-    } else {
-      result = Math.max(0, ruleValue ?? defaultFixedPiasters);
-    }
-
-    if (minPiasters > 0 && result < minPiasters) {
-      result = minPiasters;
-    }
-    if (maxPiasters > 0 && result > maxPiasters) {
-      result = maxPiasters;
-    }
-    return result;
-  }, []);
-
-  // Helper to resolve active pricing rule for a specific service on a terminal (falls back to general terminal rule)
-  const resolveActiveRule = useCallback((term: EpayTerminal | null, sType: EpayServiceType) => {
-    if (!term) return null;
-    let rules: EpayServiceFeeRule[] = term.serviceFeeRules || [];
-    if (rules.length === 0 && term.serviceFeeRulesJson) {
-      try {
-        rules = JSON.parse(term.serviceFeeRulesJson);
-      } catch { }
-    }
-
-    const sRule = rules?.find((r) => r.serviceType === sType);
-    if (sRule && sRule.feeMode && sRule.feeMode !== 'default') {
-      const cType: EpayFeeType = (sRule.customerFeeType || sRule.feeMode) as EpayFeeType;
-      return {
-        customerFeeType: cType,
-        customerFeeValue: sRule.customerFeeValue ?? 200,
-        customerFeeMinPiasters: sRule.customerFeeMinPiasters || 0,
-        customerFeeMaxPiasters: sRule.customerFeeMaxPiasters || 0,
-        providerCommissionType: (sRule.providerCommissionType || 'fixed') as EpayFeeType,
-        providerCommissionValue: sRule.providerCommissionValue ?? 100,
-        providerCommissionMinPiasters: sRule.providerCommissionMinPiasters || 0,
-        providerCommissionMaxPiasters: sRule.providerCommissionMaxPiasters || 0,
-        isCustomForService: true,
-      };
-    }
-
-    return {
-      customerFeeType: term.customerFeeType || 'fixed',
-      customerFeeValue: term.customerFeeValue ?? 200,
-      customerFeeMinPiasters: term.customerFeeMinPiasters || 0,
-      customerFeeMaxPiasters: term.customerFeeMaxPiasters || 0,
-      providerCommissionType: term.providerCommissionType || 'fixed',
-      providerCommissionValue: term.providerCommissionValue ?? 100,
-      providerCommissionMinPiasters: term.providerCommissionMinPiasters || 0,
-      providerCommissionMaxPiasters: term.providerCommissionMaxPiasters || 0,
-      isCustomForService: false,
-    };
-  }, []);
-
-  // Active pricing rule for current terminal and selected service
-  const activePricingRule = useMemo(() => {
-    return resolveActiveRule(currentTerminal, serviceType);
-  }, [currentTerminal, serviceType, resolveActiveRule]);
-
-  // Recalculate automatic fees whenever terminal, service type, or bill amount changes
-  useEffect(() => {
-    if (!isCustomFeeOverride && currentTerminal) {
-      const activeRule = resolveActiveRule(currentTerminal, serviceType);
-      if (activeRule) {
-        const fee = computeFeeOrCommission(
-          billAmountPiasters,
-          activeRule.customerFeeType,
-          activeRule.customerFeeValue,
-          activeRule.customerFeeMinPiasters,
-          activeRule.customerFeeMaxPiasters,
-          200
-        );
-        const comm = computeFeeOrCommission(
-          billAmountPiasters,
-          activeRule.providerCommissionType,
-          activeRule.providerCommissionValue,
-          activeRule.providerCommissionMinPiasters,
-          activeRule.providerCommissionMaxPiasters,
-          100
-        );
-        setCustomerFeePiasters(fee);
-        setProviderCommissionPiasters(comm);
-      }
-    }
-  }, [currentTerminal, serviceType, billAmountPiasters, isCustomFeeOverride, resolveActiveRule, computeFeeOrCommission]);
-
-  // Handle Select Service Preset
+  // Handle Select Service Preset (keeps amounts empty for cashier entry)
   const handleSelectServicePreset = (opt: ServiceQuickOption) => {
     setServiceType(opt.type);
     setServiceName(opt.name);
-    if (isCustomFeeOverride) {
-      setCustomerFeePiasters(opt.defaultFeePiasters);
-      setProviderCommissionPiasters(opt.defaultCommissionPiasters);
-    }
   };
 
   // Submit Transaction
@@ -536,8 +343,8 @@ export const EpayView: React.FC<EpayViewProps> = ({
         customerPhone: customerPhone.trim() || undefined,
         customerName: customerName.trim() || undefined,
         billAmountPiasters,
-        customerFeePiasters,
-        providerCommissionPiasters,
+        customerFeePiasters: shopProfitPiasters,
+        providerCommissionPiasters: machineCommissionPiasters,
         paymentDestination,
         paymentChannel: paymentDestination,
         machineDeductedPiasters: deductedBalancePiasters,
@@ -551,9 +358,10 @@ export const EpayView: React.FC<EpayViewProps> = ({
         setReceiptTx(result);
       }
 
-      // Reset form partially for next operation
+      // Reset form to empty for next operation
       setBillAmountPiasters(0);
-      setIsCustomFeeOverride(false);
+      setMachineCommissionPiasters(0);
+      setShopProfitPiasters(0);
       setCustomerPhone('');
       setCustomerName('');
       setReferenceNumber('');
@@ -623,7 +431,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
     }
   };
 
-  // Open Terminal Modal
+  // Open Terminal Modal (Simplified)
   const openNewTerminalModal = () => {
     setEditingTerminalId(null);
     setTermName('');
@@ -631,25 +439,6 @@ export const EpayView: React.FC<EpayViewProps> = ({
     setTermCode('');
     setTermBalancePiasters(0);
     setTermAlertPiasters(30000);
-    setTermCustomerFeeType('fixed');
-    setTermCustomerFeeValue(200);
-    setTermCustomerFeePercent('1.0');
-    setTermCustomerFeeMin(0);
-    setTermCustomerFeeMax(0);
-    setTermProviderCommissionType('fixed');
-    setTermProviderCommissionValue(100);
-    setTermProviderCommissionPercent('0.5');
-    setTermProviderCommissionMin(0);
-    setTermProviderCommissionMax(0);
-    setIsServicePricingExpanded(false);
-    setServiceRulesMap({
-      mobile_recharge: { ...DEFAULT_SERVICE_RULE_TEMPLATES.mobile_recharge },
-      utility_bill: { ...DEFAULT_SERVICE_RULE_TEMPLATES.utility_bill },
-      wallet_transfer: { ...DEFAULT_SERVICE_RULE_TEMPLATES.wallet_transfer },
-      cash_in: { ...DEFAULT_SERVICE_RULE_TEMPLATES.cash_in },
-      cash_out: { ...DEFAULT_SERVICE_RULE_TEMPLATES.cash_out },
-      other: { ...DEFAULT_SERVICE_RULE_TEMPLATES.other },
-    });
     setTerminalModalError(null);
     setIsTerminalModalOpen(true);
   };
@@ -661,53 +450,6 @@ export const EpayView: React.FC<EpayViewProps> = ({
     setTermCode(term.terminalCode || '');
     setTermBalancePiasters(term.balancePiasters);
     setTermAlertPiasters(term.lowBalanceAlertPiasters);
-    setTermCustomerFeeType(term.customerFeeType || 'fixed');
-    setTermCustomerFeeValue(term.customerFeeType === 'percent' ? 200 : (term.customerFeeValue ?? 200));
-    setTermCustomerFeePercent(term.customerFeeType === 'percent' ? String((term.customerFeeValue ?? 100) / 100) : '1.0');
-    setTermCustomerFeeMin(term.customerFeeMinPiasters || 0);
-    setTermCustomerFeeMax(term.customerFeeMaxPiasters || 0);
-    setTermProviderCommissionType(term.providerCommissionType === 'percent' ? 'percent' : 'fixed');
-    setTermProviderCommissionValue(term.providerCommissionType === 'percent' ? 100 : (term.providerCommissionValue ?? 100));
-    setTermProviderCommissionPercent(term.providerCommissionType === 'percent' ? String((term.providerCommissionValue ?? 50) / 100) : '0.5');
-    setTermProviderCommissionMin(term.providerCommissionMinPiasters || 0);
-    setTermProviderCommissionMax(term.providerCommissionMaxPiasters || 0);
-    setIsServicePricingExpanded(false);
-
-    let parsedRules: EpayServiceFeeRule[] = term.serviceFeeRules || [];
-    if (parsedRules.length === 0 && term.serviceFeeRulesJson) {
-      try {
-        parsedRules = JSON.parse(term.serviceFeeRulesJson);
-      } catch { }
-    }
-
-    const newMap: Record<EpayServiceType, ServiceRuleFormItem> = {
-      mobile_recharge: { ...DEFAULT_SERVICE_RULE_TEMPLATES.mobile_recharge, feeMode: 'default' },
-      utility_bill: { ...DEFAULT_SERVICE_RULE_TEMPLATES.utility_bill, feeMode: 'default' },
-      wallet_transfer: { ...DEFAULT_SERVICE_RULE_TEMPLATES.wallet_transfer, feeMode: 'default' },
-      cash_in: { ...DEFAULT_SERVICE_RULE_TEMPLATES.cash_in, feeMode: 'default' },
-      cash_out: { ...DEFAULT_SERVICE_RULE_TEMPLATES.cash_out, feeMode: 'default' },
-      other: { ...DEFAULT_SERVICE_RULE_TEMPLATES.other, feeMode: 'default' },
-    };
-
-    if (Array.isArray(parsedRules)) {
-      parsedRules.forEach((r) => {
-        if (r && r.serviceType && newMap[r.serviceType]) {
-          newMap[r.serviceType] = {
-            serviceType: r.serviceType,
-            feeMode: r.feeMode || 'fixed',
-            customerFeeValue: r.customerFeeValue ?? 200,
-            customerFeePercent: r.customerFeeType === 'percent' ? String((r.customerFeeValue ?? 100) / 100) : '1.0',
-            customerFeeMinPiasters: r.customerFeeMinPiasters || 0,
-            customerFeeMaxPiasters: r.customerFeeMaxPiasters || 0,
-            providerCommissionType: (r.providerCommissionType as 'fixed' | 'percent') || 'fixed',
-            providerCommissionValue: r.providerCommissionValue ?? 100,
-            providerCommissionPercent: r.providerCommissionType === 'percent' ? String((r.providerCommissionValue ?? 50) / 100) : '0.5',
-          };
-        }
-      });
-    }
-
-    setServiceRulesMap(newMap);
     setTerminalModalError(null);
     setIsTerminalModalOpen(true);
   };
@@ -722,37 +464,6 @@ export const EpayView: React.FC<EpayViewProps> = ({
     setIsSavingTerminal(true);
     setTerminalModalError(null);
     try {
-      const feeVal = termCustomerFeeType === 'percent'
-        ? Math.round(parseFloat(termCustomerFeePercent || '0') * 100)
-        : termCustomerFeeValue;
-      const commVal = termProviderCommissionType === 'percent'
-        ? Math.round(parseFloat(termProviderCommissionPercent || '0') * 100)
-        : termProviderCommissionValue;
-
-      const serviceRulesList: EpayServiceFeeRule[] = [];
-      Object.entries(serviceRulesMap).forEach(([sType, r]) => {
-        if (r.feeMode !== 'default') {
-          const sFeeVal = r.feeMode === 'percent'
-            ? Math.round(parseFloat(r.customerFeePercent || '0') * 100)
-            : r.customerFeeValue;
-          const sCommVal = r.providerCommissionType === 'percent'
-            ? Math.round(parseFloat(r.providerCommissionPercent || '0') * 100)
-            : r.providerCommissionValue;
-          serviceRulesList.push({
-            serviceType: sType as EpayServiceType,
-            feeMode: r.feeMode,
-            customerFeeType: r.feeMode,
-            customerFeeValue: sFeeVal,
-            customerFeeMinPiasters: r.customerFeeMinPiasters,
-            customerFeeMaxPiasters: r.customerFeeMaxPiasters,
-            providerCommissionType: r.providerCommissionType,
-            providerCommissionValue: sCommVal,
-            providerCommissionMinPiasters: (r as any).providerCommissionMinPiasters || 0,
-            providerCommissionMaxPiasters: (r as any).providerCommissionMaxPiasters || 0,
-          });
-        }
-      });
-
       const saved = await invoke<EpayTerminal>('epay:saveTerminal', {
         id: editingTerminalId || undefined,
         name: termName.trim(),
@@ -760,20 +471,14 @@ export const EpayView: React.FC<EpayViewProps> = ({
         terminalCode: termCode.trim() || undefined,
         balancePiasters: termBalancePiasters,
         lowBalanceAlertPiasters: termAlertPiasters,
-        customerFeeType: termCustomerFeeType,
-        customerFeeValue: feeVal,
-        customerFeeMinPiasters: termCustomerFeeMin,
-        customerFeeMaxPiasters: termCustomerFeeMax,
-        providerCommissionType: termProviderCommissionType,
-        providerCommissionValue: commVal,
-        providerCommissionMinPiasters: termProviderCommissionMin,
-        providerCommissionMaxPiasters: termProviderCommissionMax,
-        serviceFeeRulesJson: serviceRulesList.length > 0 ? JSON.stringify(serviceRulesList) : undefined,
-        serviceFeeRules: serviceRulesList,
+        customerFeeType: 'fixed',
+        customerFeeValue: 0,
+        providerCommissionType: 'fixed',
+        providerCommissionValue: 0,
         isActive: true,
       });
 
-      setSuccessMsg(editingTerminalId ? 'تم تحديث بيانات وقواعد تسعير الماكينة بنجاح' : 'تمت إضافة ماكينة الدفع وقواعد التسعير بنجاح');
+      setSuccessMsg(editingTerminalId ? 'تم تحديث بيانات الماكينة بنجاح' : 'تمت إضافة ماكينة الدفع بنجاح');
       setIsTerminalModalOpen(false);
       setTerminalModalError(null);
       await loadData();
@@ -1186,121 +891,71 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 </div>
               </div>
 
-              {/* Step 4: Amounts & Fees */}
-              <div className="border-t border-line dark:border-line-dark pt-4">
-                <div className="mb-3">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-bold text-ink dark:text-ink-dark">
-                      مبلغ الفاتورة / الرصيد المراد شحنه (يخصم من الماكينة)
-                    </label>
-                    <span className="text-xs font-bold font-mono text-paid dark:text-paid-bright tabular-nums">
-                      {formatArabicCurrency(billAmountPiasters)}
+              {/* Step 4: 3 Direct Inputs (Bill Amount, Machine Commission, Shop Profit) */}
+              <div className="border-t border-line dark:border-line-dark pt-4 flex flex-col gap-3.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-lg bg-brand-soft dark:bg-brand-bright/15 text-brand dark:text-brand-bright font-black text-xs flex items-center justify-center">
+                      3
                     </span>
+                    <h3 className="text-xs sm:text-sm font-black text-ink dark:text-ink-dark">
+                      حسابات العملية
+                    </h3>
                   </div>
-                  <MoneyInput
-                    valuePiasters={billAmountPiasters}
-                    onChangePiasters={setBillAmountPiasters}
-                    placeholder="0.00"
-                    className="text-lg font-bold"
-                  />
-                  {/* Preset quick buttons */}
-                  <div className="flex items-center gap-1.5 mt-2 overflow-x-auto pb-1">
-                    {PRESET_AMOUNTS.map((amt) => (
-                      <button
-                        key={amt}
-                        type="button"
-                        onClick={() => setBillAmountPiasters(amt)}
-                        className="px-2.5 py-1 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark text-ink dark:text-ink-dark border border-line dark:border-line-dark hover:border-line-hover dark:hover:border-line-dark-hover rounded-lg text-xs font-bold shrink-0 transition-colors cursor-pointer"
-                      >
-                        {formatArabicCurrency(amt, false)} ج.م
-                      </button>
-                    ))}
-                  </div>
+                  <span className="text-[11px] font-medium text-ink-muted dark:text-ink-muted-dark">
+                    المبلغ والعمولة يخصمان من رصيد الماكينة &bull; الربح لا يُخصم
+                  </span>
                 </div>
 
-                {/* Automatic Fee & Commission Status Bar */}
-                <div className="mt-3 bg-surface-2 dark:bg-surface-dark-2 rounded-xl p-3 border border-line dark:border-line-dark flex flex-wrap items-center justify-between gap-2.5">
-                  <div className="flex flex-wrap items-center gap-2.5 text-xs">
-                    <span className="font-bold text-ink-muted dark:text-ink-muted-dark flex items-center gap-1.5">
-                      <Sliders className="w-3.5 h-3.5 text-paid dark:text-paid-bright" />
-                      رسوم وعمولة الماكينة التلقائية:
-                    </span>
-                    <span className="font-bold text-paid dark:text-emerald-400 bg-paid-soft dark:bg-emerald-950/60 px-2 py-0.5 rounded-lg border border-paid-border dark:border-emerald-700/50">
-                      رسوم الزبون: {formatArabicCurrency(customerFeePiasters)}
-                      {activePricingRule ? (
-                        activePricingRule.customerFeeType === 'percent'
-                          ? ` (${activePricingRule.customerFeeValue / 100}%${activePricingRule.isCustomForService ? ' مخصص' : ''}${activePricingRule.customerFeeMinPiasters ? ` - أدنى ${formatArabicCurrency(activePricingRule.customerFeeMinPiasters, false)} ج` : ''}${activePricingRule.customerFeeMaxPiasters ? ` - أقصى ${formatArabicCurrency(activePricingRule.customerFeeMaxPiasters, false)} ج` : ''})`
-                          : activePricingRule.customerFeeType === 'per_thousand'
-                          ? ` (${formatArabicCurrency(activePricingRule.customerFeeValue, false)} ج لكل ألف${activePricingRule.isCustomForService ? ' مخصص' : ''}${activePricingRule.customerFeeMaxPiasters ? ` - أقصى ${formatArabicCurrency(activePricingRule.customerFeeMaxPiasters, false)} ج` : ''})`
-                          : ` (ثابت${activePricingRule.isCustomForService ? ' مخصص' : ''})`
-                      ) : ' (ثابت)'}
-                    </span>
-                    <span className="font-bold text-brand dark:text-brand-bright bg-brand-soft dark:bg-brand-bright/15 px-2 py-0.5 rounded-lg border border-brand/20 dark:border-brand-bright/30">
-                      عمولة الشركة: {formatArabicCurrency(providerCommissionPiasters)}
-                      {activePricingRule ? (
-                        activePricingRule.providerCommissionType === 'percent'
-                          ? ` (${activePricingRule.providerCommissionValue / 100}%)`
-                          : ' (ثابت)'
-                      ) : ' (ثابت)'}
-                    </span>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {/* Card 1: Bill Amount */}
+                  <div className="p-3.5 rounded-xl bg-surface-2/60 dark:bg-surface-dark-2/60 border border-line dark:border-line-dark flex flex-col justify-between gap-2.5 transition-all focus-within:border-brand/50 dark:focus-within:border-brand-bright/50 focus-within:bg-surface dark:focus-within:bg-surface-dark">
+                    <div className="flex items-center gap-2">
+                      <Receipt className="w-4 h-4 text-ink-muted dark:text-ink-muted-dark" />
+                      <label className="text-xs font-bold text-ink dark:text-ink-dark">
+                        1. مبلغ الفاتورة / الرصيد
+                      </label>
+                    </div>
+                    <MoneyInput
+                      valuePiasters={billAmountPiasters}
+                      onChangePiasters={setBillAmountPiasters}
+                      placeholder="0.00"
+                      className="text-lg font-black"
+                    />
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setIsCustomFeeOverride(!isCustomFeeOverride)}
-                    className="text-xs font-bold text-brand dark:text-brand-bright hover:text-brand-dark dark:hover:text-paid-bright cursor-pointer flex items-center gap-1 transition-colors px-2 py-1 rounded-lg hover:bg-brand-soft/60 dark:hover:bg-brand-bright/20"
-                  >
-                    <span>{isCustomFeeOverride ? 'إلغاء التعديل اليدوي' : 'تعديل يدوي لهذه العملية'}</span>
-                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isCustomFeeOverride ? 'rotate-180' : ''}`} />
-                  </button>
+                  {/* Card 2: Machine Commission */}
+                  <div className="p-3.5 rounded-xl bg-surface-2/60 dark:bg-surface-dark-2/60 border border-line dark:border-line-dark flex flex-col justify-between gap-2.5 transition-all focus-within:border-brand/50 dark:focus-within:border-brand-bright/50 focus-within:bg-surface dark:focus-within:bg-surface-dark">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="w-4 h-4 text-ink-muted dark:text-ink-muted-dark" />
+                      <label className="text-xs font-bold text-ink dark:text-ink-dark">
+                        2. عمولة الماكينة
+                      </label>
+                    </div>
+                    <MoneyInput
+                      valuePiasters={machineCommissionPiasters}
+                      onChangePiasters={setMachineCommissionPiasters}
+                      placeholder="0.00"
+                      className="text-lg font-black"
+                    />
+                  </div>
+
+                  {/* Card 3: Shop Profit */}
+                  <div className="p-3.5 rounded-xl bg-paid-soft/40 dark:bg-emerald-950/25 border border-paid/25 dark:border-emerald-700/35 flex flex-col justify-between gap-2.5 transition-all focus-within:border-paid dark:focus-within:border-paid-bright">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-paid dark:text-paid-bright" />
+                      <label className="text-xs font-bold text-paid dark:text-paid-bright">
+                        3. ربح المحل
+                      </label>
+                    </div>
+                    <MoneyInput
+                      valuePiasters={shopProfitPiasters}
+                      onChangePiasters={setShopProfitPiasters}
+                      placeholder="0.00"
+                      className="text-lg font-black text-paid dark:text-paid-bright"
+                    />
+                  </div>
                 </div>
-
-                {/* Collapsible Manual Override Section */}
-                {isCustomFeeOverride && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mt-3 p-3 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl">
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark">
-                          رسوم الخدمة من الزبون (ربح إضافي)
-                        </label>
-                        <span className="text-[11px] font-bold text-paid dark:text-emerald-400">تعديل يدوي</span>
-                      </div>
-                      <MoneyInput
-                        valuePiasters={customerFeePiasters}
-                        onChangePiasters={setCustomerFeePiasters}
-                        placeholder="0.00"
-                      />
-                      <div className="flex items-center gap-1.5 mt-1.5">
-                        {PRESET_FEES.map((fee) => (
-                          <button
-                            key={fee}
-                            type="button"
-                            onClick={() => setCustomerFeePiasters(fee)}
-                            className="px-2 py-0.5 bg-paid-soft dark:bg-emerald-950/60 hover:bg-paid-soft/80 dark:hover:bg-emerald-900/60 border border-paid-border dark:border-emerald-700/50 text-paid dark:text-emerald-300 text-[11px] font-bold rounded cursor-pointer transition-colors"
-                          >
-                            +{formatArabicCurrency(fee, false)}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark">
-                          عمولة الشركة المضافة للمحل (من الماكينة)
-                        </label>
-                        <span className="text-[11px] font-bold text-brand dark:text-brand-bright">تعديل يدوي</span>
-                      </div>
-                      <MoneyInput
-                        valuePiasters={providerCommissionPiasters}
-                        onChangePiasters={setProviderCommissionPiasters}
-                        placeholder="0.00"
-                      />
-                      <span className="text-[11px] text-ink-muted/70 dark:text-ink-muted-dark/70 mt-1 block font-medium">
-                        المبلغ الذي تمنحه لك الشركة كعمولة وكيل لهذه العملية
-                      </span>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Step 5: Cash Destination & Notes */}
@@ -1368,12 +1023,16 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 {/* Calculation List */}
                 <div className="flex flex-col gap-2.5">
                   <div className="flex items-center justify-between text-xs sm:text-sm">
-                    <span className="text-ink-muted dark:text-ink-muted-dark">مبلغ الفاتورة / الرصيد:</span>
+                    <span className="text-ink-muted dark:text-ink-muted-dark">1. مبلغ الفاتورة / الرصيد:</span>
                     <span className="font-bold font-mono text-ink dark:text-ink-dark tabular-nums">{formatArabicCurrency(billAmountPiasters)}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs sm:text-sm">
-                    <span className="text-ink-muted dark:text-ink-muted-dark">رسوم الخدمة من العميل:</span>
-                    <span className="font-bold font-mono text-paid dark:text-paid-bright tabular-nums">+{formatArabicCurrency(customerFeePiasters)}</span>
+                    <span className="text-ink-muted dark:text-ink-muted-dark">2. عمولة الماكينة:</span>
+                    <span className="font-bold font-mono text-ink dark:text-ink-dark tabular-nums">{formatArabicCurrency(machineCommissionPiasters)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs sm:text-sm">
+                    <span className="text-ink-muted dark:text-ink-muted-dark">3. ربح المحل من العملية:</span>
+                    <span className="font-bold font-mono text-paid dark:text-paid-bright tabular-nums">{formatArabicCurrency(shopProfitPiasters)}</span>
                   </div>
 
                   <div className="h-px bg-line dark:bg-line-dark my-1" />
@@ -1387,7 +1046,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                       {formatArabicCurrency(totalReceivedPiasters)}
                     </div>
                     <span className="text-[11px] text-paid/80 dark:text-emerald-400/80 mt-1 block font-medium">
-                      (قيمة الفاتورة {formatArabicCurrency(billAmountPiasters)} + الرسوم {formatArabicCurrency(customerFeePiasters)})
+                      (الفاتورة {formatArabicCurrency(billAmountPiasters)} + العمولة {formatArabicCurrency(machineCommissionPiasters)} + الربح {formatArabicCurrency(shopProfitPiasters)})
                     </span>
                   </div>
 
@@ -1396,8 +1055,8 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     isBalanceInsufficient ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger/30 dark:border-danger-bright/30' : 'bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark'
                   }`}>
                     <div className="flex items-center justify-between text-xs mb-1">
-                      <span className="text-ink-muted dark:text-ink-muted-dark font-medium">المخصوم من رصيد الماكينة:</span>
-                      <span className="font-bold font-mono text-ink dark:text-ink-dark tabular-nums">{formatArabicCurrency(deductedBalancePiasters)}</span>
+                      <span className="text-ink-muted dark:text-ink-muted-dark font-medium">المخصوم من رصيد الماكينة (المبلغ + العمولة):</span>
+                      <span className="font-bold font-mono text-danger dark:text-danger-bright tabular-nums">{formatArabicCurrency(deductedBalancePiasters)}</span>
                     </div>
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-ink-muted dark:text-ink-muted-dark font-medium">الرصيد المتبقي بعد العملية:</span>
@@ -1422,7 +1081,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     <div className="flex items-center justify-between">
                       <div>
                         <span className="text-xs font-bold text-brand-dark dark:text-brand-bright block">صافي ربح المحل من هذه العملية:</span>
-                        <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">رسوم العميل + عمولة الشركة</span>
+                        <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">لا يُخصم من رصيد الماكينة نهائياً</span>
                       </div>
                       <span className="text-lg font-black font-mono text-brand dark:text-brand-bright tabular-nums">
                         {formatArabicCurrency(netProfitPiasters)}
@@ -1569,19 +1228,10 @@ export const EpayView: React.FC<EpayViewProps> = ({
                       </div>
 
                       <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[11px]">
-                        <span className="font-bold text-ink-muted dark:text-ink-muted-dark">التسعير:</span>
+                        <span className="font-bold text-ink-muted dark:text-ink-muted-dark">نظام الحساب:</span>
                         <span className="px-2 py-0.5 rounded-md bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright font-bold border border-paid-border dark:border-paid-bright/20">
-                          {term.customerFeeType === 'percent'
-                            ? `نسبة ${((term.customerFeeValue ?? 100) / 100)}%`
-                            : term.customerFeeType === 'per_thousand'
-                            ? `${formatArabicCurrency(term.customerFeeValue ?? 1000, false)} ج / 1000`
-                            : `ثابت ${formatArabicCurrency(term.customerFeeValue ?? 200, false)} ج`}
+                          3 مدخلات مباشرة (المبلغ + العمولة + الربح)
                         </span>
-                        {term.serviceFeeRulesJson && (
-                          <span className="px-2 py-0.5 rounded-md bg-brand-soft dark:bg-brand-bright/15 text-brand dark:text-brand-bright font-bold border border-brand/20 dark:border-brand-bright/30">
-                            تسعير مخصص للخدمات
-                          </span>
-                        )}
                       </div>
 
                       {term.isLowBalance && (
@@ -1859,10 +1509,12 @@ export const EpayView: React.FC<EpayViewProps> = ({
                         <th className="py-3 px-3.5 whitespace-nowrap">الماكينة</th>
                         <th className="py-3 px-3.5 whitespace-nowrap">الخدمة</th>
                         <th className="py-3 px-3.5 whitespace-nowrap">رقم الهاتف / المرجع</th>
-                        <th className="py-3 px-3.5 whitespace-nowrap">قيمة الفاتورة</th>
-                        <th className="py-3 px-3.5 whitespace-nowrap">رسوم العميل</th>
-                        <th className="py-3 px-3.5 whitespace-nowrap">المستلم نقداً</th>
-                        <th className="py-3 px-3.5 whitespace-nowrap text-center">صافي ربح المحل</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap">1. الفاتورة</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap">2. عمولة الماكينة</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap">3. ربح المحل</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap font-bold text-paid dark:text-paid-bright">المستلم من الزبون</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap text-danger dark:text-danger-bright">مخصوم الماكينة</th>
+                        <th className="py-3 px-3.5 whitespace-nowrap text-center">صافي الربح</th>
                         <th className="py-3 px-3.5 whitespace-nowrap text-center">وجهة النقدية</th>
                         <th className="py-3 px-3.5 whitespace-nowrap text-center">الحالة</th>
                         <th className="py-3 px-3.5 whitespace-nowrap text-center">إجراءات</th>
@@ -1901,11 +1553,17 @@ export const EpayView: React.FC<EpayViewProps> = ({
                           <td className={`py-3.5 px-3.5 whitespace-nowrap font-bold text-ink dark:text-ink-dark font-mono tabular-nums align-middle ${tx.status === 'cancelled' ? 'line-through' : ''}`}>
                             {formatArabicCurrency(tx.billAmountPiasters)}
                           </td>
-                          <td className={`py-3.5 px-3.5 whitespace-nowrap text-paid dark:text-paid-bright font-mono tabular-nums font-bold align-middle ${tx.status === 'cancelled' ? 'line-through text-ink-muted dark:text-ink-muted-dark' : ''}`}>
-                            +{formatArabicCurrency(tx.customerFeePiasters)}
+                          <td className={`py-3.5 px-3.5 whitespace-nowrap font-mono tabular-nums font-semibold text-ink-muted dark:text-ink-muted-dark align-middle ${tx.status === 'cancelled' ? 'line-through' : ''}`}>
+                            {formatArabicCurrency(tx.providerCommissionPiasters || 0)}
                           </td>
-                          <td className={`py-3.5 px-3.5 whitespace-nowrap font-black text-ink dark:text-ink-dark font-mono tabular-nums align-middle ${tx.status === 'cancelled' ? 'line-through' : ''}`}>
+                          <td className={`py-3.5 px-3.5 whitespace-nowrap text-paid dark:text-paid-bright font-mono tabular-nums font-bold align-middle ${tx.status === 'cancelled' ? 'line-through text-ink-muted dark:text-ink-muted-dark' : ''}`}>
+                            {formatArabicCurrency(tx.customerFeePiasters)}
+                          </td>
+                          <td className={`py-3.5 px-3.5 whitespace-nowrap font-black text-paid dark:text-paid-bright font-mono tabular-nums align-middle ${tx.status === 'cancelled' ? 'line-through' : ''}`}>
                             {formatArabicCurrency(tx.totalReceivedPiasters)}
+                          </td>
+                          <td className={`py-3.5 px-3.5 whitespace-nowrap font-mono tabular-nums text-danger dark:text-danger-bright align-middle ${tx.status === 'cancelled' ? 'line-through' : ''}`}>
+                            {formatArabicCurrency(tx.machineDeductedPiasters || (tx.serviceType === 'cash_out' ? 0 : (tx.billAmountPiasters + (tx.providerCommissionPiasters || 0))))}
                           </td>
                           <td className="py-3.5 px-3.5 whitespace-nowrap text-center align-middle">
                             <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-md font-black font-mono text-xs tabular-nums border shadow-2xs ${
@@ -1913,7 +1571,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                                 ? 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger/20 dark:border-danger-bright/30 line-through'
                                 : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/20 dark:border-paid-bright/20'
                             }`}>
-                              +{formatArabicCurrency(tx.netProfitPiasters)}
+                              {formatArabicCurrency(tx.netProfitPiasters)}
                             </span>
                           </td>
                           <td className="py-3.5 px-3.5 whitespace-nowrap text-center align-middle">
@@ -2009,37 +1667,37 @@ export const EpayView: React.FC<EpayViewProps> = ({
                   {formatArabicCurrency(analytics?.totalNetProfitPiasters || 0)}
                 </span>
                 <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark mt-1 block">
-                  (رسوم العملاء + عمولات الشركات)
-                </span>
-              </div>
-
-              <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-5 hover:border-line-hover dark:hover:border-line-dark transition-colors">
-                <span className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">إجمالي رسوم الخدمة من الزبائن</span>
-                <span className="text-2xl font-black font-mono text-ink dark:text-ink-dark block tabular-nums">
-                  {formatArabicCurrency(analytics?.totalCustomerFeesPiasters || 0)}
-                </span>
-                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark mt-1 block">
-                  تحصيل مباشر من العميل نقداً
-                </span>
-              </div>
-
-              <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-5 hover:border-line-hover dark:hover:border-line-dark transition-colors">
-                <span className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">إجمالي عمولات الشركات</span>
-                <span className="text-2xl font-black font-mono text-ink dark:text-ink-dark block tabular-nums">
-                  {formatArabicCurrency(analytics?.totalCommissionsPiasters || 0)}
-                </span>
-                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark mt-1 block">
-                  عمولة الوكيل من شركات الدفع
+                  إجمالي مكسب المحل الصافي من العمليات
                 </span>
               </div>
 
               <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-5 hover:border-line-hover dark:hover:border-line-dark transition-colors">
                 <span className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">حجم النقدية المتداولة</span>
                 <span className="text-2xl font-black font-mono text-ink dark:text-ink-dark block tabular-nums">
-                  {formatArabicCurrency(analytics?.totalVolumePiasters || 0)}
+                  {formatArabicCurrency(analytics?.totalVolumePiasters ?? analytics?.totalBillVolumePiasters ?? 0)}
                 </span>
                 <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark mt-1 block">
-                  إجمالي قيمة الفواتير والشحن
+                  إجمالي قيمة الفواتير والشحن المنفذة
+                </span>
+              </div>
+
+              <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-5 hover:border-line-hover dark:hover:border-line-dark transition-colors">
+                <span className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">إجمالي عمولات الماكينات</span>
+                <span className="text-2xl font-black font-mono text-ink dark:text-ink-dark block tabular-nums">
+                  {formatArabicCurrency(analytics?.totalCommissionsPiasters ?? analytics?.totalProviderCommissionsPiasters ?? 0)}
+                </span>
+                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark mt-1 block">
+                  المخصومة لصالح شركات وماكينات الدفع
+                </span>
+              </div>
+
+              <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xs p-5 hover:border-line-hover dark:hover:border-line-dark transition-colors">
+                <span className="text-xs font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">إجمالي أرصدة الماكينات</span>
+                <span className="text-2xl font-black font-mono text-ink dark:text-ink-dark block tabular-nums">
+                  {formatArabicCurrency(analytics?.totalTerminalsBalancePiasters || 0)}
+                </span>
+                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark mt-1 block">
+                  الرصيد الفعلي المتاح حالياً بالماكينات
                 </span>
               </div>
             </div>
@@ -2087,7 +1745,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                 {SERVICE_PRESETS.map((preset) => {
-                  const txsForService = transactions.filter((t) => t.serviceType === preset.type);
+                  const txsForService = transactions.filter((t) => t.serviceType === preset.type && t.status === 'completed');
                   const vol = txsForService.reduce((s, t) => s + (t.billAmountPiasters || 0), 0);
                   const prof = txsForService.reduce((s, t) => s + (t.netProfitPiasters || 0), 0);
                   const Icon = preset.icon;
@@ -2122,14 +1780,14 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
       {/* MODAL: FUNDING TERMINAL */}
       {isFundingModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+        <div onClick={handleFundingBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
           <div className="bg-surface dark:bg-surface-dark rounded-2xl max-w-md w-full p-6 shadow-xl border border-line dark:border-line-dark" dir="rtl">
             <div className="flex items-center justify-between mb-4 border-b border-line dark:border-line-dark pb-3">
               <h3 className="text-base font-black text-ink dark:text-ink-dark flex items-center gap-2">
                 <Zap className="w-5 h-5 text-paid dark:text-paid-bright" />
                 تغذية وشحن رصيد الماكينة
               </h3>
-              <button onClick={() => setIsFundingModalOpen(false)} className="text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark cursor-pointer p-1 rounded-lg">
+              <button onClick={() => void requestCloseFunding()} className="text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark cursor-pointer p-1 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -2186,7 +1844,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-line dark:border-line-dark">
                 <button
                   type="button"
-                  onClick={() => setIsFundingModalOpen(false)}
+                  onClick={() => void requestCloseFunding()}
                   className="px-4 py-2 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl text-xs font-bold cursor-pointer transition-colors"
                 >
                   إلغاء
@@ -2206,14 +1864,14 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
       {/* MODAL: ADD / EDIT TERMINAL */}
       {isTerminalModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+        <div onClick={handleTerminalBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
           <div className="bg-surface dark:bg-surface-dark rounded-2xl max-w-xl w-full p-6 shadow-xl border border-line dark:border-line-dark max-h-[90vh] overflow-y-auto" dir="rtl">
             <div className="flex items-center justify-between mb-4 border-b border-line dark:border-line-dark pb-3">
               <h3 className="text-base font-black text-ink dark:text-ink-dark flex items-center gap-2">
                 <CreditCard className="w-5 h-5 text-paid dark:text-paid-bright" />
                 {editingTerminalId ? 'تعديل بيانات ماكينة الدفع' : 'إضافة ماكينة دفع جديدة'}
               </h3>
-              <button onClick={() => setIsTerminalModalOpen(false)} className="text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark cursor-pointer p-1 rounded-lg">
+              <button onClick={() => void requestCloseTerminal()} className="text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark cursor-pointer p-1 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -2295,486 +1953,18 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 />
               </div>
 
-              {/* Dynamic Fee & Commission Rules */}
-              <div className="border-t border-line dark:border-line-dark pt-3 flex flex-col gap-3">
-                <div className="flex items-center gap-1.5 text-ink dark:text-ink-dark font-black text-xs">
-                  <Sliders className="w-4 h-4 text-paid dark:text-paid-bright" />
-                  <span>طريقة تسعير الرسوم وأرباح الماكينة</span>
+                            {/* Simple & Clear Pricing Notice */}
+              <div className="p-3.5 rounded-xl bg-paid-soft/40 dark:bg-emerald-950/30 border border-paid/20 dark:border-emerald-600/30 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-paid dark:bg-paid-bright text-white dark:text-slate-900 flex items-center justify-center shrink-0">
+                  <CreditCard className="w-4 h-4" />
                 </div>
-
-                {/* 1. Customer Fee Rule */}
-                <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-xl border border-line dark:border-line-dark flex flex-col gap-3">
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-black text-ink dark:text-ink-dark">
-                        طريقة حساب مكسبي من الزبون (رسوم الخدمة)
-                      </label>
-                      <span className="text-[10px] text-paid dark:text-paid-bright font-bold bg-paid-soft dark:bg-paid-dark-soft px-2 py-0.5 rounded-full border border-paid-border dark:border-paid-bright/20">
-                        اختر طريقة واحدة بس
-                      </span>
-                    </div>
-                    <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
-                      السيستم هيحسب بالطريقة اللي تختارها هنا بس، ومش هيبص على الطريقتين التانيين نهائياً.
-                    </span>
-                  </div>
-
-                  {/* Mode Selector */}
-                  <div className="grid grid-cols-3 gap-1 bg-surface dark:bg-surface-dark p-1 rounded-xl border border-line dark:border-line-dark">
-                    <button
-                      type="button"
-                      onClick={() => setTermCustomerFeeType('fixed')}
-                      className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
-                        termCustomerFeeType === 'fixed'
-                          ? 'bg-paid dark:bg-paid-bright text-white dark:text-slate-900 shadow-xs'
-                          : 'text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
-                      }`}
-                    >
-                      مبلغ ثابت على الوصل
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTermCustomerFeeType('percent')}
-                      className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
-                        termCustomerFeeType === 'percent'
-                          ? 'bg-paid dark:bg-paid-bright text-white dark:text-slate-900 shadow-xs'
-                          : 'text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
-                      }`}
-                    >
-                      نسبة مئوية (%)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTermCustomerFeeType('per_thousand')}
-                      className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
-                        termCustomerFeeType === 'per_thousand'
-                          ? 'bg-paid dark:bg-paid-bright text-white dark:text-slate-900 shadow-xs'
-                          : 'text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2'
-                      }`}
-                    >
-                      لكل 1,000 جنيه
-                    </button>
-                  </div>
-
-                  {/* Mode A: Fixed Amount */}
-                  {termCustomerFeeType === 'fixed' && (
-                    <div className="flex flex-col gap-1.5 pt-1">
-                      <label className="text-[11px] font-bold text-ink-muted dark:text-ink-muted-dark block">
-                        المبلغ الثابت اللي هتاخده من الزبون على كل وصل:
-                      </label>
-                      <MoneyInput
-                        valuePiasters={termCustomerFeeValue}
-                        onChangePiasters={setTermCustomerFeeValue}
-                        placeholder="0.00"
-                        className="text-base font-bold"
-                      />
-                      <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
-                        رقم ثابت ومقفول الزبون هيدفعه على أي فاتورة (مثال: 2 جنيه على أي وصل كهرباء أو شحن، دفع 50 ج ياخد 2 ج، دفع 500 ج برضه 2 ج).
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Mode B: Percentage with Floor & Ceiling */}
-                  {termCustomerFeeType === 'percent' && (
-                    <div className="flex flex-col gap-3 pt-1">
-                      <div>
-                        <label className="text-[11px] font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">
-                          نسبة مكسبك من قيمة الفاتورة:
-                        </label>
-                        <div className="relative flex items-center">
-                          <input
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            max="100"
-                            value={termCustomerFeePercent}
-                            onChange={(e) => setTermCustomerFeePercent(e.target.value)}
-                            placeholder="مثال: 1.0"
-                            className="w-full px-3 py-2 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl text-sm font-bold text-ink dark:text-ink-dark font-mono focus:bg-surface dark:focus:bg-surface-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none"
-                          />
-                          <span className="absolute left-3 text-xs font-bold text-ink-muted dark:text-ink-muted-dark">%</span>
-                        </div>
-                        <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark mt-1 block">
-                          (مثال: لو كتبت 1%، فواتير الـ 100 ج مكسبك 1 ج، وفواتير الـ 1,000 ج مكسبك 10 ج).
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2.5">
-                        <div className="p-2.5 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark flex flex-col gap-1">
-                          <label className="text-[11px] font-bold text-ink dark:text-ink-dark block">
-                            أقل مكسب ترضى بيه (الحد الأدنى):
-                          </label>
-                          <MoneyInput
-                            valuePiasters={termCustomerFeeMin}
-                            onChangePiasters={setTermCustomerFeeMin}
-                            placeholder="0.00"
-                          />
-                          <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark leading-tight">
-                            لو الفاتورة صغيرة والنسبة طلعت ملاليم، يرفع مكسبك للمبلغ ده عشان متخسرش ورقة ومجهود (اكتب 0 لو مش فارق معاك).
-                          </span>
-                        </div>
-
-                        <div className="p-2.5 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark flex flex-col gap-1">
-                          <label className="text-[11px] font-bold text-ink dark:text-ink-dark block">
-                            أعلى مكسب تاخده (الحد الأقصى):
-                          </label>
-                          <MoneyInput
-                            valuePiasters={termCustomerFeeMax}
-                            onChangePiasters={setTermCustomerFeeMax}
-                            placeholder="0.00"
-                          />
-                          <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark leading-tight">
-                            لو الفاتورة كبيرة جداً، يوقف المكسب عند الرقم ده وميزودش عشان متطردش الزبون (اكتب 0 لو مفتوحة بدون سقف).
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Mode C: Per 1,000 Tier */}
-                  {termCustomerFeeType === 'per_thousand' && (
-                    <div className="flex flex-col gap-3 pt-1">
-                      <div>
-                        <label className="text-[11px] font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">
-                          مبلغ المكسب على كل 1,000 جنيه (نظام المحافظ وكاش):
-                        </label>
-                        <MoneyInput
-                          valuePiasters={termCustomerFeeValue}
-                          onChangePiasters={setTermCustomerFeeValue}
-                          placeholder="10.00"
-                          className="text-base font-bold"
-                        />
-                        <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark mt-1 block leading-relaxed">
-                          مثال: لو كتبت 10 جنيه، يبقى أي سحب من 1 لـ 1,000 ج مكسبك 10 ج، ومن 1,001 لـ 2,000 ج مكسبك 20 ج، وهكذا.
-                        </span>
-                      </div>
-
-                      <div className="p-2.5 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark flex flex-col gap-1">
-                        <label className="text-[11px] font-bold text-ink dark:text-ink-dark block">
-                          أعلى مبلغ تاخده كحد أقصى (اختياري):
-                        </label>
-                        <MoneyInput
-                          valuePiasters={termCustomerFeeMax}
-                          onChangePiasters={setTermCustomerFeeMax}
-                          placeholder="0.00"
-                        />
-                        <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark leading-tight">
-                          لو حد سحب مبالغ كبيرة زي 30 ألف مثلاً، يوقف المكسب عند الرقم ده وميزودش (اكتب 0 لو عاوز كل ألف بـ 10 وخلاص بدون أقصى).
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Live Simulation Card (تجربة حية فورية للحسبة) */}
-                  <div className="p-3 rounded-xl bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-2 mt-1">
-                    <div className="flex items-center justify-between text-xs font-bold">
-                      <div className="flex items-center gap-1.5 text-paid dark:text-paid-bright">
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>تجربة حية فورية: الزبون هيدفع كام في الحالات دي؟</span>
-                      </div>
-                      <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark font-normal">بتتغير لحظياً مع أرقامك</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                      <div className="p-2 rounded-lg bg-surface-2 dark:bg-surface-dark border border-line dark:border-line-dark flex flex-col items-center justify-center">
-                        <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark mb-0.5">لو فاتورة صغيرة (50 ج)</span>
-                        <span className="font-mono font-black text-paid dark:text-paid-bright text-sm">{formatArabicCurrency(modalFeeSimulation.small.fee)}</span>
-                        <span className="text-[9px] text-ink-muted dark:text-ink-muted-dark font-medium mt-0.5">{modalFeeSimulation.small.note}</span>
-                      </div>
-                      <div className="p-2 rounded-lg bg-surface-2 dark:bg-surface-dark border border-line dark:border-line-dark flex flex-col items-center justify-center">
-                        <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark mb-0.5">لو فاتورة متوسطة (500 ج)</span>
-                        <span className="font-mono font-black text-paid dark:text-paid-bright text-sm">{formatArabicCurrency(modalFeeSimulation.medium.fee)}</span>
-                        <span className="text-[9px] text-ink-muted dark:text-ink-muted-dark font-medium mt-0.5">{modalFeeSimulation.medium.note}</span>
-                      </div>
-                      <div className="p-2 rounded-lg bg-surface-2 dark:bg-surface-dark border border-line dark:border-line-dark flex flex-col items-center justify-center">
-                        <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark mb-0.5">لو فاتورة كبيرة (3,000 ج)</span>
-                        <span className="font-mono font-black text-paid dark:text-paid-bright text-sm">{formatArabicCurrency(modalFeeSimulation.large.fee)}</span>
-                        <span className="text-[9px] text-ink-muted dark:text-ink-muted-dark font-medium mt-0.5">{modalFeeSimulation.large.note}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. Provider Commission Rule */}
-                <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-xl border border-line dark:border-line-dark flex flex-col gap-2.5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <label className="text-xs font-black text-ink dark:text-ink-dark block">
-                        عمولة الشركة المضافة للمحل (من الماكينة)
-                      </label>
-                      <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark">
-                        الربح الإضافي اللي شركة الدفع (فوري/أمان/سوبر باي) بتنزله في حسابك
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1 bg-surface dark:bg-surface-dark p-0.5 rounded-lg border border-line dark:border-line-dark">
-                      <button
-                        type="button"
-                        onClick={() => setTermProviderCommissionType('fixed')}
-                        className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
-                          termProviderCommissionType === 'fixed'
-                            ? 'bg-brand dark:bg-brand-bright text-white dark:text-slate-900 shadow-xs'
-                            : 'text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark'
-                        }`}
-                      >
-                        مبلغ ثابت
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setTermProviderCommissionType('percent')}
-                        className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
-                          termProviderCommissionType === 'percent'
-                            ? 'bg-brand dark:bg-brand-bright text-white dark:text-slate-900 shadow-xs'
-                            : 'text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark'
-                        }`}
-                      >
-                        نسبة مئوية (%)
-                      </button>
-                    </div>
-                  </div>
-
-                  {termProviderCommissionType === 'fixed' ? (
-                    <div>
-                      <MoneyInput
-                        valuePiasters={termProviderCommissionValue}
-                        onChangePiasters={setTermProviderCommissionValue}
-                        placeholder="0.00"
-                        className="text-base font-bold"
-                      />
-                      <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark mt-1 block">
-                        مبلغ ثابت الشركة بتديهولك في رصيدك على كل عملية وكيل (مثال: 1.00 ج.م).
-                      </span>
-                    </div>
-                  ) : (
-                    <div>
-                      <div className="relative flex items-center">
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="0"
-                          max="100"
-                          value={termProviderCommissionPercent}
-                          onChange={(e) => setTermProviderCommissionPercent(e.target.value)}
-                          placeholder="مثال: 0.5"
-                          className="w-full px-3 py-2 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl text-sm font-bold text-ink dark:text-ink-dark font-mono focus:bg-surface dark:focus:bg-surface-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none"
-                        />
-                        <span className="absolute left-3 text-xs font-bold text-ink-muted dark:text-ink-muted-dark">%</span>
-                      </div>
-                      <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark mt-1 block">
-                        نسبة عمولة الشركة بتنزلهالك في رصيدك من قيمة العملية (مثال: 0.5% من الفاتورة).
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* 3. Advanced Per-Service Custom Pricing Accordion */}
-                <div className="border border-line dark:border-line-dark rounded-xl overflow-hidden bg-surface dark:bg-surface-dark">
-                  <button
-                    type="button"
-                    onClick={() => setIsServicePricingExpanded(!isServicePricingExpanded)}
-                    className="w-full p-3 flex items-center justify-between text-right hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-paid dark:text-paid-bright" />
-                      <div>
-                        <span className="text-xs font-black text-ink dark:text-ink-dark block">
-                          تخصيص تسعير ورسوم كل خدمة على حدة
-                        </span>
-                        <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
-                          (شحن رصيد، فواتير مرافق، فودافون كاش، سحب وإيداع)
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-bright/20">
-                        موصى به للمحلات
-                      </span>
-                      <ChevronDown className={`w-4 h-4 text-ink-muted dark:text-ink-muted-dark transition-transform duration-200 ${isServicePricingExpanded ? 'rotate-180' : ''}`} />
-                    </div>
-                  </button>
-
-                  {isServicePricingExpanded && (
-                    <div className="p-3 border-t border-line dark:border-line-dark flex flex-col gap-3 bg-surface-2/40 dark:bg-surface-dark-2/40">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark font-medium">
-                          حدد لكل خدمة طريقة حساب خاصة، أو اتركها "الافتراضي للماكينة"
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setServiceRulesMap({
-                              mobile_recharge: { ...DEFAULT_SERVICE_RULE_TEMPLATES.mobile_recharge },
-                              utility_bill: { ...DEFAULT_SERVICE_RULE_TEMPLATES.utility_bill },
-                              wallet_transfer: { ...DEFAULT_SERVICE_RULE_TEMPLATES.wallet_transfer },
-                              cash_in: { ...DEFAULT_SERVICE_RULE_TEMPLATES.cash_in },
-                              cash_out: { ...DEFAULT_SERVICE_RULE_TEMPLATES.cash_out },
-                              other: { ...DEFAULT_SERVICE_RULE_TEMPLATES.other },
-                            });
-                          }}
-                          className="text-[11px] font-bold text-brand dark:text-brand-bright hover:text-brand-dark dark:hover:text-brand flex items-center gap-1 cursor-pointer"
-                        >
-                          <RotateCcw className="w-3 h-3" />
-                          <span>تطبيق المقترح الذكي للسوق المصري</span>
-                        </button>
-                      </div>
-
-                      <div className="flex flex-col gap-2.5">
-                        {SERVICE_PRESETS.map((svc) => {
-                          const rule = serviceRulesMap[svc.type] || {
-                            ...DEFAULT_SERVICE_RULE_TEMPLATES[svc.type],
-                            feeMode: 'default',
-                          };
-                          const SvcIcon = svc.icon;
-
-                          const updateRule = (patch: Partial<ServiceRuleFormItem>) => {
-                            setServiceRulesMap((prev) => ({
-                              ...prev,
-                              [svc.type]: {
-                                ...prev[svc.type],
-                                ...patch,
-                              },
-                            }));
-                          };
-
-                          return (
-                            <div key={svc.type} className="p-3 bg-surface dark:bg-surface-dark rounded-xl border border-line dark:border-line-dark flex flex-col gap-2 shadow-2xs">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-6 h-6 rounded-lg bg-brand-soft dark:bg-brand-bright/15 text-brand dark:text-brand-bright flex items-center justify-center shrink-0">
-                                    <SvcIcon className="w-3.5 h-3.5" />
-                                  </div>
-                                  <span className="text-xs font-bold text-ink dark:text-ink-dark">{svc.name}</span>
-                                </div>
-
-                                <div className="flex items-center gap-1 bg-surface-2 dark:bg-surface-dark-2 p-0.5 rounded-lg border border-line dark:border-line-dark text-[11px]">
-                                  <button
-                                    type="button"
-                                    onClick={() => updateRule({ feeMode: 'default' })}
-                                    className={`px-2 py-0.5 rounded font-bold transition-colors cursor-pointer ${
-                                      rule.feeMode === 'default'
-                                        ? 'bg-ink dark:bg-surface-2 text-surface dark:text-ink shadow-2xs'
-                                        : 'text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark'
-                                    }`}
-                                  >
-                                    العام (زي فوق)
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => updateRule({ feeMode: 'fixed' })}
-                                    className={`px-2 py-0.5 rounded font-bold transition-colors cursor-pointer ${
-                                      rule.feeMode === 'fixed'
-                                        ? 'bg-paid dark:bg-paid-bright text-white dark:text-slate-900 shadow-2xs'
-                                        : 'text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark'
-                                    }`}
-                                  >
-                                    مبلغ ثابت
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => updateRule({ feeMode: 'percent' })}
-                                    className={`px-2 py-0.5 rounded font-bold transition-colors cursor-pointer ${
-                                      rule.feeMode === 'percent'
-                                        ? 'bg-paid dark:bg-paid-bright text-white dark:text-slate-900 shadow-2xs'
-                                        : 'text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark'
-                                    }`}
-                                  >
-                                    نسبة (%)
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => updateRule({ feeMode: 'per_thousand' })}
-                                    className={`px-2 py-0.5 rounded font-bold transition-colors cursor-pointer ${
-                                      rule.feeMode === 'per_thousand'
-                                        ? 'bg-paid dark:bg-paid-bright text-white dark:text-slate-900 shadow-2xs'
-                                        : 'text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark'
-                                    }`}
-                                  >
-                                    لكل 1,000 ج
-                                  </button>
-                                </div>
-                              </div>
-
-                              {rule.feeMode === 'default' && (
-                                <span className="text-[11px] text-ink-muted/80 dark:text-ink-muted-dark/80">
-                                  ماشية تلقائياً على نفس نظام الماكينة العام اللي فوق.
-                                </span>
-                              )}
-
-                              {rule.feeMode === 'fixed' && (
-                                <div className="flex items-center gap-2 mt-1">
-                                  <label className="text-[11px] font-bold text-ink-muted dark:text-ink-muted-dark shrink-0">مبلغ ثابت على الوصل:</label>
-                                  <div className="flex-1">
-                                    <MoneyInput
-                                      valuePiasters={rule.customerFeeValue}
-                                      onChangePiasters={(v) => updateRule({ customerFeeValue: v })}
-                                      placeholder="0.00"
-                                    />
-                                  </div>
-                                </div>
-                              )}
-
-                              {rule.feeMode === 'percent' && (
-                                <div className="flex flex-col gap-2 mt-1">
-                                  <div className="grid grid-cols-3 gap-2">
-                                    <div>
-                                      <label className="text-[10px] font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">النسبة (%)</label>
-                                      <div className="relative flex items-center">
-                                        <input
-                                          type="number"
-                                          step="0.1"
-                                          min="0"
-                                          max="100"
-                                          value={rule.customerFeePercent}
-                                          onChange={(e) => updateRule({ customerFeePercent: e.target.value })}
-                                          placeholder="1.0"
-                                          className="w-full px-2 py-1.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg text-xs font-mono text-ink dark:text-ink-dark focus:bg-surface dark:focus:bg-surface-dark focus:border-brand dark:focus:border-brand-bright focus:outline-none"
-                                        />
-                                        <span className="absolute left-2 text-[11px] font-bold text-ink-muted dark:text-ink-muted-dark">%</span>
-                                      </div>
-                                    </div>
-                                    <div>
-                                      <label className="text-[10px] font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">أقل مكسب (ج.م)</label>
-                                      <MoneyInput
-                                        valuePiasters={rule.customerFeeMinPiasters}
-                                        onChangePiasters={(v) => updateRule({ customerFeeMinPiasters: v })}
-                                        placeholder="0.00"
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="text-[10px] font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">أعلى مكسب (ج.م)</label>
-                                      <MoneyInput
-                                        valuePiasters={rule.customerFeeMaxPiasters}
-                                        onChangePiasters={(v) => updateRule({ customerFeeMaxPiasters: v })}
-                                        placeholder="0.00"
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-
-                              {rule.feeMode === 'per_thousand' && (
-                                <div className="grid grid-cols-2 gap-2 mt-1">
-                                  <div>
-                                    <label className="text-[10px] font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">المبلغ لكل 1,000 ج</label>
-                                    <MoneyInput
-                                      valuePiasters={rule.customerFeeValue}
-                                      onChangePiasters={(v) => updateRule({ customerFeeValue: v })}
-                                      placeholder="10.00"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="text-[10px] font-bold text-ink-muted dark:text-ink-muted-dark block mb-1">أعلى مكسب ممكن (اختياري)</label>
-                                    <MoneyInput
-                                      valuePiasters={rule.customerFeeMaxPiasters}
-                                      onChangePiasters={(v) => updateRule({ customerFeeMaxPiasters: v })}
-                                      placeholder="0.00"
-                                    />
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                <div>
+                  <span className="text-xs font-black text-ink dark:text-ink-dark block">
+                    نظام الحساب المباشر (3 مدخلات سريعة)
+                  </span>
+                  <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
+                    يتم تحديد (مبلغ الفاتورة + عمولة الماكينة + ربح المحل) بحرية ومرونة أثناء كل عملية بيع مباشرة دون تعقيد.
+                  </span>
                 </div>
               </div>
 
@@ -2794,7 +1984,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setIsTerminalModalOpen(false)}
+                    onClick={() => void requestCloseTerminal()}
                     className="px-4 py-2 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl text-xs font-bold cursor-pointer transition-colors"
                   >
                     إلغاء
@@ -2815,7 +2005,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
       {/* MODAL: PRINT RECEIPT */}
       {receiptTx && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+        <div onClick={handleReceiptBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
           <div className="bg-surface dark:bg-surface-dark rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-line dark:border-line-dark font-mono text-ink dark:text-ink-dark" dir="rtl">
             <div className="text-center border-b border-dashed border-line dark:border-line-dark pb-3 mb-3">
               <div className="font-black text-base text-ink dark:text-ink-dark">إيصال خدمة دفع إلكتروني</div>
@@ -2850,15 +2040,19 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
             <div className="flex flex-col gap-1.5 text-xs border-b border-dashed border-line dark:border-line-dark pb-3 mb-3">
               <div className="flex justify-between">
-                <span className="text-ink-muted dark:text-ink-muted-dark font-sans">قيمة الفاتورة / الرصيد:</span>
+                <span className="text-ink-muted dark:text-ink-muted-dark font-sans">1. قيمة الفاتورة / الرصيد:</span>
                 <span className="font-mono tabular-nums">{formatArabicCurrency(receiptTx.billAmountPiasters)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-ink-muted dark:text-ink-muted-dark font-sans">رسوم الخدمة:</span>
-                <span className="font-mono tabular-nums">{formatArabicCurrency(receiptTx.customerFeePiasters)}</span>
+                <span className="text-ink-muted dark:text-ink-muted-dark font-sans">2. عمولة الماكينة:</span>
+                <span className="font-mono tabular-nums">{formatArabicCurrency(receiptTx.providerCommissionPiasters || 0)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-ink-muted dark:text-ink-muted-dark font-sans">3. ربح المحل من العملية:</span>
+                <span className="font-mono text-paid dark:text-paid-bright font-bold tabular-nums">{formatArabicCurrency(receiptTx.customerFeePiasters)}</span>
               </div>
               <div className="flex justify-between text-sm font-bold pt-1.5 border-t border-line dark:border-line-dark">
-                <span className="font-sans">إجمالي المدفوع:</span>
+                <span className="font-sans">إجمالي المطلوب من الزبون:</span>
                 <span className="text-paid dark:text-paid-bright font-black font-mono tabular-nums">{formatArabicCurrency(receiptTx.totalReceivedPiasters)}</span>
               </div>
             </div>
@@ -2878,7 +2072,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setReceiptTx(null)}
+                onClick={() => void requestCloseReceipt()}
                 className="px-4 py-2 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl text-xs font-bold font-sans transition-colors cursor-pointer"
               >
                 إغلاق
@@ -2890,7 +2084,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
 
       {/* MODAL: CANCEL / VOID TRANSACTION */}
       {cancellingTx && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+        <div onClick={handleCancelBackdropClick} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
           <div className="bg-surface dark:bg-surface-dark rounded-2xl max-w-md w-full p-6 shadow-2xl border border-line dark:border-line-dark" dir="rtl">
             <div className="flex items-center justify-between mb-4 border-b border-line dark:border-line-dark pb-3">
               <h3 className="text-base font-black text-danger dark:text-danger-bright flex items-center gap-2">
@@ -2899,7 +2093,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
               </h3>
               <button
                 type="button"
-                onClick={() => setCancellingTx(null)}
+                onClick={() => void requestCloseCancel()}
                 className="text-ink-muted dark:text-ink-muted-dark hover:text-ink dark:hover:text-ink-dark cursor-pointer p-1 rounded-lg"
               >
                 <X className="w-5 h-5" />
@@ -2952,7 +2146,7 @@ export const EpayView: React.FC<EpayViewProps> = ({
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-line dark:border-line-dark mt-1">
                 <button
                   type="button"
-                  onClick={() => setCancellingTx(null)}
+                  onClick={() => void requestCloseCancel()}
                   className="px-4 py-2 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded-xl text-xs font-bold transition-colors cursor-pointer"
                 >
                   تراجع

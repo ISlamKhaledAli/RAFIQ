@@ -574,36 +574,11 @@ namespace RafiqPOS.Services
         }
 
         /// <summary>
-        /// Pass-through e-payment fee in whole piasters, using integer basis points (AGENTS Rule 1).
+        /// Pass-through e-payment fee (Deprecated - Surcharge fee removed per business requirement).
         /// </summary>
         private static long CalculateEpayServiceFee(string paymentMethod, long totalPiasters)
         {
-            if (totalPiasters <= 0 || DatabaseService.Settings == null) return 0;
-
-            string settingKey;
-            if (string.Equals(paymentMethod, "instapay", StringComparison.OrdinalIgnoreCase))
-            {
-                settingKey = "instapay_fee_percent";
-            }
-            else if (string.Equals(paymentMethod, "vodafone_cash", StringComparison.OrdinalIgnoreCase))
-            {
-                settingKey = "vodafone_cash_fee_percent";
-            }
-            else
-            {
-                return 0;
-            }
-
-            decimal percent;
-            string raw = DatabaseService.Settings.Get(settingKey, "0");
-            if (!decimal.TryParse(raw, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out percent) || percent <= 0)
-            {
-                return 0;
-            }
-
-            long basisPoints = (long)decimal.Round(percent * 100m, 0, MidpointRounding.AwayFromZero);
-            // Round half up to whole piasters, matching the POS screen preview
-            return (totalPiasters * basisPoints + 5000L) / 10000L;
+            return 0;
         }
 
         /// <summary>

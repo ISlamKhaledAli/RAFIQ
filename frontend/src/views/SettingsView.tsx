@@ -66,8 +66,6 @@ export const SettingsView = ({
   const [receiptFooter, setReceiptFooter] = useState('شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل خلال 14 يوماً بموجب الفاتورة.');
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
   const [defaultCustomerCreditLimitEgp, setDefaultCustomerCreditLimitEgp] = useState(1000);
-  const [instapayFeePercent, setInstapayFeePercent] = useState<number>(1);
-  const [vodafoneCashFeePercent, setVodafoneCashFeePercent] = useState<number>(1);
   const [logoVariant, setLogoVariant] = useState<'classic' | 'modern'>(() => {
     try {
       const saved = localStorage.getItem('rafiq_logo_variant');
@@ -144,14 +142,6 @@ export const SettingsView = ({
           if (settings.default_customer_credit_limit_egp) {
             const lim = Number(settings.default_customer_credit_limit_egp);
             if (!isNaN(lim) && lim >= 0) setDefaultCustomerCreditLimitEgp(lim);
-          }
-          if (settings.instapay_fee_percent !== undefined) {
-            const p = Number(settings.instapay_fee_percent);
-            if (!isNaN(p) && p >= 0) setInstapayFeePercent(p);
-          }
-          if (settings.vodafone_cash_fee_percent !== undefined) {
-            const p = Number(settings.vodafone_cash_fee_percent);
-            if (!isNaN(p) && p >= 0) setVodafoneCashFeePercent(p);
           }
           if (settings.default_printer_name) setSelectedPrinter(settings.default_printer_name);
           if (settings.receipt_paper_width) setPaperWidth(settings.receipt_paper_width as '80mm' | '57mm' | 'a4');
@@ -230,8 +220,8 @@ export const SettingsView = ({
         receipt_footer: receiptFooter.trim(),
         allow_negative_stock: allowNegativeStock ? '1' : '0',
         default_customer_credit_limit_egp: String(defaultCustomerCreditLimitEgp),
-        instapay_fee_percent: String(instapayFeePercent),
-        vodafone_cash_fee_percent: String(vodafoneCashFeePercent),
+        instapay_fee_percent: '0',
+        vodafone_cash_fee_percent: '0',
         logo_variant: logoVariant,
       };
       await invoke('settings:save', payload);
@@ -518,10 +508,6 @@ export const SettingsView = ({
           onToggleNegativeStock={handleToggleNegativeStock}
           defaultCustomerCreditLimitEgp={defaultCustomerCreditLimitEgp}
           setDefaultCustomerCreditLimitEgp={setDefaultCustomerCreditLimitEgp}
-          instapayFeePercent={instapayFeePercent}
-          setInstapayFeePercent={setInstapayFeePercent}
-          vodafoneCashFeePercent={vodafoneCashFeePercent}
-          setVodafoneCashFeePercent={setVodafoneCashFeePercent}
           logoVariant={logoVariant}
           setLogoVariant={handleLogoVariantChange}
           saveLoading={saveLoading}

@@ -75,20 +75,21 @@ export const UndoToast: React.FC<UndoToastProps> = ({
   }, [durationMs, message]);
 
   return (
-    <div className="fixed bottom-6 left-6 z-50 max-w-sm w-full bg-surface-2 border border-line shadow-2xl rounded-[8px] overflow-hidden animate-in slide-in-from-bottom-3 duration-200 select-none">
+    <div className="fixed bottom-6 left-6 z-50 max-w-sm w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark shadow-2xl dark:shadow-black/60 rounded-xl overflow-hidden animate-in slide-in-from-bottom-3 duration-200 select-none">
       <div className="p-3.5 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 overflow-hidden">
-          <div className="w-7 h-7 rounded bg-brand-soft text-brand flex items-center justify-center shrink-0">
+        <div className="flex items-center gap-2.5 overflow-hidden">
+          <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand-dark dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 flex items-center justify-center shrink-0">
             <Info className="w-4 h-4" />
           </div>
-          <span className="text-[12.5px] font-medium text-ink truncate">{message}</span>
+          <span className="text-[13px] font-semibold text-ink dark:text-ink-dark truncate" title={message}>{message}</span>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={handleUndo}
-            className="h-[30px] px-3 bg-brand hover:bg-brand-hover text-white rounded text-[11.5px] font-bold flex items-center gap-1 transition-colors shadow-sm"
+            title="تراجع عن الحذف (Ctrl+Z أو F9)"
+            className="h-[32px] px-3 bg-brand-dark hover:bg-brand dark:bg-paid dark:hover:bg-paid-hover text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>تراجع</span>
@@ -97,17 +98,18 @@ export const UndoToast: React.FC<UndoToastProps> = ({
           <button
             type="button"
             onClick={handleDismiss}
-            className="w-7 h-7 rounded flex items-center justify-center text-ink-muted hover:text-ink hover:bg-surface transition-colors"
+            title="إغلاق التنبيه"
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-white hover:bg-surface-2 dark:hover:bg-surface-dark-3 transition-colors cursor-pointer"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
       </div>
 
       {/* Progress countdown strip */}
-      <div className="h-1 w-full bg-surface">
+      <div className="h-1 w-full bg-surface-2 dark:bg-surface-dark">
         <div
-          className="h-full bg-brand transition-all duration-75 ease-linear"
+          className="h-full bg-brand-dark dark:bg-paid-bright transition-all duration-75 ease-linear"
           style={{ width: `${progress}%` }}
         />
       </div>

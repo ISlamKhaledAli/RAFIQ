@@ -45,6 +45,11 @@ namespace RafiqPOS.Bridge
                 request.Action == "epay:createTransaction" ||
                 request.Action == "epay:fundTerminal" ||
                 request.Action == "epay:saveTerminal" ||
+                request.Action == "wallets:processTransaction" ||
+                request.Action == "wallets:fundAccount" ||
+                request.Action == "wallets:saveAccount" ||
+                request.Action == "wallets:createAccount" ||
+                request.Action == "wallets:updateAccount" ||
                 request.Action == "closing:save" ||
                 request.Action == "system:factoryReset" ||
                 request.Action == "settings:save" ||
@@ -129,6 +134,7 @@ namespace RafiqPOS.Bridge
                 if (TryDispatchExcel(request, out response)) return response;
                 if (TryDispatchSystem(request, out response)) return response;
                 if (TryDispatchEpay(request, out response)) return response;
+                if (TryDispatchWallets(request, out response)) return response;
 
                 Logger.Warn("محاولة تنفيذ إجراء غير مسجل: " + request.Action);
                 return BridgeResponse.Fail(request.Id, "ACTION_NOT_FOUND", "الإجراء غير مسجل في النواة: " + request.Action);
@@ -235,6 +241,11 @@ namespace RafiqPOS.Bridge
             { "epay:cancelTransaction", "epay.cancel" },
             { "epay:fundTerminal", "epay.fund" },
             { "epay:saveTerminal", "epay.terminals_manage" },
+            { "wallets:processTransaction", "wallets.transact" },
+            { "wallets:fundAccount", "wallets.fund" },
+            { "wallets:saveAccount", "wallets.accounts_manage" },
+            { "wallets:createAccount", "wallets.accounts_manage" },
+            { "wallets:updateAccount", "wallets.accounts_manage" },
             { "audit:list", "audit_log.view" },
             { "audit:getLogs", "audit_log.view" },
             { "audit:resealChain", REQUIRE_ADMIN },

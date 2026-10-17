@@ -8,11 +8,14 @@ import {
   ShieldCheck, 
   ArrowRight,
   Receipt,
-  Percent,
+  AlertCircle,
+  ArrowUpRight,
+  Plus,
 } from 'lucide-react';
-import type { Customer, SalePayment } from '../types/models';
+import type { Customer, SalePayment, DigitalAccount } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
 import { CustomSelect } from './CustomSelect';
+import { invoke } from '../bridge/ipc';
 
 import { useModalDismiss } from '../hooks/useModalDismiss';
 
@@ -39,9 +42,8 @@ export interface DigitalPaymentModalProps {
     totalPiastersOverride?: number;
     serviceFeeNote?: string;
   }) => void;
-  instapayFeePercent?: number;
-  vodafoneCashFeePercent?: number;
   loading?: boolean;
+  onNavigateToWallets?: (subTab?: 'accounts' | 'transact') => void;
 }
 
 export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
@@ -58,12 +60,21 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
   onCustomerChange,
   customers,
   onConfirmPayment,
-  instapayFeePercent = 1,
-  vodafoneCashFeePercent = 1,
   loading = false,
+  onNavigateToWallets,
 }) => {
   const [currentCustomerId, setCurrentCustomerId] = useState<string | null>(selectedCustomerId || null);
+  const [digitalAccounts, setDigitalAccounts] = useState<DigitalAccount[]>([]);
   const prevIsOpenRef = useRef(false);
+
+  // Load digital accounts
+  useEffect(() => {
+    if (isOpen) {
+      invoke<DigitalAccount[]>('wallets:getAccounts')
+        .then((accs) => setDigitalAccounts(accs || []))
+        .catch(() => {});
+    }
+  }, [isOpen]);
 
   // Sync customer state on modal open
   useEffect(() => {
@@ -75,6 +86,11 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
       prevIsOpenRef.current = false;
     }
   }, [isOpen, selectedCustomerId]);
+
+  const targetAccountType = method === 'instapay' ? 'instapay' : 'wallet';
+  const matchedAccount = useMemo(() => {
+    return digitalAccounts.find((a) => a.accountType === targetAccountType && a.isActive) || null;
+  }, [digitalAccounts, targetAccountType]);
 
   const isDirty = Boolean(currentCustomerId && currentCustomerId !== (selectedCustomerId || null));
 
@@ -89,9 +105,6 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
   });
 
   const isInstapay = method === 'instapay';
-  const feePercent = isInstapay ? instapayFeePercent : vodafoneCashFeePercent;
-  const feePiasters = Math.round(netTotalPiasters * (feePercent / 100));
-  const finalTotalPiasters = netTotalPiasters + feePiasters;
 
   // Format customer options exactly matching PaymentModal (Image 2)
   const customerOptions = useMemo(() => {
@@ -122,19 +135,15 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
 
     onConfirmPayment({
       paymentMethod: method,
-      paidPiasters: finalTotalPiasters,
-      totalPiastersOverride: finalTotalPiasters,
+      paidPiasters: netTotalPiasters,
       payments: [
         {
           method,
-          amountPiasters: finalTotalPiasters,
+          amountPiasters: netTotalPiasters,
         }
       ],
       changeDuePiasters: 0,
       customerId: currentCustomerId || undefined,
-      serviceFeeNote: feePiasters > 0
-        ? `رسوم خدمة إلكترونية (${isInstapay ? 'انستاباي' : 'محفظة إلكترونية'} ${feePercent}%): +${(feePiasters / 100).toFixed(2)} ج.م`
-        : undefined,
     });
   };
 
@@ -277,7 +286,7 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
                     الفاتورة الحالية ({isInstapay ? 'انستاباي' : 'محفظة'}):
                   </span>
                   <span className={`text-base font-black ${isInstapay ? 'text-[#582C83] dark:text-purple-300' : 'text-danger dark:text-danger-bright'}`}>
-                    {formatArabicCurrency(finalTotalPiasters)}
+                    {formatArabicCurrency(netTotalPiasters)}
                   </span>
                   <span className="text-[10px] font-sans font-bold text-paid dark:text-brand-bright mt-0.5">
                     مسددة بالكامل • لا تضاف للشكك
@@ -327,23 +336,63 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
             <div className={`text-4xl sm:text-5xl font-black font-mono tracking-tight tabular-nums my-0.5 ${
               isInstapay ? 'text-[#582C83] dark:text-purple-300' : 'text-danger dark:text-danger-bright'
             }`}>
-              {formatArabicCurrency(finalTotalPiasters)}
+              {formatArabicCurrency(netTotalPiasters)}
             </div>
 
-            {/* Fee Breakdown pill */}
-            <div className="inline-flex items-center gap-2 bg-surface dark:bg-surface-dark-3 px-3.5 py-1.5 rounded-full border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark shadow-2xs flex-wrap justify-center">
-              <span className="text-ink-muted dark:text-ink-dark-muted font-normal">إجمالي المشتريات:</span>
+            {/* Invoice Total pill */}
+            <div className="inline-flex items-center gap-2 bg-surface dark:bg-surface-dark-3 px-3.5 py-1.5 rounded-full border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark shadow-2xs">
+              <span className="text-ink-muted dark:text-ink-dark-muted font-normal">إجمالي الفاتورة:</span>
               <span className="font-mono">{formatArabicCurrency(netTotalPiasters)}</span>
-              {feePercent > 0 && (
-                <>
-                  <span className="text-line-hover dark:text-line-dark-strong font-light">•</span>
-                  <span className="flex items-center gap-1 text-amber-700 dark:text-warn-bright">
-                    <Percent className="w-3.5 h-3.5" />
-                    <span>رسوم خدمة ({feePercent}%): +{formatArabicCurrency(feePiasters)}</span>
-                  </span>
-                </>
-              )}
             </div>
+
+            {/* Linked Account Balance Info vs Unlinked Warning Banner */}
+            {matchedAccount ? (
+              <div className="w-full mt-2 p-3 rounded-xl bg-white/95 dark:bg-surface-dark-3 border border-emerald-200 dark:border-emerald-800/40 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono">
+                <span className="font-sans font-bold text-ink dark:text-ink-dark flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>الحساب المستلم: <strong className="text-brand dark:text-brand-bright font-black">{matchedAccount.name}</strong></span>
+                  {matchedAccount.identifier && (
+                    <span className="text-[11px] font-mono text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 px-2 py-0.5 rounded border border-line dark:border-line-dark">
+                      {matchedAccount.identifier}
+                    </span>
+                  )}
+                </span>
+                <span className="font-bold text-paid dark:text-brand-bright whitespace-nowrap">
+                  الرصيد: {formatArabicCurrency(matchedAccount.balancePiasters)} (سيزداد +{formatArabicCurrency(netTotalPiasters)})
+                </span>
+              </div>
+            ) : (
+              <div className="w-full mt-2 p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700/50 shadow-2xs flex flex-col gap-2.5 text-right">
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <h4 className="text-xs sm:text-sm font-black text-amber-900 dark:text-amber-200 m-0">
+                      لم يتم ربط أي {isInstapay ? 'حساب إنستاباي بنكي' : 'محفظة كاش إلكترونية'} نشطة بالنظام!
+                    </h4>
+                    <p className="text-[11px] sm:text-xs text-amber-800/90 dark:text-amber-300/80 m-0 mt-1 leading-relaxed">
+                      لكي تزداد أموالك ومبيعاتك تلقائياً في حساباتك بدون مشاكل مالية، يجب ربط حساب استلام أولاً من قسم «المحافظ والحسابات».
+                    </p>
+                  </div>
+                </div>
+
+                {onNavigateToWallets && (
+                  <div className="flex items-center justify-end gap-2 pt-1 border-t border-amber-200/80 dark:border-amber-800/40">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onNavigateToWallets('accounts');
+                      }}
+                      className="px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>ربط {isInstapay ? 'حساب إنستاباي' : 'محفظة كاش'} الآن</span>
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             <p className="text-[11.5px] text-ink-muted dark:text-ink-dark-muted font-medium mt-1 mb-0 flex items-center gap-1.5">
               <ShieldCheck className="w-4 h-4 text-paid dark:text-brand-bright shrink-0" />
@@ -367,15 +416,22 @@ export const DigitalPaymentModal: React.FC<DigitalPaymentModalProps> = ({
           <button
             type="button"
             onClick={handleConfirm}
-            disabled={loading}
+            disabled={loading || !matchedAccount}
             className={`h-10 px-6 rounded-xl text-xs sm:text-sm font-black text-white transition-all shadow-md active:scale-98 cursor-pointer flex items-center gap-2 ${
               isInstapay 
                 ? 'bg-[#582C83] hover:bg-[#462269] active:bg-[#371954]' 
                 : 'bg-[#e60000] hover:bg-[#cc0000] active:bg-[#b30000]'
-            } disabled:opacity-50 disabled:pointer-events-none`}
+            } disabled:opacity-40 disabled:pointer-events-none`}
+            title={!matchedAccount ? "لا يمكن الحفظ قبل ربط حساب استلام نشط" : undefined}
           >
             <CheckCircle2 className="w-4 h-4 shrink-0 text-white/90" />
-            <span>{loading ? 'جاري حفظ الفاتورة...' : 'تأكيد استلام التحويل وحفظ الفاتورة'}</span>
+            <span>
+              {!matchedAccount 
+                ? 'يلزم ربط حساب أولاً للحفظ' 
+                : loading 
+                  ? 'جاري حفظ الفاتورة...' 
+                  : 'تأكيد استلام التحويل وحفظ الفاتورة'}
+            </span>
           </button>
         </div>
 

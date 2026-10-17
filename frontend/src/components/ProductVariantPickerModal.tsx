@@ -12,6 +12,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 import type { Product, ProductVariant } from '../types/models';
 
 interface ProductVariantPickerModalProps {
@@ -34,6 +35,12 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [recentlyAddedId, setRecentlyAddedId] = useState<string | null>(null);
+
+  const { requestClose, handleBackdropClick } = useModalDismiss({
+    isOpen: Boolean(isOpen && parentProduct),
+    onClose,
+    isDirty: false,
+  });
 
   const loadVariants = async (parentId: string) => {
     setIsLoading(true);
@@ -144,9 +151,7 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
 
   return (
     <div
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      onClick={handleBackdropClick}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150"
     >
       <div
@@ -174,7 +179,7 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => void requestClose()}
             className="p-1.5 text-ink-muted hover:text-ink hover:bg-line/40 rounded-lg transition-colors cursor-pointer"
             title="إغلاق"
           >

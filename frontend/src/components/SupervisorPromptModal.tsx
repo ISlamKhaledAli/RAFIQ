@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { invoke } from '../bridge/ipc';
 
 interface SupervisorPromptModalProps {
@@ -20,27 +20,25 @@ export const SupervisorPromptModal: React.FC<SupervisorPromptModalProps> = ({
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  if (!isOpen) return null;
-
-  const handleNumberClick = (digit: string) => {
+  const handleNumberClick = useCallback((digit: string) => {
     if (loading || pin.length >= 8) return;
     setPin((prev) => prev + digit);
     setError('');
-  };
+  }, [loading, pin.length]);
 
-  const handleBackspace = () => {
+  const handleBackspace = useCallback(() => {
     if (loading) return;
     setPin((prev) => prev.slice(0, -1));
     setError('');
-  };
+  }, [loading]);
 
-  const handleClear = () => {
+  const handleClear = useCallback(() => {
     if (loading) return;
     setPin('');
     setError('');
-  };
+  }, [loading]);
 
-  const handleSubmit = async (e?: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!pin || loading) return;
 
@@ -48,7 +46,7 @@ export const SupervisorPromptModal: React.FC<SupervisorPromptModalProps> = ({
     setError('');
 
     try {
-      const res = await invoke('auth:verifySupervisor', {
+      const res = await invoke<{ success: boolean; supervisorName?: string; message?: string }>('auth:verifySupervisor', {
         pin,
         action: actionTitle,
       });
@@ -67,25 +65,32 @@ export const SupervisorPromptModal: React.FC<SupervisorPromptModalProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [pin, loading, actionTitle, onApproved]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key >= '0' && e.key <= '9') {
-      handleNumberClick(e.key);
-    } else if (e.key === 'Backspace') {
-      handleBackspace();
-    } else if (e.key === 'Enter') {
-      handleSubmit();
-    } else if (e.key === 'Escape') {
-      onCancel();
-    }
-  };
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key >= '0' && e.key <= '9') {
+        handleNumberClick(e.key);
+      } else if (e.key === 'Backspace') {
+        handleBackspace();
+      } else if (e.key === 'Enter') {
+        void handleSubmit();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        onCancel();
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [isOpen, handleNumberClick, handleBackspace, handleSubmit, onCancel]);
+
+  if (!isOpen) return null;
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
       dir="rtl"
-      onKeyDown={handleKeyDown}
       onClick={(e) => {
         if (e.target === e.currentTarget) onCancel();
       }}

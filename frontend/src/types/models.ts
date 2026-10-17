@@ -1253,8 +1253,10 @@ export interface EpayTerminalFunding {
 export interface EpayAnalyticsSummary {
   totalTransactionsCount: number;
   totalVolumePiasters: number;
+  totalBillVolumePiasters?: number;
   totalCustomerFeesPiasters: number;
   totalCommissionsPiasters: number;
+  totalProviderCommissionsPiasters?: number;
   totalNetProfitPiasters: number;
   totalInCashDrawerPiasters: number;
   totalInTerminalTillPiasters: number;
@@ -1265,6 +1267,90 @@ export interface EpayAnalyticsSummary {
   totalCustomerFeesFormatted?: string;
   totalCommissionsFormatted?: string;
   totalTerminalsBalanceFormatted?: string;
+}
+
+// ==========================================
+// Digital Accounts (Wallets & InstaPay)
+// ==========================================
+
+export type DigitalAccountType = 'wallet' | 'instapay';
+export type DigitalAccountProvider = 'vodafone_cash' | 'orange_cash' | 'etisalat_cash' | 'we_pay' | 'instapay' | 'bank_wallet' | 'other';
+export type DigitalTxType = 'cash_out' | 'cash_in' | 'sale_credit' | 'funding' | 'adjustment';
+
+export interface DigitalAccount {
+  id: string;
+  name: string;
+  accountType: DigitalAccountType;
+  provider: DigitalAccountProvider;
+  phoneNumber?: string;
+  identifier?: string;
+  balancePiasters: number;
+  dailyLimitPiasters?: number;
+  monthlyLimitPiasters?: number;
+  isActive: boolean;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  balanceFormatted?: string;
+}
+
+export interface DigitalTransaction {
+  id: string;
+  transactionNumber: string;
+  accountId: string;
+  accountName?: string;
+  accountType?: DigitalAccountType;
+  provider?: DigitalAccountProvider;
+  txType: DigitalTxType;
+  amountPiasters: number;
+  profitPiasters: number;
+  cashGivenPiasters: number;
+  cashTakenPiasters: number;
+  balanceBeforePiasters: number;
+  balanceAfterPiasters: number;
+  customerPhone?: string;
+  customerName?: string;
+  referenceNumber?: string;
+  notes?: string;
+  saleId?: string;
+  createdBy?: string;
+  createdByName?: string;
+  createdAt: string;
+  amountFormatted?: string;
+  profitFormatted?: string;
+  balanceAfterFormatted?: string;
+  txTypeArabic?: string;
+}
+
+export interface DigitalAccountFunding {
+  id: string;
+  accountId: string;
+  accountName?: string;
+  amountPiasters: number;
+  fundingSource: 'cash_drawer' | 'bank_transfer' | 'external_cash';
+  previousBalancePiasters: number;
+  newBalancePiasters: number;
+  notes?: string;
+  createdBy?: string;
+  createdAt: string;
+  amountFormatted?: string;
+}
+
+export interface DigitalAnalyticsSummary {
+  walletsBalancePiasters: number;
+  instapayBalancePiasters: number;
+  totalBalancePiasters: number;
+  todayProfitPiasters: number;
+  monthProfitPiasters: number;
+  todayTransactionsCount: number;
+  todayVolumePiasters: number;
+  activeAccountsCount: number;
+  walletsBalanceFormatted?: string;
+  instapayBalanceFormatted?: string;
+  totalBalanceFormatted?: string;
+  todayProfitFormatted?: string;
+  monthProfitFormatted?: string;
+  todayVolumeFormatted?: string;
 }
 
 

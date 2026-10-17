@@ -28,6 +28,7 @@ import { ReturnModal } from '../components/ReturnModal';
 import { CustomDatePicker } from '../components/CustomDatePicker';
 import { PaginationBar } from '../components/PaginationBar';
 import { useClientPagination } from '../utils/usePagination';
+import { useModalDismiss } from '../hooks/useModalDismiss';
 import { RafiqLoadingState } from '../components/RafiqLoadingState';
 import { useSmoothLoading } from '../utils/useSmoothLoading';
 
@@ -53,6 +54,12 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
   const [loading, setLoading] = useState(false);
   const showLoading = useSmoothLoading(loading, 300);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+
+  const { requestClose: requestCloseSaleDetails, handleBackdropClick: handleSaleDetailsBackdropClick } = useModalDismiss({
+    isOpen: Boolean(selectedSale),
+    onClose: () => setSelectedSale(null),
+    isDirty: false,
+  });
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -704,7 +711,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
 
       {/* 4. Full Invoice Details Modal */}
       {selectedSale && (
-        <div className="fixed inset-0 bg-ink/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div onClick={handleSaleDetailsBackdropClick} className="fixed inset-0 bg-ink/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="w-full max-w-3xl bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl overflow-hidden flex flex-col select-none max-h-[90vh] animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
             <div className="h-12 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark px-4 flex items-center justify-between shrink-0">
@@ -725,7 +732,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
                 )}
               </div>
               <button
-                onClick={() => setSelectedSale(null)}
+                onClick={() => void requestCloseSaleDetails()}
                 className="text-ink-muted dark:text-ink-dark-muted hover:text-danger p-1 rounded transition-colors cursor-pointer"
                 title="إغلاق"
               >
@@ -1054,7 +1061,7 @@ export const SalesHistoryView: React.FC<SalesHistoryViewProps> = ({ isActive = t
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setSelectedSale(null)}
+                  onClick={() => void requestCloseSaleDetails()}
                   className="h-[36px] px-4 bg-surface dark:bg-surface-dark-3 hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded text-[12px] font-semibold transition-colors cursor-pointer"
                 >
                   رجوع
