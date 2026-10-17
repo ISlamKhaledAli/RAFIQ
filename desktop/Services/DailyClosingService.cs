@@ -290,7 +290,6 @@ namespace RafiqPOS.Services
                     if (res != null && res != DBNull.Value)
                     {
                         preview.DebtPaymentsPiasters = Convert.ToInt64(res);
-                        if (preview.DebtPaymentsPiasters < 0) preview.DebtPaymentsPiasters = 0;
                     }
                 }
 
@@ -595,6 +594,12 @@ namespace RafiqPOS.Services
             res.PurchasesDrawerCashPiasters = preview.PurchasesDrawerCashPiasters;
             res.SupplierPaymentsDrawerCashPiasters = preview.SupplierPaymentsDrawerCashPiasters;
             return res;
+        }
+
+        public bool IsDayClosed(string businessDate)
+        {
+            if (string.IsNullOrWhiteSpace(businessDate)) return false;
+            return _closingRepo.GetByBusinessDate(businessDate.Trim()) != null;
         }
 
         public DailyClosing SaveClosing(DailyClosingSaveRequest request)

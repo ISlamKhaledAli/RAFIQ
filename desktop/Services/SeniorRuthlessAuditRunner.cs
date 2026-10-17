@@ -81,6 +81,10 @@ namespace RafiqPOS.Services
                 RunTest9_ParallelConcurrencyChaos(report);
                 RunTest10_LiveDrawerBalanceAndPurchasesDeductionParity(report);
                 RunTest11_SupplierDirectPaymentDrawerDeductionAndLedgerParity(report);
+                RunTest12_SaleCancellationBlockedOnExistingReturns(report);
+                RunTest13_DigitalWalletGenericKeywordParity(report);
+                RunTest14_NetNegativeCustomerDebtPaymentInDrawer(report);
+                RunTest15_ExpenseCreationBlockedOnClosedDay(report);
 
                 report.Success = (report.PassedAssertions == report.TotalAssertions);
                 report.Message = string.Format("اكتمل الفحص الشامل المتقدم بنجاح فائق: {0}/{1} اختبارات ناجحة بنسبة 100%",
@@ -1158,6 +1162,336 @@ namespace RafiqPOS.Services
             AssertCondition(v != null && v.IsBalanced && v.DiscrepancyPiasters == 0,
                 "تطابق مالي بنسبة 100% بين رصيد المورد ودفتر الحركات لجميع مصادر السداد (فارق = 0 قرش)",
                 "عدم تطابق في دفتر المورد!", report);
+        }
+
+        // Test 12: Sale Cancellation Blocked On Existing Returns (Double Credit / Debt Desync Prevention)
+        private static void RunTest12_SaleCancellationBlockedOnExistingReturns(AuditReport report)
+        {
+            var prodRepo = new ProductRepository(_connStr);
+            var custRepo = new CustomerRepository(_connStr);
+            var saleRepo = new SaleRepository(_connStr);
+            var saleService = new SaleService(saleRepo, prodRepo);
+            var returnRepo = new ReturnRepository(_connStr);
+
+            var cust = custRepo.SaveCustomer(new Customer
+            {
+                Name = "عميل تجربة حماية إلغاء المرتجعات",
+                Phone = "01122334455",
+                BalancePiasters = 0
+            });
+
+            var prod = new Product
+            {
+                Id = "p_ret_cancel_guard",
+                Name = "منتج حماية إلغاء المرتجع",
+                PricePiasters = 10000,
+                CostPiasters = 6000,
+                StockQuantityMilli = 10000,
+                IsActive = true
+            };
+            prodRepo.Upsert(prod);
+
+            var sale = new Sale
+            {
+                CustomerId = cust.Id,
+                PaymentMethod = "cash",
+                PaidPiasters = 5000,
+                TotalPiasters = 20000,
+                Items = new List<SaleItem>
+                {
+                    new SaleItem
+                    {
+                        ProductId = prod.Id,
+                        ProductName = prod.Name,
+                        QuantityMilli = 2000,
+                        UnitPricePiasters = 10000,
+                        UnitCostPiasters = 6000,
+                        TotalPiasters = 20000
+                    }
+                }
+            };
+
+            var completedSale = saleService.ProcessSale(sale);
+
+            var custAfterSale = custRepo.GetById(cust.Id);
+            AssertCondition(custAfterSale.BalancePiasters == 15000,
+                "تسجيل مديونية العميل الآجلة بدقة (+150.00 ج.م)",
+                "مديونية العميل غير مطابقة: " + custAfterSale.BalancePiasters, report);
+
+            var retObj = new Return
+            {
+                SaleId = completedSale.Id,
+                InvoiceNumber = completedSale.InvoiceNumber,
+                RefundMethod = "cash",
+                TotalPiasters = 10000,
+                Items = new List<ReturnItem>
+                {
+                    new ReturnItem
+                    {
+                        ProductId = prod.Id,
+                        ProductName = prod.Name,
+                        QuantityMilli = 1000,
+                        UnitPricePiasters = 10000,
+                        TotalPiasters = 10000,
+                        IsDamaged = false
+                    }
+                }
+            };
+            returnRepo.CreateReturnAtomic(retObj);
+
+            bool cancelBlocked = false;
+            string blockMessage = "";
+            try
+            {
+                saleRepo.CancelSaleAtomic(completedSale.Id, "محاولة إلغاء فاتورة مرتجعة جزئياً", "المدير");
+            }
+            catch (InvalidOperationException ex)
+            {
+                cancelBlocked = true;
+                blockMessage = ex.Message;
+            }
+
+            AssertCondition(cancelBlocked,
+                "منع إلغاء الفاتورة التي تحتوي على مرتجعات بنجاح وصدور استثناء تشغيلي صارم",
+                "فشل المنع! تم السماح بإلغاء فاتورة عليها مرتجعات سابقة مما يسبب ازدواجية مالية!", report);
+
+            AssertCondition(blockMessage.Contains("مرتجعات"),
+                "رسالة الخطأ توضح للمستخدم وجود مرتجعات سابقة وتوجهه لاسترجاع باقي الأصناف: " + blockMessage,
+                "رسالة الخطأ غير واضحة: " + blockMessage, report);
+
+            var custAfterCancelAttempt = custRepo.GetById(cust.Id);
+            AssertCondition(custAfterCancelAttempt.BalancePiasters == 15000,
+                "حماية رصيد العميل بنسبة 100% وعدم تصفير المديونية أو ازدواجية الخصم بعد محاولة الإلغاء المرفوضة",
+                "رصيد العميل تغير بالخطأ: " + custAfterCancelAttempt.BalancePiasters, report);
+
+            string currentStatus = "";
+            using (var conn = new SQLiteConnection(_connStr))
+            {
+                conn.Open();
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT status FROM sales WHERE id = @sid;";
+                    cmd.Parameters.AddWithValue("@sid", completedSale.Id);
+                    currentStatus = Convert.ToString(cmd.ExecuteScalar());
+                }
+            }
+            AssertCondition(currentStatus == "partially_refunded",
+                "حالة الفاتورة الأصلية بقيت مرتجعة جزئياً (partially_refunded) ولم تُشطب كملغاة",
+                "حالة الفاتورة تغيرت إلى: " + currentStatus, report);
+        }
+
+        // Test 13: Digital Wallet Generic Keyword 'wallet' Parity for Sale and Return
+        private static void RunTest13_DigitalWalletGenericKeywordParity(AuditReport report)
+        {
+            var digRepo = new DigitalAccountRepository(_connStr);
+            var prodRepo = new ProductRepository(_connStr);
+            var saleRepo = new SaleRepository(_connStr);
+            var saleService = new SaleService(saleRepo, prodRepo);
+            var returnRepo = new ReturnRepository(_connStr);
+
+            var walletAcc = new DigitalAccount
+            {
+                Id = "dig_wallet_generic_test",
+                Name = "محفظة كاش للتجربة",
+                Type = "wallet",
+                Provider = "vodafone_cash",
+                BalancePiasters = 50000,
+                IsDefault = true,
+                IsActive = true
+            };
+            digRepo.SaveAccount(walletAcc);
+
+            var prod = new Product
+            {
+                Id = "p_wallet_generic_test",
+                Name = "صنف تجربة المحفظة العامة",
+                PricePiasters = 25000,
+                CostPiasters = 15000,
+                StockQuantityMilli = 10000,
+                IsActive = true
+            };
+            prodRepo.Upsert(prod);
+
+            var sale = new Sale
+            {
+                CustomerId = "cust_general_cash",
+                PaymentMethod = "wallet",
+                PaidPiasters = 25000,
+                TotalPiasters = 25000,
+                Items = new List<SaleItem>
+                {
+                    new SaleItem
+                    {
+                        ProductId = prod.Id,
+                        ProductName = prod.Name,
+                        QuantityMilli = 1000,
+                        UnitPricePiasters = 25000,
+                        UnitCostPiasters = 15000,
+                        TotalPiasters = 25000
+                    }
+                }
+            };
+
+            var completedSale = saleService.ProcessSale(sale);
+
+            var walletAfterSale = digRepo.GetAccountById(walletAcc.Id);
+            AssertCondition(walletAfterSale.BalancePiasters == 75000,
+                "إيداع قيمة الفاتورة تلقائياً في المحفظة باستخدام الكلمة العامة 'wallet' (+250.00 ج.م)",
+                "رصيد المحفظة لم يزد: " + walletAfterSale.BalancePiasters, report);
+
+            var retObj = new Return
+            {
+                SaleId = completedSale.Id,
+                InvoiceNumber = completedSale.InvoiceNumber,
+                RefundMethod = "wallet",
+                TotalPiasters = 25000,
+                Items = new List<ReturnItem>
+                {
+                    new ReturnItem
+                    {
+                        ProductId = prod.Id,
+                        ProductName = prod.Name,
+                        QuantityMilli = 1000,
+                        UnitPricePiasters = 25000,
+                        TotalPiasters = 25000,
+                        IsDamaged = false
+                    }
+                }
+            };
+            returnRepo.CreateReturnAtomic(retObj);
+
+            var walletAfterReturn = digRepo.GetAccountById(walletAcc.Id);
+            AssertCondition(walletAfterReturn.BalancePiasters == 50000,
+                "خصم قيمة المرتجع تلقائياً من المحفظة باستخدام RefundMethod = 'wallet' (-250.00 ج.م)",
+                "رصيد المحفظة بعد المرتجع غير مطابق: " + walletAfterReturn.BalancePiasters, report);
+
+            var retTxs = digRepo.GetTransactions(10, walletAcc.Id, "pos_return");
+            AssertCondition(retTxs.Count > 0 && retTxs[0].AmountPiasters == 25000,
+                "تسجيل حركة المرتجع بدقة في سجل حركات المحافظ الرقمية",
+                "سجل حركات المحفظة لم يسجل المرتجع بشكل سليم", report);
+        }
+
+        // Test 14: Net Negative Customer Debt Payment in Drawer Inclusion
+        private static void RunTest14_NetNegativeCustomerDebtPaymentInDrawer(AuditReport report)
+        {
+            var custRepo = new CustomerRepository(_connStr);
+            var closingRepo = new DailyClosingRepository(_connStr);
+            var counterRepo = new CounterRepository(_connStr);
+            var auditRepo = new AuditLogRepository(_connStr);
+            var settingsRepo = new SettingsRepository(_connStr);
+            var closingService = new DailyClosingService(_connStr, closingRepo, counterRepo, auditRepo, settingsRepo);
+
+            string bDate = closingService.GetCurrentBusinessDate();
+
+            var cust = custRepo.SaveCustomer(new Customer
+            {
+                Name = "عميل سداد الخزينة الصافي",
+                Phone = "01199887766",
+                BalancePiasters = 100000
+            });
+
+            custRepo.RecordPayment(cust.Id, 50000, "سداد دفعة نقدية");
+
+            var previewAfterPay = closingService.GetClosingPreview(bDate);
+            AssertCondition(previewAfterPay.DebtPaymentsPiasters >= 50000,
+                "تسجيل سداد مديونية العميل في معاينة التقفيل بنجاح",
+                "سداد مديونية العميل غير مطابق: " + previewAfterPay.DebtPaymentsPiasters, report);
+
+            var stmt = custRepo.GetStatement(cust.Id, 10);
+            var payEntry = stmt.Find(delegate(CustomerLedgerEntry e) { return e.Type == "payment"; });
+            AssertCondition(payEntry != null,
+                "العثور على حركة السداد في كشف حساب العميل",
+                "لم يتم العثور على حركة السداد في دفتر العميل", report);
+
+            custRepo.CancelPayment(cust.Id, payEntry.Id, "إلغاء لخطأ في السداد واسترداد النقدية للعميل", "المدير");
+
+            var liveAfterCancel = closingService.GetLiveDrawerBalance(bDate);
+
+            AssertCondition(custRepo.GetById(cust.Id).BalancePiasters == 100000,
+                "استعادة مديونية العميل الأصلية بالكامل (1,000.00 ج.م)",
+                "مديونية العميل بعد إلغاء السداد غير مطابقة: " + custRepo.GetById(cust.Id).BalancePiasters, report);
+
+            AssertCondition(liveAfterCancel.AvailableCashPiasters >= 0,
+                "رصيد النقدية المتاح في الدرج سليم وغير مضطرب بعد إلغاء السداد واسترداد الكاش",
+                "رصيد النقدية المتاح غير صالح: " + liveAfterCancel.AvailableCashPiasters, report);
+        }
+
+        // Test 15: Expense Creation Blocked On Closed Business Date
+        private static void RunTest15_ExpenseCreationBlockedOnClosedDay(AuditReport report)
+        {
+            var closingRepo = new DailyClosingRepository(_connStr);
+            var counterRepo = new CounterRepository(_connStr);
+            var auditRepo = new AuditLogRepository(_connStr);
+            var settingsRepo = new SettingsRepository(_connStr);
+            var closingService = new DailyClosingService(_connStr, closingRepo, counterRepo, auditRepo, settingsRepo);
+
+            var expRepo = new ExpenseRepository(_connStr, auditRepo, counterRepo);
+            var expService = new ExpenseService(expRepo, closingService);
+
+            string closedDate = "2026-03-01";
+
+            using (var conn = new SQLiteConnection(_connStr))
+            {
+                conn.Open();
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = @"
+                        INSERT INTO daily_closings (
+                            id, closing_number, business_date, closed_at, cashier_name,
+                            total_sales_piasters, cash_sales_piasters, credit_sales_piasters,
+                            returns_total_piasters, returns_cash_piasters, cancelled_total_piasters,
+                            debt_payments_piasters, expected_cash_piasters, actual_cash_piasters,
+                            difference_piasters, gross_profit_piasters, invoices_count,
+                            returns_count, cancelled_count, notes, is_sealed
+                        ) VALUES (
+                            'dc_closed_test_day', 9999, @bdate, datetime('now'), 'المدير',
+                            0, 0, 0,
+                            0, 0, 0,
+                            0, 0, 0,
+                            0, 0, 0,
+                            0, 0, 'تقفيل تجريبي ليوم مغلق', 1
+                        );";
+                    cmd.Parameters.AddWithValue("@bdate", closedDate);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+
+            AssertCondition(closingService.IsDayClosed(closedDate),
+                "تأكيد إغلاق يوم العمل المحدد مسبقاً (2026-03-01)",
+                "فشل فحص إغلاق يوم العمل عبر IsDayClosed", report);
+
+            bool expenseBlocked = false;
+            string expenseBlockMsg = "";
+            try
+            {
+                var req = new CreateExpenseRequest
+                {
+                    Category = "نظافة",
+                    AmountPiasters = 5000,
+                    BusinessDate = closedDate,
+                    Notes = "محاولة تسجيل مصروف في يوم مغلق",
+                    CreatedBy = "الكاشير"
+                };
+                expService.CreateExpense(req);
+            }
+            catch (InvalidOperationException ex)
+            {
+                expenseBlocked = true;
+                expenseBlockMsg = ex.Message;
+            }
+
+            AssertCondition(expenseBlocked,
+                "منع تسجيل أي مصروف على يوم عمل مغلق ومرحل مسبقاً بنجاح",
+                "فشل الحظر! تم السماح بتسجيل مصروف على يوم عمل مقفل مما يشوه الحسابات الختامية!", report);
+
+            AssertCondition(expenseBlockMsg.Contains("إقفالها") || expenseBlockMsg.Contains("مغلق"),
+                "رسالة الخطأ توضح للمستخدم أن اليوم مغلق ومرحل: " + expenseBlockMsg,
+                "رسالة الخطأ غير واضحة: " + expenseBlockMsg, report);
+
+            var expenses = expService.GetExpenses(closedDate);
+            AssertCondition(expenses.Count == 0,
+                "تأكيد عدم إدراج أي مصروف في قاعدة البيانات لليوم المغلق (عدد المصروفات = 0)",
+                "تم حفظ مصروف في قاعدة البيانات بالخطأ!", report);
         }
     }
 }

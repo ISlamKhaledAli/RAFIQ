@@ -360,13 +360,17 @@ namespace RafiqPOS.Repositories
                         {
                             foreach (var p in sale.Payments)
                             {
-                                if (p != null && (string.Equals(p.Method, "instapay", StringComparison.OrdinalIgnoreCase) || string.Equals(p.Method, "vodafone_cash", StringComparison.OrdinalIgnoreCase)))
+                                if (p != null && (string.Equals(p.Method, "instapay", StringComparison.OrdinalIgnoreCase) ||
+                                                  string.Equals(p.Method, "vodafone_cash", StringComparison.OrdinalIgnoreCase) ||
+                                                  string.Equals(p.Method, "wallet", StringComparison.OrdinalIgnoreCase)))
                                 {
                                     digitalPayments.Add(p);
                                 }
                             }
                         }
-                        else if (string.Equals(sale.PaymentMethod, "instapay", StringComparison.OrdinalIgnoreCase) || string.Equals(sale.PaymentMethod, "vodafone_cash", StringComparison.OrdinalIgnoreCase))
+                        else if (string.Equals(sale.PaymentMethod, "instapay", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(sale.PaymentMethod, "vodafone_cash", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(sale.PaymentMethod, "wallet", StringComparison.OrdinalIgnoreCase))
                         {
                             digitalPayments.Add(new SalePayment { Method = sale.PaymentMethod, AmountPiasters = sale.PaidPiasters });
                         }
@@ -1072,6 +1076,17 @@ namespace RafiqPOS.Repositories
                             if (Convert.ToInt64(closedCmd.ExecuteScalar()) > 0)
                             {
                                 throw new InvalidOperationException("لا يمكن إلغاء فاتورة بعد إقفال يومية تاريخها. يرجى استخدام المرتجع بدلاً من الإلغاء.");
+                            }
+                        }
+
+                        // Prevent cancellation if returns already exist for this sale to avoid financial and ledger corruption
+                        using (var checkRetCmd = new SQLiteCommand("SELECT COUNT(*) FROM returns WHERE sale_id = @sid;", conn, trans))
+                        {
+                            checkRetCmd.Parameters.AddWithValue("@sid", sale.Id);
+                            long retCount = Convert.ToInt64(checkRetCmd.ExecuteScalar());
+                            if (retCount > 0)
+                            {
+                                throw new InvalidOperationException(string.Format("لا يمكن إلغاء الفاتورة رقم #{0} لوجود ({1}) حركة مرتجع مسجلة عليها مسبقاً. لإلغاء باقي الأصناف يرجى استخدام شاشة المرتجعات.", sale.InvoiceNumber, retCount));
                             }
                         }
 
