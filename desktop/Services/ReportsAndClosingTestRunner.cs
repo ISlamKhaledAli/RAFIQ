@@ -287,8 +287,8 @@ namespace RafiqPOS.Services
                 // Verify Task 137-5: Demo sales are strictly excluded
                 Assert(report.TotalSalesPiasters < (expectedTotalSales + 80000), "الفواتير التجريبية (demo_sale_*) تم استبعادها بالكامل من التقارير", result);
 
-                // Verify Task 46-3: Profit Calculation & Zero Cost Warning
-                Assert(report.GrossProfitPiasters == expectedGrossProfit, string.Format("الربح التقريبي مطابق: {0} قرش (السعر - التكلفة المحفوظة)", report.GrossProfitPiasters), result);
+                // Verify Task 46-3: Profit Calculation & Zero Cost Warning (accounting for return profit deduction: 2000 piasters)
+                Assert(report.GrossProfitPiasters == (expectedGrossProfit - 2000), string.Format("الربح التقريبي مطابق: {0} قرش (السعر - التكلفة المحفوظة - ربح المرتجع)", report.GrossProfitPiasters), result);
                 Assert(report.ZeroCostItemsCount == 2, "تنبيه الأصناف بدون تكلفة تم رصده بدقة (2 بند بدون تكلفة)", result);
 
                 // Verify Task 86 / 48-1: Low Stock Report with Suggested Order Quantity

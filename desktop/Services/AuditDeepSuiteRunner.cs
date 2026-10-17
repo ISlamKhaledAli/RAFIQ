@@ -209,6 +209,7 @@ namespace RafiqPOS.Services
                     DiscountPiasters = 0,
                     PaidAmountPiasters = 375000, // 3750.00 EGP
                     PaymentStatus = "PAID",
+                    PaymentSource = "bank",
                     CreatedAt = DateTime.UtcNow.ToString("o"),
                     UpdatedAt = DateTime.UtcNow.ToString("o"),
                     Items = new List<PurchaseItem>
