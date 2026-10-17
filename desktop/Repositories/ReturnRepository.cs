@@ -537,7 +537,8 @@ namespace RafiqPOS.Repositories
 
                         // 4.B If refund was issued via digital wallet / InstaPay, deduct balance from digital_accounts and log transaction
                         if (string.Equals(returnObj.RefundMethod, "instapay", StringComparison.OrdinalIgnoreCase) ||
-                            string.Equals(returnObj.RefundMethod, "vodafone_cash", StringComparison.OrdinalIgnoreCase))
+                            string.Equals(returnObj.RefundMethod, "vodafone_cash", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(returnObj.RefundMethod, "wallet", StringComparison.OrdinalIgnoreCase))
                         {
                             try
                             {

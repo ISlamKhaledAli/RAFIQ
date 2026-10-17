@@ -34,6 +34,11 @@ namespace RafiqPOS.Services
                     ? (_dailyClosingService != null ? _dailyClosingService.GetCurrentBusinessDate() : DateTime.Now.ToString("yyyy-MM-dd"))
                     : request.BusinessDate;
 
+                if (_dailyClosingService != null && _dailyClosingService.IsDayClosed(businessDate))
+                {
+                    throw new InvalidOperationException(string.Format("لا يمكن تسجيل مصروف لتاريخ يومية تم إقفالها مسبقاً ({0}).", businessDate));
+                }
+
                 var expense = new Expense
                 {
                     Id = "exp_" + Guid.NewGuid().ToString("N"),
