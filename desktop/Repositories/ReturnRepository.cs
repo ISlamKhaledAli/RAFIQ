@@ -47,10 +47,13 @@ namespace RafiqPOS.Repositories
                         int nextReturnNumber = (int)_counters.GetNextCounterNumber(conn, trans, "return_number", "returns", "return_number");
                         returnObj.ReturnNumber = nextReturnNumber;
 
-                        // Bidirectionally resolve SaleId and InvoiceNumber
+                        long saleFinalTotal = 0;
+                        string saleStatus = null;
+
+                        // Bidirectionally resolve SaleId and InvoiceNumber and load sale status & net total
                         if (string.IsNullOrEmpty(returnObj.SaleId) && returnObj.InvoiceNumber.HasValue)
                         {
-                            using (var findSaleCmd = new SQLiteCommand("SELECT s.id, s.customer_id, c.name AS customer_name FROM sales s LEFT JOIN customers c ON s.customer_id = c.id WHERE s.invoice_number = @inv LIMIT 1;", conn, trans))
+                            using (var findSaleCmd = new SQLiteCommand("SELECT s.id, s.status, s.total_piasters, s.customer_id, c.name AS customer_name FROM sales s LEFT JOIN customers c ON s.customer_id = c.id WHERE s.invoice_number = @inv LIMIT 1;", conn, trans))
                             {
                                 findSaleCmd.Parameters.AddWithValue("@inv", returnObj.InvoiceNumber.Value);
                                 using (var saleReader = findSaleCmd.ExecuteReader())
@@ -58,6 +61,8 @@ namespace RafiqPOS.Repositories
                                     if (saleReader.Read())
                                     {
                                         returnObj.SaleId = saleReader["id"].ToString();
+                                        saleStatus = saleReader["status"] != DBNull.Value ? saleReader["status"].ToString() : null;
+                                        saleFinalTotal = saleReader["total_piasters"] != DBNull.Value ? Convert.ToInt64(saleReader["total_piasters"]) : 0;
                                         if (string.IsNullOrEmpty(returnObj.CustomerId) && saleReader["customer_id"] != DBNull.Value)
                                         {
                                             returnObj.CustomerId = saleReader["customer_id"].ToString();
@@ -70,19 +75,21 @@ namespace RafiqPOS.Repositories
                                 }
                             }
                         }
-                        else if (!returnObj.InvoiceNumber.HasValue && !string.IsNullOrEmpty(returnObj.SaleId))
+                        else if (!string.IsNullOrEmpty(returnObj.SaleId))
                         {
-                            using (var findInvCmd = new SQLiteCommand("SELECT s.invoice_number, s.customer_id, c.name AS customer_name FROM sales s LEFT JOIN customers c ON s.customer_id = c.id WHERE s.id = @sid LIMIT 1;", conn, trans))
+                            using (var findInvCmd = new SQLiteCommand("SELECT s.invoice_number, s.status, s.total_piasters, s.customer_id, c.name AS customer_name FROM sales s LEFT JOIN customers c ON s.customer_id = c.id WHERE s.id = @sid LIMIT 1;", conn, trans))
                             {
                                 findInvCmd.Parameters.AddWithValue("@sid", returnObj.SaleId);
                                 using (var invReader = findInvCmd.ExecuteReader())
                                 {
                                     if (invReader.Read())
                                     {
-                                        if (invReader["invoice_number"] != DBNull.Value)
+                                        if (!returnObj.InvoiceNumber.HasValue && invReader["invoice_number"] != DBNull.Value)
                                         {
                                             returnObj.InvoiceNumber = Convert.ToInt32(invReader["invoice_number"]);
                                         }
+                                        saleStatus = invReader["status"] != DBNull.Value ? invReader["status"].ToString() : null;
+                                        saleFinalTotal = invReader["total_piasters"] != DBNull.Value ? Convert.ToInt64(invReader["total_piasters"]) : 0;
                                         if (string.IsNullOrEmpty(returnObj.CustomerId) && invReader["customer_id"] != DBNull.Value)
                                         {
                                             returnObj.CustomerId = invReader["customer_id"].ToString();
@@ -94,6 +101,12 @@ namespace RafiqPOS.Repositories
                                     }
                                 }
                             }
+                        }
+
+                        // Senior invariant: Block returns against cancelled sales
+                        if (!string.IsNullOrEmpty(saleStatus) && string.Equals(saleStatus, "cancelled", StringComparison.OrdinalIgnoreCase))
+                        {
+                            throw new InvalidOperationException("لا يمكن عمل مرتجع على فاتورة ملغاة بالفعل.");
                         }
 
                         // Calculate total and enforce consistency (prevent tampering)
@@ -110,9 +123,33 @@ namespace RafiqPOS.Repositories
                             {
                                 it.TotalPiasters = expectedLineTotal;
                             }
+                            else if (it.TotalPiasters > expectedLineTotal)
+                            {
+                                it.TotalPiasters = expectedLineTotal;
+                            }
                             calculatedTotal += it.TotalPiasters;
                         }
                         returnObj.TotalPiasters = calculatedTotal;
+
+                        // Senior invariant: Ensure cumulative returns do not exceed original net sale total
+                        if (!string.IsNullOrEmpty(returnObj.SaleId) && saleFinalTotal > 0)
+                        {
+                            long alreadyReturned = 0;
+                            using (var sumRetCmd = new SQLiteCommand("SELECT COALESCE(SUM(total_piasters), 0) FROM returns WHERE sale_id = @sid;", conn, trans))
+                            {
+                                sumRetCmd.Parameters.AddWithValue("@sid", returnObj.SaleId);
+                                object sumRes = sumRetCmd.ExecuteScalar();
+                                if (sumRes != null && sumRes != DBNull.Value)
+                                {
+                                    alreadyReturned = Convert.ToInt64(sumRes);
+                                }
+                            }
+
+                            if (alreadyReturned + calculatedTotal > saleFinalTotal)
+                            {
+                                throw new InvalidOperationException(string.Format("إجمالي المرتجع ({0}) يتجاوز القيمة الصافية المتبقية للفاتورة الأصلية ({1}).", calculatedTotal, saleFinalTotal - alreadyReturned));
+                            }
+                        }
 
                         // 2. Insert Returns Master record
                         string insertReturnSql = @"

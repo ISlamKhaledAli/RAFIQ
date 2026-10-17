@@ -85,6 +85,9 @@ namespace RafiqPOS.Services
                 RunTest13_DigitalWalletGenericKeywordParity(report);
                 RunTest14_NetNegativeCustomerDebtPaymentInDrawer(report);
                 RunTest15_ExpenseCreationBlockedOnClosedDay(report);
+                RunTest16_ReturnOnCancelledSaleBlocked(report);
+                RunTest17_ReturnCeilingsAndDigitalRefundGuards(report);
+                RunTest18_CustomerPrepaymentExhaustionAndCancellationSymmetry(report);
 
                 report.Success = (report.PassedAssertions == report.TotalAssertions);
                 report.Message = string.Format("اكتمل الفحص الشامل المتقدم بنجاح فائق: {0}/{1} اختبارات ناجحة بنسبة 100%",
@@ -1492,6 +1495,445 @@ namespace RafiqPOS.Services
             AssertCondition(expenses.Count == 0,
                 "تأكيد عدم إدراج أي مصروف في قاعدة البيانات لليوم المغلق (عدد المصروفات = 0)",
                 "تم حفظ مصروف في قاعدة البيانات بالخطأ!", report);
+        }
+
+        private static void RunTest16_ReturnOnCancelledSaleBlocked(AuditReport report)
+        {
+            var pRepo = new ProductRepository(_connStr);
+            var saleRepo = new SaleRepository(_connStr);
+            var returnRepo = new ReturnRepository(_connStr);
+            var returnService = new ReturnService(returnRepo, saleRepo);
+
+            var p = new Product
+            {
+                Id = "prod_ret_cancel_16",
+                Name = "صنف اختبار المرتجع على فاتورة ملغاة",
+                Barcode = "622111161616",
+                Unit = "piece",
+                PricePiasters = 5000,
+                CostPiasters = 3000,
+                StockQuantityMilli = 10000,
+                IsActive = true
+            };
+            pRepo.Upsert(p);
+
+            var sale = new Sale
+            {
+                Id = "sale_ret_cancel_16",
+                PaymentMethod = "cash",
+                SubtotalPiasters = 10000,
+                TotalPiasters = 10000,
+                PaidPiasters = 10000,
+                Status = "completed",
+                CreatedAt = DateTime.UtcNow.ToString("o"),
+                Items = new List<SaleItem>
+                {
+                    new SaleItem
+                    {
+                        ProductId = p.Id,
+                        ProductName = p.Name,
+                        QuantityMilli = 2000,
+                        UnitPricePiasters = 5000,
+                        TotalPiasters = 10000,
+                        Unit = "piece"
+                    }
+                }
+            };
+            var savedSale = saleRepo.CreateSaleAtomic(sale);
+
+            var pAfterSale = pRepo.GetById(p.Id);
+            AssertCondition(pAfterSale.StockQuantityMilli == 8000,
+                "خصم المخزون بنجاح عند البيع (المتبقي: 8000)",
+                "فشل خصم المخزون عند البيع", report);
+
+            // Cancel the sale
+            saleRepo.CancelSaleAtomic(savedSale.Id, "إلغاء لاختبار حظر المرتجع", "usr_admin");
+            var pAfterCancel = pRepo.GetById(p.Id);
+            AssertCondition(pAfterCancel.StockQuantityMilli == 10000,
+                "استعادة المخزون بنجاح عند إلغاء الفاتورة (المتبقي: 10000)",
+                "فشل استعادة المخزون عند الإلغاء", report);
+
+            // Attempt return via ReturnService
+            bool serviceBlocked = false;
+            try
+            {
+                var retObj = new Return
+                {
+                    SaleId = savedSale.Id,
+                    RefundMethod = "cash",
+                    Reason = "محاولة مرتجع على فاتورة ملغاة",
+                    Items = new List<ReturnItem>
+                    {
+                        new ReturnItem
+                        {
+                            ProductId = p.Id,
+                            ProductName = p.Name,
+                            QuantityMilli = 2000,
+                            UnitPricePiasters = 5000,
+                            TotalPiasters = 10000,
+                            Unit = "piece"
+                        }
+                    }
+                };
+                returnService.ProcessReturn(retObj);
+            }
+            catch (InvalidOperationException)
+            {
+                serviceBlocked = true;
+            }
+
+            AssertCondition(serviceBlocked,
+                "حظر عمل مرتجع عبر ReturnService على فاتورة ملغاة بنجاح",
+                "ثغرة خطيرة! تم السماح بعمل مرتجع على فاتورة ملغاة عبر ReturnService!", report);
+
+            // Attempt return directly via ReturnRepository
+            bool repoBlocked = false;
+            try
+            {
+                var retObjRepo = new Return
+                {
+                    SaleId = savedSale.Id,
+                    RefundMethod = "cash",
+                    Reason = "محاولة مرتجع مباشرة عبر ReturnRepository",
+                    Items = new List<ReturnItem>
+                    {
+                        new ReturnItem
+                        {
+                            ProductId = p.Id,
+                            ProductName = p.Name,
+                            QuantityMilli = 2000,
+                            UnitPricePiasters = 5000,
+                            TotalPiasters = 10000,
+                            Unit = "piece"
+                        }
+                    }
+                };
+                returnRepo.CreateReturnAtomic(retObjRepo);
+            }
+            catch (InvalidOperationException)
+            {
+                repoBlocked = true;
+            }
+
+            AssertCondition(repoBlocked,
+                "حظر عمل مرتجع عبر ReturnRepository على فاتورة ملغاة بنجاح",
+                "ثغرة خطيرة! تم السماح بعمل مرتجع على فاتورة ملغاة عبر ReturnRepository!", report);
+
+            // Verify stock didn't change and no returns exist
+            var pFinal = pRepo.GetById(p.Id);
+            AssertCondition(pFinal.StockQuantityMilli == 10000,
+                "ثبات رصيد المخزون عند 10000 ومنع التضخيم المزدوج للمخزون",
+                "تضخم المخزون بشكل خاطئ بعد محاولات المرتجع!", report);
+
+            var pastReturns = returnRepo.GetReturnsForSale(savedSale.Id);
+            AssertCondition(pastReturns.Count == 0,
+                "عدم تسجيل أي مرتجع للفاتورة الملغاة في قاعدة البيانات",
+                "تم حفظ مرتجع للفاتورة الملغاة بالخطأ!", report);
+        }
+
+        private static void RunTest17_ReturnCeilingsAndDigitalRefundGuards(AuditReport report)
+        {
+            var pRepo = new ProductRepository(_connStr);
+            var custRepo = new CustomerRepository(_connStr);
+            var saleRepo = new SaleRepository(_connStr);
+            var returnRepo = new ReturnRepository(_connStr);
+            var returnService = new ReturnService(returnRepo, saleRepo);
+
+            var cust = new Customer
+            {
+                Id = "cust_ret_guard_17",
+                Name = "عميل اختبار أسقف المرتجعات",
+                Phone = "01000000017",
+                BalancePiasters = 0
+            };
+            custRepo.SaveCustomer(cust);
+
+            var p = new Product
+            {
+                Id = "prod_ret_guard_17",
+                Name = "صنف اختبار أسقف المرتجعات",
+                Barcode = "622111171717",
+                Unit = "piece",
+                PricePiasters = 10000, // 100 EGP
+                CostPiasters = 6000,
+                StockQuantityMilli = 20000,
+                IsActive = true
+            };
+            pRepo.Upsert(p);
+
+            // Create pure credit sale: 3 pieces = 300 EGP (30,000 piasters), paid = 0
+            var sale = new Sale
+            {
+                Id = "sale_ret_guard_17",
+                CustomerId = cust.Id,
+                PaymentMethod = "credit",
+                SubtotalPiasters = 30000,
+                TotalPiasters = 30000,
+                PaidPiasters = 0,
+                Status = "completed",
+                CreatedAt = DateTime.UtcNow.ToString("o"),
+                Items = new List<SaleItem>
+                {
+                    new SaleItem
+                    {
+                        ProductId = p.Id,
+                        ProductName = p.Name,
+                        QuantityMilli = 3000,
+                        UnitPricePiasters = 10000,
+                        TotalPiasters = 30000,
+                        Unit = "piece"
+                    }
+                }
+            };
+            var savedSale = saleRepo.CreateSaleAtomic(sale);
+
+            var cAfterSale = custRepo.GetById(cust.Id);
+            AssertCondition(cAfterSale.BalancePiasters == 30000,
+                "تسجيل دين الفاتورة الآجل على العميل بنجاح (30,000 قرش)",
+                "فشل تسجيل دين الفاتورة الآجل على العميل", report);
+
+            // 1. Attempt cash refund for unpaid credit sale -> MUST FAIL
+            bool cashRefundBlocked = false;
+            try
+            {
+                var retCash = new Return
+                {
+                    SaleId = savedSale.Id,
+                    RefundMethod = "cash",
+                    Reason = "محاولة استرداد نقدي من الدرج لبيع آجل لم يسدد نقداً",
+                    Items = new List<ReturnItem>
+                    {
+                        new ReturnItem
+                        {
+                            ProductId = p.Id,
+                            ProductName = p.Name,
+                            QuantityMilli = 1000,
+                            UnitPricePiasters = 10000,
+                            TotalPiasters = 10000,
+                            Unit = "piece"
+                        }
+                    }
+                };
+                returnService.ProcessReturn(retCash);
+            }
+            catch (InvalidOperationException)
+            {
+                cashRefundBlocked = true;
+            }
+            AssertCondition(cashRefundBlocked,
+                "حظر صرف مرتجع نقدي من الدرج لفاتورة بيع آجل لم تسدد نقداً بنجاح",
+                "ثغرة مالية! تم السماح بصرف كاش من الدرج لمرتجع بيع آجل غير مسدد!", report);
+
+            // 2. Attempt instapay refund for unpaid credit sale -> MUST FAIL
+            bool instapayRefundBlocked = false;
+            try
+            {
+                var retInsta = new Return
+                {
+                    SaleId = savedSale.Id,
+                    RefundMethod = "instapay",
+                    Reason = "محاولة استرداد إنستاباي لبيع آجل",
+                    Items = new List<ReturnItem>
+                    {
+                        new ReturnItem
+                        {
+                            ProductId = p.Id,
+                            ProductName = p.Name,
+                            QuantityMilli = 1000,
+                            UnitPricePiasters = 10000,
+                            TotalPiasters = 10000,
+                            Unit = "piece"
+                        }
+                    }
+                };
+                returnService.ProcessReturn(retInsta);
+            }
+            catch (InvalidOperationException)
+            {
+                instapayRefundBlocked = true;
+            }
+            AssertCondition(instapayRefundBlocked,
+                "حظر صرف مرتجع عبر إنستاباي لفاتورة بيع آجل لم تسدد عبر إنستاباي بنجاح",
+                "ثغرة مالية! تم السماح بتحويل إنستاباي لمرتجع بيع آجل!", report);
+
+            // 3. Process valid credit return for 1 piece -> MUST SUCCEED
+            var retCredit1 = new Return
+            {
+                SaleId = savedSale.Id,
+                CustomerId = cust.Id,
+                RefundMethod = "credit",
+                Reason = "مرتجع آجل نظامي لقطعة واحدة",
+                Items = new List<ReturnItem>
+                {
+                    new ReturnItem
+                    {
+                        ProductId = p.Id,
+                        ProductName = p.Name,
+                        QuantityMilli = 1000,
+                        UnitPricePiasters = 10000,
+                        TotalPiasters = 10000,
+                        Unit = "piece"
+                    }
+                }
+            };
+            returnService.ProcessReturn(retCredit1);
+
+            var cAfterRet1 = custRepo.GetById(cust.Id);
+            AssertCondition(cAfterRet1.BalancePiasters == 20000,
+                "تخفيض دين العميل بعد المرتجع الآجل الأول إلى 20,000 قرش",
+                "فشل تخفيض دين العميل بعد المرتجع الآجل الأول", report);
+
+            // 4. Attempt return for 3 pieces (cumulative would be 40,000 > 30,000 total) -> MUST FAIL
+            bool ceilingBlocked = false;
+            try
+            {
+                var retExceed = new Return
+                {
+                    SaleId = savedSale.Id,
+                    CustomerId = cust.Id,
+                    RefundMethod = "credit",
+                    Reason = "محاولة إرجاع كمية تتجاوز سقف الفاتورة الأصلي",
+                    Items = new List<ReturnItem>
+                    {
+                        new ReturnItem
+                        {
+                            ProductId = p.Id,
+                            ProductName = p.Name,
+                            QuantityMilli = 3000,
+                            UnitPricePiasters = 10000,
+                            TotalPiasters = 30000,
+                            Unit = "piece"
+                        }
+                    }
+                };
+                returnService.ProcessReturn(retExceed);
+            }
+            catch (InvalidOperationException)
+            {
+                ceilingBlocked = true;
+            }
+            AssertCondition(ceilingBlocked,
+                "حظر إرجاع كميات تتجاوز سقف الفاتورة الصافية بنجاح",
+                "ثغرة خطيرة! تم السماح بإرجاع قيمة تفوق إجمالي الفاتورة الأصلية!", report);
+
+            // 5. Return remaining 2 pieces via credit -> MUST SUCCEED
+            var retCredit2 = new Return
+            {
+                SaleId = savedSale.Id,
+                CustomerId = cust.Id,
+                RefundMethod = "credit",
+                Reason = "إرجاع باقي القطعتين رصيد آجل",
+                Items = new List<ReturnItem>
+                {
+                    new ReturnItem
+                    {
+                        ProductId = p.Id,
+                        ProductName = p.Name,
+                        QuantityMilli = 2000,
+                        UnitPricePiasters = 10000,
+                        TotalPiasters = 20000,
+                        Unit = "piece"
+                    }
+                }
+            };
+            returnService.ProcessReturn(retCredit2);
+
+            var cFinal = custRepo.GetById(cust.Id);
+            AssertCondition(cFinal.BalancePiasters == 0,
+                "تصفير مديونية العميل بالكامل بعد إرجاع كامل الفاتورة (0 قرش)",
+                "لم يتم تصفير مديونية العميل بدقة!", report);
+
+            var vCust = custRepo.VerifyBalance(cust.Id);
+            AssertCondition(vCust.IsBalanced && vCust.DiscrepancyPiasters == 0,
+                "تطابق دفتر أستاذ العميل بنسبة 100% بعد سلسلة المرتجعات",
+                "اختلال في دفتر أستاذ العميل بعد المرتجعات!", report);
+        }
+
+        private static void RunTest18_CustomerPrepaymentExhaustionAndCancellationSymmetry(AuditReport report)
+        {
+            var pRepo = new ProductRepository(_connStr);
+            var custRepo = new CustomerRepository(_connStr);
+            var saleRepo = new SaleRepository(_connStr);
+
+            // 1. Customer with initial advance deposit: -200 EGP (-20,000 piasters)
+            var cust = new Customer
+            {
+                Id = "cust_advance_symm_18",
+                Name = "عميل اختبار تماثل الدفعة المقدمة والإلغاء",
+                Phone = "01000000018",
+                InitialBalancePiasters = -20000
+            };
+            custRepo.SaveCustomer(cust);
+
+            var vInit = custRepo.VerifyBalance(cust.Id);
+            AssertCondition(vInit.IsBalanced && vInit.StoredBalancePiasters == -20000,
+                "تسجيل وتدقيق الرصيد الدائن المسبق للعميل بنجاح (-20,000 قرش)",
+                "فشل تدقيق الرصيد الدائن المسبق للعميل", report);
+
+            // 2. Product for sale
+            var p = new Product
+            {
+                Id = "prod_adv_symm_18",
+                Name = "صنف اختبار الدفعة المسبقة",
+                Barcode = "622111181818",
+                Unit = "piece",
+                PricePiasters = 35000, // 350 EGP
+                CostPiasters = 20000,
+                StockQuantityMilli = 10000,
+                IsActive = true
+            };
+            pRepo.Upsert(p);
+
+            // 3. Purchase on credit: 350 EGP (35,000 piasters), paid = 0
+            // Initial deposit (200 EGP) is exhausted, remainder becomes 150 EGP debt (+15,000 piasters).
+            var sale = new Sale
+            {
+                Id = "sale_adv_symm_18",
+                CustomerId = cust.Id,
+                PaymentMethod = "credit",
+                SubtotalPiasters = 35000,
+                TotalPiasters = 35000,
+                PaidPiasters = 0,
+                Status = "completed",
+                CreatedAt = DateTime.UtcNow.ToString("o"),
+                Items = new List<SaleItem>
+                {
+                    new SaleItem
+                    {
+                        ProductId = p.Id,
+                        ProductName = p.Name,
+                        QuantityMilli = 1000,
+                        UnitPricePiasters = 35000,
+                        TotalPiasters = 35000,
+                        Unit = "piece"
+                    }
+                }
+            };
+            var savedSale = saleRepo.CreateSaleAtomic(sale);
+
+            var cAfterSale = custRepo.GetById(cust.Id);
+            AssertCondition(cAfterSale.BalancePiasters == 15000,
+                "استهلاك الدفعة المقدمة بالكامل وتحول الرصيد إلى مديونية 15,000 قرش (+150 ج.م)",
+                "فشل احتساب استهلاك الدفعة المقدمة وتحولها إلى دين!", report);
+
+            var vAfterSale = custRepo.VerifyBalance(cust.Id);
+            AssertCondition(vAfterSale.IsBalanced && vAfterSale.StoredBalancePiasters == 15000,
+                "تطابق دفتر أستاذ العميل بعد استهلاك الرصيد المسبق وتحوله لمديونية",
+                "عدم تطابق دفتر أستاذ العميل بعد البيع الآجل!", report);
+
+            // 4. Cancel the sale
+            saleRepo.CancelSaleAtomic(savedSale.Id, "إلغاء فاتورة لاختبار استعادة الرصيد المسبق بدقة تامة", "usr_admin");
+
+            var cAfterCancel = custRepo.GetById(cust.Id);
+            AssertCondition(cAfterCancel.BalancePiasters == -20000,
+                "استعادة الرصيد الدائن المسبق للعميل بدقة مطلقة (-20,000 قرش) بعد إلغاء الفاتورة",
+                string.Format("فشل التماثل! الرصيد بعد الإلغاء ({0}) لا يطابق الرصيد المسبق الأصلي (-20000)", cAfterCancel.BalancePiasters),
+                report);
+
+            var vFinal = custRepo.VerifyBalance(cust.Id);
+            AssertCondition(vFinal.IsBalanced && vFinal.DiscrepancyPiasters == 0,
+                "تطابق دفتر الأستاذ والميزان الرياضي للعميل بنسبة 100% بدون أي فاقد بالقروش (Discrepancy = 0)",
+                "فشل مطابقة دفتر الأستاذ بعد الإلغاء!", report);
         }
     }
 }

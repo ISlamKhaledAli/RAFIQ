@@ -281,18 +281,33 @@ namespace RafiqPOS.Services
                     }
 
                     // Enforce financial ceiling for refunds on credit sales (Senior QA Invariant)
-                    // If returning an unpaid credit sale, cash cannot be disbursed from drawer;
+                    // If returning an unpaid credit sale, cash or digital money cannot be disbursed;
                     // it must be routed to 'credit' to reduce customer debt.
                     long netCashPaidOnOrig = 0;
+                    long netInstapayPaidOnOrig = 0;
+                    long netWalletPaidOnOrig = 0;
+
                     if (origSale.Payments != null && origSale.Payments.Count > 0)
                     {
                         long cashSum = 0;
                         for (int p = 0; p < origSale.Payments.Count; p++)
                         {
                             var pm = origSale.Payments[p];
-                            if (pm != null && string.Equals(pm.Method, "cash", StringComparison.OrdinalIgnoreCase))
+                            if (pm != null)
                             {
-                                cashSum += pm.AmountPiasters;
+                                if (string.Equals(pm.Method, "cash", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    cashSum += pm.AmountPiasters;
+                                }
+                                else if (string.Equals(pm.Method, "instapay", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    netInstapayPaidOnOrig += pm.AmountPiasters;
+                                }
+                                else if (string.Equals(pm.Method, "vodafone_cash", StringComparison.OrdinalIgnoreCase) ||
+                                         string.Equals(pm.Method, "wallet", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    netWalletPaidOnOrig += pm.AmountPiasters;
+                                }
                             }
                         }
                         netCashPaidOnOrig = Math.Max(0, cashSum - origSale.ChangePiasters);
@@ -305,21 +320,54 @@ namespace RafiqPOS.Services
                     {
                         netCashPaidOnOrig = Math.Max(0, origSale.PaidPiasters);
                     }
+                    else if (string.Equals(origSale.PaymentMethod, "instapay", StringComparison.OrdinalIgnoreCase))
+                    {
+                        netInstapayPaidOnOrig = Math.Max(0, origSale.PaidPiasters - origSale.ServiceFeePiasters);
+                    }
+                    else if (string.Equals(origSale.PaymentMethod, "vodafone_cash", StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(origSale.PaymentMethod, "wallet", StringComparison.OrdinalIgnoreCase))
+                    {
+                        netWalletPaidOnOrig = Math.Max(0, origSale.PaidPiasters - origSale.ServiceFeePiasters);
+                    }
 
                     long pastCashRefunds = 0;
+                    long pastInstapayRefunds = 0;
+                    long pastWalletRefunds = 0;
+                    long pastTotalRefunds = 0;
+
                     for (int r = 0; r < pastReturns.Count; r++)
                     {
+                        pastTotalRefunds += pastReturns[r].TotalPiasters;
                         if (string.Equals(pastReturns[r].RefundMethod, "cash", StringComparison.OrdinalIgnoreCase))
                         {
                             pastCashRefunds += pastReturns[r].TotalPiasters;
                         }
+                        else if (string.Equals(pastReturns[r].RefundMethod, "instapay", StringComparison.OrdinalIgnoreCase))
+                        {
+                            pastInstapayRefunds += pastReturns[r].TotalPiasters;
+                        }
+                        else if (string.Equals(pastReturns[r].RefundMethod, "vodafone_cash", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(pastReturns[r].RefundMethod, "wallet", StringComparison.OrdinalIgnoreCase))
+                        {
+                            pastWalletRefunds += pastReturns[r].TotalPiasters;
+                        }
                     }
 
                     long allowableCashRefund = Math.Max(0, netCashPaidOnOrig - pastCashRefunds);
+                    long allowableInstapayRefund = Math.Max(0, netInstapayPaidOnOrig - pastInstapayRefunds);
+                    long allowableWalletRefund = Math.Max(0, netWalletPaidOnOrig - pastWalletRefunds);
+
                     long currentReturnTotal = 0;
                     for (int ri = 0; ri < returnObj.Items.Count; ri++)
                     {
                         currentReturnTotal += returnObj.Items[ri].TotalPiasters;
+                    }
+
+                    if (pastTotalRefunds + currentReturnTotal > origSale.TotalPiasters)
+                    {
+                        throw new InvalidOperationException(string.Format(
+                            "إجمالي المرتجعات ({0:N2} ج.م) يتجاوز القيمة الإجمالية للفاتورة الأصلية ({1:N2} ج.م).",
+                            (pastTotalRefunds + currentReturnTotal) / 100.0, origSale.TotalPiasters / 100.0));
                     }
 
                     if (string.Equals(returnObj.RefundMethod, "cash", StringComparison.OrdinalIgnoreCase))
@@ -333,6 +381,33 @@ namespace RafiqPOS.Services
                             throw new InvalidOperationException(string.Format(
                                 "لا يمكن صرف مرتجع نقدي من الدرج بمبلغ ({0:N2} ج.م) يتجاوز النقد المسدد فعلياً في الفاتورة الأصلية ({1:N2} ج.م). يجب اختيار الاسترداد كرصيد آجل (credit) لخصم القيمة من حساب العميل.",
                                 currentReturnTotal / 100.0, allowableCashRefund / 100.0));
+                        }
+                    }
+                    else if (string.Equals(returnObj.RefundMethod, "instapay", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (netInstapayPaidOnOrig <= 0)
+                        {
+                            throw new InvalidOperationException("لا يمكن صرف مرتجع عبر إنستاباي لفاتورة بيع لم يُسدد منها عبر إنستاباي. يجب اختيار استرداد كرصيد آجل (credit).");
+                        }
+                        else if (currentReturnTotal > allowableInstapayRefund)
+                        {
+                            throw new InvalidOperationException(string.Format(
+                                "لا يمكن صرف مرتجع عبر إنستاباي بمبلغ ({0:N2} ج.م) يتجاوز المسدد فعلياً عبر إنستاباي في الفاتورة الأصلية ({1:N2} ج.م).",
+                                currentReturnTotal / 100.0, allowableInstapayRefund / 100.0));
+                        }
+                    }
+                    else if (string.Equals(returnObj.RefundMethod, "vodafone_cash", StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(returnObj.RefundMethod, "wallet", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (netWalletPaidOnOrig <= 0)
+                        {
+                            throw new InvalidOperationException("لا يمكن صرف مرتجع عبر المحفظة الإلكترونية لفاتورة بيع لم يُسدد منها عبر المحفظة. يجب اختيار استرداد كرصيد آجل (credit).");
+                        }
+                        else if (currentReturnTotal > allowableWalletRefund)
+                        {
+                            throw new InvalidOperationException(string.Format(
+                                "لا يمكن صرف مرتجع عبر المحفظة الإلكترونية بمبلغ ({0:N2} ج.م) يتجاوز المسدد فعلياً عبر المحفظة في الفاتورة الأصلية ({1:N2} ج.م).",
+                                currentReturnTotal / 100.0, allowableWalletRefund / 100.0));
                         }
                     }
                 }
