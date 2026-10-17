@@ -291,7 +291,7 @@ namespace RafiqPOS.Repositories
                                             FROM stock_movements sm
                                             JOIN product_batches pb ON sm.batch_id = pb.id
                                             WHERE sm.reference_id = @sid AND sm.movement_type = 'SALE' AND sm.product_id = @prodId AND sm.batch_id IS NOT NULL
-                                            ORDER BY sm.created_at DESC;
+                                            ORDER BY sm.created_at DESC, sm.rowid DESC;
                                         ";
                                         using (var sbCmd = new SQLiteCommand(sBatchesSql, conn, trans))
                                         {

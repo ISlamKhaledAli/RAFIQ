@@ -341,10 +341,12 @@ namespace RafiqPOS.Repositories
             if (string.IsNullOrEmpty(accountId)) throw new ArgumentException("معرف الحساب مطلوب");
             if (amountPiasters <= 0) throw new ArgumentException("مبلغ التغذية يجب أن يكون أكبر من الصفر");
 
-            using (var conn = new SQLiteConnection(_connectionString))
+            lock (SaleService.FinancialWriteLock)
             {
-                conn.Open();
-                using (var trans = conn.BeginTransaction())
+                using (var conn = new SQLiteConnection(_connectionString))
+                {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction())
                 {
                     try
                     {
@@ -442,6 +444,7 @@ namespace RafiqPOS.Repositories
                     }
                 }
             }
+            }
         }
 
         /// <summary>
@@ -457,10 +460,12 @@ namespace RafiqPOS.Repositories
             if (tx.AmountPiasters <= 0) throw new ArgumentException("يرجى إدخال مبلغ العملية");
             if (tx.ProfitPiasters < 0) tx.ProfitPiasters = 0;
 
-            using (var conn = new SQLiteConnection(_connectionString))
+            lock (SaleService.FinancialWriteLock)
             {
-                conn.Open();
-                using (var trans = conn.BeginTransaction())
+                using (var conn = new SQLiteConnection(_connectionString))
+                {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction())
                 {
                     try
                     {
@@ -580,6 +585,7 @@ namespace RafiqPOS.Repositories
                         throw;
                     }
                 }
+            }
             }
         }
 

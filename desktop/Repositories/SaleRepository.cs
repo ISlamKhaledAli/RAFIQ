@@ -1306,6 +1306,63 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
+                        // Reversal of digital wallet / InstaPay payments if applicable
+                        try
+                        {
+                            var digTxs = new List<Tuple<string, string, long>>();
+                            using (var dCheckCmd = new SQLiteCommand("SELECT id, account_id, amount_piasters FROM digital_transactions WHERE sale_id = @sid AND tx_type = 'pos_sale' AND status = 'completed';", conn, trans))
+                            {
+                                dCheckCmd.Parameters.AddWithValue("@sid", sale.Id);
+                                using (var dRdr = dCheckCmd.ExecuteReader())
+                                {
+                                    while (dRdr.Read())
+                                    {
+                                        string tId = dRdr["id"].ToString();
+                                        string aId = dRdr["account_id"].ToString();
+                                        long amt = Convert.ToInt64(dRdr["amount_piasters"]);
+                                        digTxs.Add(new Tuple<string, string, long>(tId, aId, amt));
+                                    }
+                                }
+                            }
+
+                            for (int dIdx = 0; dIdx < digTxs.Count; dIdx++)
+                            {
+                                var dtx = digTxs[dIdx];
+                                using (var uAccCmd = new SQLiteCommand("UPDATE digital_accounts SET balance_piasters = balance_piasters - @amt, updated_at = @now WHERE id = @id;", conn, trans))
+                                {
+                                    uAccCmd.Parameters.AddWithValue("@amt", dtx.Item3);
+                                    uAccCmd.Parameters.AddWithValue("@now", nowIso);
+                                    uAccCmd.Parameters.AddWithValue("@id", dtx.Item2);
+                                    uAccCmd.ExecuteNonQuery();
+                                }
+
+                                string insRevTx = @"
+                                    INSERT INTO digital_transactions (
+                                        id, account_id, tx_type, amount_piasters, profit_piasters, total_collected_piasters,
+                                        customer_name, sale_id, cashier_name, payment_destination, status, notes, created_at
+                                    ) VALUES (
+                                        @id, @accId, 'pos_sale_cancel', @amt, 0, @amt,
+                                        @cust, @saleId, @cashier, 'wallet', 'completed', @notes, @now
+                                    );";
+                                using (var iRevCmd = new SQLiteCommand(insRevTx, conn, trans))
+                                {
+                                    iRevCmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
+                                    iRevCmd.Parameters.AddWithValue("@accId", dtx.Item2);
+                                    iRevCmd.Parameters.AddWithValue("@amt", dtx.Item3);
+                                    iRevCmd.Parameters.AddWithValue("@cust", (object)sale.CustomerId ?? DBNull.Value);
+                                    iRevCmd.Parameters.AddWithValue("@saleId", sale.Id);
+                                    iRevCmd.Parameters.AddWithValue("@cashier", (object)sale.CashierName ?? DBNull.Value);
+                                    iRevCmd.Parameters.AddWithValue("@notes", string.Format("إلغاء فاتورة بيع كاشير #{0} - {1}", sale.InvoiceNumber, reason));
+                                    iRevCmd.Parameters.AddWithValue("@now", nowIso);
+                                    iRevCmd.ExecuteNonQuery();
+                                }
+                            }
+                        }
+                        catch (Exception dEx)
+                        {
+                            Logger.Warn("تنبيه أثناء إلغاء ربط الفاتورة بمحفظة الدفع: " + dEx.Message);
+                        }
+
                         string detailsJson = string.Format(
                             "{{\"invoiceNumber\":{0},\"reason\":\"{1}\",\"totalPiasters\":{2}}}",
                             sale.InvoiceNumber, (reason ?? "").Replace("\"", "\\\""), sale.TotalPiasters

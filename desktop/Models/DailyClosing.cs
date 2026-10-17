@@ -206,6 +206,18 @@ namespace RafiqPOS.Models
         [JsonProperty("epayNetProfitPiasters")]
         public long EpayNetProfitPiasters { get; set; }
 
+        [JsonProperty("walletsBalancePiasters")]
+        public long WalletsBalancePiasters { get; set; }
+
+        [JsonProperty("walletsDrawerCashPiasters")]
+        public long WalletsDrawerCashPiasters { get; set; }
+
+        [JsonProperty("walletsDrawerFundingPiasters")]
+        public long WalletsDrawerFundingPiasters { get; set; }
+
+        [JsonProperty("walletsNetProfitPiasters")]
+        public long WalletsNetProfitPiasters { get; set; }
+
         [JsonProperty("expensesPiasters")]
         public long ExpensesPiasters { get; set; }
 

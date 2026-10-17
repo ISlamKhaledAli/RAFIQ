@@ -215,6 +215,7 @@
     <Compile Include="Services\SeniorMasterEdgeCaseRunner.cs" />
     <Compile Include="Services\SeniorDomainStressTestRunner.cs" />
     <Compile Include="Services\SeniorComprehensiveAuditRunner.cs" />
+    <Compile Include="Services\SeniorRuthlessAuditRunner.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
