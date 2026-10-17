@@ -121,8 +121,9 @@ namespace RafiqPOS.Bridge
                         string pSupId = payObj["supplierId"].ToString();
                         long pAmount = payObj["amountPiasters"].Value<long>();
                         string pNotes = payObj["notes"] != null ? payObj["notes"].ToString() : "";
+                        string pSource = payObj["paymentSource"] != null ? payObj["paymentSource"].ToString() : "cash_drawer";
                         string supPayUserId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : null;
-                        DatabaseService.Suppliers.RecordPayment(pSupId, pAmount, pNotes, supPayUserId);
+                        DatabaseService.Suppliers.RecordPayment(pSupId, pAmount, pNotes, supPayUserId, pSource);
                         var updatedSup = DatabaseService.Suppliers.GetById(pSupId);
                         response = BridgeResponse.Ok(request.Id, updatedSup);
                     }

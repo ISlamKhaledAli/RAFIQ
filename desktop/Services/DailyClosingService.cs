@@ -475,7 +475,93 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // Expected Cash in Drawer = Cash Sales - Cash Refunds + Cash Debt Collections - Expenses + Epay Drawer Cash - Epay Drawer Funding + Wallets Drawer Cash - Wallets Drawer Funding
+                // 8.C Purchases Cash Paid from Drawer
+                using (var checkPurCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='purchases';", conn))
+                {
+                    if (checkPurCmd.ExecuteScalar() != null)
+                    {
+                        bool hasPurSourceCol = false;
+                        using (var pragmaCmd = new SQLiteCommand("PRAGMA table_info(purchases);", conn))
+                        using (var reader = pragmaCmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                if (string.Equals(reader["name"].ToString(), "payment_source", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    hasPurSourceCol = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        string purSql = hasPurSourceCol
+                            ? @"SELECT COALESCE(SUM(paid_amount_piasters), 0)
+                                FROM purchases
+                                WHERE date(datetime(created_at, 'localtime', '-' || @cutoff || ' hours')) = @bdate
+                                  AND status != 'cancelled'
+                                  AND (payment_source = 'cash_drawer' OR payment_source IS NULL OR payment_source = '');"
+                            : @"SELECT COALESCE(SUM(paid_amount_piasters), 0)
+                                FROM purchases
+                                WHERE date(datetime(created_at, 'localtime', '-' || @cutoff || ' hours')) = @bdate
+                                  AND status != 'cancelled';";
+
+                        using (var purCmd = new SQLiteCommand(purSql, conn))
+                        {
+                            purCmd.Parameters.AddWithValue("@cutoff", cutoff);
+                            purCmd.Parameters.AddWithValue("@bdate", businessDate);
+                            object purRes = purCmd.ExecuteScalar();
+                            if (purRes != null && purRes != DBNull.Value)
+                            {
+                                preview.PurchasesDrawerCashPiasters = Convert.ToInt64(purRes);
+                            }
+                        }
+                    }
+                }
+
+                // 8.D Supplier Direct Payments from Drawer
+                using (var checkSuppCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='supplier_transactions';", conn))
+                {
+                    if (checkSuppCmd.ExecuteScalar() != null)
+                    {
+                        bool hasSuppSourceCol = false;
+                        using (var pragmaCmd = new SQLiteCommand("PRAGMA table_info(supplier_transactions);", conn))
+                        using (var reader = pragmaCmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                if (string.Equals(reader["name"].ToString(), "payment_source", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    hasSuppSourceCol = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        string suppSql = hasSuppSourceCol
+                            ? @"SELECT COALESCE(SUM(ABS(amount_piasters)), 0)
+                                FROM supplier_transactions
+                                WHERE date(datetime(created_at, 'localtime', '-' || @cutoff || ' hours')) = @bdate
+                                  AND transaction_type = 'PAYMENT'
+                                  AND (payment_source = 'cash_drawer' OR payment_source IS NULL OR payment_source = '');"
+                            : @"SELECT COALESCE(SUM(ABS(amount_piasters)), 0)
+                                FROM supplier_transactions
+                                WHERE date(datetime(created_at, 'localtime', '-' || @cutoff || ' hours')) = @bdate
+                                  AND transaction_type = 'PAYMENT';";
+
+                        using (var suppCmd = new SQLiteCommand(suppSql, conn))
+                        {
+                            suppCmd.Parameters.AddWithValue("@cutoff", cutoff);
+                            suppCmd.Parameters.AddWithValue("@bdate", businessDate);
+                            object suppRes = suppCmd.ExecuteScalar();
+                            if (suppRes != null && suppRes != DBNull.Value)
+                            {
+                                preview.SupplierPaymentsDrawerCashPiasters = Convert.ToInt64(suppRes);
+                            }
+                        }
+                    }
+                }
+
+                // Expected Cash in Drawer = Cash Sales - Cash Refunds + Cash Debt Collections - Expenses + Epay Drawer Cash - Epay Drawer Funding + Wallets Drawer Cash - Wallets Drawer Funding - Purchases Drawer Cash - Supplier Payments Drawer Cash
                 preview.ExpectedCashPiasters = preview.CashSalesPiasters 
                     - preview.ReturnsCashPiasters 
                     + preview.DebtPaymentsPiasters 
@@ -483,11 +569,32 @@ namespace RafiqPOS.Services
                     + preview.EpayDrawerCashPiasters
                     - preview.EpayDrawerFundingPiasters
                     + preview.WalletsDrawerCashPiasters
-                    - preview.WalletsDrawerFundingPiasters;
+                    - preview.WalletsDrawerFundingPiasters
+                    - preview.PurchasesDrawerCashPiasters
+                    - preview.SupplierPaymentsDrawerCashPiasters;
                 if (preview.ExpectedCashPiasters < 0) preview.ExpectedCashPiasters = 0;
             }
 
             return preview;
+        }
+
+        public LiveDrawerBalanceResult GetLiveDrawerBalance(string businessDate = null)
+        {
+            var preview = GetClosingPreview(businessDate);
+            var res = new LiveDrawerBalanceResult();
+            res.BusinessDate = preview.BusinessDate;
+            res.AvailableCashPiasters = preview.ExpectedCashPiasters;
+            res.CashSalesPiasters = preview.CashSalesPiasters;
+            res.ReturnsCashPiasters = preview.ReturnsCashPiasters;
+            res.DebtPaymentsPiasters = preview.DebtPaymentsPiasters;
+            res.ExpensesPiasters = preview.ExpensesPiasters;
+            res.EpayDrawerCashPiasters = preview.EpayDrawerCashPiasters;
+            res.EpayDrawerFundingPiasters = preview.EpayDrawerFundingPiasters;
+            res.WalletsDrawerCashPiasters = preview.WalletsDrawerCashPiasters;
+            res.WalletsDrawerFundingPiasters = preview.WalletsDrawerFundingPiasters;
+            res.PurchasesDrawerCashPiasters = preview.PurchasesDrawerCashPiasters;
+            res.SupplierPaymentsDrawerCashPiasters = preview.SupplierPaymentsDrawerCashPiasters;
+            return res;
         }
 
         public DailyClosing SaveClosing(DailyClosingSaveRequest request)

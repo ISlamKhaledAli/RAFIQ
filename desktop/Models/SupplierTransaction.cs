@@ -23,6 +23,9 @@ namespace RafiqPOS.Models
         [JsonProperty("notes")]
         public string Notes { get; set; }
 
+        [JsonProperty("paymentSource")]
+        public string PaymentSource { get; set; }
+
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
     }

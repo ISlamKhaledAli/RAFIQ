@@ -79,6 +79,8 @@ namespace RafiqPOS.Services
                 RunTest7_MultiUnitCascadeAndCostParity(report);
                 RunTest8_FinancialRoundingAndCreditReversals(report);
                 RunTest9_ParallelConcurrencyChaos(report);
+                RunTest10_LiveDrawerBalanceAndPurchasesDeductionParity(report);
+                RunTest11_SupplierDirectPaymentDrawerDeductionAndLedgerParity(report);
 
                 report.Success = (report.PassedAssertions == report.TotalAssertions);
                 report.Message = string.Format("اكتمل الفحص الشامل المتقدم بنجاح فائق: {0}/{1} اختبارات ناجحة بنسبة 100%",
@@ -954,6 +956,208 @@ namespace RafiqPOS.Services
             AssertCondition(vCust != null && vCust.IsBalanced && vCust.DiscrepancyPiasters == 0,
                 "سلامة كشف حساب العميل التامة بعد اختبار الضغط المتزامن بنسبة 100%",
                 "انحراف في حساب العميل بعد الضغط المتزامن!", report);
+        }
+
+        // Test 10: Live Drawer Balance and Purchases Cash Deduction Parity
+        private static void RunTest10_LiveDrawerBalanceAndPurchasesDeductionParity(AuditReport report)
+        {
+            var closingRepo = new DailyClosingRepository(_connStr);
+            var counterRepo = new CounterRepository(_connStr);
+            var auditRepo = new AuditLogRepository(_connStr);
+            var settingsRepo = new SettingsRepository(_connStr);
+            var closingService = new DailyClosingService(_connStr, closingRepo, counterRepo, auditRepo, settingsRepo);
+
+            var prodRepo = new ProductRepository(_connStr);
+            var supRepo = new SupplierRepository(_connStr, auditRepo);
+            var purRepo = new PurchaseRepository(_connStr, null, supRepo, null, auditRepo);
+            var saleRepo = new SaleRepository(_connStr);
+            var saleService = new SaleService(saleRepo, prodRepo);
+
+            string bDate = closingService.GetCurrentBusinessDate();
+
+            // 0. Ensure drawer has positive base cash (simulating morning register opening float/sales)
+            var pBase = new Product
+            {
+                Id = "p_drawer_base",
+                Name = "صنف رصيد افتتاحي للدرج",
+                PricePiasters = 200000,
+                CostPiasters = 120000,
+                StockQuantityMilli = 50000,
+                IsActive = true
+            };
+            prodRepo.Upsert(pBase);
+
+            saleService.ProcessSale(new Sale
+            {
+                CustomerId = "cust_general_cash",
+                PaymentMethod = "cash",
+                PaidPiasters = 200000,
+                TotalPiasters = 200000,
+                Items = new List<SaleItem>
+                {
+                    new SaleItem
+                    {
+                        ProductId = pBase.Id,
+                        ProductName = pBase.Name,
+                        QuantityMilli = 1000,
+                        UnitPricePiasters = 200000,
+                        UnitCostPiasters = 120000,
+                        TotalPiasters = 200000
+                    }
+                }
+            });
+
+            // 1. Check initial live drawer balance
+            var initialLive = closingService.GetLiveDrawerBalance(bDate);
+            long startCash = initialLive.AvailableCashPiasters;
+
+            // 2. Add cash sale of 500 EGP (50,000 piasters)
+            var pSale = new Product
+            {
+                Id = "p_drawer_parity",
+                Name = "صنف اختبار الدرج النقدي",
+                PricePiasters = 50000,
+                CostPiasters = 30000,
+                StockQuantityMilli = 100000,
+                IsActive = true
+            };
+            prodRepo.Upsert(pSale);
+
+            var cashSale = new Sale
+            {
+                CustomerId = "cust_general_cash",
+                PaymentMethod = "cash",
+                PaidPiasters = 50000,
+                TotalPiasters = 50000,
+                Items = new List<SaleItem>
+                {
+                    new SaleItem
+                    {
+                        ProductId = pSale.Id,
+                        ProductName = pSale.Name,
+                        QuantityMilli = 1000,
+                        UnitPricePiasters = 50000,
+                        UnitCostPiasters = 30000,
+                        TotalPiasters = 50000
+                    }
+                }
+            };
+            saleService.ProcessSale(cashSale);
+
+            var afterSaleLive = closingService.GetLiveDrawerBalance(bDate);
+            AssertCondition(afterSaleLive.AvailableCashPiasters == startCash + 50000,
+                "زيادة رصيد نقدية الدرج الحية فور إتمام عملية البيع النقدي بدقة متناهية (+500.00 ج.م)",
+                "رصيد الدرج بعد البيع غير مطابق: " + afterSaleLive.AvailableCashPiasters, report);
+
+            // 3. Create purchase with payment_source = 'cash_drawer' for 200 EGP (20,000 piasters)
+            var sup = supRepo.Save(new Supplier { Name = "مورد تجربة الدرج", Phone = "01011112222", BalancePiasters = 0, IsActive = true });
+            var purFromDrawer = new Purchase
+            {
+                SupplierId = sup.Id,
+                DiscountPiasters = 0,
+                PaidAmountPiasters = 20000,
+                PaymentSource = "cash_drawer",
+                Items = new List<PurchaseItem>
+                {
+                    new PurchaseItem
+                    {
+                        ProductId = pSale.Id,
+                        QuantityMilli = 1000,
+                        UnitCostPiasters = 20000,
+                        TotalCostPiasters = 20000
+                    }
+                }
+            };
+            purRepo.CreatePurchase(purFromDrawer);
+
+            var afterPurDrawerLive = closingService.GetLiveDrawerBalance(bDate);
+            AssertCondition(afterPurDrawerLive.PurchasesDrawerCashPiasters == initialLive.PurchasesDrawerCashPiasters + 20000,
+                "رصد مشتريات نقدية الدرج بدقة متناهية (زيادة 200.00 ج.م)",
+                "مشتريات الدرج غير مطابقة: " + afterPurDrawerLive.PurchasesDrawerCashPiasters, report);
+            AssertCondition(afterPurDrawerLive.AvailableCashPiasters == startCash + 50000 - 20000,
+                "خصم المشتريات النقدية المسددة من الدرج فورياً من الرصيد الحي للدرج",
+                "الرصيد الحي للدرج بعد الشراء النقدي غير مطابق: " + afterPurDrawerLive.AvailableCashPiasters, report);
+
+            // 4. Create purchase with payment_source = 'external_cash' for 150 EGP (15,000 piasters)
+            var purExternal = new Purchase
+            {
+                SupplierId = sup.Id,
+                DiscountPiasters = 0,
+                PaidAmountPiasters = 15000,
+                PaymentSource = "external_cash",
+                Items = new List<PurchaseItem>
+                {
+                    new PurchaseItem
+                    {
+                        ProductId = pSale.Id,
+                        QuantityMilli = 1000,
+                        UnitCostPiasters = 15000,
+                        TotalCostPiasters = 15000
+                    }
+                }
+            };
+            purRepo.CreatePurchase(purExternal);
+
+            var afterPurExtLive = closingService.GetLiveDrawerBalance(bDate);
+            AssertCondition(afterPurExtLive.PurchasesDrawerCashPiasters == afterPurDrawerLive.PurchasesDrawerCashPiasters,
+                "عزل مشتريات الكاش الخارجي تماماً وعدم تحميلها على مشتريات الدرج",
+                "مشتريات الدرج تأثرت بالكاش الخارجي: " + afterPurExtLive.PurchasesDrawerCashPiasters, report);
+            AssertCondition(afterPurExtLive.AvailableCashPiasters == afterPurDrawerLive.AvailableCashPiasters,
+                "حماية رصيد الدرج الحي بنسبة 100% من الخصم عند الشراء من جاري صاحب المحل (كاش خارجي)",
+                "رصيد الدرج انخفض بالخطأ بعد شراء الكاش الخارجي!", report);
+        }
+
+        // Test 11: Supplier Direct Payment Drawer Deduction and Ledger Parity
+        private static void RunTest11_SupplierDirectPaymentDrawerDeductionAndLedgerParity(AuditReport report)
+        {
+            var closingRepo = new DailyClosingRepository(_connStr);
+            var counterRepo = new CounterRepository(_connStr);
+            var auditRepo = new AuditLogRepository(_connStr);
+            var settingsRepo = new SettingsRepository(_connStr);
+            var closingService = new DailyClosingService(_connStr, closingRepo, counterRepo, auditRepo, settingsRepo);
+
+            var supRepo = new SupplierRepository(_connStr, auditRepo);
+            string bDate = closingService.GetCurrentBusinessDate();
+
+            var sup = supRepo.Save(new Supplier { Name = "مورد سداد الخزينة", Phone = "01033334444", BalancePiasters = 100000, IsActive = true });
+
+            var liveBefore = closingService.GetLiveDrawerBalance(bDate);
+            long cashBefore = liveBefore.AvailableCashPiasters;
+            long suppPaymentsBefore = liveBefore.SupplierPaymentsDrawerCashPiasters;
+
+            // 1. Pay 300 EGP to supplier from drawer
+            supRepo.RecordPayment(sup.Id, 30000, "سداد دفعة للمورد من الدرج", "الكاشير", "cash_drawer");
+
+            var liveAfterDrawerPay = closingService.GetLiveDrawerBalance(bDate);
+            AssertCondition(liveAfterDrawerPay.SupplierPaymentsDrawerCashPiasters == suppPaymentsBefore + 30000,
+                "تسجيل مدفوعات الموردين من نقدية الدرج بدقة (زيادة 300.00 ج.م)",
+                "مدفوعات الموردين من الدرج غير مطابقة: " + liveAfterDrawerPay.SupplierPaymentsDrawerCashPiasters, report);
+            AssertCondition(liveAfterDrawerPay.AvailableCashPiasters == cashBefore - 30000,
+                "خصم سداد المورد من رصيد الدرج الحي فورياً بدقة متناهية (-300.00 ج.م)",
+                "الرصيد الحي للدرج بعد سداد المورد غير مطابق: " + liveAfterDrawerPay.AvailableCashPiasters, report);
+
+            // 2. Pay 400 EGP to supplier from external cash (owner pocket)
+            supRepo.RecordPayment(sup.Id, 40000, "سداد دفعة من جيب صاحب المحل", "المالك", "external_cash");
+
+            var liveAfterExtPay = closingService.GetLiveDrawerBalance(bDate);
+            AssertCondition(liveAfterExtPay.SupplierPaymentsDrawerCashPiasters == liveAfterDrawerPay.SupplierPaymentsDrawerCashPiasters,
+                "حماية نقدية الدرج وعزل مدفوعات الموردين المسددة من الكاش الخارجي",
+                "مدفوعات الدرج تأثرت بالكاش الخارجي: " + liveAfterExtPay.SupplierPaymentsDrawerCashPiasters, report);
+            AssertCondition(liveAfterExtPay.AvailableCashPiasters == liveAfterDrawerPay.AvailableCashPiasters,
+                "حماية رصيد نقدية الدرج من الخصم عند سداد المورد من الكاش الخارجي",
+                "رصيد الدرج تأثر بالسداد الخارجي للمورد!", report);
+
+            // Check supplier remaining debt: 1000 - 300 - 400 = 300 EGP (30,000 piasters)
+            var supReloaded = supRepo.GetById(sup.Id);
+            AssertCondition(supReloaded.BalancePiasters == 30000,
+                "سداد مديونية المورد بالكامل من المصدرين بدقة متناهية (متبقي له: 300.00 ج.م)",
+                "رصيد المورد غير مطابق: " + supReloaded.BalancePiasters, report);
+
+            // Ledger double entry verification
+            var v = supRepo.VerifyBalance(sup.Id);
+            AssertCondition(v != null && v.IsBalanced && v.DiscrepancyPiasters == 0,
+                "تطابق مالي بنسبة 100% بين رصيد المورد ودفتر الحركات لجميع مصادر السداد (فارق = 0 قرش)",
+                "عدم تطابق في دفتر المورد!", report);
         }
     }
 }
