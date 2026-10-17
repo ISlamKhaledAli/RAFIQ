@@ -89,6 +89,7 @@ namespace RafiqPOS.Services
                 RunTest17_ReturnCeilingsAndDigitalRefundGuards(report);
                 RunTest18_CustomerPrepaymentExhaustionAndCancellationSymmetry(report);
                 RunTest19_DigitalWalletDrawerCashInOutCommissionParity(report);
+                RunTest20_DigitalWalletRefundAndCancelOverdraftGuards(report);
 
                 report.Success = (report.PassedAssertions == report.TotalAssertions);
                 report.Message = string.Format("اكتمل الفحص الشامل المتقدم بنجاح فائق: {0}/{1} اختبارات ناجحة بنسبة 100%",
@@ -2244,6 +2245,277 @@ namespace RafiqPOS.Services
             AssertCondition(expBlocked,
                 "منع تسجيل أي حركة مصروف جديدة على يومية مشمعة ومقفلة بنجاح",
                 "تم السماح بتسجيل مصروف بعد إقفال اليومية وتشميعها!", report);
+        }
+
+        /// <summary>
+        /// TEST 20: حماية المحافظ الإلكترونية وحسابات إنستاباي من السحب على المكشوف أو الصرف الوهمي في المرتجعات وإلغاء المبيعات
+        /// 1. منع صرف مرتجع إنستاباي إذا كان رصيد الحساب غير كافٍ.
+        /// 2. منع صرف مرتجع محفظة إذا لم يكن هناك حساب محفظة نشط مسجل في النظام.
+        /// 3. نجاح المرتجع الإلكتروني بعد تغذية الحساب وخصم الرصيد وتسجيل pos_return.
+        /// 4. منع إلغاء فاتورة بيع إلكترونية إذا كان رصيد الحساب غير كافٍ لعكس المبلغ.
+        /// 5. نجاح إلغاء الفاتورة بعد تغذية الحساب وتسجيل pos_sale_cancel وخصم الرصيد.
+        /// </summary>
+        private static void RunTest20_DigitalWalletRefundAndCancelOverdraftGuards(AuditReport report)
+        {
+            var prodRepo = new ProductRepository(_connStr);
+            var saleRepo = new SaleRepository(_connStr);
+            var returnRepo = new ReturnRepository(_connStr);
+            var returnService = new ReturnService(returnRepo, saleRepo);
+            var saleService = new SaleService(saleRepo, prodRepo);
+            var digitalRepo = new DigitalAccountRepository(_connStr);
+
+            // 1. Setup product
+            var prod = new Product
+            {
+                Id = "prod_guard_20_" + Guid.NewGuid().ToString("N").Substring(0, 6),
+                Name = "سماعة بلوتوث فحص 20",
+                Barcode = "622999900020",
+                PricePiasters = 50000, // 500 EGP
+                CostPiasters = 30000,
+                StockQuantityMilli = 10000, // 10 units
+                IsActive = true
+            };
+            prodRepo.Upsert(prod);
+
+            // 2. Setup InstaPay account with 100 EGP (10,000 piasters)
+            var instaAcc = new DigitalAccount
+            {
+                Id = "dig_insta_guard_20",
+                Name = "إنستاباي فحص 20",
+                Type = "instapay",
+                Provider = "instapay",
+                AccountNumber = "01099998888",
+                BalancePiasters = 10000,
+                IsActive = true,
+                IsDefault = true
+            };
+            digitalRepo.SaveAccount(instaAcc);
+
+            // 3. Process Sale of 500 EGP paid via InstaPay
+            var sale1 = new Sale
+            {
+                CustomerId = "cust_general_cash",
+                TotalPiasters = 50000,
+                PaidPiasters = 50000,
+                PaymentMethod = "instapay",
+                Items = new List<SaleItem>
+                {
+                    new SaleItem
+                    {
+                        ProductId = prod.Id,
+                        ProductName = prod.Name,
+                        QuantityMilli = 1000,
+                        UnitPricePiasters = 50000,
+                        TotalPiasters = 50000
+                    }
+                }
+            };
+            var savedSale1 = saleService.ProcessSale(sale1);
+            long postSaleBal = digitalRepo.GetAccountById(instaAcc.Id).BalancePiasters;
+            AssertCondition(postSaleBal == 60000,
+                "رصيد إنستاباي أصبح 60,000 قرش (10,000 رصيد افتتاحي + 50,000 مبيعات) بدقة تامة",
+                "فشل إضافة قيمة المبيعات الإلكترونية لرصيد إنستاباي", report);
+
+            // 4. Shop owner transfers out 55,000 piasters (leaving only 5,000 piasters = 50 EGP in InstaPay)
+            digitalRepo.ProcessTransaction(new DigitalTransaction
+            {
+                AccountId = instaAcc.Id,
+                TxType = "cash_out",
+                AmountPiasters = 55000,
+                ProfitPiasters = 0,
+                TotalCollectedPiasters = 55000,
+                PaymentDestination = "external",
+                Notes = "تحويل خارجي لتوريد نقدية"
+            });
+            long depletedBal = digitalRepo.GetAccountById(instaAcc.Id).BalancePiasters;
+            AssertCondition(depletedBal == 5000,
+                "رصيد إنستاباي أصبح 5,000 قرش (50 ج.م) بعد التحويل الخارجي",
+                "فشل خصم التحويل الخارجي من إنستاباي", report);
+
+            // 5. Attempt InstaPay return of 500 EGP when InstaPay only has 50 EGP -> MUST BE BLOCKED
+            var ret1 = new Return
+            {
+                SaleId = savedSale1.Id,
+                InvoiceNumber = savedSale1.InvoiceNumber,
+                RefundMethod = "instapay",
+                Items = new List<ReturnItem>
+                {
+                    new ReturnItem
+                    {
+                        ProductId = prod.Id,
+                        ProductName = prod.Name,
+                        QuantityMilli = 1000,
+                        UnitPricePiasters = 50000,
+                        TotalPiasters = 50000,
+                        IsDamaged = false
+                    }
+                }
+            };
+
+            bool returnBlockedOverdraft = false;
+            try
+            {
+                returnService.ProcessReturn(ret1);
+            }
+            catch (InvalidOperationException ex)
+            {
+                returnBlockedOverdraft = ex.Message.Contains("غير كافٍ");
+            }
+            AssertCondition(returnBlockedOverdraft,
+                "منع صرف المرتجع الإلكتروني بنجاح لعدم كفاية رصيد حساب إنستاباي وحماية الحساب من السحب على المكشوف",
+                "ثغرة خطيرة! تم السماح بصرف مرتجع إلكتروني برصيد غير كافٍ وتسبب في رصيد سالب للمحفظة!", report);
+
+            long balAfterBlocked = digitalRepo.GetAccountById(instaAcc.Id).BalancePiasters;
+            AssertCondition(balAfterBlocked == 5000,
+                "ثبات رصيد إنستاباي تماماً عند 5,000 قرش بدون أي نقص بعد رفض المرتجع الذري",
+                "فشل الذرية! تم تعديل رصيد المحفظة رغم فشل المرتجع!", report);
+
+            // 6. Attempt Wallet return when no wallet account exists -> MUST BE BLOCKED
+            using (var conn = new SQLiteConnection(_connStr))
+            {
+                conn.Open();
+                using (var deactCmd = new SQLiteCommand("UPDATE digital_accounts SET is_active = 0 WHERE type = 'wallet';", conn))
+                {
+                    deactCmd.ExecuteNonQuery();
+                }
+            }
+
+            var retWallet = new Return
+            {
+                SaleId = savedSale1.Id,
+                InvoiceNumber = savedSale1.InvoiceNumber,
+                RefundMethod = "wallet",
+                Items = new List<ReturnItem>
+                {
+                    new ReturnItem
+                    {
+                        ProductId = prod.Id,
+                        ProductName = prod.Name,
+                        QuantityMilli = 1000,
+                        UnitPricePiasters = 50000,
+                        TotalPiasters = 50000,
+                        IsDamaged = false
+                    }
+                }
+            };
+            bool returnBlockedNoWallet = false;
+            try
+            {
+                returnRepo.CreateReturnAtomic(retWallet);
+            }
+            catch (InvalidOperationException ex)
+            {
+                returnBlockedNoWallet = ex.Message.Contains("لا يوجد حساب");
+            }
+
+            using (var conn = new SQLiteConnection(_connStr))
+            {
+                conn.Open();
+                using (var reactCmd = new SQLiteCommand("UPDATE digital_accounts SET is_active = 1 WHERE type = 'wallet';", conn))
+                {
+                    reactCmd.ExecuteNonQuery();
+                }
+            }
+
+            AssertCondition(returnBlockedNoWallet,
+                "منع صرف المرتجع الإلكتروني بنجاح عند عدم وجود أي حساب محفظة كاش نشط في النظام",
+                "ثغرة خطيرة! تم السماح بالمرتجع الإلكتروني دون وجود حساب محفظة نشط في النظام!", report);
+
+            // 7. Fund InstaPay with 60,000 piasters (Balance becomes 65,000 piasters)
+            digitalRepo.FundAccount(instaAcc.Id, 60000, "cash_drawer", "تغذية الحساب لتغطية المرتجعات", "usr_admin");
+            long fundedBal = digitalRepo.GetAccountById(instaAcc.Id).BalancePiasters;
+            AssertCondition(fundedBal == 65000,
+                "تغذية رصيد إنستاباي بنجاح إلى 65,000 قرش (650 ج.م)",
+                "فشل تغذية رصيد إنستاباي", report);
+
+            // 8. Re-attempt InstaPay return -> MUST SUCCEED
+            var savedReturn = returnService.ProcessReturn(ret1);
+            AssertCondition(savedReturn != null && savedReturn.ReturnNumber > 0,
+                "تم تسجيل المرتجع الإلكتروني بنجاح بعد توفر الرصيد الكافي",
+                "فشل تنفيذ المرتجع بعد تغذية الرصيد", report);
+
+            long balAfterReturn = digitalRepo.GetAccountById(instaAcc.Id).BalancePiasters;
+            AssertCondition(balAfterReturn == 15000,
+                "خصم قيمة المرتجع (50,000 قرش) من حساب إنستاباي بدقة (65,000 - 50,000 = 15,000 قرش)",
+                string.Format("فشل دقة الرصيد بعد المرتجع: الفعلي ({0}) والمتوقع (15000)", balAfterReturn), report);
+
+            // 9. Process a second sale of 100 EGP (10,000 piasters) paid via InstaPay
+            var sale2 = new Sale
+            {
+                CustomerId = "cust_general_cash",
+                TotalPiasters = 10000,
+                PaidPiasters = 10000,
+                PaymentMethod = "instapay",
+                Items = new List<SaleItem>
+                {
+                    new SaleItem
+                    {
+                        ProductId = prod.Id,
+                        ProductName = prod.Name,
+                        QuantityMilli = 1000,
+                        UnitPricePiasters = 10000,
+                        TotalPiasters = 10000
+                    }
+                }
+            };
+            var savedSale2 = saleService.ProcessSale(sale2);
+            long balAfterSale2 = digitalRepo.GetAccountById(instaAcc.Id).BalancePiasters;
+            AssertCondition(balAfterSale2 == 25000,
+                "رصيد إنستاباي أصبح 25,000 قرش (15,000 + 10,000 مبيعات جديدة)",
+                "فشل إضافة مبيعات الفاتورة الثانية لحساب إنستاباي", report);
+
+            // Withdraw 20,000 piasters so remaining balance is only 5,000 piasters
+            digitalRepo.ProcessTransaction(new DigitalTransaction
+            {
+                AccountId = instaAcc.Id,
+                TxType = "cash_out",
+                AmountPiasters = 20000,
+                ProfitPiasters = 0,
+                TotalCollectedPiasters = 20000,
+                PaymentDestination = "external",
+                Notes = "سحب نقدي من الحساب"
+            });
+            long balBeforeCancelAttempt = digitalRepo.GetAccountById(instaAcc.Id).BalancePiasters;
+            AssertCondition(balBeforeCancelAttempt == 5000,
+                "رصيد إنستاباي 5,000 قرش (50 ج.م)",
+                "فشل خصم السحب النقدي", report);
+
+            // 10. Attempt CancelSaleAtomic on the 100 EGP sale when balance is only 50 EGP -> MUST BE BLOCKED
+            bool cancelBlockedOverdraft = false;
+            try
+            {
+                saleRepo.CancelSaleAtomic(savedSale2.Id, "إلغاء تجريبي للاختبار", "usr_admin");
+            }
+            catch (InvalidOperationException ex)
+            {
+                cancelBlockedOverdraft = ex.Message.Contains("غير كافٍ");
+            }
+            AssertCondition(cancelBlockedOverdraft,
+                "منع إلغاء فاتورة البيع الإلكترونية بنجاح لعدم كفاية رصيد الحساب لعكس المعاملة ومنع السحب على المكشوف",
+                "ثغرة خطيرة! تم السماح بإلغاء فاتورة إلكترونية مع رصيد حساب غير كافٍ وتسبب في رصيد سالب!", report);
+
+            long balAfterCancelBlocked = digitalRepo.GetAccountById(instaAcc.Id).BalancePiasters;
+            AssertCondition(balAfterCancelBlocked == 5000,
+                "ثبات رصيد إنستاباي عند 5,000 قرش دون أي تغيير بعد إحباط الإلغاء",
+                "فشل الحفاظ على رصيد الحساب عند إحباط إلغاء الفاتورة", report);
+
+            // 11. Fund account with 10,000 piasters (balance becomes 15,000 piasters)
+            digitalRepo.FundAccount(instaAcc.Id, 10000, "cash_drawer", "تغذية لإلغاء الفاتورة", "usr_admin");
+            long balFundedForCancel = digitalRepo.GetAccountById(instaAcc.Id).BalancePiasters;
+            AssertCondition(balFundedForCancel == 15000,
+                "تغذية رصيد إنستاباي إلى 15,000 قرش",
+                "فشل تغذية رصيد إنستاباي", report);
+
+            // 12. Retry CancelSaleAtomic -> MUST SUCCEED
+            var cancelledSale = saleRepo.CancelSaleAtomic(savedSale2.Id, "إلغاء نظامي بعد تغذية الرصيد", "usr_admin");
+            AssertCondition(cancelledSale != null && cancelledSale.Status == "cancelled",
+                "إلغاء فاتورة البيع الإلكترونية بنجاح بعد توفر الرصيد الكافي وتسجيل حركة pos_sale_cancel",
+                "فشل إلغاء الفاتورة بعد توفر الرصيد", report);
+
+            long finalBal = digitalRepo.GetAccountById(instaAcc.Id).BalancePiasters;
+            AssertCondition(finalBal == 5000,
+                "خصم قيمة الفاتورة الملغاة (10,000 قرش) بدقة مطلقة (15,000 - 10,000 = 5,000 قرش)",
+                string.Format("فشل مطابقة رصيد إنستاباي النهائي: الفعلي ({0}) والمتوقع (5000)", finalBal), report);
         }
     }
 }

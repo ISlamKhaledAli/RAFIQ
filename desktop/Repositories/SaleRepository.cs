@@ -1322,60 +1322,73 @@ namespace RafiqPOS.Repositories
                         }
 
                         // Reversal of digital wallet / InstaPay payments if applicable
-                        try
+                        var digTxs = new List<Tuple<string, string, long>>();
+                        using (var dCheckCmd = new SQLiteCommand("SELECT id, account_id, amount_piasters FROM digital_transactions WHERE sale_id = @sid AND tx_type = 'pos_sale' AND status = 'completed';", conn, trans))
                         {
-                            var digTxs = new List<Tuple<string, string, long>>();
-                            using (var dCheckCmd = new SQLiteCommand("SELECT id, account_id, amount_piasters FROM digital_transactions WHERE sale_id = @sid AND tx_type = 'pos_sale' AND status = 'completed';", conn, trans))
+                            dCheckCmd.Parameters.AddWithValue("@sid", sale.Id);
+                            using (var dRdr = dCheckCmd.ExecuteReader())
                             {
-                                dCheckCmd.Parameters.AddWithValue("@sid", sale.Id);
-                                using (var dRdr = dCheckCmd.ExecuteReader())
+                                while (dRdr.Read())
                                 {
-                                    while (dRdr.Read())
+                                    string tId = dRdr["id"].ToString();
+                                    string aId = dRdr["account_id"].ToString();
+                                    long amt = Convert.ToInt64(dRdr["amount_piasters"]);
+                                    digTxs.Add(new Tuple<string, string, long>(tId, aId, amt));
+                                }
+                            }
+                        }
+
+                        for (int dIdx = 0; dIdx < digTxs.Count; dIdx++)
+                        {
+                            var dtx = digTxs[dIdx];
+                            long accBal = 0;
+                            string accName = "المحفظة / الحساب الإلكتروني";
+                            using (var fCmd = new SQLiteCommand("SELECT name, balance_piasters FROM digital_accounts WHERE id = @id LIMIT 1;", conn, trans))
+                            {
+                                fCmd.Parameters.AddWithValue("@id", dtx.Item2);
+                                using (var fRdr = fCmd.ExecuteReader())
+                                {
+                                    if (fRdr.Read())
                                     {
-                                        string tId = dRdr["id"].ToString();
-                                        string aId = dRdr["account_id"].ToString();
-                                        long amt = Convert.ToInt64(dRdr["amount_piasters"]);
-                                        digTxs.Add(new Tuple<string, string, long>(tId, aId, amt));
+                                        accName = fRdr["name"] != DBNull.Value ? fRdr["name"].ToString() : "المحفظة";
+                                        accBal = Convert.ToInt64(fRdr["balance_piasters"]);
                                     }
                                 }
                             }
 
-                            for (int dIdx = 0; dIdx < digTxs.Count; dIdx++)
+                            if (accBal < dtx.Item3)
                             {
-                                var dtx = digTxs[dIdx];
-                                using (var uAccCmd = new SQLiteCommand("UPDATE digital_accounts SET balance_piasters = balance_piasters - @amt, updated_at = @now WHERE id = @id;", conn, trans))
-                                {
-                                    uAccCmd.Parameters.AddWithValue("@amt", dtx.Item3);
-                                    uAccCmd.Parameters.AddWithValue("@now", nowIso);
-                                    uAccCmd.Parameters.AddWithValue("@id", dtx.Item2);
-                                    uAccCmd.ExecuteNonQuery();
-                                }
-
-                                string insRevTx = @"
-                                    INSERT INTO digital_transactions (
-                                        id, account_id, tx_type, amount_piasters, profit_piasters, total_collected_piasters,
-                                        customer_name, sale_id, cashier_name, payment_destination, status, notes, created_at
-                                    ) VALUES (
-                                        @id, @accId, 'pos_sale_cancel', @amt, 0, @amt,
-                                        @cust, @saleId, @cashier, 'wallet', 'completed', @notes, @now
-                                    );";
-                                using (var iRevCmd = new SQLiteCommand(insRevTx, conn, trans))
-                                {
-                                    iRevCmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
-                                    iRevCmd.Parameters.AddWithValue("@accId", dtx.Item2);
-                                    iRevCmd.Parameters.AddWithValue("@amt", dtx.Item3);
-                                    iRevCmd.Parameters.AddWithValue("@cust", (object)sale.CustomerId ?? DBNull.Value);
-                                    iRevCmd.Parameters.AddWithValue("@saleId", sale.Id);
-                                    iRevCmd.Parameters.AddWithValue("@cashier", (object)sale.CashierName ?? DBNull.Value);
-                                    iRevCmd.Parameters.AddWithValue("@notes", string.Format("إلغاء فاتورة بيع كاشير #{0} - {1}", sale.InvoiceNumber, reason));
-                                    iRevCmd.Parameters.AddWithValue("@now", nowIso);
-                                    iRevCmd.ExecuteNonQuery();
-                                }
+                                throw new InvalidOperationException(string.Format("لا يمكن إلغاء الفاتورة: رصيد حساب {0} الحالي ({1:N2} ج.م) غير كافٍ لعكس قيمة الفاتورة الإلكترونية ({2:N2} ج.م). يرجى تغذية الحساب أولاً.", accName, accBal / 100.0, dtx.Item3 / 100.0));
                             }
-                        }
-                        catch (Exception dEx)
-                        {
-                            Logger.Warn("تنبيه أثناء إلغاء ربط الفاتورة بمحفظة الدفع: " + dEx.Message);
+
+                            using (var uAccCmd = new SQLiteCommand("UPDATE digital_accounts SET balance_piasters = balance_piasters - @amt, updated_at = @now WHERE id = @id;", conn, trans))
+                            {
+                                uAccCmd.Parameters.AddWithValue("@amt", dtx.Item3);
+                                uAccCmd.Parameters.AddWithValue("@now", nowIso);
+                                uAccCmd.Parameters.AddWithValue("@id", dtx.Item2);
+                                uAccCmd.ExecuteNonQuery();
+                            }
+
+                            string insRevTx = @"
+                                INSERT INTO digital_transactions (
+                                    id, account_id, tx_type, amount_piasters, profit_piasters, total_collected_piasters,
+                                    customer_name, sale_id, cashier_name, payment_destination, status, notes, created_at
+                                ) VALUES (
+                                    @id, @accId, 'pos_sale_cancel', @amt, 0, @amt,
+                                    @cust, @saleId, @cashier, 'wallet', 'completed', @notes, @now
+                                );";
+                            using (var iRevCmd = new SQLiteCommand(insRevTx, conn, trans))
+                            {
+                                iRevCmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
+                                iRevCmd.Parameters.AddWithValue("@accId", dtx.Item2);
+                                iRevCmd.Parameters.AddWithValue("@amt", dtx.Item3);
+                                iRevCmd.Parameters.AddWithValue("@cust", (object)sale.CustomerId ?? DBNull.Value);
+                                iRevCmd.Parameters.AddWithValue("@saleId", sale.Id);
+                                iRevCmd.Parameters.AddWithValue("@cashier", (object)sale.CashierName ?? DBNull.Value);
+                                iRevCmd.Parameters.AddWithValue("@notes", string.Format("إلغاء فاتورة بيع كاشير #{0} - {1}", sale.InvoiceNumber, reason));
+                                iRevCmd.Parameters.AddWithValue("@now", nowIso);
+                                iRevCmd.ExecuteNonQuery();
+                            }
                         }
 
                         string detailsJson = string.Format(
