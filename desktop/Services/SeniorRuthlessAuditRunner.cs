@@ -91,6 +91,7 @@ namespace RafiqPOS.Services
                 RunTest19_DigitalWalletDrawerCashInOutCommissionParity(report);
                 RunTest20_DigitalWalletRefundAndCancelOverdraftGuards(report);
                 RunTest21_EntityArchivalAndActiveValidationGuards(report);
+                RunTest22_AdvancedSubsystemAssetAndCatalogIntegrityGuards(report);
 
                 report.Success = (report.PassedAssertions == report.TotalAssertions);
                 report.Message = string.Format("اكتمل الفحص الشامل المتقدم بنجاح فائق: {0}/{1} اختبارات ناجحة بنسبة 100%",
@@ -2803,5 +2804,260 @@ namespace RafiqPOS.Services
                 "منع إضافة فاتورة شراء لمورد مؤرشف بنجاح وحماية دورة المشتريات",
                 "ثغرة! تم السماح بإنشاء فاتورة شراء لمورد مؤرشف!", report);
         }
+
+        private static void RunTest22_AdvancedSubsystemAssetAndCatalogIntegrityGuards(AuditReport report)
+        {
+            var digitalAccountRepo = new DigitalAccountRepository(_connStr);
+            var epayRepo = new EpayRepository(_connStr);
+            var productRepo = new ProductRepository(_connStr);
+            var customerRepo = new CustomerRepository(_connStr);
+            var supplierRepo = new SupplierRepository(_connStr);
+            var saleRepo = new SaleRepository(_connStr);
+            var purchaseRepo = new PurchaseRepository(_connStr);
+
+            // 1. Digital Account (Wallet) with positive balance cannot be deleted or archived
+            string walletId1 = "w_test_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            var wallet1 = new DigitalAccount
+            {
+                Id = walletId1,
+                Name = "محفظة فودافون كاش رئيسية",
+                Type = "vodafone_cash",
+                PhoneNumber = "01011112222",
+                BalancePiasters = 10000,
+                IsActive = true,
+                IsDefault = false
+            };
+            digitalAccountRepo.SaveAccount(wallet1);
+
+            bool deleteWalletWithBalanceBlocked = false;
+            try
+            {
+                digitalAccountRepo.DeleteAccount(walletId1);
+            }
+            catch (InvalidOperationException ex)
+            {
+                deleteWalletWithBalanceBlocked = ex.Message.Contains("رصيد") || ex.Message.Contains("تصفية");
+            }
+            AssertCondition(deleteWalletWithBalanceBlocked,
+                "منع حذف أو أرشفة المحفظة الرقمية طالما بها رصيد مالي نشط لحماية أصول المتجر",
+                "ثغرة! تم السماح بحذف محفظة رقمية تحتوي على رصيد مالي للمحل!", report);
+
+            // 2. Default Digital Account cannot be deleted when other active accounts of the same type exist
+            string walletId2 = "w_test_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            var wallet2 = new DigitalAccount
+            {
+                Id = walletId2,
+                Name = "محفظة فودافون كاش ثانوية",
+                Type = "vodafone_cash",
+                PhoneNumber = "01033334444",
+                BalancePiasters = 0,
+                IsActive = true,
+                IsDefault = false
+            };
+            digitalAccountRepo.SaveAccount(wallet2);
+
+            // Settle wallet 1 to 0 balance, but make it default
+            using (var conn = new SQLiteConnection(_connStr))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("UPDATE digital_accounts SET balance_piasters = 0, is_default = 1 WHERE id = @id;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", walletId1);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+
+            bool deleteDefaultWalletBlocked = false;
+            try
+            {
+                digitalAccountRepo.DeleteAccount(walletId1);
+            }
+            catch (InvalidOperationException ex)
+            {
+                deleteDefaultWalletBlocked = ex.Message.Contains("افتراضي");
+            }
+            AssertCondition(deleteDefaultWalletBlocked,
+                "منع حذف المحفظة الافتراضية بنجاح عند وجود محافظ أخرى نشطة من نفس النوع",
+                "ثغرة! تم السماح بحذف المحفظة الافتراضية مع بقاء محافظ أخرى من نفس النوع!", report);
+
+            // Make wallet 2 default -> Now wallet 1 can be safely deleted/archived
+            using (var conn = new SQLiteConnection(_connStr))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("UPDATE digital_accounts SET is_default = 1 WHERE id = @id2; UPDATE digital_accounts SET is_default = 0 WHERE id = @id1;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@id2", walletId2);
+                    cmd.Parameters.AddWithValue("@id1", walletId1);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            digitalAccountRepo.DeleteAccount(walletId1);
+            var checkW1 = digitalAccountRepo.GetAccountById(walletId1);
+            AssertCondition(checkW1 == null || !checkW1.IsActive,
+                "حذف أو أرشفة المحفظة بنجاح بعد تصفير رصيدها ونقل الحالة الافتراضية لمحفظة أخرى",
+                "فشل حذف المحفظة الرقمية بعد استيفاء كافة الشروط الرقابية", report);
+
+            // 3. Epay Terminal with positive balance cannot be deleted or archived
+            string epayTermId = "epay_term_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            var epayTerm = new EpayTerminal
+            {
+                Id = epayTermId,
+                Name = "ماكينة فوري الفرع الرئيسي",
+                Provider = "fawry",
+                TerminalCode = "FWR-9001",
+                BalancePiasters = 50000,
+                IsActive = true
+            };
+            epayRepo.SaveTerminal(epayTerm);
+
+            string epayMsg = null;
+            bool deleteTermWithBalanceResult = epayRepo.DeleteTerminal(epayTermId, out epayMsg);
+            AssertCondition(!deleteTermWithBalanceResult && epayMsg != null && (epayMsg.Contains("رصيد") || epayMsg.Contains("تصفية")),
+                "منع حذف أو أرشفة ماكينة الدفع الإلكتروني وبها رصيد مالي قائم لحماية رأس مال المحل",
+                "ثغرة! تم السماح بحذف ماكينة دفع إلكتروني تحوي رصيداً نقدياً!", report);
+
+            // Settle terminal balance to 0 -> Delete/Archive MUST SUCCEED
+            using (var conn = new SQLiteConnection(_connStr))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("UPDATE epay_terminals SET balance_piasters = 0 WHERE id = @id;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", epayTermId);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            string epayMsg2 = null;
+            bool deleteTermZeroResult = epayRepo.DeleteTerminal(epayTermId, out epayMsg2);
+            var checkTerm = epayRepo.GetTerminalById(epayTermId);
+            AssertCondition(deleteTermZeroResult && (checkTerm == null || !checkTerm.IsActive),
+                "حذف أو أرشفة ماكينة الدفع الإلكتروني بنجاح بعد تصفير رصيدها بالكامل",
+                "فشل حذف أو أرشفة ماكينة الدفع الإلكتروني بعد تصفير رصيدها", report);
+
+            // 4. Product Catalog Archival Integrity: Block Sale on Archived Product
+            string prodId = "prod_arch_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            var product = new Product
+            {
+                Id = prodId,
+                Name = "صنف مجمد للاختبار الرقابي",
+                Barcode = "BAR-ARCH-99",
+                StockQuantityMilli = 10000,
+                CostPiasters = 2000,
+                PricePiasters = 3500,
+                IsActive = true
+            };
+            productRepo.Upsert(product);
+
+            // Soft-delete the product
+            using (var conn = new SQLiteConnection(_connStr))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("UPDATE products SET is_active = 0 WHERE id = @id;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", prodId);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+
+            string custId = "cust_active_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            customerRepo.SaveCustomer(new Customer
+            {
+                Id = custId,
+                Name = "عميل فحص الأصناف النشطة",
+                Phone = "01000001111"
+            });
+
+            var saleWithArchivedProd = new Sale
+            {
+                Id = "stress_sale_arch_prod_" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                CustomerId = custId,
+                PaymentMethod = "cash",
+                SubtotalPiasters = 3500,
+                TotalPiasters = 3500,
+                PaidPiasters = 3500,
+                Items = new List<SaleItem>
+                {
+                    new SaleItem
+                    {
+                        ProductId = prodId,
+                        ProductName = product.Name,
+                        QuantityMilli = 1000,
+                        UnitPricePiasters = 3500,
+                        TotalPiasters = 3500
+                    }
+                }
+            };
+
+            bool saleArchivedProdBlocked = false;
+            try
+            {
+                saleRepo.CreateSaleAtomic(saleWithArchivedProd);
+            }
+            catch (InvalidOperationException ex)
+            {
+                saleArchivedProdBlocked = ex.Message.Contains("مؤرشف") || ex.Message.Contains("محذوف");
+            }
+            AssertCondition(saleArchivedProdBlocked,
+                "منع إنشاء فاتورة بيع لصنف مؤرشف أو محذوف لحماية دقة جرد المخزون",
+                "ثغرة! تم السماح ببيع صنف مؤرشف أو محذوف من قائمة الأصناف!", report);
+
+            // 5. Product Catalog Archival Integrity: Block Purchase on Archived Product
+            string supId = "sup_active_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            supplierRepo.Save(new Supplier
+            {
+                Id = supId,
+                Name = "مورد فحص الأصناف النشطة",
+                Phone = "01000002222",
+                IsActive = true
+            });
+
+            var purchaseWithArchivedProd = new Purchase
+            {
+                Id = "stress_pur_arch_prod_" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                SupplierId = supId,
+                PaymentSource = "cash_drawer",
+                Items = new List<PurchaseItem>
+                {
+                    new PurchaseItem
+                    {
+                        ProductId = prodId,
+                        ProductName = product.Name,
+                        QuantityMilli = 5000,
+                        UnitCostPiasters = 2000
+                    }
+                }
+            };
+
+            bool purchaseArchivedProdBlocked = false;
+            try
+            {
+                purchaseRepo.CreatePurchase(purchaseWithArchivedProd);
+            }
+            catch (InvalidOperationException ex)
+            {
+                purchaseArchivedProdBlocked = ex.Message.Contains("مؤرشف") || ex.Message.Contains("محذوف");
+            }
+            AssertCondition(purchaseArchivedProdBlocked,
+                "منع إنشاء فاتورة شراء لصنف مؤرشف أو محذوف وحماية قيود التوريد المخزني",
+                "ثغرة! تم السماح بشراء وتوريد صنف مؤرشف أو محذوف إلى المخزن!", report);
+
+            // 6. Re-activate product -> Sale and Purchase MUST SUCCEED
+            using (var conn = new SQLiteConnection(_connStr))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("UPDATE products SET is_active = 1 WHERE id = @id;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", prodId);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+
+            saleRepo.CreateSaleAtomic(saleWithArchivedProd);
+            purchaseRepo.CreatePurchase(purchaseWithArchivedProd);
+            var updatedProd = productRepo.GetById(prodId);
+            AssertCondition(updatedProd != null && updatedProd.StockQuantityMilli == 10000 - 1000 + 5000,
+                "نجاح عمليات البيع والشراء وتحديث رصيد المخزن بدقة متناهية بعد إعادة تنشيط الصنف",
+                "فشل تحديث رصيد الصنف بعد إعادة تنشيطه وإتمام عمليتي البيع والشراء", report);
+        }
     }
 }
+

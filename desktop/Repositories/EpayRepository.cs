@@ -257,17 +257,34 @@ namespace RafiqPOS.Repositories
                     try
                     {
                         string termName = "";
-                        string checkSql = "SELECT name FROM epay_terminals WHERE id = @id LIMIT 1;";
+                        long balancePiasters = 0;
+                        string checkSql = "SELECT name, balance_piasters FROM epay_terminals WHERE id = @id LIMIT 1;";
                         using (var cmd = new SQLiteCommand(checkSql, conn, trans))
                         {
                             cmd.Parameters.AddWithValue("@id", terminalId);
-                            object res = cmd.ExecuteScalar();
-                            if (res == null)
+                            using (var reader = cmd.ExecuteReader())
                             {
-                                message = "الماكينة غير موجودة";
-                                return false;
+                                if (!reader.Read())
+                                {
+                                    message = "الماكينة غير موجودة";
+                                    return false;
+                                }
+                                termName = reader.GetString(0);
+                                balancePiasters = reader.IsDBNull(1) ? 0L : Convert.ToInt64(reader.GetValue(1));
                             }
-                            termName = res.ToString();
+                        }
+
+                        if (balancePiasters > 0)
+                        {
+                            message = string.Format("لا يمكن حذف أو أرشفة الماكينة \"{0}\" لوجود رصيد متبقي ({1}). يجب سحب أو تصفية الرصيد أولاً.",
+                                termName, Common.Money.FormatPiasters(balancePiasters));
+                            return false;
+                        }
+                        if (balancePiasters < 0)
+                        {
+                            message = string.Format("لا يمكن حذف أو أرشفة الماكينة \"{0}\" لوجود رصيد مدين ({1}). يجب تسوية الرصيد أولاً.",
+                                termName, Common.Money.FormatPiasters(Math.Abs(balancePiasters)));
+                            return false;
                         }
 
                         long txCount = 0;

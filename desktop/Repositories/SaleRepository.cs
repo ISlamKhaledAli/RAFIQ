@@ -104,8 +104,9 @@ namespace RafiqPOS.Repositories
                             // Check if this item is a tracked warehouse product (Audit F-28 / Quick Items Support)
                             bool prodExistsInDb = false;
                             bool hasVariants = false;
+                            bool isProductArchived = false;
                             string dbProdName = null;
-                            using (var chkCmd = new SQLiteCommand("SELECT name, has_variants FROM products WHERE id = @chkId LIMIT 1;", conn, trans))
+                            using (var chkCmd = new SQLiteCommand("SELECT name, has_variants, is_active FROM products WHERE id = @chkId LIMIT 1;", conn, trans))
                             {
                                 chkCmd.Parameters.AddWithValue("@chkId", item.ProductId);
                                 using (var chkReader = chkCmd.ExecuteReader())
@@ -118,6 +119,11 @@ namespace RafiqPOS.Repositories
                                             dbProdName = chkReader["name"].ToString();
                                         }
                                         try { hasVariants = Convert.ToInt32(chkReader["has_variants"]) == 1; } catch { }
+                                        try { isProductArchived = Convert.ToInt32(chkReader["is_active"]) == 0; } catch { }
+                                        if (isProductArchived)
+                                        {
+                                            throw new InvalidOperationException(string.Format("لا يمكن إتمام البيع: الصنف '{0}' صنف مؤرشف أو محذوف من النظام.", item.ProductName ?? dbProdName ?? item.ProductId));
+                                        }
                                         if (!hasVariants)
                                         {
                                             using (var vChkCmd = new SQLiteCommand("SELECT 1 FROM products WHERE parent_id = @pid AND is_active = 1 LIMIT 1;", conn, trans))
