@@ -577,58 +577,62 @@ namespace RafiqPOS.Repositories
                             string.Equals(returnObj.RefundMethod, "vodafone_cash", StringComparison.OrdinalIgnoreCase) ||
                             string.Equals(returnObj.RefundMethod, "wallet", StringComparison.OrdinalIgnoreCase))
                         {
-                            try
+                            string dType = string.Equals(returnObj.RefundMethod, "instapay", StringComparison.OrdinalIgnoreCase) ? "instapay" : "wallet";
+                            string targetAccId = null;
+                            string targetAccName = null;
+                            long currentBal = 0;
+
+                            using (var fCmd = new SQLiteCommand("SELECT id, name, balance_piasters FROM digital_accounts WHERE type = @t AND is_active = 1 ORDER BY is_default DESC, created_at ASC LIMIT 1;", conn, trans))
                             {
-                                string dType = string.Equals(returnObj.RefundMethod, "instapay", StringComparison.OrdinalIgnoreCase) ? "instapay" : "wallet";
-                                string targetAccId = null;
-
-                                using (var fCmd = new SQLiteCommand("SELECT id FROM digital_accounts WHERE type = @t AND is_active = 1 ORDER BY is_default DESC, created_at ASC LIMIT 1;", conn, trans))
+                                fCmd.Parameters.AddWithValue("@t", dType);
+                                using (var fRdr = fCmd.ExecuteReader())
                                 {
-                                    fCmd.Parameters.AddWithValue("@t", dType);
-                                    using (var fRdr = fCmd.ExecuteReader())
+                                    if (fRdr.Read())
                                     {
-                                        if (fRdr.Read())
-                                        {
-                                            targetAccId = fRdr["id"].ToString();
-                                        }
-                                    }
-                                }
-
-                                if (!string.IsNullOrEmpty(targetAccId))
-                                {
-                                    using (var uCmd = new SQLiteCommand("UPDATE digital_accounts SET balance_piasters = balance_piasters - @amt, updated_at = @now WHERE id = @id;", conn, trans))
-                                    {
-                                        uCmd.Parameters.AddWithValue("@amt", returnObj.TotalPiasters);
-                                        uCmd.Parameters.AddWithValue("@now", nowIso);
-                                        uCmd.Parameters.AddWithValue("@id", targetAccId);
-                                        uCmd.ExecuteNonQuery();
-                                    }
-
-                                    string insTx = @"
-                                        INSERT INTO digital_transactions (
-                                            id, account_id, tx_type, amount_piasters, profit_piasters, total_collected_piasters,
-                                            customer_name, sale_id, cashier_name, payment_destination, status, notes, created_at
-                                        ) VALUES (
-                                            @id, @accId, 'pos_return', @amt, 0, @amt,
-                                            @cust, @saleId, @cashier, 'wallet', 'completed', @notes, @now
-                                        );";
-                                    using (var iCmd = new SQLiteCommand(insTx, conn, trans))
-                                    {
-                                        iCmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
-                                        iCmd.Parameters.AddWithValue("@accId", targetAccId);
-                                        iCmd.Parameters.AddWithValue("@amt", returnObj.TotalPiasters);
-                                        iCmd.Parameters.AddWithValue("@cust", (object)returnObj.CustomerId ?? DBNull.Value);
-                                        iCmd.Parameters.AddWithValue("@saleId", (object)returnObj.SaleId ?? DBNull.Value);
-                                        iCmd.Parameters.AddWithValue("@cashier", (object)returnObj.CashierId ?? DBNull.Value);
-                                        iCmd.Parameters.AddWithValue("@notes", string.Format("مرتجع مبيعات #{0} عبر {1}", returnObj.ReturnNumber, dType == "instapay" ? "إنستاباي" : "محفظة كاش"));
-                                        iCmd.Parameters.AddWithValue("@now", nowIso);
-                                        iCmd.ExecuteNonQuery();
+                                        targetAccId = fRdr["id"].ToString();
+                                        targetAccName = fRdr["name"] != DBNull.Value ? fRdr["name"].ToString() : (dType == "instapay" ? "إنستاباي" : "محفظة كاش");
+                                        currentBal = Convert.ToInt64(fRdr["balance_piasters"]);
                                     }
                                 }
                             }
-                            catch (Exception digEx)
+
+                            if (string.IsNullOrEmpty(targetAccId))
                             {
-                                Logger.Warn("تنبيه أثناء ربط المرتجع بمحفظة الدفع: " + digEx.Message);
+                                throw new InvalidOperationException(string.Format("لا يوجد حساب {0} نشط مسجل في النظام لصرف المرتجع الإلكتروني من خلاله. يرجى تفعيل الحساب أو اختيار طريقة استرداد أخرى.", dType == "instapay" ? "إنستاباي" : "محفظة إلكترونية"));
+                            }
+
+                            if (currentBal < returnObj.TotalPiasters)
+                            {
+                                throw new InvalidOperationException(string.Format("رصيد حساب {0} الحالي ({1:N2} ج.م) غير كافٍ لصرف قيمة المرتجع ({2:N2} ج.م). يرجى تغذية رصيد الحساب أولاً أو اختيار طريقة استرداد أخرى.", targetAccName, currentBal / 100.0, returnObj.TotalPiasters / 100.0));
+                            }
+
+                            using (var uCmd = new SQLiteCommand("UPDATE digital_accounts SET balance_piasters = balance_piasters - @amt, updated_at = @now WHERE id = @id;", conn, trans))
+                            {
+                                uCmd.Parameters.AddWithValue("@amt", returnObj.TotalPiasters);
+                                uCmd.Parameters.AddWithValue("@now", nowIso);
+                                uCmd.Parameters.AddWithValue("@id", targetAccId);
+                                uCmd.ExecuteNonQuery();
+                            }
+
+                            string insTx = @"
+                                INSERT INTO digital_transactions (
+                                    id, account_id, tx_type, amount_piasters, profit_piasters, total_collected_piasters,
+                                    customer_name, sale_id, cashier_name, payment_destination, status, notes, created_at
+                                ) VALUES (
+                                    @id, @accId, 'pos_return', @amt, 0, @amt,
+                                    @cust, @saleId, @cashier, 'wallet', 'completed', @notes, @now
+                                );";
+                            using (var iCmd = new SQLiteCommand(insTx, conn, trans))
+                            {
+                                iCmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
+                                iCmd.Parameters.AddWithValue("@accId", targetAccId);
+                                iCmd.Parameters.AddWithValue("@amt", returnObj.TotalPiasters);
+                                iCmd.Parameters.AddWithValue("@cust", (object)returnObj.CustomerId ?? DBNull.Value);
+                                iCmd.Parameters.AddWithValue("@saleId", (object)returnObj.SaleId ?? DBNull.Value);
+                                iCmd.Parameters.AddWithValue("@cashier", (object)returnObj.CashierId ?? DBNull.Value);
+                                iCmd.Parameters.AddWithValue("@notes", string.Format("مرتجع مبيعات #{0} عبر {1}", returnObj.ReturnNumber, dType == "instapay" ? "إنستاباي" : "محفظة كاش"));
+                                iCmd.Parameters.AddWithValue("@now", nowIso);
+                                iCmd.ExecuteNonQuery();
                             }
                         }
 
