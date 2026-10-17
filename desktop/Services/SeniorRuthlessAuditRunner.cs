@@ -88,6 +88,7 @@ namespace RafiqPOS.Services
                 RunTest16_ReturnOnCancelledSaleBlocked(report);
                 RunTest17_ReturnCeilingsAndDigitalRefundGuards(report);
                 RunTest18_CustomerPrepaymentExhaustionAndCancellationSymmetry(report);
+                RunTest19_DigitalWalletDrawerCashInOutCommissionParity(report);
 
                 report.Success = (report.PassedAssertions == report.TotalAssertions);
                 report.Message = string.Format("اكتمل الفحص الشامل المتقدم بنجاح فائق: {0}/{1} اختبارات ناجحة بنسبة 100%",
@@ -204,9 +205,9 @@ namespace RafiqPOS.Services
                 "تغذية المحفظة من درج الكاشير مسجلة ومفصولة بدقة (1,000.00 ج.م)",
                 "قيمة تغذية المحفظة في التقفيل غير مطابقة: " + preview.WalletsDrawerFundingPiasters, report);
 
-            // Net wallet drawer cash: 41,500 collected - 25,000 paid = 16,500 piasters
-            AssertCondition(preview.WalletsDrawerCashPiasters == 16500,
-                "صافي حركة الكاشير الناتجة عن معاملات المحفظة (سحب وإيداع) دقيقة (+165.00 ج.م)",
+            // Net wallet drawer cash: 41,500 collected - 24,500 paid = 17,000 piasters (+170.00 EGP)
+            AssertCondition(preview.WalletsDrawerCashPiasters == 17000,
+                "صافي حركة الكاشير الناتجة عن معاملات المحفظة (سحب وإيداع) دقيقة (+170.00 ج.م)",
                 "صافي كاش المحفظة غير مطابق: " + preview.WalletsDrawerCashPiasters, report);
 
             // Expected cash must incorporate + 16,500 - 100,000 = -83,500
@@ -1934,6 +1935,315 @@ namespace RafiqPOS.Services
             AssertCondition(vFinal.IsBalanced && vFinal.DiscrepancyPiasters == 0,
                 "تطابق دفتر الأستاذ والميزان الرياضي للعميل بنسبة 100% بدون أي فاقد بالقروش (Discrepancy = 0)",
                 "فشل مطابقة دفتر الأستاذ بعد الإلغاء!", report);
+        }
+
+        private static void RunTest19_DigitalWalletDrawerCashInOutCommissionParity(AuditReport report)
+        {
+            var closingRepo = new DailyClosingRepository(_connStr);
+            var counterRepo = new CounterRepository(_connStr);
+            var auditRepo = new AuditLogRepository(_connStr);
+            var settingsRepo = new SettingsRepository(_connStr);
+            var closingService = new DailyClosingService(_connStr, closingRepo, counterRepo, auditRepo, settingsRepo);
+
+            var digitalRepo = new DigitalAccountRepository(_connStr, auditRepo);
+            var productRepo = new ProductRepository(_connStr);
+            var saleRepo = new SaleRepository(_connStr);
+            var supplierRepo = new SupplierRepository(_connStr, auditRepo);
+            var purchaseRepo = new PurchaseRepository(_connStr, counterRepo, supplierRepo, null, auditRepo, null);
+            var expenseRepo = new ExpenseRepository(_connStr, auditRepo, counterRepo);
+            var expenseService = new ExpenseService(expenseRepo, closingService);
+
+            string bDate = "2026-04-10";
+            settingsRepo.Set("business_day_cutoff_hour", "0");
+
+            // 1. Initial cash sale in register: 1,000 EGP (100,000 piasters)
+            var prod = new Product
+            {
+                Id = "prod_close_parity_19",
+                Name = "صنف اختبار التقفيل 19",
+                Barcode = "622111191919",
+                Unit = "piece",
+                PricePiasters = 100000,
+                CostPiasters = 60000,
+                StockQuantityMilli = 50000,
+                IsActive = true
+            };
+            productRepo.Upsert(prod);
+
+            var sale = new Sale
+            {
+                Id = "sale_close_parity_19",
+                PaymentMethod = "cash",
+                SubtotalPiasters = 100000,
+                TotalPiasters = 100000,
+                PaidPiasters = 100000,
+                Status = "completed",
+                CreatedAt = bDate + "T10:00:00Z",
+                Items = new List<SaleItem>
+                {
+                    new SaleItem
+                    {
+                        ProductId = prod.Id,
+                        ProductName = prod.Name,
+                        QuantityMilli = 1000,
+                        UnitPricePiasters = 100000,
+                        TotalPiasters = 100000,
+                        Unit = "piece"
+                    }
+                }
+            };
+            saleRepo.CreateSaleAtomic(sale);
+
+            // Update created_at of sale to exact bDate
+            using (var conn = new SQLiteConnection(_connStr))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("UPDATE sales SET created_at = @cat WHERE id = @id;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@cat", bDate + "T10:00:00Z");
+                    cmd.Parameters.AddWithValue("@id", sale.Id);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+
+            // 2. Add digital wallet and fund it with 300 EGP (30,000 piasters) from cash drawer
+            var wallet = new DigitalAccount
+            {
+                Id = "wallet_voda_parity_19",
+                Name = "فودافون كاش - فحص التقفيل 19",
+                Type = "wallet",
+                Provider = "vodafone_cash",
+                BalancePiasters = 0,
+                IsActive = true
+            };
+            digitalRepo.SaveAccount(wallet);
+
+            var funding = digitalRepo.FundAccount(wallet.Id, 30000, "cash_drawer", "تغذية من درج النقدية", "usr_admin");
+            using (var conn = new SQLiteConnection(_connStr))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("UPDATE digital_account_fundings SET created_at = @cat WHERE id = @id;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@cat", bDate + "T10:30:00Z");
+                    cmd.Parameters.AddWithValue("@id", funding.Id);
+                    cmd.ExecuteNonQuery();
+                }
+                using (var cmd = new SQLiteCommand("UPDATE digital_transactions SET created_at = @cat WHERE account_id = @aid AND tx_type = 'funding';", conn))
+                {
+                    cmd.Parameters.AddWithValue("@cat", bDate + "T10:30:00Z");
+                    cmd.Parameters.AddWithValue("@aid", wallet.Id);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+
+            // 3. Customer Transaction 1: cash_out (store transfers 200 EGP from wallet to customer, customer pays 215 EGP cash into drawer)
+            var txOut = new DigitalTransaction
+            {
+                AccountId = wallet.Id,
+                TxType = "cash_out",
+                AmountPiasters = 20000,
+                ProfitPiasters = 1500,
+                TotalCollectedPiasters = 21500,
+                PaymentDestination = "cash_drawer",
+                Notes = "سحب كاش للزبون",
+                CashierName = "كاشير 1"
+            };
+            var savedTxOut = digitalRepo.ProcessTransaction(txOut);
+            using (var conn = new SQLiteConnection(_connStr))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("UPDATE digital_transactions SET created_at = @cat WHERE id = @id;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@cat", bDate + "T11:00:00Z");
+                    cmd.Parameters.AddWithValue("@id", savedTxOut.Id);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+
+            // 4. Customer Transaction 2: cash_in (customer transfers 100 EGP to store wallet, store charges 5 EGP fee, cashier gives customer 95 EGP cash from drawer)
+            var txIn = new DigitalTransaction
+            {
+                AccountId = wallet.Id,
+                TxType = "cash_in",
+                AmountPiasters = 10000,
+                ProfitPiasters = 500,
+                TotalCollectedPiasters = 500,
+                PaymentDestination = "cash_drawer",
+                Notes = "إيداع كاش للزبون",
+                CashierName = "كاشير 1"
+            };
+            var savedTxIn = digitalRepo.ProcessTransaction(txIn);
+            using (var conn = new SQLiteConnection(_connStr))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("UPDATE digital_transactions SET created_at = @cat WHERE id = @id;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@cat", bDate + "T11:30:00Z");
+                    cmd.Parameters.AddWithValue("@id", savedTxIn.Id);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+
+            // 5. Purchase from cash drawer: 100 EGP (10,000 piasters)
+            var pur = new Purchase
+            {
+                Id = "pur_close_parity_19",
+                PaidAmountPiasters = 10000,
+                PaymentSource = "cash_drawer",
+                Items = new List<PurchaseItem>
+                {
+                    new PurchaseItem
+                    {
+                        ProductId = prod.Id,
+                        ProductName = prod.Name,
+                        QuantityMilli = 1000,
+                        UnitCostPiasters = 10000
+                    }
+                }
+            };
+            purchaseRepo.CreatePurchase(pur);
+            using (var conn = new SQLiteConnection(_connStr))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("UPDATE purchases SET created_at = @cat WHERE id = @id;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@cat", bDate + "T12:00:00Z");
+                    cmd.Parameters.AddWithValue("@id", pur.Id);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+
+            // 6. Direct Supplier Payment from cash drawer: 50 EGP (5,000 piasters)
+            var sup = new Supplier
+            {
+                Name = "مورد فحص التقفيل 19",
+                IsActive = true
+            };
+            var savedSup = supplierRepo.Save(sup);
+            supplierRepo.RecordPayment(savedSup.Id, 5000, "سداد نقدي للمورد من الدرج", "usr_admin", "cash_drawer");
+            using (var conn = new SQLiteConnection(_connStr))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("UPDATE supplier_transactions SET created_at = @cat WHERE supplier_id = @sid;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@cat", bDate + "T12:30:00Z");
+                    cmd.Parameters.AddWithValue("@sid", savedSup.Id);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+
+            // 7. Expense from cash drawer: 20 EGP (2,000 piasters)
+            expenseService.CreateExpense(new CreateExpenseRequest
+            {
+                Category = "فواتير",
+                AmountPiasters = 2000,
+                BusinessDate = bDate,
+                Notes = "فاتورة كهرباء",
+                CreatedBy = "الكاشير"
+            });
+
+            // 8. Assertions on Closing Preview:
+            // Expected Cash:
+            //   Cash Sales: +100,000
+            //   Wallets Drawer Funding: -30,000
+            //   Wallets Drawer Cash: +21,500 (cash_out) + (500 - 10000 = -9,500 cash_in) = +12,000
+            //   Purchases Drawer Cash: -10,000
+            //   Supplier Payments Drawer Cash: -5,000
+            //   Expenses: -2,000
+            // Total Expected Cash: 100,000 - 30,000 + 12,000 - 10,000 - 5,000 - 2,000 = 65,000 piasters (650.00 EGP)
+            var preview = closingService.GetClosingPreview(bDate);
+            AssertCondition(preview.CashSalesPiasters == 100000,
+                "مبيعات الكاش تطابق 100,000 قرش",
+                "فشل مطابقة مبيعات الكاش في التقفيل", report);
+
+            AssertCondition(preview.WalletsDrawerFundingPiasters == 30000,
+                "تغذية المحفظة من الدرج محسوبة بدقة (30,000 قرش)",
+                "فشل احتساب تغذية المحفظة من الدرج", report);
+
+            AssertCondition(preview.WalletsDrawerCashPiasters == 12000,
+                "صافي حركة كاش الدرج لمعاملات المحافظ (21,500 قبض - 9,500 تسليم) = 12,000 قرش بدقة مطلقة",
+                string.Format("فشل احتساب كاش المحافظ في الدرج: القيمة المحسوبة ({0}) والمطلوبة (12000)", preview.WalletsDrawerCashPiasters),
+                report);
+
+            AssertCondition(preview.WalletsNetProfitPiasters == 2000,
+                "أرباح معاملات المحافظ المكتسبة (1500 + 500 = 2000 قرش) محسوبة ومستقلة",
+                "فشل احتساب أرباح معاملات المحافظ", report);
+
+            AssertCondition(preview.PurchasesDrawerCashPiasters == 10000,
+                "مشتريات الدرج النقدية محسوبة بدقة (10,000 قرش)",
+                "فشل احتساب مشتريات الدرج النقدية", report);
+
+            AssertCondition(preview.SupplierPaymentsDrawerCashPiasters == 5000,
+                "سداد المورد من الدرج محسوب بدقة (5,000 قرش)",
+                "فشل احتساب سداد المورد من الدرج", report);
+
+            AssertCondition(preview.ExpensesPiasters == 2000,
+                "المصروفات النقدية محسوبة بدقة (2,000 قرش)",
+                "فشل احتساب المصروفات النقدية", report);
+
+            AssertCondition(preview.ExpectedCashPiasters == 65000,
+                "رصيد النقدية المتوقع في الدرج مطابق للواقع المالي بنسبة 100% (65,000 قرش = 650 ج.م)",
+                string.Format("فشل التقفيل! رصيد الدرج المتوقع ({0}) لا يطابق المطلوب (65000)", preview.ExpectedCashPiasters),
+                report);
+
+            var live = closingService.GetLiveDrawerBalance(bDate);
+            AssertCondition(live.AvailableCashPiasters == 65000,
+                "الرصيد اللحظي لدرج الكاشير يطابق الرصيد المتوقع بدقة تامة (65,000 قرش)",
+                "فشل تطابق الرصيد اللحظي للدرج مع التقفيل", report);
+
+            // 9. Save closing and seal the day
+            var closingReq = new DailyClosingSaveRequest
+            {
+                BusinessDate = bDate,
+                ActualCashPiasters = 65000,
+                CashierId = "usr_cashier_1",
+                CashierName = "كاشير الوردية",
+                Notes = "تقفيل نظامي بدون أي عجز أو زيادة",
+                ConfirmSuspiciousDate = true
+            };
+            var savedClosing = closingService.SaveClosing(closingReq);
+            AssertCondition(savedClosing != null && savedClosing.DifferencePiasters == 0,
+                "إقفال وتشميع اليومية بنجاح مع تسجيل فارق الدرج = 0 (مطابقة تامة بدون أي عجز أو زيادة)",
+                "فشل إقفال اليومية بمطابقة صفرية", report);
+
+            AssertCondition(closingService.IsDayClosed(bDate),
+                "تأكيد تشميع اليومية وإغلاق تاريخ العمل عبر IsDayClosed",
+                "فشل التحقق من إغلاق اليومية بعد التشميع", report);
+
+            // 10. Attempt duplicate closing on sealed day -> MUST FAIL
+            bool secondClosingBlocked = false;
+            try
+            {
+                closingService.SaveClosing(closingReq);
+            }
+            catch (InvalidOperationException)
+            {
+                secondClosingBlocked = true;
+            }
+            AssertCondition(secondClosingBlocked,
+                "منع إعادة إقفال يوم عمل مشمع ومقفل مسبقاً بنجاح",
+                "ثغرة خطيرة! تم السماح بإعادة إقفال يوم عمل مقفل وتكرار الحسابات الختامية!", report);
+
+            // 11. Attempt adding expense on sealed day -> MUST FAIL
+            bool expBlocked = false;
+            try
+            {
+                expenseService.CreateExpense(new CreateExpenseRequest
+                {
+                    Category = "نثريات",
+                    AmountPiasters = 1000,
+                    BusinessDate = bDate,
+                    Notes = "محاولة تسجيل بعد التقفيل",
+                    CreatedBy = "الكاشير"
+                });
+            }
+            catch (InvalidOperationException)
+            {
+                expBlocked = true;
+            }
+            AssertCondition(expBlocked,
+                "منع تسجيل أي حركة مصروف جديدة على يومية مشمعة ومقفلة بنجاح",
+                "تم السماح بتسجيل مصروف بعد إقفال اليومية وتشميعها!", report);
         }
     }
 }

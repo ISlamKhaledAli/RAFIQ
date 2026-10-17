@@ -432,7 +432,7 @@ namespace RafiqPOS.Services
                                 (SELECT COALESCE(SUM(balance_piasters), 0) FROM digital_accounts WHERE is_active = 1) AS wallets_balance,
                                 COALESCE(SUM(CASE WHEN payment_destination = 'cash_drawer' THEN 
                                     (CASE WHEN tx_type = 'cash_out' THEN total_collected_piasters 
-                                          WHEN tx_type = 'cash_in' THEN -amount_piasters 
+                                          WHEN tx_type = 'cash_in' THEN (profit_piasters - amount_piasters) 
                                           ELSE 0 END) 
                                     ELSE 0 END), 0) AS drawer_cash,
                                 COALESCE(SUM(profit_piasters), 0) AS net_profit

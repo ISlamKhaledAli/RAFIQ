@@ -255,7 +255,7 @@ namespace RafiqPOS.Services
                                 SELECT 
                                     COALESCE(SUM(CASE WHEN payment_destination = 'cash_drawer' THEN 
                                         (CASE WHEN tx_type = 'cash_out' THEN total_collected_piasters 
-                                              WHEN tx_type = 'cash_in' THEN -amount_piasters 
+                                              WHEN tx_type = 'cash_in' THEN (profit_piasters - amount_piasters) 
                                               ELSE 0 END) 
                                         ELSE 0 END), 0) AS drawer_cash
                                 FROM digital_transactions
