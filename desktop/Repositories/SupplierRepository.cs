@@ -71,19 +71,6 @@ namespace RafiqPOS.Repositories
             }
 
             string now = DateTime.UtcNow.ToString("o");
-            bool isNew = string.IsNullOrWhiteSpace(supplier.Id);
-
-            if (isNew)
-            {
-                supplier.Id = "sup_" + Guid.NewGuid().ToString("N");
-                supplier.CreatedAt = now;
-                supplier.UpdatedAt = now;
-                supplier.IsActive = true;
-            }
-            else
-            {
-                supplier.UpdatedAt = now;
-            }
 
             lock (SaleService.FinancialWriteLock)
             {
@@ -94,6 +81,35 @@ namespace RafiqPOS.Repositories
                     {
                     try
                     {
+                        bool exists = false;
+                        if (!string.IsNullOrWhiteSpace(supplier.Id))
+                        {
+                            using (var checkCmd = new SQLiteCommand("SELECT COUNT(*) FROM suppliers WHERE id = @id;", conn, trans))
+                            {
+                                checkCmd.Parameters.AddWithValue("@id", supplier.Id);
+                                exists = Convert.ToInt64(checkCmd.ExecuteScalar()) > 0;
+                            }
+                        }
+
+                        bool isNew = !exists;
+                        if (isNew)
+                        {
+                            if (string.IsNullOrWhiteSpace(supplier.Id))
+                            {
+                                supplier.Id = "sup_" + Guid.NewGuid().ToString("N");
+                            }
+                            if (string.IsNullOrWhiteSpace(supplier.CreatedAt))
+                            {
+                                supplier.CreatedAt = now;
+                            }
+                            supplier.UpdatedAt = now;
+                            supplier.IsActive = true;
+                        }
+                        else
+                        {
+                            supplier.UpdatedAt = now;
+                        }
+
                         if (isNew)
                         {
                             string insertSql = @"
@@ -210,6 +226,44 @@ namespace RafiqPOS.Repositories
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+
+                // 1. Fetch current supplier
+                string supplierName = null;
+                long balancePiasters = 0;
+                bool exists = false;
+                using (var checkCmd = new SQLiteCommand("SELECT name, balance_piasters FROM suppliers WHERE id = @id LIMIT 1;", conn))
+                {
+                    checkCmd.Parameters.AddWithValue("@id", id);
+                    using (var reader = checkCmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            exists = true;
+                            supplierName = reader.IsDBNull(0) ? "" : reader.GetString(0);
+                            balancePiasters = reader.IsDBNull(1) ? 0L : Convert.ToInt64(reader.GetValue(1));
+                        }
+                    }
+                }
+
+                if (!exists)
+                {
+                    throw new InvalidOperationException("المورد غير موجود في قاعدة البيانات");
+                }
+
+                // 2. Block archive if supplier has active balance (debt owed or advance credit)
+                if (balancePiasters > 0)
+                {
+                    throw new InvalidOperationException(
+                        string.Format("لا يمكن أرشفة المورد \"{0}\" لأن له رصيد مستحق بذمة المحل ({1}). يجب تسوية حسابه أولاً.",
+                            supplierName, Common.Money.FormatPiasters(balancePiasters)));
+                }
+                if (balancePiasters < 0)
+                {
+                    throw new InvalidOperationException(
+                        string.Format("لا يمكن أرشفة المورد \"{0}\" لأن بذمته رصيد مدين / دفعات مقدمة ({1}). يجب تسوية حسابه أولاً.",
+                            supplierName, Common.Money.FormatPiasters(Math.Abs(balancePiasters))));
+                }
+
                 using (var trans = conn.BeginTransaction())
                 {
                     try

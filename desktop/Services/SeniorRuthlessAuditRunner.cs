@@ -90,6 +90,7 @@ namespace RafiqPOS.Services
                 RunTest18_CustomerPrepaymentExhaustionAndCancellationSymmetry(report);
                 RunTest19_DigitalWalletDrawerCashInOutCommissionParity(report);
                 RunTest20_DigitalWalletRefundAndCancelOverdraftGuards(report);
+                RunTest21_EntityArchivalAndActiveValidationGuards(report);
 
                 report.Success = (report.PassedAssertions == report.TotalAssertions);
                 report.Message = string.Format("اكتمل الفحص الشامل المتقدم بنجاح فائق: {0}/{1} اختبارات ناجحة بنسبة 100%",
@@ -2516,6 +2517,291 @@ namespace RafiqPOS.Services
             AssertCondition(finalBal == 5000,
                 "خصم قيمة الفاتورة الملغاة (10,000 قرش) بدقة مطلقة (15,000 - 10,000 = 5,000 قرش)",
                 string.Format("فشل مطابقة رصيد إنستاباي النهائي: الفعلي ({0}) والمتوقع (5000)", finalBal), report);
+        }
+
+        // Test 21: Entity Archival and Active Validation Guards
+        private static void RunTest21_EntityArchivalAndActiveValidationGuards(AuditReport report)
+        {
+            var auditRepo = new AuditLogRepository(_connStr);
+            var counterRepo = new CounterRepository(_connStr);
+            var custRepo = new CustomerRepository(_connStr, auditRepo);
+            var supplierRepo = new SupplierRepository(_connStr, auditRepo);
+            var productRepo = new ProductRepository(_connStr, auditRepo);
+            var saleRepo = new SaleRepository(_connStr, counterRepo, auditRepo);
+            var purchaseRepo = new PurchaseRepository(_connStr, counterRepo, supplierRepo, null, auditRepo);
+
+            // 1. Attempt to archive cust_general_cash -> MUST BE BLOCKED
+            bool archiveDefaultCashBlocked = false;
+            try
+            {
+                custRepo.ArchiveCustomer("cust_general_cash");
+            }
+            catch (InvalidOperationException ex)
+            {
+                archiveDefaultCashBlocked = ex.Message.Contains("الافتراضي");
+            }
+            AssertCondition(archiveDefaultCashBlocked,
+                "منع أرشفة أو حذف العميل النقدي العام الافتراضي بنجاح مع إطلاق استثناء واضح",
+                "ثغرة خطيرة! تم السماح بحذف أو أرشفة العميل النقدي العام الافتراضي للنظام!", report);
+
+            // Verify cust_general_cash is still in the DB
+            var defaultCust = custRepo.GetById("cust_general_cash");
+            AssertCondition(defaultCust != null,
+                "بقاء العميل النقدي العام الافتراضي في قاعدة البيانات بكامل سلامته",
+                "كارثة! العميل النقدي العام تم حذفه من قاعدة البيانات!", report);
+
+            // 2. Customer with active debt cannot be archived
+            string custDebtId = "cust_test_debt_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            custRepo.SaveCustomer(new Customer
+            {
+                Id = custDebtId,
+                Name = "عميل عليه دين مدين",
+                Phone = "01111111111",
+                BalancePiasters = 50000
+            });
+
+            bool archiveDebtCustomerBlocked = false;
+            try
+            {
+                custRepo.ArchiveCustomer(custDebtId);
+            }
+            catch (InvalidOperationException ex)
+            {
+                archiveDebtCustomerBlocked = ex.Message.Contains("دين");
+            }
+            AssertCondition(archiveDebtCustomerBlocked,
+                "منع أرشفة العميل الذي عليه رصيد دين مستحق بنجاح",
+                "ثغرة! تم السماح بأرشفة عميل عليه ديون معلقة!", report);
+
+            // 3. Customer with negative balance (advance deposit / overpayment) cannot be archived
+            string custDepositId = "cust_test_dep_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            custRepo.SaveCustomer(new Customer
+            {
+                Id = custDepositId,
+                Name = "عميل له أمانات ودائن",
+                Phone = "01222222222",
+                BalancePiasters = -20000
+            });
+
+            bool archiveDepositCustomerBlocked = false;
+            try
+            {
+                custRepo.ArchiveCustomer(custDepositId);
+            }
+            catch (InvalidOperationException ex)
+            {
+                archiveDepositCustomerBlocked = ex.Message.Contains("أمانات") || ex.Message.Contains("دائن");
+            }
+            AssertCondition(archiveDepositCustomerBlocked,
+                "منع أرشفة العميل الذي له رصيد دائن / أمانات مستحقة لحماية أموال العملاء",
+                "ثغرة! تم السماح بأرشفة عميل له رصيد أمانات مستحقة وضياع حقه!", report);
+
+            // 4. Settle customer deposit to 0 -> Archive MUST SUCCEED
+            using (var conn = new SQLiteConnection(_connStr))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("UPDATE customers SET balance_piasters = 0 WHERE id = @id;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", custDepositId);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            custRepo.ArchiveCustomer(custDepositId);
+            var archivedCust = custRepo.GetById(custDepositId);
+            AssertCondition(archivedCust != null && archivedCust.IsArchived,
+                "أرشفة العميل بنجاح بعد تصفية وتسوية حسابه بالكامل للصفر",
+                "فشل أرشفة العميل بعد تصفية رصيده", report);
+
+            // 5. Attempt Sale on Archived Customer -> MUST BE BLOCKED
+            var prod = new Product
+            {
+                Id = "prod_arch_" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                Name = "صنف فحص الأرشفة",
+                Barcode = "998877665544",
+                PricePiasters = 5000,
+                CostPiasters = 3000,
+                StockQuantityMilli = 10000,
+                IsActive = true
+            };
+            productRepo.Upsert(prod);
+
+            var saleToArchived = new Sale
+            {
+                Id = "stress_sale_arch_" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                CustomerId = custDepositId,
+                PaymentMethod = "cash",
+                SubtotalPiasters = 5000,
+                TotalPiasters = 5000,
+                PaidPiasters = 5000,
+                Items = new List<SaleItem>
+                {
+                    new SaleItem
+                    {
+                        ProductId = prod.Id,
+                        ProductName = prod.Name,
+                        QuantityMilli = 1000,
+                        UnitPricePiasters = 5000,
+                        TotalPiasters = 5000
+                    }
+                }
+            };
+
+            bool saleToArchivedBlocked = false;
+            try
+            {
+                saleRepo.CreateSaleAtomic(saleToArchived);
+            }
+            catch (InvalidOperationException ex)
+            {
+                saleToArchivedBlocked = ex.Message.Contains("مؤرشف");
+            }
+            AssertCondition(saleToArchivedBlocked,
+                "منع إنشاء فاتورة بيع لعميل مؤرشف بنجاح",
+                "ثغرة! تم السماح بالبيع لعميل تم أرشفته سابقاً!", report);
+
+            // 6. Attempt Sale on Non-Existent Customer -> MUST BE BLOCKED
+            var saleToGhostCust = new Sale
+            {
+                Id = "stress_sale_ghost_" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                CustomerId = "cust_ghost_does_not_exist",
+                PaymentMethod = "cash",
+                SubtotalPiasters = 5000,
+                TotalPiasters = 5000,
+                PaidPiasters = 5000,
+                Items = new List<SaleItem>
+                {
+                    new SaleItem
+                    {
+                        ProductId = prod.Id,
+                        ProductName = prod.Name,
+                        QuantityMilli = 1000,
+                        UnitPricePiasters = 5000,
+                        TotalPiasters = 5000
+                    }
+                }
+            };
+
+            bool saleToGhostBlocked = false;
+            try
+            {
+                saleRepo.CreateSaleAtomic(saleToGhostCust);
+            }
+            catch (InvalidOperationException ex)
+            {
+                saleToGhostBlocked = ex.Message.Contains("غير موجود");
+            }
+            AssertCondition(saleToGhostBlocked,
+                "منع إنشاء فاتورة بيع لعميل وهمي غير مسجل في النظام بنجاح",
+                "ثغرة! تم السماح بالبيع لعميل غير مسجل في قاعدة البيانات!", report);
+
+            // 7. Supplier with balance cannot be archived
+            string supId = "sup_test_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            supplierRepo.Save(new Supplier
+            {
+                Id = supId,
+                Name = "شركة التوريدات العالمية",
+                Phone = "01099999999",
+                BalancePiasters = 30000,
+                IsActive = true
+            });
+
+            bool archiveSupDebtBlocked = false;
+            try
+            {
+                supplierRepo.Archive(supId);
+            }
+            catch (InvalidOperationException ex)
+            {
+                archiveSupDebtBlocked = ex.Message.Contains("مستحق");
+            }
+            AssertCondition(archiveSupDebtBlocked,
+                "منع أرشفة المورد الذي له رصيد مستحق بذمة المحل بنجاح",
+                "ثغرة! تم السماح بأرشفة مورد له مستحقات مالية معلقة!", report);
+
+            // 8. Supplier with advance balance (balance < 0) cannot be archived
+            using (var conn = new SQLiteConnection(_connStr))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("UPDATE suppliers SET balance_piasters = -15000 WHERE id = @id;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", supId);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+
+            bool archiveSupAdvBlocked = false;
+            try
+            {
+                supplierRepo.Archive(supId);
+            }
+            catch (InvalidOperationException ex)
+            {
+                archiveSupAdvBlocked = ex.Message.Contains("مدين") || ex.Message.Contains("مقدمة");
+            }
+            AssertCondition(archiveSupAdvBlocked,
+                "منع أرشفة المورد الذي بذمته دفعات مقدمة للمحل بنجاح لحماية حقوق المحل",
+                "ثغرة! تم السماح بأرشفة مورد بذمته دفعات مقدمة للمحل!", report);
+
+            // 9. Settle supplier balance to 0 -> Archive MUST SUCCEED
+            using (var conn = new SQLiteConnection(_connStr))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("UPDATE suppliers SET balance_piasters = 0 WHERE id = @id;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", supId);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            supplierRepo.Archive(supId);
+            var archivedSup = supplierRepo.GetById(supId);
+            AssertCondition(archivedSup != null && !archivedSup.IsActive,
+                "أرشفة المورد بنجاح بعد تصفية حسابه بالكامل للصفر",
+                "فشل أرشفة المورد بعد تصفية رصيده", report);
+
+            // 10. Attempt to archive non-existent supplier -> MUST BE BLOCKED
+            bool archiveGhostSupBlocked = false;
+            try
+            {
+                supplierRepo.Archive("sup_ghost_id_xyz");
+            }
+            catch (InvalidOperationException ex)
+            {
+                archiveGhostSupBlocked = ex.Message.Contains("غير موجود");
+            }
+            AssertCondition(archiveGhostSupBlocked,
+                "منع أرشفة مورد وهمي غير مسجل في النظام بنجاح",
+                "فشل كشف المورد غير المسجل عند طلب الأرشفة", report);
+
+            // 11. Attempt Purchase on Archived Supplier -> MUST BE BLOCKED
+            var purToArchived = new Purchase
+            {
+                Id = "pur_arch_" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                SupplierId = supId,
+                PaymentSource = "cash_drawer",
+                Items = new List<PurchaseItem>
+                {
+                    new PurchaseItem
+                    {
+                        ProductId = prod.Id,
+                        ProductName = prod.Name,
+                        QuantityMilli = 5000,
+                        UnitCostPiasters = 3000
+                    }
+                }
+            };
+
+            bool purToArchivedBlocked = false;
+            try
+            {
+                purchaseRepo.CreatePurchase(purToArchived);
+            }
+            catch (InvalidOperationException ex)
+            {
+                purToArchivedBlocked = ex.Message.Contains("مؤرشف");
+            }
+            AssertCondition(purToArchivedBlocked,
+                "منع إضافة فاتورة شراء لمورد مؤرشف بنجاح وحماية دورة المشتريات",
+                "ثغرة! تم السماح بإنشاء فاتورة شراء لمورد مؤرشف!", report);
         }
     }
 }

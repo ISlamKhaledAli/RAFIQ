@@ -39,6 +39,24 @@ namespace RafiqPOS.Repositories
                             sale.CreatedAt = DateTime.UtcNow.ToString("o");
                         }
 
+                        // Validate Customer if supplied
+                        if (!string.IsNullOrWhiteSpace(sale.CustomerId) && sale.CustomerId != "cust_general_cash")
+                        {
+                            using (var cCmd = new SQLiteCommand("SELECT is_archived FROM customers WHERE id = @cId LIMIT 1;", conn, trans))
+                            {
+                                cCmd.Parameters.AddWithValue("@cId", sale.CustomerId);
+                                object cRes = cCmd.ExecuteScalar();
+                                if (cRes == null || cRes == DBNull.Value)
+                                {
+                                    throw new InvalidOperationException("العميل المحدد غير موجود في قاعدة البيانات");
+                                }
+                                if (Convert.ToInt32(cRes) == 1)
+                                {
+                                    throw new InvalidOperationException("لا يمكن إجراء عملية بيع لعميل مؤرشف");
+                                }
+                            }
+                        }
+
                         // 1. Calculate next sequential daily invoice number (Task 107-1 & 107-2: Atomic sequence counter)
                         int nextInvoiceNumber = (int)_counters.GetNextInvoiceNumber(conn, trans);
                         sale.InvoiceNumber = nextInvoiceNumber;
