@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data.SQLite;
 using Newtonsoft.Json;
 using RafiqPOS.Models;
+using RafiqPOS.Services;
 
 namespace RafiqPOS.Repositories
 {
@@ -343,17 +344,19 @@ namespace RafiqPOS.Repositories
                 throw new ArgumentException("مبلغ تغذية رصيد الماكينة يجب أن يكون أكبر من الصفر");
             }
 
-            string now = DateTime.UtcNow.ToString("o");
-            string fundingId = Guid.NewGuid().ToString();
-            long prevBal = 0;
-            long newBal = 0;
-            string termName = "";
-
-            using (var conn = new SQLiteConnection(_connectionString))
+            lock (SaleService.FinancialWriteLock)
             {
-                conn.Open();
-                using (var trans = conn.BeginTransaction())
+                string now = DateTime.UtcNow.ToString("o");
+                string fundingId = Guid.NewGuid().ToString();
+                long prevBal = 0;
+                long newBal = 0;
+                string termName = "";
+
+                using (var conn = new SQLiteConnection(_connectionString))
                 {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction())
+                    {
                     try
                     {
                         // 1. Get current balance
@@ -431,19 +434,20 @@ namespace RafiqPOS.Repositories
                 }
             }
 
-            return new EpayTerminalFunding
-            {
-                Id = fundingId,
-                TerminalId = terminalId,
-                TerminalName = termName,
-                AmountPiasters = amountPiasters,
-                FundingSource = fundingSource,
-                PreviousBalancePiasters = prevBal,
-                NewBalancePiasters = newBal,
-                Notes = notes,
-                CreatedBy = createdBy,
-                CreatedAt = now
-            };
+                return new EpayTerminalFunding
+                {
+                    Id = fundingId,
+                    TerminalId = terminalId,
+                    TerminalName = termName,
+                    AmountPiasters = amountPiasters,
+                    FundingSource = fundingSource,
+                    PreviousBalancePiasters = prevBal,
+                    NewBalancePiasters = newBal,
+                    Notes = notes,
+                    CreatedBy = createdBy,
+                    CreatedAt = now
+                };
+            }
         }
 
         public static long ComputeFeeOrCommission(long billPiasters, string ruleType, long ruleValue, long minPiasters, long maxPiasters, long defaultFixedPiasters)
@@ -586,37 +590,49 @@ namespace RafiqPOS.Repositories
                 throw new ArgumentException("المبلغ المخصوم من رصيد الماكينة لا يمكن أن يكون سالباً");
             }
 
-            if (string.IsNullOrWhiteSpace(tx.Id))
+            lock (SaleService.FinancialWriteLock)
             {
-                tx.Id = Guid.NewGuid().ToString();
-            }
-
-            string now = DateTime.UtcNow.ToString("o");
-            tx.CreatedAt = now;
-            tx.Status = string.IsNullOrWhiteSpace(tx.Status) ? "completed" : tx.Status;
-
-            // Financial Calculations:
-            // Total from customer = bill amount + machine commission + shop profit
-            // Machine deducted = bill amount + machine commission (profit is NOT deducted from machine)
-            // Net profit for the shop = customer fee (shop profit)
-            tx.TotalReceivedPiasters = tx.BillAmountPiasters + tx.ProviderCommissionPiasters + tx.CustomerFeePiasters;
-            tx.NetProfitPiasters = tx.CustomerFeePiasters;
-
-            // Machine deducted amount: for cash_out it's 0; for debit operations default to billAmount + providerCommission
-            if (tx.ServiceType == "cash_out")
-            {
-                tx.MachineDeductedPiasters = 0;
-            }
-            else if (tx.MachineDeductedPiasters <= 0)
-            {
-                tx.MachineDeductedPiasters = tx.BillAmountPiasters + tx.ProviderCommissionPiasters;
-            }
-
-            using (var conn = new SQLiteConnection(_connectionString))
-            {
-                conn.Open();
-                using (var trans = conn.BeginTransaction())
+                if (string.IsNullOrWhiteSpace(tx.Id))
                 {
+                    tx.Id = Guid.NewGuid().ToString();
+                }
+
+                string now = DateTime.UtcNow.ToString("o");
+                tx.CreatedAt = now;
+                tx.Status = string.IsNullOrWhiteSpace(tx.Status) ? "completed" : tx.Status;
+
+                // Financial Calculations:
+                // Total from customer = bill amount + machine commission + shop profit
+                // Machine deducted = bill amount + machine commission (profit is NOT deducted from machine)
+                // Net profit for the shop = customer fee + machine commission discount (if deducted < bill)
+                tx.TotalReceivedPiasters = tx.BillAmountPiasters + tx.ProviderCommissionPiasters + tx.CustomerFeePiasters;
+                if (tx.NetProfitPiasters <= 0)
+                {
+                    if (tx.MachineDeductedPiasters > 0 && tx.MachineDeductedPiasters < tx.BillAmountPiasters)
+                    {
+                        tx.NetProfitPiasters = tx.CustomerFeePiasters + (tx.BillAmountPiasters - tx.MachineDeductedPiasters);
+                    }
+                    else
+                    {
+                        tx.NetProfitPiasters = tx.CustomerFeePiasters;
+                    }
+                }
+
+                // Machine deducted amount: for cash_out it's 0; for debit operations default to billAmount + providerCommission
+                if (tx.ServiceType == "cash_out")
+                {
+                    tx.MachineDeductedPiasters = 0;
+                }
+                else if (tx.MachineDeductedPiasters <= 0)
+                {
+                    tx.MachineDeductedPiasters = tx.BillAmountPiasters + tx.ProviderCommissionPiasters;
+                }
+
+                using (var conn = new SQLiteConnection(_connectionString))
+                {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction())
+                    {
                     try
                     {
                         // 1. Get terminal info and check balance & status
@@ -738,7 +754,8 @@ namespace RafiqPOS.Repositories
                 }
             }
 
-            return tx;
+                return tx;
+            }
         }
 
         public EpayTransaction CancelTransaction(string transactionId, string reason, string cancelledBy)
@@ -748,14 +765,16 @@ namespace RafiqPOS.Repositories
                 throw new ArgumentException("معرف العملية غير صالح");
             }
 
-            string now = DateTime.UtcNow.ToString("o");
-            EpayTransaction tx = null;
-
-            using (var conn = new SQLiteConnection(_connectionString))
+            lock (SaleService.FinancialWriteLock)
             {
-                conn.Open();
-                using (var trans = conn.BeginTransaction())
+                string now = DateTime.UtcNow.ToString("o");
+                EpayTransaction tx = null;
+
+                using (var conn = new SQLiteConnection(_connectionString))
                 {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction())
+                    {
                     try
                     {
                         // 1. Fetch transaction
@@ -878,7 +897,8 @@ namespace RafiqPOS.Repositories
                 }
             }
 
-            return tx;
+                return tx;
+            }
         }
 
         public List<EpayTransaction> GetTransactions(string terminalId, string serviceType, string fromDate, string toDate, int limit)
