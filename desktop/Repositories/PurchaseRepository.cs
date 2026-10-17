@@ -183,7 +183,7 @@ namespace RafiqPOS.Repositories
                             string productName = item.ProductName;
                             string barcode = item.Barcode;
 
-                            string selectProdSql = "SELECT name, barcode, stock_quantity_milli, cost_piasters, price_piasters, has_variants FROM products WHERE id = @pid LIMIT 1;";
+                            string selectProdSql = "SELECT name, barcode, stock_quantity_milli, cost_piasters, price_piasters, has_variants, is_active FROM products WHERE id = @pid LIMIT 1;";
                             using (var prodCmd = new SQLiteCommand(selectProdSql, conn, trans))
                             {
                                 prodCmd.Parameters.AddWithValue("@pid", item.ProductId);
@@ -196,6 +196,13 @@ namespace RafiqPOS.Repositories
                                         currentStock = Convert.ToInt64(reader["stock_quantity_milli"]);
                                         currentCost = Convert.ToInt64(reader["cost_piasters"]);
                                         currentPrice = Convert.ToInt64(reader["price_piasters"]);
+                                        bool isActive = true;
+                                        try { isActive = Convert.ToInt32(reader["is_active"]) == 1; } catch { }
+                                        if (!isActive)
+                                        {
+                                            throw new InvalidOperationException(string.Format("لا يمكن إضافة فاتورة شراء للصنف '{0}' لأنه صنف مؤرشف أو محذوف.", productName));
+                                        }
+
                                         bool hasVariants = false;
                                         try { hasVariants = Convert.ToInt32(reader["has_variants"]) == 1; } catch { }
                                         if (!hasVariants)

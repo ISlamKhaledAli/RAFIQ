@@ -294,6 +294,65 @@ namespace RafiqPOS.Repositories
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+
+                // 1. Fetch current account
+                string name = null;
+                string type = null;
+                long balancePiasters = 0;
+                bool isDefault = false;
+                bool exists = false;
+                using (var getCmd = new SQLiteCommand("SELECT name, type, balance_piasters, is_default FROM digital_accounts WHERE id = @id LIMIT 1;", conn))
+                {
+                    getCmd.Parameters.AddWithValue("@id", id);
+                    using (var reader = getCmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            exists = true;
+                            name = reader.IsDBNull(0) ? "" : reader.GetString(0);
+                            type = reader.IsDBNull(1) ? "wallet" : reader.GetString(1);
+                            balancePiasters = reader.IsDBNull(2) ? 0L : Convert.ToInt64(reader.GetValue(2));
+                            isDefault = !reader.IsDBNull(3) && Convert.ToInt32(reader.GetValue(3)) == 1;
+                        }
+                    }
+                }
+
+                if (!exists)
+                {
+                    throw new InvalidOperationException("حساب المحفظة غير موجود في قاعدة البيانات");
+                }
+
+                // 2. Block deletion/archival if account holds active funds or overdraft liability
+                if (balancePiasters > 0)
+                {
+                    throw new InvalidOperationException(
+                        string.Format("لا يمكن حذف أو أرشفة الحساب \"{0}\" لوجود رصيد متبقي ({1}). يجب تصفية أو تحويل الرصيد بالكامل أولاً.",
+                            name, Common.Money.FormatPiasters(balancePiasters)));
+                }
+                if (balancePiasters < 0)
+                {
+                    throw new InvalidOperationException(
+                        string.Format("لا يمكن حذف أو أرشفة الحساب \"{0}\" لوجود رصيد مدين / سحب مكشوف ({1}). يجب تسوية الحساب أولاً.",
+                            name, Common.Money.FormatPiasters(Math.Abs(balancePiasters))));
+                }
+
+                // 3. Block deletion/archival if it's the default account and other active accounts of the same type exist
+                if (isDefault)
+                {
+                    using (var countCmd = new SQLiteCommand("SELECT COUNT(*) FROM digital_accounts WHERE type = @type AND is_active = 1 AND id != @id;", conn))
+                    {
+                        countCmd.Parameters.AddWithValue("@type", type);
+                        countCmd.Parameters.AddWithValue("@id", id);
+                        long otherActiveCount = Convert.ToInt64(countCmd.ExecuteScalar());
+                        if (otherActiveCount > 0)
+                        {
+                            throw new InvalidOperationException(
+                                string.Format("لا يمكن حذف أو أرشفة الحساب \"{0}\" لأنه الحساب الافتراضي لمعاملات {1}. يرجى تعيين حساب آخر كافتراضي أولاً.",
+                                    name, type == "instapay" ? "إنستاباي" : "المحافظ الإلكترونية"));
+                        }
+                    }
+                }
+
                 using (var trans = conn.BeginTransaction())
                 {
                     try
