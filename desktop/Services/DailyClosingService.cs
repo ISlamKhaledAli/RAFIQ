@@ -423,13 +423,67 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // Expected Cash in Drawer = Cash Sales - Cash Refunds + Cash Debt Collections - Expenses + Epay Drawer Cash - Epay Drawer Funding
+                // 8.B Digital Wallets & InstaPay Accounts (Vodafone Cash, InstaPay, etc.)
+                using (var checkDigCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='digital_transactions';", conn))
+                {
+                    if (checkDigCmd.ExecuteScalar() != null)
+                    {
+                        string digSql = @"
+                            SELECT 
+                                (SELECT COALESCE(SUM(balance_piasters), 0) FROM digital_accounts WHERE is_active = 1) AS wallets_balance,
+                                COALESCE(SUM(CASE WHEN payment_destination = 'cash_drawer' THEN 
+                                    (CASE WHEN tx_type = 'cash_out' THEN total_collected_piasters 
+                                          WHEN tx_type = 'cash_in' THEN -amount_piasters 
+                                          ELSE 0 END) 
+                                    ELSE 0 END), 0) AS drawer_cash,
+                                COALESCE(SUM(profit_piasters), 0) AS net_profit
+                            FROM digital_transactions
+                            WHERE date(datetime(created_at, 'localtime', '-' || @cutoff || ' hours')) = @bdate
+                              AND status = 'completed';
+                        ";
+                        using (var digCmd = new SQLiteCommand(digSql, conn))
+                        {
+                            digCmd.Parameters.AddWithValue("@cutoff", cutoff);
+                            digCmd.Parameters.AddWithValue("@bdate", businessDate);
+                            using (var reader = digCmd.ExecuteReader())
+                            {
+                                if (reader.Read())
+                                {
+                                    preview.WalletsBalancePiasters = Convert.ToInt64(reader["wallets_balance"]);
+                                    preview.WalletsDrawerCashPiasters = Convert.ToInt64(reader["drawer_cash"]);
+                                    preview.WalletsNetProfitPiasters = Convert.ToInt64(reader["net_profit"]);
+                                }
+                            }
+                        }
+
+                        string digFundSql = @"
+                            SELECT COALESCE(SUM(amount_piasters), 0)
+                            FROM digital_account_fundings
+                            WHERE date(datetime(created_at, 'localtime', '-' || @cutoff || ' hours')) = @bdate
+                              AND funding_source = 'cash_drawer';
+                        ";
+                        using (var fundCmd = new SQLiteCommand(digFundSql, conn))
+                        {
+                            fundCmd.Parameters.AddWithValue("@cutoff", cutoff);
+                            fundCmd.Parameters.AddWithValue("@bdate", businessDate);
+                            object fundRes = fundCmd.ExecuteScalar();
+                            if (fundRes != null && fundRes != DBNull.Value)
+                            {
+                                preview.WalletsDrawerFundingPiasters = Convert.ToInt64(fundRes);
+                            }
+                        }
+                    }
+                }
+
+                // Expected Cash in Drawer = Cash Sales - Cash Refunds + Cash Debt Collections - Expenses + Epay Drawer Cash - Epay Drawer Funding + Wallets Drawer Cash - Wallets Drawer Funding
                 preview.ExpectedCashPiasters = preview.CashSalesPiasters 
                     - preview.ReturnsCashPiasters 
                     + preview.DebtPaymentsPiasters 
                     - preview.ExpensesPiasters
                     + preview.EpayDrawerCashPiasters
-                    - preview.EpayDrawerFundingPiasters;
+                    - preview.EpayDrawerFundingPiasters
+                    + preview.WalletsDrawerCashPiasters
+                    - preview.WalletsDrawerFundingPiasters;
                 if (preview.ExpectedCashPiasters < 0) preview.ExpectedCashPiasters = 0;
             }
 

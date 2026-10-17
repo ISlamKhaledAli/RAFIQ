@@ -9,11 +9,13 @@ namespace RafiqPOS.Repositories
     {
         private readonly string _connectionString;
         private readonly AuditLogRepository _auditRepo;
+        private readonly CounterRepository _counterRepo;
 
-        public ExpenseRepository(string connectionString, AuditLogRepository auditRepo = null)
+        public ExpenseRepository(string connectionString, AuditLogRepository auditRepo = null, CounterRepository counterRepo = null)
         {
             _connectionString = connectionString;
             _auditRepo = auditRepo;
+            _counterRepo = counterRepo ?? new CounterRepository(connectionString);
         }
 
         public Expense Insert(Expense expense)
@@ -24,29 +26,17 @@ namespace RafiqPOS.Repositories
                 throw new ArgumentException("قيمة المصروف يجب أن تكون أكبر من الصفر", "AmountPiasters");
             }
 
-            using (var conn = new SQLiteConnection(_connectionString))
+            lock (RafiqPOS.Services.SaleService.FinancialWriteLock)
             {
-                conn.Open();
-                using (var trans = conn.BeginTransaction())
+                using (var conn = new SQLiteConnection(_connectionString))
                 {
-                    try
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction())
                     {
-                        // 1. Get next sequential expense number from counters
-                        long nextNum = 1;
-                        using (var counterCmd = new SQLiteCommand(@"
-                            UPDATE counters 
-                            SET current_value = current_value + 1, updated_at = datetime('now')
-                            WHERE name = 'expense';
-                            SELECT current_value FROM counters WHERE name = 'expense';
-                        ", conn, trans))
+                        try
                         {
-                            object val = counterCmd.ExecuteScalar();
-                            if (val != null && val != DBNull.Value)
-                            {
-                                nextNum = Convert.ToInt64(val);
-                            }
-                        }
-                        expense.ExpenseNumber = nextNum;
+                            // 1. Get next sequential expense number from counters with self-healing fallback
+                            expense.ExpenseNumber = _counterRepo.GetNextCounterNumber(conn, trans, "expense", "expenses", "expense_number");
 
                         if (string.IsNullOrWhiteSpace(expense.CreatedAt))
                         {
@@ -105,6 +95,7 @@ namespace RafiqPOS.Repositories
                         throw;
                     }
                 }
+            }
             }
         }
 
