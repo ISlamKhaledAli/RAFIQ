@@ -177,11 +177,11 @@ namespace RafiqPOS.Services
                         ), 0) AS vodafone_cash_sales,
                         COALESCE(SUM(
                             CASE 
-                                WHEN s.payment_method = 'card' THEN (s.paid_piasters - s.service_fee_piasters)
+                                WHEN s.payment_method IN ('card', 'visa') THEN (s.paid_piasters - s.service_fee_piasters)
                                 WHEN s.payment_method = 'multi' THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
-                                    WHERE p.sale_id = s.id AND p.method = 'card'
+                                    WHERE p.sale_id = s.id AND p.method IN ('card', 'visa')
                                 )
                                 ELSE 0 
                             END

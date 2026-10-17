@@ -210,7 +210,7 @@ namespace RafiqPOS.Repositories
 
                             if (_auditRepo != null)
                             {
-                                _auditRepo.Log(new AuditLog
+                                _auditRepo.Log(conn, trans, new AuditLog
                                 {
                                     UserId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "system",
                                     Action = "create",
@@ -263,7 +263,7 @@ namespace RafiqPOS.Repositories
 
                             if (_auditRepo != null)
                             {
-                                _auditRepo.Log(new AuditLog
+                                _auditRepo.Log(conn, trans, new AuditLog
                                 {
                                     UserId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "system",
                                     Action = "edit",

@@ -818,6 +818,26 @@ namespace RafiqPOS.Repositories
                                             insCmd.ExecuteNonQuery();
                                         }
                                     }
+                                    else
+                                    {
+                                        string updateBaseUnitSql = @"
+                                            UPDATE product_units
+                                            SET sell_price_piasters = @sellPrice,
+                                                cost_price_piasters = @costPrice,
+                                                barcode = CASE WHEN @barcode IS NOT NULL THEN @barcode ELSE barcode END,
+                                                updated_at = @updatedAt
+                                            WHERE product_id = @productId AND is_base_unit = 1;
+                                        ";
+                                        using (var uBaseCmd = new SQLiteCommand(updateBaseUnitSql, conn, trans))
+                                        {
+                                            uBaseCmd.Parameters.AddWithValue("@productId", product.Id);
+                                            uBaseCmd.Parameters.AddWithValue("@sellPrice", product.PricePiasters);
+                                            uBaseCmd.Parameters.AddWithValue("@costPrice", product.CostPiasters);
+                                            uBaseCmd.Parameters.AddWithValue("@barcode", string.IsNullOrWhiteSpace(product.Barcode) ? (object)DBNull.Value : product.Barcode.Trim());
+                                            uBaseCmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
+                                            uBaseCmd.ExecuteNonQuery();
+                                        }
+                                    }
                                 }
                             }
                         }

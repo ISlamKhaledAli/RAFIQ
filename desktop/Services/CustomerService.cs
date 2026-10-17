@@ -41,7 +41,10 @@ namespace RafiqPOS.Services
         public Customer SaveCustomer(Customer customer)
         {
             if (customer == null) throw new ArgumentNullException("customer");
-            return _repo.SaveCustomer(customer);
+            lock (SaleService.FinancialWriteLock)
+            {
+                return _repo.SaveCustomer(customer);
+            }
         }
 
         public Customer RecordPayment(string customerId, long amountPiasters, string notes)
