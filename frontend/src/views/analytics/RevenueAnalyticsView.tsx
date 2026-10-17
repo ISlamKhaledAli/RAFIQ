@@ -91,6 +91,8 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
         invoke<CategoryPerformanceItem[]>('reports:getCategoryPerformance', payload).catch(() => []),
         invoke<ItemProfitabilityItem[]>('reports:getItemProfitability', {
           period,
+          fromDate: period === 'custom' ? customFrom : undefined,
+          toDate: period === 'custom' ? customTo : undefined,
           direction: itemsDirection,
           limit: 20
         }).catch(() => []),

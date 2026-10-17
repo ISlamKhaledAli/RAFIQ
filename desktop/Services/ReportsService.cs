@@ -244,6 +244,155 @@ namespace RafiqPOS.Services
                 }
                 catch { }
 
+                // 2d. Digital Wallets & InstaPay Accounts cash in drawer & funding
+                try
+                {
+                    using (var checkDigCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='digital_transactions';", conn))
+                    {
+                        if (checkDigCmd.ExecuteScalar() != null)
+                        {
+                            string digSql = @"
+                                SELECT 
+                                    COALESCE(SUM(CASE WHEN payment_destination = 'cash_drawer' THEN 
+                                        (CASE WHEN tx_type = 'cash_out' THEN total_collected_piasters 
+                                              WHEN tx_type = 'cash_in' THEN -amount_piasters 
+                                              ELSE 0 END) 
+                                        ELSE 0 END), 0) AS drawer_cash
+                                FROM digital_transactions
+                                WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'))
+                                  AND status = 'completed';
+                            ";
+                            using (var digCmd = new SQLiteCommand(digSql, conn))
+                            {
+                                object digRes = digCmd.ExecuteScalar();
+                                if (digRes != null && digRes != DBNull.Value)
+                                {
+                                    long walletsDrawerCash = Convert.ToInt64(digRes);
+                                    summary.CashDrawerPiasters = Math.Max(0, summary.CashDrawerPiasters + walletsDrawerCash);
+                                }
+                            }
+
+                            string digFundSql = @"
+                                SELECT COALESCE(SUM(amount_piasters), 0)
+                                FROM digital_account_fundings
+                                WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'))
+                                  AND funding_source = 'cash_drawer';
+                            ";
+                            using (var fundCmd = new SQLiteCommand(digFundSql, conn))
+                            {
+                                object fundRes = fundCmd.ExecuteScalar();
+                                if (fundRes != null && fundRes != DBNull.Value)
+                                {
+                                    long walletsDrawerFunded = Convert.ToInt64(fundRes);
+                                    if (walletsDrawerFunded > 0)
+                                    {
+                                        summary.CashDrawerPiasters = Math.Max(0, summary.CashDrawerPiasters - walletsDrawerFunded);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+
+                // 2e. Purchases Cash Paid from Drawer
+                try
+                {
+                    using (var checkPurCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='purchases';", conn))
+                    {
+                        if (checkPurCmd.ExecuteScalar() != null)
+                        {
+                            bool hasPurSourceCol = false;
+                            using (var pragmaCmd = new SQLiteCommand("PRAGMA table_info(purchases);", conn))
+                            using (var reader = pragmaCmd.ExecuteReader())
+                            {
+                                while (reader.Read())
+                                {
+                                    if (string.Equals(reader["name"].ToString(), "payment_source", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        hasPurSourceCol = true;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            string purSql = hasPurSourceCol
+                                ? @"SELECT COALESCE(SUM(paid_amount_piasters), 0)
+                                    FROM purchases
+                                    WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'))
+                                      AND status != 'cancelled'
+                                      AND (payment_source = 'cash_drawer' OR payment_source IS NULL OR payment_source = '');"
+                                : @"SELECT COALESCE(SUM(paid_amount_piasters), 0)
+                                    FROM purchases
+                                    WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'))
+                                      AND status != 'cancelled';";
+
+                            using (var purCmd = new SQLiteCommand(purSql, conn))
+                            {
+                                object purRes = purCmd.ExecuteScalar();
+                                if (purRes != null && purRes != DBNull.Value)
+                                {
+                                    long purchasesDrawerCash = Convert.ToInt64(purRes);
+                                    if (purchasesDrawerCash > 0)
+                                    {
+                                        summary.CashDrawerPiasters = Math.Max(0, summary.CashDrawerPiasters - purchasesDrawerCash);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+
+                // 2f. Supplier Direct Payments from Drawer
+                try
+                {
+                    using (var checkSuppCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='supplier_transactions';", conn))
+                    {
+                        if (checkSuppCmd.ExecuteScalar() != null)
+                        {
+                            bool hasSuppSourceCol = false;
+                            using (var pragmaCmd = new SQLiteCommand("PRAGMA table_info(supplier_transactions);", conn))
+                            using (var reader = pragmaCmd.ExecuteReader())
+                            {
+                                while (reader.Read())
+                                {
+                                    if (string.Equals(reader["name"].ToString(), "payment_source", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        hasSuppSourceCol = true;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            string suppSql = hasSuppSourceCol
+                                ? @"SELECT COALESCE(SUM(ABS(amount_piasters)), 0)
+                                    FROM supplier_transactions
+                                    WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'))
+                                      AND transaction_type = 'PAYMENT'
+                                      AND (payment_source = 'cash_drawer' OR payment_source IS NULL OR payment_source = '');"
+                                : @"SELECT COALESCE(SUM(ABS(amount_piasters)), 0)
+                                    FROM supplier_transactions
+                                    WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'))
+                                      AND transaction_type = 'PAYMENT';";
+
+                            using (var suppCmd = new SQLiteCommand(suppSql, conn))
+                            {
+                                object suppRes = suppCmd.ExecuteScalar();
+                                if (suppRes != null && suppRes != DBNull.Value)
+                                {
+                                    long suppDrawerCash = Convert.ToInt64(suppRes);
+                                    if (suppDrawerCash > 0)
+                                    {
+                                        summary.CashDrawerPiasters = Math.Max(0, summary.CashDrawerPiasters - suppDrawerCash);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+
                 // 3. Profit calculation from sales (Total sale price - Total cost)
                 string profitSql = @"
                     SELECT 
@@ -411,7 +560,7 @@ namespace RafiqPOS.Services
                 string lowStockSql = @"
                     SELECT id, name, stock_quantity_milli / 1000 AS stock, min_stock_quantity_milli / 1000 AS min_stock, unit 
                     FROM products 
-                    WHERE is_active = 1 AND stock_quantity_milli <= min_stock_quantity_milli 
+                    WHERE is_active = 1 AND (has_variants = 0 OR has_variants IS NULL) AND stock_quantity_milli <= min_stock_quantity_milli 
                     ORDER BY stock_quantity_milli ASC, (min_stock_quantity_milli - stock_quantity_milli) DESC 
                     LIMIT 8;
                 ";
@@ -433,7 +582,7 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                string countLowStockSql = "SELECT COUNT(1) FROM products WHERE is_active = 1 AND stock_quantity_milli <= min_stock_quantity_milli;";
+                string countLowStockSql = "SELECT COUNT(1) FROM products WHERE is_active = 1 AND (has_variants = 0 OR has_variants IS NULL) AND stock_quantity_milli <= min_stock_quantity_milli;";
                 using (var cmd = new SQLiteCommand(countLowStockSql, conn))
                 {
                     object cnt = cmd.ExecuteScalar();
@@ -865,6 +1014,7 @@ namespace RafiqPOS.Services
                     FROM products p
                     LEFT JOIN categories c ON p.category_id = c.id
                     WHERE p.is_active = 1
+                      AND (p.has_variants = 0 OR p.has_variants IS NULL)
                       AND p.stock_quantity_milli <= p.min_stock_quantity_milli
                     ORDER BY (p.stock_quantity_milli - p.min_stock_quantity_milli) ASC, p.name ASC;
                 ";
@@ -1560,6 +1710,65 @@ namespace RafiqPOS.Services
                     }
                 }
 
+                // Deduct returns per category in this period
+                try
+                {
+                    using (var checkRetCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='returns';", conn))
+                    {
+                        if (checkRetCmd.ExecuteScalar() != null)
+                        {
+                            string retDateClause = dateClause.Replace("s.created_at", "r.created_at");
+                            string retSql = string.Format(@"
+                                SELECT 
+                                    COALESCE(c.id, 'uncategorized') AS category_id,
+                                    COALESCE(SUM(ri.total_piasters), 0) AS ret_sales,
+                                    COALESCE(SUM((ri.quantity_milli * COALESCE(NULLIF(ri.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000), 0) AS ret_cost,
+                                    COALESCE(SUM(ri.quantity_milli) / 1000, 0) AS ret_qty
+                                FROM return_items ri
+                                JOIN returns r ON ri.return_id = r.id
+                                LEFT JOIN products p ON ri.product_id = p.id
+                                LEFT JOIN categories c ON p.category_id = c.id
+                                WHERE {0}
+                                GROUP BY c.id;
+                            ", retDateClause);
+                            using (var retCmd = new SQLiteCommand(retSql, conn))
+                            {
+                                BindCustomDates(retCmd, period, customFrom, customTo);
+                                using (var retReader = retCmd.ExecuteReader())
+                                {
+                                    var retMap = new Dictionary<string, long[]>();
+                                    while (retReader.Read())
+                                    {
+                                        string cId = retReader["category_id"].ToString();
+                                        long rSales = Convert.ToInt64(retReader["ret_sales"]);
+                                        long rCost = Convert.ToInt64(retReader["ret_cost"]);
+                                        long rQty = Convert.ToInt64(retReader["ret_qty"]);
+                                        retMap[cId] = new long[] { rSales, rCost, rQty };
+                                    }
+
+                                    grandTotalSales = 0;
+                                    for (int i = 0; i < list.Count; i++)
+                                    {
+                                        if (retMap.ContainsKey(list[i].CategoryId))
+                                        {
+                                            long[] rVals = retMap[list[i].CategoryId];
+                                            list[i].TotalSalesPiasters = Math.Max(0, list[i].TotalSalesPiasters - rVals[0]);
+                                            list[i].TotalCostPiasters = Math.Max(0, list[i].TotalCostPiasters - rVals[1]);
+                                            list[i].GrossProfitPiasters = Math.Max(0, list[i].TotalSalesPiasters - list[i].TotalCostPiasters);
+                                            list[i].ItemsSoldQty = Math.Max(0, list[i].ItemsSoldQty - (int)rVals[2]);
+                                            list[i].ProfitMarginPercent = list[i].TotalSalesPiasters > 0 
+                                                ? Math.Round(((double)list[i].GrossProfitPiasters * 100.0) / list[i].TotalSalesPiasters, 1) 
+                                                : 0.0;
+                                        }
+                                        grandTotalSales += list[i].TotalSalesPiasters;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+
                 if (grandTotalSales > 0)
                 {
                     for (int i = 0; i < list.Count; i++)
@@ -1572,10 +1781,10 @@ namespace RafiqPOS.Services
             return list;
         }
 
-        public List<ItemProfitabilityItem> GetItemProfitability(string period, int limit, string direction)
+        public List<ItemProfitabilityItem> GetItemProfitability(string period, int limit, string direction, string customFrom = null, string customTo = null)
         {
             var list = new List<ItemProfitabilityItem>();
-            string dateClause = GetDateClause(period, null, null, "s.created_at");
+            string dateClause = GetDateClause(period, customFrom, customTo, "s.created_at");
             string orderDirection = (direction == "asc") ? "ASC" : "DESC";
             int fetchLimit = (limit > 0 && limit <= 100) ? limit : 20;
 
@@ -1609,6 +1818,7 @@ namespace RafiqPOS.Services
 
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
+                    BindCustomDates(cmd, period, customFrom, customTo);
                     using (var reader = cmd.ExecuteReader())
                     {
                         while (reader.Read())
@@ -1638,6 +1848,63 @@ namespace RafiqPOS.Services
                         }
                     }
                 }
+
+                // Deduct returns per item in this period
+                try
+                {
+                    using (var checkRetCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='returns';", conn))
+                    {
+                        if (checkRetCmd.ExecuteScalar() != null)
+                        {
+                            string retDateClause = dateClause.Replace("s.created_at", "r.created_at");
+                            string retItemSql = string.Format(@"
+                                SELECT 
+                                    ri.product_id,
+                                    COALESCE(SUM(ri.total_piasters), 0) AS ret_sales,
+                                    COALESCE(SUM((ri.quantity_milli * COALESCE(NULLIF(ri.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000), 0) AS ret_cost,
+                                    COALESCE(SUM(ri.quantity_milli), 0) AS ret_qty_milli
+                                FROM return_items ri
+                                JOIN returns r ON ri.return_id = r.id
+                                LEFT JOIN products p ON ri.product_id = p.id
+                                WHERE {0}
+                                GROUP BY ri.product_id;
+                            ", retDateClause);
+                            using (var retCmd = new SQLiteCommand(retItemSql, conn))
+                            {
+                                BindCustomDates(retCmd, period, customFrom, customTo);
+                                using (var retReader = retCmd.ExecuteReader())
+                                {
+                                    var retMap = new Dictionary<string, long[]>();
+                                    while (retReader.Read())
+                                    {
+                                        string pId = retReader["product_id"].ToString();
+                                        long rSales = Convert.ToInt64(retReader["ret_sales"]);
+                                        long rCost = Convert.ToInt64(retReader["ret_cost"]);
+                                        long rQty = Convert.ToInt64(retReader["ret_qty_milli"]);
+                                        retMap[pId] = new long[] { rSales, rCost, rQty };
+                                    }
+
+                                    for (int i = 0; i < list.Count; i++)
+                                    {
+                                        if (retMap.ContainsKey(list[i].ProductId))
+                                        {
+                                            long[] rVals = retMap[list[i].ProductId];
+                                            list[i].TotalSalesPiasters = Math.Max(0, list[i].TotalSalesPiasters - rVals[0]);
+                                            list[i].TotalCostPiasters = Math.Max(0, list[i].TotalCostPiasters - rVals[1]);
+                                            list[i].GrossProfitPiasters = Math.Max(0, list[i].TotalSalesPiasters - list[i].TotalCostPiasters);
+                                            list[i].QuantitySoldMilli = Math.Max(0, list[i].QuantitySoldMilli - rVals[2]);
+                                            list[i].MarginPercent = list[i].TotalSalesPiasters > 0 
+                                                ? Math.Round(((double)list[i].GrossProfitPiasters * 100.0) / list[i].TotalSalesPiasters, 1) 
+                                                : 0.0;
+                                            list[i].IsNegativeMargin = list[i].GrossProfitPiasters < 0;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
             }
 
             return list;
@@ -1799,7 +2066,8 @@ namespace RafiqPOS.Services
                         COALESCE(SUM(CASE WHEN is_active = 1 AND stock_quantity_milli > 0 AND stock_quantity_milli <= min_stock_quantity_milli THEN 1 ELSE 0 END), 0) AS low_stock,
                         COALESCE(SUM(CASE WHEN is_active = 1 AND stock_quantity_milli > 0 THEN (stock_quantity_milli * cost_piasters) / 1000 ELSE 0 END), 0) AS total_cost,
                         COALESCE(SUM(CASE WHEN is_active = 1 AND stock_quantity_milli > 0 THEN (stock_quantity_milli * price_piasters) / 1000 ELSE 0 END), 0) AS total_retail
-                    FROM products;
+                    FROM products
+                    WHERE (has_variants = 0 OR has_variants IS NULL);
                 ";
 
                 using (var cmd = new SQLiteCommand(prodSql, conn))

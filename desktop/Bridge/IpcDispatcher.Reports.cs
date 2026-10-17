@@ -102,14 +102,18 @@ namespace RafiqPOS.Bridge
                     string itemPeriod = "month";
                     int itemLimit = 20;
                     string itemDir = "desc";
+                    string itemFrom = null;
+                    string itemTo = null;
                     JObject itemObj = request.Payload as JObject;
                     if (itemObj != null)
                     {
                         if (itemObj["period"] != null) itemPeriod = itemObj["period"].ToString();
                         if (itemObj["limit"] != null) int.TryParse(itemObj["limit"].ToString(), out itemLimit);
                         if (itemObj["direction"] != null) itemDir = itemObj["direction"].ToString();
+                        if (itemObj["fromDate"] != null) itemFrom = itemObj["fromDate"].ToString();
+                        if (itemObj["toDate"] != null) itemTo = itemObj["toDate"].ToString();
                     }
-                    var itemProf = DatabaseService.Reports.GetItemProfitability(itemPeriod, itemLimit, itemDir);
+                    var itemProf = DatabaseService.Reports.GetItemProfitability(itemPeriod, itemLimit, itemDir, itemFrom, itemTo);
                     response = BridgeResponse.Ok(request.Id, itemProf);
                     return true;
 
