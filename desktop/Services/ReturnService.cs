@@ -10,11 +10,13 @@ namespace RafiqPOS.Services
     {
         private readonly ReturnRepository _returnRepo;
         private readonly SaleRepository _saleRepo;
+        private readonly DailyClosingService _dailyClosingService;
 
-        public ReturnService(ReturnRepository returnRepo, SaleRepository saleRepo)
+        public ReturnService(ReturnRepository returnRepo, SaleRepository saleRepo, DailyClosingService dailyClosingService = null)
         {
             _returnRepo = returnRepo;
             _saleRepo = saleRepo;
+            _dailyClosingService = dailyClosingService;
         }
 
         public Return ProcessReturn(Return returnObj, string supervisorPin = null)
@@ -409,6 +411,34 @@ namespace RafiqPOS.Services
                                 "لا يمكن صرف مرتجع عبر المحفظة الإلكترونية بمبلغ ({0:N2} ج.م) يتجاوز المسدد فعلياً عبر المحفظة في الفاتورة الأصلية ({1:N2} ج.م).",
                                 currentReturnTotal / 100.0, allowableWalletRefund / 100.0));
                         }
+                    }
+                }
+            }
+
+            // Invariant: Cash refunds disburse physical money from drawer; check closed day & drawer cash sufficiency
+            if (string.Equals(returnObj.RefundMethod, "cash", StringComparison.OrdinalIgnoreCase))
+            {
+                long totalCashToRefund = 0;
+                for (int rItemIdx = 0; rItemIdx < returnObj.Items.Count; rItemIdx++)
+                {
+                    totalCashToRefund += returnObj.Items[rItemIdx].TotalPiasters;
+                }
+
+                var closingSvc = _dailyClosingService ?? DatabaseService.DailyClosing;
+                if (closingSvc != null)
+                {
+                    string currentBDate = closingSvc.GetCurrentBusinessDate();
+                    if (closingSvc.IsDayClosed(currentBDate))
+                    {
+                        throw new InvalidOperationException(string.Format("لا يمكن عمل مرتجع نقدي لتاريخ عمل تم إقفاله وتشميعه مسبقاً ({0}).", currentBDate));
+                    }
+
+                    var liveBal = closingSvc.GetLiveDrawerBalance(currentBDate);
+                    if (liveBal != null && liveBal.AvailableCashPiasters < totalCashToRefund)
+                    {
+                        throw new InvalidOperationException(string.Format(
+                            "رصيد نقدية الدرج المتاح حالياً ({0:N2} ج.م) غير كافٍ لصرف قيمة المرتجع نقداً ({1:N2} ج.م). يرجى استرداد القيمة كرصيد آجل (credit) في حساب العميل أو توريد نقدية للدرج أولاً.",
+                            liveBal.AvailableCashPiasters / 100.0, totalCashToRefund / 100.0));
                     }
                 }
             }

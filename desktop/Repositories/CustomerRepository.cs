@@ -377,6 +377,27 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
+                        // Closed day protection
+                        using (var clCmd = new SQLiteCommand("SELECT 1 FROM daily_closings WHERE business_date = date('now', 'localtime') LIMIT 1;", conn, trans))
+                        {
+                            if (clCmd.ExecuteScalar() != null)
+                            {
+                                throw new InvalidOperationException("لا يمكن إلغاء دفعة نقدية لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
+                            }
+                        }
+
+                        // Drawer cash balance protection
+                        if (RafiqPOS.Services.DatabaseService.DailyClosing != null)
+                        {
+                            var liveBal = RafiqPOS.Services.DatabaseService.DailyClosing.GetLiveDrawerBalance();
+                            if (liveBal != null && liveBal.AvailableCashPiasters < paymentAmount)
+                            {
+                                throw new InvalidOperationException(string.Format(
+                                    "رصيد نقدية الدرج المتاح حالياً ({0:N2} ج.م) غير كافٍ لإلغاء هذه الدفعة النقدية واستردادها ({1:N2} ج.م).",
+                                    liveBal.AvailableCashPiasters / 100.0, paymentAmount / 100.0));
+                            }
+                        }
+
                         // 4. Calculate restored balance (reversing payment restores debt)
                         long newBalance = currentBalance + paymentAmount;
                         string now = DateTime.UtcNow.ToString("o");

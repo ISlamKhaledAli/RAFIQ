@@ -39,6 +39,17 @@ namespace RafiqPOS.Services
                     throw new InvalidOperationException(string.Format("لا يمكن تسجيل مصروف لتاريخ يومية تم إقفالها مسبقاً ({0}).", businessDate));
                 }
 
+                if (_dailyClosingService != null)
+                {
+                    var liveBal = _dailyClosingService.GetLiveDrawerBalance(businessDate);
+                    if (liveBal != null && liveBal.AvailableCashPiasters < request.AmountPiasters)
+                    {
+                        throw new InvalidOperationException(string.Format(
+                            "رصيد نقدية الدرج المتاح حالياً ({0:N2} ج.م) غير كافٍ لصرف هذا المصروف ({1:N2} ج.م). يرجى توريد عهدة للدرج أولاً.",
+                            liveBal.AvailableCashPiasters / 100.0, request.AmountPiasters / 100.0));
+                    }
+                }
+
                 var expense = new Expense
                 {
                     Id = "exp_" + Guid.NewGuid().ToString("N"),
