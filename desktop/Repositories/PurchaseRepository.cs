@@ -140,6 +140,15 @@ namespace RafiqPOS.Repositories
                                     throw new InvalidOperationException("لا يمكن سداد فاتورة شراء من درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
                                 }
                             }
+
+                            if (DatabaseService.DailyClosing != null)
+                            {
+                                var liveBal = DatabaseService.DailyClosing.GetLiveDrawerBalance(DateTime.Now.ToString("yyyy-MM-dd"));
+                                if (liveBal != null && liveBal.AvailableCashPiasters < purchase.PaidAmountPiasters)
+                                {
+                                    throw new InvalidOperationException(string.Format("رصيد نقدية الدرج المتاح حالياً ({0:N2} ج.م) غير كافٍ لسداد فاتورة الشراء نقداً ({1:N2} ج.م). يرجى اختيار السداد من «كاش خارجي من صاحب المحل» أو توريد عهدة للدرج أولاً.", liveBal.AvailableCashPiasters / 100.0, purchase.PaidAmountPiasters / 100.0));
+                                }
+                            }
                         }
 
                         // 3. Insert Purchase Master Record
