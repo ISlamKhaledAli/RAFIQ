@@ -376,6 +376,17 @@ namespace RafiqPOS.Repositories
                     {
                     try
                     {
+                        if (string.Equals(fundingSource, "cash_drawer", StringComparison.OrdinalIgnoreCase))
+                        {
+                            using (var clCmd = new SQLiteCommand("SELECT 1 FROM daily_closings WHERE business_date = date('now', 'localtime') LIMIT 1;", conn, trans))
+                            {
+                                if (clCmd.ExecuteScalar() != null)
+                                {
+                                    throw new InvalidOperationException("لا يمكن تغذية رصيد الماكينة من درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
+                                }
+                            }
+                        }
+
                         // 1. Get current balance
                         string getSql = "SELECT name, balance_piasters FROM epay_terminals WHERE id = @id LIMIT 1;";
                         using (var cmd = new SQLiteCommand(getSql, conn, trans))
@@ -674,6 +685,18 @@ namespace RafiqPOS.Repositories
                         if (!isActive)
                         {
                             throw new InvalidOperationException("ماكينة الدفع الإلكتروني موقوفة ومُعطلة حالياً ولا يمكن إجراء معاملات عليها");
+                        }
+
+                        // Closed day protection if affecting cash drawer
+                        if (string.Equals(tx.PaymentChannel, "cash_drawer", StringComparison.OrdinalIgnoreCase))
+                        {
+                            using (var clCmd = new SQLiteCommand("SELECT 1 FROM daily_closings WHERE business_date = date('now', 'localtime') LIMIT 1;", conn, trans))
+                            {
+                                if (clCmd.ExecuteScalar() != null)
+                                {
+                                    throw new InvalidOperationException("لا يمكن تنفيذ معاملة نقدية تؤثر على درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
+                                }
+                            }
                         }
 
                         // 2. Adjust terminal balance atomically

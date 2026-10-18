@@ -443,6 +443,17 @@ namespace RafiqPOS.Repositories
                 {
                     try
                     {
+                        if (string.Equals(fundingSource, "cash_drawer", StringComparison.OrdinalIgnoreCase))
+                        {
+                            using (var clCmd = new SQLiteCommand("SELECT 1 FROM daily_closings WHERE business_date = date('now', 'localtime') LIMIT 1;", conn, trans))
+                            {
+                                if (clCmd.ExecuteScalar() != null)
+                                {
+                                    throw new InvalidOperationException("لا يمكن تغذية الحساب من درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
+                                }
+                            }
+                        }
+
                         long prevBal = 0;
                         string accName = null;
                         string getSql = "SELECT name, balance_piasters FROM digital_accounts WHERE id = @id LIMIT 1;";
@@ -566,8 +577,10 @@ namespace RafiqPOS.Repositories
                         string accName = null;
                         string accType = null;
                         bool isActive = true;
+                        long dailyLimit = 0;
+                        long monthlyLimit = 0;
 
-                        string getAccSql = "SELECT name, type, balance_piasters, is_active FROM digital_accounts WHERE id = @id LIMIT 1;";
+                        string getAccSql = "SELECT name, type, balance_piasters, is_active, daily_limit_piasters, monthly_limit_piasters FROM digital_accounts WHERE id = @id LIMIT 1;";
                         using (var cmd = new SQLiteCommand(getAccSql, conn, trans))
                         {
                             cmd.Parameters.AddWithValue("@id", tx.AccountId);
@@ -581,6 +594,8 @@ namespace RafiqPOS.Repositories
                                 accType = reader["type"].ToString();
                                 currentBal = Convert.ToInt64(reader["balance_piasters"]);
                                 isActive = Convert.ToInt32(reader["is_active"]) == 1;
+                                try { dailyLimit = Convert.ToInt64(reader["daily_limit_piasters"]); } catch { }
+                                try { monthlyLimit = Convert.ToInt64(reader["monthly_limit_piasters"]); } catch { }
                             }
                         }
 
@@ -589,9 +604,59 @@ namespace RafiqPOS.Repositories
                             throw new InvalidOperationException("هذا الحساب موقوف حالياً ولا يمكن إجراء معاملات عليه");
                         }
 
+                        // Closed day protection if affecting cash drawer
+                        if (string.Equals(tx.PaymentDestination, "cash_drawer", StringComparison.OrdinalIgnoreCase))
+                        {
+                            using (var clCmd = new SQLiteCommand("SELECT 1 FROM daily_closings WHERE business_date = date('now', 'localtime') LIMIT 1;", conn, trans))
+                            {
+                                if (clCmd.ExecuteScalar() != null)
+                                {
+                                    throw new InvalidOperationException("لا يمكن تنفيذ معاملة نقدية تؤثر على درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
+                                }
+                            }
+                        }
+
                         long balanceDelta = 0;
                         if (tx.TxType == "cash_out")
                         {
+                            // Enforce daily transfer limit (الحد الأقصى للتحويلات اليومية)
+                            if (dailyLimit > 0)
+                            {
+                                long todayCashOut = 0;
+                                string todaySql = @"SELECT COALESCE(SUM(amount_piasters), 0) FROM digital_transactions WHERE account_id = @id AND tx_type = 'cash_out' AND status = 'completed' AND date(datetime(created_at, 'localtime')) = date('now', 'localtime');";
+                                using (var dCmd = new SQLiteCommand(todaySql, conn, trans))
+                                {
+                                    dCmd.Parameters.AddWithValue("@id", tx.AccountId);
+                                    object dRes = dCmd.ExecuteScalar();
+                                    if (dRes != null && dRes != DBNull.Value) todayCashOut = Convert.ToInt64(dRes);
+                                }
+                                if (todayCashOut + tx.AmountPiasters > dailyLimit)
+                                {
+                                    long remainingToday = Math.Max(0, dailyLimit - todayCashOut);
+                                    throw new InvalidOperationException(string.Format("لا يمكن تنفيذ العملية: إجمالي التحويلات الصادرة اليوم لهذا الحساب ({0:N2} ج.م) سيتجاوز الحد اليومي المحدد ({1:N2} ج.م). المتبقي المتاح اليوم: {2:N2} ج.م والمطلوب: {3:N2} ج.م",
+                                        (todayCashOut + tx.AmountPiasters) / 100.0, dailyLimit / 100.0, remainingToday / 100.0, tx.AmountPiasters / 100.0));
+                                }
+                            }
+
+                            // Enforce monthly transfer limit (الحد الأقصى للتحويلات الشهرية)
+                            if (monthlyLimit > 0)
+                            {
+                                long monthCashOut = 0;
+                                string monthSql = @"SELECT COALESCE(SUM(amount_piasters), 0) FROM digital_transactions WHERE account_id = @id AND tx_type = 'cash_out' AND status = 'completed' AND strftime('%Y-%m', datetime(created_at, 'localtime')) = strftime('%Y-%m', 'now', 'localtime');";
+                                using (var mCmd = new SQLiteCommand(monthSql, conn, trans))
+                                {
+                                    mCmd.Parameters.AddWithValue("@id", tx.AccountId);
+                                    object mRes = mCmd.ExecuteScalar();
+                                    if (mRes != null && mRes != DBNull.Value) monthCashOut = Convert.ToInt64(mRes);
+                                }
+                                if (monthCashOut + tx.AmountPiasters > monthlyLimit)
+                                {
+                                    long remainingMonth = Math.Max(0, monthlyLimit - monthCashOut);
+                                    throw new InvalidOperationException(string.Format("لا يمكن تنفيذ العملية: إجمالي التحويلات الصادرة لهذا الشهر ({0:N2} ج.م) سيتجاوز الحد الشهري المحدد ({1:N2} ج.م). المتبقي المتاح لهذا الشهر: {2:N2} ج.م والمطلوب: {3:N2} ج.م",
+                                        (monthCashOut + tx.AmountPiasters) / 100.0, monthlyLimit / 100.0, remainingMonth / 100.0, tx.AmountPiasters / 100.0));
+                                }
+                            }
+
                             // Senders/Customer withdraws or store transfers from wallet:
                             // Wallet balance DECREASES by AmountPiasters ONLY (User rule: وتخصم المبلغ بس منه)
                             balanceDelta = -tx.AmountPiasters;

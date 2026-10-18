@@ -130,6 +130,18 @@ namespace RafiqPOS.Repositories
                             purchase.PaymentStatus = purchase.PaidAmountPiasters > 0 ? "PARTIAL" : "CREDIT";
                         }
 
+                        string paySource = !string.IsNullOrWhiteSpace(purchase.PaymentSource) ? purchase.PaymentSource : "cash_drawer";
+                        if (purchase.PaidAmountPiasters > 0 && string.Equals(paySource, "cash_drawer", StringComparison.OrdinalIgnoreCase))
+                        {
+                            using (var clCmd = new SQLiteCommand("SELECT 1 FROM daily_closings WHERE business_date = date('now', 'localtime') LIMIT 1;", conn, trans))
+                            {
+                                if (clCmd.ExecuteScalar() != null)
+                                {
+                                    throw new InvalidOperationException("لا يمكن سداد فاتورة شراء من درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
+                                }
+                            }
+                        }
+
                         // 3. Insert Purchase Master Record
                         string insertMasterSql = @"
                             INSERT INTO purchases (

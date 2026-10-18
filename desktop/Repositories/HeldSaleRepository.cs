@@ -21,6 +21,18 @@ namespace RafiqPOS.Repositories
             {
                 throw new InvalidOperationException("لا يمكن تعليق سلة فارغة بدون أصناف");
             }
+            if (heldSale.TotalPiasters < 0)
+            {
+                throw new InvalidOperationException("لا يمكن تعليق فاتورة بإجمالي مالي سالب");
+            }
+            if (heldSale.DiscountPiasters < 0)
+            {
+                throw new InvalidOperationException("قيمة الخصم لا يمكن أن تكون سالبة");
+            }
+            if (heldSale.SubtotalPiasters > 0 && heldSale.DiscountPiasters > heldSale.SubtotalPiasters)
+            {
+                throw new InvalidOperationException("قيمة الخصم لا يمكن أن تتجاوز المجموع الفرعي للأصناف");
+            }
             if (string.IsNullOrEmpty(heldSale.Id))
             {
                 heldSale.Id = Guid.NewGuid().ToString();
