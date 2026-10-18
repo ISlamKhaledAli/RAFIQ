@@ -94,6 +94,12 @@ namespace RafiqPOS.Services
                 RunTest22_AdvancedSubsystemAssetAndCatalogIntegrityGuards(report);
                 RunTest23_SeniorCustomerLedgerAndQuickCatalogGuards(report);
                 RunTest24_ReturnCartBatchAndUnitResilienceGuards(report);
+                RunTest25_DigitalAccountDailyAndMonthlyLimitGuards(report);
+                RunTest26_GenericWalletAndCardClosingParity(report);
+                RunTest27_ClosedDayCashDrawerProtections(report);
+                RunTest28_HeldSalesAndQuickItemsSanityGuards(report);
+                RunTest29_CustomerAdvanceCreditReturnSymmetry(report);
+                RunTest30_MultiTenderInstapayWalletCashSplitParity(report);
 
                 report.Success = (report.PassedAssertions == report.TotalAssertions);
                 report.Message = string.Format("اكتمل الفحص الشامل المتقدم بنجاح فائق: {0}/{1} اختبارات ناجحة بنسبة 100%",
@@ -3588,6 +3594,644 @@ namespace RafiqPOS.Services
             AssertCondition(deleteUnitWithSalesBlocked,
                 "منع حذف الوحدة المرتبطة بمبيعات مسجلة سابقة لحماية التكامل المرجعي للتقارير التاريخية",
                 "ثغرة! تم السماح بحذف وحدة تم البيع بها سابقاً!", report);
+        }
+
+        // Test 25: Digital Account Daily and Monthly Limit Guards
+        private static void RunTest25_DigitalAccountDailyAndMonthlyLimitGuards(AuditReport report)
+        {
+            var digRepo = new DigitalAccountRepository(_connStr);
+            var acc = new DigitalAccount
+            {
+                Id = "dig_limit_test_" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                Name = "محفظة تجربة الحدود اليومية",
+                Type = "wallet",
+                Provider = "vodafone_cash",
+                BalancePiasters = 1000000, // 10,000 EGP balance
+                DailyLimitPiasters = 500000, // 5,000 EGP daily limit
+                MonthlyLimitPiasters = 2000000, // 20,000 EGP monthly limit
+                IsDefault = false,
+                IsActive = true
+            };
+            digRepo.SaveAccount(acc);
+
+            // 1. Valid cash_out of 2,000 EGP (within limit) -> MUST PASS
+            var tx1 = new DigitalTransaction
+            {
+                AccountId = acc.Id,
+                TxType = "cash_out",
+                AmountPiasters = 200000,
+                ProfitPiasters = 2000,
+                PaymentDestination = "other",
+                CustomerPhone = "01011112222"
+            };
+            var savedTx1 = digRepo.ProcessTransaction(tx1);
+            AssertCondition(savedTx1 != null && savedTx1.Status == "completed",
+                "تنفيذ سحب أو تحويل صادر نظامي ضمن الحد اليومي بنجاح",
+                "فشل تنفيذ سحب صادر ضمن الحد اليومي", report);
+
+            // 2. Attempt cash_out of 4,000 EGP (2000 + 4000 = 6000 > 5000 daily limit) -> MUST FAIL
+            bool dailyLimitBlocked = false;
+            try
+            {
+                var txOverDaily = new DigitalTransaction
+                {
+                    AccountId = acc.Id,
+                    TxType = "cash_out",
+                    AmountPiasters = 400000,
+                    ProfitPiasters = 4000,
+                    PaymentDestination = "other"
+                };
+                digRepo.ProcessTransaction(txOverDaily);
+            }
+            catch (InvalidOperationException ex)
+            {
+                dailyLimitBlocked = ex.Message.Contains("الحد اليومي");
+            }
+            AssertCondition(dailyLimitBlocked,
+                "حظر تنفيذ تحويل يتجاوز الحد اليومي المصرح به للحساب الرقمي وحماية السياسة المالية",
+                "ثغرة! تم السماح بتجاوز الحد الأقصى اليومي للتحويلات الصادرة!", report);
+
+            // 3. Cash-in (deposit) of 10,000 EGP -> MUST PASS (deposits are not constrained by outgoing cash_out limit)
+            var txCashIn = new DigitalTransaction
+            {
+                AccountId = acc.Id,
+                TxType = "cash_in",
+                AmountPiasters = 1000000,
+                ProfitPiasters = 1000,
+                PaymentDestination = "other"
+            };
+            var savedCashIn = digRepo.ProcessTransaction(txCashIn);
+            AssertCondition(savedCashIn != null && savedCashIn.Status == "completed",
+                "تنفيذ إيداع نقدي غير مقيد بالحد اليومي للصادر بنجاح",
+                "فشل تنفيذ الإيداع النقدي للحساب", report);
+        }
+
+        // Test 26: Generic Wallet and Card Closing & Reporting Parity
+        private static void RunTest26_GenericWalletAndCardClosingParity(AuditReport report)
+        {
+            var closingRepo = new DailyClosingRepository(_connStr);
+            var counterRepo = new CounterRepository(_connStr);
+            var auditRepo = new AuditLogRepository(_connStr);
+            var settingsRepo = new SettingsRepository(_connStr);
+            var closingService = new DailyClosingService(_connStr, closingRepo, counterRepo, auditRepo, settingsRepo);
+            var prodRepo = new ProductRepository(_connStr);
+            var saleRepo = new SaleRepository(_connStr);
+            var saleService = new SaleService(saleRepo, prodRepo);
+
+            var p = new Product
+            {
+                Id = "p_closing_parity_" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                Name = "صنف فحص إقفال الطرق المتنوعة",
+                PricePiasters = 10000, // 100 EGP
+                CostPiasters = 6000,
+                StockQuantityMilli = 100000,
+                IsActive = true
+            };
+            prodRepo.Upsert(p);
+
+            // Sale 1: Generic 'wallet' method (100 EGP)
+            saleService.ProcessSale(new Sale
+            {
+                CustomerId = "cust_general_cash",
+                PaymentMethod = "wallet",
+                PaidPiasters = 10000,
+                TotalPiasters = 10000,
+                Items = new List<SaleItem> { new SaleItem { ProductId = p.Id, ProductName = p.Name, QuantityMilli = 1000, UnitPricePiasters = 10000, TotalPiasters = 10000 } }
+            });
+
+            // Sale 2: 'orange_cash' method (100 EGP)
+            saleService.ProcessSale(new Sale
+            {
+                CustomerId = "cust_general_cash",
+                PaymentMethod = "orange_cash",
+                PaidPiasters = 10000,
+                TotalPiasters = 10000,
+                Items = new List<SaleItem> { new SaleItem { ProductId = p.Id, ProductName = p.Name, QuantityMilli = 1000, UnitPricePiasters = 10000, TotalPiasters = 10000 } }
+            });
+
+            // Sale 3: 'mastercard' card method (100 EGP)
+            saleService.ProcessSale(new Sale
+            {
+                CustomerId = "cust_general_cash",
+                PaymentMethod = "mastercard",
+                PaidPiasters = 10000,
+                TotalPiasters = 10000,
+                Items = new List<SaleItem> { new SaleItem { ProductId = p.Id, ProductName = p.Name, QuantityMilli = 1000, UnitPricePiasters = 10000, TotalPiasters = 10000 } }
+            });
+
+            // Sale 4: Split Multi Payment (100 EGP: 30 EGP Cash + 40 EGP 'etisalat_cash' + 30 EGP 'meeza')
+            var splitSale = new Sale
+            {
+                CustomerId = "cust_general_cash",
+                PaymentMethod = "multi",
+                SubtotalPiasters = 10000,
+                TotalPiasters = 10000,
+                PaidPiasters = 10000,
+                Items = new List<SaleItem> { new SaleItem { ProductId = p.Id, ProductName = p.Name, QuantityMilli = 1000, UnitPricePiasters = 10000, TotalPiasters = 10000 } },
+                Payments = new List<SalePayment>
+                {
+                    new SalePayment { Method = "cash", AmountPiasters = 3000 },
+                    new SalePayment { Method = "etisalat_cash", AmountPiasters = 4000 },
+                    new SalePayment { Method = "meeza", AmountPiasters = 3000 }
+                }
+            };
+            saleService.ProcessSale(splitSale);
+
+            string bDate = closingService.GetCurrentBusinessDate();
+            var preview = closingService.GetClosingPreview(bDate);
+
+            // Assert that wallet sales include wallet (100) + orange_cash (100) + etisalat_cash (40) = 240 EGP (24,000 piasters)
+            AssertCondition(preview.VodafoneCashSalesPiasters >= 24000,
+                "تجميع كافة مدفوعات المحافظ الإلكترونية بمسمياتها المتعددة (wallet, orange, etisalat) في تقرير الإقفال بدقة",
+                "فشل احتساب مدفوعات المحافظ البديلة في تقرير الإقفال: " + preview.VodafoneCashSalesPiasters, report);
+
+            // Assert that card sales include mastercard (100) + meeza (30) = 130 EGP (13,000 piasters)
+            AssertCondition(preview.CardSalesPiasters >= 13000,
+                "تجميع كافة مدفوعات البطاقات البنكية المتنوعة (mastercard, meeza) في مبيعات الفيزا/الكروت بدقة",
+                "فشل احتساب مدفوعات البطاقات البديلة في تقرير الإقفال: " + preview.CardSalesPiasters, report);
+
+            // Check ReportsService parity
+            var reportsService = new ReportsService(_connStr);
+            var todaySummary = reportsService.GetTodaySummary();
+            AssertCondition(todaySummary.TodayVodafoneCashPiasters >= 24000,
+                "مطابقة المبيعات الإلكترونية للمحافظ في لوحة التقارير المالية والإحصائية",
+                "فشل مطابقة تقارير المحافظ المالية: " + todaySummary.TodayVodafoneCashPiasters, report);
+        }
+
+        // Test 27: Closed Day Cash Drawer Protections
+        private static void RunTest27_ClosedDayCashDrawerProtections(AuditReport report)
+        {
+            var closingRepo = new DailyClosingRepository(_connStr);
+            var counterRepo = new CounterRepository(_connStr);
+            var auditRepo = new AuditLogRepository(_connStr);
+            var settingsRepo = new SettingsRepository(_connStr);
+            var closingService = new DailyClosingService(_connStr, closingRepo, counterRepo, auditRepo, settingsRepo);
+
+            string bDate = closingService.GetCurrentBusinessDate();
+
+            // Perform formal daily closing if not already closed
+            if (!closingService.IsDayClosed(bDate))
+            {
+                closingService.SaveClosing(new DailyClosingSaveRequest
+                {
+                    BusinessDate = bDate,
+                    ActualCashPiasters = 100000,
+                    CashierName = "كاشير الاختبار",
+                    Notes = "إقفال تجريبي لفحص حماية اليوم المغلق"
+                });
+            }
+
+            AssertCondition(closingService.IsDayClosed(bDate),
+                "تأكيد تشميع اليومية وإغلاق تاريخ العمل عبر IsDayClosed",
+                "اليومية ليست مغلقة بعد الحفظ", report);
+
+            // 1. DigitalTransaction touching cash_drawer -> MUST FAIL
+            var digRepo = new DigitalAccountRepository(_connStr);
+            var acc = new DigitalAccount
+            {
+                Id = "dig_closed_test_" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                Name = "محفظة اليوم المغلق",
+                Type = "wallet",
+                Provider = "vodafone_cash",
+                BalancePiasters = 100000,
+                IsActive = true
+            };
+            digRepo.SaveAccount(acc);
+
+            bool digDrawerBlocked = false;
+            try
+            {
+                digRepo.ProcessTransaction(new DigitalTransaction
+                {
+                    AccountId = acc.Id,
+                    TxType = "cash_out",
+                    AmountPiasters = 10000,
+                    ProfitPiasters = 100,
+                    PaymentDestination = "cash_drawer"
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                digDrawerBlocked = ex.Message.Contains("درج الكاشير");
+            }
+            AssertCondition(digDrawerBlocked,
+                "منع إجراء معاملة محفظة نقدية تؤثر على درج الكاشير بعد تشميع اليومية",
+                "ثغرة! تم السماح بمعاملة محفظة نقدية في الدرج بعد إقفال اليوم!", report);
+
+            // 2. DigitalAccountFunding from cash_drawer -> MUST FAIL
+            bool fundDrawerBlocked = false;
+            try
+            {
+                digRepo.FundAccount(acc.Id, 5000, "cash_drawer", "تغذية تجريبية بعد الإغلاق", "admin");
+            }
+            catch (InvalidOperationException ex)
+            {
+                fundDrawerBlocked = ex.Message.Contains("درج الكاشير");
+            }
+            AssertCondition(fundDrawerBlocked,
+                "منع تغذية حساب رقمي من درج الكاشير بعد تشميع اليومية",
+                "ثغرة! تم السماح بتغذية حساب من الدرج بعد إقفال اليوم!", report);
+
+            // 3. EpayTerminal funding from cash_drawer -> MUST FAIL
+            var epayRepo = new EpayRepository(_connStr, auditRepo);
+            var terminal = new EpayTerminal
+            {
+                Id = "epay_term_closed_" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                Name = "ماكينة اليوم المغلق",
+                Provider = "fawry",
+                BalancePiasters = 50000,
+                IsActive = true
+            };
+            epayRepo.SaveTerminal(terminal);
+
+            bool epayFundBlocked = false;
+            try
+            {
+                epayRepo.FundTerminal(terminal.Id, 10000, "cash_drawer", "تغذية بعد الإغلاق", "admin");
+            }
+            catch (InvalidOperationException ex)
+            {
+                epayFundBlocked = ex.Message.Contains("درج الكاشير");
+            }
+            AssertCondition(epayFundBlocked,
+                "منع تغذية ماكينة دفع إلكتروني من درج الكاشير بعد تشميع اليومية",
+                "ثغرة! تم السماح بتغذية ماكينة دفع من الدرج بعد إقفال اليوم!", report);
+
+            // 4. Supplier Payment from cash_drawer -> MUST FAIL
+            var supRepo = new SupplierRepository(_connStr, auditRepo);
+            var sup = new Supplier
+            {
+                Id = "sup_closed_" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                Name = "مورد اليوم المغلق",
+                BalancePiasters = 50000,
+                IsActive = true
+            };
+            supRepo.Save(sup);
+
+            bool supPayBlocked = false;
+            try
+            {
+                supRepo.RecordPayment(sup.Id, 20000, "دفعة بعد الإغلاق", "admin", "cash_drawer");
+            }
+            catch (InvalidOperationException ex)
+            {
+                supPayBlocked = ex.Message.Contains("درج الكاشير");
+            }
+            AssertCondition(supPayBlocked,
+                "منع صرف دفعة نقدية لمورد من درج الكاشير بعد تشميع اليومية",
+                "ثغرة! تم السماح بسداد دفعة للمورد من الدرج بعد إقفال اليوم!", report);
+
+            // 5. Purchase Invoice from cash_drawer -> MUST FAIL
+            var purRepo = new PurchaseRepository(_connStr, counterRepo, supRepo, null, auditRepo);
+            var prodRepo = new ProductRepository(_connStr);
+            var prod = new Product
+            {
+                Id = "p_pur_closed_" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                Name = "صنف شراء بعد الإغلاق",
+                PricePiasters = 5000,
+                CostPiasters = 3000,
+                StockQuantityMilli = 10000,
+                IsActive = true
+            };
+            prodRepo.Upsert(prod);
+
+            bool purBlocked = false;
+            try
+            {
+                purRepo.CreatePurchase(new Purchase
+                {
+                    SupplierId = sup.Id,
+                    PaidAmountPiasters = 30000,
+                    PaymentSource = "cash_drawer",
+                    Items = new List<PurchaseItem>
+                    {
+                        new PurchaseItem
+                        {
+                            ProductId = prod.Id,
+                            QuantityMilli = 10000,
+                            UnitCostPiasters = 3000
+                        }
+                    }
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                purBlocked = ex.Message.Contains("درج الكاشير");
+            }
+            AssertCondition(purBlocked,
+                "منع سداد فاتورة شراء نقداً من درج الكاشير بعد تشميع اليومية",
+                "ثغرة! تم السماح بسداد فاتورة شراء من الدرج بعد إقفال اليوم!", report);
+        }
+
+        // Test 28: Held Sales and Quick Items Sanity Guards
+        private static void RunTest28_HeldSalesAndQuickItemsSanityGuards(AuditReport report)
+        {
+            var heldRepo = new HeldSaleRepository(_connStr);
+
+            // 1. Held sale with negative total -> MUST FAIL
+            bool negTotalBlocked = false;
+            try
+            {
+                heldRepo.SaveHeldSale(new HeldSale
+                {
+                    HoldLabel = "سلة سالبة",
+                    ItemsCount = 1,
+                    SubtotalPiasters = -5000,
+                    TotalPiasters = -5000,
+                    CartJson = "[{\"id\":\"p1\"}]"
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                negTotalBlocked = ex.Message.Contains("سالب");
+            }
+            AssertCondition(negTotalBlocked,
+                "منع تعليق فاتورة بإجمالي مالي سالب لحماية سلامة السلات المؤقتة",
+                "ثغرة! تم السماح بتعليق فاتورة بإجمالي سالب!", report);
+
+            // 2. Held sale with discount exceeding subtotal -> MUST FAIL
+            bool discountExcessBlocked = false;
+            try
+            {
+                heldRepo.SaveHeldSale(new HeldSale
+                {
+                    HoldLabel = "سلة خصم مبالغ",
+                    ItemsCount = 1,
+                    SubtotalPiasters = 5000,
+                    DiscountPiasters = 10000,
+                    TotalPiasters = 5000,
+                    CartJson = "[{\"id\":\"p1\"}]"
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                discountExcessBlocked = ex.Message.Contains("الخصم");
+            }
+            AssertCondition(discountExcessBlocked,
+                "منع تعليق فاتورة بقيمة خصم تتجاوز إجمالي الأصناف",
+                "ثغرة! تم السماح بتعليق فاتورة بخصم أكبر من إجمالي السلة!", report);
+
+            // 3. Quick Item with empty name -> MUST FAIL
+            var quickRepo = new QuickItemRepository(_connStr);
+            bool emptyNameBlocked = false;
+            try
+            {
+                quickRepo.Save(new QuickItem
+                {
+                    Name = "   ",
+                    PricePiasters = 1000,
+                    IsOpenPrice = false
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                emptyNameBlocked = ex.Message.Contains("مطلوب");
+            }
+            AssertCondition(emptyNameBlocked,
+                "منع إنشاء صنف سريع بدون اسم أو باسم فارغ",
+                "ثغرة! تم السماح بإنشاء صنف سريع بدون اسم!", report);
+
+            // 4. Quick Item with negative price -> MUST FAIL
+            bool negPriceBlocked = false;
+            try
+            {
+                quickRepo.Save(new QuickItem
+                {
+                    Name = "صنف سالب السعر",
+                    PricePiasters = -5000,
+                    IsOpenPrice = false
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                negPriceBlocked = ex.Message.Contains("سالب");
+            }
+            AssertCondition(negPriceBlocked,
+                "منع إنشاء صنف سريع بسعر بيع سالب لحماية تسعيرة نقطة البيع",
+                "ثغرة! تم السماح بإنشاء صنف سريع بسعر سالب!", report);
+        }
+
+        // Test 29: Customer Advance Credit Return Symmetry
+        private static void RunTest29_CustomerAdvanceCreditReturnSymmetry(AuditReport report)
+        {
+            var custRepo = new CustomerRepository(_connStr);
+            var prodRepo = new ProductRepository(_connStr);
+            var saleRepo = new SaleRepository(_connStr);
+            var saleService = new SaleService(saleRepo, prodRepo);
+            var returnRepo = new ReturnRepository(_connStr);
+            var returnService = new ReturnService(returnRepo, saleRepo);
+
+            var cust = new Customer
+            {
+                Id = "cust_credit_sym_" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                Name = "عميل فحص الرصيد الدائن المتقدم",
+                BalancePiasters = 0,
+                IsArchived = false
+            };
+            custRepo.SaveCustomer(cust);
+
+            var prod = new Product
+            {
+                Id = "prod_credit_sym_" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                Name = "صنف اختبار المرتجع الدائن",
+                PricePiasters = 20000, // 200 EGP
+                CostPiasters = 12000,
+                StockQuantityMilli = 50000,
+                IsActive = true
+            };
+            prodRepo.Upsert(prod);
+
+            // Sale 1: Credit sale for 200 EGP (Balance goes to +20,000 debt)
+            var sale = saleService.ProcessSale(new Sale
+            {
+                CustomerId = cust.Id,
+                PaymentMethod = "credit",
+                PaidPiasters = 0,
+                TotalPiasters = 20000,
+                Items = new List<SaleItem>
+                {
+                    new SaleItem
+                    {
+                        ProductId = prod.Id,
+                        ProductName = prod.Name,
+                        QuantityMilli = 1000,
+                        UnitPricePiasters = 20000,
+                        TotalPiasters = 20000
+                    }
+                }
+            });
+
+            AssertCondition(custRepo.GetById(cust.Id).BalancePiasters == 20000,
+                "تسجيل مديونية الفاتورة الآجلة بدقة (+20,000 قرش)",
+                "رصيد العميل غير مطابق بعد الفاتورة الآجلة", report);
+
+            // Return 1: Return the item with credit refund (Balance drops back to 0)
+            returnService.ProcessReturn(new Return
+            {
+                SaleId = sale.Id,
+                CustomerId = cust.Id,
+                RefundMethod = "credit",
+                Reason = "استرجاع البضاعة وإلغاء المديونية",
+                Items = new List<ReturnItem>
+                {
+                    new ReturnItem
+                    {
+                        ProductId = prod.Id,
+                        ProductName = prod.Name,
+                        QuantityMilli = 1000,
+                        UnitPricePiasters = 20000,
+                        TotalPiasters = 20000
+                    }
+                }
+            });
+
+            var cAfterReturn = custRepo.GetById(cust.Id);
+            AssertCondition(cAfterReturn.BalancePiasters == 0,
+                "تصفية مديونية العميل تماماً بعد المرتجع الآجل الكامل (الرصيد = 0 قرش)",
+                "رصيد العميل بعد المرتجع غير مطابق: " + cAfterReturn.BalancePiasters, report);
+
+            // Verify Double-Entry Balance Integrity
+            var verif = custRepo.VerifyBalance(cust.Id);
+            AssertCondition(verif != null && verif.IsBalanced && verif.DiscrepancyPiasters == 0,
+                "تطابق دفتر أستاذ العميل بنسبة 100% مع الرصيد المخزن (انحراف = 0)",
+                "يوجد انحراف في دفتر أستاذ العميل بعد المرتجع", report);
+        }
+
+        // Test 30: Multi-Tender InstaPay, Wallet, Cash, and Credit Split Parity
+        private static void RunTest30_MultiTenderInstapayWalletCashSplitParity(AuditReport report)
+        {
+            var digRepo = new DigitalAccountRepository(_connStr);
+            var custRepo = new CustomerRepository(_connStr);
+            var prodRepo = new ProductRepository(_connStr);
+            var saleRepo = new SaleRepository(_connStr);
+            var saleService = new SaleService(saleRepo, prodRepo);
+
+            // Setup default InstaPay and Wallet accounts
+            var instaAcc = new DigitalAccount
+            {
+                Id = "dig_split_insta_" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                Name = "حساب إنستاباي للدفع المتعدد",
+                Type = "instapay",
+                Provider = "instapay",
+                BalancePiasters = 100000, // 1,000 EGP
+                IsDefault = true,
+                IsActive = true
+            };
+            digRepo.SaveAccount(instaAcc);
+
+            var walletAcc = new DigitalAccount
+            {
+                Id = "dig_split_wall_" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                Name = "محفظة كاش للدفع المتعدد",
+                Type = "wallet",
+                Provider = "vodafone_cash",
+                BalancePiasters = 100000, // 1,000 EGP
+                IsDefault = true,
+                IsActive = true
+            };
+            digRepo.SaveAccount(walletAcc);
+
+            var cust = new Customer
+            {
+                Id = "cust_split_" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                Name = "عميل الفاتورة المجزأة الرباعية",
+                BalancePiasters = 0,
+                IsArchived = false
+            };
+            custRepo.SaveCustomer(cust);
+
+            var p = new Product
+            {
+                Id = "prod_split_" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                Name = "صنف الفاتورة الرباعية",
+                PricePiasters = 100000, // 1,000 EGP
+                CostPiasters = 70000,
+                StockQuantityMilli = 50000,
+                IsActive = true
+            };
+            prodRepo.Upsert(p);
+
+            // 4-Way Split Sale: Total 1,000 EGP (100,000 piasters)
+            // 250 EGP Cash (25,000 p)
+            // 250 EGP InstaPay (25,000 p)
+            // 250 EGP Wallet (25,000 p)
+            // 250 EGP Debt / Credit (25,000 p) -> Unpaid
+            // PaidPiasters = 75,000 piasters
+            var splitSale = new Sale
+            {
+                CustomerId = cust.Id,
+                PaymentMethod = "multi",
+                SubtotalPiasters = 100000,
+                TotalPiasters = 100000,
+                PaidPiasters = 75000,
+                Items = new List<SaleItem>
+                {
+                    new SaleItem
+                    {
+                        ProductId = p.Id,
+                        ProductName = p.Name,
+                        QuantityMilli = 1000,
+                        UnitPricePiasters = 100000,
+                        TotalPiasters = 100000
+                    }
+                },
+                Payments = new List<SalePayment>
+                {
+                    new SalePayment { Method = "cash", AmountPiasters = 25000 },
+                    new SalePayment { Method = "instapay", AmountPiasters = 25000 },
+                    new SalePayment { Method = "wallet", AmountPiasters = 25000 },
+                    new SalePayment { Method = "credit", AmountPiasters = 25000 }
+                }
+            };
+
+            var completedSale = saleService.ProcessSale(splitSale);
+            AssertCondition(completedSale != null && !string.IsNullOrEmpty(completedSale.Id),
+                "تسجيل الفاتورة المجزأة الرباعية الذرية بنجاح فائق",
+                "فشل تسجيل الفاتورة المجزأة الرباعية", report);
+
+            // Verify InstaPay balance (+250 EGP -> 1250 EGP = 125,000 piasters)
+            var instaAfter = digRepo.GetAccountById(instaAcc.Id);
+            AssertCondition(instaAfter.BalancePiasters == 125000,
+                "إيداع حصة إنستاباي من الفاتورة المجزأة تلقائياً (+250.00 ج.م)",
+                "رصيد إنستاباي بعد الفاتورة المجزأة غير مطابق: " + instaAfter.BalancePiasters, report);
+
+            // Verify Wallet balance (+250 EGP -> 1250 EGP = 125,000 piasters)
+            var walletAfter = digRepo.GetAccountById(walletAcc.Id);
+            AssertCondition(walletAfter.BalancePiasters == 125000,
+                "إيداع حصة المحفظة الإلكترونية من الفاتورة المجزأة تلقائياً (+250.00 ج.م)",
+                "رصيد المحفظة بعد الفاتورة المجزأة غير مطابق: " + walletAfter.BalancePiasters, report);
+
+            // Verify Customer debt (+250 EGP = 25,000 piasters)
+            var custAfter = custRepo.GetById(cust.Id);
+            AssertCondition(custAfter.BalancePiasters == 25000,
+                "تسجيل حصة الدين الآجل من الفاتورة المجزأة على حساب العميل بدقة (+250.00 ج.م)",
+                "مديونية العميل بعد الفاتورة المجزأة غير مطابقة: " + custAfter.BalancePiasters, report);
+
+            // Check Daily Closing Parity
+            var closingRepo = new DailyClosingRepository(_connStr);
+            var counterRepo = new CounterRepository(_connStr);
+            var auditRepo = new AuditLogRepository(_connStr);
+            var settingsRepo = new SettingsRepository(_connStr);
+            var closingService = new DailyClosingService(_connStr, closingRepo, counterRepo, auditRepo, settingsRepo);
+
+            string bDate = closingService.GetCurrentBusinessDate();
+            var preview = closingService.GetClosingPreview(bDate);
+
+            AssertCondition(preview.CashSalesPiasters >= 25000,
+                "احتساب حصة الكاش من الفاتورة المجزأة في مبيعات النقدية بدقة",
+                "حصة الكاش غير صحيحة في الإقفال", report);
+
+            AssertCondition(preview.InstapaySalesPiasters >= 25000,
+                "احتساب حصة إنستاباي من الفاتورة المجزأة في مبيعات إنستاباي بدقة",
+                "حصة إنستاباي غير صحيحة في الإقفال", report);
+
+            AssertCondition(preview.VodafoneCashSalesPiasters >= 25000,
+                "احتساب حصة المحفظة من الفاتورة المجزأة في مبيعات المحافظ بدقة",
+                "حصة المحفظة غير صحيحة في الإقفال", report);
+
+            AssertCondition(preview.CreditSalesPiasters >= 25000,
+                "احتساب حصة الآجل من الفاتورة المجزأة في مبيعات الآجل بدقة",
+                "حصة الآجل غير صحيحة في الإقفال", report);
         }
     }
 }

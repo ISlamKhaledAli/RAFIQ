@@ -166,22 +166,22 @@ namespace RafiqPOS.Services
                         ), 0) AS instapay_sales,
                         COALESCE(SUM(
                             CASE 
-                                WHEN s.payment_method = 'vodafone_cash' THEN (s.paid_piasters - s.service_fee_piasters)
+                                WHEN s.payment_method IN ('vodafone_cash', 'wallet', 'orange_cash', 'etisalat_cash', 'we_pay') THEN (s.paid_piasters - s.service_fee_piasters)
                                 WHEN s.payment_method = 'multi' THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
-                                    WHERE p.sale_id = s.id AND p.method = 'vodafone_cash'
+                                    WHERE p.sale_id = s.id AND p.method IN ('vodafone_cash', 'wallet', 'orange_cash', 'etisalat_cash', 'we_pay')
                                 )
                                 ELSE 0 
                             END
                         ), 0) AS vodafone_cash_sales,
                         COALESCE(SUM(
                             CASE 
-                                WHEN s.payment_method IN ('card', 'visa') THEN (s.paid_piasters - s.service_fee_piasters)
+                                WHEN s.payment_method IN ('card', 'visa', 'mastercard', 'meeza', 'pos', 'bank_card') THEN (s.paid_piasters - s.service_fee_piasters)
                                 WHEN s.payment_method = 'multi' THEN (
                                     SELECT COALESCE(SUM(p.amount_piasters), 0) 
                                     FROM payments p 
-                                    WHERE p.sale_id = s.id AND p.method IN ('card', 'visa')
+                                    WHERE p.sale_id = s.id AND p.method IN ('card', 'visa', 'mastercard', 'meeza', 'pos', 'bank_card')
                                 )
                                 ELSE 0 
                             END

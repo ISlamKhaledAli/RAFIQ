@@ -604,7 +604,10 @@ namespace RafiqPOS.Repositories
                                 lCmd.Parameters.AddWithValue("@sid", (object)returnObj.SaleId ?? DBNull.Value);
                                 lCmd.Parameters.AddWithValue("@amt", returnObj.TotalPiasters);
                                 lCmd.Parameters.AddWithValue("@after", newBal);
-                                lCmd.Parameters.AddWithValue("@notes", string.Format("خصم مرتجع رقم #{0} من المديونية", returnObj.ReturnNumber));
+                                string ledgerNote = currentBal > 0 
+                                    ? string.Format("خصم مرتجع رقم #{0} من المديونية", returnObj.ReturnNumber)
+                                    : string.Format("إضافة مرتجع رقم #{0} كرصيد دائن لصالح العميل", returnObj.ReturnNumber);
+                                lCmd.Parameters.AddWithValue("@notes", ledgerNote);
                                 lCmd.Parameters.AddWithValue("@cat", returnObj.CreatedAt);
                                 lCmd.ExecuteNonQuery();
                             }

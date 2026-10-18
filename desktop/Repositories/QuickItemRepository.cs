@@ -95,6 +95,14 @@ namespace RafiqPOS.Repositories
         public QuickItem Save(QuickItem item)
         {
             if (item == null) throw new ArgumentNullException("item");
+            if (string.IsNullOrWhiteSpace(item.Name))
+            {
+                throw new ArgumentException("اسم الصنف السريع مطلوب ولا يمكن تركه فارغاً");
+            }
+            if (!item.IsOpenPrice && item.PricePiasters < 0)
+            {
+                throw new ArgumentException("سعر بيع الصنف السريع لا يمكن أن يكون سالباً");
+            }
 
             string now = DateTime.UtcNow.ToString("o");
             using (var conn = new SQLiteConnection(_connectionString))

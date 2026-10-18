@@ -506,6 +506,17 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
+                        if (string.Equals(paymentSource, "cash_drawer", StringComparison.OrdinalIgnoreCase))
+                        {
+                            using (var clCmd = new SQLiteCommand("SELECT 1 FROM daily_closings WHERE business_date = date('now', 'localtime') LIMIT 1;", conn, trans))
+                            {
+                                if (clCmd.ExecuteScalar() != null)
+                                {
+                                    throw new InvalidOperationException("لا يمكن صرف دفعة للمورد من درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
+                                }
+                            }
+                        }
+
                         // Payment to supplier reduces what we owe (delta is negative balance)
                         AdjustBalance(supplierId, -amountPiasters, "PAYMENT", null, notes, conn, trans, paymentSource);
 
