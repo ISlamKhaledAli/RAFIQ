@@ -17,6 +17,10 @@ namespace RafiqPOS.Repositories
         public HeldSale SaveHeldSale(HeldSale heldSale)
         {
             if (heldSale == null) throw new ArgumentNullException("heldSale");
+            if (heldSale.ItemsCount <= 0 || string.IsNullOrWhiteSpace(heldSale.CartJson) || heldSale.CartJson.Trim() == "[]")
+            {
+                throw new InvalidOperationException("لا يمكن تعليق سلة فارغة بدون أصناف");
+            }
             if (string.IsNullOrEmpty(heldSale.Id))
             {
                 heldSale.Id = Guid.NewGuid().ToString();

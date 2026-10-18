@@ -114,6 +114,23 @@ namespace RafiqPOS.Repositories
                         for (int i = 0; i < returnObj.Items.Count; i++)
                         {
                             var it = returnObj.Items[i];
+                            if (it == null)
+                            {
+                                throw new InvalidOperationException(string.Format("بند المرتجع رقم {0} غير صالح", i + 1));
+                            }
+                            if (string.IsNullOrWhiteSpace(it.ProductId))
+                            {
+                                throw new InvalidOperationException(string.Format("معرف المنتج مطلوب لبند المرتجع رقم {0}", i + 1));
+                            }
+                            if (it.QuantityMilli <= 0)
+                            {
+                                throw new InvalidOperationException(string.Format("كمية المرتجع للصنف '{0}' يجب أن تكون أكبر من الصفر", it.ProductName ?? it.ProductId));
+                            }
+                            if (it.UnitPricePiasters < 0)
+                            {
+                                throw new InvalidOperationException(string.Format("سعر الوحدة للصنف '{0}' لا يمكن أن يكون سالباً", it.ProductName ?? it.ProductId));
+                            }
+
                             decimal lineDec = ((decimal)it.UnitPricePiasters * it.QuantityMilli) / 1000m;
                             long expectedLineTotal = (long)Math.Round(lineDec, 0, MidpointRounding.AwayFromZero);
                             // Invoice-linked line totals are computed by ReturnService from the original sale line
@@ -128,6 +145,11 @@ namespace RafiqPOS.Repositories
                                 it.TotalPiasters = expectedLineTotal;
                             }
                             calculatedTotal += it.TotalPiasters;
+                        }
+
+                        if (calculatedTotal <= 0)
+                        {
+                            throw new InvalidOperationException("إجمالي قيمة المرتجع يجب أن يكون أكبر من الصفر");
                         }
                         returnObj.TotalPiasters = calculatedTotal;
 
@@ -533,17 +555,33 @@ namespace RafiqPOS.Repositories
                         }
 
                         // 4. If credit / customer_balance refund, reduce customer debt in customers and customer_ledger
-                        if ((string.Equals(returnObj.RefundMethod, "credit", StringComparison.OrdinalIgnoreCase) ||
-                             string.Equals(returnObj.RefundMethod, "customer_balance", StringComparison.OrdinalIgnoreCase)) && !string.IsNullOrEmpty(returnObj.CustomerId))
+                        if (string.Equals(returnObj.RefundMethod, "credit", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(returnObj.RefundMethod, "customer_balance", StringComparison.OrdinalIgnoreCase))
                         {
+                            if (string.IsNullOrWhiteSpace(returnObj.CustomerId))
+                            {
+                                throw new InvalidOperationException("لا يمكن صرف المرتجع كرصيد آجل/حساب عميل بدون تحديد عميل مسجل.");
+                            }
+                            if (returnObj.CustomerId == "cust_general_cash")
+                            {
+                                throw new InvalidOperationException("لا يمكن صرف المرتجع كرصيد آجل/حساب عميل للعميل النقدي العام.");
+                            }
+
                             long currentBal = 0;
-                            using (var cCmd = new SQLiteCommand("SELECT balance_piasters FROM customers WHERE id = @cid LIMIT 1;", conn, trans))
+                            using (var cCmd = new SQLiteCommand("SELECT balance_piasters, is_archived FROM customers WHERE id = @cid LIMIT 1;", conn, trans))
                             {
                                 cCmd.Parameters.AddWithValue("@cid", returnObj.CustomerId);
-                                object cRes = cCmd.ExecuteScalar();
-                                if (cRes != null && cRes != DBNull.Value)
+                                using (var cRdr = cCmd.ExecuteReader())
                                 {
-                                    currentBal = Convert.ToInt64(cRes);
+                                    if (!cRdr.Read())
+                                    {
+                                        throw new InvalidOperationException("العميل المحدد لصرف المرتجع غير موجود في قاعدة البيانات.");
+                                    }
+                                    if (cRdr["is_archived"] != DBNull.Value && Convert.ToInt32(cRdr["is_archived"]) == 1)
+                                    {
+                                        throw new InvalidOperationException("لا يمكن صرف المرتجع لحساب عميل مؤرشف. يرجى إلغاء أرشفة العميل أولاً.");
+                                    }
+                                    currentBal = Convert.ToInt64(cRdr["balance_piasters"]);
                                 }
                             }
 
