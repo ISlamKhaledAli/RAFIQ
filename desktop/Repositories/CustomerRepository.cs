@@ -221,6 +221,10 @@ namespace RafiqPOS.Repositories
         {
             if (string.IsNullOrWhiteSpace(customerId)) throw new ArgumentException("معرف العميل مطلوب");
             if (amountPiasters <= 0) throw new ArgumentException("مبلغ السداد يجب أن يكون أكبر من الصفر");
+            if (customerId == "cust_general_cash")
+            {
+                throw new InvalidOperationException("لا يمكن تسجيل سداد آجل للعميل النقدي العام");
+            }
 
             using (var conn = new SQLiteConnection(_connectionString))
             {
@@ -230,16 +234,25 @@ namespace RafiqPOS.Repositories
                     try
                     {
                         long currentBalance = 0;
-                        string getBalSql = "SELECT balance_piasters FROM customers WHERE id = @id LIMIT 1;";
+                        bool isArchived = false;
+                        string getBalSql = "SELECT balance_piasters, is_archived FROM customers WHERE id = @id LIMIT 1;";
                         using (var cmd = new SQLiteCommand(getBalSql, conn, trans))
                         {
                             cmd.Parameters.AddWithValue("@id", customerId);
-                            object res = cmd.ExecuteScalar();
-                            if (res == null || res == DBNull.Value)
+                            using (var reader = cmd.ExecuteReader())
                             {
-                                throw new InvalidOperationException("العميل غير موجود في النظام");
+                                if (!reader.Read())
+                                {
+                                    throw new InvalidOperationException("العميل غير موجود في النظام");
+                                }
+                                currentBalance = Convert.ToInt64(reader["balance_piasters"]);
+                                isArchived = Convert.ToInt32(reader["is_archived"]) == 1;
                             }
-                            currentBalance = Convert.ToInt64(res);
+                        }
+
+                        if (isArchived)
+                        {
+                            throw new InvalidOperationException("لا يمكن تسجيل سداد لعميل مؤرشف");
                         }
 
                         long newBalance = currentBalance - amountPiasters;
@@ -308,16 +321,25 @@ namespace RafiqPOS.Repositories
                     {
                         // 1. Check customer exists and get balance
                         long currentBalance = 0;
-                        string getBalSql = "SELECT balance_piasters FROM customers WHERE id = @id LIMIT 1;";
+                        bool isArchived = false;
+                        string getBalSql = "SELECT balance_piasters, is_archived FROM customers WHERE id = @id LIMIT 1;";
                         using (var cmd = new SQLiteCommand(getBalSql, conn, trans))
                         {
                             cmd.Parameters.AddWithValue("@id", customerId);
-                            object res = cmd.ExecuteScalar();
-                            if (res == null || res == DBNull.Value)
+                            using (var reader = cmd.ExecuteReader())
                             {
-                                throw new InvalidOperationException("العميل غير موجود في النظام");
+                                if (!reader.Read())
+                                {
+                                    throw new InvalidOperationException("العميل غير موجود في النظام");
+                                }
+                                currentBalance = Convert.ToInt64(reader["balance_piasters"]);
+                                isArchived = Convert.ToInt32(reader["is_archived"]) == 1;
                             }
-                            currentBalance = Convert.ToInt64(res);
+                        }
+
+                        if (isArchived)
+                        {
+                            throw new InvalidOperationException("لا يمكن إلغاء سداد لعميل مؤرشف. يرجى إلغاء أرشفة العميل أولاً.");
                         }
 
                         // 2. Fetch original payment entry

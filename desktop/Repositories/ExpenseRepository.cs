@@ -38,6 +38,14 @@ namespace RafiqPOS.Repositories
                             // 1. Get next sequential expense number from counters with self-healing fallback
                             expense.ExpenseNumber = _counterRepo.GetNextCounterNumber(conn, trans, "expense", "expenses", "expense_number");
 
+                        if (string.IsNullOrWhiteSpace(expense.Id))
+                        {
+                            expense.Id = "exp_" + Guid.NewGuid().ToString("N");
+                        }
+                        if (string.IsNullOrWhiteSpace(expense.BusinessDate))
+                        {
+                            expense.BusinessDate = DateTime.Now.ToString("yyyy-MM-dd");
+                        }
                         if (string.IsNullOrWhiteSpace(expense.CreatedAt))
                         {
                             expense.CreatedAt = DateTime.UtcNow.ToString("o");

@@ -213,10 +213,10 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
                 type="button"
                 onClick={() => handleOpenCheckout('cash')}
                 disabled={loading || cart.length === 0}
-                className="flex-1 min-w-0 h-full bg-brand hover:bg-brand-dark active:bg-brand-hover disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted/50 dark:disabled:text-ink-dark-muted/40 text-white rounded-xl px-2 py-1 flex flex-col justify-center items-center gap-0.5 transition-all shadow-sm active:scale-[0.98] cursor-pointer"
+                className="flex-1 min-w-0 h-full bg-brand hover:bg-brand-dark active:bg-brand-hover disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted/70 dark:disabled:text-ink-dark-muted/60 text-white rounded-xl px-2 py-1 flex flex-col justify-center items-center gap-0.5 transition-all shadow-sm active:scale-[0.98] cursor-pointer"
                 title="دفع كاش وحساب الباقي (F9)"
               >
-                <Banknote className="w-3.5 h-3.5 shrink-0 text-white/90" />
+                <Banknote className="w-3.5 h-3.5 shrink-0" />
                 <span className="text-[11px] sm:text-xs font-black truncate text-center leading-none">
                   كاش
                 </span>
@@ -234,18 +234,18 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
                         handleOpenCheckout('instapay');
                       }
                     }}
-                    disabled={loading || cart.length === 0}
-                    className="relative flex-1 min-w-0 h-full bg-[#582C83] hover:bg-[#49226e] active:bg-[#3b195a] disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted/50 dark:disabled:text-ink-dark-muted/40 text-white rounded-xl px-2 py-1 flex flex-col justify-center items-center gap-0.5 transition-all shadow-sm active:scale-[0.98] cursor-pointer"
+                    disabled={loading || (hasInstapayAccount && cart.length === 0)}
+                    className="relative flex-1 min-w-0 h-full bg-[#582C83] hover:bg-[#49226e] active:bg-[#3b195a] disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted/70 dark:disabled:text-ink-dark-muted/60 text-white rounded-xl px-2 py-1 flex flex-col justify-center items-center gap-0.5 transition-all shadow-sm active:scale-[0.98] cursor-pointer"
                     title={hasInstapayAccount ? "سداد عبر تطبيق انستاباي" : "لم يتم ربط حساب انستاباي بعد - اضغط للربط الآن"}
                   >
                     {!hasInstapayAccount && (
-                      <span className="absolute top-1 left-1.5 px-1.5 py-0.5 bg-white/20 backdrop-blur-xs text-white text-[8px] font-black rounded-md border border-white/25 flex items-center gap-0.5 shadow-2xs leading-none">
-                        <Link2 className="w-2 h-2 text-white/90" />
+                      <span className="absolute top-1 left-1.5 px-1 py-0.5 bg-black/15 dark:bg-white/20 text-current text-[8px] font-black rounded-md border border-current/20 flex items-center gap-0.5 shadow-2xs leading-none">
+                        <Link2 className="w-2 h-2 text-current" />
                         <span>ربط</span>
                       </span>
                     )}
-                    <Smartphone className="w-3.5 h-3.5 shrink-0 text-white" />
-                    <span className="text-[11px] sm:text-xs font-black truncate text-center leading-none text-white">
+                    <Smartphone className="w-3.5 h-3.5 shrink-0" />
+                    <span className="text-[11px] sm:text-xs font-black truncate text-center leading-none">
                       انستاباي
                     </span>
                   </button>
@@ -259,18 +259,18 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
                         handleOpenCheckout('vodafone_cash');
                       }
                     }}
-                    disabled={loading || cart.length === 0}
-                    className="relative flex-1 min-w-0 h-full bg-[#D92D20] hover:bg-[#B42318] active:bg-[#912018] disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted/50 dark:disabled:text-ink-dark-muted/40 text-white rounded-xl px-2 py-1 flex flex-col justify-center items-center gap-0.5 transition-all shadow-sm active:scale-[0.98] cursor-pointer"
+                    disabled={loading || (hasWalletAccount && cart.length === 0)}
+                    className="relative flex-1 min-w-0 h-full bg-[#D92D20] hover:bg-[#B42318] active:bg-[#912018] disabled:bg-surface-2 dark:disabled:bg-surface-dark-3 disabled:text-ink-muted/70 dark:disabled:text-ink-dark-muted/60 text-white rounded-xl px-2 py-1 flex flex-col justify-center items-center gap-0.5 transition-all shadow-sm active:scale-[0.98] cursor-pointer"
                     title={hasWalletAccount ? "سداد عبر المحفظة الإلكترونية (فودافون كاش، أورانج، اتصالات، وي)" : "لم يتم ربط محفظة كاش بعد - اضغط للربط الآن"}
                   >
                     {!hasWalletAccount && (
-                      <span className="absolute top-1 left-1.5 px-1.5 py-0.5 bg-white/20 backdrop-blur-xs text-white text-[8px] font-black rounded-md border border-white/25 flex items-center gap-0.5 shadow-2xs leading-none">
-                        <Link2 className="w-2 h-2 text-white/90" />
+                      <span className="absolute top-1 left-1.5 px-1 py-0.5 bg-black/15 dark:bg-white/20 text-current text-[8px] font-black rounded-md border border-current/20 flex items-center gap-0.5 shadow-2xs leading-none">
+                        <Link2 className="w-2 h-2 text-current" />
                         <span>ربط</span>
                       </span>
                     )}
-                    <Wallet className="w-3.5 h-3.5 shrink-0 text-white" />
-                    <span className="text-[11px] sm:text-xs font-black truncate text-center leading-none text-white">
+                    <Wallet className="w-3.5 h-3.5 shrink-0" />
+                    <span className="text-[11px] sm:text-xs font-black truncate text-center leading-none">
                       محفظة
                     </span>
                   </button>
