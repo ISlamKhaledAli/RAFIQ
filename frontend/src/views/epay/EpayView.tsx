@@ -627,9 +627,6 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 {activeTab === 'history' && 'سجل العمليات والإيصالات'}
                 {activeTab === 'analytics' && 'التحليلات والأرباح المستقلة'}
               </h1>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-muted-dark border border-line dark:border-line-dark">
-                SuperPay / فوري / أمان
-              </span>
             </div>
             <p className="text-xs text-ink-muted dark:text-ink-muted-dark mt-0.5 font-medium">
               {activeTab === 'pos' && 'شحن رصيد، فواتير، وتحويل وسحب محافظ إلكترونية بنظام مالي مستقل'}
