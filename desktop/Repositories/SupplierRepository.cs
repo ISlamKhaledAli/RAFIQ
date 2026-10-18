@@ -515,6 +515,15 @@ namespace RafiqPOS.Repositories
                                     throw new InvalidOperationException("لا يمكن صرف دفعة للمورد من درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
                                 }
                             }
+
+                            if (DatabaseService.DailyClosing != null)
+                            {
+                                var liveBal = DatabaseService.DailyClosing.GetLiveDrawerBalance(DateTime.Now.ToString("yyyy-MM-dd"));
+                                if (liveBal != null && liveBal.AvailableCashPiasters < amountPiasters)
+                                {
+                                    throw new InvalidOperationException(string.Format("رصيد نقدية الدرج المتاح حالياً ({0:N2} ج.م) غير كافٍ لسداد دفعة المورد ({1:N2} ج.م). يرجى السداد بنقدية خارجية أو توريد عهدة للدرج أولاً.", liveBal.AvailableCashPiasters / 100.0, amountPiasters / 100.0));
+                                }
+                            }
                         }
 
                         // Payment to supplier reduces what we owe (delta is negative balance)

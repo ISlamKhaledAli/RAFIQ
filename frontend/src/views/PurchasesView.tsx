@@ -65,6 +65,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
   const [purchaseNotes, setPurchaseNotes] = useState<string>('');
   const [discountPiasters, setDiscountPiasters] = useState<number>(0);
   const [paymentMode, setPaymentMode] = useState<'PAID' | 'CREDIT' | 'PARTIAL'>('PAID');
+  const [paymentSource, setPaymentSource] = useState<'cash_drawer' | 'external_cash'>('cash_drawer');
   const [customPaidAmountPiasters, setCustomPaidAmountPiasters] = useState<number | null>(null);
   const [lineItems, setLineItems] = useState<NewPurchaseLineItem[]>([]);
 
@@ -347,6 +348,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
               : paidAmountPiasters > 0
               ? 'PARTIAL'
               : 'CREDIT',
+          paymentSource,
           status: 'COMPLETED',
           notes: purchaseNotes.trim() || null,
           items: itemsPayload,
@@ -365,6 +367,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
         setDiscountPiasters(0);
         setCustomPaidAmountPiasters(null);
         setPaymentMode('PAID');
+        setPaymentSource('cash_drawer');
         loadPurchases();
         loadSuppliers();
         setActiveTab('invoices');
@@ -467,7 +470,12 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
     setIsPaymentModalOpen(true);
   };
 
-  const handleConfirmPayment = async (e: React.FormEvent, effectiveAmount?: number, customNotes?: string) => {
+  const handleConfirmPayment = async (
+    e: React.FormEvent,
+    effectiveAmount?: number,
+    customNotes?: string,
+    paymentSource: 'cash_drawer' | 'external_cash' = 'cash_drawer'
+  ) => {
     e.preventDefault();
     if (!selectedSupplierForModal) return;
     const finalAmount = effectiveAmount !== undefined ? effectiveAmount : paymentAmountPiasters;
@@ -481,6 +489,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
         supplierId: selectedSupplierForModal.id,
         amountPiasters: finalAmount,
         notes: customNotes || paymentNotes.trim() || 'سداد دفعة نقدية للمورد',
+        paymentSource,
       });
       showToast('تم تسجيل سداد الدفعة بنجاح وتحديث رصيد المورد');
       setIsPaymentModalOpen(false);
@@ -630,6 +639,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
             setDiscountPiasters={setDiscountPiasters}
             paymentMode={paymentMode}
             setPaymentMode={setPaymentMode}
+            paymentSource={paymentSource}
+            setPaymentSource={setPaymentSource}
             customPaidAmountPiasters={customPaidAmountPiasters}
             setCustomPaidAmountPiasters={setCustomPaidAmountPiasters}
             lineItems={lineItems}

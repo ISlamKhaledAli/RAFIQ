@@ -166,6 +166,18 @@ export const EpayView: React.FC<EpayViewProps> = ({
   const [fundingNotes, setFundingNotes] = useState<string>('');
   const [isSubmittingFunding, setIsSubmittingFunding] = useState<boolean>(false);
   const [fundingModalError, setFundingModalError] = useState<string | null>(null);
+  const [liveDrawerCashPiasters, setLiveDrawerCashPiasters] = useState<number | null>(null);
+
+  const fetchLiveDrawerCash = useCallback(async () => {
+    try {
+      const res = await invoke<{ availableCashPiasters: number }>('drawer:getBalance');
+      if (res && typeof res.availableCashPiasters === 'number') {
+        setLiveDrawerCashPiasters(res.availableCashPiasters);
+      }
+    } catch {
+      setLiveDrawerCashPiasters(null);
+    }
+  }, []);
 
   // Terminal Edit/Create Modal State
   const [isTerminalModalOpen, setIsTerminalModalOpen] = useState<boolean>(false);
@@ -407,6 +419,17 @@ export const EpayView: React.FC<EpayViewProps> = ({
     if (fundingAmountPiasters <= 0) {
       setFundingModalError('يرجى تحديد مبلغ تغذية صالح');
       return;
+    }
+
+    if (fundingSource === 'cash_drawer') {
+      if (liveDrawerCashPiasters !== null && liveDrawerCashPiasters <= 0) {
+        setFundingModalError('رصيد كاش الدرج الحالي 0.00 ج.م! لا يمكن شحن الماكينة من الدرج بدون وجود نقدية كافية.');
+        return;
+      }
+      if (liveDrawerCashPiasters !== null && fundingAmountPiasters > liveDrawerCashPiasters) {
+        setFundingModalError(`المبلغ المطلوب (${formatArabicCurrency(fundingAmountPiasters)}) أكبر من النقدية المتوفرة في الدرج (${formatArabicCurrency(liveDrawerCashPiasters)}).`);
+        return;
+      }
     }
 
     setIsSubmittingFunding(true);
@@ -1245,6 +1268,8 @@ export const EpayView: React.FC<EpayViewProps> = ({
                         onClick={() => {
                           setFundingTerminalId(term.id);
                           setFundingAmountPiasters(100000);
+                          setFundingModalError(null);
+                          void fetchLiveDrawerCash();
                           setIsFundingModalOpen(true);
                         }}
                         className="w-full py-2.5 px-4 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid dark:text-slate-900 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all duration-150 cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-98 group"
@@ -1825,6 +1850,35 @@ export const EpayView: React.FC<EpayViewProps> = ({
                     { value: 'external_cash', label: 'كاش خارجي من صاحب المحل' },
                   ]}
                 />
+
+                {fundingSource === 'cash_drawer' && (
+                  <div className="space-y-1.5 mt-2">
+                    <div className="p-2.5 rounded-xl border text-xs bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark flex items-center justify-between">
+                      <span className="text-ink-muted dark:text-ink-muted-dark font-bold text-[11px]">كاش الدرج المتوفر حالياً:</span>
+                      <span className={`font-mono font-black text-xs ${(liveDrawerCashPiasters ?? 0) > 0 ? 'text-paid dark:text-paid-bright' : 'text-danger dark:text-danger-bright'}`}>
+                        {liveDrawerCashPiasters !== null ? formatArabicCurrency(liveDrawerCashPiasters) : '0.00 ج.م'}
+                      </span>
+                    </div>
+
+                    {liveDrawerCashPiasters !== null && (liveDrawerCashPiasters <= 0 || (fundingAmountPiasters > 0 && fundingAmountPiasters > liveDrawerCashPiasters)) && (
+                      <div className="p-2.5 rounded-xl border text-[11px] bg-danger-soft dark:bg-danger-dark-soft border-danger/30 text-danger dark:text-danger-bright space-y-1">
+                        <div className="flex items-center gap-1.5 font-bold">
+                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                          <span>
+                            {liveDrawerCashPiasters <= 0
+                              ? 'درج الكاشير فارغ (0.00 ج.م)!'
+                              : 'رصيد نقدية الدرج غير كافٍ!'}
+                          </span>
+                        </div>
+                        <p className="text-[10.5px] leading-relaxed">
+                          {liveDrawerCashPiasters <= 0
+                            ? 'لا يمكن سحب نقدية من درج فارغ. إذا كان الشحن تم من مالك المحل أو نقدية خارجية، يرجى تغيير مصدر التغذية إلى: «كاش خارجي من صاحب المحل».'
+                            : `المبلغ المطلوب (${formatArabicCurrency(fundingAmountPiasters)}) أكبر من نقدية الدرج المتاحة (${formatArabicCurrency(liveDrawerCashPiasters)}). يرجى اختيار «كاش خارجي من صاحب المحل» إذا كان المبلغ مدفوعاً من مالك المحل.`}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -1848,8 +1902,14 @@ export const EpayView: React.FC<EpayViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmittingFunding || fundingAmountPiasters <= 0}
-                  className="px-4 py-2 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid dark:text-slate-900 rounded-xl text-xs font-bold cursor-pointer transition-colors shadow-xs disabled:opacity-50"
+                  disabled={
+                    isSubmittingFunding ||
+                    fundingAmountPiasters <= 0 ||
+                    (fundingSource === 'cash_drawer' &&
+                      liveDrawerCashPiasters !== null &&
+                      (liveDrawerCashPiasters <= 0 || fundingAmountPiasters > liveDrawerCashPiasters))
+                  }
+                  className="px-4 py-2 bg-paid hover:bg-paid-dark text-white dark:bg-paid-bright dark:hover:bg-paid dark:text-slate-900 rounded-xl text-xs font-bold cursor-pointer transition-colors shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmittingFunding ? 'جاري الشحن...' : 'تأكيد شحن الرصيد'}
                 </button>

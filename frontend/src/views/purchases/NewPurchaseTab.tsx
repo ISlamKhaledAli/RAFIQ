@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import {
   ShoppingCart,
   Plus,
@@ -8,6 +8,7 @@ import {
   Banknote,
   CreditCard,
   AlertCircle,
+  AlertTriangle,
   Info,
   Layers,
   TrendingUp,
@@ -26,7 +27,8 @@ import { MoneyInput } from '../../components/MoneyInput';
 import { useFeatures } from '../../context/useFeatures';
 import type { Supplier, Product } from '../../types/models';
 import { formatMoney, type NewPurchaseLineItem } from './types';
-import { normalizeArabicNumerals } from '../../utils/money';
+import { normalizeArabicNumerals, formatArabicCurrency } from '../../utils/money';
+import { invoke } from '../../bridge/ipc';
 
 interface NewPurchaseTabProps {
   suppliers: Supplier[];
@@ -42,6 +44,8 @@ interface NewPurchaseTabProps {
   setDiscountPiasters: (p: number) => void;
   paymentMode: 'PAID' | 'CREDIT' | 'PARTIAL';
   setPaymentMode: (mode: 'PAID' | 'CREDIT' | 'PARTIAL') => void;
+  paymentSource: 'cash_drawer' | 'external_cash';
+  setPaymentSource: (source: 'cash_drawer' | 'external_cash') => void;
   customPaidAmountPiasters: number | null;
   setCustomPaidAmountPiasters: (p: number | null) => void;
   lineItems: NewPurchaseLineItem[];
@@ -70,6 +74,8 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
   setDiscountPiasters,
   paymentMode,
   setPaymentMode,
+  paymentSource,
+  setPaymentSource,
   customPaidAmountPiasters,
   setCustomPaidAmountPiasters,
   lineItems,
@@ -84,6 +90,22 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
   onRequestCancel,
 }) => {
   const { isEnabled } = useFeatures();
+  const [liveDrawerCashPiasters, setLiveDrawerCashPiasters] = useState<number | null>(null);
+
+  const fetchLiveDrawerCash = useCallback(async () => {
+    try {
+      const res = await invoke<{ availableCashPiasters: number }>('drawer:getBalance');
+      if (res && typeof res.availableCashPiasters === 'number') {
+        setLiveDrawerCashPiasters(res.availableCashPiasters);
+      }
+    } catch {
+      setLiveDrawerCashPiasters(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchLiveDrawerCash();
+  }, [fetchLiveDrawerCash]);
   const [selectedProductIndex, setSelectedProductIndex] = useState(0);
   const [isDropdownDismissed, setIsDropdownDismissed] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
@@ -1182,43 +1204,36 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
 
           {/* Payment Options */}
           <div className="pt-2 border-t border-line dark:border-line-dark space-y-1.5">
-            <label className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted block">هتدفع للمورد إزاي؟</label>
-            <div className="grid grid-cols-3 gap-1 bg-surface-2 dark:bg-surface-dark-2 p-1 rounded-xl border border-line dark:border-line-dark">
-              {/* Option 1 */}
+            <label className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted block">طريقة سداد الفاتورة للمورد</label>
+            <div className="grid grid-cols-2 gap-1.5 bg-surface-2 dark:bg-surface-dark-2 p-1 rounded-xl border border-line dark:border-line-dark">
+              {/* Option 1: Cash */}
               <button
                 type="button"
                 onClick={() => {
-                  setPaymentMode(advanceCreditPiasters > 0 ? 'CREDIT' : 'PAID');
-                  setCustomPaidAmountPiasters(advanceCreditPiasters > 0 ? 0 : null);
+                  setPaymentMode('PAID');
+                  if (customPaidAmountPiasters === 0) {
+                    setCustomPaidAmountPiasters(null);
+                  }
                 }}
-                className={`h-7 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                  (advanceCreditPiasters > 0 && paymentMode === 'CREDIT') || (advanceCreditPiasters === 0 && paymentMode === 'PAID')
+                className={`h-8 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  paymentMode === 'PAID'
                     ? 'bg-paid dark:bg-paid-bright dark:text-surface-dark text-white shadow-2xs'
                     : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
                 }`}
               >
-                {advanceCreditPiasters > 0 ? (
-                  <>
-                    <Sparkles className="w-3 h-3" />
-                    <span>من رصيدنا</span>
-                  </>
-                ) : (
-                  <>
-                    <Banknote className="w-3 h-3" />
-                    <span>كاش</span>
-                  </>
-                )}
+                <Banknote className="w-3.5 h-3.5" />
+                <span>كاش / سداد نقدي</span>
               </button>
 
-              {/* Option 2 */}
+              {/* Option 2: Credit / Advance */}
               <button
                 type="button"
                 onClick={() => {
-                  setPaymentMode(advanceCreditPiasters > 0 ? 'PAID' : 'CREDIT');
-                  setCustomPaidAmountPiasters(advanceCreditPiasters > 0 ? null : 0);
+                  setPaymentMode('CREDIT');
+                  setCustomPaidAmountPiasters(0);
                 }}
-                className={`h-7 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                  (advanceCreditPiasters > 0 && paymentMode === 'PAID') || (advanceCreditPiasters === 0 && paymentMode === 'CREDIT')
+                className={`h-8 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  paymentMode === 'CREDIT'
                     ? advanceCreditPiasters > 0
                       ? 'bg-brand dark:bg-brand-bright dark:text-surface-dark text-white shadow-2xs'
                       : 'bg-warn dark:bg-warn text-white shadow-2xs'
@@ -1227,34 +1242,15 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
               >
                 {advanceCreditPiasters > 0 ? (
                   <>
-                    <Banknote className="w-3 h-3" />
-                    <span>كاش كامل</span>
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>من رصيدنا المتاح</span>
                   </>
                 ) : (
                   <>
-                    <CreditCard className="w-3 h-3" />
-                    <span>آجل</span>
+                    <CreditCard className="w-3.5 h-3.5" />
+                    <span>آجل بالكامل (0 كاش)</span>
                   </>
                 )}
-              </button>
-
-              {/* Option 3 */}
-              <button
-                type="button"
-                onClick={() => {
-                  setPaymentMode('PARTIAL');
-                  if (customPaidAmountPiasters === null) {
-                    setCustomPaidAmountPiasters(advanceCreditPiasters > 0 ? 0 : netCostPiasters);
-                  }
-                }}
-                className={`h-7 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                  paymentMode === 'PARTIAL'
-                    ? 'bg-brand dark:bg-brand-bright dark:text-surface-dark text-white shadow-2xs'
-                    : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-                }`}
-              >
-                <Calculator className="w-3 h-3" />
-                <span>مبلغ مخصص</span>
               </button>
             </div>
 
@@ -1276,7 +1272,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                       <button
                         type="button"
                         onClick={() => {
-                          setPaymentMode('PARTIAL');
+                          setPaymentMode('PAID');
                           setCustomPaidAmountPiasters(netCostPiasters - advanceCreditPiasters);
                         }}
                         className="self-start mt-0.5 px-2 py-0.5 rounded bg-paid dark:bg-paid-bright dark:text-surface-dark text-white text-[10px] font-bold cursor-pointer hover:bg-paid/90 transition-colors"
@@ -1298,17 +1294,17 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
               </div>
             )}
 
-            {/* Cash & Custom Amount Section */}
-            {(paymentMode === 'PAID' || paymentMode === 'PARTIAL') && (
-              <div className="p-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-lg space-y-1.5 mt-1 text-[11px]">
+            {/* Cash Payment Section */}
+            {paymentMode === 'PAID' && (
+              <div className="p-2.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl space-y-2 mt-1 text-[11px]">
                 <div className="flex justify-between items-center">
-                  <span className="text-ink-muted dark:text-ink-dark-muted font-bold">المبلغ اللي دفعته كاش:</span>
+                  <span className="text-ink-muted dark:text-ink-dark-muted font-bold text-xs">المبلغ اللي دفعته كاش:</span>
                   <div className="flex items-center gap-1">
                     <MoneyInput
                       valuePiasters={customPaidAmountPiasters !== null ? customPaidAmountPiasters : netCostPiasters}
                       onChangePiasters={(val) => setCustomPaidAmountPiasters(val)}
                       hideCurrency
-                      className="!w-24 !h-6 !px-1.5 !py-0 !text-center !text-xs !bg-surface dark:!bg-surface-dark !border-line dark:!border-line-dark !rounded font-mono font-bold text-ink dark:text-ink-dark"
+                      className="!w-28 !h-7 !px-2 !py-0 !text-center !text-xs !bg-surface dark:!bg-surface-dark !border-line dark:!border-line-dark !rounded font-mono font-bold text-ink dark:text-ink-dark"
                     />
                     <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted">ج.م</span>
                   </div>
@@ -1366,6 +1362,50 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                     >
                       تصفية الدين بالكامل ({formatMoney(supplierDebtPiasters + netCostPiasters)})
                     </button>
+                  )}
+                </div>
+
+                {/* Payment Source Selection */}
+                <div className="pt-2 border-t border-line/60 dark:border-line-dark/60 space-y-1">
+                  <label className="text-[10.5px] font-bold text-ink-muted dark:text-ink-dark-muted block">
+                    مصدر النقدية المسددة للمورد:
+                  </label>
+                  <CustomSelect
+                    value={paymentSource}
+                    onChange={(val) => setPaymentSource(val as any)}
+                    options={[
+                      { value: 'cash_drawer', label: 'من درج كاشير المحل (يخصم من نقدية الدرج)' },
+                      { value: 'external_cash', label: 'كاش خارجي من صاحب المحل (لا يخصم من الدرج)' },
+                    ]}
+                  />
+
+                  {paymentSource === 'cash_drawer' && (
+                    <div className="space-y-1 mt-1">
+                      <div className="p-1.5 rounded-lg border text-[10.5px] bg-surface dark:bg-surface-dark border-line dark:border-line-dark flex items-center justify-between">
+                        <span className="text-ink-muted dark:text-ink-dark-muted font-bold">كاش الدرج المتوفر حالياً:</span>
+                        <span className={`font-mono font-black ${(liveDrawerCashPiasters ?? 0) > 0 ? 'text-paid dark:text-paid-bright' : 'text-danger dark:text-danger-bright'}`}>
+                          {liveDrawerCashPiasters !== null ? formatArabicCurrency(liveDrawerCashPiasters) : '0.00 ج.م'}
+                        </span>
+                      </div>
+
+                      {liveDrawerCashPiasters !== null && (liveDrawerCashPiasters <= 0 || (paidAmountPiasters > 0 && paidAmountPiasters > liveDrawerCashPiasters)) && (
+                        <div className="p-2 rounded-lg border text-[10px] bg-danger-soft dark:bg-danger-dark-soft border-danger/30 text-danger dark:text-danger-bright space-y-0.5">
+                          <div className="flex items-center gap-1 font-bold">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                            <span>
+                              {liveDrawerCashPiasters <= 0
+                                ? 'درج الكاشير فارغ (0.00 ج.م)!'
+                                : 'رصيد نقدية الدرج غير كافٍ!'}
+                            </span>
+                          </div>
+                          <p className="leading-relaxed">
+                            {liveDrawerCashPiasters <= 0
+                              ? 'لا يمكن سحب نقدية من درج فارغ لسداد الفاتورة. إذا كان السداد من مالك المحل، يرجى اختيار «كاش خارجي من صاحب المحل» أو تسجيل الفاتورة آجلة.'
+                              : `المبلغ المطلوب (${formatArabicCurrency(paidAmountPiasters)}) أكبر من نقدية الدرج المتاحة (${formatArabicCurrency(liveDrawerCashPiasters)}). يرجى اختيار «كاش خارجي من صاحب المحل» أو خفض المبلغ المسدد.`}
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -1487,8 +1527,15 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
           <button
             type="button"
             onClick={onSavePurchase}
-            disabled={lineItems.length === 0}
-            className="w-full h-10 bg-paid hover:bg-paid-hover dark:bg-paid-bright dark:text-surface-dark dark:hover:bg-emerald-400 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
+            disabled={
+              lineItems.length === 0 ||
+              (paymentMode === 'PAID' &&
+                paymentSource === 'cash_drawer' &&
+                paidAmountPiasters > 0 &&
+                liveDrawerCashPiasters !== null &&
+                (liveDrawerCashPiasters <= 0 || paidAmountPiasters > liveDrawerCashPiasters))
+            }
+            className="w-full h-10 bg-paid hover:bg-paid-hover dark:bg-paid-bright dark:text-surface-dark dark:hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
           >
             <Receipt className="w-4 h-4" />
             <span>حفظ الفاتورة وتزويد رصيد البضاعة</span>

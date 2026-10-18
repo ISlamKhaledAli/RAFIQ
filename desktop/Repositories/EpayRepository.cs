@@ -385,6 +385,15 @@ namespace RafiqPOS.Repositories
                                     throw new InvalidOperationException("لا يمكن تغذية رصيد الماكينة من درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
                                 }
                             }
+
+                            if (DatabaseService.DailyClosing != null)
+                            {
+                                var liveBal = DatabaseService.DailyClosing.GetLiveDrawerBalance();
+                                if (liveBal != null && liveBal.AvailableCashPiasters < amountPiasters)
+                                {
+                                    throw new InvalidOperationException(string.Format("رصيد نقدية درج الكاشير المتاح حالياً ({0:N2} ج.م) غير كافٍ لتغذية ماكينة الدفع بمبلغ ({1:N2} ج.م). يرجى تغذية الدرج أولاً أو اختيار مصدر تمويل آخر (مثل: كاش خارجي / صاحب المحل).", liveBal.AvailableCashPiasters / 100.0, amountPiasters / 100.0));
+                                }
+                            }
                         }
 
                         // 1. Get current balance

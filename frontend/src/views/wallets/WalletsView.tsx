@@ -328,13 +328,24 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   const [accountFormDailyLimit, setAccountFormDailyLimit] = useState<number>(7000000);
   const [accountFormMonthlyLimit, setAccountFormMonthlyLimit] = useState<number>(40000000);
   const [accountFormNotes, setAccountFormNotes] = useState('');
-
   // Funding Modal
   const [isFundingModalOpen, setIsFundingModalOpen] = useState(false);
   const [fundingAccountId, setFundingAccountId] = useState('');
   const [fundingAmountPiasters, setFundingAmountPiasters] = useState<number>(0);
   const [fundingSource, setFundingSource] = useState<'cash_drawer' | 'bank_transfer' | 'external_cash'>('cash_drawer');
   const [fundingNotes, setFundingNotes] = useState('');
+  const [liveDrawerCashPiasters, setLiveDrawerCashPiasters] = useState<number | null>(null);
+
+  const fetchLiveDrawerCash = useCallback(async () => {
+    try {
+      const res = await invoke<{ availableCashPiasters: number }>('drawer:getBalance');
+      if (res && typeof res.availableCashPiasters === 'number') {
+        setLiveDrawerCashPiasters(res.availableCashPiasters);
+      }
+    } catch {
+      setLiveDrawerCashPiasters(null);
+    }
+  }, []);
 
   // Modal Dismiss & Unsaved Changes Protection (ESC key and Outside click)
   const isFundingDirty = useCallback(() => {
@@ -520,6 +531,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
     setFundingAmountPiasters(0);
     setFundingSource('cash_drawer');
     setFundingNotes('');
+    void fetchLiveDrawerCash();
     setIsFundingModalOpen(true);
   };
 
@@ -528,6 +540,23 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
     if (!fundingAccountId || fundingAmountPiasters <= 0) {
       setFeedbackMsg({ type: 'error', text: 'يرجى اختيار الحساب وتحديد مبلغ شحن صحيح أكبر من صفر.' });
       return;
+    }
+
+    if (fundingSource === 'cash_drawer' && liveDrawerCashPiasters !== null) {
+      if (liveDrawerCashPiasters <= 0) {
+        setFeedbackMsg({
+          type: 'error',
+          text: 'درج الكاشير فارغ (0.00 ج.م). لا يمكن سحب نقدية من درج فارغ. يرجى اختيار «كاش خارجي / صاحب المحل» إذا كان المبلغ مدفوعاً من خارج عهدة الدرج.',
+        });
+        return;
+      }
+      if (fundingAmountPiasters > liveDrawerCashPiasters) {
+        setFeedbackMsg({
+          type: 'error',
+          text: `المبلغ المطلوب (${formatArabicCurrency(fundingAmountPiasters)}) أكبر من نقدية الدرج المتاحة (${formatArabicCurrency(liveDrawerCashPiasters)}). يرجى تقليل المبلغ أو اختيار «كاش خارجي / صاحب المحل».`,
+        });
+        return;
+      }
     }
 
     try {
@@ -1679,6 +1708,35 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                     { value: 'external_cash', label: 'كاش خارجي / صاحب المحل' },
                   ]}
                 />
+
+                {fundingSource === 'cash_drawer' && (
+                  <div className="space-y-1.5 mt-1">
+                    <div className="p-2 rounded-xl border text-xs bg-surface-2 dark:bg-surface-dark-2 border-line dark:border-line-dark flex items-center justify-between">
+                      <span className="text-ink-muted dark:text-ink-dark-muted font-bold text-[11px]">كاش الدرج المتوفر حالياً:</span>
+                      <span className={`font-mono font-black text-xs ${(liveDrawerCashPiasters ?? 0) > 0 ? 'text-paid dark:text-paid-bright' : 'text-danger dark:text-danger-bright'}`}>
+                        {liveDrawerCashPiasters !== null ? formatArabicCurrency(liveDrawerCashPiasters) : '0.00 ج.م'}
+                      </span>
+                    </div>
+
+                    {liveDrawerCashPiasters !== null && (liveDrawerCashPiasters <= 0 || (fundingAmountPiasters > 0 && fundingAmountPiasters > liveDrawerCashPiasters)) && (
+                      <div className="p-2 rounded-xl border text-[11px] bg-danger-soft dark:bg-danger-dark-soft border-danger/30 text-danger dark:text-danger-bright space-y-0.5">
+                        <div className="flex items-center gap-1.5 font-bold">
+                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                          <span>
+                            {liveDrawerCashPiasters <= 0
+                              ? 'درج الكاشير فارغ (0.00 ج.م)!'
+                              : 'رصيد الدرج غير كافٍ!'}
+                          </span>
+                        </div>
+                        <p className="text-[10.5px] leading-relaxed">
+                          {liveDrawerCashPiasters <= 0
+                            ? 'لا يمكن سحب نقدية من درج فارغ. إذا كان الشحن تم من مالك المحل أو نقدية خارجية، يرجى تغيير مصدر التمويل إلى: «كاش خارجي / صاحب المحل».'
+                            : `المبلغ المطلوب (${formatArabicCurrency(fundingAmountPiasters)}) أكبر من نقدية الدرج المتاحة (${formatArabicCurrency(liveDrawerCashPiasters)}). يرجى اختيار «كاش خارجي / صاحب المحل» إذا كان المبلغ مدفوعاً من مالك المحل.`}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col gap-1.5">
@@ -1706,8 +1764,14 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
               <button
                 type="button"
                 onClick={handleSaveFunding}
-                disabled={actionLoading || fundingAmountPiasters <= 0}
-                className="h-9 px-5 rounded-xl bg-paid text-white text-xs font-black hover:bg-paid-dark shadow-xs cursor-pointer transition-all"
+                disabled={
+                  actionLoading ||
+                  fundingAmountPiasters <= 0 ||
+                  (fundingSource === 'cash_drawer' &&
+                    liveDrawerCashPiasters !== null &&
+                    (liveDrawerCashPiasters <= 0 || fundingAmountPiasters > liveDrawerCashPiasters))
+                }
+                className="h-9 px-5 rounded-xl bg-paid text-white text-xs font-black hover:bg-paid-dark shadow-xs cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {actionLoading ? 'جاري الشحن...' : 'تأكيد شحن الرصيد'}
               </button>

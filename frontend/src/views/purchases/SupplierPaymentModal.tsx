@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { Banknote, X, CheckCheck, Sparkles, Coins, ArrowLeftRight, Check, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Banknote, X, CheckCheck, Sparkles, Coins, ArrowLeftRight, Check, AlertCircle, AlertTriangle } from 'lucide-react';
 import type { Supplier } from '../../types/models';
 import { formatMoney } from './types';
 import { MoneyInput } from '../../components/MoneyInput';
+import { CustomSelect } from '../../components/CustomSelect';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
+import { invoke } from '../../bridge/ipc';
+import { formatArabicCurrency } from '../../utils/money';
 
 interface SupplierPaymentModalProps {
   isOpen: boolean;
@@ -13,7 +16,7 @@ interface SupplierPaymentModalProps {
   setPaymentAmountPiasters: (amount: number) => void;
   paymentNotes: string;
   setPaymentNotes: (notes: string) => void;
-  onConfirmPayment: (e: React.FormEvent, effectiveAmountPiasters?: number, notes?: string) => void;
+  onConfirmPayment: (e: React.FormEvent, effectiveAmountPiasters?: number, notes?: string, paymentSource?: 'cash_drawer' | 'external_cash') => void;
 }
 
 export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
@@ -29,12 +32,27 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
   // 'pay_exact' = سداد المديونية المستحقة فقط وإبقاء الفائض في الخزينة
   // 'advance_credit' = صرف المبلغ كاملاً وترحيل الزيادة دفعة مقدمة تحت الحساب
   const [excessAction, setExcessAction] = useState<'pay_exact' | 'advance_credit'>('pay_exact');
+  const [paymentSource, setPaymentSource] = useState<'cash_drawer' | 'external_cash'>('cash_drawer');
+  const [liveDrawerCashPiasters, setLiveDrawerCashPiasters] = useState<number | null>(null);
+
+  const fetchLiveDrawerCash = useCallback(async () => {
+    try {
+      const res = await invoke<{ availableCashPiasters: number }>('drawer:getBalance');
+      if (res && typeof res.availableCashPiasters === 'number') {
+        setLiveDrawerCashPiasters(res.availableCashPiasters);
+      }
+    } catch {
+      setLiveDrawerCashPiasters(null);
+    }
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
       setExcessAction('pay_exact');
+      setPaymentSource('cash_drawer');
+      void fetchLiveDrawerCash();
     }
-  }, [isOpen, supplier]);
+  }, [isOpen, supplier, fetchLiveDrawerCash]);
 
   const isDirty = paymentAmountPiasters > 0 || Boolean(paymentNotes.trim());
 
@@ -81,7 +99,7 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
       }
     }
 
-    onConfirmPayment(e, effectiveAmountPiasters, autoNotes);
+    onConfirmPayment(e, effectiveAmountPiasters, autoNotes, paymentSource);
   };
 
   return (
@@ -252,6 +270,50 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
             </div>
           )}
 
+          {/* Payment Source Selection */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-ink dark:text-ink-dark block">
+              مصدر النقدية المصروفة للسداد <span className="text-danger dark:text-danger-bright">*</span>
+            </label>
+            <CustomSelect
+              value={paymentSource}
+              onChange={(val) => setPaymentSource(val as any)}
+              options={[
+                { value: 'cash_drawer', label: 'من درج كاشير المحل (يخصم من نقدية الدرج والوردية)' },
+                { value: 'external_cash', label: 'كاش خارجي من صاحب المحل (لا يخصم من الدرج)' },
+              ]}
+            />
+
+            {paymentSource === 'cash_drawer' && (
+              <div className="space-y-1 mt-1">
+                <div className="p-2 rounded-xl border text-xs bg-surface dark:bg-surface-dark border-line dark:border-line-dark flex items-center justify-between">
+                  <span className="text-ink-muted dark:text-ink-dark-muted font-bold text-[11px]">كاش الدرج المتوفر حالياً:</span>
+                  <span className={`font-mono font-black text-xs ${(liveDrawerCashPiasters ?? 0) > 0 ? 'text-paid dark:text-paid-bright' : 'text-danger dark:text-danger-bright'}`}>
+                    {liveDrawerCashPiasters !== null ? formatArabicCurrency(liveDrawerCashPiasters) : '0.00 ج.م'}
+                  </span>
+                </div>
+
+                {liveDrawerCashPiasters !== null && (liveDrawerCashPiasters <= 0 || (effectiveAmountPiasters > 0 && effectiveAmountPiasters > liveDrawerCashPiasters)) && (
+                  <div className="p-2 rounded-xl border text-[11px] bg-danger-soft dark:bg-danger-dark-soft border-danger/30 text-danger dark:text-danger-bright space-y-0.5">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      <span>
+                        {liveDrawerCashPiasters <= 0
+                          ? 'درج الكاشير فارغ (0.00 ج.م)!'
+                          : 'رصيد نقدية الدرج غير كافٍ!'}
+                      </span>
+                    </div>
+                    <p className="text-[10.5px] leading-relaxed">
+                      {liveDrawerCashPiasters <= 0
+                        ? 'لا يمكن صرف نقدية من درج فارغ. إذا كان السداد من مالك المحل، يرجى تغيير مصدر النقدية إلى: «كاش خارجي من صاحب المحل».'
+                        : `المبلغ المراد صرفه (${formatArabicCurrency(effectiveAmountPiasters)}) أكبر من نقدية الدرج (${formatArabicCurrency(liveDrawerCashPiasters)}). يرجى اختيار «كاش خارجي من صاحب المحل».`}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Outcome Preview Banner */}
           {paymentAmountPiasters > 0 && (
             <div className={`p-3 rounded-xl border text-[11.5px] flex items-center justify-between font-medium ${
@@ -303,8 +365,13 @@ export const SupplierPaymentModal: React.FC<SupplierPaymentModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={paymentAmountPiasters <= 0}
-              className="px-5 py-2 rounded-xl bg-paid dark:bg-emerald-600 hover:bg-paid-hover dark:hover:bg-emerald-500 text-white font-bold transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
+              disabled={
+                paymentAmountPiasters <= 0 ||
+                (paymentSource === 'cash_drawer' &&
+                  liveDrawerCashPiasters !== null &&
+                  (liveDrawerCashPiasters <= 0 || effectiveAmountPiasters > liveDrawerCashPiasters))
+              }
+              className="px-5 py-2 rounded-xl bg-paid dark:bg-emerald-600 hover:bg-paid-hover dark:hover:bg-emerald-500 text-white font-bold transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
             >
               <Check className="w-4 h-4" />
               <span>تأكيد الصرف</span>
