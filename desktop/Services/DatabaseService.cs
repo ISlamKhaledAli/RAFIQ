@@ -204,12 +204,12 @@ namespace RafiqPOS.Services
             PurchaseRepo = new PurchaseRepository(_connectionString, CounterRepo, SupplierRepo, PriceHistoryRepo, AuditRepo, ProductBatchRepo);
 
             HeldSales = new HeldSaleService(HeldSaleRepo);
-            Returns = new ReturnService(ReturnRepo, SaleRepo);
             Suppliers = new SupplierService(SupplierRepo);
             Purchases = new PurchaseService(PurchaseRepo);
 
             DailyClosingRepo = new DailyClosingRepository(_connectionString);
             DailyClosing = new DailyClosingService(_connectionString, DailyClosingRepo, CounterRepo, AuditRepo, SettingsRepo);
+            Returns = new ReturnService(ReturnRepo, SaleRepo, DailyClosing);
             ExpenseRepo = new ExpenseRepository(_connectionString);
             Expenses = new ExpenseService(ExpenseRepo, DailyClosing);
             Migration = new MigrationService(_connectionString, _dbPath, SettingsRepo, AuditRepo);

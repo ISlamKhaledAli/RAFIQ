@@ -51,6 +51,28 @@ namespace RafiqPOS.Repositories
                             expense.CreatedAt = DateTime.UtcNow.ToString("o");
                         }
 
+                        // Closed day validation
+                        using (var clCmd = new SQLiteCommand("SELECT 1 FROM daily_closings WHERE business_date = @bdate LIMIT 1;", conn, trans))
+                        {
+                            clCmd.Parameters.AddWithValue("@bdate", expense.BusinessDate);
+                            if (clCmd.ExecuteScalar() != null)
+                            {
+                                throw new InvalidOperationException(string.Format("لا يمكن تسجيل مصروف لتاريخ عمل تم إقفاله وتشميعه مسبقاً ({0}).", expense.BusinessDate));
+                            }
+                        }
+
+                        // Live drawer cash balance validation
+                        if (RafiqPOS.Services.DatabaseService.DailyClosing != null)
+                        {
+                            var liveBal = RafiqPOS.Services.DatabaseService.DailyClosing.GetLiveDrawerBalance(expense.BusinessDate);
+                            if (liveBal != null && liveBal.AvailableCashPiasters < expense.AmountPiasters)
+                            {
+                                throw new InvalidOperationException(string.Format(
+                                    "رصيد نقدية الدرج المتاح حالياً ({0:N2} ج.م) غير كافٍ لصرف هذا المصروف ({1:N2} ج.م). يرجى توريد عهدة للدرج أولاً.",
+                                    liveBal.AvailableCashPiasters / 100.0, expense.AmountPiasters / 100.0));
+                            }
+                        }
+
                         string sql = @"
                             INSERT INTO expenses (
                                 id, expense_number, amount_piasters, category, notes, created_by, business_date, created_at

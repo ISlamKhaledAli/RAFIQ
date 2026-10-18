@@ -706,6 +706,21 @@ namespace RafiqPOS.Repositories
                                     throw new InvalidOperationException("لا يمكن تنفيذ معاملة نقدية تؤثر على درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
                                 }
                             }
+
+                            if (string.Equals(tx.ServiceType, "cash_out", StringComparison.OrdinalIgnoreCase))
+                            {
+                                long netDrawerOutflow = tx.BillAmountPiasters - tx.CustomerFeePiasters;
+                                if (netDrawerOutflow > 0 && RafiqPOS.Services.DatabaseService.DailyClosing != null)
+                                {
+                                    var liveBal = RafiqPOS.Services.DatabaseService.DailyClosing.GetLiveDrawerBalance();
+                                    if (liveBal != null && liveBal.AvailableCashPiasters < netDrawerOutflow)
+                                    {
+                                        throw new InvalidOperationException(string.Format(
+                                            "رصيد نقدية الدرج المتاح حالياً ({0:N2} ج.م) غير كافٍ لصرف سحب نقدي للمستهلك بقيمة ({1:N2} ج.م). يرجى توريد نقدية للدرج أولاً.",
+                                            liveBal.AvailableCashPiasters / 100.0, netDrawerOutflow / 100.0));
+                                    }
+                                }
+                            }
                         }
 
                         // 2. Adjust terminal balance atomically

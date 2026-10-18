@@ -70,11 +70,24 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [completedReturn, setCompletedReturn] = useState<Return | null>(null);
+  const [drawerBalance, setDrawerBalance] = useState<number | null>(null);
 
   // Without-invoice product search state
   const [catalogQuery, setCatalogQuery] = useState('');
   const [catalogResults, setCatalogResults] = useState<Product[]>([]);
   const [searchingCatalog, setSearchingCatalog] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      invoke<{ availableCashPiasters: number }>('drawer:getBalance')
+        .then((res) => {
+          if (res && typeof res.availableCashPiasters === 'number') {
+            setDrawerBalance(res.availableCashPiasters);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isOpen]);
 
   const setupDraftFromSale = async (sale: Sale) => {
     setLoadedSale(sale);
@@ -286,6 +299,13 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
     try {
       const isUnpaidCredit = mode === 'withInvoice' && loadedSale?.paymentMethod === 'credit' && (loadedSale?.paidPiasters || 0) <= 0;
       const effectiveRefundMethod = isUnpaidCredit ? 'credit' : refundMethod;
+
+      if (effectiveRefundMethod === 'cash' && drawerBalance !== null && totalRefundPiasters > drawerBalance) {
+        setSubmitError(`رصيد نقدية الدرج المتاح حالياً (${formatArabicCurrency(drawerBalance)}) غير كافٍ لصرف قيمة المرتجع نقداً (${formatArabicCurrency(totalRefundPiasters)}). يرجى اختيار 'خصم من حسابه الشكك' أو توريد نقدية للدرج أولاً.`);
+        setLoading(false);
+        return;
+      }
+
       const payload = {
         saleId: loadedSale?.id || undefined,
         reason: reason.trim() || 'مرتجع أصناف',
@@ -651,9 +671,16 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
               {/* Bottom Options & Financial Refund Method */}
               <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200 dark:border-line-dark">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-ink-dark mb-1">
-                    هترجع الفلوس إزاي؟:
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-slate-700 dark:text-ink-dark">
+                      هترجع الفلوس إزاي؟:
+                    </label>
+                    {drawerBalance !== null && (
+                      <span className="text-[10px] font-medium text-ink-muted dark:text-ink-dark-muted bg-slate-100 dark:bg-surface-dark-3 px-1.5 py-0.5 rounded border border-slate-200 dark:border-line-dark">
+                        كاش الدرج: <strong className={drawerBalance < totalRefundPiasters ? 'text-danger dark:text-danger-bright font-mono' : 'text-paid dark:text-brand-bright font-mono'}>{formatArabicCurrency(drawerBalance)}</strong>
+                      </span>
+                    )}
+                  </div>
                   <div className="grid grid-cols-2 gap-1.5">
                     <button
                       type="button"
@@ -684,6 +711,12 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                       <span>خصم من حسابه الشكك</span>
                     </button>
                   </div>
+                  {refundMethod === 'cash' && !isUnpaidCreditSale && drawerBalance !== null && totalRefundPiasters > drawerBalance && (
+                    <div className="mt-2 p-2 rounded-lg bg-danger-soft dark:bg-danger-dark-soft border border-danger/30 dark:border-danger-bright/40 text-danger dark:text-danger-bright text-[11px] flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      <span>كاش الدرج المتاح ({formatArabicCurrency(drawerBalance)}) غير كافٍ لصرف المرتجع نقداً.</span>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -745,7 +778,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
               <button
                 type="button"
                 onClick={() => void handleSubmitReturn()}
-                disabled={loading || activeReturnItems.length === 0}
+                disabled={loading || activeReturnItems.length === 0 || (refundMethod === 'cash' && !isUnpaidCreditSale && drawerBalance !== null && totalRefundPiasters > drawerBalance)}
                 className="h-9 px-5 bg-warn hover:bg-warn-dark active:bg-warn/90 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />

@@ -39,6 +39,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [drawerBalance, setDrawerBalance] = useState<number | null>(null);
 
   // Today's expenses log
   const [todayExpenses, setTodayExpenses] = useState<Expense[]>([]);
@@ -59,8 +60,14 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   const loadTodayExpenses = useCallback(async () => {
     setLoadingList(true);
     try {
-      const res = await invoke<Expense[]>('expenses:getToday');
-      setTodayExpenses(res || []);
+      const [expRes, balRes] = await Promise.all([
+        invoke<Expense[]>('expenses:getToday'),
+        invoke<{ availableCashPiasters: number }>('drawer:getBalance').catch(() => null),
+      ]);
+      setTodayExpenses(expRes || []);
+      if (balRes && typeof balRes.availableCashPiasters === 'number') {
+        setDrawerBalance(balRes.availableCashPiasters);
+      }
     } catch {
       // ignore
     } finally {
@@ -164,9 +171,16 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Amount input */}
             <div>
-              <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1.5">
-                المبلغ المنصرف من الدرج (ج.م) *
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold text-ink dark:text-ink-dark">
+                  المبلغ المنصرف من الدرج (ج.م) *
+                </label>
+                {drawerBalance !== null && (
+                  <span className="text-[11px] font-medium text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 px-2 py-0.5 rounded-md border border-line dark:border-line-dark">
+                    كاش الدرج المتاح: <strong className={drawerBalance < amountPiasters ? 'text-danger dark:text-danger-bright font-mono font-bold' : 'text-paid dark:text-brand-bright font-mono font-bold'}>{formatArabicCurrency(drawerBalance)}</strong>
+                  </span>
+                )}
+              </div>
               <MoneyInput
                 valuePiasters={amountPiasters}
                 onChangePiasters={setAmountPiasters}
@@ -174,6 +188,12 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                 className="text-2xl font-black bg-white dark:bg-surface-dark dark:text-ink-dark"
                 autoFocus
               />
+              {drawerBalance !== null && amountPiasters > drawerBalance && (
+                <div className="mt-2 p-2.5 rounded-lg bg-danger-soft dark:bg-danger-dark-soft border border-danger/30 dark:border-danger-bright/40 text-danger dark:text-danger-bright text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>رصيد نقدية الدرج المتاح حالياً ({formatArabicCurrency(drawerBalance)}) غير كافٍ لصرف هذا المصروف. يرجى توريد عهدة للدرج أولاً.</span>
+                </div>
+              )}
             </div>
 
             {/* Category */}
@@ -206,7 +226,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={isSubmitting || amountPiasters <= 0}
+              disabled={isSubmitting || amountPiasters <= 0 || (drawerBalance !== null && amountPiasters > drawerBalance)}
               className="w-full py-2.5 px-4 rounded-xl bg-danger hover:bg-red-700 active:bg-red-800 disabled:bg-surface-2 dark:disabled:bg-surface-dark-2 disabled:text-ink-muted dark:disabled:text-ink-dark-muted text-white font-bold text-sm shadow-xs transition cursor-pointer flex items-center justify-center gap-2"
             >
               <Receipt className="w-4 h-4" />
