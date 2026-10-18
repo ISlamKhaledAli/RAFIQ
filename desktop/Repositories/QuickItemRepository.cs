@@ -104,6 +104,23 @@ namespace RafiqPOS.Repositories
                 {
                     try
                     {
+                        if (!string.IsNullOrWhiteSpace(item.ProductId))
+                        {
+                            using (var pCmd = new SQLiteCommand("SELECT is_active FROM products WHERE id = @pid LIMIT 1;", conn, trans))
+                            {
+                                pCmd.Parameters.AddWithValue("@pid", item.ProductId.Trim());
+                                object pRes = pCmd.ExecuteScalar();
+                                if (pRes == null || pRes == DBNull.Value)
+                                {
+                                    throw new InvalidOperationException("المنتج المرتبط بالصنف السريع غير موجود في النظام");
+                                }
+                                if (Convert.ToInt32(pRes) == 0)
+                                {
+                                    throw new InvalidOperationException("لا يمكن ربط الصنف السريع بمنتج مؤرشف أو محذوف");
+                                }
+                            }
+                        }
+
                         if (string.IsNullOrWhiteSpace(item.Id))
                         {
                             item.Id = Guid.NewGuid().ToString();

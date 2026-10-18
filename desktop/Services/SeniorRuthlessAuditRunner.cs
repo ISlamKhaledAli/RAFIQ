@@ -92,6 +92,7 @@ namespace RafiqPOS.Services
                 RunTest20_DigitalWalletRefundAndCancelOverdraftGuards(report);
                 RunTest21_EntityArchivalAndActiveValidationGuards(report);
                 RunTest22_AdvancedSubsystemAssetAndCatalogIntegrityGuards(report);
+                RunTest23_SeniorCustomerLedgerAndQuickCatalogGuards(report);
 
                 report.Success = (report.PassedAssertions == report.TotalAssertions);
                 report.Message = string.Format("اكتمل الفحص الشامل المتقدم بنجاح فائق: {0}/{1} اختبارات ناجحة بنسبة 100%",
@@ -3058,6 +3059,194 @@ namespace RafiqPOS.Services
                 "نجاح عمليات البيع والشراء وتحديث رصيد المخزن بدقة متناهية بعد إعادة تنشيط الصنف",
                 "فشل تحديث رصيد الصنف بعد إعادة تنشيطه وإتمام عمليتي البيع والشراء", report);
         }
+
+        private static void RunTest23_SeniorCustomerLedgerAndQuickCatalogGuards(AuditReport report)
+        {
+            var auditRepo = new AuditLogRepository(_connStr);
+            var custRepo = new CustomerRepository(_connStr, auditRepo);
+            var prodRepo = new ProductRepository(_connStr);
+            var expenseRepo = new ExpenseRepository(_connStr, auditRepo);
+            var quickRepo = new QuickItemRepository(_connStr);
+
+            // 1. Block payment recording on general cash customer (cust_general_cash)
+            bool genCashPayBlocked = false;
+            try
+            {
+                custRepo.RecordPayment("cust_general_cash", 5000, "سداد نقدي غير صالح");
+            }
+            catch (InvalidOperationException ex)
+            {
+                genCashPayBlocked = ex.Message.Contains("النقدي العام") || ex.Message.Contains("سداد");
+            }
+            AssertCondition(genCashPayBlocked,
+                "منع تسجيل سداد آجل للعميل النقدي العام بنجاح لحماية الحسابات النقدية العامة",
+                "ثغرة! تم السماح بتسجيل سداد دين للعميل النقدي العام!", report);
+
+            // 2. Block payment recording on archived customer
+            string custArchId = "cust_arch_pay_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            custRepo.SaveCustomer(new Customer
+            {
+                Id = custArchId,
+                Name = "عميل سداد مؤرشف",
+                Phone = "01122334455",
+                BalancePiasters = 0
+            });
+            custRepo.ArchiveCustomer(custArchId);
+
+            bool archCustPayBlocked = false;
+            try
+            {
+                custRepo.RecordPayment(custArchId, 10000, "سداد لعميل مؤرشف");
+            }
+            catch (InvalidOperationException ex)
+            {
+                archCustPayBlocked = ex.Message.Contains("مؤرشف") || ex.Message.Contains("أرشفته");
+            }
+            AssertCondition(archCustPayBlocked,
+                "منع تسجيل دفعات سداد لعميل مؤرشف بنجاح لمنع إحداث أرصدة دائنة وهمية",
+                "ثغرة! تم السماح بتسجيل سداد لعميل تم أرشفته سابقاً!", report);
+
+            // 3. Block payment cancellation on archived customer
+            string custActId = "cust_act_cancel_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            custRepo.SaveCustomer(new Customer
+            {
+                Id = custActId,
+                Name = "عميل إلغاء سداد",
+                Phone = "01199887766",
+                BalancePiasters = 10000
+            });
+            // Record payment -> balance becomes 0
+            custRepo.RecordPayment(custActId, 10000, "سداد الديون");
+            var statement = custRepo.GetStatement(custActId, 10);
+            var payEntry = statement.Find(delegate(CustomerLedgerEntry e) { return e.Type == "payment"; });
+            AssertCondition(payEntry != null, "تسجيل دفعة السداد في كشف حساب العميل بنجاح", "فشل العثور على حركة السداد", report);
+
+            // Archive customer with 0 balance
+            custRepo.ArchiveCustomer(custActId);
+
+            // Attempt to cancel payment while archived
+            bool cancelArchCustPayBlocked = false;
+            try
+            {
+                custRepo.CancelPayment(custActId, payEntry.Id, "إلغاء دفعة", "admin");
+            }
+            catch (InvalidOperationException ex)
+            {
+                cancelArchCustPayBlocked = ex.Message.Contains("مؤرشف");
+            }
+            AssertCondition(cancelArchCustPayBlocked,
+                "منع إلغاء دفعة سداد لعميل مؤرشف لحماية الحسابات من إعادة تنشيط ديون على حساب مغلق",
+                "ثغرة! تم السماح بإلغاء سداد واستعادة ديون على عميل مؤرشف!", report);
+
+            // Unarchive/Restore customer -> Cancel payment must succeed and restore balance to 10,000 piasters
+            using (var conn = new SQLiteConnection(_connStr))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("UPDATE customers SET is_archived = 0 WHERE id = @id;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", custActId);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            custRepo.CancelPayment(custActId, payEntry.Id, "إلغاء بعد استعادة العميل", "admin");
+            var restoredCust = custRepo.GetById(custActId);
+            AssertCondition(restoredCust != null && restoredCust.BalancePiasters == 10000,
+                "إلغاء السداد بنجاح بعد استعادة العميل وعودة رصيد المديونية 100 ج.م بدقة",
+                "فشل استعادة مديونية العميل بعد إلغاء السداد", report);
+
+            // 4. Expense Auto-ID and Business Date Fallback
+            var expWithoutId = new Expense
+            {
+                AmountPiasters = 7500,
+                Category = "صيانة أجهزة",
+                CreatedBy = "الكاشير"
+            };
+            var savedExp = expenseRepo.Insert(expWithoutId);
+            AssertCondition(savedExp != null && !string.IsNullOrEmpty(savedExp.Id) && savedExp.Id.StartsWith("exp_") && !string.IsNullOrEmpty(savedExp.BusinessDate),
+                "توليد معرف تلقائي وتاريخ يومية تلقائي للمصروفات بنجاح عند عدم تمريرهم",
+                "فشل توليد المعرف أو تاريخ اليومية التلقائي للمصروف", report);
+
+            // 5. Quick Item Product Integrity (Block linking to archived or non-existent product)
+            string prodQId = "prod_q_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            var prodQ = new Product
+            {
+                Id = prodQId,
+                Name = "منتج سريع فحص الكتالوج",
+                Barcode = "BAR-Q-11",
+                PricePiasters = 3000,
+                CostPiasters = 1800,
+                IsActive = true
+            };
+            prodRepo.Upsert(prodQ);
+
+            // Soft-delete the product
+            using (var conn = new SQLiteConnection(_connStr))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("UPDATE products SET is_active = 0 WHERE id = @id;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", prodQId);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+
+            bool quickArchProdBlocked = false;
+            try
+            {
+                quickRepo.Save(new QuickItem
+                {
+                    Name = "زر سريع لصنف مؤرشف",
+                    ProductId = prodQId,
+                    PricePiasters = 3000
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                quickArchProdBlocked = ex.Message.Contains("مؤرشف") || ex.Message.Contains("محذوف");
+            }
+            AssertCondition(quickArchProdBlocked,
+                "منع ربط صنف سريع بمنتج مؤرشف أو محذوف بنجاح لحماية شاشة الكاشير",
+                "ثغرة! تم السماح بربط صنف سريع بمنتج مؤرشف!", report);
+
+            bool quickGhostProdBlocked = false;
+            try
+            {
+                quickRepo.Save(new QuickItem
+                {
+                    Name = "زر سريع لمنتج وهمي",
+                    ProductId = "prod_ghost_does_not_exist",
+                    PricePiasters = 3000
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                quickGhostProdBlocked = ex.Message.Contains("غير موجود");
+            }
+            AssertCondition(quickGhostProdBlocked,
+                "منع ربط صنف سريع بمنتج وهمي غير مسجل في النظام بنجاح",
+                "ثغرة! تم السماح بربط صنف سريع بمنتج غير موجود!", report);
+
+            // Re-activate product -> Quick item creation must succeed
+            using (var conn = new SQLiteConnection(_connStr))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("UPDATE products SET is_active = 1 WHERE id = @id;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", prodQId);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            var savedQuick = quickRepo.Save(new QuickItem
+            {
+                Name = "زر سريع لصنف نشط",
+                ProductId = prodQId,
+                PricePiasters = 3000
+            });
+            AssertCondition(savedQuick != null && savedQuick.ProductId == prodQId,
+                "إنشاء الصنف السريع بنجاح وربطه بالمنتج بعد إعادة تنشيطه",
+                "فشل إنشاء الصنف السريع بعد تنشيط المنتج", report);
+        }
     }
 }
+
 
