@@ -3339,11 +3339,14 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     case 'wallets:saveAccount': {
       const accData = payload || {};
       const existingIdx = mockDigitalAccounts.findIndex((a) => a.id === accData.id);
+      const accType = accData.accountType || accData.type || 'wallet';
       if (existingIdx >= 0) {
         const bal = accData.balancePiasters !== undefined ? Number(accData.balancePiasters) : mockDigitalAccounts[existingIdx].balancePiasters;
         mockDigitalAccounts[existingIdx] = {
           ...mockDigitalAccounts[existingIdx],
           ...accData,
+          accountType: accType,
+          type: accType,
           balancePiasters: bal,
           updatedAt: new Date().toISOString(),
           balanceFormatted: ((bal || 0) / 100).toFixed(2) + ' ج.م',
@@ -3352,14 +3355,15 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       } else {
         const newAcc = {
           id: accData.id || `acc_${Date.now()}`,
-          name: accData.name || (accData.accountType === 'instapay' ? 'حساب إنستاباي جديد' : 'محفظة كاش جديدة'),
-          accountType: accData.accountType || 'wallet',
-          provider: accData.provider || (accData.accountType === 'instapay' ? 'instapay' : 'vodafone_cash'),
+          name: accData.name || (accType === 'instapay' ? 'حساب إنستاباي جديد' : 'محفظة كاش جديدة'),
+          accountType: accType,
+          type: accType,
+          provider: accData.provider || (accType === 'instapay' ? 'nbe' : 'vodafone_cash'),
           phoneNumber: accData.phoneNumber || '',
           identifier: accData.identifier || '',
           balancePiasters: Number(accData.balancePiasters) || 0,
-          dailyLimitPiasters: Number(accData.dailyLimitPiasters) || 6000000,
-          monthlyLimitPiasters: Number(accData.monthlyLimitPiasters) || 20000000,
+          dailyLimitPiasters: Number(accData.dailyLimitPiasters) || (accType === 'instapay' ? 7000000 : 6000000),
+          monthlyLimitPiasters: Number(accData.monthlyLimitPiasters) || (accType === 'instapay' ? 40000000 : 20000000),
           isActive: accData.isActive !== false,
           notes: accData.notes || '',
           createdAt: new Date().toISOString(),

@@ -575,7 +575,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-line dark:border-line-dark pb-3 gap-1.5">
                   <div className="flex items-center gap-2">
                     <CreditCard className="w-5 h-5 text-paid dark:text-paid-bright" />
-                    <h3 className="font-bold text-ink dark:text-ink-dark text-base">2. جرد وعهدة ماكينات وخدمات الدفع (SuperPay / فوري / أمان)</h3>
+                    <h3 className="font-bold text-ink dark:text-ink-dark text-base">2. جرد وعهدة ماكينات وخدمات الدفع الإلكتروني</h3>
                   </div>
                   <span className="text-xs text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft px-2.5 py-0.5 rounded-full font-bold border border-paid/20 dark:border-paid/40">
                     عهدة مستقلة مفصولة عن بضاعة المحل

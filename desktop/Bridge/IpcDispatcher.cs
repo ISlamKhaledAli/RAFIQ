@@ -50,6 +50,7 @@ namespace RafiqPOS.Bridge
                 request.Action == "wallets:saveAccount" ||
                 request.Action == "wallets:createAccount" ||
                 request.Action == "wallets:updateAccount" ||
+                request.Action == "wallets:deleteAccount" ||
                 request.Action == "closing:save" ||
                 request.Action == "system:factoryReset" ||
                 request.Action == "settings:save" ||
@@ -246,6 +247,7 @@ namespace RafiqPOS.Bridge
             { "wallets:saveAccount", "wallets.accounts_manage" },
             { "wallets:createAccount", "wallets.accounts_manage" },
             { "wallets:updateAccount", "wallets.accounts_manage" },
+            { "wallets:deleteAccount", "wallets.accounts_manage" },
             { "audit:list", "audit_log.view" },
             { "audit:getLogs", "audit_log.view" },
             { "audit:resealChain", REQUIRE_ADMIN },

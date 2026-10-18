@@ -12,7 +12,9 @@ import {
   AlertTriangle,
   RotateCcw,
   X,
-  CreditCard,
+  Pencil,
+  Trash2,
+  Lock,
   ShieldCheck,
   Coins,
   DollarSign,
@@ -628,6 +630,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
         id: editingAccount ? editingAccount.id : undefined,
         name: accountFormName.trim(),
         type: accountFormType,
+        accountType: accountFormType,
         provider: accountFormProvider,
         accountNumber: (accountFormIdentifier || accountFormPhone || '').trim(),
         phoneNumber: accountFormPhone.trim() || undefined,
@@ -758,9 +761,6 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                 {currentTab === 'history' && 'سجل العمليات والإيصالات'}
                 {currentTab === 'analytics' && 'أرباح وتحليلات المحافظ'}
               </h1>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark">
-                فودافون كاش / إنستاباي / أورانج / اتصالات / وي / البنوك المصرية
-              </span>
             </div>
             <p className="text-xs text-ink-muted dark:text-ink-dark-muted mt-0.5 font-medium">
               {currentTab === 'transact' && 'سحب نقدي وتحويل للزبائن مع التحكم المباشر بمبلغ العملية وربح المحل'}
@@ -781,17 +781,6 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
             >
               <PlusCircle className="w-4 h-4" />
               <span>إضافة محفظة / حساب بنكي</span>
-            </button>
-          )}
-
-          {currentTab === 'accounts' && canFund && (
-            <button
-              type="button"
-              onClick={() => handleOpenFundingModal()}
-              className="h-9 px-3.5 rounded-xl bg-paid dark:bg-paid-bright text-white text-xs font-bold hover:bg-paid-dark flex items-center gap-1.5 shadow-xs cursor-pointer transition-all active:scale-98"
-            >
-              <Wallet className="w-4 h-4" />
-              <span>شحن وتغذية رصيد</span>
             </button>
           )}
 
@@ -1338,14 +1327,24 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                             </button>
                           )}
                           {canManageAccounts && (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenAccountModal(acc)}
-                              className="w-7 h-7 rounded-lg text-ink-muted hover:text-ink hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center justify-center transition-all cursor-pointer"
-                              title="تعديل الحساب"
-                            >
-                              <CreditCard className="w-3.5 h-3.5" />
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenAccountModal(acc)}
+                                className="w-7 h-7 rounded-lg text-ink-muted hover:text-ink hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center justify-center transition-all cursor-pointer"
+                                title="تعديل بيانات الحساب"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteAccount(acc)}
+                                className="w-7 h-7 rounded-lg text-ink-muted hover:text-danger hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center justify-center transition-all cursor-pointer"
+                                title="حذف / أرشفة الحساب"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </>
                           )}
                         </div>
                       </div>
@@ -1755,39 +1754,68 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
             {/* Modal Body */}
             <div className="p-5 flex flex-col gap-4 max-h-[75vh] overflow-y-auto">
               
-              {/* Type Switcher: Wallet vs InstaPay */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
-                  نوع الحساب المطلوب إضافته:
-                </label>
-                <div className="grid grid-cols-2 gap-2 p-1 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark">
-                  <button
-                    type="button"
-                    onClick={() => handleAccountTypeChange('instapay')}
-                    className={`h-10 rounded-lg text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                      accountFormType === 'instapay'
-                        ? 'bg-violet-700 text-white shadow-xs'
-                        : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-white'
-                    }`}
-                  >
-                    <Landmark className="w-4 h-4" />
-                    <span>حساب إنستاباي (InstaPay)</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleAccountTypeChange('wallet')}
-                    className={`h-10 rounded-lg text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                      accountFormType === 'wallet'
-                        ? 'bg-brand text-white shadow-xs'
-                        : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-white'
-                    }`}
-                  >
-                    <Smartphone className="w-4 h-4" />
-                    <span>محفظة كاش (Wallet)</span>
-                  </button>
+              {/* Type Switcher / Locked Indicator */}
+              {editingAccount ? (
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
+                      نوع الحساب:
+                    </label>
+                    <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted flex items-center gap-1">
+                      <Lock className="w-3 h-3 text-ink-muted" />
+                      <span>ثابت لا يمكن تغييره</span>
+                    </span>
+                  </div>
+                  <div className={`p-2.5 rounded-xl border flex items-center justify-between ${
+                    accountFormType === 'instapay'
+                      ? 'bg-violet-50 dark:bg-violet-950/25 border-violet-500/30 text-violet-700 dark:text-violet-300'
+                      : 'bg-brand-soft dark:bg-brand-dark-soft border-brand/30 text-brand-dark dark:text-brand-bright'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      {accountFormType === 'instapay' ? <Landmark className="w-4 h-4" /> : <Smartphone className="w-4 h-4" />}
+                      <span className="text-xs font-black">
+                        {accountFormType === 'instapay' ? 'حساب إنستاباي بنكي (InstaPay IPN)' : 'محفظة هاتف كاش نقدية (Mobile Wallet)'}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-surface dark:bg-surface-dark border border-line dark:border-line-dark">
+                      {accountFormType === 'instapay' ? 'حساب بنكي' : 'محفظة كاش'}
+                    </span>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">
+                    نوع الحساب المطلوب إضافته:
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 p-1 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark">
+                    <button
+                      type="button"
+                      onClick={() => handleAccountTypeChange('instapay')}
+                      className={`h-10 rounded-lg text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        accountFormType === 'instapay'
+                          ? 'bg-violet-700 text-white shadow-xs'
+                          : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-white'
+                      }`}
+                    >
+                      <Landmark className="w-4 h-4" />
+                      <span>حساب إنستاباي (InstaPay)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleAccountTypeChange('wallet')}
+                      className={`h-10 rounded-lg text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        accountFormType === 'wallet'
+                          ? 'bg-brand text-white shadow-xs'
+                          : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-white'
+                      }`}
+                    >
+                      <Smartphone className="w-4 h-4" />
+                      <span>محفظة كاش (Wallet)</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Provider / Bank Dropdown - Dynamically Adjusted */}
               <div className="flex flex-col gap-1.5">
@@ -1930,9 +1958,10 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handleDeleteAccount(editingAccount)}
-                  className="text-xs font-bold text-danger hover:underline cursor-pointer"
+                  className="text-xs font-bold text-danger hover:underline cursor-pointer flex items-center gap-1.5"
                 >
-                  حذف الحساب
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>حذف الحساب</span>
                 </button>
               ) : <div></div>}
 

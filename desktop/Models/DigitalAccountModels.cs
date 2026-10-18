@@ -23,6 +23,9 @@ namespace RafiqPOS.Models
             set { if (string.IsNullOrEmpty(Type)) Type = value; }
         }
 
+        private string _phoneNumber;
+        private string _identifier;
+
         [JsonProperty("provider")]
         public string Provider { get; set; } // "vodafone_cash", "orange_cash", "etisalat_cash", "we_pay", "instapay", "bank_account", "other"
 
@@ -32,15 +35,23 @@ namespace RafiqPOS.Models
         [JsonProperty("phoneNumber")]
         public string PhoneNumber
         {
-            get { return AccountNumber; }
-            set { if (string.IsNullOrEmpty(AccountNumber)) AccountNumber = value; }
+            get { return !string.IsNullOrEmpty(_phoneNumber) ? _phoneNumber : AccountNumber; }
+            set 
+            { 
+                _phoneNumber = value; 
+                if (string.IsNullOrEmpty(AccountNumber)) AccountNumber = value; 
+            }
         }
 
         [JsonProperty("identifier")]
         public string Identifier
         {
-            get { return AccountNumber; }
-            set { if (string.IsNullOrEmpty(AccountNumber)) AccountNumber = value; }
+            get { return !string.IsNullOrEmpty(_identifier) ? _identifier : AccountNumber; }
+            set 
+            { 
+                _identifier = value; 
+                if (string.IsNullOrEmpty(AccountNumber)) AccountNumber = value; 
+            }
         }
 
         [JsonProperty("balancePiasters")]

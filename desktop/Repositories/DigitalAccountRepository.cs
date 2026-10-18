@@ -118,6 +118,20 @@ namespace RafiqPOS.Repositories
                                 cmd.ExecuteNonQuery();
                             }
                         }
+                        if (!cols.Contains("phone_number"))
+                        {
+                            using (var cmd = new SQLiteCommand("ALTER TABLE digital_accounts ADD COLUMN phone_number TEXT;", conn, trans))
+                            {
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+                        if (!cols.Contains("identifier"))
+                        {
+                            using (var cmd = new SQLiteCommand("ALTER TABLE digital_accounts ADD COLUMN identifier TEXT;", conn, trans))
+                            {
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
                     }
                     _schemaEnsured = true;
                 }
@@ -182,11 +196,11 @@ namespace RafiqPOS.Repositories
 
                             string insertSql = @"
                                 INSERT INTO digital_accounts (
-                                    id, name, type, provider, account_number, balance_piasters, low_balance_alert_piasters,
+                                    id, name, type, provider, account_number, phone_number, identifier, balance_piasters, low_balance_alert_piasters,
                                     daily_limit_piasters, monthly_limit_piasters,
                                     is_default, is_active, notes, created_at, updated_at
                                 ) VALUES (
-                                    @id, @name, @type, @provider, @accountNumber, @balance, @lowAlert,
+                                    @id, @name, @type, @provider, @accountNumber, @phone, @ident, @balance, @lowAlert,
                                     @dailyLimit, @monthlyLimit,
                                     @isDefault, @isActive, @notes, @now, @now
                                 );";
@@ -197,6 +211,8 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@type", account.Type ?? "wallet");
                                 cmd.Parameters.AddWithValue("@provider", account.Provider ?? "vodafone_cash");
                                 cmd.Parameters.AddWithValue("@accountNumber", (object)account.AccountNumber ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@phone", (object)account.PhoneNumber ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@ident", (object)account.Identifier ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@balance", account.BalancePiasters);
                                 cmd.Parameters.AddWithValue("@lowAlert", account.LowBalanceAlertPiasters > 0 ? account.LowBalanceAlertPiasters : 50000);
                                 cmd.Parameters.AddWithValue("@dailyLimit", dailyLimit);
@@ -234,6 +250,8 @@ namespace RafiqPOS.Repositories
                                     type = @type,
                                     provider = @provider,
                                     account_number = @accountNumber,
+                                    phone_number = @phone,
+                                    identifier = @ident,
                                     balance_piasters = @balance,
                                     low_balance_alert_piasters = @lowAlert,
                                     daily_limit_piasters = @dailyLimit,
@@ -249,6 +267,8 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@type", account.Type ?? "wallet");
                                 cmd.Parameters.AddWithValue("@provider", account.Provider ?? "vodafone_cash");
                                 cmd.Parameters.AddWithValue("@accountNumber", (object)account.AccountNumber ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@phone", (object)account.PhoneNumber ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@ident", (object)account.Identifier ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@balance", account.BalancePiasters);
                                 cmd.Parameters.AddWithValue("@lowAlert", account.LowBalanceAlertPiasters > 0 ? account.LowBalanceAlertPiasters : 50000);
                                 cmd.Parameters.AddWithValue("@dailyLimit", dailyLimit);
@@ -381,6 +401,20 @@ namespace RafiqPOS.Repositories
                                     dCmd.Parameters.AddWithValue("@id", id);
                                     dCmd.ExecuteNonQuery();
                                 }
+                            }
+
+                            if (_auditRepo != null)
+                            {
+                                string now = DateTime.UtcNow.ToString("o");
+                                _auditRepo.Log(conn, trans, new AuditLog
+                                {
+                                    UserId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "system",
+                                    Action = count > 0 ? "archive" : "delete",
+                                    EntityType = "digital_account",
+                                    EntityId = id,
+                                    DetailsJson = string.Format("{0} حساب محفظة / إنستاباي: {1}", count > 0 ? "أرشفة" : "حذف", name ?? id),
+                                    CreatedAt = now
+                                });
                             }
                         }
 
@@ -901,6 +935,9 @@ namespace RafiqPOS.Repositories
             long dailyLimit = string.Equals(accType, "instapay", StringComparison.OrdinalIgnoreCase) ? 7000000 : 6000000;
             long monthlyLimit = string.Equals(accType, "instapay", StringComparison.OrdinalIgnoreCase) ? 40000000 : 20000000;
 
+            string phone = null;
+            string ident = null;
+
             for (int i = 0; i < r.FieldCount; i++)
             {
                 if (string.Equals(r.GetName(i), "daily_limit_piasters", StringComparison.OrdinalIgnoreCase))
@@ -911,9 +948,17 @@ namespace RafiqPOS.Repositories
                 {
                     if (r[i] != DBNull.Value) monthlyLimit = Convert.ToInt64(r[i]);
                 }
+                else if (string.Equals(r.GetName(i), "phone_number", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (r[i] != DBNull.Value) phone = r[i].ToString();
+                }
+                else if (string.Equals(r.GetName(i), "identifier", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (r[i] != DBNull.Value) ident = r[i].ToString();
+                }
             }
 
-            return new DigitalAccount
+            var acc = new DigitalAccount
             {
                 Id = r["id"].ToString(),
                 Name = r["name"].ToString(),
@@ -930,6 +975,11 @@ namespace RafiqPOS.Repositories
                 CreatedAt = r["created_at"].ToString(),
                 UpdatedAt = r["updated_at"].ToString()
             };
+
+            if (!string.IsNullOrEmpty(phone)) acc.PhoneNumber = phone;
+            if (!string.IsNullOrEmpty(ident)) acc.Identifier = ident;
+
+            return acc;
         }
 
         private static DigitalTransaction MapTransaction(SQLiteDataReader r)
