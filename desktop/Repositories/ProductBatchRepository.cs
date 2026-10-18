@@ -258,6 +258,8 @@ namespace RafiqPOS.Repositories
         {
             if (batch == null) throw new ArgumentNullException("batch");
             if (string.IsNullOrEmpty(batch.ProductId)) throw new ArgumentException("معرف المنتج مطلوب لإنشاء أو تحديث الدفعة");
+            if (batch.QuantityMilli < 0) throw new ArgumentException("كمية الدفعة لا يمكن أن تكون سالبة");
+            if (batch.CostPricePiasters < 0) throw new ArgumentException("تكلفة الدفعة لا يمكن أن تكون سالبة");
 
             string now = DateTime.UtcNow.ToString("o");
             bool localTrans = false;
@@ -274,6 +276,17 @@ namespace RafiqPOS.Repositories
 
             try
             {
+                // Verify product exists in products table
+                using (var chkProdCmd = new SQLiteCommand("SELECT 1 FROM products WHERE id = @pid LIMIT 1;", activeConn, activeTrans))
+                {
+                    chkProdCmd.Parameters.AddWithValue("@pid", batch.ProductId);
+                    object pRes = chkProdCmd.ExecuteScalar();
+                    if (pRes == null || pRes == DBNull.Value)
+                    {
+                        throw new InvalidOperationException("المنتج المحدد لربط الدفعة غير موجود في قاعدة البيانات");
+                    }
+                }
+
                 if (string.IsNullOrEmpty(batch.BatchNumber))
                 {
                     batch.BatchNumber = "B-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");

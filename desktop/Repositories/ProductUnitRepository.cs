@@ -171,6 +171,13 @@ namespace RafiqPOS.Repositories
         public void Create(ProductUnit unit)
         {
             if (unit == null) throw new ArgumentNullException("unit");
+            if (string.IsNullOrWhiteSpace(unit.ProductId)) throw new ArgumentException("معرف المنتج مطلوب لإنشاء الوحدة");
+            if (string.IsNullOrWhiteSpace(unit.UnitName)) throw new ArgumentException("اسم الوحدة مطلوب");
+            if (unit.IsBaseUnit) unit.ConversionFactor = 1;
+            else if (unit.ConversionFactor <= 0) throw new ArgumentException("معامل التحويل للوحدة يجب أن يكون أكبر من الصفر");
+            if (unit.SellPricePiasters < 0) throw new ArgumentException("سعر بيع الوحدة لا يمكن أن يكون سالباً");
+            if (unit.CostPricePiasters < 0) throw new ArgumentException("سعر شراء/تكلفة الوحدة لا يمكن أن يكون سالباً");
+
             if (string.IsNullOrWhiteSpace(unit.Id)) unit.Id = Guid.NewGuid().ToString("N");
             if (string.IsNullOrWhiteSpace(unit.CreatedAt)) unit.CreatedAt = DateTime.UtcNow.ToString("o");
             unit.UpdatedAt = DateTime.UtcNow.ToString("o");
@@ -235,6 +242,11 @@ namespace RafiqPOS.Repositories
         public void Update(ProductUnit unit)
         {
             if (unit == null) throw new ArgumentNullException("unit");
+            if (string.IsNullOrWhiteSpace(unit.UnitName)) throw new ArgumentException("اسم الوحدة مطلوب");
+            if (!unit.IsBaseUnit && unit.ConversionFactor <= 0) throw new ArgumentException("معامل التحويل للوحدة يجب أن يكون أكبر من الصفر");
+            if (unit.SellPricePiasters < 0) throw new ArgumentException("سعر بيع الوحدة لا يمكن أن يكون سالباً");
+            if (unit.CostPricePiasters < 0) throw new ArgumentException("سعر شراء/تكلفة الوحدة لا يمكن أن يكون سالباً");
+
             unit.UpdatedAt = DateTime.UtcNow.ToString("o");
 
             using (var conn = new SQLiteConnection(_connectionString))
@@ -331,6 +343,21 @@ namespace RafiqPOS.Repositories
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                using (var chkCmd = new SQLiteCommand("SELECT is_base_unit FROM product_units WHERE id = @id LIMIT 1;", conn))
+                {
+                    chkCmd.Parameters.AddWithValue("@id", id.Trim());
+                    object o = chkCmd.ExecuteScalar();
+                    if (o != null && o != DBNull.Value && Convert.ToInt32(o) == 1)
+                    {
+                        throw new InvalidOperationException("لا يمكن حذف الوحدة الأساسية للمنتج. يرجى تعيين وحدة أساسية أخرى أولاً.");
+                    }
+                }
+
+                if (HasSales(id))
+                {
+                    throw new InvalidOperationException("لا يمكن حذف هذه الوحدة لوجود مبيعات مسجلة مرتبطة بها.");
+                }
+
                 string sql = "DELETE FROM product_units WHERE id = @id;";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {

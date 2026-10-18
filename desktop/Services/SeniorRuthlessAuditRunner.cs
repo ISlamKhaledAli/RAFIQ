@@ -93,6 +93,7 @@ namespace RafiqPOS.Services
                 RunTest21_EntityArchivalAndActiveValidationGuards(report);
                 RunTest22_AdvancedSubsystemAssetAndCatalogIntegrityGuards(report);
                 RunTest23_SeniorCustomerLedgerAndQuickCatalogGuards(report);
+                RunTest24_ReturnCartBatchAndUnitResilienceGuards(report);
 
                 report.Success = (report.PassedAssertions == report.TotalAssertions);
                 report.Message = string.Format("اكتمل الفحص الشامل المتقدم بنجاح فائق: {0}/{1} اختبارات ناجحة بنسبة 100%",
@@ -3245,6 +3246,348 @@ namespace RafiqPOS.Services
             AssertCondition(savedQuick != null && savedQuick.ProductId == prodQId,
                 "إنشاء الصنف السريع بنجاح وربطه بالمنتج بعد إعادة تنشيطه",
                 "فشل إنشاء الصنف السريع بعد تنشيط المنتج", report);
+        }
+
+        private static void RunTest24_ReturnCartBatchAndUnitResilienceGuards(AuditReport report)
+        {
+            var auditRepo = new AuditLogRepository(_connStr);
+            var counterRepo = new CounterRepository(_connStr);
+            var custRepo = new CustomerRepository(_connStr, auditRepo);
+            var prodRepo = new ProductRepository(_connStr);
+            var returnRepo = new ReturnRepository(_connStr, counterRepo, auditRepo);
+            var heldRepo = new HeldSaleRepository(_connStr);
+            var batchRepo = new ProductBatchRepository(_connStr, auditRepo);
+            var unitRepo = new ProductUnitRepository(_connStr);
+            var saleRepo = new SaleRepository(_connStr, counterRepo, auditRepo);
+
+            // 1. Create active product for returns and batch tests
+            string prodId = "prod_t24_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            var prod = new Product
+            {
+                Id = prodId,
+                Name = "منتج اختبار سيناريوهات الرقابة 24",
+                Barcode = "BAR-T24-01",
+                PricePiasters = 5000,
+                CostPiasters = 3000,
+                StockQuantityMilli = 20000,
+                IsActive = true
+            };
+            prodRepo.Upsert(prod);
+
+            // 2. Return with quantity <= 0 -> MUST BE BLOCKED
+            var retZeroQty = new Return
+            {
+                Items = new List<ReturnItem>
+                {
+                    new ReturnItem
+                    {
+                        ProductId = prod.Id,
+                        ProductName = prod.Name,
+                        QuantityMilli = 0,
+                        UnitPricePiasters = 5000
+                    }
+                }
+            };
+            bool retZeroQtyBlocked = false;
+            try
+            {
+                returnRepo.CreateReturnAtomic(retZeroQty);
+            }
+            catch (InvalidOperationException ex)
+            {
+                retZeroQtyBlocked = ex.Message.Contains("أكبر من الصفر");
+            }
+            AssertCondition(retZeroQtyBlocked,
+                "منع تسجيل مرتجع بكمية صفر أو سالبة بنجاح لحماية المخزون من التلاعب",
+                "ثغرة! تم السماح بتسجيل مرتجع بكمية صفر أو سالبة!", report);
+
+            // 3. Return with negative unit price -> MUST BE BLOCKED
+            var retNegPrice = new Return
+            {
+                Items = new List<ReturnItem>
+                {
+                    new ReturnItem
+                    {
+                        ProductId = prod.Id,
+                        ProductName = prod.Name,
+                        QuantityMilli = 1000,
+                        UnitPricePiasters = -500
+                    }
+                }
+            };
+            bool retNegPriceBlocked = false;
+            try
+            {
+                returnRepo.CreateReturnAtomic(retNegPrice);
+            }
+            catch (InvalidOperationException ex)
+            {
+                retNegPriceBlocked = ex.Message.Contains("سعر الوحدة") || ex.Message.Contains("سالب");
+            }
+            AssertCondition(retNegPriceBlocked,
+                "منع تسجيل مرتجع بسعر وحدة سالب لحماية العمليات المالية",
+                "ثغرة! تم السماح بتسجيل مرتجع بسعر وحدة سالب!", report);
+
+            // 4. Return with refund_method = 'credit' without customer -> MUST BE BLOCKED
+            var retCreditNoCust = new Return
+            {
+                RefundMethod = "credit",
+                CustomerId = null,
+                Items = new List<ReturnItem>
+                {
+                    new ReturnItem
+                    {
+                        ProductId = prod.Id,
+                        ProductName = prod.Name,
+                        QuantityMilli = 1000,
+                        UnitPricePiasters = 5000
+                    }
+                }
+            };
+            bool retCreditNoCustBlocked = false;
+            try
+            {
+                returnRepo.CreateReturnAtomic(retCreditNoCust);
+            }
+            catch (InvalidOperationException ex)
+            {
+                retCreditNoCustBlocked = ex.Message.Contains("بدون تحديد عميل");
+            }
+            AssertCondition(retCreditNoCustBlocked,
+                "منع صرف المرتجع رصيد آجل/حساب عميل بدون تحديد عميل مسجل",
+                "ثغرة! تم السماح بصرف مرتجع كرصيد آجل بدون تحديد عميل!", report);
+
+            // 5. Return with refund_method = 'credit' on cust_general_cash -> MUST BE BLOCKED
+            var retCreditGenCash = new Return
+            {
+                RefundMethod = "credit",
+                CustomerId = "cust_general_cash",
+                Items = new List<ReturnItem>
+                {
+                    new ReturnItem
+                    {
+                        ProductId = prod.Id,
+                        ProductName = prod.Name,
+                        QuantityMilli = 1000,
+                        UnitPricePiasters = 5000
+                    }
+                }
+            };
+            bool retCreditGenCashBlocked = false;
+            try
+            {
+                returnRepo.CreateReturnAtomic(retCreditGenCash);
+            }
+            catch (InvalidOperationException ex)
+            {
+                retCreditGenCashBlocked = ex.Message.Contains("النقدي العام");
+            }
+            AssertCondition(retCreditGenCashBlocked,
+                "منع صرف المرتجع كرصيد آجل للعميل النقدي العام لمنع إفساد دفتر الأستاذ العام",
+                "ثغرة! تم السماح بصرف مرتجع كرصيد آجل للعميل النقدي العام!", report);
+
+            // 6. Return with refund_method = 'credit' on archived customer -> MUST BE BLOCKED
+            string custArchId = "cust_t24_arch_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            custRepo.SaveCustomer(new Customer
+            {
+                Id = custArchId,
+                Name = "عميل مرتجع مؤرشف",
+                Phone = "01033445566",
+                BalancePiasters = 0
+            });
+            custRepo.ArchiveCustomer(custArchId);
+
+            var retCreditArch = new Return
+            {
+                RefundMethod = "credit",
+                CustomerId = custArchId,
+                Items = new List<ReturnItem>
+                {
+                    new ReturnItem
+                    {
+                        ProductId = prod.Id,
+                        ProductName = prod.Name,
+                        QuantityMilli = 1000,
+                        UnitPricePiasters = 5000
+                    }
+                }
+            };
+            bool retCreditArchBlocked = false;
+            try
+            {
+                returnRepo.CreateReturnAtomic(retCreditArch);
+            }
+            catch (InvalidOperationException ex)
+            {
+                retCreditArchBlocked = ex.Message.Contains("مؤرشف");
+            }
+            AssertCondition(retCreditArchBlocked,
+                "منع صرف المرتجع كرصيد آجل لحساب عميل مؤرشف بنجاح",
+                "ثغرة! تم السماح بصرف مرتجع آجل لعميل مؤرشف!", report);
+
+            // 7. Held Sale: Holding empty cart -> MUST BE BLOCKED
+            var emptyHeld = new HeldSale
+            {
+                ItemsCount = 0,
+                CartJson = "[]",
+                TotalPiasters = 0
+            };
+            bool emptyHeldBlocked = false;
+            try
+            {
+                heldRepo.SaveHeldSale(emptyHeld);
+            }
+            catch (InvalidOperationException ex)
+            {
+                emptyHeldBlocked = ex.Message.Contains("سلة فارغة");
+            }
+            AssertCondition(emptyHeldBlocked,
+                "منع تعليق سلة فارغة بدون أصناف بنجاح وحماية شاشات الكاشير من الفواتير المعلقة الوهمية",
+                "ثغرة! تم السماح بتعليق سلة فارغة!", report);
+
+            // 8. Batch: Creating batch on non-existent product -> MUST BE BLOCKED
+            var ghostBatch = new ProductBatch
+            {
+                ProductId = "prod_ghost_does_not_exist",
+                BatchNumber = "BATCH-GHOST",
+                QuantityMilli = 5000,
+                CostPricePiasters = 2500
+            };
+            bool ghostBatchBlocked = false;
+            try
+            {
+                batchRepo.CreateOrUpdateBatch(ghostBatch);
+            }
+            catch (InvalidOperationException ex)
+            {
+                ghostBatchBlocked = ex.Message.Contains("غير موجود");
+            }
+            AssertCondition(ghostBatchBlocked,
+                "منع إنشاء دفعة مخزنية لمنتج وهمي غير مسجل في قاعدة البيانات",
+                "ثغرة! تم السماح بإنشاء دفعة لمنتج غير موجود!", report);
+
+            // 9. Batch: Negative quantity or cost -> MUST BE BLOCKED
+            var negQtyBatch = new ProductBatch
+            {
+                ProductId = prod.Id,
+                BatchNumber = "BATCH-NEG-QTY",
+                QuantityMilli = -1000,
+                CostPricePiasters = 2500
+            };
+            bool negQtyBatchBlocked = false;
+            try
+            {
+                batchRepo.CreateOrUpdateBatch(negQtyBatch);
+            }
+            catch (ArgumentException ex)
+            {
+                negQtyBatchBlocked = ex.Message.Contains("سالبة");
+            }
+            AssertCondition(negQtyBatchBlocked,
+                "منع إنشاء دفعة بكمية سالبة بنجاح",
+                "ثغرة! تم السماح بإنشاء دفعة بكمية سالبة!", report);
+
+            // 10. Product Unit: Conversion factor <= 0 -> MUST BE BLOCKED
+            var zeroFactorUnit = new ProductUnit
+            {
+                ProductId = prod.Id,
+                UnitName = "علبة غير صالحة",
+                ConversionFactor = 0,
+                IsBaseUnit = false,
+                SellPricePiasters = 10000,
+                CostPricePiasters = 6000
+            };
+            bool zeroFactorUnitBlocked = false;
+            try
+            {
+                unitRepo.Create(zeroFactorUnit);
+            }
+            catch (ArgumentException ex)
+            {
+                zeroFactorUnitBlocked = ex.Message.Contains("معامل التحويل");
+            }
+            AssertCondition(zeroFactorUnitBlocked,
+                "منع إنشاء وحدة ثانوية بمعامل تحويل صفر أو سالب لمنع أخطاء القسمة في المخزون",
+                "ثغرة! تم السماح بإنشاء وحدة بمعامل تحويل صفر!", report);
+
+            // 11. Product Unit: Deleting base unit -> MUST BE BLOCKED
+            var baseUnit = new ProductUnit
+            {
+                Id = "unit_base_t24_" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                ProductId = prod.Id,
+                UnitName = "قطعة أساسية",
+                ConversionFactor = 1,
+                IsBaseUnit = true,
+                SellPricePiasters = 5000,
+                CostPricePiasters = 3000
+            };
+            unitRepo.Create(baseUnit);
+
+            bool deleteBaseUnitBlocked = false;
+            try
+            {
+                unitRepo.Delete(baseUnit.Id);
+            }
+            catch (InvalidOperationException ex)
+            {
+                deleteBaseUnitBlocked = ex.Message.Contains("الوحدة الأساسية");
+            }
+            AssertCondition(deleteBaseUnitBlocked,
+                "منع حذف الوحدة الأساسية للمنتج لحماية الهيكل التأسيسي لوحدات القياس",
+                "ثغرة! تم السماح بحذف الوحدة الأساسية للمنتج!", report);
+
+            // 12. Product Unit: Deleting unit with active sales records -> MUST BE BLOCKED
+            var secUnit = new ProductUnit
+            {
+                Id = "unit_sec_t24_" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                ProductId = prod.Id,
+                UnitName = "دستة (12 قطعة)",
+                ConversionFactor = 12,
+                IsBaseUnit = false,
+                SellPricePiasters = 55000,
+                CostPricePiasters = 33000
+            };
+            unitRepo.Create(secUnit);
+
+            // Simulate a sale referencing this unit_id via SaleRepository
+            var saleWithUnit = new Sale
+            {
+                Id = "sale_unit_t24_" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                CustomerId = "cust_general_cash",
+                PaymentMethod = "cash",
+                SubtotalPiasters = 55000,
+                TotalPiasters = 55000,
+                PaidPiasters = 55000,
+                Items = new List<SaleItem>
+                {
+                    new SaleItem
+                    {
+                        ProductId = prod.Id,
+                        ProductName = prod.Name,
+                        QuantityMilli = 1000,
+                        UnitPricePiasters = 55000,
+                        UnitCostPiasters = 33000,
+                        TotalPiasters = 55000,
+                        Unit = "دستة",
+                        UnitId = secUnit.Id,
+                        ConversionFactor = 12
+                    }
+                }
+            };
+            saleRepo.CreateSaleAtomic(saleWithUnit);
+
+            bool deleteUnitWithSalesBlocked = false;
+            try
+            {
+                unitRepo.Delete(secUnit.Id);
+            }
+            catch (InvalidOperationException ex)
+            {
+                deleteUnitWithSalesBlocked = ex.Message.Contains("مبيعات مسجلة");
+            }
+            AssertCondition(deleteUnitWithSalesBlocked,
+                "منع حذف الوحدة المرتبطة بمبيعات مسجلة سابقة لحماية التكامل المرجعي للتقارير التاريخية",
+                "ثغرة! تم السماح بحذف وحدة تم البيع بها سابقاً!", report);
         }
     }
 }
