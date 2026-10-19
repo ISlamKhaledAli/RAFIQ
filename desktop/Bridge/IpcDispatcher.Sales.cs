@@ -38,10 +38,29 @@ namespace RafiqPOS.Bridge
                                 : SecurityService.CurrentUser.Username;
                         }
                         string saleIdempotencyKey = null;
+                        string supervisorPin = null;
                         JObject salePayloadObj = request.Payload as JObject;
-                        if (salePayloadObj != null && salePayloadObj["idempotencyKey"] != null)
+                        if (salePayloadObj != null)
                         {
-                            saleIdempotencyKey = salePayloadObj["idempotencyKey"].ToString();
+                            if (salePayloadObj["idempotencyKey"] != null)
+                            {
+                                saleIdempotencyKey = salePayloadObj["idempotencyKey"].ToString();
+                            }
+                            if (salePayloadObj["supervisorPin"] != null)
+                            {
+                                supervisorPin = salePayloadObj["supervisorPin"].ToString();
+                            }
+                        }
+                        if (saleToCreate != null)
+                        {
+                            if (string.IsNullOrEmpty(saleToCreate.IdempotencyKey) && !string.IsNullOrEmpty(saleIdempotencyKey))
+                            {
+                                saleToCreate.IdempotencyKey = saleIdempotencyKey;
+                            }
+                            if (string.IsNullOrEmpty(saleToCreate.SupervisorPin) && !string.IsNullOrEmpty(supervisorPin))
+                            {
+                                saleToCreate.SupervisorPin = supervisorPin;
+                            }
                         }
                         var createdSale = DatabaseService.Sales.ProcessSale(saleToCreate, saleIdempotencyKey);
                         if (DatabaseService.License != null)

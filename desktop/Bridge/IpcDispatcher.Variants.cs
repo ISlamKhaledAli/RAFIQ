@@ -87,6 +87,35 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, report);
                     return true;
 
+                case "variants:delete":
+                case "variants:deleteVariant":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "معرف المتغير المطلوب حذفه مفقود");
+                        return true;
+                    }
+                    string varIdToDelete = null;
+                    JObject delVObj = request.Payload as JObject;
+                    if (delVObj != null)
+                    {
+                        if (delVObj["variantProductId"] != null) varIdToDelete = delVObj["variantProductId"].ToString();
+                        else if (delVObj["id"] != null) varIdToDelete = delVObj["id"].ToString();
+                    }
+                    else
+                    {
+                        varIdToDelete = request.Payload.ToString().Trim('"', ' ');
+                    }
+
+                    if (string.IsNullOrWhiteSpace(varIdToDelete))
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "معرف المتغير غير صالح");
+                        return true;
+                    }
+
+                    DatabaseService.ProductVariants.DeleteVariant(varIdToDelete);
+                    response = BridgeResponse.Ok(request.Id, new { success = true, deletedVariantId = varIdToDelete });
+                    return true;
+
                 default:
                     return false;
             }

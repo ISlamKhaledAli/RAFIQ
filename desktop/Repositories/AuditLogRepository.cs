@@ -173,6 +173,12 @@ namespace RafiqPOS.Repositories
                 {
                     try
                     {
+                        // Temporarily authorize reseal to bypass tamper-proof trigger within this transaction
+                        using (var authCmd = new SQLiteCommand("INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES ('allow_audit_reseal', 'CONFIRM_RESEAL_AUTHORIZED', datetime('now'));", conn, trans))
+                        {
+                            authCmd.ExecuteNonQuery();
+                        }
+
                         var rows = new List<string[]>();
                         using (var readCmd = new SQLiteCommand("SELECT id, user_id, action, entity_type, entity_id, details_json, created_at FROM audit_logs ORDER BY rowid ASC;", conn, trans))
                         using (var rdr = readCmd.ExecuteReader())
@@ -214,6 +220,12 @@ namespace RafiqPOS.Repositories
                             lastHash = recHash;
                         }
 
+                        // Remove temporary authorization before commit
+                        using (var cleanCmd = new SQLiteCommand("DELETE FROM app_settings WHERE key = 'allow_audit_reseal';", conn, trans))
+                        {
+                            cleanCmd.ExecuteNonQuery();
+                        }
+
                         trans.Commit();
                         return rows.Count;
                     }
@@ -226,8 +238,17 @@ namespace RafiqPOS.Repositories
             }
         }
 
-        public List<AuditLog> GetLogs(int limit = 100, string action = null)
+        public List<AuditLog> GetLogs(
+            int limit = 100,
+            string action = null,
+            string userId = null,
+            string startDate = null,
+            string endDate = null,
+            string search = null)
         {
+            if (limit <= 0) limit = 100;
+            if (limit > 1000) limit = 1000;
+
             var list = new List<AuditLog>();
             using (var conn = new SQLiteConnection(_connectionString))
             {
@@ -235,17 +256,38 @@ namespace RafiqPOS.Repositories
                 string sql = @"
                     SELECT a.id, a.user_id, a.action, a.entity_type, a.entity_id, a.details_json, a.created_at,
                            a.prev_hash, a.record_hash,
-                           COALESCE(u.display_name, 'مدير النظام') AS user_display_name
+                           COALESCE(u.display_name, u.username, 'مدير النظام') AS user_display_name
                     FROM audit_logs a
-                    LEFT JOIN users u ON a.user_id = u.id
+                    LEFT JOIN users u ON a.user_id = u.id OR a.user_id = u.username
                     WHERE (@action IS NULL OR a.action = @action)
+                      AND (@userId IS NULL OR a.user_id = @userId OR u.username = @userId)
+                      AND (@startDate IS NULL OR a.created_at >= @startDate)
+                      AND (@endDate IS NULL OR a.created_at <= @endDate)
+                      AND (@search IS NULL OR a.details_json LIKE @searchPattern OR a.entity_id LIKE @searchPattern OR a.id LIKE @searchPattern)
                     ORDER BY a.rowid DESC
                     LIMIT @limit;
                 ";
 
+                string effectiveStartDate = startDate;
+                if (!string.IsNullOrEmpty(effectiveStartDate) && effectiveStartDate.Length == 10)
+                {
+                    effectiveStartDate = effectiveStartDate + "T00:00:00";
+                }
+
+                string effectiveEndDate = endDate;
+                if (!string.IsNullOrEmpty(effectiveEndDate) && effectiveEndDate.Length == 10)
+                {
+                    effectiveEndDate = effectiveEndDate + "T23:59:59.999";
+                }
+
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@action", string.IsNullOrEmpty(action) ? (object)DBNull.Value : action);
+                    cmd.Parameters.AddWithValue("@userId", string.IsNullOrEmpty(userId) ? (object)DBNull.Value : userId);
+                    cmd.Parameters.AddWithValue("@startDate", string.IsNullOrEmpty(effectiveStartDate) ? (object)DBNull.Value : effectiveStartDate);
+                    cmd.Parameters.AddWithValue("@endDate", string.IsNullOrEmpty(effectiveEndDate) ? (object)DBNull.Value : effectiveEndDate);
+                    cmd.Parameters.AddWithValue("@search", string.IsNullOrEmpty(search) ? (object)DBNull.Value : search);
+                    cmd.Parameters.AddWithValue("@searchPattern", string.IsNullOrEmpty(search) ? (object)DBNull.Value : "%" + search.Trim() + "%");
                     cmd.Parameters.AddWithValue("@limit", limit);
 
                     using (var reader = cmd.ExecuteReader())
@@ -286,8 +328,21 @@ namespace RafiqPOS.Repositories
                     return "تسوية رصيد مخزون";
                 case "sale_create":
                     return "إصدار فاتورة بيع";
+                case "sale_cancel":
                 case "sale_void":
                     return "إلغاء فاتورة بيع";
+                case "sale_discount":
+                    return "إعطاء خصم تجاري";
+                case "sale_refund":
+                    return "مرتجع مبيعات";
+                case "sale_reprint":
+                    return "إعادة طباعة فاتورة";
+                case "drawer_manual_open":
+                    return "فتح الدرج يدوياً";
+                case "DRAWER_CASH_IN":
+                    return "إيداع نثري بالدرج";
+                case "DRAWER_CASH_OUT":
+                    return "سحب نثري من الدرج";
                 case "debt_payment":
                     return "سداد دفعة آجل";
                 case "product_create":
@@ -296,6 +351,28 @@ namespace RafiqPOS.Repositories
                     return "حذف صنف من الكتالوج";
                 case "settings_update":
                     return "تعديل إعدادات النظام";
+                case "USER_LOGIN":
+                    return "تسجيل دخول مستخدم";
+                case "USER_LOGOUT":
+                    return "تسجيل خروج مستخدم";
+                case "LOGIN_FAILED":
+                    return "محاولة دخول خاطئة";
+                case "credit_limit_override":
+                    return "تجاوز حد الائتمان";
+                case "USER_CREATED":
+                    return "إضافة مستخدم جديد";
+                case "USER_UPDATED":
+                    return "تعديل بيانات مستخدم";
+                case "PIN_CHANGED":
+                    return "تغيير الرقم السري";
+                case "PERMISSIONS_UPDATED":
+                    return "تعديل مصفوفة الصلاحيات";
+                case "factory_reset":
+                    return "استعادة ضبط المصنع";
+                case "license_activate":
+                    return "تنشيط ترخيص البرنامج";
+                case "license_deactivate":
+                    return "إلغاء ترخيص البرنامج";
                 default:
                     return action;
             }

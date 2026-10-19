@@ -7,7 +7,7 @@ namespace RafiqPOS.Database
 {
     public static class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 31;
+        public const int LATEST_SUPPORTED_VERSION = 32;
 
         public static void ApplyMigrations(string connectionString, string dbPath)
         {
@@ -274,7 +274,35 @@ namespace RafiqPOS.Database
                     ApplyMigration31(conn);
                 }
 
-                // 35. Self-Healing Schema Guard: Automatically repair missing columns or indexes
+                // 35. Apply Migration 32: Shifts and Cash Drawer Management System (Story 8 / Cashier Shifts)
+                if (currentVersion < 32)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration32(conn);
+                }
+
+                // 36. Apply Migration 33: Petty Cash & Expense System Stabilization (Corporate Controller)
+                if (currentVersion < 33)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration33(conn);
+                }
+
+                // 37. Apply Migration 34: Purchase Bonuses, Item Discounts, and Purchase Returns System (Feature 38/39 Hardening)
+                if (currentVersion < 34)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration34(conn);
+                }
+
+                // 38. Apply Migration 35: Forensic Audit & Compliance Engine (Tamper-Proof Triggers & Query Optimization)
+                if (currentVersion < 35)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration35(conn);
+                }
+
+                // 39. Self-Healing Schema Guard: Automatically repair missing columns or indexes
                 EnsureSchemaHealth(conn);
             }
         }
@@ -924,6 +952,47 @@ namespace RafiqPOS.Database
                                 alter.ExecuteNonQuery();
                             }
                         }
+                        if (!siCols.Contains("batch_number"))
+                        {
+                            using (var alter = new SQLiteCommand("ALTER TABLE sale_items ADD COLUMN batch_number TEXT;", conn, trans))
+                            {
+                                alter.ExecuteNonQuery();
+                            }
+                        }
+                        if (!siCols.Contains("batch_id"))
+                        {
+                            using (var alter = new SQLiteCommand("ALTER TABLE sale_items ADD COLUMN batch_id TEXT;", conn, trans))
+                            {
+                                alter.ExecuteNonQuery();
+                            }
+                        }
+                        if (!siCols.Contains("expiry_date"))
+                        {
+                            using (var alter = new SQLiteCommand("ALTER TABLE sale_items ADD COLUMN expiry_date TEXT;", conn, trans))
+                            {
+                                alter.ExecuteNonQuery();
+                            }
+                        }
+                    }
+
+                    // Check stock_movements for expiry_date column
+                    using (var infoCmd = new SQLiteCommand("PRAGMA table_info(stock_movements);", conn, trans))
+                    {
+                        var smCols = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        using (var r = infoCmd.ExecuteReader())
+                        {
+                            while (r.Read())
+                            {
+                                smCols.Add(r["name"].ToString());
+                            }
+                        }
+                        if (!smCols.Contains("expiry_date"))
+                        {
+                            using (var alter = new SQLiteCommand("ALTER TABLE stock_movements ADD COLUMN expiry_date TEXT;", conn, trans))
+                            {
+                                alter.ExecuteNonQuery();
+                            }
+                        }
                     }
 
                     // 10. Health check for users table (Feature #166)
@@ -1069,6 +1138,39 @@ namespace RafiqPOS.Database
                                 {
                                     alter.ExecuteNonQuery();
                                 }
+                            }
+
+                            // Ensure high-speed filtering indexes on audit_logs
+                            using (var idxCmd = new SQLiteCommand(@"
+                                CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
+                                CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
+                                CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
+                                CREATE INDEX IF NOT EXISTS idx_audit_logs_action_created ON audit_logs(action, created_at);
+                            ", conn, trans))
+                            {
+                                idxCmd.ExecuteNonQuery();
+                            }
+
+                            // Ensure Tamper-Proof Triggers on audit_logs
+                            using (var trgCmd = new SQLiteCommand(@"
+                                CREATE TRIGGER IF NOT EXISTS trg_audit_logs_no_update
+                                BEFORE UPDATE ON audit_logs
+                                WHEN (SELECT value FROM app_settings WHERE key = 'allow_audit_reseal') IS NULL 
+                                  OR (SELECT value FROM app_settings WHERE key = 'allow_audit_reseal') != 'CONFIRM_RESEAL_AUTHORIZED'
+                                BEGIN
+                                    SELECT RAISE(ABORT, 'خطأ أمني: سجل التدقيق والرقابة محمي تماماً من التعديل (Audit logs are immutable).');
+                                END;
+
+                                CREATE TRIGGER IF NOT EXISTS trg_audit_logs_no_delete
+                                BEFORE DELETE ON audit_logs
+                                WHEN (SELECT value FROM app_settings WHERE key = 'allow_audit_reset') IS NULL 
+                                  OR (SELECT value FROM app_settings WHERE key = 'allow_audit_reset') != 'CONFIRM_PURGE_AUTHORIZED'
+                                BEGIN
+                                    SELECT RAISE(ABORT, 'خطأ أمني: سجل التدقيق والرقابة محمي تماماً من الحذف (Audit logs cannot be deleted).');
+                                END;
+                            ", conn, trans))
+                            {
+                                trgCmd.ExecuteNonQuery();
                             }
                         }
                     }
@@ -1330,6 +1432,79 @@ namespace RafiqPOS.Database
                         {
                             alter.ExecuteNonQuery();
                         }
+                    }
+
+                    if (suppTxCols.Count > 0 && !suppTxCols.Contains("balance_after_piasters"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE supplier_transactions ADD COLUMN balance_after_piasters INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    // Ensure bonus_quantity_milli and discount_piasters exist on purchase_items
+                    var piCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    using (var pragmaCmd = new SQLiteCommand("PRAGMA table_info(purchase_items);", conn, trans))
+                    using (var reader = pragmaCmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            piCols.Add(reader["name"].ToString());
+                        }
+                    }
+                    if (piCols.Count > 0 && !piCols.Contains("bonus_quantity_milli"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE purchase_items ADD COLUMN bonus_quantity_milli INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (piCols.Count > 0 && !piCols.Contains("discount_piasters"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE purchase_items ADD COLUMN discount_piasters INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    // Ensure purchase_returns & purchase_return_items tables exist
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS purchase_returns (
+                            id TEXT PRIMARY KEY,
+                            return_number INTEGER NOT NULL,
+                            supplier_id TEXT NOT NULL,
+                            purchase_id TEXT,
+                            return_date TEXT NOT NULL,
+                            total_cost_piasters INTEGER NOT NULL,
+                            refund_method TEXT NOT NULL DEFAULT 'BALANCE_DEDUCTION',
+                            notes TEXT,
+                            created_by_user_id TEXT,
+                            created_at TEXT NOT NULL,
+                            FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_purchase_returns_supplier ON purchase_returns(supplier_id);
+
+                        CREATE TABLE IF NOT EXISTS purchase_return_items (
+                            id TEXT PRIMARY KEY,
+                            return_id TEXT NOT NULL,
+                            product_id TEXT NOT NULL,
+                            product_name TEXT NOT NULL,
+                            quantity_milli INTEGER NOT NULL,
+                            unit_cost_piasters INTEGER NOT NULL,
+                            total_cost_piasters INTEGER NOT NULL,
+                            batch_number TEXT,
+                            reason TEXT,
+                            created_at TEXT NOT NULL,
+                            FOREIGN KEY (return_id) REFERENCES purchase_returns(id) ON DELETE CASCADE,
+                            FOREIGN KEY (product_id) REFERENCES products(id)
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_purchase_return_items_return ON purchase_return_items(return_id);
+
+                        INSERT OR IGNORE INTO counters (name, current_value, updated_at)
+                        VALUES ('purchase_return', 0, datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
                     }
 
                     trans.Commit();
@@ -3285,10 +3460,15 @@ namespace RafiqPOS.Database
                             product_name TEXT NOT NULL,
                             barcode TEXT,
                             quantity_milli INTEGER NOT NULL,
+                            bonus_quantity_milli INTEGER NOT NULL DEFAULT 0,
                             unit_cost_piasters INTEGER NOT NULL,
+                            discount_piasters INTEGER NOT NULL DEFAULT 0,
                             total_cost_piasters INTEGER NOT NULL,
                             previous_cost_piasters INTEGER NOT NULL DEFAULT 0,
                             new_selling_price_piasters INTEGER,
+                            batch_number TEXT,
+                            expiry_date TEXT,
+                            production_date TEXT,
                             created_at TEXT NOT NULL,
                             FOREIGN KEY (purchase_id) REFERENCES purchases(id) ON DELETE CASCADE,
                             FOREIGN KEY (product_id) REFERENCES products(id)
@@ -3308,6 +3488,8 @@ namespace RafiqPOS.Database
                             transaction_type TEXT NOT NULL,
                             reference_id TEXT,
                             amount_piasters INTEGER NOT NULL,
+                            payment_source TEXT NOT NULL DEFAULT 'cash_drawer',
+                            balance_after_piasters INTEGER NOT NULL DEFAULT 0,
                             notes TEXT,
                             created_at TEXT NOT NULL,
                             FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE
@@ -3540,6 +3722,49 @@ namespace RafiqPOS.Database
                     if (!existingSmCols.Contains("batch_id"))
                     {
                         using (var alter = new SQLiteCommand("ALTER TABLE stock_movements ADD COLUMN batch_id TEXT;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    if (!existingSmCols.Contains("expiry_date"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE stock_movements ADD COLUMN expiry_date TEXT;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    // 4. Add batch columns to sale_items if missing
+                    var existingSiCols = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    using (var infoCmd = new SQLiteCommand("PRAGMA table_info(sale_items);", conn, trans))
+                    using (var reader = infoCmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            existingSiCols.Add(reader["name"].ToString());
+                        }
+                    }
+
+                    if (!existingSiCols.Contains("batch_number"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE sale_items ADD COLUMN batch_number TEXT;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    if (!existingSiCols.Contains("batch_id"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE sale_items ADD COLUMN batch_id TEXT;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    if (!existingSiCols.Contains("expiry_date"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE sale_items ADD COLUMN expiry_date TEXT;", conn, trans))
                         {
                             alter.ExecuteNonQuery();
                         }
@@ -3945,6 +4170,477 @@ namespace RafiqPOS.Database
                     }
                 }
             }
+
+        private static void ApplyMigration32(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // 1. Table: shifts
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS shifts (
+                            id TEXT PRIMARY KEY,
+                            shift_number INTEGER NOT NULL,
+                            cashier_id TEXT NOT NULL,
+                            cashier_name TEXT NOT NULL,
+                            pos_register_id TEXT NOT NULL DEFAULT 'default_pos',
+                            business_date TEXT NOT NULL,
+                            opened_at TEXT NOT NULL,
+                            closed_at TEXT,
+                            status TEXT NOT NULL DEFAULT 'open',
+                            opening_float_piasters INTEGER NOT NULL DEFAULT 0,
+                            cash_sales_piasters INTEGER NOT NULL DEFAULT 0,
+                            card_sales_piasters INTEGER NOT NULL DEFAULT 0,
+                            instapay_sales_piasters INTEGER NOT NULL DEFAULT 0,
+                            vodafone_cash_sales_piasters INTEGER NOT NULL DEFAULT 0,
+                            credit_sales_piasters INTEGER NOT NULL DEFAULT 0,
+                            returns_cash_piasters INTEGER NOT NULL DEFAULT 0,
+                            debt_payments_cash_piasters INTEGER NOT NULL DEFAULT 0,
+                            expenses_cash_piasters INTEGER NOT NULL DEFAULT 0,
+                            cash_in_piasters INTEGER NOT NULL DEFAULT 0,
+                            cash_out_piasters INTEGER NOT NULL DEFAULT 0,
+                            epay_cash_piasters INTEGER NOT NULL DEFAULT 0,
+                            wallets_cash_piasters INTEGER NOT NULL DEFAULT 0,
+                            purchases_cash_piasters INTEGER NOT NULL DEFAULT 0,
+                            supplier_payments_cash_piasters INTEGER NOT NULL DEFAULT 0,
+                            expected_cash_piasters INTEGER NOT NULL DEFAULT 0,
+                            actual_cash_piasters INTEGER NOT NULL DEFAULT 0,
+                            difference_piasters INTEGER NOT NULL DEFAULT 0,
+                            invoices_count INTEGER NOT NULL DEFAULT 0,
+                            notes TEXT,
+                            created_at TEXT NOT NULL,
+                            updated_at TEXT NOT NULL
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_shifts_bdate ON shifts(business_date);
+                        CREATE INDEX IF NOT EXISTS idx_shifts_cashier ON shifts(cashier_id);
+                        CREATE INDEX IF NOT EXISTS idx_shifts_status ON shifts(status);
+                        CREATE UNIQUE INDEX IF NOT EXISTS idx_shifts_open_register ON shifts(pos_register_id) WHERE status = 'open';
+
+                        CREATE TRIGGER IF NOT EXISTS trg_prevent_closed_shift_update
+                        BEFORE UPDATE ON shifts
+                        WHEN OLD.status = 'closed'
+                        BEGIN
+                            SELECT RAISE(ABORT, 'لا يمكن تعديل سجل الوردية بعد إغلاقها');
+                        END;
+
+                        CREATE TRIGGER IF NOT EXISTS trg_prevent_shift_delete
+                        BEFORE DELETE ON shifts
+                        BEGIN
+                            SELECT RAISE(ABORT, 'لا يمكن حذف سجلات الورديات نهائياً');
+                        END;
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 2. Table: cash_drawer_transactions
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS cash_drawer_transactions (
+                            id TEXT PRIMARY KEY,
+                            shift_id TEXT NOT NULL REFERENCES shifts(id),
+                            type TEXT NOT NULL,
+                            amount_piasters INTEGER NOT NULL,
+                            reason TEXT NOT NULL,
+                            performed_by_id TEXT NOT NULL,
+                            performed_by_name TEXT NOT NULL,
+                            created_at TEXT NOT NULL
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_drawer_tx_shift ON cash_drawer_transactions(shift_id);
+                        CREATE INDEX IF NOT EXISTS idx_drawer_tx_created ON cash_drawer_transactions(created_at);
+
+                        CREATE TRIGGER IF NOT EXISTS trg_prevent_drawer_tx_update
+                        BEFORE UPDATE ON cash_drawer_transactions
+                        BEGIN
+                            SELECT RAISE(ABORT, 'لا يمكن تعديل حركة نقدية في الدرج بعد تسجيلها');
+                        END;
+
+                        CREATE TRIGGER IF NOT EXISTS trg_prevent_drawer_tx_delete
+                        BEFORE DELETE ON cash_drawer_transactions
+                        BEGIN
+                            SELECT RAISE(ABORT, 'لا يمكن حذف حركة نقدية من الدرج');
+                        END;
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 3. Add shift_id to sales and expenses
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand("ALTER TABLE sales ADD COLUMN shift_id TEXT;", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS expenses (
+                            id TEXT PRIMARY KEY,
+                            expense_number INTEGER NOT NULL DEFAULT 0,
+                            amount_piasters INTEGER NOT NULL,
+                            category TEXT NOT NULL DEFAULT 'عام',
+                            notes TEXT,
+                            created_by TEXT,
+                            business_date TEXT NOT NULL,
+                            created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                            shift_id TEXT
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_expenses_bdate ON expenses(business_date);
+                        CREATE INDEX IF NOT EXISTS idx_expenses_created_at ON expenses(created_at);
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand("ALTER TABLE expenses ADD COLUMN shift_id TEXT;", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE INDEX IF NOT EXISTS idx_sales_shift_id ON sales(shift_id);
+                        CREATE INDEX IF NOT EXISTS idx_expenses_shift_id ON expenses(shift_id);
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 4. Counter for shift_number
+                    using (var cmd = new SQLiteCommand(@"
+                        INSERT OR IGNORE INTO counters (name, current_value, updated_at)
+                        VALUES ('shift_number', 0, datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 5. Update schema_migrations
+                    using (var cmd = new SQLiteCommand(@"
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (32, 'Shifts and Cash Drawer Management System (Story 8 / Cashier Shifts)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Migration 33: Petty Cash & Expenses System Stabilization (Corporate Controller)
+        // -------------------------------------------------------------
+        private static void ApplyMigration33(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                        // 1. Add source column to expenses
+                        try
+                        {
+                            using (var cmd = new SQLiteCommand("ALTER TABLE expenses ADD COLUMN source TEXT NOT NULL DEFAULT 'drawer';", conn, trans))
+                            {
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+                        catch { }
+
+                        // 2. Add is_cancelled column
+                        try
+                        {
+                            using (var cmd = new SQLiteCommand("ALTER TABLE expenses ADD COLUMN is_cancelled INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                            {
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+                        catch { }
+
+                        // 3. Add cancelled_at column
+                        try
+                        {
+                            using (var cmd = new SQLiteCommand("ALTER TABLE expenses ADD COLUMN cancelled_at TEXT;", conn, trans))
+                            {
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+                        catch { }
+
+                        // 4. Add cancelled_by column
+                        try
+                        {
+                            using (var cmd = new SQLiteCommand("ALTER TABLE expenses ADD COLUMN cancelled_by TEXT;", conn, trans))
+                            {
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+                        catch { }
+
+                        // 5. Add cancel_reason column
+                        try
+                        {
+                            using (var cmd = new SQLiteCommand("ALTER TABLE expenses ADD COLUMN cancel_reason TEXT;", conn, trans))
+                            {
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+                        catch { }
+
+                        // 6. Add updated_at column
+                        try
+                        {
+                            using (var cmd = new SQLiteCommand("ALTER TABLE expenses ADD COLUMN updated_at TEXT;", conn, trans))
+                            {
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+                        catch { }
+
+                        // 7. Indexes for expenses
+                        using (var cmd = new SQLiteCommand(@"
+                            CREATE INDEX IF NOT EXISTS idx_expenses_source ON expenses(source);
+                            CREATE INDEX IF NOT EXISTS idx_expenses_cancelled ON expenses(is_cancelled);
+                        ", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+
+                        // 8. Expense Categories Table
+                        using (var cmd = new SQLiteCommand(@"
+                            CREATE TABLE IF NOT EXISTS expense_categories (
+                                id TEXT PRIMARY KEY,
+                                name TEXT UNIQUE NOT NULL,
+                                description TEXT,
+                                is_predefined INTEGER NOT NULL DEFAULT 0,
+                                created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+                            );
+                            CREATE INDEX IF NOT EXISTS idx_expense_categories_name ON expense_categories(name);
+                        ", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+
+                        // 9. Predefined Categories
+                        string[] defaultCats = new string[] {
+                            "بوفيه وضيافة",
+                            "مرافق وفواتير",
+                            "نظافة ومستهلكات",
+                            "صيانة وتشغيل",
+                            "انتقالات ومشاوير",
+                            "إيجار ورواتب",
+                            "دعاية وتسويق",
+                            "نثريات عامة"
+                        };
+
+                        foreach (string cat in defaultCats)
+                        {
+                            using (var cmd = new SQLiteCommand(@"
+                                INSERT OR IGNORE INTO expense_categories (id, name, is_predefined)
+                                VALUES (@id, @name, 1);
+                            ", conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@id", "exp_cat_" + Guid.NewGuid().ToString("N"));
+                                cmd.Parameters.AddWithValue("@name", cat);
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+
+                        // 10. Update schema_migrations
+                        using (var cmd = new SQLiteCommand(@"
+                            INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                            VALUES (33, 'Petty Cash and Expense System Stabilization', datetime('now'));
+                        ", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+
+                        trans.Commit();
+                    }
+                    catch
+                    {
+                        trans.Rollback();
+                        throw;
+                    }
+                }
+        }
+
+        // -------------------------------------------------------------
+        // Migration 34: Purchase Bonuses, Item Discounts, and Purchase Returns System (Corporate Controller)
+        // -------------------------------------------------------------
+        private static void ApplyMigration34(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // 1. Ensure bonus_quantity_milli and discount_piasters on purchase_items
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand("ALTER TABLE purchase_items ADD COLUMN bonus_quantity_milli INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand("ALTER TABLE purchase_items ADD COLUMN discount_piasters INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    // 2. Ensure balance_after_piasters on supplier_transactions
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand("ALTER TABLE supplier_transactions ADD COLUMN balance_after_piasters INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    // 3. Create purchase_returns and purchase_return_items tables
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS purchase_returns (
+                            id TEXT PRIMARY KEY,
+                            return_number INTEGER NOT NULL,
+                            supplier_id TEXT NOT NULL,
+                            purchase_id TEXT,
+                            return_date TEXT NOT NULL,
+                            total_cost_piasters INTEGER NOT NULL,
+                            refund_method TEXT NOT NULL DEFAULT 'BALANCE_DEDUCTION',
+                            notes TEXT,
+                            created_by_user_id TEXT,
+                            created_at TEXT NOT NULL,
+                            FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_purchase_returns_supplier ON purchase_returns(supplier_id);
+
+                        CREATE TABLE IF NOT EXISTS purchase_return_items (
+                            id TEXT PRIMARY KEY,
+                            return_id TEXT NOT NULL,
+                            product_id TEXT NOT NULL,
+                            product_name TEXT NOT NULL,
+                            quantity_milli INTEGER NOT NULL,
+                            unit_cost_piasters INTEGER NOT NULL,
+                            total_cost_piasters INTEGER NOT NULL,
+                            batch_number TEXT,
+                            reason TEXT,
+                            created_at TEXT NOT NULL,
+                            FOREIGN KEY (return_id) REFERENCES purchase_returns(id) ON DELETE CASCADE,
+                            FOREIGN KEY (product_id) REFERENCES products(id)
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_purchase_return_items_return ON purchase_return_items(return_id);
+
+                        INSERT OR IGNORE INTO counters (name, current_value, updated_at)
+                        VALUES ('purchase_return', 0, datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 4. Update schema_migrations
+                    using (var cmd = new SQLiteCommand(@"
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (34, 'Purchase Bonuses, Item Discounts, and Purchase Returns System (Feature 38/39 Hardening)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Migration 35: Forensic Audit & Compliance Engine (Tamper-Proof Triggers & Query Optimization)
+        // -------------------------------------------------------------
+        private static void ApplyMigration35(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // 1. Create specialized indexes for high-speed retrieval and multi-dimensional filtering
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
+                        CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
+                        CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
+                        CREATE INDEX IF NOT EXISTS idx_audit_logs_action_created ON audit_logs(action, created_at);
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 2. Tamper-Proof Trigger: Prevent unauthorized UPDATE on audit_logs
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TRIGGER IF NOT EXISTS trg_audit_logs_no_update
+                        BEFORE UPDATE ON audit_logs
+                        WHEN (SELECT value FROM app_settings WHERE key = 'allow_audit_reseal') IS NULL 
+                          OR (SELECT value FROM app_settings WHERE key = 'allow_audit_reseal') != 'CONFIRM_RESEAL_AUTHORIZED'
+                        BEGIN
+                            SELECT RAISE(ABORT, 'خطأ أمني: سجل التدقيق والرقابة محمي تماماً من التعديل (Audit logs are immutable).');
+                        END;
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 3. Tamper-Proof Trigger: Prevent unauthorized DELETE on audit_logs
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TRIGGER IF NOT EXISTS trg_audit_logs_no_delete
+                        BEFORE DELETE ON audit_logs
+                        WHEN (SELECT value FROM app_settings WHERE key = 'allow_audit_reset') IS NULL 
+                          OR (SELECT value FROM app_settings WHERE key = 'allow_audit_reset') != 'CONFIRM_PURGE_AUTHORIZED'
+                        BEGIN
+                            SELECT RAISE(ABORT, 'خطأ أمني: سجل التدقيق والرقابة محمي تماماً من الحذف (Audit logs cannot be deleted).');
+                        END;
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 4. Update schema_migrations
+                    using (var cmd = new SQLiteCommand(@"
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (35, 'Forensic Audit & Compliance Engine (Tamper-Proof Triggers & Query Optimization)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
 
         public static string ComputeAuditHash(string prevHash, string id, string userId, string action, string entityType, string entityId, string detailsJson, string createdAt)
         {

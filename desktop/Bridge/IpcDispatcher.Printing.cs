@@ -54,13 +54,17 @@ namespace RafiqPOS.Bridge
                 case "printer:testLabel":
                     string testLabelPrinter = null;
                     string testPaperSize = "38x25";
+                    int testCustomW = 0;
+                    int testCustomH = 0;
                     JObject testLabelPayload = request.Payload as JObject;
                     if (testLabelPayload != null)
                     {
                         if (testLabelPayload["printerName"] != null) testLabelPrinter = testLabelPayload["printerName"].ToString();
                         if (testLabelPayload["paperSize"] != null) testPaperSize = testLabelPayload["paperSize"].ToString();
+                        if (testLabelPayload["customWidthMm"] != null) int.TryParse(testLabelPayload["customWidthMm"].ToString(), out testCustomW);
+                        if (testLabelPayload["customHeightMm"] != null) int.TryParse(testLabelPayload["customHeightMm"].ToString(), out testCustomH);
                     }
-                    var testLabelRes = DatabaseService.BarcodeLabels.PrintTestLabel(testLabelPrinter, testPaperSize);
+                    var testLabelRes = DatabaseService.BarcodeLabels.PrintTestLabel(testLabelPrinter, testPaperSize, testCustomW, testCustomH);
                     if (testLabelRes.Success)
                     {
                         response = BridgeResponse.Ok(request.Id, testLabelRes);
@@ -109,6 +113,28 @@ namespace RafiqPOS.Bridge
 
                     var printReceiptResult = DatabaseService.Printer.PrintSaleReceipt(saleToPrint, pPrinter, pWidth, pDrawer, pIsCopy);
                     response = BridgeResponse.Ok(request.Id, printReceiptResult);
+                    return true;
+
+                case "printer:kickDrawer":
+                    string kickPrinter = null;
+                    JObject kdPayload = request.Payload as JObject;
+                    if (kdPayload != null && kdPayload["printerName"] != null)
+                    {
+                        kickPrinter = kdPayload["printerName"].ToString();
+                    }
+                    var kickRes = DatabaseService.Printer.KickDrawer(kickPrinter);
+                    response = BridgeResponse.Ok(request.Id, kickRes);
+                    return true;
+
+                case "printer:cutPaper":
+                    string cutPrinter = null;
+                    JObject cpPayload = request.Payload as JObject;
+                    if (cpPayload != null && cpPayload["printerName"] != null)
+                    {
+                        cutPrinter = cpPayload["printerName"].ToString();
+                    }
+                    var cutRes = DatabaseService.Printer.CutPaper(cutPrinter);
+                    response = BridgeResponse.Ok(request.Id, cutRes);
                     return true;
 
                 default:

@@ -415,7 +415,18 @@ namespace RafiqPOS.Services
                 }
             }
 
-            // Invariant: Cash refunds disburse physical money from drawer; check closed day & drawer cash sufficiency
+            // Closed Day Validation & Post-Closing Freeze
+            var closingSvc = _dailyClosingService ?? DatabaseService.DailyClosing;
+            if (closingSvc != null)
+            {
+                string currentBDate = closingSvc.GetCurrentBusinessDate();
+                if (closingSvc.IsDayClosed(currentBDate))
+                {
+                    throw new InvalidOperationException(string.Format("لا يمكن تسجيل أي عملية مرتجع لتاريخ عمل تم إقفاله وتشميعه مسبقاً ({0}).", currentBDate));
+                }
+            }
+
+            // Invariant: Cash refunds disburse physical money from drawer; check drawer cash sufficiency
             if (string.Equals(returnObj.RefundMethod, "cash", StringComparison.OrdinalIgnoreCase))
             {
                 long totalCashToRefund = 0;
@@ -424,14 +435,9 @@ namespace RafiqPOS.Services
                     totalCashToRefund += returnObj.Items[rItemIdx].TotalPiasters;
                 }
 
-                var closingSvc = _dailyClosingService ?? DatabaseService.DailyClosing;
                 if (closingSvc != null)
                 {
                     string currentBDate = closingSvc.GetCurrentBusinessDate();
-                    if (closingSvc.IsDayClosed(currentBDate))
-                    {
-                        throw new InvalidOperationException(string.Format("لا يمكن عمل مرتجع نقدي لتاريخ عمل تم إقفاله وتشميعه مسبقاً ({0}).", currentBDate));
-                    }
 
                     var liveBal = closingSvc.GetLiveDrawerBalance(currentBDate);
                     if (liveBal != null && liveBal.AvailableCashPiasters < totalCashToRefund)

@@ -86,6 +86,21 @@ namespace RafiqPOS.Models
             }
         }
 
+        [JsonProperty("isExpired")]
+        public bool IsExpired
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(ExpiryDate)) return false;
+                DateTime exp;
+                if (DateTime.TryParse(ExpiryDate, out exp))
+                {
+                    return exp.Date < DateTime.UtcNow.Date;
+                }
+                return false;
+            }
+        }
+
         [JsonProperty("totalValuePiasters")]
         public long TotalValuePiasters
         {
@@ -127,5 +142,6 @@ namespace RafiqPOS.Models
         public string ExpiryDate { get; set; }
         public long DeductedQuantityMilli { get; set; }
         public long RemainingQuantityMilli { get; set; }
+        public long CostPricePiasters { get; set; }
     }
 }

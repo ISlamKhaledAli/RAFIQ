@@ -114,6 +114,9 @@ namespace RafiqPOS.Services
         public static BarcodeLabelService BarcodeLabels { get; private set; }
         public static AppUpdateService Updates { get; private set; }
         public static DigitalAccountRepository DigitalAccounts { get; private set; }
+        public static ShiftRepository ShiftRepo { get; private set; }
+        public static ShiftService Shifts { get; private set; }
+        public static CashDrawerService CashDrawer { get; private set; }
 
         public static void Initialize(string customBaseFolder = null)
         {
@@ -180,7 +183,7 @@ namespace RafiqPOS.Services
             ProductVariants = new ProductVariantService(_connectionString);
             Sales = new SaleService(SaleRepo, ProductRepo, QuickItemRepo);
             Inventory = new InventoryService(_connectionString, StockMovementRepo, ProductRepo, AuditRepo);
-            Settings = new SettingsService(SettingsRepo);
+            Settings = new SettingsService(SettingsRepo, AuditRepo);
             Customers = new CustomerService(CustomerRepo);
             Categories = new CategoryService(CategoryRepo);
             QuickItems = new QuickItemService(QuickItemRepo);
@@ -216,6 +219,10 @@ namespace RafiqPOS.Services
             Updates = new AppUpdateService(SettingsRepo, Backup, Audit);
             BarcodeLabels = new BarcodeLabelService(Settings, Printer);
             DigitalAccounts = new DigitalAccountRepository(_connectionString, AuditRepo);
+
+            ShiftRepo = new ShiftRepository(_connectionString);
+            Shifts = new ShiftService(_connectionString, ShiftRepo, CounterRepo, AuditRepo, DailyClosing);
+            CashDrawer = new CashDrawerService(_connectionString, ShiftRepo, Shifts, AuditRepo);
 
             // Cleanup old held sales (> 7 days) on startup (Task 25-4)
             try
@@ -630,10 +637,20 @@ namespace RafiqPOS.Services
                             cmd.ExecuteNonQuery();
                         }
 
-                        // 5. Reset audit logs with genesis reset entry
+                        // 5. Reset audit logs with genesis reset entry (temporarily authorized to bypass tamper trigger)
+                        using (var authCmd = new System.Data.SQLite.SQLiteCommand("INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES ('allow_audit_reset', 'CONFIRM_PURGE_AUTHORIZED', datetime('now'));", conn, trans))
+                        {
+                            authCmd.ExecuteNonQuery();
+                        }
+
                         using (var cmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM audit_logs;", conn, trans))
                         {
                             cmd.ExecuteNonQuery();
+                        }
+
+                        using (var cleanCmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM app_settings WHERE key = 'allow_audit_reset';", conn, trans))
+                        {
+                            cleanCmd.ExecuteNonQuery();
                         }
 
                         string genesisHash = "GENESIS_RAFIQ_AUDIT_V1";

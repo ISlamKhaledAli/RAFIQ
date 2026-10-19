@@ -25,6 +25,10 @@ namespace RafiqPOS.Services
         public bool PurchaseVariantsAndLedgerPassed { get; set; }
         public bool DirectParentPurchaseGuardPassed { get; set; }
         public bool SaleAndReturnRollupPassed { get; set; }
+        public bool BarcodeCollisionPassed { get; set; }
+        public bool DeletionGuardWithSalesPassed { get; set; }
+        public bool UntouchedVariantDeletionPassed { get; set; }
+        public bool PriceHistoryTrackingPassed { get; set; }
     }
 
     public class ProductVariantTestRunner
@@ -34,7 +38,7 @@ namespace RafiqPOS.Services
             var result = new VariantTestResult
             {
                 Success = false,
-                TotalAssertions = 11,
+                TotalAssertions = 15,
                 PassedAssertions = 0
             };
 
@@ -504,6 +508,178 @@ namespace RafiqPOS.Services
                 {
                     result.Message = string.Format("Test 11 Failed: Sale/Return sync failure. SaleDedOk={0}, ParentBlocked={1}, RetRestOk={2}",
                         saleDeductionOk, parentSaleBlocked, returnRestorationOk);
+                    return result;
+                }
+
+                // ========================================================
+                // Test 12: Barcode Collision Prevention
+                // ========================================================
+                var stdProd = new Product
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Name = "منتج عادي لفحص التصادم",
+                    Barcode = "6221000999999",
+                    PricePiasters = 5000,
+                    CostPiasters = 3000,
+                    Unit = "piece",
+                    StockQuantityMilli = 10000,
+                    IsActive = true
+                };
+                prodRepo.Upsert(stdProd);
+
+                bool collisionBlocked = false;
+                try
+                {
+                    variantRepo.CreateMatrix(new CreateVariantMatrixRequest
+                    {
+                        ParentName = "منتج مصفوفة متصادم",
+                        Sizes = new List<string> { "Standard" },
+                        Colors = new List<string> { "Standard" },
+                        MatrixCells = new List<VariantMatrixCell>
+                        {
+                            new VariantMatrixCell
+                            {
+                                Size = "Standard",
+                                Color = "Standard",
+                                Barcode = "6221000999999", // Collides with stdProd!
+                                PricePiasters = 5000,
+                                CostPiasters = 3000,
+                                IsEnabled = true
+                            }
+                        }
+                    });
+                }
+                catch (InvalidOperationException)
+                {
+                    collisionBlocked = true;
+                }
+
+                if (collisionBlocked)
+                {
+                    result.BarcodeCollisionPassed = true;
+                    result.PassedAssertions++;
+                }
+                else
+                {
+                    result.Message = "Test 12 Failed: Duplicate barcode with existing product was not rejected!";
+                    return result;
+                }
+
+                // ========================================================
+                // Test 13: Variant Deletion Guard (Block deletion if prior sales exist)
+                // ========================================================
+                bool deleteSaleBlocked = false;
+                try
+                {
+                    variantRepo.DeleteVariant(lNavyVar.VariantProductId);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    if (ex.Message != null && ex.Message.Contains("فواتير مبيعات"))
+                    {
+                        deleteSaleBlocked = true;
+                    }
+                }
+
+                if (deleteSaleBlocked)
+                {
+                    result.DeletionGuardWithSalesPassed = true;
+                    result.PassedAssertions++;
+                }
+                else
+                {
+                    result.Message = "Test 13 Failed: Deleting variant with prior sales was not blocked!";
+                    return result;
+                }
+
+                // ========================================================
+                // Test 14: Clean Deletion of Untouched Variant & Recalculate Parent Stock
+                // ========================================================
+                var test1Vars = variantRepo.GetVariantsByParentId(parentId);
+                var untouchedVar = test1Vars[0];
+                long parentStockBefore = prodRepo.GetById(parentId).StockQuantityMilli;
+
+                variantRepo.DeleteVariant(untouchedVar.VariantProductId);
+
+                var test1VarsAfter = variantRepo.GetVariantsByParentId(parentId);
+                var parentAfterDelete = prodRepo.GetById(parentId);
+                var deletedProd = prodRepo.GetById(untouchedVar.VariantProductId);
+
+                bool variantRemoved = test1VarsAfter.Count == 5;
+                bool childDeactivated = (deletedProd == null || !deletedProd.IsActive);
+                bool parentStockAdjusted = (parentAfterDelete.StockQuantityMilli == (parentStockBefore - untouchedVar.StockQuantityMilli));
+
+                if (variantRemoved && childDeactivated && parentStockAdjusted)
+                {
+                    result.UntouchedVariantDeletionPassed = true;
+                    result.PassedAssertions++;
+                }
+                else
+                {
+                    result.Message = string.Format("Test 14 Failed: Clean deletion mismatch. Removed={0}, Deactivated={1}, ParentStockAdj={2}",
+                        variantRemoved, childDeactivated, parentStockAdjusted);
+                    return result;
+                }
+
+                // ========================================================
+                // Test 15: Price History Tracking on Matrix Price Updates
+                // ========================================================
+                var varToUpdate = test1VarsAfter[0];
+                var updateCells = new List<VariantMatrixCell>();
+                foreach (var v in test1VarsAfter)
+                {
+                    updateCells.Add(new VariantMatrixCell
+                    {
+                        Size = v.Size,
+                        Color = v.Color,
+                        Barcode = v.Barcode,
+                        PricePiasters = (v.VariantProductId == varToUpdate.VariantProductId) ? 18000 : v.PricePiasters,
+                        CostPiasters = v.CostPiasters,
+                        StockQuantityMilli = v.StockQuantityMilli,
+                        MinStockQuantityMilli = v.MinStockQuantityMilli,
+                        IsEnabled = true
+                    });
+                }
+
+                variantRepo.CreateMatrix(new CreateVariantMatrixRequest
+                {
+                    ParentProductId = parentId,
+                    ParentName = "قميص كاجوال رجالي فاخر",
+                    Sizes = new List<string>(sizes),
+                    Colors = new List<string>(colors),
+                    MatrixCells = updateCells
+                });
+
+                bool priceHistoryRecorded = false;
+                using (var conn = new SQLiteConnection(connStr))
+                {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand("SELECT old_price_piasters, new_price_piasters FROM product_price_history WHERE product_id = @pid ORDER BY change_date DESC LIMIT 1;", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@pid", varToUpdate.VariantProductId);
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                long oldPrice = Convert.ToInt64(reader["old_price_piasters"]);
+                                long newPrice = Convert.ToInt64(reader["new_price_piasters"]);
+                                if (oldPrice == 15000 && newPrice == 18000)
+                                {
+                                    priceHistoryRecorded = true;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (priceHistoryRecorded)
+                {
+                    result.PriceHistoryTrackingPassed = true;
+                    result.PassedAssertions++;
+                }
+                else
+                {
+                    result.Message = "Test 15 Failed: Price history record not found or prices mismatch for updated variant.";
                     return result;
                 }
 

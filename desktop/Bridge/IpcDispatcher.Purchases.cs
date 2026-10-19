@@ -89,6 +89,74 @@ namespace RafiqPOS.Bridge
                         response = BridgeResponse.Fail(request.Id, "PURCHASE_FAILED", ex.Message);
                     }
                     return true;
+
+                case "purchases:createReturn":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات مرتجع الشراء فارغة");
+                        return true;
+                    }
+                    try
+                    {
+                        PurchaseReturn returnToCreate = null;
+                        string retUserId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : null;
+
+                        JObject payloadObj = request.Payload as JObject;
+                        if (payloadObj != null && payloadObj["returnDoc"] != null)
+                        {
+                            returnToCreate = payloadObj["returnDoc"].ToObject<PurchaseReturn>();
+                            if (payloadObj["userId"] != null)
+                            {
+                                retUserId = payloadObj["userId"].ToString();
+                            }
+                        }
+                        else
+                        {
+                            returnToCreate = JsonConvert.DeserializeObject<PurchaseReturn>(request.Payload.ToString());
+                        }
+
+                        var createdReturn = DatabaseService.Purchases.CreatePurchaseReturn(returnToCreate, retUserId);
+                        response = BridgeResponse.Ok(request.Id, createdReturn);
+                    }
+                    catch (Exception ex)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "PURCHASE_RETURN_FAILED", ex.Message);
+                    }
+                    return true;
+
+                case "purchases:getReturns":
+                    string retSupplierId = null;
+                    int retLimit = 50;
+
+                    JObject getRetObj = request.Payload as JObject;
+                    if (getRetObj != null)
+                    {
+                        if (getRetObj["supplierId"] != null) retSupplierId = getRetObj["supplierId"].ToString();
+                        if (getRetObj["limit"] != null) retLimit = getRetObj["limit"].Value<int>();
+                    }
+
+                    var returns = DatabaseService.Purchases.GetReturns(retSupplierId, retLimit);
+                    response = BridgeResponse.Ok(request.Id, returns);
+                    return true;
+
+                case "purchases:getReturnById":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "معرف مرتجع الشراء مفقود");
+                        return true;
+                    }
+                    JObject getRetByIdObj = request.Payload as JObject;
+                    string returnId = getRetByIdObj != null && getRetByIdObj["id"] != null ? getRetByIdObj["id"].ToString() : request.Payload.ToString();
+                    var returnDoc = DatabaseService.Purchases.GetReturnById(returnId);
+                    if (returnDoc == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "NOT_FOUND", "مرتجع الشراء غير موجود");
+                    }
+                    else
+                    {
+                        response = BridgeResponse.Ok(request.Id, returnDoc);
+                    }
+                    return true;
             }
 
             return false;

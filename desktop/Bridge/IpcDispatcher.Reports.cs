@@ -348,15 +348,23 @@ namespace RafiqPOS.Bridge
 
                 case "audit:list":
                 case "audit:getLogs":
-                    int auditLimit = 100;
+                    int auditLimit = 150;
                     string auditAction = null;
+                    string auditUserId = null;
+                    string auditStartDate = null;
+                    string auditEndDate = null;
+                    string auditSearch = null;
                     JObject auditObj = request.Payload as JObject;
                     if (auditObj != null)
                     {
                         if (auditObj["limit"] != null) auditLimit = auditObj["limit"].Value<int>();
                         if (auditObj["action"] != null) auditAction = auditObj["action"].ToString();
+                        if (auditObj["userId"] != null) auditUserId = auditObj["userId"].ToString();
+                        if (auditObj["startDate"] != null) auditStartDate = auditObj["startDate"].ToString();
+                        if (auditObj["endDate"] != null) auditEndDate = auditObj["endDate"].ToString();
+                        if (auditObj["search"] != null) auditSearch = auditObj["search"].ToString();
                     }
-                    var logs = DatabaseService.Audit.GetLogs(auditLimit, auditAction);
+                    var logs = DatabaseService.Audit.GetLogs(auditLimit, auditAction, auditUserId, auditStartDate, auditEndDate, auditSearch);
                     response = BridgeResponse.Ok(request.Id, logs);
                     return true;
 
@@ -421,6 +429,73 @@ namespace RafiqPOS.Bridge
                     }
                     var recentExpenses = DatabaseService.Expenses.GetRecentExpenses(expLimit);
                     response = BridgeResponse.Ok(request.Id, recentExpenses);
+                    return true;
+
+                case "expenses:cancel":
+                case "expenses:delete":
+                    JObject cancelPayload = request.Payload as JObject;
+                    if (cancelPayload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات طلب إلغاء المصروف فارغة");
+                        return true;
+                    }
+                    CancelExpenseRequest cancelReq = cancelPayload.ToObject<CancelExpenseRequest>();
+                    var currentUser = SecurityService.CurrentUser;
+                    bool isManagerCancel = DatabaseService.Security != null && DatabaseService.Security.IsCurrentSessionAdmin();
+                    if (string.IsNullOrWhiteSpace(cancelReq.CancelledBy) && currentUser != null)
+                    {
+                        cancelReq.CancelledBy = !string.IsNullOrEmpty(currentUser.DisplayName) ? currentUser.DisplayName : currentUser.Username;
+                    }
+                    bool cancelResult = DatabaseService.Expenses.CancelExpense(cancelReq, isManagerCancel);
+                    response = BridgeResponse.Ok(request.Id, new { success = cancelResult, expenseId = cancelReq.ExpenseId });
+                    return true;
+
+                case "expenses:update":
+                    JObject updPayload = request.Payload as JObject;
+                    if (updPayload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات طلب تعديل المصروف فارغة");
+                        return true;
+                    }
+                    UpdateExpenseRequest updReq = updPayload.ToObject<UpdateExpenseRequest>();
+                    var curUserUpd = SecurityService.CurrentUser;
+                    bool isManagerUpd = DatabaseService.Security != null && DatabaseService.Security.IsCurrentSessionAdmin();
+                    if (string.IsNullOrWhiteSpace(updReq.UpdatedBy) && curUserUpd != null)
+                    {
+                        updReq.UpdatedBy = !string.IsNullOrEmpty(curUserUpd.DisplayName) ? curUserUpd.DisplayName : curUserUpd.Username;
+                    }
+                    var updatedExp = DatabaseService.Expenses.UpdateExpense(updReq, isManagerUpd);
+                    response = BridgeResponse.Ok(request.Id, updatedExp);
+                    return true;
+
+                case "expenses:getCategories":
+                    var categories = DatabaseService.Expenses.GetCategories();
+                    response = BridgeResponse.Ok(request.Id, categories);
+                    return true;
+
+                case "expenses:createCategory":
+                    JObject catPayload = request.Payload as JObject;
+                    if (catPayload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات بند المصروف فارغة");
+                        return true;
+                    }
+                    CreateExpenseCategoryRequest catReq = catPayload.ToObject<CreateExpenseCategoryRequest>();
+                    var createdCat = DatabaseService.Expenses.CreateCategory(catReq);
+                    response = BridgeResponse.Ok(request.Id, createdCat);
+                    return true;
+
+                case "expenses:getBreakdown":
+                    string bFrom = null;
+                    string bTo = null;
+                    JObject bObj = request.Payload as JObject;
+                    if (bObj != null)
+                    {
+                        if (bObj["fromDate"] != null) bFrom = bObj["fromDate"].ToString();
+                        if (bObj["toDate"] != null) bTo = bObj["toDate"].ToString();
+                    }
+                    var breakdown = DatabaseService.Expenses.GetExpensesBreakdown(bFrom, bTo);
+                    response = BridgeResponse.Ok(request.Id, breakdown);
                     return true;
 
                 default:

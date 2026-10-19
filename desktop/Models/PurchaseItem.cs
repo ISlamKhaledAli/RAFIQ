@@ -23,8 +23,14 @@ namespace RafiqPOS.Models
         [JsonProperty("quantityMilli")]
         public long QuantityMilli { get; set; }
 
+        [JsonProperty("bonusQuantityMilli")]
+        public long BonusQuantityMilli { get; set; }
+
         [JsonProperty("unitCostPiasters")]
         public long UnitCostPiasters { get; set; }
+
+        [JsonProperty("discountPiasters")]
+        public long DiscountPiasters { get; set; }
 
         [JsonProperty("totalCostPiasters")]
         public long TotalCostPiasters { get; set; }

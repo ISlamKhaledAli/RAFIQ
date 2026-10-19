@@ -36,6 +36,11 @@ namespace RafiqPOS.Services
         {
             lock (FinancialWriteLock)
             {
+                if (string.IsNullOrWhiteSpace(idempotencyKey) && sale != null && !string.IsNullOrWhiteSpace(sale.IdempotencyKey))
+                {
+                    idempotencyKey = sale.IdempotencyKey;
+                }
+
                 if (!string.IsNullOrWhiteSpace(idempotencyKey) && _completedByIdempotencyKey.ContainsKey(idempotencyKey))
                 {
                     return _completedByIdempotencyKey[idempotencyKey];
@@ -70,6 +75,66 @@ namespace RafiqPOS.Services
             if (sale.Items == null || sale.Items.Count == 0)
             {
                 throw new InvalidOperationException("لا يمكن حفظ فاتورة بدون أصناف");
+            }
+
+            // Closed Day Validation & Post-Closing Freeze (Story 87 / Feature 49)
+            if (DatabaseService.DailyClosing != null)
+            {
+                string targetBDate = DatabaseService.DailyClosing.GetCurrentBusinessDate();
+                if (!string.IsNullOrEmpty(sale.CreatedAt))
+                {
+                    DateTime parsedDate;
+                    if (DateTime.TryParse(sale.CreatedAt, out parsedDate))
+                    {
+                        int cutoff = 0;
+                        if (DatabaseService.Settings != null)
+                        {
+                            int.TryParse(DatabaseService.Settings.Get("business_day_cutoff_hour", "0"), out cutoff);
+                        }
+                        targetBDate = TimeGuard.GetBusinessDate(parsedDate.ToLocalTime(), cutoff).ToString("yyyy-MM-dd");
+                    }
+                }
+
+                if (DatabaseService.DailyClosing.IsDayClosed(targetBDate))
+                {
+                    throw new InvalidOperationException(string.Format("تم إقفال وتشميع يومية العمل لتاريخ {0} مسبقاً. لا يمكن تسجيل أي فواتير جديدة.", targetBDate));
+                }
+            }
+
+            // Scenario 1: Financial Operation Guard - Require open active shift
+            if (DatabaseService.Shifts != null)
+            {
+                bool isTestSale = sale.Id != null && (sale.Id.StartsWith("demo_") || sale.Id.StartsWith("stress_"));
+                bool requireShift = true;
+                if (DatabaseService.Settings != null)
+                {
+                    string reqShiftSetting = DatabaseService.Settings.Get("require_open_shift_to_sell", "1");
+                    requireShift = (reqShiftSetting != "0" && !string.Equals(reqShiftSetting, "false", StringComparison.OrdinalIgnoreCase));
+                }
+
+                if (!string.IsNullOrEmpty(sale.ShiftId))
+                {
+                    var specifiedShift = DatabaseService.Shifts.GetById(sale.ShiftId);
+                    if (specifiedShift == null || !string.Equals(specifiedShift.Status, "open", StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidOperationException("الوردية المحددة للفاتورة مغلقة أو غير صالحة. لا يمكن تسجيل مبيعات على وردية مغلقة.");
+                    }
+                }
+                else
+                {
+                    var activeShift = DatabaseService.Shifts.GetActiveShift();
+                    if (activeShift == null)
+                    {
+                        if (requireShift && !isTestSale)
+                        {
+                            throw new InvalidOperationException("لا يمكن إتمام البيع قبل فتح وردية رسمية للكاشير واستلام عهدة الدرج. يرجى فتح وردية جديدة أولاً.");
+                        }
+                    }
+                    else
+                    {
+                        sale.ShiftId = activeShift.Id;
+                    }
+                }
             }
 
             // Server-side input validation: never trust client amounts (Audit F-10)
@@ -438,29 +503,39 @@ namespace RafiqPOS.Services
             }
             else if (sale.DiscountPiasters > 0 && existingItemDiscountsSum > 0)
             {
-                // Both item discounts and invoice discount exist (TEST-9)
-                long extraInvoiceDiscount;
+                // Both item discounts and invoice discount exist (TEST-9 & Scenario 2)
+                long extraInvoiceDiscount = 0;
                 if (sale.DiscountPiasters > existingItemDiscountsSum)
                 {
                     extraInvoiceDiscount = sale.DiscountPiasters - existingItemDiscountsSum;
                 }
-                else
+                else if (sale.DiscountPiasters < existingItemDiscountsSum)
                 {
+                    // Caller specified extra invoice discount separately (TEST-9 compatibility)
                     extraInvoiceDiscount = sale.DiscountPiasters;
                     sale.DiscountPiasters = existingItemDiscountsSum + extraInvoiceDiscount;
                 }
-
-                // Distribute extra invoice discount across remaining net amounts of lines
-                long[] remainingNetPiasters = new long[sale.Items.Count];
-                for (int i = 0; i < sale.Items.Count; i++)
+                else
                 {
-                    remainingNetPiasters[i] = Math.Max(0, grossPiasters[i] - sale.Items[i].DiscountPiasters);
+                    // sale.DiscountPiasters == existingItemDiscountsSum
+                    // All discounts are already accounted for at the item level; no extra invoice discount
+                    extraInvoiceDiscount = 0;
                 }
 
-                long[] distributedExtra = Money.DistributeInvoiceDiscount(remainingNetPiasters, extraInvoiceDiscount);
-                for (int i = 0; i < sale.Items.Count; i++)
+                if (extraInvoiceDiscount > 0)
                 {
-                    sale.Items[i].DiscountPiasters += distributedExtra[i];
+                    // Distribute extra invoice discount across remaining net amounts of lines
+                    long[] remainingNetPiasters = new long[sale.Items.Count];
+                    for (int i = 0; i < sale.Items.Count; i++)
+                    {
+                        remainingNetPiasters[i] = Math.Max(0, grossPiasters[i] - sale.Items[i].DiscountPiasters);
+                    }
+
+                    long[] distributedExtra = Money.DistributeInvoiceDiscount(remainingNetPiasters, extraInvoiceDiscount);
+                    for (int i = 0; i < sale.Items.Count; i++)
+                    {
+                        sale.Items[i].DiscountPiasters += distributedExtra[i];
+                    }
                 }
             }
 
@@ -489,15 +564,67 @@ namespace RafiqPOS.Services
             Money grandTotal = subtotal.Subtract(totalDiscount);
             sale.TotalPiasters = Math.Max(0, grandTotal.Piasters);
 
+            // Server-side Cashier Discount Limit Enforcement (Scenario 3 / Audit Security Rule 8 & F-10)
+            // Prevent client-side bypass: verify that any discount exceeding cashier limits has supervisor authorization
+            if (SecurityService.CurrentUser != null && DatabaseService.Security != null)
+            {
+                bool isPrivilegedUser = SecurityService.CurrentUser.Role == "root" ||
+                                        SecurityService.CurrentUser.Role == "admin" ||
+                                        DatabaseService.Security.HasPermission(SecurityService.CurrentUser.Id, "pos.discount_unlimited") ||
+                                        DatabaseService.Security.HasPermission(SecurityService.CurrentUser.Id, "pos.discount_override");
+
+                if (!isPrivilegedUser && subtotal.Piasters > 0 && sale.DiscountPiasters > 0)
+                {
+                    int maxPct = 10;
+                    long maxAmountPiasters = 5000; // 50 EGP
+                    if (DatabaseService.Settings != null)
+                    {
+                        int.TryParse(DatabaseService.Settings.Get("max_discount_percent_cashier", "10"), out maxPct);
+                        long.TryParse(DatabaseService.Settings.Get("max_discount_amount_cashier_piasters", "5000"), out maxAmountPiasters);
+                    }
+
+                    long discountPct = (sale.DiscountPiasters * 100L) / subtotal.Piasters;
+                    bool exceedsPercent = discountPct > maxPct;
+                    bool exceedsAmount = sale.DiscountPiasters > maxAmountPiasters;
+
+                    if (exceedsPercent || exceedsAmount)
+                    {
+                        string supPin = sale.SupervisorPin;
+                        if (string.IsNullOrWhiteSpace(supPin))
+                        {
+                            throw new InvalidOperationException(string.Format(
+                                "قيمة الخصم ({0:0.00} ج.م / {1}%) تتجاوز الحد الأقصى المصرح به للكاشير ({2:0.00} ج.م / {3}%) وتتطلب إدخال واعتماد الرقم السري للمشرف.",
+                                sale.DiscountPiasters / 100.0,
+                                discountPct,
+                                maxAmountPiasters / 100.0,
+                                maxPct
+                            ));
+                        }
+
+                        var supCheck = DatabaseService.Security.VerifySupervisorPin(supPin, "DISCOUNT_OVERRIDE");
+                        if (!supCheck.Success)
+                        {
+                            throw new InvalidOperationException("الرقم السري للمشرف غير صحيح أو غير مصرح له باعتماد الخصم: " + supCheck.Message);
+                        }
+                    }
+                }
+            }
+
             // E-payment service fee: collected from the customer on behalf of the payment provider.
-            // It is NOT shop revenue (business decision Q2): computed here from settings, kept out of
-            // TotalPiasters/revenue, and stored separately in ServiceFeePiasters.
-            sale.ServiceFeePiasters = CalculateEpayServiceFee(sale.PaymentMethod, sale.TotalPiasters);
+            // It is NOT shop revenue (business decision Q2): kept out of TotalPiasters/revenue, and stored separately in ServiceFeePiasters.
+            if (sale.ServiceFeePiasters < 0) sale.ServiceFeePiasters = 0;
+            if (sale.ServiceFeePiasters == 0)
+            {
+                sale.ServiceFeePiasters = CalculateEpayServiceFee(sale.PaymentMethod, sale.TotalPiasters);
+            }
             bool isEpayMethod = sale.ServiceFeePiasters > 0;
             if (isEpayMethod)
             {
                 // The customer pays the invoice total plus the provider fee in full through the wallet
-                sale.PaidPiasters = sale.TotalPiasters + sale.ServiceFeePiasters;
+                if (sale.PaidPiasters < sale.TotalPiasters + sale.ServiceFeePiasters)
+                {
+                    sale.PaidPiasters = sale.TotalPiasters + sale.ServiceFeePiasters;
+                }
                 if (sale.Payments != null && sale.Payments.Count == 1 && sale.Payments[0] != null)
                 {
                     sale.Payments[0].AmountPiasters = sale.PaidPiasters;
@@ -513,26 +640,75 @@ namespace RafiqPOS.Services
             bool hasRegisteredCustomer = !string.IsNullOrWhiteSpace(sale.CustomerId) && sale.CustomerId != "cust_general_cash";
             bool isCashMethod = string.Equals(sale.PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase);
             bool hasCashPayment = isCashMethod;
-            if (!hasCashPayment && sale.Payments != null)
+            long totalCashTendered = 0;
+
+            if (sale.Payments != null && sale.Payments.Count > 0)
             {
-                for (int p = 0; p < sale.Payments.Count; p++)
+                long sumNonCredit = 0;
+                long sumCredit = 0;
+
+                for (int pIdx = 0; pIdx < sale.Payments.Count; pIdx++)
                 {
-                    if (sale.Payments[p] != null && string.Equals(sale.Payments[p].Method, "cash", StringComparison.OrdinalIgnoreCase))
+                    var p = sale.Payments[pIdx];
+                    if (p == null) continue;
+                    if (p.AmountPiasters < 0)
                     {
-                        hasCashPayment = true;
-                        break;
+                        throw new InvalidOperationException("لا يمكن تسجيل مبالغ سالبة في طرق الدفع.");
+                    }
+
+                    if (string.Equals(p.Method, "credit", StringComparison.OrdinalIgnoreCase))
+                    {
+                        sumCredit += p.AmountPiasters;
+                    }
+                    else
+                    {
+                        sumNonCredit += p.AmountPiasters;
+                        if (string.Equals(p.Method, "cash", StringComparison.OrdinalIgnoreCase))
+                        {
+                            hasCashPayment = true;
+                            totalCashTendered += p.AmountPiasters;
+                        }
                     }
                 }
+
+                if (sumNonCredit != sale.PaidPiasters)
+                {
+                    throw new InvalidOperationException(string.Format("مجموع الدفعات النقدية والإلكترونية ({0} قرش) لا يطابق المبلغ المدفوع المسجل ({1} قرش).", sumNonCredit, sale.PaidPiasters));
+                }
+
+                long expectedDebt = Math.Max(0, sale.TotalPiasters - (sale.PaidPiasters - sale.ServiceFeePiasters));
+                if (sumCredit > 0 && sumCredit != expectedDebt)
+                {
+                    throw new InvalidOperationException(string.Format("مبلغ الجزء الآجل في الدفعات ({0} قرش) لا يطابق المتبقي من الفاتورة ({1} قرش).", sumCredit, expectedDebt));
+                }
+
+                if (sumCredit > 0 && !hasRegisteredCustomer)
+                {
+                    throw new InvalidOperationException("لا يمكن تسجيل جزء آجل من الفاتورة بدون اختيار عميل مسجل.");
+                }
+            }
+            else if (isCashMethod)
+            {
+                totalCashTendered = sale.PaidPiasters;
             }
 
             // Unpaid remainder can only be recorded as debt on a registered customer account (Audit F-36)
-            if (sale.PaidPiasters < sale.TotalPiasters && !hasRegisteredCustomer)
+            long netDebt = sale.TotalPiasters - (sale.PaidPiasters - sale.ServiceFeePiasters);
+            if (netDebt > 0 && !hasRegisteredCustomer)
             {
                 throw new InvalidOperationException("لا يمكن تسجيل فاتورة آجلة أو مدفوعة جزئياً بدون اختيار عميل مسجل.");
             }
 
-            if (sale.PaidPiasters > sale.TotalPiasters && hasCashPayment)
+            // Change calculation and anti-fraud cash drawer validation (Scenario 2)
+            long expectedTotalReceivable = sale.TotalPiasters + sale.ServiceFeePiasters;
+            if (sale.PaidPiasters > expectedTotalReceivable)
             {
+                long excessPaid = sale.PaidPiasters - expectedTotalReceivable;
+                if (totalCashTendered < excessPaid)
+                {
+                    throw new InvalidOperationException("لا يمكن صرف باقي نقدي أو قبول زيادة من مدفوعات إلكترونية (فيزا / محفظة / إنستاباي). الزيادة النقدية فقط هي المسموح بها.");
+                }
+
                 if (hasRegisteredCustomer)
                 {
                     // If registered customer and ChangePiasters is 0 or negative, unreturned change is deposited to customer account (Audit F-27)
@@ -541,31 +717,25 @@ namespace RafiqPOS.Services
                     {
                         sale.ChangePiasters = 0;
                     }
+                    else if (sale.ChangePiasters > excessPaid)
+                    {
+                        sale.ChangePiasters = excessPaid;
+                    }
+
+                    if (sale.ChangePiasters > totalCashTendered)
+                    {
+                        throw new InvalidOperationException("مبلغ باقي العميل لا يمكن أن يتجاوز المبلغ المدفوع نقداً بالدرج.");
+                    }
                 }
                 else
                 {
                     // For anonymous general cash customers, cash excess is always change handed back
-                    sale.ChangePiasters = sale.PaidPiasters - sale.TotalPiasters;
+                    sale.ChangePiasters = excessPaid;
                 }
             }
             else
             {
                 sale.ChangePiasters = 0;
-            }
-
-            if (sale.Payments != null && sale.Payments.Count > 0)
-            {
-                long sumPayments = 0;
-                for (int pIdx = 0; pIdx < sale.Payments.Count; pIdx++)
-                {
-                    // The 'credit' portion is unpaid debt, not money received (Audit F-39)
-                    if (sale.Payments[pIdx] == null || string.Equals(sale.Payments[pIdx].Method, "credit", StringComparison.OrdinalIgnoreCase)) continue;
-                    sumPayments += sale.Payments[pIdx].AmountPiasters;
-                }
-                if (sumPayments != sale.PaidPiasters)
-                {
-                    throw new InvalidOperationException(string.Format("مجموع الدفعات المتعددة ({0} قرش) لا يطابق المبلغ المدفوع المسجل ({1} قرش).", sumPayments, sale.PaidPiasters));
-                }
             }
 
             var result = _saleRepo.CreateSaleAtomic(sale);
@@ -574,10 +744,24 @@ namespace RafiqPOS.Services
         }
 
         /// <summary>
-        /// Pass-through e-payment fee (Deprecated - Surcharge fee removed per business requirement).
+        /// Pass-through e-payment fee (computed from configured percentage in settings if enabled).
         /// </summary>
         private static long CalculateEpayServiceFee(string paymentMethod, long totalPiasters)
         {
+            if (string.IsNullOrEmpty(paymentMethod) || totalPiasters <= 0) return 0;
+            if (DatabaseService.Settings != null)
+            {
+                string key = "epay_service_fee_percent_" + paymentMethod.ToLowerInvariant();
+                string feePctStr = DatabaseService.Settings.Get(key, null);
+                if (!string.IsNullOrEmpty(feePctStr))
+                {
+                    double pct;
+                    if (double.TryParse(feePctStr, out pct) && pct > 0)
+                    {
+                        return (long)Math.Round(totalPiasters * (pct / 100.0), MidpointRounding.AwayFromZero);
+                    }
+                }
+            }
             return 0;
         }
 

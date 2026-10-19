@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Drawing.Printing;
+using System.Drawing.Text;
 using RafiqPOS.Common;
 using RafiqPOS.Models;
 
@@ -9,8 +11,9 @@ namespace RafiqPOS.Services
 {
     /// <summary>
     /// خدمة متخصصة في طباعة وتوليد ملصقات الباركود والأسعار
-    /// تدعم طابعات الباركود الحرارية (بكرات الرول) وطابعات A4 بالملصقات الشبكية
+    /// تدعم طابعات الباركود الحرارية (بكرات الرول: 38x25, 50x30 ومقاسات مخصصة) وطابعات A4 بالملصقات الشبكية
     /// متوافقة بالكامل مع ويندوز 7 وويندوز 11 وبدون أي إنترنت
+    /// ومصممة بأعلى معايير الدقة والـ Quiet Zones لضمان قراءة سريعة بكافة أجهزة المسح الليزرية
     /// </summary>
     public class BarcodeLabelService
     {
@@ -24,7 +27,7 @@ namespace RafiqPOS.Services
         }
 
         /// <summary>
-        /// Task 57-2: طباعة دفعة ملصقات لمنتج واحد أو مجموعة منتجات
+        /// طباعة دفعة ملصقات لمنتج واحد أو مجموعة منتجات
         /// </summary>
         public PrintLabelsResult PrintLabels(PrintLabelsRequest request)
         {
@@ -99,9 +102,53 @@ namespace RafiqPOS.Services
         }
 
         /// <summary>
-        /// Task 57-1: طباعة ملصق تجريبي لاختبار أبعاد ورق الملصق وجودة الخط والباركود
+        /// تحويل بنود فاتورة مشتريات إلى قائمة عناصر ملصقات باركود بعدد النسخ المطابق للكمية المشتراة
         /// </summary>
-        public PrintLabelsResult PrintTestLabel(string printerName = null, string paperSize = "38x25")
+        public static List<BarcodeLabelItem> CreateItemsFromPurchase(Purchase purchase, IDictionary<string, long> productSellPrices = null)
+        {
+            var result = new List<BarcodeLabelItem>();
+            if (purchase == null || purchase.Items == null || purchase.Items.Count == 0)
+            {
+                return result;
+            }
+
+            for (int i = 0; i < purchase.Items.Count; i++)
+            {
+                var pItem = purchase.Items[i];
+                if (pItem == null) continue;
+
+                // احتساب الكمية المستلمة كاملة (الكمية المشتراة + بضاعة البونص المجانية)
+                long totalMilli = pItem.QuantityMilli + pItem.BonusQuantityMilli;
+                int copies = (int)Math.Max(1, Math.Round(totalMilli / 1000.0));
+
+                long sellPrice = pItem.NewSellingPricePiasters.HasValue && pItem.NewSellingPricePiasters.Value > 0
+                    ? pItem.NewSellingPricePiasters.Value
+                    : pItem.UnitCostPiasters;
+
+                if (productSellPrices != null && !string.IsNullOrEmpty(pItem.ProductId) && productSellPrices.ContainsKey(pItem.ProductId))
+                {
+                    sellPrice = productSellPrices[pItem.ProductId];
+                }
+
+                result.Add(new BarcodeLabelItem
+                {
+                    ProductId = pItem.ProductId,
+                    ProductName = pItem.ProductName,
+                    Barcode = !string.IsNullOrEmpty(pItem.Barcode) ? pItem.Barcode : "",
+                    PricePiasters = sellPrice,
+                    Copies = copies,
+                    ExpiryDate = !string.IsNullOrEmpty(pItem.ExpiryDate) ? pItem.ExpiryDate : "",
+                    VariantInfo = !string.IsNullOrEmpty(pItem.BatchNumber) ? ("شحنة: " + pItem.BatchNumber) : ""
+                });
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// طباعة ملصق تجريبي لاختبار أبعاد ورق الملصق وجودة الخط والباركود
+        /// </summary>
+        public PrintLabelsResult PrintTestLabel(string printerName = null, string paperSize = "38x25", int customW = 0, int customH = 0)
         {
             var testItem = new BarcodeLabelItem
             {
@@ -120,6 +167,8 @@ namespace RafiqPOS.Services
                 {
                     PrinterName = printerName,
                     PaperSize = paperSize,
+                    CustomWidthMm = customW,
+                    CustomHeightMm = customH,
                     ShowStoreName = true,
                     ShowPrice = true,
                     ShowBarcodeText = true,
@@ -155,8 +204,16 @@ namespace RafiqPOS.Services
                         return;
                     }
 
+                    // ضبط خيارات الرسم للحصول على أقصى دقة وتباين للباركود على رؤوس الطباعة الحرارية
+                    ev.Graphics.SmoothingMode = SmoothingMode.None;
+                    ev.Graphics.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
+                    ev.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    ev.Graphics.PixelOffsetMode = PixelOffsetMode.Half;
+
                     var item = labels[currentLabelIndex];
-                    var rect = new RectangleF(0, 0, ev.PageBounds.Width, ev.PageBounds.Height);
+                    float actualW = ev.PageBounds.Width > 0 ? Math.Min(ev.PageBounds.Width, (float)widthHundredths) : (float)widthHundredths;
+                    float actualH = ev.PageBounds.Height > 0 ? Math.Min(ev.PageBounds.Height, (float)heightHundredths) : (float)heightHundredths;
+                    var rect = new RectangleF(0, 0, actualW, actualH);
 
                     DrawSingleLabel(ev.Graphics, item, config, rect, widthMm, heightMm);
 
@@ -186,7 +243,6 @@ namespace RafiqPOS.Services
                 rows = 10;
             }
 
-            int labelsPerPage = cols * rows;
             int currentLabelIndex = 0;
 
             using (var printDoc = new PrintDocument())
@@ -197,6 +253,11 @@ namespace RafiqPOS.Services
 
                 printDoc.PrintPage += delegate(object sender, PrintPageEventArgs ev)
                 {
+                    ev.Graphics.SmoothingMode = SmoothingMode.None;
+                    ev.Graphics.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
+                    ev.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    ev.Graphics.PixelOffsetMode = PixelOffsetMode.Half;
+
                     float marginX = ev.MarginBounds.Left;
                     float marginY = ev.MarginBounds.Top;
                     float totalW = ev.MarginBounds.Width;
@@ -212,7 +273,6 @@ namespace RafiqPOS.Services
                             if (currentLabelIndex >= labels.Count) break;
 
                             var item = labels[currentLabelIndex];
-                            // Right to left layout for columns
                             int colIndexRtl = (cols - 1) - c;
                             float x = marginX + (colIndexRtl * cellW) + 2f;
                             float y = marginY + (r * cellH) + 2f;
@@ -242,8 +302,34 @@ namespace RafiqPOS.Services
         {
             if (g == null || item == null) return;
 
-            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+            // سلسلة الخطوط العربية المتوافقة مع ويندوز 7 حتى 11
+            string fontName = "Arial";
+            using (var testFont = new Font("Cairo", 9f))
+            {
+                if (testFont.Name == "Cairo") fontName = "Cairo";
+                else
+                {
+                    using (var segFont = new Font("Segoe UI", 9f))
+                    {
+                        if (segFont.Name == "Segoe UI") fontName = "Segoe UI";
+                        else
+                        {
+                            using (var tahomaFont = new Font("Tahoma", 9f))
+                            {
+                                if (tahomaFont.Name == "Tahoma") fontName = "Tahoma";
+                            }
+                        }
+                    }
+                }
+            }
+
+            var centerRtlFormat = new StringFormat
+            {
+                FormatFlags = StringFormatFlags.DirectionRightToLeft | StringFormatFlags.NoWrap,
+                Alignment = StringAlignment.Center,
+                LineAlignment = StringAlignment.Center,
+                Trimming = StringTrimming.EllipsisCharacter
+            };
 
             var centerFormat = new StringFormat
             {
@@ -253,36 +339,35 @@ namespace RafiqPOS.Services
                 Trimming = StringTrimming.EllipsisCharacter
             };
 
-            var rtlFormat = new StringFormat
-            {
-                FormatFlags = StringFormatFlags.DirectionRightToLeft | StringFormatFlags.NoWrap,
-                Alignment = StringAlignment.Center,
-                LineAlignment = StringAlignment.Center,
-                Trimming = StringTrimming.EllipsisCharacter
-            };
-
-            float padding = 4f;
-            float contentX = rect.X + padding;
-            float contentW = rect.Width - (padding * 2);
+            // حساب المنطقة الهادئة (Quiet Zone) على جانبي الباركود (2.5mm على الأقل وفق معيار ISO 15417)
+            // 2.5mm تعادل 9.84 في وحدة 1/100 بوصة (نقربها لـ 10 وحدات كحد أدنى مضمون)
+            float quietZoneUnits = Math.Max(10f, (widthMm * 3.937f) * 0.05f);
+            float paddingX = quietZoneUnits;
+            float contentX = rect.X + paddingX;
+            float contentW = Math.Max(10f, rect.Width - (paddingX * 2));
             float curY = rect.Y + 2f;
 
-            // تحديد أحجام الخطوط ديناميكياً بحسب ارتفاع الملصق
+            // تحديد أحجام الخطوط ديناميكياً بحسب ارتفاع الملصق (38x25, 50x30, أو المقاسات الكبيرة)
             bool isSmall = heightMm <= 26f;
-            float storeFontSize = isSmall ? 6.5f : 7.5f;
-            float nameFontSize = isSmall ? 7.5f : 9f;
-            float priceFontSize = isSmall ? 9.5f : 12f;
+            bool isMedium = heightMm > 26f && heightMm <= 35f;
 
-            using (var fontStore = new Font("Cairo", storeFontSize, FontStyle.Regular, GraphicsUnit.Point))
-            using (var fontName = new Font("Cairo", nameFontSize, FontStyle.Bold, GraphicsUnit.Point))
-            using (var fontPrice = new Font("Cairo", priceFontSize, FontStyle.Bold, GraphicsUnit.Point))
+            float storeFontSize = isSmall ? 6.5f : (isMedium ? 7.5f : 8.5f);
+            float nameFontSize = isSmall ? 7.5f : (isMedium ? 8.5f : 10f);
+            float priceFontSize = isSmall ? 9.5f : (isMedium ? 11f : 13f);
+            float smallBarcodeFontSize = isSmall ? 7f : 8f;
+
+            using (var fontStore = new Font(fontName, storeFontSize, FontStyle.Regular, GraphicsUnit.Point))
+            using (var fontNameObj = new Font(fontName, nameFontSize, FontStyle.Bold, GraphicsUnit.Point))
+            using (var fontPrice = new Font(fontName, priceFontSize, FontStyle.Bold, GraphicsUnit.Point))
+            using (var fontBarcodeText = new Font("Courier New", smallBarcodeFontSize, FontStyle.Bold, GraphicsUnit.Point))
             using (var brush = new SolidBrush(Color.Black))
             {
                 // 1. اسم المحل (اختياري)
                 if (config.ShowStoreName && !string.IsNullOrEmpty(config.StoreName))
                 {
-                    float h = isSmall ? 10f : 12f;
+                    float h = isSmall ? 10f : 13f;
                     var storeRect = new RectangleF(contentX, curY, contentW, h);
-                    g.DrawString(config.StoreName, fontStore, brush, storeRect, centerFormat);
+                    g.DrawString(config.StoreName, fontStore, brush, storeRect, centerRtlFormat);
                     curY += h;
                 }
 
@@ -295,47 +380,48 @@ namespace RafiqPOS.Services
 
                 float nameH = isSmall ? 12f : 15f;
                 var nameRect = new RectangleF(contentX, curY, contentW, nameH);
-                g.DrawString(displayName, fontName, brush, nameRect, rtlFormat);
+                g.DrawString(displayName, fontNameObj, brush, nameRect, centerRtlFormat);
                 curY += nameH;
 
                 // 3. السعر بالجنيه المصري (اختياري)
                 if (config.ShowPrice)
                 {
-                    float priceEgp = item.PricePiasters / 100f;
-                    string priceText = string.Format("{0:N2} ج.م", priceEgp);
+                    // دالة Money.FormatPiasters تُرجع مسبقاً النص بصيغة "55.00 ج.م"
+                    string priceText = Money.FormatPiasters(item.PricePiasters);
                     float priceH = isSmall ? 14f : 18f;
                     var priceRect = new RectangleF(contentX, curY, contentW, priceH);
-                    g.DrawString(priceText, fontPrice, brush, priceRect, centerFormat);
+                    g.DrawString(priceText, fontPrice, brush, priceRect, centerRtlFormat);
                     curY += priceH;
                 }
 
-                // 4. الباركود الصوري ورقم الباركود
+                // 4. الباركود الصوري ورقم الباركود مع Quiet Zone متوازنة
+                float expH = isSmall ? 8f : 10f;
                 float remainingH = (rect.Y + rect.Height) - curY - 2f;
                 if (config.ShowExpiryDate && !string.IsNullOrEmpty(item.ExpiryDate))
                 {
-                    remainingH -= 10f;
+                    remainingH -= expH;
                 }
 
-                if (remainingH > 15f && !string.IsNullOrEmpty(item.Barcode))
+                if (remainingH > 14f && !string.IsNullOrEmpty(item.Barcode))
                 {
                     var barcodeRect = new RectangleF(contentX, curY, contentW, remainingH);
-                    BarcodeGenerator.DrawBarcode(g, item.Barcode, barcodeRect, config.ShowBarcodeText);
+                    BarcodeGenerator.DrawBarcode(g, item.Barcode, barcodeRect, config.ShowBarcodeText, fontBarcodeText);
                     curY += remainingH;
                 }
 
                 // 5. تاريخ الصلاحية / التعبئة (اختياري)
                 if (config.ShowExpiryDate && !string.IsNullOrEmpty(item.ExpiryDate))
                 {
-                    using (var fontExp = new Font("Cairo", 6.5f, FontStyle.Regular, GraphicsUnit.Point))
+                    using (var fontExp = new Font(fontName, 6.5f, FontStyle.Regular, GraphicsUnit.Point))
                     {
-                        var expRect = new RectangleF(contentX, curY, contentW, 10f);
-                        g.DrawString("صلاحية: " + item.ExpiryDate, fontExp, brush, expRect, centerFormat);
+                        var expRect = new RectangleF(contentX, curY, contentW, expH);
+                        g.DrawString("صلاحية: " + item.ExpiryDate, fontExp, brush, expRect, centerRtlFormat);
                     }
                 }
             }
         }
 
-        private void ParseLabelDimensions(string paperSize, int customW, int customH, out float widthMm, out float heightMm)
+        public void ParseLabelDimensions(string paperSize, int customW, int customH, out float widthMm, out float heightMm)
         {
             widthMm = 38f;
             heightMm = 25f;
@@ -356,6 +442,18 @@ namespace RafiqPOS.Services
             else if (s == "50x30") { widthMm = 50f; heightMm = 30f; }
             else if (s == "50x40") { widthMm = 50f; heightMm = 40f; }
             else if (s == "60x40") { widthMm = 60f; heightMm = 40f; }
+            else if (s == "80x50") { widthMm = 80f; heightMm = 50f; }
+            else if (s == "100x150") { widthMm = 100f; heightMm = 150f; }
+            else if (s.Contains("x"))
+            {
+                string[] parts = s.Split('x');
+                float parsedW, parsedH;
+                if (parts.Length == 2 && float.TryParse(parts[0], out parsedW) && float.TryParse(parts[1], out parsedH) && parsedW >= 15 && parsedH >= 10)
+                {
+                    widthMm = parsedW;
+                    heightMm = parsedH;
+                }
+            }
         }
 
         private string ResolveLabelPrinter(string explicitPrinter)

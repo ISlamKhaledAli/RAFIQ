@@ -6,10 +6,12 @@ namespace RafiqPOS.Services
     public class SettingsService
     {
         private readonly SettingsRepository _repo;
+        private readonly AuditLogRepository _auditRepo;
 
-        public SettingsService(SettingsRepository repo)
+        public SettingsService(SettingsRepository repo, AuditLogRepository auditRepo = null)
         {
             this._repo = repo;
+            this._auditRepo = auditRepo;
         }
 
         public Dictionary<string, string> GetAllSettings()
@@ -33,14 +35,84 @@ namespace RafiqPOS.Services
             return _repo.Get(key, defaultValue);
         }
 
-        public void Set(string key, string value)
+        public void Set(string key, string value, string userId = null)
         {
+            string oldVal = _repo.Get(key, "");
             _repo.Set(key, value);
+
+            if (_auditRepo != null && oldVal != (value ?? ""))
+            {
+                try
+                {
+                    string actor = !string.IsNullOrEmpty(userId)
+                        ? userId
+                        : (SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default");
+
+                    var changes = new List<Dictionary<string, string>>
+                    {
+                        new Dictionary<string, string> { { "key", key }, { "oldValue", oldVal }, { "newValue", value ?? "" } }
+                    };
+
+                    _auditRepo.Log(new Models.AuditLog
+                    {
+                        UserId = actor,
+                        Action = "settings_update",
+                        EntityType = "settings",
+                        EntityId = key,
+                        DetailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { changes = changes, count = 1 })
+                    });
+                }
+                catch
+                {
+                }
+            }
         }
 
-        public Dictionary<string, string> SaveSettings(Dictionary<string, string> newSettings)
+        public Dictionary<string, string> SaveSettings(Dictionary<string, string> newSettings, string userId = null)
         {
+            if (newSettings == null) return GetAllSettings();
+
+            var oldSettings = _repo.GetAll();
+            var changes = new List<Dictionary<string, string>>();
+
+            foreach (var kvp in newSettings)
+            {
+                string oldVal = oldSettings.ContainsKey(kvp.Key) ? oldSettings[kvp.Key] : "";
+                string newVal = kvp.Value ?? "";
+                if (oldVal != newVal)
+                {
+                    var item = new Dictionary<string, string>();
+                    item["key"] = kvp.Key;
+                    item["oldValue"] = oldVal;
+                    item["newValue"] = newVal;
+                    changes.Add(item);
+                }
+            }
+
             _repo.SaveBatch(newSettings);
+
+            if (_auditRepo != null && changes.Count > 0)
+            {
+                try
+                {
+                    string actor = !string.IsNullOrEmpty(userId)
+                        ? userId
+                        : (SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default");
+
+                    _auditRepo.Log(new Models.AuditLog
+                    {
+                        UserId = actor,
+                        Action = "settings_update",
+                        EntityType = "settings",
+                        EntityId = "app_settings",
+                        DetailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { changes = changes, count = changes.Count })
+                    });
+                }
+                catch
+                {
+                }
+            }
+
             return GetAllSettings();
         }
 

@@ -16,6 +16,13 @@ namespace RafiqPOS.Repositories
             _auditRepo = auditRepo ?? new AuditLogRepository(connectionString);
         }
 
+        private class UnpaidSaleAlloc
+        {
+            public string SaleId { get; set; }
+            public int InvoiceNumber { get; set; }
+            public long UnpaidPiasters { get; set; }
+        }
+
         public List<Customer> GetAll(int limit)
         {
             var list = new List<Customer>();
@@ -255,8 +262,131 @@ namespace RafiqPOS.Repositories
                             throw new InvalidOperationException("لا يمكن تسجيل سداد لعميل مؤرشف");
                         }
 
+                        // Closed day protection
+                        int cutoffHour = 0;
+                        using (var cutCmd = new SQLiteCommand("SELECT value FROM app_settings WHERE key = 'business_day_cutoff_hour' LIMIT 1;", conn, trans))
+                        {
+                            object cutVal = cutCmd.ExecuteScalar();
+                            int parsedCut;
+                            if (cutVal != null && cutVal != DBNull.Value && int.TryParse(cutVal.ToString(), out parsedCut) && parsedCut >= 0 && parsedCut <= 12)
+                            {
+                                cutoffHour = parsedCut;
+                            }
+                        }
+                        using (var clCmd = new SQLiteCommand(@"
+                            SELECT COUNT(*) FROM daily_closings 
+                            WHERE business_date = date(datetime('now', 'localtime', '-' || @cutoff || ' hours'));", conn, trans))
+                        {
+                            clCmd.Parameters.AddWithValue("@cutoff", cutoffHour);
+                            if (Convert.ToInt64(clCmd.ExecuteScalar()) > 0)
+                            {
+                                throw new InvalidOperationException("لا يمكن تسجيل سداد نقدي من عميل لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
+                            }
+                        }
+
                         long newBalance = currentBalance - amountPiasters;
                         string now = DateTime.UtcNow.ToString("o");
+                        string ledgerId = "led_" + Guid.NewGuid().ToString("N").Substring(0, 12);
+
+                        // FIFO Invoice Allocation (Senior Financial Requirement 2):
+                        // Fetch unpaid or partially paid completed sales for this customer (oldest first)
+                        var unpaidSales = new List<UnpaidSaleAlloc>();
+                        string fetchSalesSql = @"
+                            SELECT id, invoice_number, total_piasters, paid_piasters, COALESCE(service_fee_piasters, 0) AS service_fee_piasters
+                            FROM sales
+                            WHERE customer_id = @cid AND status = 'completed' AND (total_piasters > (paid_piasters - COALESCE(service_fee_piasters, 0)))
+                            ORDER BY created_at ASC, invoice_number ASC;
+                        ";
+                        using (var sCmd = new SQLiteCommand(fetchSalesSql, conn, trans))
+                        {
+                            sCmd.Parameters.AddWithValue("@cid", customerId);
+                            using (var sReader = sCmd.ExecuteReader())
+                            {
+                                while (sReader.Read())
+                                {
+                                    string sId = sReader["id"].ToString();
+                                    int sInvNum = Convert.ToInt32(sReader["invoice_number"]);
+                                    long sTotal = Convert.ToInt64(sReader["total_piasters"]);
+                                    long sPaid = Convert.ToInt64(sReader["paid_piasters"]);
+                                    long sFee = Convert.ToInt64(sReader["service_fee_piasters"]);
+                                    long effectivePaid = sPaid - sFee;
+                                    long unpaid = sTotal - effectivePaid;
+                                    if (unpaid > 0)
+                                    {
+                                        unpaidSales.Add(new UnpaidSaleAlloc
+                                        {
+                                            SaleId = sId,
+                                            InvoiceNumber = sInvNum,
+                                            UnpaidPiasters = unpaid
+                                        });
+                                    }
+                                }
+                            }
+                        }
+
+                        long remainingToAllocate = amountPiasters;
+                        var allocationNotes = new List<string>();
+                        int allocIndex = 0;
+                        for (int i = 0; i < unpaidSales.Count; i++)
+                        {
+                            if (remainingToAllocate <= 0) break;
+                            var s = unpaidSales[i];
+                            long alloc = Math.Min(remainingToAllocate, s.UnpaidPiasters);
+
+                            // Update sale's paid_piasters
+                            string updateSaleSql = "UPDATE sales SET paid_piasters = paid_piasters + @alloc WHERE id = @sid;";
+                            using (var uCmd = new SQLiteCommand(updateSaleSql, conn, trans))
+                            {
+                                uCmd.Parameters.AddWithValue("@alloc", alloc);
+                                uCmd.Parameters.AddWithValue("@sid", s.SaleId);
+                                uCmd.ExecuteNonQuery();
+                            }
+
+                            // Insert payment record linked to this ledger entry and sale
+                            string paymentId = "pmt_settle_" + ledgerId + "_" + allocIndex;
+                            string insPmtSql = @"
+                                INSERT INTO payments (id, sale_id, amount_piasters, method, created_at)
+                                VALUES (@pid, @sid, @amt, 'debt_settlement', @cat);
+                            ";
+                            using (var pCmd = new SQLiteCommand(insPmtSql, conn, trans))
+                            {
+                                pCmd.Parameters.AddWithValue("@pid", paymentId);
+                                pCmd.Parameters.AddWithValue("@sid", s.SaleId);
+                                pCmd.Parameters.AddWithValue("@amt", alloc);
+                                pCmd.Parameters.AddWithValue("@cat", now);
+                                pCmd.ExecuteNonQuery();
+                            }
+
+                            allocationNotes.Add(string.Format("#{0} ({1})", s.InvoiceNumber, Common.Money.FormatPiasters(alloc)));
+                            remainingToAllocate -= alloc;
+                            allocIndex++;
+                        }
+
+                        // Format comprehensive ledger notes documenting FIFO allocation
+                        string formattedNotes;
+                        if (!string.IsNullOrWhiteSpace(notes))
+                        {
+                            formattedNotes = notes.Trim();
+                            if (allocationNotes.Count > 0)
+                            {
+                                formattedNotes += " [تسوية فواتير: " + string.Join("، ", allocationNotes.ToArray()) + "]";
+                            }
+                        }
+                        else
+                        {
+                            if (allocationNotes.Count > 0)
+                            {
+                                formattedNotes = "سداد نقدي للدين [تسوية فواتير: " + string.Join("، ", allocationNotes.ToArray()) + "]";
+                            }
+                            else
+                            {
+                                formattedNotes = "سداد نقدي من العميل";
+                            }
+                        }
+                        if (remainingToAllocate > 0 && allocationNotes.Count > 0)
+                        {
+                            formattedNotes += string.Format(" (متبقي {0} رصيد دائن)", Common.Money.FormatPiasters(remainingToAllocate));
+                        }
 
                         // Update customer balance
                         string updateBalSql = "UPDATE customers SET balance_piasters = @newBal WHERE id = @id;";
@@ -274,11 +404,11 @@ namespace RafiqPOS.Repositories
                         ";
                         using (var cmd = new SQLiteCommand(ledgerSql, conn, trans))
                         {
-                            cmd.Parameters.AddWithValue("@lid", "led_" + Guid.NewGuid().ToString("N").Substring(0, 12));
+                            cmd.Parameters.AddWithValue("@lid", ledgerId);
                             cmd.Parameters.AddWithValue("@cid", customerId);
                             cmd.Parameters.AddWithValue("@amt", amountPiasters);
                             cmd.Parameters.AddWithValue("@after", newBalance);
-                            cmd.Parameters.AddWithValue("@notes", string.IsNullOrWhiteSpace(notes) ? "سداد نقدي من العميل" : notes.Trim());
+                            cmd.Parameters.AddWithValue("@notes", formattedNotes);
                             cmd.Parameters.AddWithValue("@cat", now);
                             cmd.ExecuteNonQuery();
                         }
@@ -401,6 +531,44 @@ namespace RafiqPOS.Repositories
                         // 4. Calculate restored balance (reversing payment restores debt)
                         long newBalance = currentBalance + paymentAmount;
                         string now = DateTime.UtcNow.ToString("o");
+
+                        // Revert any invoice allocations linked to this payment (Requirement 4)
+                        var allocatedPmts = new List<Tuple<string, string, long>>();
+                        string getAllocPmtsSql = "SELECT id, sale_id, amount_piasters FROM payments WHERE id LIKE 'pmt_settle_' || @lid || '%';";
+                        using (var pCmd = new SQLiteCommand(getAllocPmtsSql, conn, trans))
+                        {
+                            pCmd.Parameters.AddWithValue("@lid", ledgerEntryId);
+                            using (var pReader = pCmd.ExecuteReader())
+                            {
+                                while (pReader.Read())
+                                {
+                                    allocatedPmts.Add(new Tuple<string, string, long>(
+                                        pReader["id"].ToString(),
+                                        pReader["sale_id"].ToString(),
+                                        Convert.ToInt64(pReader["amount_piasters"])
+                                    ));
+                                }
+                            }
+                        }
+
+                        for (int i = 0; i < allocatedPmts.Count; i++)
+                        {
+                            var ap = allocatedPmts[i];
+                            string revertSaleSql = "UPDATE sales SET paid_piasters = MAX(0, paid_piasters - @amt) WHERE id = @sid;";
+                            using (var uCmd = new SQLiteCommand(revertSaleSql, conn, trans))
+                            {
+                                uCmd.Parameters.AddWithValue("@amt", ap.Item3);
+                                uCmd.Parameters.AddWithValue("@sid", ap.Item2);
+                                uCmd.ExecuteNonQuery();
+                            }
+
+                            string delPmtSql = "DELETE FROM payments WHERE id = @pid;";
+                            using (var dCmd = new SQLiteCommand(delPmtSql, conn, trans))
+                            {
+                                dCmd.Parameters.AddWithValue("@pid", ap.Item1);
+                                dCmd.ExecuteNonQuery();
+                            }
+                        }
 
                         // 5. Update customer balance
                         string updateBalSql = "UPDATE customers SET balance_piasters = @newBal WHERE id = @id;";
@@ -571,8 +739,17 @@ namespace RafiqPOS.Repositories
                                 CreatedAt = reader["created_at"].ToString()
                             };
 
+                            string entryType = (entry.Type ?? "").ToLowerInvariant();
                             string entryDate = entry.CreatedAt != null && entry.CreatedAt.Length >= 10 ? entry.CreatedAt.Substring(0, 10) : "";
                             long effect = GetLedgerBalanceEffect(entry.Type, entry.AmountPiasters, entry.BalanceAfterPiasters);
+
+                            // Opening balance entry is ALWAYS an opening balance, not a new period transaction
+                            if (entryType == "opening_balance")
+                            {
+                                runningOpening += effect;
+                                report.Entries.Add(entry);
+                                continue;
+                            }
 
                             // If strictly prior to start date, factor into opening balance
                             if (!string.IsNullOrWhiteSpace(startDate) && string.Compare(entryDate, startDate, StringComparison.Ordinal) < 0)
@@ -587,14 +764,38 @@ namespace RafiqPOS.Repositories
                                 continue;
                             }
 
-                            if (effect > 0) report.PeriodDebitsPiasters += effect;
-                            else if (effect < 0) report.PeriodCreditsPiasters += -effect;
+                            if (entryType == "sale" || entryType == "debt_increase")
+                            {
+                                report.PeriodDebitsPiasters += Math.Abs(entry.AmountPiasters);
+                            }
+                            else if (entryType == "payment" || entryType == "deposit")
+                            {
+                                report.PeriodCreditsPiasters += Math.Abs(entry.AmountPiasters);
+                            }
+                            else if (entryType == "payment_cancel")
+                            {
+                                report.PeriodCreditsPiasters -= Math.Abs(entry.AmountPiasters);
+                            }
+                            else if (entryType == "refund" || entryType == "debt_decrease")
+                            {
+                                report.PeriodRefundsPiasters += Math.Abs(entry.AmountPiasters);
+                            }
+                            else if (entryType == "cancellation")
+                            {
+                                if (effect < 0) report.PeriodDebitsPiasters -= Math.Abs(entry.AmountPiasters);
+                                else report.PeriodCreditsPiasters -= Math.Abs(entry.AmountPiasters);
+                            }
+                            else
+                            {
+                                if (effect > 0) report.PeriodDebitsPiasters += effect;
+                                else if (effect < 0) report.PeriodCreditsPiasters += -effect;
+                            }
 
                             report.Entries.Add(entry);
                         }
 
                         report.OpeningBalancePiasters = runningOpening;
-                        report.ClosingBalancePiasters = runningOpening + report.PeriodDebitsPiasters - report.PeriodCreditsPiasters;
+                        report.ClosingBalancePiasters = runningOpening + report.PeriodDebitsPiasters - report.PeriodCreditsPiasters - report.PeriodRefundsPiasters;
                     }
                 }
             }

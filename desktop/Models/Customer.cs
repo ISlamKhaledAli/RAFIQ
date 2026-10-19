@@ -141,6 +141,9 @@ namespace RafiqPOS.Models
         [JsonProperty("periodCreditsPiasters")]
         public long PeriodCreditsPiasters { get; set; }
 
+        [JsonProperty("periodRefundsPiasters")]
+        public long PeriodRefundsPiasters { get; set; }
+
         [JsonProperty("closingBalancePiasters")]
         public long ClosingBalancePiasters { get; set; }
 

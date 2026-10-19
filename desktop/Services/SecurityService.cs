@@ -286,6 +286,9 @@ namespace RafiqPOS.Services
 
         public LoginResult Login(string usernameOrId, string pin)
         {
+            // Security hardening: immediately invalidate prior session so failed attempts never inherit privileges
+            _currentUserSession = null;
+
             var res = new LoginResult();
 
             if (string.IsNullOrEmpty(usernameOrId) || string.IsNullOrEmpty(pin))
@@ -1458,13 +1461,14 @@ namespace RafiqPOS.Services
             "stock.view", "stock.adjust", "stock.movement_log",
             "purchases.view", "purchases.create", "suppliers.manage",
             "customers.view", "customers.create", "customers.edit", "customers.ledger",
-            "customers.payment", "customers.payment_cancel", "customers.credit_sale",
+            "customers.payment", "customers.payment_cancel", "customers.credit_sale", "customers.credit_limit_override",
             "reports.sales", "reports.profit", "reports.inventory", "reports.customers", "reports.cashier", "reports.daily_closing",
             "settings.store", "settings.printer", "settings.barcode", "settings.features", "settings.backup", "settings.restore", "settings.license",
             "users.view", "users.create", "users.edit", "users.deactivate", "users.reset_pin", "users.delegate",
-            "audit_log.view", "expenses.view", "expenses.create", "expenses.delete",
+            "audit_log.view", "expenses.view", "expenses.create", "expenses.edit", "expenses.delete", "expenses.cancel",
             "epay.access", "epay.transact", "epay.fund", "epay.terminals_manage", "epay.history", "epay.analytics", "epay.cancel",
             "wallets.access", "wallets.transact", "wallets.fund", "wallets.accounts_manage", "wallets.history", "wallets.analytics",
+            "shifts.view", "shifts.open", "shifts.close", "shifts.cash_in", "shifts.cash_out",
             // Legacy aliases
             "pos", "customers", "products", "inventory", "reports", "settings", "users", "epay", "wallets",
             "discounts", "price_edit", "stock_adjust", "db_recovery", "refunds", "cancel_sale"
@@ -1550,6 +1554,12 @@ namespace RafiqPOS.Services
 
             if (p.ContainsKey("wallets.access")) p["wallets"] = p["wallets.access"];
             else if (p.ContainsKey("wallets")) p["wallets.access"] = p["wallets"];
+
+            if (p.ContainsKey("customers.credit_limit_override")) p["credit_limit_override"] = p["customers.credit_limit_override"];
+            else if (p.ContainsKey("credit_limit_override")) p["customers.credit_limit_override"] = p["credit_limit_override"];
+
+            if (p.ContainsKey("expenses.delete")) p["expenses.cancel"] = p["expenses.delete"];
+            else if (p.ContainsKey("expenses.cancel")) p["expenses.delete"] = p["expenses.cancel"];
         }
 
         public static UserDto MapToDto(User u)
@@ -1646,6 +1656,7 @@ namespace RafiqPOS.Services
             p["customers.payment"] = true;
             p["customers.payment_cancel"] = isAdmin;
             p["customers.credit_sale"] = true;
+            p["customers.credit_limit_override"] = isAdmin;
 
             // Reports
             p["reports.sales"] = isAdmin;
@@ -1676,7 +1687,9 @@ namespace RafiqPOS.Services
             p["audit_log.view"] = isRoot;
             p["expenses.view"] = isAdmin;
             p["expenses.create"] = isAdmin;
+            p["expenses.edit"] = isAdmin;
             p["expenses.delete"] = isAdmin;
+            p["expenses.cancel"] = isAdmin;
 
             // E-Pay & Payment Terminals
             p["epay.access"] = true;
@@ -1694,6 +1707,13 @@ namespace RafiqPOS.Services
             p["wallets.accounts_manage"] = isAdmin;
             p["wallets.history"] = isAdmin;
             p["wallets.analytics"] = isAdmin;
+
+            // Shifts & Cash Drawer
+            p["shifts.view"] = true;
+            p["shifts.open"] = true;
+            p["shifts.close"] = true;
+            p["shifts.cash_in"] = true;
+            p["shifts.cash_out"] = true;
 
             SyncPermissionAliases(p);
 

@@ -35,6 +35,9 @@ namespace RafiqPOS.Models
         [JsonProperty("sortOrder")]
         public int SortOrder { get; set; }
 
+        [JsonProperty("hasSales")]
+        public bool HasSales { get; set; }
+
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
 

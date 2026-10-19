@@ -50,6 +50,14 @@ namespace RafiqPOS.Services
                 var batchService = new ProductBatchService(batchRepo, settingsRepo);
 
                 // TEST 1: Create a product
+                var supplier = supplierRepo.Save(new Supplier
+                {
+                    Id = "supp_juhayna",
+                    Name = "شركة جهينة",
+                    Phone = "01000000000",
+                    IsActive = true
+                });
+
                 var prod = new Product
                 {
                     Id = "prod_batch_test_1",
@@ -68,9 +76,10 @@ namespace RafiqPOS.Services
                 var pur = new Purchase
                 {
                     InvoiceNumber = 101,
+                    SupplierId = supplier.Id,
                     SupplierName = "شركة جهينة",
                     InvoiceDate = DateTime.UtcNow.ToString("yyyy-MM-dd"),
-                    PaidAmountPiasters = 70000,
+                    PaidAmountPiasters = 17500, // 10*700 + 15*700 = 17500 piasters (175 EGP)
                     DiscountPiasters = 0,
                     Items = new System.Collections.Generic.List<PurchaseItem>
                     {
@@ -204,6 +213,199 @@ namespace RafiqPOS.Services
 
                 var postDisposalSummary = batchService.GetBatchSummary(30);
                 Assert(postDisposalSummary.ExpiredCount == 0, "بعد الإتلاف: الدفعات المنتهية غير المعالجة أصبحت 0", result);
+
+                // TEST 6: FEFO Suggested Batch (Requirement 1)
+                // BATCH-A was depleted in Test 3, so BATCH-B is the earliest active valid batch
+                var suggested = batchService.GetSuggestedBatch(prod.Id);
+                Assert(suggested != null && suggested.BatchNumber == "BATCH-B", "اقتراح التشغيلة الأقرب انتهاءً تلقائياً بنظام FEFO (BATCH-B)", result);
+
+                // TEST 7: Batch Independence & Distinct Cost Tracking in Purchases and Stock Movements (Requirement 3)
+                var pur2 = new Purchase
+                {
+                    InvoiceNumber = 102,
+                    SupplierId = supplier.Id,
+                    SupplierName = "شركة جهينة - توريد جديد",
+                    InvoiceDate = DateTime.UtcNow.ToString("yyyy-MM-dd"),
+                    PaidAmountPiasters = 9500, // 10*950 = 9500 piasters (95 EGP)
+                    DiscountPiasters = 0,
+                    Items = new System.Collections.Generic.List<PurchaseItem>
+                    {
+                        new PurchaseItem
+                        {
+                            Id = "pi_cost_test",
+                            ProductId = prod.Id,
+                            ProductName = prod.Name,
+                            Barcode = prod.Barcode,
+                            QuantityMilli = 10000, // 10 units
+                            UnitCostPiasters = 950, // Distinct cost: 9.50 EGP vs 7.00 EGP earlier
+                            BatchNumber = "BATCH-COST-950",
+                            ExpiryDate = DateTime.UtcNow.AddDays(40).ToString("yyyy-MM-dd"),
+                            ProductionDate = DateTime.UtcNow.ToString("yyyy-MM-dd")
+                        }
+                    }
+                };
+                purchaseRepo.CreatePurchase(pur2);
+
+                // Verify stock_movement for purchase has the distinct batch cost 950 and expiry date
+                var batch950 = batchRepo.GetByProductId(prod.Id);
+                ProductBatch found950 = null;
+                for (int bIdx = 0; bIdx < batch950.Count; bIdx++)
+                {
+                    if (batch950[bIdx].BatchNumber == "BATCH-COST-950")
+                    {
+                        found950 = batch950[bIdx];
+                        break;
+                    }
+                }
+                Assert(found950 != null && found950.CostPricePiasters == 950, "تسجيل سعر التكلفة المستقل للتشغيلة الجديدة (950 قرش)", result);
+
+                // Verify stock movements recorded the distinct cost and expiry date
+                bool purMovementVerified = false;
+                using (var conn = new System.Data.SQLite.SQLiteConnection(tempConnStr))
+                {
+                    conn.Open();
+                    using (var cmd = new System.Data.SQLite.SQLiteCommand("SELECT unit_cost_piasters, batch_number, expiry_date FROM stock_movements WHERE batch_number = 'BATCH-COST-950' AND movement_type = 'PURCHASE';", conn))
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            long costFromSm = Convert.ToInt64(reader["unit_cost_piasters"]);
+                            string expFromSm = reader["expiry_date"].ToString();
+                            purMovementVerified = (costFromSm == 950) && !string.IsNullOrEmpty(expFromSm);
+                        }
+                    }
+                }
+                Assert(purMovementVerified, "حركات المخزن تسجل تكلفة التشغيلة (950) ورقمها وتاريخ انتهائها بشكل مستقل في حركة الشراء", result);
+
+                // TEST 8: Block Sale of Expired Items Without Supervisor Authorization (Requirement 2)
+                var expiredProd = new Product
+                {
+                    Id = "prod_expired_med",
+                    Name = "دواء شراب للأطفال منتهي",
+                    Barcode = "6229999888877",
+                    PricePiasters = 3500,
+                    CostPiasters = 2000,
+                    StockQuantityMilli = 5000,
+                    Unit = "piece",
+                    IsActive = true
+                };
+                productService.SaveProduct(expiredProd);
+
+                var expiredBatchOnly = new ProductBatch
+                {
+                    ProductId = expiredProd.Id,
+                    BatchNumber = "BATCH-EXPIRED-DRUG",
+                    ExpiryDate = DateTime.UtcNow.AddDays(-10).ToString("yyyy-MM-dd"), // expired 10 days ago
+                    QuantityMilli = 5000,
+                    CostPricePiasters = 2000,
+                    Status = "ACTIVE"
+                };
+                batchRepo.CreateOrUpdateBatch(expiredBatchOnly);
+
+                bool blockedAsExpected = false;
+                try
+                {
+                    var invalidSale = new Sale
+                    {
+                        Id = "sale_blocked_expired",
+                        InvoiceNumber = 2,
+                        SubtotalPiasters = 3500,
+                        TotalPiasters = 3500,
+                        PaidPiasters = 3500,
+                        PaymentMethod = "cash",
+                        Status = "completed",
+                        Items = new System.Collections.Generic.List<SaleItem>
+                        {
+                            new SaleItem
+                            {
+                                Id = "si_exp_blocked",
+                                ProductId = expiredProd.Id,
+                                ProductName = expiredProd.Name,
+                                QuantityMilli = 1000,
+                                UnitPricePiasters = 3500,
+                                TotalPiasters = 3500,
+                                UnitCostPiasters = 2000,
+                                BatchId = expiredBatchOnly.Id,
+                                BatchNumber = expiredBatchOnly.BatchNumber,
+                                ExpiryDate = expiredBatchOnly.ExpiryDate,
+                                IsExpiredBypass = false
+                            }
+                        }
+                    };
+                    saleRepo.CreateSaleAtomic(invalidSale);
+                }
+                catch (InvalidOperationException)
+                {
+                    blockedAsExpected = true;
+                }
+                Assert(blockedAsExpected, "منع بيع الصنف المنتهي الصلاحية ورفض الفاتورة عند عدم وجود تخطي إداري موثق", result);
+
+                // TEST 9: Allow Sale of Expired Items WITH Documented Supervisor Authorization (Requirement 2)
+                var validBypassSale = new Sale
+                {
+                    Id = "sale_allowed_expired_bypass",
+                    InvoiceNumber = 3,
+                    CashierId = "cashier_1",
+                    SubtotalPiasters = 3500,
+                    TotalPiasters = 3500,
+                    PaidPiasters = 3500,
+                    PaymentMethod = "cash",
+                    Status = "completed",
+                    Items = new System.Collections.Generic.List<SaleItem>
+                    {
+                        new SaleItem
+                        {
+                            Id = "si_exp_bypass",
+                            ProductId = expiredProd.Id,
+                            ProductName = expiredProd.Name,
+                            QuantityMilli = 1000,
+                            UnitPricePiasters = 3500,
+                            TotalPiasters = 3500,
+                            UnitCostPiasters = 2000,
+                            BatchId = expiredBatchOnly.Id,
+                            BatchNumber = expiredBatchOnly.BatchNumber,
+                            ExpiryDate = expiredBatchOnly.ExpiryDate,
+                            IsExpiredBypass = true // Authorized bypass
+                        }
+                    }
+                };
+                saleRepo.CreateSaleAtomic(validBypassSale);
+
+                // Verify audit log has the documented supervisor override
+                bool auditLogFound = false;
+                using (var conn = new System.Data.SQLite.SQLiteConnection(tempConnStr))
+                {
+                    conn.Open();
+                    using (var cmd = new System.Data.SQLite.SQLiteCommand("SELECT COUNT(*) FROM audit_logs WHERE action = 'EXPIRED_PRODUCT_SALE_OVERRIDE' AND entity_id = @sid;", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@sid", validBypassSale.Id);
+                        long cnt = Convert.ToInt64(cmd.ExecuteScalar());
+                        auditLogFound = cnt > 0;
+                    }
+                }
+                Assert(auditLogFound, "توثيق التخطي الإداري لبيع الصنف المنتهي الصلاحية في سجل المراجعة (Audit Log)", result);
+
+                // Verify sale recorded batch cost in stock_movements on sale
+                bool saleMovementCostVerified = false;
+                using (var conn = new System.Data.SQLite.SQLiteConnection(tempConnStr))
+                {
+                    conn.Open();
+                    using (var cmd = new System.Data.SQLite.SQLiteCommand("SELECT unit_cost_piasters, batch_number, expiry_date FROM stock_movements WHERE reference_id = @sid AND movement_type = 'SALE';", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@sid", validBypassSale.Id);
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                long saleCost = Convert.ToInt64(reader["unit_cost_piasters"]);
+                                string bNum = reader["batch_number"].ToString();
+                                string expDate = reader["expiry_date"].ToString();
+                                saleMovementCostVerified = (saleCost == 2000) && (bNum == "BATCH-EXPIRED-DRUG") && !string.IsNullOrEmpty(expDate);
+                            }
+                        }
+                    }
+                }
+                Assert(saleMovementCostVerified, "حركات المخزن تسجل تكلفة التشغيلة ورقمها وتاريخ انتهائها بشكل مستقل في حركة البيع", result);
 
                 result.Message = string.Format("نجحت جميع اختبارات تواريخ الصلاحية والدفعات بنسبة 100% ({0}/{1} تأكيداً)",
                     result.PassedAssertions, result.TotalAssertions);

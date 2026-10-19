@@ -87,16 +87,43 @@ namespace RafiqPOS.Common
             string bits = EncodeCode128(barcodeText);
             if (string.IsNullOrEmpty(bits)) return;
 
-            float textHeight = showText ? 14f : 0f;
+            float textHeight = showText ? 13f : 0f;
             float barcodeHeight = Math.Max(10f, rect.Height - textHeight - 2f);
 
-            // حساب عرض الموديول الواحد (Module Width)
-            float moduleWidth = rect.Width / (float)bits.Length;
-            if (moduleWidth < 0.5f) moduleWidth = 0.5f;
+            // حساب دقة بكسل رأس الطباعة الفيزيائي لضمان محاذاة كل موديول على بكسلات صحيحة
+            // Snapping to integer dots ensures zero sub-pixel raster jitter and 100% laser scanner readability
+            float dpiX = g.DpiX > 10f ? g.DpiX : 203f;
+            float dotUnit = 100.0f / dpiX; // default GraphicsUnit.Display (1/100 inch)
+            if (g.PageUnit == GraphicsUnit.Pixel)
+            {
+                dotUnit = 1.0f;
+            }
+            else if (g.PageUnit == GraphicsUnit.Point)
+            {
+                dotUnit = 72.0f / dpiX;
+            }
+            else if (g.PageUnit == GraphicsUnit.Millimeter)
+            {
+                dotUnit = 25.4f / dpiX;
+            }
 
-            // توسيط الباركود داخل المستطيل المتاح
+            float availableDots = rect.Width / dotUnit;
+            int moduleDots = (int)Math.Floor(availableDots / (float)bits.Length);
+            if (moduleDots < 1) moduleDots = 1;
+
+            float moduleWidth = moduleDots * dotUnit;
             float totalBarcodeWidth = moduleWidth * bits.Length;
+
+            // إذا تجاوز الباركود المستطيل بسبب الموديول الأدنى، يتم ملاءمته للعرض المتاح
+            if (totalBarcodeWidth > rect.Width && bits.Length > 0)
+            {
+                moduleWidth = rect.Width / (float)bits.Length;
+                totalBarcodeWidth = rect.Width;
+            }
+
+            // توسيط الباركود داخل المستطيل المتاح مع محاذاة البداية على بكسل فيزيائي صحيح
             float startX = rect.X + Math.Max(0f, (rect.Width - totalBarcodeWidth) / 2f);
+            startX = (float)Math.Round(startX / dotUnit) * dotUnit;
             float startY = rect.Y;
 
             // رسم الخطوط السوداء والفراغات

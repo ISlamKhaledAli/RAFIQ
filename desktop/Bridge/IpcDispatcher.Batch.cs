@@ -53,6 +53,26 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, expired);
                     return true;
 
+                case "batch:getSuggested":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "معرف المنتج مفقود");
+                        return true;
+                    }
+                    string sugProdId = null;
+                    JObject sugObj = request.Payload as JObject;
+                    if (sugObj != null && sugObj["productId"] != null)
+                    {
+                        sugProdId = sugObj["productId"].ToString();
+                    }
+                    else
+                    {
+                        sugProdId = request.Payload.ToString();
+                    }
+                    var suggested = DatabaseService.ProductBatches.GetSuggestedBatch(sugProdId);
+                    response = BridgeResponse.Ok(request.Id, suggested);
+                    return true;
+
                 case "batch:summary":
                     int? sumDays = null;
                     JObject sumObj = request.Payload as JObject;

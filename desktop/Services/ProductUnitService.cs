@@ -99,6 +99,11 @@ namespace RafiqPOS.Services
                 unit.ConversionFactor = 1;
             }
 
+            if (existing.ConversionFactor != unit.ConversionFactor && _unitRepo.HasSales(unit.Id))
+            {
+                throw new InvalidOperationException(string.Format("لا يمكن تعديل معامل التحويل للوحدة ({0}) من {1} إلى {2} لوجود مبيعات وفواتير مسجلة بها سابقاً لضمان سلامة السجل التاريخي وتقارير الجرد.", existing.UnitName, existing.ConversionFactor, unit.ConversionFactor));
+            }
+
             _unitRepo.Update(unit);
             return _unitRepo.GetById(unit.Id);
         }

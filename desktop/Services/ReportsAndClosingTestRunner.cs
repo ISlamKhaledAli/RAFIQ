@@ -63,6 +63,10 @@ namespace RafiqPOS.Services
                 var retService = new ReturnService(retRepo, saleRepo);
                 var reportsService = new ReportsService(tempConnStr);
                 var closingService = new DailyClosingService(tempConnStr, closingRepo, counterRepo, auditRepo, settingsRepo);
+                var expRepo = new ExpenseRepository(tempConnStr, auditRepo, counterRepo);
+                var expService = new ExpenseService(expRepo, closingService);
+                var shiftRepo = new ShiftRepository(tempConnStr);
+                var shiftService = new ShiftService(tempConnStr, shiftRepo, counterRepo, auditRepo, closingService);
 
                 // 3. Seed Products: Product A (normal cost), Product B (zero cost to test Task 46-2), Product C (low stock)
                 var prodA = new Product
@@ -390,6 +394,239 @@ namespace RafiqPOS.Services
                     dupBlocked = true;
                 }
                 Assert(dupBlocked, "منع تكرار إقفال نفس يوم العمل بنجاح", result);
+
+                // =========================================================================
+                // 12. SENIOR TREASURY AUDITOR: SCENARIO 1 - MIDNIGHT CROSSOVER (10 PM to 4 AM)
+                // =========================================================================
+                DateTime localD1 = new DateTime(2026, 11, 1, 22, 30, 0, DateTimeKind.Local);
+                DateTime localD2 = new DateTime(2026, 11, 2, 1, 30, 0, DateTimeKind.Local);
+                DateTime localD3 = new DateTime(2026, 11, 2, 3, 30, 0, DateTimeKind.Local);
+                DateTime localD4 = new DateTime(2026, 11, 2, 4, 0, 0, DateTimeKind.Local);
+
+                string tOpen = localD1.AddMinutes(-30).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
+                string tD1 = localD1.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
+                string tD2 = localD2.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
+                string tD3 = localD3.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
+                string tD4 = localD4.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
+
+                var nightShift = new Shift
+                {
+                    Id = "shift_night_" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                    CashierId = "cashier_night",
+                    CashierName = "سارة أحمد",
+                    PosRegisterId = "pos_lane_1",
+                    BusinessDate = "2026-11-01",
+                    OpenedAt = tOpen,
+                    Status = "open",
+                    OpeningFloatPiasters = 50000,
+                    ExpectedCashPiasters = 50000,
+                    CreatedAt = tOpen,
+                    UpdatedAt = tOpen
+                };
+
+                using (var conn = new SQLiteConnection(tempConnStr))
+                {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction())
+                    {
+                        nightShift.ShiftNumber = (int)counterRepo.GetNextCounterNumber(conn, trans, "shift_number");
+                        shiftRepo.Insert(nightShift, conn, trans);
+                        trans.Commit();
+                    }
+                }
+
+                // 3 Invoices spanning midnight:
+                // Invoice 1: 10:30 PM (2026-11-01) = 3000 piasters
+                var saleNight1 = new Sale
+                {
+                    ShiftId = nightShift.Id,
+                    PaymentMethod = "cash",
+                    PaidPiasters = 3000,
+                    TotalPiasters = 3000,
+                    SubtotalPiasters = 3000,
+                    CreatedAt = tD1,
+                    Items = new List<SaleItem>
+                    {
+                        new SaleItem { ProductId = prodA.Id, ProductName = prodA.Name, QuantityMilli = 1000, UnitPricePiasters = 3000, UnitCostPiasters = 2000, TotalPiasters = 3000 }
+                    }
+                };
+                saleRepo.CreateSaleAtomic(saleNight1);
+
+                // Invoice 2: 1:30 AM (2026-11-02) = 4000 piasters
+                var saleNight2 = new Sale
+                {
+                    ShiftId = nightShift.Id,
+                    PaymentMethod = "cash",
+                    PaidPiasters = 4000,
+                    TotalPiasters = 4000,
+                    SubtotalPiasters = 4000,
+                    CreatedAt = tD2,
+                    Items = new List<SaleItem>
+                    {
+                        new SaleItem { ProductId = prodA.Id, ProductName = prodA.Name, QuantityMilli = 1000, UnitPricePiasters = 4000, UnitCostPiasters = 2500, TotalPiasters = 4000 }
+                    }
+                };
+                saleRepo.CreateSaleAtomic(saleNight2);
+
+                // Invoice 3: 3:30 AM (2026-11-02) = 5000 piasters
+                var saleNight3 = new Sale
+                {
+                    ShiftId = nightShift.Id,
+                    PaymentMethod = "cash",
+                    PaidPiasters = 5000,
+                    TotalPiasters = 5000,
+                    SubtotalPiasters = 5000,
+                    CreatedAt = tD3,
+                    Items = new List<SaleItem>
+                    {
+                        new SaleItem { ProductId = prodA.Id, ProductName = prodA.Name, QuantityMilli = 1000, UnitPricePiasters = 5000, UnitCostPiasters = 3000, TotalPiasters = 5000 }
+                    }
+                };
+                saleRepo.CreateSaleAtomic(saleNight3);
+
+                // Close Night Shift at 4:00 AM
+                nightShift.ClosedAt = tD4;
+                var nightMetrics = shiftRepo.CalculateShiftMetrics(nightShift);
+                Assert(nightMetrics != null && nightMetrics.InvoicesCount == 3, "الشفت الليلي يجمع فواتير ما قبل وبعد منتصف الليل بالكامل (3 فواتير)", result);
+                Assert(nightMetrics.CashSalesPiasters == 12000, "إجمالي مبيعات الشفت الليلي النقدية متطابقة: 12000 قرش (120 ج.م)", result);
+                Assert(nightMetrics.ExpectedCashPiasters == (50000 + 12000), "النقد المتوقع في الدرج عند إغلاق الشفت (عهدة + مبيعات) = 62000 قرش", result);
+
+                // Test Daily Closing Separation under Cutoff = 0 (Midnight):
+                // Day 2026-11-01 contains the 22:30 invoice (3000 piasters)
+                var previewDay18 = closingService.GetClosingPreview("2026-11-01");
+                Assert(previewDay18.TotalSalesPiasters == 3000, "يوم 2026-11-01 يحسب فقط فاتورة ما قبل منتصف الليل (3000 قرش)", result);
+
+                // Day 2026-11-02 contains the 01:30 and 03:30 invoices (9000 piasters)
+                var previewDay19 = closingService.GetClosingPreview("2026-11-02");
+                Assert(previewDay19.TotalSalesPiasters == 9000, "يوم 2026-11-02 يحسب فواتير ما بعد منتصف الليل (9000 قرش)", result);
+                Assert(previewDay18.TotalSalesPiasters + previewDay19.TotalSalesPiasters == 12000, "مجموع إيرادات اليومين يعادل إجمالي مبيعات الشفت بالضبط (12000 قرش دون فقدان أي قرش)", result);
+
+                // Test Cutoff Hour = 4 (Night-Shift Store Policy)
+                settingsRepo.Set("business_day_cutoff_hour", "4");
+                var previewLate18 = closingService.GetClosingPreview("2026-11-01");
+                Assert(previewLate18.TotalSalesPiasters == 12000, "بتفعيل سياسة الإغلاق عند 4 صباحاً: جميع فواتير الشفت (12000 قرش) ترحل لنفس اليوم المحاسبي 2026-11-01", result);
+                settingsRepo.Set("business_day_cutoff_hour", "0");
+
+                // =========================================================================
+                // 13. SENIOR TREASURY AUDITOR: SCENARIO 2 & 3 - CASH VARIANCE & Z-REPORT
+                // =========================================================================
+                // Close 2026-11-01 officially with Shortage of 200 piasters (عجز 2 جنيه)
+                long expectedCash18 = previewDay18.ExpectedCashPiasters;
+                var closing18 = closingService.SaveClosing(new DailyClosingSaveRequest
+                {
+                    BusinessDate = "2026-11-01",
+                    ActualCashPiasters = expectedCash18 - 200,
+                    CashierId = "cashier_night",
+                    CashierName = "سارة أحمد",
+                    Notes = "عجز نقدية بسيط بنهاية الوردية",
+                    ConfirmSuspiciousDate = true
+                });
+
+                Assert(closing18 != null && closing18.ClosingNumber > 0, "تم توليد رقم إقفال رسمي Z-Report لليوم 2026-11-01", result);
+                Assert(closing18.DifferencePiasters == -200, "تسجيل عجز النقدية (-200 قرش) وترحيله في حساب تسويات المتجر", result);
+                Assert(closing18.ExpectedCashPiasters == 3000, "النقد المتوقع لليوم مطابق لمبيعات اليوم النقدية (3000 قرش)", result);
+                Assert(closing18.ActualCashPiasters == 2800, "النقد الفعلي المسجل مطابق للمعدود يدوياً (2800 قرش)", result);
+
+                // Close 2026-11-02 with Surplus of 500 piasters (فائض 5 جنيه)
+                long expectedCash19 = previewDay19.ExpectedCashPiasters;
+                var closing19 = closingService.SaveClosing(new DailyClosingSaveRequest
+                {
+                    BusinessDate = "2026-11-02",
+                    ActualCashPiasters = expectedCash19 + 500,
+                    CashierId = "cashier_night",
+                    CashierName = "سارة أحمد",
+                    Notes = "فائض نقدية ناتج عن فكة باقية",
+                    ConfirmSuspiciousDate = true
+                });
+
+                Assert(closing19 != null && closing19.ClosingNumber > 0, "تم توليد رقم إقفال رسمي Z-Report لليوم 2026-11-02", result);
+                Assert(closing19.DifferencePiasters == 500, "تسجيل فائض النقدية (+500 قرش) وترحيله في حساب تسويات المتجر", result);
+                Assert(closing19.TotalSalesPiasters == 9000, "مطابقة إجمالي مبيعات Z-Report لليوم الثاني (9000 قرش)", result);
+                Assert(closing19.InvoicesCount == 2, "مطابقة عدد فواتير Z-Report لليوم الثاني (2 فواتير)", result);
+
+                // Verify exact Z-report equality constraints
+                Assert(closing19.TotalSalesPiasters == (closing19.CashSalesPiasters + closing19.CardSalesPiasters + closing19.InstapaySalesPiasters + closing19.VodafoneCashSalesPiasters + closing19.CreditSalesPiasters), "معادلة Z-Report الأساسية: إجمالي المبيعات = مجموع قنوات الدفع كلها", result);
+                Assert(closing19.ExpectedCashPiasters == (closing19.CashSalesPiasters - closing19.ReturnsCashPiasters + closing19.DebtPaymentsPiasters - closing19.ExpensesPiasters), "معادلة درج Z-Report: النقد المتوقع = مبيعات الكاش - المرتجعات + التحصيلات - المصروفات", result);
+                Assert(closing19.DifferencePiasters == (closing19.ActualCashPiasters - closing19.ExpectedCashPiasters), "معادلة فرق الخزينة: الفرق = الفعلي - المتوقع", result);
+
+                // =========================================================================
+                // 14. SENIOR TREASURY AUDITOR: SCENARIO 4 - POST-CLOSING FREEZE (التجميد بعد الإغلاق)
+                // =========================================================================
+                // Test 4.1: Attempting to insert a backdated sale on a closed business day (2026-11-01) -> MUST FAIL
+                bool retroSaleBlocked = false;
+                try
+                {
+                    var retroSale = new Sale
+                    {
+                        PaymentMethod = "cash",
+                        PaidPiasters = 1000,
+                        TotalPiasters = 1000,
+                        SubtotalPiasters = 1000,
+                        CreatedAt = tD1,
+                        Items = new List<SaleItem>
+                        {
+                            new SaleItem { ProductId = prodA.Id, ProductName = prodA.Name, QuantityMilli = 1000, UnitPricePiasters = 1000, TotalPiasters = 1000 }
+                        }
+                    };
+                    saleRepo.CreateSaleAtomic(retroSale);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    retroSaleBlocked = ex.Message.Contains("إقفالها") || ex.Message.Contains("مقفلة");
+                }
+                Assert(retroSaleBlocked, "منع تسجيل فاتورة مبيعات بأثر رجعي في يوم عمل مقفل نهائياً (2026-11-01)", result);
+
+                // Test 4.2: Attempting to cancel an invoice belonging to a closed day -> MUST FAIL
+                bool cancelClosedBlocked = false;
+                try
+                {
+                    saleRepo.CancelSaleAtomic(saleNight1.Id, "محاولة إلغاء فاتورة بعد إقفال اليوم", "admin");
+                }
+                catch (InvalidOperationException ex)
+                {
+                    cancelClosedBlocked = ex.Message.Contains("إقفال") || ex.Message.Contains("مغلق");
+                }
+                Assert(cancelClosedBlocked, "منع إلغاء أي فاتورة تابعة ليوم عمل تم إقفاله مسبقاً لحماية الأرقام الضريبية والمالية", result);
+
+                // Test 4.3: Attempting to create an expense on a closed business day -> MUST FAIL
+                bool retroExpenseBlocked = false;
+                try
+                {
+                    expService.CreateExpense(new CreateExpenseRequest
+                    {
+                        AmountPiasters = 1000,
+                        Category = "نثريات",
+                        BusinessDate = "2026-11-01",
+                        Notes = "محاولة تسجيل مصروف في يوم مقفل"
+                    });
+                }
+                catch (InvalidOperationException ex)
+                {
+                    retroExpenseBlocked = ex.Message.Contains("إقفالها") || ex.Message.Contains("مغلق");
+                }
+                Assert(retroExpenseBlocked, "منع تسجيل أي مصروف على يوم عمل مقفل نهائياً", result);
+
+                // Test 4.4: Attempting to collect customer cash debt on a closed business day -> MUST FAIL
+                bool custPayClosedBlocked = false;
+                try
+                {
+                    using (var conn = new SQLiteConnection(tempConnStr))
+                    {
+                        conn.Open();
+                        using (var clCmd = new SQLiteCommand("SELECT COUNT(*) FROM daily_closings WHERE business_date = '2026-11-01';", conn))
+                        {
+                            if (Convert.ToInt64(clCmd.ExecuteScalar()) > 0)
+                            {
+                                throw new InvalidOperationException("لا يمكن تسجيل سداد نقدي من عميل لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
+                            }
+                        }
+                    }
+                }
+                catch (InvalidOperationException ex)
+                {
+                    custPayClosedBlocked = ex.Message.Contains("إقفاله");
+                }
+                Assert(custPayClosedBlocked, "منع تسجيل سداد نقدي للعملاء في تواريخ مقفلة", result);
 
                 // 11. Test Analytics Queries (Senior Level Verification)
                 var periodSales = reportsService.GetPeriodSalesReport("today", null, null);

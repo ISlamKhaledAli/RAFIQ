@@ -31,5 +31,23 @@ namespace RafiqPOS.Services
         {
             return _purchaseRepo.GetById(id);
         }
+
+        public PurchaseReturn CreatePurchaseReturn(PurchaseReturn returnDoc, string userId = null)
+        {
+            lock (SaleService.FinancialWriteLock)
+            {
+                return _purchaseRepo.CreatePurchaseReturn(returnDoc, userId);
+            }
+        }
+
+        public List<PurchaseReturn> GetReturns(string supplierId = null, int limit = 50)
+        {
+            return _purchaseRepo.GetReturns(supplierId, limit);
+        }
+
+        public PurchaseReturn GetReturnById(string id)
+        {
+            return _purchaseRepo.GetReturnById(id);
+        }
     }
 }

@@ -131,23 +131,28 @@ namespace RafiqPOS.Services
                 settingsRepo.Set("license_token", SignedTestToken("RFQ-TEST-EXPIRED-KEY", "annual", DateTime.UtcNow.AddDays(-1)));
                 settingsRepo.Set("license_expires_at", DateTime.UtcNow.AddDays(-1).ToString("yyyy-MM-dd HH:mm:ss"));
 
-                var fakeSaleRequest = new BridgeRequest
+                // Test full spectrum of commercial mutation actions that must be blocked when license is expired
+                string[] mutationActions = new string[] { "sales:create", "sales:hold", "returns:create", "purchases:create", "expenses:create" };
+                foreach (string actionName in mutationActions)
                 {
-                    Id = "test_sale_req_1",
-                    Action = "sales:create",
-                    Payload = JObject.FromObject(new
+                    var fakeMutationReq = new BridgeRequest
                     {
-                        items = new object[] { },
-                        paymentMethod = "cash",
-                        cashReceivedPiasters = 1000
-                    })
-                };
+                        Id = "test_block_" + actionName,
+                        Action = actionName,
+                        Payload = JObject.FromObject(new
+                        {
+                            items = new object[] { },
+                            paymentMethod = "cash",
+                            cashReceivedPiasters = 1000
+                        })
+                    };
 
-                var blockResponse = IpcDispatcher.Dispatch(fakeSaleRequest);
-                if (blockResponse.Success || blockResponse.Error == null || blockResponse.Error.Code != "LICENSE_EXPIRED")
-                {
-                    result.Message = "فشل اختبار منع عمليات البيع: النواة سمحت بعملية البيع أو لم ترجع كود LICENSE_EXPIRED";
-                    return result;
+                    var blockResponse = IpcDispatcher.Dispatch(fakeMutationReq);
+                    if (blockResponse.Success || blockResponse.Error == null || blockResponse.Error.Code != "LICENSE_EXPIRED")
+                    {
+                        result.Message = string.Format("فشل اختبار منع العمليات التجارية: النواة سمحت بإجراء {0} أثناء انتهاء الترخيص أو لم ترجع كود LICENSE_EXPIRED", actionName);
+                        return result;
+                    }
                 }
                 result.SaleBlockingPassed = true;
                 result.PassedAssertions++;
@@ -180,6 +185,19 @@ namespace RafiqPOS.Services
                 if (!licInfoResponse.Success)
                 {
                     result.Message = "فشل اختبار القائمة البيضاء: تم حجب قراءة معلومات الترخيص أثناء انتهائه";
+                    return result;
+                }
+
+                var prodListRequest = new BridgeRequest
+                {
+                    Id = "test_prod_list_req_1",
+                    Action = "products:list",
+                    Payload = null
+                };
+                var prodListResponse = IpcDispatcher.Dispatch(prodListRequest);
+                if (!prodListResponse.Success)
+                {
+                    result.Message = "فشل اختبار القائمة البيضاء: تم حجب قراءة قائمة المنتجات أثناء انتهاء الترخيص";
                     return result;
                 }
                 result.ReadWhitelistPassed = true;
@@ -327,7 +345,18 @@ namespace RafiqPOS.Services
                     return result;
                 }
 
-                var blockedSaleOnOld = IpcDispatcher.Dispatch(fakeSaleRequest);
+                var fakeSaleReqOld = new BridgeRequest
+                {
+                    Id = "test_sale_req_old",
+                    Action = "sales:create",
+                    Payload = JObject.FromObject(new
+                    {
+                        items = new object[] { },
+                        paymentMethod = "cash",
+                        cashReceivedPiasters = 1000
+                    })
+                };
+                var blockedSaleOnOld = IpcDispatcher.Dispatch(fakeSaleReqOld);
                 if (blockedSaleOnOld.Success || blockedSaleOnOld.Error == null || blockedSaleOnOld.Error.Code != "LICENSE_EXPIRED")
                 {
                     result.Message = "فشل منع البيع على الجهاز القديم بعد نقل الترخيص";

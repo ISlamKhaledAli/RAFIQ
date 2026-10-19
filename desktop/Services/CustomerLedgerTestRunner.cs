@@ -155,6 +155,173 @@ namespace RafiqPOS.Services
                 Assert(importRes.ImportedCount == 2 && importRes.SkippedCount == 1, "استيراد العملاء الصالحين فقط وتخطي غير الصالح", result);
                 Assert(importRes.TotalOpeningDebtsPiasters == 40000, "إجمالي ديون الاستيراد الافتتاحية 400 ج.م مطابقة تماماً", result);
 
+                // TEST 9: Strict Credit Limit Enforcement (منع تجاوز الحد الائتماني دون صلاحية مدير)
+                SecurityService.SetCurrentUserForTesting(null);
+                var strictCust = new Customer
+                {
+                    Name = "عميل سقف الائتمان",
+                    Phone = "01122334455",
+                    BalancePiasters = 0,
+                    CreditLimitPiasters = 50000 // 500.00 EGP limit
+                };
+                var savedStrictCust = custService.SaveCustomer(strictCust);
+
+                var expensiveProd = new Product
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Name = "زيت زيتون بكر ممتاز",
+                    Barcode = "6229988776655",
+                    PricePiasters = 60000, // 600.00 EGP (exceeds 500 limit)
+                    CostPiasters = 45000,
+                    StockQuantityMilli = 10000,
+                    Unit = "bottle",
+                    IsActive = true
+                };
+                pRepo.Upsert(expensiveProd);
+
+                var breachingSale = new Sale
+                {
+                    CustomerId = savedStrictCust.Id,
+                    PaymentMethod = "CREDIT",
+                    PaidPiasters = 0,
+                    Items = new List<SaleItem>
+                    {
+                        new SaleItem
+                        {
+                            ProductId = expensiveProd.Id,
+                            ProductName = expensiveProd.Name,
+                            QuantityMilli = 1000,
+                            UnitPricePiasters = 60000
+                        }
+                    }
+                };
+
+                bool blockedByCreditLimit = false;
+                try
+                {
+                    saleService.ProcessSale(breachingSale);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    if (ex.Message != null && ex.Message.Contains("الحد الائتماني"))
+                    {
+                        blockedByCreditLimit = true;
+                    }
+                }
+                Assert(blockedByCreditLimit, "الحظر الصارم للبيع الآجل عند تجاوز سقف الائتمان (600 ج.م > 500 ج.م)", result);
+
+                // TEST 10: Authorized Credit Limit Override by Manager Session
+                SecurityService.SetCurrentUserForTesting(new UserDto
+                {
+                    Id = "usr_manager_test",
+                    Username = "manager_audit",
+                    DisplayName = "مدير تدقيق الحسابات",
+                    Role = "admin",
+                    IsActive = true
+                });
+
+                var authorizedSale = saleService.ProcessSale(breachingSale);
+                Assert(authorizedSale != null && authorizedSale.TotalPiasters == 60000, "السماح بالبيع الآجل متجاوز الحد الائتماني بعد موافقة مدير بصلاحية", result);
+
+                var custAfterOverride = custService.GetById(savedStrictCust.Id);
+                Assert(custAfterOverride.BalancePiasters == 60000, "تحديث رصيد العميل الآجل إلى 600 ج.م بعد التخطي الإداري", result);
+
+                // TEST 11: Multi-Invoice FIFO Payment Allocation
+                var fifoCust = new Customer
+                {
+                    Name = "عميل تجربة الفيفو",
+                    Phone = "01233445566",
+                    BalancePiasters = 0,
+                    CreditLimitPiasters = 500000 // 5,000 EGP
+                };
+                var savedFifoCust = custService.SaveCustomer(fifoCust);
+
+                var itemProd = new Product
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Name = "علبة تونة فاخرة",
+                    Barcode = "6227766554433",
+                    PricePiasters = 5000, // 50.00 EGP
+                    CostPiasters = 3800,
+                    StockQuantityMilli = 50000,
+                    Unit = "can",
+                    IsActive = true
+                };
+                pRepo.Upsert(itemProd);
+
+                // Invoice 1: 100.00 EGP (2 cans)
+                var sale1 = saleService.ProcessSale(new Sale
+                {
+                    CustomerId = savedFifoCust.Id,
+                    PaymentMethod = "CREDIT",
+                    PaidPiasters = 0,
+                    Items = new List<SaleItem>
+                    {
+                        new SaleItem { ProductId = itemProd.Id, ProductName = itemProd.Name, QuantityMilli = 2000, UnitPricePiasters = 5000 }
+                    }
+                });
+
+                // Invoice 2: 150.00 EGP (3 cans)
+                var sale2 = saleService.ProcessSale(new Sale
+                {
+                    CustomerId = savedFifoCust.Id,
+                    PaymentMethod = "CREDIT",
+                    PaidPiasters = 0,
+                    Items = new List<SaleItem>
+                    {
+                        new SaleItem { ProductId = itemProd.Id, ProductName = itemProd.Name, QuantityMilli = 3000, UnitPricePiasters = 5000 }
+                    }
+                });
+
+                Assert(sale1 != null && sale2 != null, "إنشاء فاتورتين آجلتين بإجمالي 250 ج.م (100 + 150)", result);
+                var fifoCustBeforePay = custService.GetById(savedFifoCust.Id);
+                Assert(fifoCustBeforePay.BalancePiasters == 25000, "رصيد دين العميل 250 ج.م قبل السداد", result);
+
+                // Customer pays 170.00 EGP (17,000 piasters)
+                // FIFO rule: Sale 1 (10,000 piasters) is 100% paid.
+                // Sale 2 (15,000 piasters) receives remaining 7,000 piasters (paid_piasters = 7000, remaining debt = 8000).
+                var fifoCustAfterPay = custService.RecordPayment(savedFifoCust.Id, 17000, "سداد دفعة مجمعة لتوزيعها فيفو");
+                Assert(fifoCustAfterPay.BalancePiasters == 8000, "تحديث رصيد دين العميل إلى 80 ج.م المتبقية (250 - 170)", result);
+
+                var updatedSale1 = saleRepo.GetSaleById(sale1.Id);
+                var updatedSale2 = saleRepo.GetSaleById(sale2.Id);
+                Assert(updatedSale1.PaidPiasters == 10000, "الفاتورة الأولى الأقدم تم سدادها بالكامل (100 ج.م) وفق قاعدة FIFO", result);
+                Assert(updatedSale2.PaidPiasters == 7000, "الفاتورة الثانية استلمت المبلغ المتبقي (70 ج.م من أصل 150 ج.م)", result);
+
+                // TEST 12: Reverse Receipt Voucher (إلغاء سند القبض وعكس التوزيع دون المساس بالدفتر التاريخي)
+                var fifoStatement = custService.GetStatement(savedFifoCust.Id, 10);
+                var fifoPayEntry = fifoStatement[0];
+                Assert(fifoPayEntry.Type == "payment" && fifoPayEntry.AmountPiasters == 17000, "التحقق من وجود قيد السداد لسند القبض", result);
+
+                var fifoCustReverted = custService.CancelPayment(savedFifoCust.Id, fifoPayEntry.Id, "إلغاء سند قبض بالخطأ", "مدير المراجعة");
+                Assert(fifoCustReverted.BalancePiasters == 25000, "استعادة رصيد دين العميل الأصلي 250 ج.م بعد إلغاء السند", result);
+
+                var revertedSale1 = saleRepo.GetSaleById(sale1.Id);
+                var revertedSale2 = saleRepo.GetSaleById(sale2.Id);
+                Assert(revertedSale1.PaidPiasters == 0, "عكس توزيع السداد على الفاتورة الأولى وعودتها غير مسددة (0 ج.م)", result);
+                Assert(revertedSale2.PaidPiasters == 0, "عكس توزيع السداد على الفاتورة الثانية وعودتها غير مسددة (0 ج.م)", result);
+
+                // TEST 13: Statement of Account Exact Equation: (Opening + Debits - Credits - Refunds) == Closing
+                var detailedStatement = custRepo.GetDetailedStatement(savedFifoCust.Id, null, null);
+                long expectedClosing = detailedStatement.OpeningBalancePiasters 
+                    + detailedStatement.PeriodDebitsPiasters 
+                    - detailedStatement.PeriodCreditsPiasters 
+                    - detailedStatement.PeriodRefundsPiasters;
+
+                Assert(detailedStatement.ClosingBalancePiasters == expectedClosing, 
+                    string.Format("سلامة معادلة كشف الحساب: ({0} + {1} - {2} - {3}) = {4} قرش",
+                        detailedStatement.OpeningBalancePiasters,
+                        detailedStatement.PeriodDebitsPiasters,
+                        detailedStatement.PeriodCreditsPiasters,
+                        detailedStatement.PeriodRefundsPiasters,
+                        detailedStatement.ClosingBalancePiasters),
+                    result);
+
+                var liveFifoCust = custService.GetById(savedFifoCust.Id);
+                Assert(detailedStatement.ClosingBalancePiasters == liveFifoCust.BalancePiasters, "تطابق رصيد إغلاق كشف الحساب مع رصيد العميل الحي في قاعدة البيانات بدقة القروش", result);
+
+                SecurityService.SetCurrentUserForTesting(null);
+
                 result.Message = string.Format("نجحت جميع اختبارات الآجل والحسابات والمخزون ({0}/{1} تأكيد بنجاح 100%).",
                     result.PassedAssertions, result.TotalAssertions);
             }

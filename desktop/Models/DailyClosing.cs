@@ -59,6 +59,12 @@ namespace RafiqPOS.Models
         [JsonProperty("expensesPiasters")]
         public long ExpensesPiasters { get; set; }
 
+        [JsonProperty("drawerExpensesPiasters")]
+        public long DrawerExpensesPiasters { get; set; }
+
+        [JsonProperty("safeExpensesPiasters")]
+        public long SafeExpensesPiasters { get; set; }
+
         [JsonProperty("expensesCount")]
         public int ExpensesCount { get; set; }
 
@@ -220,6 +226,12 @@ namespace RafiqPOS.Models
 
         [JsonProperty("expensesPiasters")]
         public long ExpensesPiasters { get; set; }
+
+        [JsonProperty("drawerExpensesPiasters")]
+        public long DrawerExpensesPiasters { get; set; }
+
+        [JsonProperty("safeExpensesPiasters")]
+        public long SafeExpensesPiasters { get; set; }
 
         [JsonProperty("expensesCount")]
         public int ExpensesCount { get; set; }

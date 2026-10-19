@@ -58,6 +58,18 @@ namespace RafiqPOS.Services
             _batchRepo.DisposeExpiredBatch(batchId, reason, userId);
         }
 
+        public ProductBatch GetSuggestedBatch(string productId)
+        {
+            if (string.IsNullOrEmpty(productId)) return null;
+            return _batchRepo.GetSuggestedBatch(productId);
+        }
+
+        public bool HasOnlyExpiredStock(string productId)
+        {
+            if (string.IsNullOrEmpty(productId)) return false;
+            return _batchRepo.HasOnlyExpiredStock(productId);
+        }
+
         private int GetAlertDaysSetting()
         {
             if (_settingsRepo == null) return 30;
