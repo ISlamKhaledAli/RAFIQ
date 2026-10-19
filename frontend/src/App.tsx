@@ -207,7 +207,12 @@ export default function App() {
     return false;
   });
   const [hasDemoData, setHasDemoData] = useState(false);
-  const [isTourOpen, setIsTourOpen] = useState(false);
+  const [isTourOpen, setIsTourOpen] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('rafiq_show_guided_tour') === 'true';
+    }
+    return false;
+  });
   const [isReadinessOpen, setIsReadinessOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(true);
   const [storeName, setStoreName] = useState('رفيق POS');
@@ -887,6 +892,13 @@ export default function App() {
           isFirstRun={true}
           onClose={() => setIsFirstRunWizardOpen(false)}
           onCompleted={() => {
+            try {
+              localStorage.setItem('rafiq_first_run_completed', 'true');
+              localStorage.setItem('rafiq_show_guided_tour', 'true');
+              localStorage.removeItem('rafiq_wizard_state');
+            } catch {
+              // ignore
+            }
             setIsFirstRunWizardOpen(false);
             setActiveTab('pos');
             window.location.reload();
@@ -1722,6 +1734,13 @@ export default function App() {
         isFirstRun={true}
         onClose={() => setIsFirstRunWizardOpen(false)}
         onCompleted={() => {
+          try {
+            localStorage.setItem('rafiq_first_run_completed', 'true');
+            localStorage.setItem('rafiq_show_guided_tour', 'true');
+            localStorage.removeItem('rafiq_wizard_state');
+          } catch {
+            // ignore
+          }
           setIsFirstRunWizardOpen(false);
           setActiveTab('pos');
           window.location.reload();
@@ -1731,8 +1750,34 @@ export default function App() {
       {/* Guided Tour Modal (Feature #113 / Task 113-4) */}
       <GuidedTourModal
         isOpen={isTourOpen}
-        onClose={() => setIsTourOpen(false)}
+        onClose={() => {
+          setIsTourOpen(false);
+          try {
+            localStorage.removeItem('rafiq_show_guided_tour');
+            localStorage.setItem('rafiq_guided_tour_completed', 'true');
+          } catch {
+            // ignore
+          }
+        }}
         hasDemoData={hasDemoData}
+        onLoadDemoData={async () => {
+          try {
+            const res: any = await invoke('demo:load');
+            if (res && res.success) {
+              setHasDemoData(true);
+              setActiveTab('pos');
+              try {
+                localStorage.removeItem('rafiq_show_guided_tour');
+                localStorage.setItem('rafiq_guided_tour_completed', 'true');
+              } catch {
+                // ignore
+              }
+              window.location.reload();
+            }
+          } catch (err) {
+            console.error('Failed to load demo data:', err);
+          }
+        }}
       />
 
       {/* Pilot Readiness Check Modal (Feature #137) */}

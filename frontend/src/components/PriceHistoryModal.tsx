@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { History, X, TrendingUp, TrendingDown, ArrowLeft, Calendar, AlertCircle } from 'lucide-react';
+import { History, X, TrendingUp, TrendingDown, ArrowLeft, Calendar, AlertCircle, User } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import type { ProductPriceHistory } from '../types/models';
@@ -121,7 +121,7 @@ export const PriceHistoryModal: React.FC<PriceHistoryModalProps> = ({
             <div className="py-12 text-center text-ink-muted text-[13px] flex flex-col items-center gap-2 bg-canvas/60 rounded border border-dashed border-line">
               <History className="w-8 h-8 text-ink-muted/50" />
               <p className="font-semibold text-ink">لا توجد تعديلات أسعار سابقة مسجلة</p>
-              <p className="text-[11.5px] text-ink-muted">سيتم تسجيل أي تعديل تقوم به على سعر البيع أو التكلفة تلقائياً هنا مع التاريخ والوقت.</p>
+              <p className="text-[11.5px] text-ink-muted">سيتم تسجيل أي تعديل تقوم به على سعر البيع أو التكلفة تلقائياً هنا مع التاريخ والوقت والمستخدم المسؤول.</p>
             </div>
           ) : (
             <div className="flex flex-col gap-2">
@@ -137,7 +137,8 @@ export const PriceHistoryModal: React.FC<PriceHistoryModalProps> = ({
                       <th className="py-2.5 px-3">سعر البيع</th>
                       <th className="py-2.5 px-3">سعر التكلفة</th>
                       <th className="py-2.5 px-3">هامش الربح الجديد</th>
-                      <th className="py-2.5 px-3">البيان</th>
+                      <th className="py-2.5 px-3">المستخدم المسؤول</th>
+                      <th className="py-2.5 px-3">البيان والسبب</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
@@ -212,7 +213,13 @@ export const PriceHistoryModal: React.FC<PriceHistoryModalProps> = ({
                               </span>
                             )}
                           </td>
-                          <td className="py-2.5 px-3 text-ink-muted text-[11.5px] max-w-[280px] truncate" title={item.changeReason || ''}>
+                          <td className="py-2.5 px-3 text-ink text-[11.5px] whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-surface-2 border border-line text-ink font-medium">
+                              <User className="w-3 h-3 text-brand shrink-0" />
+                              <span>{item.userName || item.userId || 'المدير'}</span>
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-ink-muted text-[11.5px] max-w-[240px] truncate" title={item.changeReason || ''}>
                             {item.changeReason || 'تعديل يدوي'}
                           </td>
                         </tr>

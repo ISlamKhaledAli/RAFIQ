@@ -33,6 +33,21 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, periodReport);
                     return true;
 
+                case "reports:getVatReport":
+                    string vatPeriod = "today";
+                    string vatFrom = null;
+                    string vatTo = null;
+                    JObject vatObj = request.Payload as JObject;
+                    if (vatObj != null)
+                    {
+                        if (vatObj["period"] != null) vatPeriod = vatObj["period"].ToString();
+                        if (vatObj["fromDate"] != null) vatFrom = vatObj["fromDate"].ToString();
+                        if (vatObj["toDate"] != null) vatTo = vatObj["toDate"].ToString();
+                    }
+                    var vatReport = DatabaseService.Reports.GetVatReport(vatPeriod, vatFrom, vatTo);
+                    response = BridgeResponse.Ok(request.Id, vatReport);
+                    return true;
+
                 case "reports:getLowStock":
                     var lowStockItems = DatabaseService.Reports.GetLowStockReport();
                     response = BridgeResponse.Ok(request.Id, lowStockItems);
@@ -46,6 +61,11 @@ namespace RafiqPOS.Bridge
                 case "reports:getDataQuality":
                     var dataQualityReport = DatabaseService.Reports.GetDataQualityReport();
                     response = BridgeResponse.Ok(request.Id, dataQualityReport);
+                    return true;
+
+                case "reports:repairDataQuality":
+                    var repairResult = DatabaseService.Reports.RepairDataQualityIssues();
+                    response = BridgeResponse.Ok(request.Id, repairResult);
                     return true;
 
                 case "reports:runMilestone9Tests":

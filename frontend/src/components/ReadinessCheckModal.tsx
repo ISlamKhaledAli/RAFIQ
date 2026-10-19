@@ -180,6 +180,9 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
         return <HardDrive className="w-5 h-5 text-emerald-600" />;
       case 'products':
         return <PackageCheck className="w-5 h-5 text-emerald-600" />;
+      case 'os_environment':
+      case 'storage_permissions':
+      case 'root_security':
       default:
         return <ShieldCheck className="w-5 h-5 text-emerald-600" />;
     }
@@ -346,7 +349,7 @@ export const ReadinessCheckModal: React.FC<ReadinessCheckModalProps> = ({
                             type="button"
                             onClick={() => {
                               if (onNavigateToTab) {
-                                if (chk.key === 'store_profile' || chk.key === 'backup') {
+                                if (chk.key === 'store_profile' || chk.key === 'backup' || chk.key === 'os_environment' || chk.key === 'storage_permissions' || chk.key === 'root_security') {
                                   onNavigateToTab('settings');
                                 } else if (chk.key === 'products') {
                                   onNavigateToTab('products');

@@ -49,6 +49,14 @@ namespace RafiqPOS.Services
             {
                 return GetClothingApparelCatalog();
             }
+            else if (templateId == "pharmacy")
+            {
+                return GetPharmacyCatalog();
+            }
+            else if (templateId == "cafe_restaurant" || templateId == "cafe" || templateId == "restaurant" || templateId == "restaurants_cafe")
+            {
+                return GetCafeRestaurantCatalog();
+            }
             else if (templateId == "general_grocery")
             {
                 return GetGeneralGroceryCatalog();
@@ -723,6 +731,116 @@ namespace RafiqPOS.Services
             list.Add(new TemplateProductItem { Name = "شنطة هدايا كرتون مقاس وسط مبهجة يد ستان", Barcode = "6979900770043", CategoryName = "هدايا وتغليف وبطاريات", PricePiasters = 1500, CostPiasters = 650, StockQuantityMilli = 60000, MinStockQuantityMilli = 12000, Unit = "piece" });
             list.Add(new TemplateProductItem { Name = "بوكس هدايا كرتون مقوى فاخر مع فيونكة ستان", Barcode = "6979900770050", CategoryName = "هدايا وتغليف وبطاريات", PricePiasters = 4500, CostPiasters = 2200, StockQuantityMilli = 25000, MinStockQuantityMilli = 5000, Unit = "piece" });
             list.Add(new TemplateProductItem { Name = "رول ورق تغليف هدايا أطفال فاخر 2 متر", Barcode = "6979900770067", CategoryName = "هدايا وتغليف وبطاريات", PricePiasters = 1200, CostPiasters = 500, StockQuantityMilli = 40000, MinStockQuantityMilli = 8000, Unit = "piece" });
+
+            return list;
+        }
+
+        // 9. صيدليات ومستحضرات تجميل وعناية (Pharmacy & Cosmetics)
+        private static List<TemplateProductItem> GetPharmacyCatalog()
+        {
+            var list = new List<TemplateProductItem>();
+
+            // أدوية ومسكنات شائعة
+            list.Add(new TemplateProductItem { Name = "بنادول إكسترا أحمر شريط 12 قرص", Barcode = "6221100010015", CategoryName = "أدوية ومسكنات شائعة", PricePiasters = 4200, CostPiasters = 3400, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "بنادول أزرق خافض حرارة شريط 12 قرص", Barcode = "6221100010022", CategoryName = "أدوية ومسكنات شائعة", PricePiasters = 3500, CostPiasters = 2850, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "كونجستال نزلات برد وإنفلونزا شريط 10 أقراص", Barcode = "6221100010039", CategoryName = "أدوية ومسكنات شائعة", PricePiasters = 2800, CostPiasters = 2200, StockQuantityMilli = 60000, MinStockQuantityMilli = 12000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "سيتال خافض حرارة للأطفال شراب 120 مل", Barcode = "6221100010046", CategoryName = "أدوية ومسكنات شائعة", PricePiasters = 1800, CostPiasters = 1450, StockQuantityMilli = 40000, MinStockQuantityMilli = 8000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "بروفين مسكن ومضاد للالتهاب 400 مجم شريط 10 أقراص", Barcode = "6221100010053", CategoryName = "أدوية ومسكنات شائعة", PricePiasters = 2600, CostPiasters = 2100, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "أنتينال كبسول مطهر معوي شريط 12 كبسولة", Barcode = "6221100010060", CategoryName = "أدوية ومسكنات شائعة", PricePiasters = 3200, CostPiasters = 2600, StockQuantityMilli = 60000, MinStockQuantityMilli = 15000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "ستربسلز استحلاب لالتهاب الحلق عسل وليمون باكت", Barcode = "6221100010077", CategoryName = "أدوية ومسكنات شائعة", PricePiasters = 9500, CostPiasters = 7800, StockQuantityMilli = 30000, MinStockQuantityMilli = 6000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "أوتريفين بخاخ أنف للبالغين 10 مل", Barcode = "6221100010084", CategoryName = "أدوية ومسكنات شائعة", PricePiasters = 2400, CostPiasters = 1900, StockQuantityMilli = 40000, MinStockQuantityMilli = 8000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "فوار راني لعلاج الحموضة باكت 6 أكياس", Barcode = "6221100010091", CategoryName = "أدوية ومسكنات شائعة", PricePiasters = 2000, CostPiasters = 1600, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "فوار كول يورين مسالك بولية باكت 6 أكياس", Barcode = "6221100010107", CategoryName = "أدوية ومسكنات شائعة", PricePiasters = 2200, CostPiasters = 1750, StockQuantityMilli = 40000, MinStockQuantityMilli = 8000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "ألفينترن أقراص مضاد للتورم والالتهاب شريط 10 أقراص", Barcode = "6221100010114", CategoryName = "أدوية ومسكنات شائعة", PricePiasters = 3000, CostPiasters = 2450, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "كتافلام 50 مجم مسكن سريع شريط 10 أقراص", Barcode = "6221100010121", CategoryName = "أدوية ومسكنات شائعة", PricePiasters = 3800, CostPiasters = 3100, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "piece" });
+
+            // مستلزمات وإسعافات
+            list.Add(new TemplateProductItem { Name = "كحول طبي معقم إيثيلي 70% بخاخ 120 مل", Barcode = "6221100020014", CategoryName = "مستلزمات وإسعافات", PricePiasters = 2500, CostPiasters = 1600, StockQuantityMilli = 60000, MinStockQuantityMilli = 12000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "بيتادين مطهر جروح سائل 60 مل", Barcode = "6221100020021", CategoryName = "مستلزمات وإسعافات", PricePiasters = 4500, CostPiasters = 3600, StockQuantityMilli = 40000, MinStockQuantityMilli = 8000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "قطن طبي ممتص فاخر معقم 100 جم", Barcode = "6221100020038", CategoryName = "مستلزمات وإسعافات", PricePiasters = 2200, CostPiasters = 1500, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "شاش طبي معقم باكت 5 قطع", Barcode = "6221100020045", CategoryName = "مستلزمات وإسعافات", PricePiasters = 1500, CostPiasters = 950, StockQuantityMilli = 60000, MinStockQuantityMilli = 15000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "بلاستر طبي لاصق جروح علبة 50 قطعة", Barcode = "6221100020052", CategoryName = "مستلزمات وإسعافات", PricePiasters = 3000, CostPiasters = 1800, StockQuantityMilli = 40000, MinStockQuantityMilli = 8000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "رباط ضاغط طبي مرن مقاس 10 سم", Barcode = "6221100020069", CategoryName = "مستلزمات وإسعافات", PricePiasters = 2000, CostPiasters = 1200, StockQuantityMilli = 35000, MinStockQuantityMilli = 7000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "ترمومتر رقمي ديجيتال لقياس الحرارة شاشة LCD", Barcode = "6221100020076", CategoryName = "مستلزمات وإسعافات", PricePiasters = 7500, CostPiasters = 4800, StockQuantityMilli = 20000, MinStockQuantityMilli = 4000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "سرنجة طبية معقمة 3 سم سن دقيق", Barcode = "6221100020083", CategoryName = "مستلزمات وإسعافات", PricePiasters = 250, CostPiasters = 160, StockQuantityMilli = 200000, MinStockQuantityMilli = 40000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "سرنجة طبية معقمة 5 سم", Barcode = "6221100020090", CategoryName = "مستلزمات وإسعافات", PricePiasters = 300, CostPiasters = 190, StockQuantityMilli = 200000, MinStockQuantityMilli = 40000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "كمامة طبية 3 طبقات دعامة أنف باكت 50 قطعة", Barcode = "6221100020106", CategoryName = "مستلزمات وإسعافات", PricePiasters = 4000, CostPiasters = 2400, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "piece" });
+
+            // عناية بالأم والطفل
+            list.Add(new TemplateProductItem { Name = "حفاضات بامبرز مقاس 3 عبوة التوفير 58 حفاضة", Barcode = "6221100030013", CategoryName = "عناية بالأم والطفل", PricePiasters = 29000, CostPiasters = 25500, StockQuantityMilli = 25000, MinStockQuantityMilli = 5000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "حفاضات بامبرز مقاس 4 عبوة جامبو 64 حفاضة", Barcode = "6221100030020", CategoryName = "عناية بالأم والطفل", PricePiasters = 32000, CostPiasters = 28000, StockQuantityMilli = 25000, MinStockQuantityMilli = 5000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "حفاضات مولفيكس مقاس 3 عبوة 58 حفاضة", Barcode = "6221100030037", CategoryName = "عناية بالأم والطفل", PricePiasters = 26000, CostPiasters = 22800, StockQuantityMilli = 25000, MinStockQuantityMilli = 5000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "مناديل مبللة جونسون للأطفال بدون كحول 72 منديل", Barcode = "6221100030044", CategoryName = "عناية بالأم والطفل", PricePiasters = 4500, CostPiasters = 3500, StockQuantityMilli = 40000, MinStockQuantityMilli = 8000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "شامبو جونسون للأطفال لا دموع بعد اليوم 300 مل", Barcode = "6221100030051", CategoryName = "عناية بالأم والطفل", PricePiasters = 6500, CostPiasters = 5200, StockQuantityMilli = 30000, MinStockQuantityMilli = 6000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "زيت جونسون للأطفال مرطب ناعم 200 مل", Barcode = "6221100030068", CategoryName = "عناية بالأم والطفل", PricePiasters = 6000, CostPiasters = 4800, StockQuantityMilli = 30000, MinStockQuantityMilli = 6000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "بودرة تلك جونسون للأطفال نقية 200 جم", Barcode = "6221100030075", CategoryName = "عناية بالأم والطفل", PricePiasters = 5000, CostPiasters = 3900, StockQuantityMilli = 35000, MinStockQuantityMilli = 7000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "كريم سودوكريم لعلاج تسلخات الحفاضات 125 جم", Barcode = "6221100030082", CategoryName = "عناية بالأم والطفل", PricePiasters = 18500, CostPiasters = 15200, StockQuantityMilli = 20000, MinStockQuantityMilli = 4000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "ببرونة أطفال شيكو زجاجية حلمة سيليكون 150 مل", Barcode = "6221100030099", CategoryName = "عناية بالأم والطفل", PricePiasters = 9500, CostPiasters = 7200, StockQuantityMilli = 20000, MinStockQuantityMilli = 4000, Unit = "piece" });
+
+            // تجميل وعناية بالبشرة
+            list.Add(new TemplateProductItem { Name = "غسول وجه غارنييه سكين أكتيف فيتامين سي 100 مل", Barcode = "6221100040012", CategoryName = "تجميل وعناية بالبشرة", PricePiasters = 8500, CostPiasters = 6800, StockQuantityMilli = 30000, MinStockQuantityMilli = 6000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "ماء ميسيلار منظف ومزيل مكياج غارنييه 400 مل", Barcode = "6221100040029", CategoryName = "تجميل وعناية بالبشرة", PricePiasters = 11000, CostPiasters = 8900, StockQuantityMilli = 25000, MinStockQuantityMilli = 5000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "كريم نيفيا سوفت مرطب منعش للجسم والوجه 200 مل", Barcode = "6221100040036", CategoryName = "تجميل وعناية بالبشرة", PricePiasters = 7500, CostPiasters = 5800, StockQuantityMilli = 35000, MinStockQuantityMilli = 7000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "كريم نيفيا أزرق كلاسيك علبة معدنية 150 مل", Barcode = "6221100040043", CategoryName = "تجميل وعناية بالبشرة", PricePiasters = 6500, CostPiasters = 5100, StockQuantityMilli = 40000, MinStockQuantityMilli = 8000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "صن بلوك واقي شمس بوباي جل SPF50+ 50 جم", Barcode = "6221100040050", CategoryName = "تجميل وعناية بالبشرة", PricePiasters = 16000, CostPiasters = 12800, StockQuantityMilli = 20000, MinStockQuantityMilli = 4000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "سيروم شعر سيروبايب كيراتين مضاد للتساقط 100 مل", Barcode = "6221100040067", CategoryName = "تجميل وعناية بالبشرة", PricePiasters = 19500, CostPiasters = 15500, StockQuantityMilli = 15000, MinStockQuantityMilli = 3000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "حمام كريم شعر فاتيكا بالثوم والنخاع 500 جم", Barcode = "6221100040074", CategoryName = "تجميل وعناية بالبشرة", PricePiasters = 6500, CostPiasters = 5000, StockQuantityMilli = 30000, MinStockQuantityMilli = 6000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "مزيل عرق ريكسونا بخاخ رجالي 150 مل حماية 48 ساعة", Barcode = "6221100040081", CategoryName = "تجميل وعناية بالبشرة", PricePiasters = 7500, CostPiasters = 5900, StockQuantityMilli = 35000, MinStockQuantityMilli = 7000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "مزيل عرق نيفيا رول أون حريمي 50 مل حماية جافة", Barcode = "6221100040098", CategoryName = "تجميل وعناية بالبشرة", PricePiasters = 5500, CostPiasters = 4200, StockQuantityMilli = 40000, MinStockQuantityMilli = 8000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "معجون أسنان سنسوداين للأسنان الحساسة 75 مل", Barcode = "6221100040104", CategoryName = "تجميل وعناية بالبشرة", PricePiasters = 6500, CostPiasters = 5200, StockQuantityMilli = 35000, MinStockQuantityMilli = 7000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "موس حلاقة جيليت بلو 3 شفرات متحركة كيس 4 قطع", Barcode = "6221100040111", CategoryName = "تجميل وعناية بالبشرة", PricePiasters = 5500, CostPiasters = 4200, StockQuantityMilli = 40000, MinStockQuantityMilli = 8000, Unit = "piece" });
+
+            return list;
+        }
+
+        // 10. مطاعم وكافيهات ووجبات سريعة (Restaurants & Cafes)
+        private static List<TemplateProductItem> GetCafeRestaurantCatalog()
+        {
+            var list = new List<TemplateProductItem>();
+
+            // ساندوتشات وبرجر
+            list.Add(new TemplateProductItem { Name = "برجر لحم بقري كلاسيك سنجل مع جبنة شيدر", Barcode = "5001", CategoryName = "ساندوتشات وبرجر", PricePiasters = 8500, CostPiasters = 5500, StockQuantityMilli = 100000, MinStockQuantityMilli = 20000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "برجر لحم بقري دبل مع صوص باربكيو مدخن", Barcode = "5002", CategoryName = "ساندوتشات وبرجر", PricePiasters = 12500, CostPiasters = 8200, StockQuantityMilli = 80000, MinStockQuantityMilli = 15000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "ساندوتش تشيكن كريسبي زنجر حار صوص مايونيز", Barcode = "5003", CategoryName = "ساندوتشات وبرجر", PricePiasters = 9500, CostPiasters = 6200, StockQuantityMilli = 90000, MinStockQuantityMilli = 18000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "ساندوتش فاهيتا دجاج مكسيكي بالمشروم والفلفل", Barcode = "5004", CategoryName = "ساندوتشات وبرجر", PricePiasters = 9000, CostPiasters = 5800, StockQuantityMilli = 70000, MinStockQuantityMilli = 15000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "ساندوتش شاورما لحم عربي صوص طحينة", Barcode = "5005", CategoryName = "ساندوتشات وبرجر", PricePiasters = 7500, CostPiasters = 4800, StockQuantityMilli = 100000, MinStockQuantityMilli = 20000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "ساندوتش شاورما فراخ سوري تومية وخيار مخلل", Barcode = "5006", CategoryName = "ساندوتشات وبرجر", PricePiasters = 6500, CostPiasters = 4200, StockQuantityMilli = 120000, MinStockQuantityMilli = 25000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "ساندوتش كفتة مشوية بلدي طحينة وسلطة خضراء", Barcode = "5007", CategoryName = "ساندوتشات وبرجر", PricePiasters = 7000, CostPiasters = 4500, StockQuantityMilli = 80000, MinStockQuantityMilli = 15000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "ساندوتش حواوشي بلدي مخصوص على الفحم", Barcode = "5008", CategoryName = "ساندوتشات وبرجر", PricePiasters = 5500, CostPiasters = 3500, StockQuantityMilli = 90000, MinStockQuantityMilli = 20000, Unit = "piece" });
+
+            // بيتزا ومكرونات
+            list.Add(new TemplateProductItem { Name = "بيتزا مارجريتا إيطالي ريحان وجبنة وسط", Barcode = "5010", CategoryName = "بيتزا ومكرونات", PricePiasters = 11000, CostPiasters = 6800, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "بيتزا سوبر سوبريم ميكس لحوم كبير", Barcode = "5011", CategoryName = "بيتزا ومكرونات", PricePiasters = 17500, CostPiasters = 11000, StockQuantityMilli = 40000, MinStockQuantityMilli = 8000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "بيتزا تشيكن رانش مع صوص الرانش وسط", Barcode = "5012", CategoryName = "بيتزا ومكرونات", PricePiasters = 14000, CostPiasters = 8800, StockQuantityMilli = 45000, MinStockQuantityMilli = 10000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "مكرونة نجرسكو دجاج صوص أبيض موتزاريلا", Barcode = "5013", CategoryName = "بيتزا ومكرونات", PricePiasters = 9500, CostPiasters = 6000, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "مكرونة بشاميل باللحم المفروم طاجن", Barcode = "5014", CategoryName = "بيتزا ومكرونات", PricePiasters = 8500, CostPiasters = 5200, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "piece" });
+
+            // مقبلات وجوانب
+            list.Add(new TemplateProductItem { Name = "بطاطس مقلية فارم فريتس مقرمشة وسط", Barcode = "5020", CategoryName = "مقبلات وجوانب", PricePiasters = 3000, CostPiasters = 1600, StockQuantityMilli = 150000, MinStockQuantityMilli = 30000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "بطاطس ودجز بالبهارات والأعشاب", Barcode = "5021", CategoryName = "مقبلات وجوانب", PricePiasters = 4000, CostPiasters = 2200, StockQuantityMilli = 80000, MinStockQuantityMilli = 15000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "أصابع جبنة موتزاريلا مقلية (4 قطع)", Barcode = "5022", CategoryName = "مقبلات وجوانب", PricePiasters = 5000, CostPiasters = 3000, StockQuantityMilli = 70000, MinStockQuantityMilli = 15000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "حلقات بصل مقرمشة مع صوص حار (6 قطع)", Barcode = "5023", CategoryName = "مقبلات وجوانب", PricePiasters = 3500, CostPiasters = 1800, StockQuantityMilli = 60000, MinStockQuantityMilli = 12000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "علبة صوص تومية سوري ممتازة", Barcode = "5024", CategoryName = "مقبلات وجوانب", PricePiasters = 1500, CostPiasters = 700, StockQuantityMilli = 100000, MinStockQuantityMilli = 20000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "علبة صوص جبنة شيدر سائلة دافئة", Barcode = "5025", CategoryName = "مقبلات وجوانب", PricePiasters = 2000, CostPiasters = 1000, StockQuantityMilli = 90000, MinStockQuantityMilli = 20000, Unit = "piece" });
+
+            // مشروبات ساخنة
+            list.Add(new TemplateProductItem { Name = "إسبريسو سنجل شوت إيطالي فاخر", Barcode = "5030", CategoryName = "مشروبات ساخنة", PricePiasters = 3500, CostPiasters = 1200, StockQuantityMilli = 200000, MinStockQuantityMilli = 30000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "إسبريسو دبل شوت إيطالي قوي", Barcode = "5031", CategoryName = "مشروبات ساخنة", PricePiasters = 5000, CostPiasters = 1800, StockQuantityMilli = 200000, MinStockQuantityMilli = 30000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "كابتشينو حليب مبخر رغوة غنية", Barcode = "5032", CategoryName = "مشروبات ساخنة", PricePiasters = 5500, CostPiasters = 2400, StockQuantityMilli = 150000, MinStockQuantityMilli = 25000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "كافيه لاتيه حليب دافئ كريمي", Barcode = "5033", CategoryName = "مشروبات ساخنة", PricePiasters = 5500, CostPiasters = 2400, StockQuantityMilli = 150000, MinStockQuantityMilli = 25000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "قهوة تركي بن محوج فنجان مظبوط", Barcode = "5034", CategoryName = "مشروبات ساخنة", PricePiasters = 3000, CostPiasters = 1000, StockQuantityMilli = 250000, MinStockQuantityMilli = 40000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "شاي أحمر إبريق صغير بالنعناع الطازج", Barcode = "5035", CategoryName = "مشروبات ساخنة", PricePiasters = 2000, CostPiasters = 500, StockQuantityMilli = 300000, MinStockQuantityMilli = 50000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "هوت تشوكليت شوكولاتة بلجيكية فاخرة بالمارشميلو", Barcode = "5036", CategoryName = "مشروبات ساخنة", PricePiasters = 6000, CostPiasters = 2800, StockQuantityMilli = 100000, MinStockQuantityMilli = 20000, Unit = "piece" });
+
+            // مشروبات باردة
+            list.Add(new TemplateProductItem { Name = "آيس لاتيه كراميل مثلج", Barcode = "5040", CategoryName = "مشروبات باردة", PricePiasters = 6500, CostPiasters = 2800, StockQuantityMilli = 120000, MinStockQuantityMilli = 20000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "آيس سبانش لاتيه حليب مكثف", Barcode = "5041", CategoryName = "مشروبات باردة", PricePiasters = 7500, CostPiasters = 3200, StockQuantityMilli = 100000, MinStockQuantityMilli = 20000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "موهيتو ليمون ونعناع صودا منعشة", Barcode = "5042", CategoryName = "مشروبات باردة", PricePiasters = 4500, CostPiasters = 1600, StockQuantityMilli = 150000, MinStockQuantityMilli = 25000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "موهيتو فراولة وبلو بيري", Barcode = "5043", CategoryName = "مشروبات باردة", PricePiasters = 5000, CostPiasters = 1800, StockQuantityMilli = 120000, MinStockQuantityMilli = 20000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "عصير مانجو طبيعي طازج بدون ماء إضافي", Barcode = "5044", CategoryName = "مشروبات باردة", PricePiasters = 4500, CostPiasters = 2000, StockQuantityMilli = 100000, MinStockQuantityMilli = 20000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "عصير برتقال فريش طبيعي 100%", Barcode = "5045", CategoryName = "مشروبات باردة", PricePiasters = 4000, CostPiasters = 1600, StockQuantityMilli = 100000, MinStockQuantityMilli = 20000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "كانز مياه غازية 330 مل باردة", Barcode = "5046", CategoryName = "مشروبات باردة", PricePiasters = 2000, CostPiasters = 1200, StockQuantityMilli = 150000, MinStockQuantityMilli = 30000, Unit = "piece" });
+            list.Add(new TemplateProductItem { Name = "زجاجة مياه معدنية 600 مل", Barcode = "5047", CategoryName = "مشروبات باردة", PricePiasters = 1000, CostPiasters = 450, StockQuantityMilli = 200000, MinStockQuantityMilli = 40000, Unit = "piece" });
 
             return list;
         }

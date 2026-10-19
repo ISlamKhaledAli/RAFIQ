@@ -57,6 +57,10 @@ export interface AppUpdateInfo {
   isMandatory?: boolean;
   fileSizeBytes?: number;
   errorMessage?: string;
+  packagePath?: string;
+  packageFileName?: string;
+  isOfflinePackage?: boolean;
+  checksumValid?: boolean;
 }
 
 export interface AppUpdateResult {
@@ -65,6 +69,7 @@ export interface AppUpdateResult {
   message: string;
   backupPath?: string;
   rollbackTriggered?: boolean;
+  filesStagedCount?: number;
 }
 
 export interface FullStoreExportResult {

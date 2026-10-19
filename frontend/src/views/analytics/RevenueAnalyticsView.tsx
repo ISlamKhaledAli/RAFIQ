@@ -16,6 +16,8 @@ import {
   ArrowDownRight,
   AlertTriangle,
   Minus,
+  Receipt,
+  ShieldCheck,
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { useDataSubscription } from '../../utils/eventBus';
@@ -37,6 +39,7 @@ import type {
   ItemProfitabilityItem,
   PeriodComparisonReport,
   HourlyIntensityReport,
+  VatReport,
 } from '../../types/models';
 
 const PERIOD_OPTIONS: SelectOption[] = [
@@ -66,6 +69,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
   const showLoading = useSmoothLoading(isLoading, 300);
   const [salesReport, setSalesReport] = useState<PeriodSalesReport | null>(null);
   const [lossReport, setLossReport] = useState<InventoryLossReport | null>(null);
+  const [vatReport, setVatReport] = useState<VatReport | null>(null);
   const [closings, setClosings] = useState<ClosingHistoryRecord[]>([]);
   const [categories, setCategories] = useState<CategoryPerformanceItem[]>([]);
   const [profitableItems, setProfitableItems] = useState<ItemProfitabilityItem[]>([]);
@@ -73,7 +77,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
   const [comparison, setComparison] = useState<PeriodComparisonReport | null>(null);
   const [hourlyReport, setHourlyReport] = useState<HourlyIntensityReport | null>(null);
 
-  const [activeSection, setActiveSection] = useState<'overview' | 'traffic' | 'categories' | 'items' | 'closings'>('overview');
+  const [activeSection, setActiveSection] = useState<'overview' | 'traffic' | 'categories' | 'items' | 'closings' | 'vat'>('overview');
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -84,7 +88,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
         toDate: period === 'custom' ? customTo : undefined,
       };
 
-      const [salesRes, lossRes, closingsRes, catRes, itemsRes, compRes, hourlyRes] = await Promise.all([
+      const [salesRes, lossRes, closingsRes, catRes, itemsRes, compRes, hourlyRes, vatRes] = await Promise.all([
         invoke<PeriodSalesReport>('reports:getPeriodSales', payload).catch(() => null),
         invoke<InventoryLossReport>('reports:getInventoryLoss', payload).catch(() => null),
         invoke<ClosingHistoryRecord[]>('reports:getClosingHistory', payload).catch(() => []),
@@ -98,6 +102,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
         }).catch(() => []),
         invoke<PeriodComparisonReport>('reports:getPeriodComparison', { period }).catch(() => null),
         invoke<HourlyIntensityReport>('reports:getHourlyIntensity', payload).catch(() => null),
+        invoke<VatReport>('reports:getVatReport', payload).catch(() => null),
       ]);
 
       setSalesReport(salesRes);
@@ -107,6 +112,7 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
       setProfitableItems(itemsRes || []);
       setComparison(compRes);
       setHourlyReport(hourlyRes);
+      setVatReport(vatRes);
     } catch (err) {
       console.error('Failed to load revenue analytics:', err);
     } finally {
@@ -128,11 +134,15 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
   const totalSales = salesReport?.totalSalesPiasters || 0;
   const returnsTotal = salesReport?.returnsTotalPiasters || 0;
   const netSales = Math.max(0, totalSales - returnsTotal);
+  const totalTax = salesReport?.totalTaxPiasters || vatReport?.totalTaxPiasters || 0;
+  const netSalesExcludingTax = salesReport?.netSalesExcludingTaxPiasters || Math.max(0, netSales - totalTax);
   const grossProfit = salesReport?.grossProfitPiasters || 0;
   const cogs = Math.max(0, netSales - grossProfit);
   const inventoryLosses = lossReport?.totalLossPiasters || 0;
   const operationalExpenses = salesReport?.totalExpensesPiasters || 0;
-  const netOperationalProfit = grossProfit - inventoryLosses - operationalExpenses;
+  const netOperationalProfit = salesReport?.netOperatingProfitPiasters != null
+    ? (salesReport.netOperatingProfitPiasters - inventoryLosses)
+    : (grossProfit - inventoryLosses - operationalExpenses);
   const netMarginPercent = netSales > 0 ? (netOperationalProfit * 100) / netSales : 0;
 
   // Payment breakdown percentages
@@ -242,23 +252,27 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
           <div className="text-base font-bold font-mono tabular-nums text-ink dark:text-ink-dark">
             {formatArabicCurrency(totalSales)}
           </div>
-          <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1 flex items-center gap-1">
-            <span>المرتجع:</span>
-            <span className="font-mono text-danger dark:text-danger-bright">{formatArabicCurrency(returnsTotal)}</span>
+          <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1 flex items-center justify-between gap-1">
+            <span>المرتجع: <strong className="font-mono text-danger dark:text-danger-bright font-normal">{formatArabicCurrency(returnsTotal)}</strong></span>
+            {totalTax > 0 && (
+              <span className="text-paid dark:text-paid-bright font-mono" title="ضريبة القيمة المضافة المحصلة في المبيعات">
+                ضريبة: {formatArabicCurrency(totalTax)}
+              </span>
+            )}
           </div>
         </div>
 
-        {/* KPI 2: Net Sales */}
+        {/* KPI 2: Net Merchant Revenue */}
         <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-ink-muted dark:text-ink-dark-muted mb-1">
-            <span className="text-[11px] font-semibold">صافي المبيعات</span>
+            <span className="text-[11px] font-semibold">إيراد المتجر الحقيقي</span>
             <DollarSign className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
           </div>
           <div className="text-base font-bold font-mono tabular-nums text-brand-dark dark:text-brand-bright">
-            {formatArabicCurrency(netSales)}
+            {formatArabicCurrency(netSalesExcludingTax)}
           </div>
           <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1">
-            بعد خصم المرتجعات
+            {totalTax > 0 ? 'صافي المبيعات بدون الضريبة' : 'بعد خصم المرتجعات'}
           </div>
         </div>
 
@@ -404,6 +418,19 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
         >
           <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>سجل إقفالات الوردية</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSection('vat')}
+          className={`h-9 pr-2.5 pl-3.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs active:translate-y-0.5 ${
+            activeSection === 'vat'
+              ? 'bg-brand-dark dark:bg-brand-bright text-white dark:text-surface-dark border border-brand-dark dark:border-brand-bright shadow-xs'
+              : 'bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-line-hover dark:hover:border-line-dark'
+          }`}
+        >
+          <Receipt className="w-4 h-4 shrink-0 text-paid dark:text-paid-bright" />
+          <span>إقرار وضريبة القيمة المضافة (VAT)</span>
         </button>
       </div>
 
@@ -976,6 +1003,208 @@ export const RevenueAnalyticsView: FC<RevenueAnalyticsViewProps> = ({ isActive =
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* SECTION F: VAT & Tax Authority Declaration */}
+        {activeSection === 'vat' && (
+          <div className="space-y-4">
+            {/* Legal / Accounting Notice Banner */}
+            <div className="bg-paid-soft/50 dark:bg-paid-dark-soft/40 border border-paid/30 dark:border-paid/40 rounded-xl p-4 flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-paid dark:bg-emerald-700 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <h3 className="text-sm font-bold text-ink dark:text-ink-dark">
+                    إقرار وضريبة القيمة المضافة (VAT) — مصلحة الضرائب المصرية
+                  </h3>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20">
+                    مفصولة بالكامل عن إيرادات المتجر والأرباح
+                  </span>
+                </div>
+                <p className="text-xs text-ink-muted dark:text-ink-dark-muted mt-1 leading-relaxed">
+                  تنبيه محاسبي وقانوني: حصيلة ضريبة القيمة المضافة تُعد <strong>أمانات قانونية</strong> مستحقة التوريد لمصلحة الضرائب المصرية وليست إيراداً تشغيلياً للمتجر. تم فصلها بالكامل لضمان سلامة الدفاتر المحاسبية ودقة حساب الأرباح الحقيقية بالقرش.
+                </p>
+              </div>
+            </div>
+
+            {/* 6 Key VAT Declaration Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {/* 1. Gross Sales Base */}
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs flex flex-col justify-between">
+                <div className="text-[11px] font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
+                  إجمالي مبيعات الفترة
+                </div>
+                <div className="text-base font-bold font-mono text-ink dark:text-ink-dark tabular-nums">
+                  {formatArabicCurrency(vatReport?.grossSalesPiasters || 0)}
+                </div>
+                <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1">
+                  شامل كافة الضرائب
+                </div>
+              </div>
+
+              {/* 2. Taxable Sales */}
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs flex flex-col justify-between">
+                <div className="text-[11px] font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
+                  المبيعات الخاضعة للضريبة
+                </div>
+                <div className="text-base font-bold font-mono text-ink dark:text-ink-dark tabular-nums">
+                  {formatArabicCurrency(vatReport?.taxableSalesPiasters || 0)}
+                </div>
+                <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1">
+                  وعاء الأصناف الخاضعة
+                </div>
+              </div>
+
+              {/* 3. Tax-Exempt Sales */}
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs flex flex-col justify-between">
+                <div className="text-[11px] font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
+                  المبيعات المعفاة من الضريبة
+                </div>
+                <div className="text-base font-bold font-mono text-ink dark:text-ink-dark tabular-nums">
+                  {formatArabicCurrency(vatReport?.taxExemptSalesPiasters || 0)}
+                </div>
+                <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1">
+                  سلع معفاة قانوناً (0%)
+                </div>
+              </div>
+
+              {/* 4. Output VAT */}
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs flex flex-col justify-between">
+                <div className="text-[11px] font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
+                  ضريبة المخرجات المحصلة
+                </div>
+                <div className="text-base font-bold font-mono text-brand-dark dark:text-brand-bright tabular-nums">
+                  {formatArabicCurrency(vatReport?.totalTaxPiasters || 0)}
+                </div>
+                <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1">
+                  من فواتير المبيعات
+                </div>
+              </div>
+
+              {/* 5. Returns VAT */}
+              <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-3 shadow-2xs flex flex-col justify-between">
+                <div className="text-[11px] font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
+                  ضريبة المرتجعات المخصومة
+                </div>
+                <div className="text-base font-bold font-mono text-danger dark:text-danger-bright tabular-nums">
+                  -{formatArabicCurrency(vatReport?.returnsTaxPiasters || 0)}
+                </div>
+                <div className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1">
+                  مردودات مبيعات معتمدة
+                </div>
+              </div>
+
+              {/* 6. Net VAT Payable */}
+              <div className="bg-paid-soft/40 dark:bg-paid-dark-soft/40 border border-paid/30 dark:border-paid/40 rounded-xl p-3 shadow-2xs flex flex-col justify-between">
+                <div className="text-[11px] font-bold text-paid dark:text-paid-bright mb-1">
+                  صافي الضريبة واجبة التوريد
+                </div>
+                <div className="text-base font-bold font-mono text-paid dark:text-paid-bright tabular-nums">
+                  {formatArabicCurrency(vatReport?.netVatPayablePiasters || 0)}
+                </div>
+                <div className="text-[10px] text-paid dark:text-paid-bright font-medium mt-1">
+                  مستحقة لمصلحة الضرائب
+                </div>
+              </div>
+            </div>
+
+            {/* Tax Rates Breakdown Table */}
+            <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl overflow-hidden shadow-2xs">
+              <div className="p-3.5 border-b border-line dark:border-line-dark flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-bold text-ink dark:text-ink-dark">
+                    تفصيل الوعاء الضريبي حسب شرائح ونسب الضريبة (VAT Rates Breakdown)
+                  </h3>
+                  <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-0.5">
+                    تفكيك مبيعات الأصناف الخاضعة والمعفاة ومبالغ الضريبة المحسوبة بدقة
+                  </p>
+                </div>
+                <div className="text-xs font-mono font-bold text-ink-muted dark:text-ink-dark-muted">
+                  {vatReport?.taxableInvoicesCount || 0} فاتورة ضريبية
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-right text-xs">
+                  <thead>
+                    <tr className="bg-surface-2 dark:bg-surface-dark-2 border-y border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted font-bold">
+                      <th className="py-2.5 px-3">الشريحة الضريبية</th>
+                      <th className="py-2.5 px-3">نسبة الضريبة</th>
+                      <th className="py-2.5 px-3">عدد الأصناف المباعة</th>
+                      <th className="py-2.5 px-3">أساس المبيعات الخاضعة</th>
+                      <th className="py-2.5 px-3">مبلغ الضريبة المحسوبة</th>
+                      <th className="py-2.5 px-3">نسبة المساهمة</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line dark:divide-line-dark">
+                    {(!vatReport || !vatReport.breakdown || vatReport.breakdown.length === 0) ? (
+                      <tr>
+                        <td colSpan={6} className="py-6 text-center text-ink-muted dark:text-ink-dark-muted">
+                          لا توجد مبيعات خاضعة للضريبة مسجلة لهذه الفترة
+                        </td>
+                      </tr>
+                    ) : (
+                      vatReport.breakdown.map((item, idx) => {
+                        const totalTaxAmount = vatReport?.totalTaxPiasters || 1;
+                        const sharePct = totalTaxAmount > 0 ? (item.taxAmountPiasters * 100) / totalTaxAmount : 0;
+                        return (
+                          <tr key={idx} className="hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors">
+                            <td className="py-2.5 px-3 font-bold text-ink dark:text-ink-dark">
+                              {item.taxRatePercent > 0 ? `شريحة السلع الخاضعة (${item.taxRatePercent}%)` : 'شريحة السلع المعفاة قانوناً (0%)'}
+                            </td>
+                            <td className="py-2.5 px-3 font-mono font-bold text-brand-dark dark:text-brand-bright">
+                              {item.taxRatePercent}%
+                            </td>
+                            <td className="py-2.5 px-3 font-mono text-ink dark:text-ink-dark">
+                              {item.itemsCount.toLocaleString()} صنف
+                            </td>
+                            <td className="py-2.5 px-3 font-mono text-ink dark:text-ink-dark">
+                              {formatArabicCurrency(item.taxableAmountPiasters)}
+                            </td>
+                            <td className="py-2.5 px-3 font-mono font-bold text-paid dark:text-paid-bright">
+                              {formatArabicCurrency(item.taxAmountPiasters)}
+                            </td>
+                            <td className="py-2.5 px-3 font-mono text-ink-muted dark:text-ink-dark-muted">
+                              {sharePct.toFixed(1)}%
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Reconciliation Proof Card */}
+            <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl p-4 shadow-2xs">
+              <h4 className="text-xs font-bold text-ink dark:text-ink-dark mb-2 flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-paid dark:text-paid-bright" />
+                <span>برهان المطابقة المحاسبية والضريبية المعتمد:</span>
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                <div className="p-2.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark">
+                  <div className="text-ink-muted dark:text-ink-dark-muted text-[10px]">معادلة الإيراد الحقيقي:</div>
+                  <div className="font-bold text-ink dark:text-ink-dark mt-1">
+                    إجمالي المبيعات ({formatArabicCurrency(vatReport?.grossSalesPiasters || 0)}) = صافي إيراد المتجر ({formatArabicCurrency(vatReport?.netSalesExcludingTaxPiasters || 0)}) + إجمالي الضريبة ({formatArabicCurrency(vatReport?.totalTaxPiasters || 0)})
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark">
+                  <div className="text-ink-muted dark:text-ink-dark-muted text-[10px]">معادلة التوريد الضريبي:</div>
+                  <div className="font-bold text-ink dark:text-ink-dark mt-1">
+                    صافي الضريبة الواجبة ({formatArabicCurrency(vatReport?.netVatPayablePiasters || 0)}) = ضريبة المبيعات ({formatArabicCurrency(vatReport?.totalTaxPiasters || 0)}) - ضريبة المرتجعات ({formatArabicCurrency(vatReport?.returnsTaxPiasters || 0)})
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark">
+                  <div className="text-ink-muted dark:text-ink-dark-muted text-[10px]">أمان الأرباح التشغيلية:</div>
+                  <div className="font-bold text-paid dark:text-paid-bright mt-1">
+                    مستبعدة 100% من حساب مجمل وصافي الربح لضمان عدم احتساب أمانات الدولة كأرباح شخصية
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}

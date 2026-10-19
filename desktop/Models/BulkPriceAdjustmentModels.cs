@@ -168,7 +168,35 @@ namespace RafiqPOS.Models
         [JsonProperty("updatedCount")]
         public int UpdatedCount { get; set; }
 
+        [JsonProperty("batchId")]
+        public string BatchId { get; set; }
+
+        [JsonProperty("message")]
+        public string Message { get; set; }
+    }
+
+    public class BulkPriceRevertRequest
+    {
+        [JsonProperty("batchId")]
+        public string BatchId { get; set; }
+
+        [JsonProperty("userId")]
+        public string UserId { get; set; }
+    }
+
+    public class BulkPriceRevertResult
+    {
+        [JsonProperty("success")]
+        public bool Success { get; set; }
+
+        [JsonProperty("revertedCount")]
+        public int RevertedCount { get; set; }
+
+        [JsonProperty("batchId")]
+        public string BatchId { get; set; }
+
         [JsonProperty("message")]
         public string Message { get; set; }
     }
 }
+

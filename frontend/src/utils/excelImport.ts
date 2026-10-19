@@ -8,6 +8,7 @@ async function getXlsx() {
 
 export interface RawImportRow {
   rowIndex: number;
+  sheetName?: string;
   name: string;
   barcode: string;
   additionalBarcodes: string[];
@@ -17,6 +18,10 @@ export interface RawImportRow {
   variantSize?: string;
   pricePounds: number;
   costPounds: number;
+  hasInvalidPrice?: boolean;
+  hasInvalidCost?: boolean;
+  rawPriceText?: string;
+  rawCostText?: string;
   stockQuantity: number;
   minStockQuantity: number;
   taxRatePercent: number;
@@ -26,6 +31,7 @@ export interface RawImportRow {
 
 export interface ValidatedImportRow {
   rowIndex: number;
+  sheetName?: string;
   status: 'valid' | 'warning' | 'error';
   errors: string[];
   warnings: string[];
@@ -50,44 +56,66 @@ export interface ValidatedImportRow {
 
 // Flexible column name matching for Arabic & English retail & supermarket templates
 const HEADER_ALIASES: Record<string, string[]> = {
-  name: ['اسم الصنف', 'الاسم', 'اسم المنتج', 'السلعة', 'الصنف', 'product name', 'name', 'item name'],
-  barcode: ['الباركود الرئيسي', 'الباركود', 'كود الصنف', 'الكود', 'barcode', 'code', 'upc', 'ean'],
-  additionalBarcodes: ['باركودات إضافية', 'باركودات اضافية', 'اكواد اضافية', 'additional barcodes', 'other barcodes'],
-  category: ['القسم / التصنيف', 'القسم', 'التصنيف', 'الفئة', 'المجموعة', 'category', 'group'],
-  unit: ['الوحدة', 'نوع البيع', 'نوع الوحدة', 'unit', 'type'],
+  name: ['اسم الصنف', 'الاسم', 'اسم المنتج', 'السلعة', 'الصنف', 'المادة', 'اسم الماده', 'البيان', 'اسم السلعة', 'وصف الصنف', 'product name', 'name', 'item name', 'description', 'product', 'item', 'title'],
+  barcode: ['الباركود الرئيسي', 'الباركود', 'باركود', 'باركود الصنف', 'كود الباركود', 'الرمز الشريطي', 'رقم الباركود', 'barcode', 'code', 'upc', 'ean', 'bar code'],
+  additionalBarcodes: ['باركودات إضافية', 'باركودات اضافية', 'اكواد اضافية', 'باركود بديل', 'additional barcodes', 'other barcodes', 'alt barcodes'],
+  category: ['القسم / التصنيف', 'القسم', 'التصنيف', 'الفئة', 'المجموعة', 'التصنيف الرئيسي', 'المجموعة السلعية', 'قسم الصنف', 'category', 'group', 'dept', 'department', 'family'],
+  unit: ['الوحدة', 'نوع البيع', 'نوع الوحدة', 'وحدة القياس', 'وحدة البيع', 'unit', 'type', 'uom', 'measuring unit'],
   color: ['اللون', 'لون', 'color', 'colour'],
   size: ['المقاس', 'مقاس', 'الحجم', 'size'],
-  price: ['سعر البيع', 'السعر', 'سعر البيع للجمهور', 'سعر القطعة', 'سعر الكيلو', 'selling price', 'price'],
-  cost: ['سعر التكلفة', 'التكلفة', 'سعر الشراء', 'سعر الجملة', 'تكلفة الشراء', 'cost price', 'cost'],
-  stock: ['الرصيد الافتتاحي', 'الرصيد الحالي', 'الرصيد', 'الكمية', 'الكمية الافتتاحية', 'المخزون', 'stock', 'quantity', 'qty'],
-  minStock: ['حد الطلب الأدنى', 'حد الطلب الادنى', 'حد الطلب', 'الحد الأدنى', 'الحد الادنى', 'تنبيه النقص', 'min stock', 'reorder point'],
-  tax: ['نسبة الضريبة', 'الضريبة', 'ضريبة', 'tax', 'vat'],
-  internalCode: ['كود الصنف الداخلي', 'كود الصنف', 'كود داخلي', 'sku', 'internal code'],
-  taxCode: ['كود التصنيف الضريبي', 'كود ضريبي', 'gs1', 'egs', 'tax code'],
+  price: ['سعر البيع', 'السعر', 'سعر البيع للجمهور', 'سعر القطعة', 'سعر الكيلو', 'سعر بيع', 'سعر قطاعي', 'قطاعي', 'سعر المستهلك', 'سعر التجزئة', 'selling price', 'price', 'retail price', 'sale price', 'unit price', 'retail'],
+  cost: ['سعر التكلفة', 'التكلفة', 'سعر الشراء', 'سعر الجملة', 'تكلفة الشراء', 'شراء', 'جملة', 'سعر جملة', 'سعر التوريد', 'تكلفة القطعة', 'cost price', 'cost', 'purchase price', 'buy price', 'cost unit'],
+  stock: ['الرصيد الافتتاحي', 'الرصيد الحالي', 'الرصيد', 'الكمية', 'الكمية الافتتاحية', 'المخزون', 'كمية', 'رصيد', 'كمية المخزون', 'الرصيد بالمخزن', 'المتوفر', 'stock', 'quantity', 'qty', 'on hand', 'inventory', 'balance'],
+  minStock: ['حد الطلب الأدنى', 'حد الطلب الادنى', 'حد الطلب', 'الحد الأدنى', 'الحد الادنى', 'تنبيه النقص', 'الحد الحرج', 'min stock', 'reorder point', 'min qty', 'min quantity'],
+  tax: ['نسبة الضريبة', 'الضريبة', 'ضريبة', 'نسبة القيمة المضافة', 'tax', 'vat', 'tax rate'],
+  internalCode: ['كود الصنف الداخلي', 'كود الصنف', 'كود داخلي', 'الرقم الداخلي', 'رمز الصنف', 'sku', 'internal code', 'item code', 'ref', 'reference'],
+  taxCode: ['كود التصنيف الضريبي', 'كود ضريبي', 'رمز الفاتورة الإلكترونية', 'gs1', 'egs', 'tax code'],
 };
 
 function matchHeader(cellValue: string): string | null {
   if (!cellValue) return null;
   const raw = cellValue.toString().trim().toLowerCase();
   const clean = raw.replace(/[*()（）]/g, '').replace(/\s+/g, ' ').trim();
+
+  // Pass 1: Exact Match (Highest Precedence)
   for (const [key, aliases] of Object.entries(HEADER_ALIASES)) {
     for (const alias of aliases) {
       const cleanAlias = alias.toLowerCase().replace(/[*()（）]/g, '').trim();
-      if (clean === cleanAlias || raw === cleanAlias || clean.includes(cleanAlias) || raw.includes(cleanAlias)) {
+      if (clean === cleanAlias || raw === cleanAlias) {
         return key;
       }
     }
   }
+
+  // Pass 2: Substring Match (Longest alias first to avoid ambiguous false positives)
+  const allAliases: { key: string; alias: string; len: number }[] = [];
+  for (const [key, aliases] of Object.entries(HEADER_ALIASES)) {
+    for (const alias of aliases) {
+      const cleanAlias = alias.toLowerCase().replace(/[*()（）]/g, '').trim();
+      allAliases.push({ key, alias: cleanAlias, len: cleanAlias.length });
+    }
+  }
+  allAliases.sort((a, b) => b.len - a.len);
+
+  for (const item of allAliases) {
+    if (clean.includes(item.alias) || raw.includes(item.alias)) {
+      return item.key;
+    }
+  }
+
   return null;
 }
 
 /**
  * تنظيف وتصحيح نصوص الباركود القادمة من ملفات الإكسل
  * يعالج الترقيم العلمي (Scientific Notation مثل 6.223E+12) ونهايات الأرقام العشرية (.0)
+ * ويطهر الباركود تماماً من الرموز الخفية (RTL/LTR marks, zero-width spaces, BOM) والمسافات
  */
 export function cleanExcelBarcode(raw: string): string {
   if (!raw) return '';
-  let str = normalizeArabicNumerals(raw).trim();
+  // Strip invisible unicode marks, zero-width chars, BOM, and non-breaking spaces
+  let str = String(raw).replace(/[\u200E\u200F\u202A-\u202E\uFEFF\u00A0\u200B]|\u200C|\u200D/g, '');
+  str = normalizeArabicNumerals(str).trim();
   if (/^\d+\.0+$/.test(str)) {
     str = str.replace(/\.0+$/, '');
   }
@@ -101,6 +129,8 @@ export function cleanExcelBarcode(raw: string): string {
       // fallback to original
     }
   }
+  // Remove internal spaces
+  str = str.replace(/\s+/g, '');
   return str;
 }
 
@@ -618,15 +648,17 @@ export async function exportCustomersToExcel(): Promise<{ success: boolean; coun
 
 
 /**
- * تصدير تقرير بالأصناف المرفوضة التي تحتوي على أخطاء لإصلاحها
+ * تصدير تقرير تفصيلي بالأصناف المرفوضة التي تحتوي على أخطاء لإصلاحها
  */
 export async function downloadErrorReport(errorRows: ValidatedImportRow[]): Promise<void> {
   if (errorRows.length === 0) return;
   const XLSX = await getXlsx();
 
   const headers = [
-    'رقم الصف بالملف',
+    'ورقة العمل',
+    'رقم الصف بالإكسل',
     'سبب الرفض والخطأ',
+    'طريقة التصحيح المقترحة',
     'اسم الصنف',
     'الباركود الرئيسي',
     'سعر البيع',
@@ -635,23 +667,39 @@ export async function downloadErrorReport(errorRows: ValidatedImportRow[]): Prom
     'الرصيد الافتتاحي',
   ];
 
-  const data = errorRows.map((r) => [
-    r.rowIndex,
-    [...r.errors, ...r.warnings].join(' | '),
-    r.data.name,
-    r.data.barcode,
-    r.data.pricePounds,
-    r.data.costPounds,
-    r.data.unit === 'kg' ? 'كجم' : 'قطعة',
-    r.data.stockQuantity,
-  ]);
+  const data = errorRows.map((r) => {
+    let fixAdvice = 'يرجى مراجعة وتصحيح بيانات الحقول المذكورة بالخطأ';
+    const errText = [...r.errors, ...r.warnings].join(' | ');
+    if (errText.includes('الباركود') && errText.includes('مكرر')) {
+      fixAdvice = 'قم بتغيير الباركود ليكون فريداً أو اختر استراتيجية (تحديث) إذا كان الصنف مكرراً عمداً';
+    } else if (errText.includes('سعر البيع') || errText.includes('سعر التكلفة')) {
+      fixAdvice = 'أدخل أرقاماً صحيحة أو عشرية موجبة للأسعار وتأكد من خلو الحقل من الكلمات غير الرقمية';
+    } else if (errText.includes('اسم الصنف')) {
+      fixAdvice = 'أدخل اسم الصنف حيث أنه حقل إلزامي ولا يمكن تركه فارغاً';
+    }
+
+    return [
+      r.sheetName || 'عام',
+      r.rowIndex,
+      errText,
+      fixAdvice,
+      r.data.name,
+      r.data.barcode,
+      r.data.pricePounds,
+      r.data.costPounds,
+      r.data.unit === 'kg' ? 'كجم' : 'قطعة',
+      r.data.stockQuantity,
+    ];
+  });
 
   const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
   ws['!cols'] = [
-    { wch: 14 },
-    { wch: 45 },
-    { wch: 28 },
     { wch: 18 },
+    { wch: 14 },
+    { wch: 50 },
+    { wch: 50 },
+    { wch: 28 },
+    { wch: 20 },
     { wch: 14 },
     { wch: 14 },
     { wch: 12 },
@@ -659,12 +707,12 @@ export async function downloadErrorReport(errorRows: ValidatedImportRow[]): Prom
   ];
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'أخطاء الاستيراد');
+  XLSX.utils.book_append_sheet(wb, ws, 'تقرير_الأخطاء');
   XLSX.writeFile(wb, 'تقرير_أخطاء_استيراد_المنتجات.xlsx');
 }
 
 /**
- * قراءة ملف إكسل أو CSV بأمان واستخراج الصفوف
+ * قراءة ملف إكسل أو CSV بأمان واستخراج الصفوف مع تتبع دقيق لأرقام الصفوف الواقعية والشيتات
  */
 export async function parseExcelOrCsvFile(file: File): Promise<RawImportRow[]> {
   const arrayBuffer = await file.arrayBuffer();
@@ -677,7 +725,6 @@ export async function parseExcelOrCsvFile(file: File): Promise<RawImportRow[]> {
 
   const resultRows: RawImportRow[] = [];
   const seenKeys = new Set<string>();
-  let globalRowCounter = 1;
 
   // أسماء الشيتات الاسترشادية والملخصات التي يتم تخطيها تلقائياً إذا كانت لا تحوي أصنافاً
   const isIgnoredSheetName = (sheetName: string): boolean => {
@@ -753,12 +800,22 @@ export async function parseExcelOrCsvFile(file: File): Promise<RawImportRow[]> {
         return val !== null && val !== undefined ? val.toString().trim() : '';
       };
 
-      const getCellNumber = (key: string, defaultValue = 0): number => {
+      const parseCellNumber = (key: string, defaultValue = 0): { value: number; isInvalid: boolean; rawText: string } => {
         const str = getCellString(key);
-        if (!str) return defaultValue;
-        const normalized = normalizeArabicNumerals(str).replace(/,/g, '');
-        const num = parseFloat(normalized);
-        return isNaN(num) ? defaultValue : num;
+        if (!str) return { value: defaultValue, isInvalid: false, rawText: '' };
+        const normalized = normalizeArabicNumerals(str).trim();
+        // Remove currency symbols, commas, and currency labels commonly used in stores
+        let cleanStr = normalized.replace(/(ج\.?م\.?|egp|le|l\.e|جنية|جنيه|\$|€)/gi, '').trim();
+        if (/^\d+,\d{1,2}$/.test(cleanStr)) {
+          cleanStr = cleanStr.replace(',', '.');
+        } else {
+          cleanStr = cleanStr.replace(/,/g, '');
+        }
+        const num = parseFloat(cleanStr);
+        if (isNaN(num)) {
+          return { value: defaultValue, isInvalid: true, rawText: str };
+        }
+        return { value: num, isInvalid: false, rawText: str };
       };
 
       const rawName = getCellString('name');
@@ -777,11 +834,11 @@ export async function parseExcelOrCsvFile(file: File): Promise<RawImportRow[]> {
       const rawColor = getCellString('color');
       const rawSize = getCellString('size');
 
-      const pricePounds = getCellNumber('price', 0);
-      const costPounds = getCellNumber('cost', 0);
-      const stockQuantity = getCellNumber('stock', 0);
-      const minStockQuantity = getCellNumber('minStock', 5);
-      const taxRatePercent = Math.round(getCellNumber('tax', 0));
+      const parsedPrice = parseCellNumber('price', 0);
+      const parsedCost = parseCellNumber('cost', 0);
+      const parsedStock = parseCellNumber('stock', 0);
+      const parsedMinStock = parseCellNumber('minStock', 5);
+      const taxRatePercent = Math.round(parseCellNumber('tax', 0).value);
       const internalCode = getCellString('internalCode');
       const taxCategoryCode = getCellString('taxCode');
 
@@ -805,8 +862,12 @@ export async function parseExcelOrCsvFile(file: File): Promise<RawImportRow[]> {
         ? rawAdditionalCodes.split(/[,;\n]/).map((c) => cleanExcelBarcode(c)).filter(Boolean)
         : [];
 
+      // رقم الصف الواقعي بالإكسل هو i + 1 (1-indexed)
+      const excelRowNumber = i + 1;
+
       resultRows.push({
-        rowIndex: globalRowCounter++,
+        rowIndex: excelRowNumber,
+        sheetName: sheetName.trim(),
         name: rawName,
         barcode: normBarcode,
         additionalBarcodes: additionalCodes,
@@ -814,10 +875,14 @@ export async function parseExcelOrCsvFile(file: File): Promise<RawImportRow[]> {
         unit: isKg ? 'kg' : 'piece',
         variantColor: rawColor || undefined,
         variantSize: rawSize || undefined,
-        pricePounds,
-        costPounds,
-        stockQuantity,
-        minStockQuantity,
+        pricePounds: parsedPrice.value,
+        costPounds: parsedCost.value,
+        hasInvalidPrice: parsedPrice.isInvalid,
+        hasInvalidCost: parsedCost.isInvalid,
+        rawPriceText: parsedPrice.rawText,
+        rawCostText: parsedCost.rawText,
+        stockQuantity: parsedStock.value,
+        minStockQuantity: parsedMinStock.value,
         taxRatePercent,
         internalCode,
         taxCategoryCode,
@@ -834,6 +899,7 @@ export async function parseExcelOrCsvFile(file: File): Promise<RawImportRow[]> {
 
 /**
  * التحقق الصارم من الصفوف وكشف الأخطاء والتكرارات والتنبيهات
+ * مع عزل الأخطاء وتحديد أرقام الصفوف بدقة متناهية
  */
 export function validateImportRows(
   rows: RawImportRow[],
@@ -874,18 +940,24 @@ export function validateImportRows(
   for (const row of rows) {
     const errors: string[] = [];
     const warnings: string[] = [];
+    const rowPrefix = row.sheetName ? `[ورقة: ${row.sheetName}] صف ${row.rowIndex}` : `صف ${row.rowIndex}`;
 
     // 1. Validate Product Name
     if (!row.name || !row.name.trim()) {
-      errors.push('اسم الصنف مطلوب ولا يمكن تركه فارغاً');
+      errors.push(`اسم الصنف مطلوب في ${rowPrefix} ولا يمكن تركه فارغاً`);
     }
 
     // 2. Validate Prices
-    if (row.pricePounds < 0) {
-      errors.push('سعر البيع لا يمكن أن يكون سالباً');
+    if (row.hasInvalidPrice) {
+      errors.push(`سعر البيع "${row.rawPriceText || ''}" في ${rowPrefix} غير صالح (يجب أن يكون رقماً صحيحاً أو عشرياً)`);
+    } else if (row.pricePounds < 0) {
+      errors.push(`سعر البيع في ${rowPrefix} لا يمكن أن يكون سالباً`);
     }
-    if (row.costPounds < 0) {
-      errors.push('سعر التكلفة لا يمكن أن يكون سالباً');
+
+    if (row.hasInvalidCost) {
+      errors.push(`سعر التكلفة "${row.rawCostText || ''}" في ${rowPrefix} غير صالح (يجب أن يكون رقماً صحيحاً أو عشرياً)`);
+    } else if (row.costPounds < 0) {
+      errors.push(`سعر التكلفة في ${rowPrefix} لا يمكن أن يكون سالباً`);
     }
 
     const pricePiasters = poundsToPiasters(row.pricePounds);
@@ -897,10 +969,10 @@ export function validateImportRows(
 
     // 3. Validate Stock & Min Stock
     if (row.stockQuantity < 0) {
-      errors.push('الرصيد الافتتاحي لا يمكن أن يكون سالباً');
+      errors.push(`الرصيد الافتتاحي في ${rowPrefix} لا يمكن أن يكون سالباً`);
     }
     if (row.minStockQuantity < 0) {
-      errors.push('الحد الأدنى للمخزون لا يمكن أن يكون سالباً');
+      errors.push(`الحد الأدنى للمخزون في ${rowPrefix} لا يمكن أن يكون سالباً`);
     }
 
     const stockMilli = Math.round(row.stockQuantity * 1000);
@@ -923,7 +995,7 @@ export function validateImportRows(
         // Check in-file collision
         if (seenFileBarcodes.has(lower)) {
           const prevRow = seenFileBarcodes.get(lower);
-          errors.push(`الباركود (${bc}) مكرر داخل هذا الملف في الصف رقم ${prevRow}`);
+          errors.push(`الباركود (${bc}) مكرر في ${rowPrefix} (موجود سابقاً في صف ${prevRow})`);
         } else {
           seenFileBarcodes.set(lower, row.rowIndex);
         }
@@ -939,7 +1011,7 @@ export function validateImportRows(
       if (seenFileNameVariants.has(nameVariantKey)) {
         const prevRow = seenFileNameVariants.get(nameVariantKey);
         const variantDesc = cleanColor || cleanSize ? ` (${cleanColor} / ${cleanSize})` : '';
-        errors.push(`الصنف "${row.name}"${variantDesc} مكرر داخل هذا الملف في الصف رقم ${prevRow}`);
+        errors.push(`الصنف "${row.name}"${variantDesc} مكرر في ${rowPrefix} (موجود سابقاً في صف ${prevRow})`);
       } else {
         seenFileNameVariants.set(nameVariantKey, row.rowIndex);
       }
@@ -959,6 +1031,7 @@ export function validateImportRows(
 
     validated.push({
       rowIndex: row.rowIndex,
+      sheetName: row.sheetName,
       status,
       errors,
       warnings,

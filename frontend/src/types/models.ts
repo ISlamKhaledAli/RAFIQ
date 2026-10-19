@@ -150,6 +150,9 @@ export interface ProductPriceHistory {
   newCostPiasters: number;
   changeReason?: string;
   createdAt: string;
+  userId?: string;
+  userName?: string;
+  batchId?: string;
   oldPriceFormatted?: string;
   newPriceFormatted?: string;
   oldCostFormatted?: string;
@@ -326,6 +329,12 @@ export interface DashboardSummary {
   todayCreditFormatted?: string;
   todayProfitsPiasters: number;
   todayProfitsFormatted?: string;
+  todayTaxPiasters?: number;
+  todayTaxFormatted?: string;
+  todayDiscountPiasters?: number;
+  todayDiscountFormatted?: string;
+  todayNetSalesExcludingTaxPiasters?: number;
+  todayNetSalesExcludingTaxFormatted?: string;
   todaySalesGrossProfitPiasters?: number;
   todayInventoryLossPiasters?: number;
   todayInventoryLossFormatted?: string;
@@ -770,6 +779,32 @@ export interface PeriodSalesReport {
   zeroCostItemsCount: number;
   topSellingProducts: TopSellingItem[];
   totalExpensesPiasters?: number;
+  totalTaxPiasters?: number;
+  netSalesExcludingTaxPiasters?: number;
+  totalDiscountsPiasters?: number;
+  netOperatingProfitPiasters?: number;
+}
+
+export interface VatRateBreakdownItem {
+  taxRatePercent: number;
+  taxableAmountPiasters: number;
+  taxAmountPiasters: number;
+  itemsCount: number;
+}
+
+export interface VatReport {
+  period: string;
+  startDate: string;
+  endDate: string;
+  grossSalesPiasters: number;
+  totalTaxPiasters: number;
+  netSalesExcludingTaxPiasters: number;
+  taxableSalesPiasters: number;
+  taxExemptSalesPiasters: number;
+  returnsTaxPiasters: number;
+  netVatPayablePiasters: number;
+  taxableInvoicesCount: number;
+  breakdown: VatRateBreakdownItem[];
 }
 
 export interface LowStockReportItem {
@@ -844,7 +879,7 @@ export interface BulkPricePreviewRequest {
   method: 'percentage' | 'fixed_amount' | 'excel';
   percentageValue?: number;
   amountPiasters?: number;
-  roundingRule: 'none' | 'half_pound' | 'one_pound' | 'five_pounds' | 'ceil_pound' | 'psychological_95' | 'psychological_50';
+  roundingRule: 'none' | 'quarter_pound' | 'half_pound' | 'one_pound' | 'five_pounds' | 'ceil_pound' | 'psychological_95' | 'psychological_50';
   reason?: string;
   excelItems?: BulkPriceExcelItem[];
 }
@@ -888,6 +923,19 @@ export interface BulkPriceApplyRequest {
 export interface BulkPriceApplyResult {
   success: boolean;
   updatedCount: number;
+  batchId?: string;
+  message: string;
+}
+
+export interface BulkPriceRevertRequest {
+  batchId?: string;
+  userId?: string;
+}
+
+export interface BulkPriceRevertResult {
+  success: boolean;
+  revertedCount: number;
+  batchId?: string;
   message: string;
 }
 
@@ -897,7 +945,12 @@ export type DataQualityIssueType =
   | 'missing_category' 
   | 'duplicate_barcode' 
   | 'negative_stock' 
-  | 'price_below_cost';
+  | 'price_below_cost'
+  | 'missing_price'
+  | 'orphan_product'
+  | 'incomplete_sale'
+  | 'stale_held_sale'
+  | 'accounting_imbalance';
 
 export interface DataQualityIssueItem {
   productId: string;
@@ -927,7 +980,21 @@ export interface DataQualityReport {
   duplicateBarcodeCount: number;
   negativeStockCount: number;
   priceBelowCostCount: number;
+  missingPriceCount: number;
+  orphanProductCount: number;
+  incompleteInvoicesCount: number;
+  suspendedTransactionsCount: number;
+  accountingImbalanceCount: number;
   issues: DataQualityIssueItem[];
+}
+
+export interface DataQualityRepairResult {
+  success: boolean;
+  message: string;
+  repairedInvoicesCount: number;
+  reconciledCustomersCount: number;
+  reassignedOrphanProductsCount: number;
+  clearedStaleHeldSalesCount: number;
 }
 
 export interface BulkBarcodeProductItem {

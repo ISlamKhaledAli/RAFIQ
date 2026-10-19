@@ -920,74 +920,104 @@ namespace RafiqPOS.Repositories
                     try
                     {
                         string now = DateTime.UtcNow.ToString("o");
-                        foreach (var row in rows)
+
+                        // 1. Preload existing phones to eliminate N+1 queries during bulk import
+                        var existingPhones = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        using (var loadPhonesCmd = new SQLiteCommand("SELECT phone FROM customers WHERE phone IS NOT NULL AND phone != '';", conn, trans))
                         {
-                            if (!row.IsValid)
+                            using (var rdr = loadPhonesCmd.ExecuteReader())
                             {
-                                result.SkippedCount++;
-                                continue;
-                            }
-
-                            string customerId = "cust_" + Guid.NewGuid().ToString("N").Substring(0, 12);
-                            string cleanPhone = (row.Phone ?? "").Trim().Replace(" ", "").Replace("-", "");
-
-                            // Check DB phone uniqueness
-                            if (!string.IsNullOrEmpty(cleanPhone))
-                            {
-                                using (var chkCmd = new SQLiteCommand("SELECT 1 FROM customers WHERE REPLACE(REPLACE(phone, ' ', ''), '-', '') = @p LIMIT 1;", conn, trans))
+                                while (rdr.Read())
                                 {
-                                    chkCmd.Parameters.AddWithValue("@p", cleanPhone);
-                                    var existing = chkCmd.ExecuteScalar();
-                                    if (existing != null)
+                                    string p = rdr["phone"].ToString().Trim().Replace(" ", "").Replace("-", "");
+                                    if (!string.IsNullOrEmpty(p))
+                                    {
+                                        existingPhones.Add(p);
+                                    }
+                                }
+                            }
+                        }
+
+                        string insertSql = @"
+                            INSERT INTO customers (id, name, phone, balance_piasters, credit_limit_piasters, created_at)
+                            VALUES (@id, @name, @phone, @balance, @limit, @created_at);
+                        ";
+
+                        string ledgerSql = @"
+                            INSERT INTO customer_ledger (id, customer_id, type, sale_id, amount_piasters, balance_after_piasters, notes, created_at)
+                            VALUES (@lid, @cid, 'opening_balance', NULL, @amt, @after, @notes, @cat);
+                        ";
+
+                        using (var insCmd = new SQLiteCommand(insertSql, conn, trans))
+                        using (var lCmd = new SQLiteCommand(ledgerSql, conn, trans))
+                        {
+                            insCmd.Parameters.Add("@id", System.Data.DbType.String);
+                            insCmd.Parameters.Add("@name", System.Data.DbType.String);
+                            insCmd.Parameters.Add("@phone", System.Data.DbType.String);
+                            insCmd.Parameters.Add("@balance", System.Data.DbType.Int64);
+                            insCmd.Parameters.Add("@limit", System.Data.DbType.Int64);
+                            insCmd.Parameters.Add("@created_at", System.Data.DbType.String);
+
+                            lCmd.Parameters.Add("@lid", System.Data.DbType.String);
+                            lCmd.Parameters.Add("@cid", System.Data.DbType.String);
+                            lCmd.Parameters.Add("@amt", System.Data.DbType.Int64);
+                            lCmd.Parameters.Add("@after", System.Data.DbType.Int64);
+                            lCmd.Parameters.Add("@notes", System.Data.DbType.String);
+                            lCmd.Parameters.Add("@cat", System.Data.DbType.String);
+
+                            foreach (var row in rows)
+                            {
+                                if (!row.IsValid || string.IsNullOrWhiteSpace(row.Name))
+                                {
+                                    result.SkippedCount++;
+                                    continue;
+                                }
+
+                                string cleanPhone = (row.Phone ?? "").Trim().Replace(" ", "").Replace("-", "");
+
+                                // Check phone uniqueness using in-memory set (instant O(1))
+                                if (!string.IsNullOrEmpty(cleanPhone))
+                                {
+                                    if (existingPhones.Contains(cleanPhone))
                                     {
                                         result.SkippedCount++;
                                         continue;
                                     }
+                                    existingPhones.Add(cleanPhone);
                                 }
-                            }
 
-                            string insertSql = @"
-                                INSERT INTO customers (id, name, phone, balance_piasters, credit_limit_piasters, created_at)
-                                VALUES (@id, @name, @phone, @balance, @limit, @created_at);
-                            ";
-                            using (var cmd = new SQLiteCommand(insertSql, conn, trans))
-                            {
-                                cmd.Parameters.AddWithValue("@id", customerId);
-                                cmd.Parameters.AddWithValue("@name", row.Name.Trim());
-                                cmd.Parameters.AddWithValue("@phone", cleanPhone);
-                                cmd.Parameters.AddWithValue("@balance", row.InitialBalancePiasters);
-                                cmd.Parameters.AddWithValue("@limit", row.CreditLimitPiasters > 0 ? row.CreditLimitPiasters : 100000);
-                                cmd.Parameters.AddWithValue("@created_at", now);
-                                cmd.ExecuteNonQuery();
-                            }
+                                string customerId = "cust_" + Guid.NewGuid().ToString("N").Substring(0, 12);
 
-                            if (row.InitialBalancePiasters != 0)
-                            {
-                                string note = string.IsNullOrWhiteSpace(row.Notes)
-                                    ? "رصيد افتتاحي (استيراد إكسل)"
-                                    : ("رصيد افتتاحي: " + row.Notes.Trim());
+                                insCmd.Parameters["@id"].Value = customerId;
+                                insCmd.Parameters["@name"].Value = row.Name.Trim();
+                                insCmd.Parameters["@phone"].Value = cleanPhone;
+                                insCmd.Parameters["@balance"].Value = row.InitialBalancePiasters;
+                                insCmd.Parameters["@limit"].Value = row.CreditLimitPiasters > 0 ? row.CreditLimitPiasters : 100000;
+                                insCmd.Parameters["@created_at"].Value = now;
+                                insCmd.ExecuteNonQuery();
 
-                                string ledgerSql = @"
-                                    INSERT INTO customer_ledger (id, customer_id, type, sale_id, amount_piasters, balance_after_piasters, notes, created_at)
-                                    VALUES (@lid, @cid, 'opening_balance', NULL, @amt, @after, @notes, @cat);
-                                ";
-                                using (var lCmd = new SQLiteCommand(ledgerSql, conn, trans))
+                                if (row.InitialBalancePiasters != 0)
                                 {
-                                    lCmd.Parameters.AddWithValue("@lid", "led_" + Guid.NewGuid().ToString("N").Substring(0, 12));
-                                    lCmd.Parameters.AddWithValue("@cid", customerId);
-                                    lCmd.Parameters.AddWithValue("@amt", Math.Abs(row.InitialBalancePiasters));
-                                    lCmd.Parameters.AddWithValue("@after", row.InitialBalancePiasters);
-                                    lCmd.Parameters.AddWithValue("@notes", note);
-                                    lCmd.Parameters.AddWithValue("@cat", now);
+                                    string note = string.IsNullOrWhiteSpace(row.Notes)
+                                        ? "رصيد افتتاحي (استيراد إكسل)"
+                                        : ("رصيد افتتاحي: " + row.Notes.Trim());
+
+                                    lCmd.Parameters["@lid"].Value = "led_" + Guid.NewGuid().ToString("N").Substring(0, 12);
+                                    lCmd.Parameters["@cid"].Value = customerId;
+                                    lCmd.Parameters["@amt"].Value = Math.Abs(row.InitialBalancePiasters);
+                                    lCmd.Parameters["@after"].Value = row.InitialBalancePiasters;
+                                    lCmd.Parameters["@notes"].Value = note;
+                                    lCmd.Parameters["@cat"].Value = now;
                                     lCmd.ExecuteNonQuery();
-                                }
-                                if (row.InitialBalancePiasters > 0)
-                                {
-                                    result.TotalOpeningDebtsPiasters += row.InitialBalancePiasters;
-                                }
-                            }
 
-                            result.ImportedCount++;
+                                    if (row.InitialBalancePiasters > 0)
+                                    {
+                                        result.TotalOpeningDebtsPiasters += row.InitialBalancePiasters;
+                                    }
+                                }
+
+                                result.ImportedCount++;
+                            }
                         }
 
                         trans.Commit();

@@ -119,318 +119,381 @@ namespace RafiqPOS.Repositories
 
                         string now = DateTime.UtcNow.ToString("o");
 
-                        foreach (var item in items)
+                        string insertProdSql = @"
+                            INSERT INTO products (
+                                id, barcode, internal_code, name, normalized_name, category_id, price_piasters, cost_piasters,
+                                stock_quantity_milli, min_stock_quantity_milli, unit, tax_rate_percent, tax_category_code,
+                                variant_color, variant_size, is_active, created_at, updated_at
+                            ) VALUES (
+                                @id, @barcode, @internalCode, @name, @normName, @categoryId, @price, @cost,
+                                @stock, @minStock, @unit, @tax, @taxCategoryCode,
+                                @color, @size, 1, @now, @now
+                            );
+                        ";
+
+                        string updateProdSql = @"
+                            UPDATE products SET
+                                name = @name,
+                                normalized_name = @normName,
+                                category_id = @categoryId,
+                                price_piasters = @price,
+                                cost_piasters = @cost,
+                                stock_quantity_milli = @stock,
+                                min_stock_quantity_milli = @minStock,
+                                unit = @unit,
+                                tax_rate_percent = @tax,
+                                internal_code = @internalCode,
+                                tax_category_code = @taxCategoryCode,
+                                variant_color = @color,
+                                variant_size = @size,
+                                is_active = 1,
+                                updated_at = @now
+                            WHERE id = @pid;
+                        ";
+
+                        string insertSmSql = @"
+                            INSERT INTO stock_movements (
+                                id, product_id, movement_type, quantity_milli, reference_id, reference_type,
+                                unit_cost_piasters, note, batch_number, created_at
+                            ) VALUES (
+                                @smId, @smPid, @smType, @smQty, 'EXCEL_IMPORT', @smRefType,
+                                @smCost, @smNote, NULL, @now
+                            );
+                        ";
+
+                        string insUnitSql = @"
+                            INSERT OR IGNORE INTO product_units (
+                                id, product_id, unit_name, conversion_factor, is_base_unit,
+                                sell_price_piasters, cost_price_piasters, barcode, is_divisible,
+                                sort_order, created_at, updated_at
+                            ) VALUES (
+                                @id, @productId, @unitName, 1, 1,
+                                @sellPrice, @costPrice, @barcode, @isDivisible,
+                                0, @now, @now
+                            );
+                        ";
+
+                        string updUnitSql = @"
+                            UPDATE product_units
+                            SET sell_price_piasters = @price,
+                                cost_price_piasters = @cost,
+                                updated_at = @now
+                            WHERE product_id = @pid AND is_base_unit = 1;
+                        ";
+
+                        using (var insProdCmd = new SQLiteCommand(insertProdSql, conn, trans))
+                        using (var updProdCmd = new SQLiteCommand(updateProdSql, conn, trans))
+                        using (var insSmCmd = new SQLiteCommand(insertSmSql, conn, trans))
+                        using (var insUnitCmd = new SQLiteCommand(insUnitSql, conn, trans))
+                        using (var updUnitCmd = new SQLiteCommand(updUnitSql, conn, trans))
+                        using (var insBcCmd = new SQLiteCommand("INSERT OR IGNORE INTO product_barcodes (id, product_id, barcode, created_at) VALUES (@pbid, @pid, @bc, @now);", conn, trans))
+                        using (var insCatCmd = new SQLiteCommand("INSERT INTO categories (id, name, display_order, is_active, created_at, updated_at) VALUES (@cid, @cname, 0, 1, @cdate, @cdate);", conn, trans))
+                        using (var getOldCmd = new SQLiteCommand("SELECT stock_quantity_milli FROM products WHERE id = @pid LIMIT 1;", conn, trans))
                         {
-                            if (string.IsNullOrWhiteSpace(item.Name))
-                            {
-                                continue;
-                            }
+                            // Initialize parameters
+                            insProdCmd.Parameters.Add("@id", System.Data.DbType.String);
+                            insProdCmd.Parameters.Add("@barcode", System.Data.DbType.String);
+                            insProdCmd.Parameters.Add("@internalCode", System.Data.DbType.String);
+                            insProdCmd.Parameters.Add("@name", System.Data.DbType.String);
+                            insProdCmd.Parameters.Add("@normName", System.Data.DbType.String);
+                            insProdCmd.Parameters.Add("@categoryId", System.Data.DbType.String);
+                            insProdCmd.Parameters.Add("@price", System.Data.DbType.Int64);
+                            insProdCmd.Parameters.Add("@cost", System.Data.DbType.Int64);
+                            insProdCmd.Parameters.Add("@stock", System.Data.DbType.Int64);
+                            insProdCmd.Parameters.Add("@minStock", System.Data.DbType.Int64);
+                            insProdCmd.Parameters.Add("@unit", System.Data.DbType.String);
+                            insProdCmd.Parameters.Add("@tax", System.Data.DbType.Double);
+                            insProdCmd.Parameters.Add("@taxCategoryCode", System.Data.DbType.String);
+                            insProdCmd.Parameters.Add("@color", System.Data.DbType.String);
+                            insProdCmd.Parameters.Add("@size", System.Data.DbType.String);
+                            insProdCmd.Parameters.Add("@now", System.Data.DbType.String);
 
-                            // Resolve category with Arabic normalization to prevent duplicate categories
-                            string categoryId = item.CategoryId;
-                            if (string.IsNullOrWhiteSpace(categoryId))
-                            {
-                                string catName = !string.IsNullOrWhiteSpace(item.CategoryName) ? item.CategoryName.Trim() : "عام";
-                                string normCatName = ArabicTextNormalizer.Normalize(catName);
+                            updProdCmd.Parameters.Add("@pid", System.Data.DbType.String);
+                            updProdCmd.Parameters.Add("@name", System.Data.DbType.String);
+                            updProdCmd.Parameters.Add("@normName", System.Data.DbType.String);
+                            updProdCmd.Parameters.Add("@categoryId", System.Data.DbType.String);
+                            updProdCmd.Parameters.Add("@price", System.Data.DbType.Int64);
+                            updProdCmd.Parameters.Add("@cost", System.Data.DbType.Int64);
+                            updProdCmd.Parameters.Add("@stock", System.Data.DbType.Int64);
+                            updProdCmd.Parameters.Add("@minStock", System.Data.DbType.Int64);
+                            updProdCmd.Parameters.Add("@unit", System.Data.DbType.String);
+                            updProdCmd.Parameters.Add("@tax", System.Data.DbType.Double);
+                            updProdCmd.Parameters.Add("@internalCode", System.Data.DbType.String);
+                            updProdCmd.Parameters.Add("@taxCategoryCode", System.Data.DbType.String);
+                            updProdCmd.Parameters.Add("@color", System.Data.DbType.String);
+                            updProdCmd.Parameters.Add("@size", System.Data.DbType.String);
+                            updProdCmd.Parameters.Add("@now", System.Data.DbType.String);
 
-                                if (categoryMap.ContainsKey(catName))
+                            insSmCmd.Parameters.Add("@smId", System.Data.DbType.String);
+                            insSmCmd.Parameters.Add("@smPid", System.Data.DbType.String);
+                            insSmCmd.Parameters.Add("@smType", System.Data.DbType.String);
+                            insSmCmd.Parameters.Add("@smQty", System.Data.DbType.Int64);
+                            insSmCmd.Parameters.Add("@smRefType", System.Data.DbType.String);
+                            insSmCmd.Parameters.Add("@smCost", System.Data.DbType.Int64);
+                            insSmCmd.Parameters.Add("@smNote", System.Data.DbType.String);
+                            insSmCmd.Parameters.Add("@now", System.Data.DbType.String);
+
+                            insUnitCmd.Parameters.Add("@id", System.Data.DbType.String);
+                            insUnitCmd.Parameters.Add("@productId", System.Data.DbType.String);
+                            insUnitCmd.Parameters.Add("@unitName", System.Data.DbType.String);
+                            insUnitCmd.Parameters.Add("@sellPrice", System.Data.DbType.Int64);
+                            insUnitCmd.Parameters.Add("@costPrice", System.Data.DbType.Int64);
+                            insUnitCmd.Parameters.Add("@barcode", System.Data.DbType.String);
+                            insUnitCmd.Parameters.Add("@isDivisible", System.Data.DbType.Int32);
+                            insUnitCmd.Parameters.Add("@now", System.Data.DbType.String);
+
+                            updUnitCmd.Parameters.Add("@pid", System.Data.DbType.String);
+                            updUnitCmd.Parameters.Add("@price", System.Data.DbType.Int64);
+                            updUnitCmd.Parameters.Add("@cost", System.Data.DbType.Int64);
+                            updUnitCmd.Parameters.Add("@now", System.Data.DbType.String);
+
+                            insBcCmd.Parameters.Add("@pbid", System.Data.DbType.String);
+                            insBcCmd.Parameters.Add("@pid", System.Data.DbType.String);
+                            insBcCmd.Parameters.Add("@bc", System.Data.DbType.String);
+                            insBcCmd.Parameters.Add("@now", System.Data.DbType.String);
+
+                            insCatCmd.Parameters.Add("@cid", System.Data.DbType.String);
+                            insCatCmd.Parameters.Add("@cname", System.Data.DbType.String);
+                            insCatCmd.Parameters.Add("@cdate", System.Data.DbType.String);
+
+                            getOldCmd.Parameters.Add("@pid", System.Data.DbType.String);
+
+                            foreach (var item in items)
+                            {
+                                if (string.IsNullOrWhiteSpace(item.Name))
                                 {
-                                    categoryId = categoryMap[catName];
+                                    continue;
                                 }
-                                else if (!string.IsNullOrEmpty(normCatName) && normalizedCategoryMap.ContainsKey(normCatName))
+
+                                // Financial sanity: clamp negative prices/costs to zero
+                                if (item.PricePiasters < 0) item.PricePiasters = 0;
+                                if (item.CostPiasters < 0) item.CostPiasters = 0;
+
+                                // Resolve category with Arabic normalization to prevent duplicate categories
+                                string categoryId = item.CategoryId;
+                                if (string.IsNullOrWhiteSpace(categoryId))
                                 {
-                                    categoryId = normalizedCategoryMap[normCatName];
-                                }
-                                else
-                                {
-                                    categoryId = "cat_" + Guid.NewGuid().ToString("N").Substring(0, 8);
-                                    using (var insCatCmd = new SQLiteCommand("INSERT INTO categories (id, name, display_order, is_active, created_at, updated_at) VALUES (@cid, @cname, 0, 1, @cdate, @cdate);", conn, trans))
+                                    string catName = !string.IsNullOrWhiteSpace(item.CategoryName) ? item.CategoryName.Trim() : "عام";
+                                    string normCatName = ArabicTextNormalizer.Normalize(catName);
+
+                                    if (categoryMap.ContainsKey(catName))
                                     {
-                                        insCatCmd.Parameters.AddWithValue("@cid", categoryId);
-                                        insCatCmd.Parameters.AddWithValue("@cname", catName);
-                                        insCatCmd.Parameters.AddWithValue("@cdate", now);
+                                        categoryId = categoryMap[catName];
+                                    }
+                                    else if (!string.IsNullOrEmpty(normCatName) && normalizedCategoryMap.ContainsKey(normCatName))
+                                    {
+                                        categoryId = normalizedCategoryMap[normCatName];
+                                    }
+                                    else
+                                    {
+                                        categoryId = "cat_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+                                        insCatCmd.Parameters["@cid"].Value = categoryId;
+                                        insCatCmd.Parameters["@cname"].Value = catName;
+                                        insCatCmd.Parameters["@cdate"].Value = now;
                                         insCatCmd.ExecuteNonQuery();
-                                    }
-                                    categoryMap[catName] = categoryId;
-                                    if (!string.IsNullOrEmpty(normCatName))
-                                    {
-                                        normalizedCategoryMap[normCatName] = categoryId;
-                                    }
-                                }
-                            }
 
-                            string cleanColor = !string.IsNullOrWhiteSpace(item.VariantColor) ? item.VariantColor.Trim() : "";
-                            string cleanSize = !string.IsNullOrWhiteSpace(item.VariantSize) ? item.VariantSize.Trim() : "";
-                            string itemNormName = ArabicTextNormalizer.Normalize(item.Name ?? "");
-                            string nameVariantKey = string.Format("{0}||{1}||{2}", itemNormName, cleanColor, cleanSize);
-
-                            // Check duplicate barcode or duplicate (name + color + size)
-                            string primaryBarcode = !string.IsNullOrWhiteSpace(item.Barcode) ? item.Barcode.Trim() : null;
-                            string existingProductId = null;
-
-                            if (primaryBarcode != null && existingBarcodeMap.ContainsKey(primaryBarcode))
-                            {
-                                existingProductId = existingBarcodeMap[primaryBarcode];
-                            }
-                            else if (item.Barcodes != null)
-                            {
-                                foreach (var b in item.Barcodes)
-                                {
-                                    if (!string.IsNullOrWhiteSpace(b) && existingBarcodeMap.ContainsKey(b.Trim()))
-                                    {
-                                        existingProductId = existingBarcodeMap[b.Trim()];
-                                        break;
+                                        categoryMap[catName] = categoryId;
+                                        if (!string.IsNullOrEmpty(normCatName))
+                                        {
+                                            normalizedCategoryMap[normCatName] = categoryId;
+                                        }
                                     }
                                 }
-                            }
 
-                            // If not matched by barcode, check if exact name and variant match already exists
-                            if (existingProductId == null && existingNameVariantMap.ContainsKey(nameVariantKey))
-                            {
-                                existingProductId = existingNameVariantMap[nameVariantKey];
-                            }
+                                string cleanColor = !string.IsNullOrWhiteSpace(item.VariantColor) ? item.VariantColor.Trim() : "";
+                                string cleanSize = !string.IsNullOrWhiteSpace(item.VariantSize) ? item.VariantSize.Trim() : "";
+                                string itemNormName = ArabicTextNormalizer.Normalize(item.Name ?? "");
+                                string nameVariantKey = string.Format("{0}||{1}||{2}", itemNormName, cleanColor, cleanSize);
 
-                            if (existingProductId != null)
-                            {
-                                if (strat == "error")
+                                // Check duplicate barcode or duplicate (name + color + size)
+                                string primaryBarcode = !string.IsNullOrWhiteSpace(item.Barcode) ? item.Barcode.Trim() : null;
+                                string existingProductId = null;
+
+                                if (primaryBarcode != null && existingBarcodeMap.ContainsKey(primaryBarcode))
                                 {
-                                    string identifier = primaryBarcode != null
-                                        ? string.Format("الباركود '{0}'", primaryBarcode)
-                                        : string.Format("المنتج '{0}'", item.Name);
-                                    throw new InvalidOperationException(string.Format("الصنف {0} مسجل مسبقاً في النظام.", identifier));
+                                    existingProductId = existingBarcodeMap[primaryBarcode];
                                 }
-                                else if (strat == "update")
+                                else if (item.Barcodes != null)
                                 {
-                                    long oldStock = 0;
-                                    using (var getOldCmd = new SQLiteCommand("SELECT stock_quantity_milli FROM products WHERE id = @pid LIMIT 1;", conn, trans))
+                                    foreach (var b in item.Barcodes)
                                     {
-                                        getOldCmd.Parameters.AddWithValue("@pid", existingProductId);
+                                        if (!string.IsNullOrWhiteSpace(b) && existingBarcodeMap.ContainsKey(b.Trim()))
+                                        {
+                                            existingProductId = existingBarcodeMap[b.Trim()];
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                // If not matched by barcode, check if exact name and variant match already exists
+                                if (existingProductId == null && existingNameVariantMap.ContainsKey(nameVariantKey))
+                                {
+                                    existingProductId = existingNameVariantMap[nameVariantKey];
+                                }
+
+                                if (existingProductId != null)
+                                {
+                                    if (strat == "error")
+                                    {
+                                        string identifier = primaryBarcode != null
+                                            ? string.Format("الباركود '{0}'", primaryBarcode)
+                                            : string.Format("المنتج '{0}'", item.Name);
+                                        throw new InvalidOperationException(string.Format("الصنف {0} مسجل مسبقاً في النظام.", identifier));
+                                    }
+                                    else if (strat == "update")
+                                    {
+                                        long oldStock = 0;
+                                        getOldCmd.Parameters["@pid"].Value = existingProductId;
                                         var oldVal = getOldCmd.ExecuteScalar();
                                         if (oldVal != null && oldVal != DBNull.Value)
                                         {
                                             oldStock = Convert.ToInt64(oldVal);
                                         }
-                                    }
-                                    long deltaStock = item.StockQuantityMilli - oldStock;
+                                        long deltaStock = item.StockQuantityMilli - oldStock;
 
-                                    // Update existing product including variant_color and variant_size
-                                    string updateSql = @"
-                                        UPDATE products SET
-                                            name = @name,
-                                            normalized_name = @normName,
-                                            category_id = @categoryId,
-                                            price_piasters = @price,
-                                            cost_piasters = @cost,
-                                            stock_quantity_milli = @stock,
-                                            min_stock_quantity_milli = @minStock,
-                                            unit = @unit,
-                                            tax_rate_percent = @tax,
-                                            internal_code = @internalCode,
-                                            tax_category_code = @taxCategoryCode,
-                                            variant_color = @color,
-                                            variant_size = @size,
-                                            is_active = 1,
-                                            updated_at = @now
-                                        WHERE id = @pid;
-                                    ";
-                                    using (var uCmd = new SQLiteCommand(updateSql, conn, trans))
-                                    {
-                                        uCmd.Parameters.AddWithValue("@pid", existingProductId);
-                                        uCmd.Parameters.AddWithValue("@name", item.Name.Trim());
-                                        uCmd.Parameters.AddWithValue("@normName", itemNormName);
-                                        uCmd.Parameters.AddWithValue("@categoryId", (object)categoryId ?? DBNull.Value);
-                                        uCmd.Parameters.AddWithValue("@price", item.PricePiasters);
-                                        uCmd.Parameters.AddWithValue("@cost", item.CostPiasters);
-                                        uCmd.Parameters.AddWithValue("@stock", item.StockQuantityMilli);
-                                        uCmd.Parameters.AddWithValue("@minStock", item.MinStockQuantityMilli);
-                                        uCmd.Parameters.AddWithValue("@unit", item.Unit ?? "piece");
-                                        uCmd.Parameters.AddWithValue("@tax", item.TaxRatePercent);
-                                        uCmd.Parameters.AddWithValue("@internalCode", (object)item.InternalCode ?? "");
-                                        uCmd.Parameters.AddWithValue("@taxCategoryCode", (object)item.TaxCategoryCode ?? "");
-                                        uCmd.Parameters.AddWithValue("@color", !string.IsNullOrEmpty(cleanColor) ? (object)cleanColor : DBNull.Value);
-                                        uCmd.Parameters.AddWithValue("@size", !string.IsNullOrEmpty(cleanSize) ? (object)cleanSize : DBNull.Value);
-                                        uCmd.Parameters.AddWithValue("@now", now);
-                                        uCmd.ExecuteNonQuery();
-                                    }
+                                        // Update existing product including variant_color and variant_size
+                                        updProdCmd.Parameters["@pid"].Value = existingProductId;
+                                        updProdCmd.Parameters["@name"].Value = item.Name.Trim();
+                                        updProdCmd.Parameters["@normName"].Value = itemNormName;
+                                        updProdCmd.Parameters["@categoryId"].Value = (object)categoryId ?? DBNull.Value;
+                                        updProdCmd.Parameters["@price"].Value = item.PricePiasters;
+                                        updProdCmd.Parameters["@cost"].Value = item.CostPiasters;
+                                        updProdCmd.Parameters["@stock"].Value = item.StockQuantityMilli;
+                                        updProdCmd.Parameters["@minStock"].Value = item.MinStockQuantityMilli;
+                                        updProdCmd.Parameters["@unit"].Value = item.Unit ?? "piece";
+                                        updProdCmd.Parameters["@tax"].Value = item.TaxRatePercent;
+                                        updProdCmd.Parameters["@internalCode"].Value = (object)item.InternalCode ?? "";
+                                        updProdCmd.Parameters["@taxCategoryCode"].Value = (object)item.TaxCategoryCode ?? "";
+                                        updProdCmd.Parameters["@color"].Value = !string.IsNullOrEmpty(cleanColor) ? (object)cleanColor : DBNull.Value;
+                                        updProdCmd.Parameters["@size"].Value = !string.IsNullOrEmpty(cleanSize) ? (object)cleanSize : DBNull.Value;
+                                        updProdCmd.Parameters["@now"].Value = now;
+                                        updProdCmd.ExecuteNonQuery();
 
-                                    if (deltaStock != 0)
-                                    {
-                                        string insertSmSql = @"
-                                            INSERT INTO stock_movements (
-                                                id, product_id, movement_type, quantity_milli, reference_id, reference_type,
-                                                unit_cost_piasters, note, batch_number, created_at
-                                            ) VALUES (
-                                                @smId, @smPid, 'ADJUSTMENT', @smQty, 'EXCEL_IMPORT', 'IMPORT_UPDATE',
-                                                @smCost, 'تسوية رصيد ناتجة عن تحديث ملف إكسل', NULL, @now
-                                            );
-                                        ";
-                                        using (var smCmd = new SQLiteCommand(insertSmSql, conn, trans))
+                                        if (deltaStock != 0)
                                         {
-                                            smCmd.Parameters.AddWithValue("@smId", Guid.NewGuid().ToString());
-                                            smCmd.Parameters.AddWithValue("@smPid", existingProductId);
-                                            smCmd.Parameters.AddWithValue("@smQty", deltaStock);
-                                            smCmd.Parameters.AddWithValue("@smCost", item.CostPiasters);
-                                            smCmd.Parameters.AddWithValue("@now", now);
-                                            smCmd.ExecuteNonQuery();
+                                            insSmCmd.Parameters["@smId"].Value = Guid.NewGuid().ToString();
+                                            insSmCmd.Parameters["@smPid"].Value = existingProductId;
+                                            insSmCmd.Parameters["@smType"].Value = "ADJUSTMENT";
+                                            insSmCmd.Parameters["@smQty"].Value = deltaStock;
+                                            insSmCmd.Parameters["@smRefType"].Value = "IMPORT_UPDATE";
+                                            insSmCmd.Parameters["@smCost"].Value = item.CostPiasters;
+                                            insSmCmd.Parameters["@smNote"].Value = "تسوية رصيد ناتجة عن تحديث ملف إكسل";
+                                            insSmCmd.Parameters["@now"].Value = now;
+                                            insSmCmd.ExecuteNonQuery();
                                         }
-                                    }
 
-                                    // Synchronize base unit in product_units
-                                    try
-                                    {
-                                        string updUnitSql = @"
-                                            UPDATE product_units
-                                            SET sell_price_piasters = @price,
-                                                cost_price_piasters = @cost,
-                                                updated_at = @now
-                                            WHERE product_id = @pid AND is_base_unit = 1;
-                                        ";
-                                        using (var uUnitCmd = new SQLiteCommand(updUnitSql, conn, trans))
+                                        // Synchronize base unit in product_units
+                                        try
                                         {
-                                            uUnitCmd.Parameters.AddWithValue("@pid", existingProductId);
-                                            uUnitCmd.Parameters.AddWithValue("@price", item.PricePiasters);
-                                            uUnitCmd.Parameters.AddWithValue("@cost", item.CostPiasters);
-                                            uUnitCmd.Parameters.AddWithValue("@now", now);
-                                            uUnitCmd.ExecuteNonQuery();
+                                            updUnitCmd.Parameters["@pid"].Value = existingProductId;
+                                            updUnitCmd.Parameters["@price"].Value = item.PricePiasters;
+                                            updUnitCmd.Parameters["@cost"].Value = item.CostPiasters;
+                                            updUnitCmd.Parameters["@now"].Value = now;
+                                            updUnitCmd.ExecuteNonQuery();
                                         }
+                                        catch { }
+
+                                        result.UpdatedCount++;
+                                        continue;
                                     }
-                                    catch { }
-
-                                    result.UpdatedCount++;
-                                    continue;
-                                }
-                                else // "skip"
-                                {
-                                    result.SkippedCount++;
-                                    continue;
-                                }
-                            }
-
-                            // Fresh Insert
-                            string newId = Guid.NewGuid().ToString();
-                            if (string.IsNullOrWhiteSpace(primaryBarcode))
-                            {
-                                primaryBarcode = "200" + Math.Abs(newId.GetHashCode()).ToString("D9");
-                            }
-
-                            string insertSql = @"
-                                INSERT INTO products (
-                                    id, barcode, internal_code, name, normalized_name, category_id, price_piasters, cost_piasters,
-                                    stock_quantity_milli, min_stock_quantity_milli, unit, tax_rate_percent, tax_category_code,
-                                    variant_color, variant_size, is_active, created_at, updated_at
-                                ) VALUES (
-                                    @id, @barcode, @internalCode, @name, @normName, @categoryId, @price, @cost,
-                                    @stock, @minStock, @unit, @tax, @taxCategoryCode,
-                                    @color, @size, 1, @now, @now
-                                );
-                            ";
-                            using (var insCmd = new SQLiteCommand(insertSql, conn, trans))
-                            {
-                                insCmd.Parameters.AddWithValue("@id", newId);
-                                insCmd.Parameters.AddWithValue("@barcode", primaryBarcode);
-                                insCmd.Parameters.AddWithValue("@internalCode", (object)item.InternalCode ?? "");
-                                insCmd.Parameters.AddWithValue("@name", item.Name.Trim());
-                                insCmd.Parameters.AddWithValue("@normName", itemNormName);
-                                insCmd.Parameters.AddWithValue("@categoryId", (object)categoryId ?? DBNull.Value);
-                                insCmd.Parameters.AddWithValue("@price", item.PricePiasters);
-                                insCmd.Parameters.AddWithValue("@cost", item.CostPiasters);
-                                insCmd.Parameters.AddWithValue("@stock", item.StockQuantityMilli);
-                                insCmd.Parameters.AddWithValue("@minStock", item.MinStockQuantityMilli);
-                                insCmd.Parameters.AddWithValue("@unit", item.Unit ?? "piece");
-                                insCmd.Parameters.AddWithValue("@tax", item.TaxRatePercent);
-                                insCmd.Parameters.AddWithValue("@taxCategoryCode", (object)item.TaxCategoryCode ?? "");
-                                insCmd.Parameters.AddWithValue("@color", !string.IsNullOrEmpty(cleanColor) ? (object)cleanColor : DBNull.Value);
-                                insCmd.Parameters.AddWithValue("@size", !string.IsNullOrEmpty(cleanSize) ? (object)cleanSize : DBNull.Value);
-                                insCmd.Parameters.AddWithValue("@now", now);
-                                insCmd.ExecuteNonQuery();
-                            }
-
-                            existingBarcodeMap[primaryBarcode] = newId;
-                            existingNameVariantMap[nameVariantKey] = newId;
-
-                            // Insert additional barcodes
-                            if (item.Barcodes != null && item.Barcodes.Count > 0)
-                            {
-                                foreach (var b in item.Barcodes)
-                                {
-                                    if (!string.IsNullOrWhiteSpace(b))
+                                    else // "skip"
                                     {
-                                        string trimmedB = b.Trim();
-                                        if (!string.Equals(trimmedB, primaryBarcode, StringComparison.OrdinalIgnoreCase))
+                                        result.SkippedCount++;
+                                        continue;
+                                    }
+                                }
+
+                                // Fresh Insert
+                                string newId = Guid.NewGuid().ToString();
+                                if (string.IsNullOrWhiteSpace(primaryBarcode))
+                                {
+                                    uint hash = (uint)newId.GetHashCode();
+                                    do
+                                    {
+                                        primaryBarcode = "200" + (hash % 1000000000U).ToString("D9");
+                                        hash++;
+                                    } while (existingBarcodeMap.ContainsKey(primaryBarcode));
+                                }
+
+                                insProdCmd.Parameters["@id"].Value = newId;
+                                insProdCmd.Parameters["@barcode"].Value = primaryBarcode;
+                                insProdCmd.Parameters["@internalCode"].Value = (object)item.InternalCode ?? "";
+                                insProdCmd.Parameters["@name"].Value = item.Name.Trim();
+                                insProdCmd.Parameters["@normName"].Value = itemNormName;
+                                insProdCmd.Parameters["@categoryId"].Value = (object)categoryId ?? DBNull.Value;
+                                insProdCmd.Parameters["@price"].Value = item.PricePiasters;
+                                insProdCmd.Parameters["@cost"].Value = item.CostPiasters;
+                                insProdCmd.Parameters["@stock"].Value = item.StockQuantityMilli;
+                                insProdCmd.Parameters["@minStock"].Value = item.MinStockQuantityMilli;
+                                insProdCmd.Parameters["@unit"].Value = item.Unit ?? "piece";
+                                insProdCmd.Parameters["@tax"].Value = item.TaxRatePercent;
+                                insProdCmd.Parameters["@taxCategoryCode"].Value = (object)item.TaxCategoryCode ?? "";
+                                insProdCmd.Parameters["@color"].Value = !string.IsNullOrEmpty(cleanColor) ? (object)cleanColor : DBNull.Value;
+                                insProdCmd.Parameters["@size"].Value = !string.IsNullOrEmpty(cleanSize) ? (object)cleanSize : DBNull.Value;
+                                insProdCmd.Parameters["@now"].Value = now;
+                                insProdCmd.ExecuteNonQuery();
+
+                                existingBarcodeMap[primaryBarcode] = newId;
+                                existingNameVariantMap[nameVariantKey] = newId;
+
+                                // Insert additional barcodes
+                                if (item.Barcodes != null && item.Barcodes.Count > 0)
+                                {
+                                    foreach (var b in item.Barcodes)
+                                    {
+                                        if (!string.IsNullOrWhiteSpace(b))
                                         {
-                                            using (var pbCmd = new SQLiteCommand("INSERT OR IGNORE INTO product_barcodes (id, product_id, barcode, created_at) VALUES (@pbid, @pid, @bc, @now);", conn, trans))
+                                            string trimmedB = b.Trim();
+                                            if (!string.Equals(trimmedB, primaryBarcode, StringComparison.OrdinalIgnoreCase))
                                             {
-                                                pbCmd.Parameters.AddWithValue("@pbid", "pbc_" + Guid.NewGuid().ToString("N"));
-                                                pbCmd.Parameters.AddWithValue("@pid", newId);
-                                                pbCmd.Parameters.AddWithValue("@bc", trimmedB);
-                                                pbCmd.Parameters.AddWithValue("@now", now);
-                                                pbCmd.ExecuteNonQuery();
+                                                insBcCmd.Parameters["@pbid"].Value = "pbc_" + Guid.NewGuid().ToString("N");
+                                                insBcCmd.Parameters["@pid"].Value = newId;
+                                                insBcCmd.Parameters["@bc"].Value = trimmedB;
+                                                insBcCmd.Parameters["@now"].Value = now;
+                                                insBcCmd.ExecuteNonQuery();
+
+                                                existingBarcodeMap[trimmedB] = newId;
                                             }
-                                            existingBarcodeMap[trimmedB] = newId;
                                         }
                                     }
                                 }
-                            }
 
-                            // Synchronize base unit in product_units
-                            try
-                            {
-                                string uName = !string.IsNullOrWhiteSpace(item.Unit) ? item.Unit.Trim() : "قطعة";
-                                bool isDiv = uName.Equals("kg", StringComparison.OrdinalIgnoreCase) ||
-                                             uName.Equals("كيلو", StringComparison.OrdinalIgnoreCase) ||
-                                             uName.Equals("كجم", StringComparison.OrdinalIgnoreCase);
-
-                                string insUnitSql = @"
-                                    INSERT OR IGNORE INTO product_units (
-                                        id, product_id, unit_name, conversion_factor, is_base_unit,
-                                        sell_price_piasters, cost_price_piasters, barcode, is_divisible,
-                                        sort_order, created_at, updated_at
-                                    ) VALUES (
-                                        @id, @productId, @unitName, 1, 1,
-                                        @sellPrice, @costPrice, @barcode, @isDivisible,
-                                        0, @createdAt, @updatedAt
-                                    );
-                                ";
-                                using (var insUnitCmd = new SQLiteCommand(insUnitSql, conn, trans))
+                                // Synchronize base unit in product_units
+                                try
                                 {
-                                    insUnitCmd.Parameters.AddWithValue("@id", "punit_" + newId);
-                                    insUnitCmd.Parameters.AddWithValue("@productId", newId);
-                                    insUnitCmd.Parameters.AddWithValue("@unitName", uName);
-                                    insUnitCmd.Parameters.AddWithValue("@sellPrice", item.PricePiasters);
-                                    insUnitCmd.Parameters.AddWithValue("@costPrice", item.CostPiasters);
-                                    insUnitCmd.Parameters.AddWithValue("@barcode", string.IsNullOrWhiteSpace(primaryBarcode) ? (object)DBNull.Value : primaryBarcode);
-                                    insUnitCmd.Parameters.AddWithValue("@isDivisible", isDiv ? 1 : 0);
-                                    insUnitCmd.Parameters.AddWithValue("@createdAt", now);
-                                    insUnitCmd.Parameters.AddWithValue("@updatedAt", now);
+                                    string uName = !string.IsNullOrWhiteSpace(item.Unit) ? item.Unit.Trim() : "قطعة";
+                                    bool isDiv = uName.Equals("kg", StringComparison.OrdinalIgnoreCase) ||
+                                                 uName.Equals("كيلو", StringComparison.OrdinalIgnoreCase) ||
+                                                 uName.Equals("كجم", StringComparison.OrdinalIgnoreCase);
+
+                                    insUnitCmd.Parameters["@id"].Value = "punit_" + newId;
+                                    insUnitCmd.Parameters["@productId"].Value = newId;
+                                    insUnitCmd.Parameters["@unitName"].Value = uName;
+                                    insUnitCmd.Parameters["@sellPrice"].Value = item.PricePiasters;
+                                    insUnitCmd.Parameters["@costPrice"].Value = item.CostPiasters;
+                                    insUnitCmd.Parameters["@barcode"].Value = string.IsNullOrWhiteSpace(primaryBarcode) ? (object)DBNull.Value : primaryBarcode;
+                                    insUnitCmd.Parameters["@isDivisible"].Value = isDiv ? 1 : 0;
+                                    insUnitCmd.Parameters["@now"].Value = now;
                                     insUnitCmd.ExecuteNonQuery();
                                 }
-                            }
-                            catch { }
+                                catch { }
 
-                            // Record Initial Stock Movement (Task 21-5 & Feature #35)
-                            if (item.StockQuantityMilli != 0)
-                            {
-                                string insertSmSql = @"
-                                    INSERT INTO stock_movements (
-                                        id, product_id, movement_type, quantity_milli, reference_id, reference_type,
-                                        unit_cost_piasters, note, batch_number, created_at
-                                    ) VALUES (
-                                        @smId, @smPid, 'INITIAL', @smQty, 'EXCEL_IMPORT', 'INITIAL_IMPORT',
-                                        @smCost, 'رصيد افتتاحي مسجل من استيراد إكسل', NULL, @now
-                                    );
-                                ";
-                                using (var smCmd = new SQLiteCommand(insertSmSql, conn, trans))
+                                // Record Initial Stock Movement (Task 21-5 & Feature #35)
+                                if (item.StockQuantityMilli != 0)
                                 {
-                                    smCmd.Parameters.AddWithValue("@smId", Guid.NewGuid().ToString());
-                                    smCmd.Parameters.AddWithValue("@smPid", newId);
-                                    smCmd.Parameters.AddWithValue("@smQty", item.StockQuantityMilli);
-                                    smCmd.Parameters.AddWithValue("@smCost", item.CostPiasters);
-                                    smCmd.Parameters.AddWithValue("@now", now);
-                                    smCmd.ExecuteNonQuery();
+                                    insSmCmd.Parameters["@smId"].Value = Guid.NewGuid().ToString();
+                                    insSmCmd.Parameters["@smPid"].Value = newId;
+                                    insSmCmd.Parameters["@smType"].Value = "INITIAL";
+                                    insSmCmd.Parameters["@smQty"].Value = item.StockQuantityMilli;
+                                    insSmCmd.Parameters["@smRefType"].Value = "INITIAL_IMPORT";
+                                    insSmCmd.Parameters["@smCost"].Value = item.CostPiasters;
+                                    insSmCmd.Parameters["@smNote"].Value = "رصيد افتتاحي مسجل من استيراد إكسل";
+                                    insSmCmd.Parameters["@now"].Value = now;
+                                    insSmCmd.ExecuteNonQuery();
                                 }
-                            }
 
-                            result.ImportedCount++;
+                                result.ImportedCount++;
+                            }
                         }
 
                         // Record audit log entry inside transaction with full cryptographic chaining (Feature #169)

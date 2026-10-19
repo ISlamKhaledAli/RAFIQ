@@ -270,6 +270,30 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, applyResult);
                     return true;
 
+                case "products:revertBulkPriceAdjustment":
+                    var revertReq = new BulkPriceRevertRequest();
+                    if (request.Payload != null)
+                    {
+                        var jObj = request.Payload as JObject;
+                        if (jObj != null)
+                        {
+                            if (jObj["batchId"] != null) revertReq.BatchId = jObj["batchId"].ToString();
+                            if (jObj["userId"] != null) revertReq.UserId = jObj["userId"].ToString();
+                        }
+                    }
+                    if (string.IsNullOrWhiteSpace(revertReq.UserId))
+                    {
+                        revertReq.UserId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
+                    }
+                    var revertResult = DatabaseService.Products.RevertBulkPriceAdjustment(revertReq);
+                    response = BridgeResponse.Ok(request.Id, revertResult);
+                    return true;
+
+                case "products:runBulkPriceAdjustmentTests":
+                    var testResult = BulkPriceAdjustmentTestRunner.RunAllTests();
+                    response = BridgeResponse.Ok(request.Id, testResult);
+                    return true;
+
                 // Product Units Management
                 case "productUnits:getByProduct":
                     string puProdId = "";

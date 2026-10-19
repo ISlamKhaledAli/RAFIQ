@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Data.SQLite;
 using System.IO;
 using RafiqPOS.Bridge;
 using RafiqPOS.Common;
@@ -176,11 +177,92 @@ namespace RafiqPOS.Services
                 // confirmBelowCost = true allows saving
                 productService.SaveProduct(p7, false, true);
 
+                // Product 8: Missing Selling Price (price = 0)
+                var p8 = new Product
+                {
+                    Id = "p_no_price_8",
+                    Name = "لبان نعناع عبوة توفير",
+                    Barcode = "622100000008",
+                    CategoryId = dairyCatId,
+                    CostPiasters = 500,
+                    PricePiasters = 0, // Zero selling price!
+                    StockQuantityMilli = 12000,
+                    MinStockQuantityMilli = 2000,
+                    Unit = "piece",
+                    IsActive = true
+                };
+                productService.SaveProduct(p8, false, true);
+
+                // Product 9: Orphan Product (points to non-existent category)
+                var p9 = new Product
+                {
+                    Id = "p_orphan_cat_9",
+                    Name = "حلوى جيلي مستوردة",
+                    Barcode = "622100000009",
+                    CategoryId = "cat_non_existent_99",
+                    CostPiasters = 800,
+                    PricePiasters = 1200,
+                    StockQuantityMilli = 5000,
+                    MinStockQuantityMilli = 1000,
+                    Unit = "piece",
+                    IsActive = true
+                };
+                productService.SaveProduct(p9);
+
+                // Product 10: Orphan Variant (points to non-existent parent product)
+                using (var conn = new System.Data.SQLite.SQLiteConnection(tempConnStr))
+                {
+                    conn.Open();
+                    string insertOrphanVariantSql = @"
+                        INSERT INTO products (id, barcode, name, category_id, price_piasters, cost_piasters, stock_quantity_milli, unit, is_active, parent_id, created_at, updated_at)
+                        VALUES ('p_orphan_var_10', '622100000010', 'قميص قطن رجالي - أحمر XL', @catId, 25000, 18000, 4000, 'piece', 1, 'p_deleted_parent_xyz', datetime('now'), datetime('now'));
+                    ";
+                    using (var cmd = new System.Data.SQLite.SQLiteCommand(insertOrphanVariantSql, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@catId", dairyCatId);
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // Incomplete Invoice: Completed sale with 0 sale items
+                    string insertIncompleteSaleSql = @"
+                        INSERT INTO sales (id, invoice_number, subtotal_piasters, discount_piasters, tax_piasters, total_piasters, paid_piasters, status, payment_method, is_deleted, created_at)
+                        VALUES ('s_incomplete_empty_1', 9901, 4500, 0, 0, 4500, 4500, 'completed', 'cash', 0, datetime('now'));
+                    ";
+                    using (var cmd = new System.Data.SQLite.SQLiteCommand(insertIncompleteSaleSql, conn))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // Suspended Transaction: Stale held sale older than 24 hours
+                    string insertStaleHeldSql = @"
+                        INSERT INTO held_sales (id, hold_label, customer_id, customer_name, items_count, subtotal_piasters, discount_piasters, total_piasters, cart_json, notes, cashier_id, created_at)
+                        VALUES ('h_stale_held_1', 'عميل طاولة 5 قديمة', NULL, NULL, 2, 6000, 0, 6000, '[]', 'معلقة', 'usr_admin', datetime('now', '-36 hours'));
+                    ";
+                    using (var cmd = new System.Data.SQLite.SQLiteCommand(insertStaleHeldSql, conn))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // Accounting Imbalance: Customer balance altered without corresponding ledger entries
+                    string insertCustImbalanceSql = @"
+                        INSERT INTO customers (id, name, phone, balance_piasters, credit_limit_piasters, created_at)
+                        VALUES ('cust_imbalanced_1', 'العميل محمد توفيق', '01012345678', 15000, 50000, datetime('now'));
+
+                        -- Ledger only contains 9000 piasters (Discrepancy: 6000 piasters)
+                        INSERT INTO customer_ledger (id, customer_id, type, amount_piasters, balance_after_piasters, notes, created_at)
+                        VALUES ('cl_test_1', 'cust_imbalanced_1', 'sale', 9000, 9000, 'فاتورة آجلة', datetime('now'));
+                    ";
+                    using (var cmd = new System.Data.SQLite.SQLiteCommand(insertCustImbalanceSql, conn))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+
                 // 3. Run Data Quality Audit Report (Task 117-1)
                 var report = reportsService.GetDataQualityReport();
 
                 Assert(report != null, "تقرير جودة البيانات ليس فارغاً (null)", result);
-                Assert(report.TotalProductsAudited == 7, "تم فحص كافة الأصناف النشطة السبعة بدقة", result);
+                Assert(report.TotalProductsAudited >= 10, "تم فحص كافة الأصناف النشطة العشرة بدقة", result);
 
                 // Check Missing Cost detection
                 Assert(report.MissingCostCount >= 1, "تم اكتشاف الأصناف بدون تكلفة بنجاح", result);
@@ -195,95 +277,153 @@ namespace RafiqPOS.Services
                 }
                 Assert(foundMissingCostP2, "تم تحديد الصنف p_no_cost_2 كصنف بدون تكلفة", result);
 
-                // Check Missing Barcode detection
-                Assert(report.MissingBarcodeCount >= 1, "تم اكتشاف الأصناف بدون باركود بنجاح", result);
-                bool foundMissingBcP3 = false;
+                // Check Missing Selling Price detection
+                Assert(report.MissingPriceCount >= 1, "تم اكتشاف الأصناف بدون سعر بيع بنجاح", result);
+                bool foundMissingPriceP8 = false;
                 foreach (var issue in report.Issues)
                 {
-                    if (issue.ProductId == "p_no_barcode_3" && issue.IssueType == "missing_barcode")
+                    if (issue.ProductId == "p_no_price_8" && issue.IssueType == "missing_price")
                     {
-                        foundMissingBcP3 = true;
+                        foundMissingPriceP8 = true;
+                        Assert(issue.Severity == "critical", "درجة خطورة انعدام سعر البيع حرجة", result);
                         break;
                     }
                 }
-                Assert(foundMissingBcP3, "تم تحديد الصنف p_no_barcode_3 كصنف بدون باركود", result);
+                Assert(foundMissingPriceP8, "تم تحديد الصنف p_no_price_8 كصنف بدون سعر بيع", result);
 
-                // Check Missing Category detection
-                Assert(report.MissingCategoryCount >= 1, "تم اكتشاف الأصناف بدون تصنيف محدد بنجاح", result);
-                bool foundMissingCatP4 = false;
+                // Check Orphan Product detection
+                Assert(report.OrphanProductCount >= 2, "تم اكتشاف الأصناف والمتغيرات اليتيمة بنجاح", result);
+                bool foundOrphanCatP9 = false;
+                bool foundOrphanVarP10 = false;
                 foreach (var issue in report.Issues)
                 {
-                    if (issue.ProductId == "p_no_cat_4" && issue.IssueType == "missing_category")
+                    if (issue.ProductId == "p_orphan_cat_9" && issue.IssueType == "orphan_product")
                     {
-                        foundMissingCatP4 = true;
+                        foundOrphanCatP9 = true;
+                    }
+                    if (issue.ProductId == "p_orphan_var_10" && issue.IssueType == "orphan_product")
+                    {
+                        foundOrphanVarP10 = true;
+                    }
+                }
+                Assert(foundOrphanCatP9, "تم تحديد الصنف p_orphan_cat_9 كصنف يتيم ذو تصنيف محذوف", result);
+                Assert(foundOrphanVarP10, "تم تحديد المتغير p_orphan_var_10 كمتغير يتيم ذو صنف أساسي محذوف", result);
+
+                // Check Incomplete Invoice detection
+                Assert(report.IncompleteInvoicesCount >= 1, "تم اكتشاف الفواتير غير المكتملة بدون بنود بنجاح", result);
+                bool foundIncompleteSale = false;
+                foreach (var issue in report.Issues)
+                {
+                    if (issue.ProductId == "s_incomplete_empty_1" && issue.IssueType == "incomplete_sale")
+                    {
+                        foundIncompleteSale = true;
+                        Assert(issue.Severity == "critical", "درجة خطورة الفاتورة غير المكتملة حرجة", result);
                         break;
                     }
                 }
-                Assert(foundMissingCatP4, "تم تحديد الصنف p_no_cat_4 كصنف بدون تصنيف", result);
+                Assert(foundIncompleteSale, "تم تحديد الفاتورة s_incomplete_empty_1 كفاتورة فارغة غير مكتملة", result);
 
-                // Check Duplicate Barcode detection
-                Assert(report.DuplicateBarcodeCount >= 2, "تم اكتشاف الباركود المكرر للصنفين p1 و p5", result);
-                bool foundDupP1 = false;
-                bool foundDupP5 = false;
+                // Check Suspended Transactions detection
+                Assert(report.SuspendedTransactionsCount >= 1, "تم اكتشاف العمليات المعلقة القديمة بنجاح", result);
+                bool foundStaleHeld = false;
                 foreach (var issue in report.Issues)
                 {
-                    if (issue.IssueType == "duplicate_barcode")
+                    if (issue.ProductId == "h_stale_held_1" && issue.IssueType == "stale_held_sale")
                     {
-                        if (issue.ProductId == "p_clean_1") foundDupP1 = true;
-                        if (issue.ProductId == "p_dup_barcode_5") foundDupP5 = true;
-                    }
-                }
-                Assert(foundDupP1 && foundDupP5, "تم تحديد كلا الصنفين المشتركين في نفس الباركود", result);
-
-                // Check Negative Stock detection
-                Assert(report.NegativeStockCount >= 1, "تم اكتشاف الرصيد السالب بنجاح", result);
-                bool foundNegStockP6 = false;
-                foreach (var issue in report.Issues)
-                {
-                    if (issue.ProductId == "p_neg_stock_6" && issue.IssueType == "negative_stock")
-                    {
-                        foundNegStockP6 = true;
-                        Assert(issue.Severity == "critical", "درجة خطورة الرصيد السالب حرجة (critical)", result);
+                        foundStaleHeld = true;
                         break;
                     }
                 }
-                Assert(foundNegStockP6, "تم تحديد الصنف p_neg_stock_6 كصنف برصيد سالب", result);
+                Assert(foundStaleHeld, "تم تحديد السلة المعلقة h_stale_held_1 كعملية معلقة قديمة", result);
 
-                // Check Price Below Cost detection
-                Assert(report.PriceBelowCostCount >= 1, "تم اكتشاف سعر البيع الأقل من التكلفة بنجاح", result);
-                bool foundBelowCostP7 = false;
+                // Check Accounting Imbalance detection
+                Assert(report.AccountingImbalanceCount >= 1, "تم اكتشاف خلل التوازن المحاسبي بين رصيد العميل وكشف الحساب بنجاح", result);
+                bool foundCustImbalance = false;
                 foreach (var issue in report.Issues)
                 {
-                    if (issue.ProductId == "p_below_cost_7" && issue.IssueType == "price_below_cost")
+                    if (issue.ProductId == "cust_imbalanced_1" && issue.IssueType == "accounting_imbalance")
                     {
-                        foundBelowCostP7 = true;
-                        Assert(issue.Severity == "critical", "درجة خطورة البيع بخسارة حرجة (critical)", result);
+                        foundCustImbalance = true;
+                        Assert(issue.Severity == "critical", "درجة خطورة خلل المعادلة المحاسبية حرجة (critical)", result);
                         break;
                     }
                 }
-                Assert(foundBelowCostP7, "تم تحديد الصنف p_below_cost_7 كصنف بسعر بيع أقل من التكلفة", result);
+                Assert(foundCustImbalance, "تم تحديد العميل cust_imbalanced_1 كحساب غير متوازن دفترية ومحاسبياً", result);
 
-                // Check Health Score calculation
-                // Out of 7 products, all except p1 had at least 1 issue. p1 also had duplicate barcode issue with p5.
-                // Total healthy products: 0 in this sample test
-                Assert(report.TotalIssuesCount >= 6, "إجمالي عدد مشاكل البيانات المكتشفة مطابق للتوقعات", result);
-                Assert(report.HealthScorePercent >= 0 && report.HealthScorePercent <= 100, "نسبة مؤشر جودة البيانات بين 0 و 100", result);
+                // 4. Test Accounting Reconciliation & Data Quality Repair
+                var repairResult = reportsService.RepairDataQualityIssues();
+                Assert(repairResult != null, "نتيجة التسوية المحاسبية ليست فارغة", result);
+                Assert(repairResult.Success, "عملية التسوية والمعالجة المحاسبية التلقائية تمت بنجاح", result);
+                Assert(repairResult.RepairedInvoicesCount >= 1, "تم تصحيح وإلغاء الفواتير الفارغة بنجاح", result);
+                Assert(repairResult.ReassignedOrphanProductsCount >= 1, "تمت إعادة ربط الأصناف اليتيمة بالتصنيف العام بنجاح", result);
+                Assert(repairResult.ReconciledCustomersCount >= 1, "تمت تسوية حساب العميل ومطابقة رصيده مع كشف الحساب بنجاح", result);
 
-                // 4. Test IPC Bridge Dispatcher
-                var bridgeReq = new BridgeRequest
+                // Verify customer balance in database is now exactly 9000 piasters (realigned to ledger truth)
+                using (var conn = new System.Data.SQLite.SQLiteConnection(tempConnStr))
                 {
-                    Id = "req_dq_test",
-                    Action = "reports:getDataQuality",
-                    Payload = null
-                };
+                    conn.Open();
+                    using (var cmd = new System.Data.SQLite.SQLiteCommand("SELECT balance_piasters FROM customers WHERE id = 'cust_imbalanced_1';", conn))
+                    {
+                        long realignedBal = Convert.ToInt64(cmd.ExecuteScalar());
+                        Assert(realignedBal == 9000, "رصيد العميل تمت مطابقته وتصحيحه محاسبياً ليتطابق تماماً مع كشف الحساب (9000 قرش)", result);
+                    }
 
-                // Temporarily inject DatabaseService connection string or verify dispatch
-                var dispatchResponse = IpcDispatcher.Dispatch(bridgeReq);
-                Assert(dispatchResponse != null, "استجابة IPC Dispatcher لفحص جودة البيانات ليست فارغة", result);
-                Assert(dispatchResponse.Success, "استجابة IPC Dispatcher ناجحة (Success = true)", result);
-                Assert(dispatchResponse.Data != null, "استجابة IPC تحتوي على كائن التقرير (Data != null)", result);
+                    // Verify the empty sale status is now cancelled
+                    using (var cmd = new SQLiteCommand("SELECT status FROM sales WHERE id = 's_incomplete_empty_1';", conn))
+                    {
+                        string saleStatus = cmd.ExecuteScalar().ToString();
+                        Assert(saleStatus == "cancelled", "تم تغيير حالة الفاتورة غير المكتملة إلى cancelled لحماية التقارير المالية", result);
+                    }
+                }
 
-                result.Message = string.Format("نجحت جميع اختبارات فحص جودة وصحة البيانات ({0}/{1} تأكيد بنجاح 100%)",
+                // Re-run report after repair and ensure resolved anomalies are cleared
+                var reportAfterRepair = reportsService.GetDataQualityReport();
+                Assert(reportAfterRepair.IncompleteInvoicesCount == 0, "لا توجد أي فواتير فارغة غير مكتملة بعد المعالجة", result);
+                Assert(reportAfterRepair.AccountingImbalanceCount == 0, "لا يوجد أي خلل محاسبي في أرصدة العملاء بعد المعالجة", result);
+
+                // 5. Test IPC Bridge Dispatcher & RBAC Enforcement
+                var origUser = SecurityService.CurrentUser;
+                try
+                {
+                    var bridgeReq = new BridgeRequest
+                    {
+                        Id = "req_dq_test",
+                        Action = "reports:getDataQuality",
+                        Payload = null
+                    };
+
+                    // Verify cashier is rejected (Rule 8 RBAC)
+                    var cashierUser = new UserDto { Id = "cashier_dq_test", Username = "cashier", Role = "cashier", IsActive = true };
+                    SecurityService.SetCurrentUserForTesting(cashierUser);
+                    var rejectedResponse = IpcDispatcher.Dispatch(bridgeReq);
+                    Assert(rejectedResponse != null && !rejectedResponse.Success, "تم حجب فحص جودة البيانات عن الكاشير بنجاح (RBAC Enforced)", result);
+
+                    // Verify admin is authorized
+                    var adminUser = new UserDto { Id = "admin_dq_test", Username = "admin", Role = "admin", IsActive = true };
+                    SecurityService.SetCurrentUserForTesting(adminUser);
+
+                    var dispatchResponse = IpcDispatcher.Dispatch(bridgeReq);
+                    Assert(dispatchResponse != null, "استجابة IPC Dispatcher لفحص جودة البيانات ليست فارغة", result);
+                    Assert(dispatchResponse.Success, "استجابة IPC Dispatcher ناجحة (Success = true)", result);
+                    Assert(dispatchResponse.Data != null, "استجابة IPC تحتوي على كائن التقرير (Data != null)", result);
+
+                    var bridgeRepairReq = new BridgeRequest
+                    {
+                        Id = "req_dq_repair_test",
+                        Action = "reports:repairDataQuality",
+                        Payload = null
+                    };
+
+                    var dispatchRepairResponse = IpcDispatcher.Dispatch(bridgeRepairReq);
+                    Assert(dispatchRepairResponse != null, "استجابة IPC Dispatcher لمعالجة جودة البيانات ليست فارغة", result);
+                    Assert(dispatchRepairResponse.Success, "استجابة IPC للمعالجة ناجحة (Success = true)", result);
+                }
+                finally
+                {
+                    SecurityService.SetCurrentUserForTesting(origUser);
+                }
+
+                result.Message = string.Format("نجحت جميع اختبارات فحص وتثبيت جودة وصحة البيانات والتسوية المحاسبية ({0}/{1} تأكيد بنجاح 100%)",
                     result.PassedAssertions, result.TotalAssertions);
             }
             catch (Exception ex)

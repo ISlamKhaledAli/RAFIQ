@@ -87,6 +87,33 @@ namespace RafiqPOS.Models
             get { return Common.Money.FormatPiasters(this.TodayProfitsPiasters); }
         }
 
+        [JsonProperty("todayTaxPiasters")]
+        public long TodayTaxPiasters { get; set; }
+
+        [JsonProperty("todayTaxFormatted")]
+        public string TodayTaxFormatted
+        {
+            get { return Common.Money.FormatPiasters(this.TodayTaxPiasters); }
+        }
+
+        [JsonProperty("todayDiscountPiasters")]
+        public long TodayDiscountPiasters { get; set; }
+
+        [JsonProperty("todayDiscountFormatted")]
+        public string TodayDiscountFormatted
+        {
+            get { return Common.Money.FormatPiasters(this.TodayDiscountPiasters); }
+        }
+
+        [JsonProperty("todayNetSalesExcludingTaxPiasters")]
+        public long TodayNetSalesExcludingTaxPiasters { get; set; }
+
+        [JsonProperty("todayNetSalesExcludingTaxFormatted")]
+        public string TodayNetSalesExcludingTaxFormatted
+        {
+            get { return Common.Money.FormatPiasters(this.TodayNetSalesExcludingTaxPiasters); }
+        }
+
         [JsonProperty("todayInvoicesCount")]
         public int TodayInvoicesCount { get; set; }
 

@@ -138,16 +138,17 @@ namespace RafiqPOS.Services
                             using (var smCmd = new SQLiteCommand(@"
                                 INSERT INTO stock_movements (
                                     id, product_id, movement_type, quantity_milli,
-                                    reference_type, reference_id, notes, created_by, created_at
+                                    reference_type, reference_id, unit_cost_piasters, note, created_at
                                 ) VALUES (
                                     @smid, @pid, 'INITIAL_OPENING', @qty,
-                                    'DEMO', 'DEMO_SEED', 'رصيد افتتاحي تجريبي للتدريب', 'system', @now
+                                    'DEMO', 'DEMO_SEED', @cost, 'رصيد افتتاحي تجريبي للتدريب', @now
                                 );
                             ", conn, trans))
                             {
                                 smCmd.Parameters.AddWithValue("@smid", "demo_sm_" + i);
                                 smCmd.Parameters.AddWithValue("@pid", dp.Id);
                                 smCmd.Parameters.AddWithValue("@qty", dp.StockQuantityMilli);
+                                smCmd.Parameters.AddWithValue("@cost", dp.CostPiasters);
                                 smCmd.Parameters.AddWithValue("@now", now);
                                 smCmd.ExecuteNonQuery();
                             }
@@ -157,8 +158,8 @@ namespace RafiqPOS.Services
 
                         // 2. Seed Demo Customers
                         using (var cCmd1 = new SQLiteCommand(@"
-                            INSERT INTO customers (id, name, phone, address, notes, is_active, created_at, updated_at)
-                            VALUES ('demo_cust_1', 'عميل تجريبي - أحمد محمود', '01099887766', 'شارع التجربة', 'حساب عميل تجريبي لتجربة البيع الآجل', 1, @now, @now);
+                            INSERT INTO customers (id, name, phone, balance_piasters, credit_limit_piasters, is_archived, created_at)
+                            VALUES ('demo_cust_1', 'عميل تجريبي - أحمد محمود', '01099887766', 0, 50000, 0, @now);
                         ", conn, trans))
                         {
                             cCmd1.Parameters.AddWithValue("@now", now);
@@ -166,8 +167,8 @@ namespace RafiqPOS.Services
                         }
 
                         using (var cCmd2 = new SQLiteCommand(@"
-                            INSERT INTO customers (id, name, phone, address, notes, is_active, created_at, updated_at)
-                            VALUES ('demo_cust_2', 'عميلة تجريبية - أم كريم', '01122334455', 'بجوار المسجد', 'عميلة تجريبية منتظمة', 1, @now, @now);
+                            INSERT INTO customers (id, name, phone, balance_piasters, credit_limit_piasters, is_archived, created_at)
+                            VALUES ('demo_cust_2', 'عميلة تجريبية - أم كريم', '01122334455', 0, 30000, 0, @now);
                         ", conn, trans))
                         {
                             cCmd2.Parameters.AddWithValue("@now", now);
@@ -177,13 +178,13 @@ namespace RafiqPOS.Services
                         // 3. Seed Sample Demo Sale
                         using (var saleCmd = new SQLiteCommand(@"
                             INSERT INTO sales (
-                                id, invoice_number, total_amount_piasters, discount_piasters,
-                                final_amount_piasters, paid_amount_piasters, remaining_amount_piasters,
+                                id, invoice_number, subtotal_piasters, discount_piasters,
+                                tax_piasters, total_piasters, paid_piasters,
                                 payment_method, customer_id, status, created_at
                             ) VALUES (
                                 'demo_sale_1', 99901, 7700, 0,
-                                7700, 7700, 0,
-                                'CASH', NULL, 'COMPLETED', @now
+                                0, 7700, 7700,
+                                'cash', NULL, 'completed', @now
                             );
                         ", conn, trans))
                         {
@@ -292,16 +293,21 @@ namespace RafiqPOS.Services
 
             // Safe atomic cascaded delete strictly for demo and stress benchmark entities (Task 113-2)
             string sqlDelete = @"
-                DELETE FROM stock_movements WHERE id LIKE 'demo_%' OR product_id LIKE 'demo_%' OR product_id LIKE 'stress_%' OR product_id IN (SELECT id FROM products WHERE name LIKE '%تجريبي%' OR name LIKE '%اختبار الحمل%');
+                DELETE FROM stock_movements WHERE id LIKE 'demo_%' OR product_id LIKE 'demo_%' OR product_id LIKE 'stress_%' OR reference_id LIKE 'demo_%' OR product_id IN (SELECT id FROM products WHERE name LIKE '%تجريبي%' OR name LIKE '%اختبار الحمل%');
                 DELETE FROM product_price_history WHERE product_id LIKE 'demo_%' OR product_id LIKE 'stress_%' OR product_id IN (SELECT id FROM products WHERE name LIKE '%تجريبي%' OR name LIKE '%اختبار الحمل%');
                 DELETE FROM product_barcodes WHERE product_id LIKE 'demo_%' OR product_id LIKE 'stress_%' OR product_id IN (SELECT id FROM products WHERE name LIKE '%تجريبي%' OR name LIKE '%اختبار الحمل%');
+                DELETE FROM return_items WHERE return_id IN (SELECT id FROM returns WHERE sale_id LIKE 'demo_%' OR id LIKE 'demo_%');
+                DELETE FROM returns WHERE sale_id LIKE 'demo_%' OR id LIKE 'demo_%';
                 DELETE FROM sale_items WHERE sale_id LIKE 'demo_%' OR product_id LIKE 'demo_%' OR sale_id LIKE 'stress_%' OR product_id LIKE 'stress_%' OR product_id IN (SELECT id FROM products WHERE name LIKE '%تجريبي%' OR name LIKE '%اختبار الحمل%');
                 DELETE FROM sales WHERE id LIKE 'demo_%' OR id LIKE 'stress_%';
-                DELETE FROM customer_transactions WHERE customer_id LIKE 'demo_%';
-                DELETE FROM customer_ledger WHERE customer_id LIKE 'demo_%';
+                DELETE FROM customer_ledger WHERE customer_id LIKE 'demo_%' OR sale_id LIKE 'demo_%';
                 DELETE FROM customers WHERE id LIKE 'demo_%';
                 DELETE FROM quick_items WHERE id LIKE 'demo_%' OR product_id LIKE 'stress_%' OR product_id IN (SELECT id FROM products WHERE name LIKE '%تجريبي%' OR name LIKE '%اختبار الحمل%');
+                DELETE FROM categories WHERE id LIKE 'demo_%' OR (name LIKE '%تجريبي%' AND NOT EXISTS (SELECT 1 FROM products WHERE products.category_id = categories.id));
                 DELETE FROM products WHERE id LIKE 'demo_%' OR id LIKE 'stress_%' OR barcode LIKE 'STRESS%' OR name LIKE '%تجريبي%' OR name LIKE '%اختبار الحمل%';
+                UPDATE counters SET current_value = COALESCE((SELECT MAX(invoice_number) FROM sales), 0) WHERE name = 'invoice_number';
+                UPDATE counters SET current_value = COALESCE((SELECT MAX(return_number) FROM returns), 0) WHERE name = 'return_number';
+                UPDATE counters SET current_value = COALESCE((SELECT MAX(invoice_number) FROM purchases), 0) WHERE name = 'purchase_invoice';
             ";
 
             using (var delCmd = new SQLiteCommand(sqlDelete, conn, trans))
@@ -362,6 +368,24 @@ namespace RafiqPOS.Services
                 list.Add(new Product { Id = "demo_prod_1", Name = "تيشيرت قطن رجالي أساسي (تجريبي)", Barcode = "62255001", PricePiasters = 15000, CostPiasters = 9500, StockQuantityMilli = 20000, MinStockQuantityMilli = 4000, Unit = "piece" });
                 list.Add(new Product { Id = "demo_prod_2", Name = "شراب قطن فاخر (تجريبي)", Barcode = "62255002", PricePiasters = 2500, CostPiasters = 1200, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "piece" });
                 list.Add(new Product { Id = "demo_prod_3", Name = "حزام جلد كلاسيك (تجريبي)", Barcode = "62255003", PricePiasters = 8500, CostPiasters = 5000, StockQuantityMilli = 15000, MinStockQuantityMilli = 3000, Unit = "piece" });
+            }
+            else if (storeType == "pharmacy")
+            {
+                list.Add(new Product { Id = "demo_prod_1", Name = "بنادول إكسترا أحمر 12 قرص (تجريبي)", Barcode = "62211001", PricePiasters = 4200, CostPiasters = 3400, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_2", Name = "كونجستال نزلات برد وإنفلونزا (تجريبي)", Barcode = "62211002", PricePiasters = 2800, CostPiasters = 2200, StockQuantityMilli = 60000, MinStockQuantityMilli = 12000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_3", Name = "كحول طبي 70% بخاخ 120 مل (تجريبي)", Barcode = "62211003", PricePiasters = 2500, CostPiasters = 1600, StockQuantityMilli = 60000, MinStockQuantityMilli = 12000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_4", Name = "بلاستر طبي لاصق جروح علبة 50 قطعة (تجريبي)", Barcode = "62211004", PricePiasters = 3000, CostPiasters = 1800, StockQuantityMilli = 40000, MinStockQuantityMilli = 8000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_5", Name = "قطن طبي معقم 100 جم (تجريبي)", Barcode = "62211005", PricePiasters = 2200, CostPiasters = 1500, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_6", Name = "شامبو جونسون للأطفال 300 مل (تجريبي)", Barcode = "62211006", PricePiasters = 6500, CostPiasters = 5200, StockQuantityMilli = 30000, MinStockQuantityMilli = 6000, Unit = "piece" });
+            }
+            else if (storeType == "cafe_restaurant" || storeType == "cafe" || storeType == "restaurant")
+            {
+                list.Add(new Product { Id = "demo_prod_1", Name = "برجر لحم بقري سنجل كلاسيك (تجريبي)", Barcode = "5001", PricePiasters = 8500, CostPiasters = 5500, StockQuantityMilli = 100000, MinStockQuantityMilli = 20000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_2", Name = "ساندوتش كريسبي دجاج زنجر حار (تجريبي)", Barcode = "5002", PricePiasters = 9500, CostPiasters = 6200, StockQuantityMilli = 90000, MinStockQuantityMilli = 18000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_3", Name = "بيتزا مارجريتا إيطالي وسط (تجريبي)", Barcode = "5003", PricePiasters = 11000, CostPiasters = 6800, StockQuantityMilli = 50000, MinStockQuantityMilli = 10000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_4", Name = "بطاطس مقلية فارم فريتس وسط (تجريبي)", Barcode = "5004", PricePiasters = 3000, CostPiasters = 1600, StockQuantityMilli = 150000, MinStockQuantityMilli = 30000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_5", Name = "إسبريسو سنجل شوت إيطالي (تجريبي)", Barcode = "5005", PricePiasters = 3500, CostPiasters = 1200, StockQuantityMilli = 200000, MinStockQuantityMilli = 30000, Unit = "piece" });
+                list.Add(new Product { Id = "demo_prod_6", Name = "كابتشينو حليب مبخر رغوة غنية (تجريبي)", Barcode = "5006", PricePiasters = 5500, CostPiasters = 2400, StockQuantityMilli = 150000, MinStockQuantityMilli = 25000, Unit = "piece" });
             }
             else
             {

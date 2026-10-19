@@ -71,6 +71,7 @@ namespace RafiqPOS.Bridge
                 request.Action == "products:delete" ||
                 request.Action == "products:bulkUpdateMinStock" ||
                 request.Action == "products:applyBulkPriceAdjustment" ||
+                request.Action == "products:revertBulkPriceAdjustment" ||
                 request.Action == "products:importBatch" ||
                 request.Action == "categories:save" ||
                 request.Action == "categories:archive" ||
@@ -220,6 +221,7 @@ namespace RafiqPOS.Bridge
             { "products:importBatch", "products.import" },
             { "products:previewBulkPriceAdjustment", "products.edit_price" },
             { "products:applyBulkPriceAdjustment", "products.edit_price" },
+            { "products:revertBulkPriceAdjustment", "products.edit_price" },
             { "products:getPriceHistory", "products.edit_cost" },
             { "products:generateInternalBarcode", "products.edit" },
             { "products:assignInternalBarcode", "products.edit" },
@@ -315,6 +317,7 @@ namespace RafiqPOS.Bridge
             { "reports:getSalesReport", "reports.sales" },
             { "reports:getSalesTrends", "reports.sales" },
             { "reports:getPeriodSales", "reports.sales" },
+            { "reports:getVatReport", "reports.sales" },
             { "reports:getCategoryPerformance", "reports.sales" },
             { "reports:getPeriodComparison", "reports.sales" },
             { "reports:getPaymentHistory", "reports.sales" },
@@ -335,6 +338,7 @@ namespace RafiqPOS.Bridge
             { "reports:getCashierSummary", "reports.cashier" },
             { "reports:getCashierPerformance", "reports.cashier" },
             { "reports:getDataQuality", REQUIRE_ADMIN },
+            { "reports:repairDataQuality", REQUIRE_ADMIN },
             { "reports:runMilestone9Tests", REQUIRE_ADMIN },
 
             // Expenses
@@ -434,6 +438,8 @@ namespace RafiqPOS.Bridge
             { "license:generateSupportCode", REQUIRE_ADMIN },
             { "license:deactivateForTransfer", "settings.license" },
             { "updates:check", REQUIRE_ADMIN },
+            { "updates:browsePackage", REQUIRE_ADMIN },
+            { "updates:inspectPackage", REQUIRE_ADMIN },
             { "updates:apply", REQUIRE_ADMIN },
 
             // Security & Users
@@ -515,6 +521,7 @@ namespace RafiqPOS.Bridge
             // Catalog modifications
             if (action == "products:save" || action == "products:delete" ||
                 action == "products:bulkUpdateMinStock" || action == "products:applyBulkPriceAdjustment" ||
+                action == "products:revertBulkPriceAdjustment" ||
                 action == "products:importBatch" || action == "categories:save" || action == "categories:archive" ||
                 action == "categories:reorder" || action == "productUnits:save" || action == "productUnits:delete" ||
                 action == "productUnits:setBase")

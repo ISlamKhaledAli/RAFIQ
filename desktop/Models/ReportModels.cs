@@ -63,9 +63,80 @@ namespace RafiqPOS.Models
         [JsonProperty("totalExpensesPiasters")]
         public long TotalExpensesPiasters { get; set; }
 
+        [JsonProperty("totalTaxPiasters")]
+        public long TotalTaxPiasters { get; set; }
+
+        [JsonProperty("netSalesExcludingTaxPiasters")]
+        public long NetSalesExcludingTaxPiasters { get; set; }
+
+        [JsonProperty("totalDiscountsPiasters")]
+        public long TotalDiscountsPiasters { get; set; }
+
+        [JsonProperty("netOperatingProfitPiasters")]
+        public long NetOperatingProfitPiasters { get; set; }
+
         public PeriodSalesReport()
         {
             TopSellingProducts = new List<TopSellingItem>();
+        }
+    }
+
+    public class VatRateBreakdownItem
+    {
+        [JsonProperty("taxRatePercent")]
+        public int TaxRatePercent { get; set; }
+
+        [JsonProperty("taxableAmountPiasters")]
+        public long TaxableAmountPiasters { get; set; }
+
+        [JsonProperty("taxAmountPiasters")]
+        public long TaxAmountPiasters { get; set; }
+
+        [JsonProperty("itemsCount")]
+        public int ItemsCount { get; set; }
+    }
+
+    public class VatReport
+    {
+        [JsonProperty("period")]
+        public string Period { get; set; }
+
+        [JsonProperty("startDate")]
+        public string StartDate { get; set; }
+
+        [JsonProperty("endDate")]
+        public string EndDate { get; set; }
+
+        [JsonProperty("grossSalesPiasters")]
+        public long GrossSalesPiasters { get; set; }
+
+        [JsonProperty("totalTaxPiasters")]
+        public long TotalTaxPiasters { get; set; }
+
+        [JsonProperty("netSalesExcludingTaxPiasters")]
+        public long NetSalesExcludingTaxPiasters { get; set; }
+
+        [JsonProperty("taxableSalesPiasters")]
+        public long TaxableSalesPiasters { get; set; }
+
+        [JsonProperty("taxExemptSalesPiasters")]
+        public long TaxExemptSalesPiasters { get; set; }
+
+        [JsonProperty("returnsTaxPiasters")]
+        public long ReturnsTaxPiasters { get; set; }
+
+        [JsonProperty("netVatPayablePiasters")]
+        public long NetVatPayablePiasters { get; set; }
+
+        [JsonProperty("taxableInvoicesCount")]
+        public int TaxableInvoicesCount { get; set; }
+
+        [JsonProperty("breakdown")]
+        public List<VatRateBreakdownItem> Breakdown { get; set; }
+
+        public VatReport()
+        {
+            Breakdown = new List<VatRateBreakdownItem>();
         }
     }
 

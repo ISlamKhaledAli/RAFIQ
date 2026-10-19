@@ -16,10 +16,13 @@ import {
   ShoppingCart,
   Croissant,
   Smartphone,
-  Store,
   Package,
   Sparkles,
   RefreshCw,
+  Pill,
+  Coffee,
+  Shirt,
+  Store,
 } from 'lucide-react';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 
@@ -39,9 +42,12 @@ interface DemoDataModalProps {
 
 const STORE_TYPE_OPTIONS = [
   { id: 'supermarket', label: 'سوبرماركت ومواد غذائية', icon: ShoppingCart },
-  { id: 'toys_kids', label: 'لعب أطفال وهدايا', icon: Package },
+  { id: 'pharmacy', label: 'صيدلية ومستحضرات تجميل', icon: Pill },
+  { id: 'clothing_apparel', label: 'ملابس وأحذية وأزياء', icon: Shirt },
+  { id: 'cafe_restaurant', label: 'مطاعم وكافيهات', icon: Coffee },
   { id: 'dairy_bakery', label: 'ألبان ومخبوزات', icon: Croissant },
   { id: 'accessories_gifts', label: 'إكسسوارات وموبايل', icon: Smartphone },
+  { id: 'toys_kids', label: 'لعب أطفال وهدايا', icon: Package },
   { id: 'general_grocery', label: 'محل تجاري عام وتجزئة', icon: Store },
 ];
 
@@ -65,6 +71,9 @@ export const DemoDataModal: React.FC<DemoDataModalProps> = ({
       if (wizardState) {
         const parsed = JSON.parse(wizardState);
         if (parsed.selectedTemplateId) {
+          if (parsed.selectedTemplateId.includes('pharmacy')) return 'pharmacy';
+          if (parsed.selectedTemplateId.includes('clothing')) return 'clothing_apparel';
+          if (parsed.selectedTemplateId.includes('cafe') || parsed.selectedTemplateId.includes('restaurant')) return 'cafe_restaurant';
           if (parsed.selectedTemplateId.includes('bakery') || parsed.selectedTemplateId.includes('dairy')) return 'dairy_bakery';
           if (parsed.selectedTemplateId.includes('accessories') || parsed.selectedTemplateId.includes('mobile')) return 'accessories_gifts';
           if (parsed.selectedTemplateId.includes('general')) return 'general_grocery';
