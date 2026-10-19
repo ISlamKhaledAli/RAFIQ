@@ -61,6 +61,12 @@ export function ReceiptModal({
   const activeHeader = liveSettings.receipt_header || '';
   const activeFooter = liveSettings.receipt_footer || receiptFooter;
   const activeCashier = liveSettings.cashier_name || 'كاشير (1)';
+  const showReceiptLogo = liveSettings.show_receipt_logo !== '0';
+  const activeLogoUrl = liveSettings.store_logo_url || '/logo.png';
+  const developerSignature = 
+    liveSettings.developer_signature && liveSettings.developer_signature !== 'نظام رفيق لإدارة المتاجر ونقاط البيع | تطوير: م. إسلام خالد'
+      ? liveSettings.developer_signature
+      : 'نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965';
 
   const handlePrint = useCallback(async () => {
     if (!sale || isPrinting) return;
@@ -205,7 +211,19 @@ export function ReceiptModal({
             } bg-white text-black font-mono leading-relaxed shadow-sm select-text border border-line transition-all duration-200`}
             dir="rtl"
           >
-            {/* Store Header */}
+            {/* Store Header & Logo */}
+            {showReceiptLogo && (
+              <div className="flex justify-center mb-1.5">
+                <img
+                  src={activeLogoUrl}
+                  alt="شعار المتجر"
+                  className={`object-contain max-h-[48px] ${is57mm ? 'max-w-[120px]' : 'max-w-[150px]'}`}
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = '/logo.png';
+                  }}
+                />
+              </div>
+            )}
             <div className={`text-center font-bold ${is57mm ? 'text-[13px]' : 'text-[15px]'} pb-0.5 text-black font-sans`}>
               {activeStoreName}
             </div>
@@ -336,6 +354,11 @@ export function ReceiptModal({
                 <div className="text-[9.5px] text-black font-mono font-semibold tracking-wider mt-0.5">
                   {sale.invoiceNumber ? String(sale.invoiceNumber).padStart(8, '0') : sale.id}
                 </div>
+              </div>
+
+              {/* Developer Branding Signature */}
+              <div className="border-t border-dotted border-gray-400 pt-1.5 mt-2 text-center text-[9px] text-gray-500 font-sans tracking-tight">
+                {developerSignature}
               </div>
             </div>
           </div>

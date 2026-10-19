@@ -573,7 +573,7 @@ namespace RafiqPOS.Services
             }
         }
 
-        public static FactoryResetResult FactoryReset()
+        public static FactoryResetResult FactoryReset(bool wipeBackups = false)
         {
             var result = new FactoryResetResult();
             if (string.IsNullOrEmpty(_connectionString))
@@ -587,8 +587,8 @@ namespace RafiqPOS.Services
             {
                 conn.Open();
 
-                // Mandatory safety backup before wiping data (Audit F-30)
-                if (Backup != null)
+                // Mandatory safety backup before wiping data unless user explicitly requested wiping all backups
+                if (!wipeBackups && Backup != null)
                 {
                     BackupResult preResetBackup = null;
                     try
@@ -618,13 +618,17 @@ namespace RafiqPOS.Services
                         // 1-3. Delete business data child-first so foreign keys (PRAGMA foreign_keys = ON) never block the reset
                         string[] tablesInDeleteOrder = new string[]
                         {
+                            "purchase_return_items", "purchase_returns",
+                            "cash_drawer_transactions", "shifts",
+                            "digital_account_fundings", "digital_transactions", "digital_accounts",
+                            "epay_terminal_fundings", "epay_transactions", "epay_terminals",
+                            "expense_categories", "expenses",
                             "payments", "return_items", "returns", "held_sales", "sale_items", "sales",
                             "customer_ledger", "customers",
                             "purchase_items", "purchases", "supplier_transactions", "suppliers",
                             "product_batches", "product_variants", "stock_movements", "product_price_history",
-                            "product_barcodes", "product_units", "quick_items", "products",
-                            "daily_closings", "expenses",
-                            "epay_transactions", "epay_terminal_fundings", "epay_terminals"
+                            "product_barcodes", "product_units", "quick_items", "products", "categories",
+                            "daily_closings"
                         };
                         for (int tIdx = 0; tIdx < tablesInDeleteOrder.Length; tIdx++)
                         {
@@ -632,7 +636,7 @@ namespace RafiqPOS.Services
                         }
 
                         // 4. Reset sequence counters and first run flag
-                        using (var cmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM counters; DELETE FROM app_settings WHERE key IN ('first_run_completed', 'has_demo_data');", conn, trans))
+                        using (var cmd = new System.Data.SQLite.SQLiteCommand("DELETE FROM counters; DELETE FROM app_settings WHERE key IN ('first_run_completed', 'has_demo_data', 'wizard_completed', 'is_first_run_completed');", conn, trans))
                         {
                             cmd.ExecuteNonQuery();
                         }
@@ -705,6 +709,45 @@ namespace RafiqPOS.Services
                     }
                 }
                 catch { }
+            }
+
+            // 8. Wipe all backup files and history if requested
+            if (wipeBackups)
+            {
+                try
+                {
+                    if (Backup != null)
+                    {
+                        string defaultBDir = Backup.GetDefaultBackupFolder();
+                        if (Directory.Exists(defaultBDir))
+                        {
+                            string[] files = Directory.GetFiles(defaultBDir, "*.*");
+                            for (int i = 0; i < files.Length; i++)
+                            {
+                                try { File.Delete(files[i]); } catch { }
+                            }
+                        }
+                    }
+
+                    string customBDir = SettingsRepo != null ? SettingsRepo.Get("backup_target_folder", "") : "";
+                    if (!string.IsNullOrWhiteSpace(customBDir) && Directory.Exists(customBDir))
+                    {
+                        string[] files = Directory.GetFiles(customBDir, "rafiq_backup_*.*");
+                        for (int i = 0; i < files.Length; i++)
+                        {
+                            try { File.Delete(files[i]); } catch { }
+                        }
+                    }
+
+                    if (SettingsRepo != null)
+                    {
+                        SettingsRepo.Set("backup_last_success_at", "");
+                    }
+                }
+                catch (Exception bEx)
+                {
+                    Logger.Warn("تعذر إفراغ بعض ملفات النسخ الاحتياطي: " + bEx.Message);
+                }
             }
 
             return result;

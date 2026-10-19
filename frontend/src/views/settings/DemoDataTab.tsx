@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import { 
   FlaskConical, 
   Compass, 
-  ShieldCheck 
+  ShieldCheck,
+  Trash2
 } from 'lucide-react';
+import { FactoryResetModal } from '../../components/FactoryResetModal';
 
 interface DemoDataTabProps {
   demoStatus: any;
@@ -15,6 +18,8 @@ export const DemoDataTab = ({
   onOpenTourModal,
   onOpenDemoModal,
 }: DemoDataTabProps) => {
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+
   return (
     <div className="flex flex-col gap-5 text-xs text-ink dark:text-ink-dark">
       {/* Header & Quick Actions */}
@@ -105,6 +110,42 @@ export const DemoDataTab = ({
           <span>{demoStatus?.hasDemoData ? 'مسح كل البيانات التجريبية دلوقتي' : 'تنزيل أو إدارة البيانات التجريبية'}</span>
         </button>
       </div>
+
+      {/* Complete System & Backup Wipe Card */}
+      <div className="p-4 bg-danger-soft/60 dark:bg-danger-dark-soft/50 border border-danger/30 dark:border-danger-bright/30 rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-2xs">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 rounded-lg bg-danger/10 text-danger flex items-center justify-center shrink-0 mt-0.5">
+            <Trash2 className="w-5 h-5 text-danger" />
+          </div>
+          <div className="text-xs space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-danger-ink dark:text-danger-bright text-xs block">
+                تصفير ومسح كافة البيانات بالكامل (إعادة ضبط المصنع كأول مرة):
+              </span>
+              <span className="text-[10px] font-bold text-danger bg-danger/15 px-1.5 py-0.5 rounded">
+                شامل النسخ الاحتياطية
+              </span>
+            </div>
+            <p className="text-ink dark:text-ink-dark leading-relaxed m-0 text-xs">
+              لو عاوز تنضف الدنيا كلها وتمسح كل الأصناف والفواتير والديون وملفات النسخ الاحتياطي السابقة وتبدأ من الصفر تماماً.
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setIsResetModalOpen(true)}
+          className="shrink-0 h-9 px-3.5 bg-danger hover:bg-danger-hover text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer self-start sm:self-auto"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          <span>مسح وتصفير كافة البيانات وبدء المحل من الصفر</span>
+        </button>
+      </div>
+
+      <FactoryResetModal
+        isOpen={isResetModalOpen}
+        onClose={() => setIsResetModalOpen(false)}
+      />
     </div>
   );
 };

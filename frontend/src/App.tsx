@@ -59,7 +59,7 @@ import { DashboardView } from './views/DashboardView';
 import { RevenueAnalyticsView } from './views/analytics/RevenueAnalyticsView';
 import { InventoryAnalyticsView } from './views/analytics/InventoryAnalyticsView';
 import { CustomerAnalyticsView } from './views/analytics/CustomerAnalyticsView';
-import type { DashboardSubTab } from './types/models';
+import type { DashboardSubTab, Shift } from './types/models';
 import { CustomersView } from './views/CustomersView';
 import { ProductsView } from './views/ProductsView';
 import { PurchasesView } from './views/PurchasesView';
@@ -78,6 +78,7 @@ import { RafiqDialogContainer } from './components/RafiqDialog';
 import { rafiqConfirm, rafiqAlert } from './utils/dialogService';
 import { LoginModal } from './components/LoginModal';
 import { UserManagerModal } from './components/UserManagerModal';
+import { ShiftModal } from './components/ShiftModal';
 import { SupervisorPromptModal } from './components/SupervisorPromptModal';
 import { LicenseExpiredLockScreen } from './components/LicenseExpiredLockScreen';
 import type { LicenseExpiryDetails } from './components/LicenseExpiredLockScreen';
@@ -218,6 +219,8 @@ export default function App() {
   const [storeName, setStoreName] = useState('رفيق POS');
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isUserManagerOpen, setIsUserManagerOpen] = useState(false);
+  const [activeShift, setActiveShift] = useState<Shift | null>(null);
+  const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const [idleTimeoutMinutes, setIdleTimeoutMinutes] = useState(15);
   const [supervisorPrompt, setSupervisorPrompt] = useState<{
     isOpen: boolean;
@@ -509,6 +512,36 @@ export default function App() {
       isMounted = false;
     };
   }, [activeTab]);
+
+  const loadActiveShift = useCallback(async () => {
+    try {
+      const active = await invoke<Shift | null>('shifts:getActive', { posRegisterId: 'default_pos' });
+      setActiveShift(active);
+    } catch {
+      // Ignore in offline
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadActiveShift();
+
+    const handleOpenShift = () => setIsShiftModalOpen(true);
+    const handleCloseShift = () => setIsShiftModalOpen(false);
+    const handleShiftUpdated = (e: Event) => {
+      const customEvent = e as CustomEvent<Shift | null>;
+      setActiveShift(customEvent.detail);
+    };
+
+    window.addEventListener('rafiq:open-shift-modal', handleOpenShift);
+    window.addEventListener('rafiq:close-shift-modal', handleCloseShift);
+    window.addEventListener('rafiq:shift-updated', handleShiftUpdated as EventListener);
+
+    return () => {
+      window.removeEventListener('rafiq:open-shift-modal', handleOpenShift);
+      window.removeEventListener('rafiq:close-shift-modal', handleCloseShift);
+      window.removeEventListener('rafiq:shift-updated', handleShiftUpdated as EventListener);
+    };
+  }, [loadActiveShift, currentUser]);
 
   const refreshSettings = useCallback(async () => {
     try {
@@ -960,6 +993,29 @@ export default function App() {
 
         {/* Left Side: Staff Management, Action Buttons, Window Controls, Date & Time */}
         <div className="flex items-center gap-1.5 sm:gap-2 text-xs shrink-0">
+          {/* Shift & Cash Drawer Quick Access Button */}
+          <button
+            type="button"
+            onClick={() => setIsShiftModalOpen(true)}
+            className={`flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-lg border text-xs font-bold shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer shrink-0 ${
+              activeShift && activeShift.status !== 'closed'
+                ? 'bg-paid-soft hover:bg-paid-soft/80 text-paid border-paid/30'
+                : 'bg-warn-soft/60 hover:bg-warn-soft text-warn border-warn/40 animate-pulse'
+            }`}
+            title={
+              activeShift && activeShift.status !== 'closed'
+                ? `إدارة الوردية والدرج وحركات النقدية (وردية #${activeShift.shiftNumber ?? (activeShift as any).ShiftNumber ?? 1} مفتوحة)`
+                : 'الوردية مغلقة - اضغط لفتح وردية جديدة واستلام عهدة الدرج'
+            }
+          >
+            <Clock className={`w-3.5 h-3.5 shrink-0 ${activeShift && activeShift.status !== 'closed' ? 'text-paid' : 'text-warn'}`} />
+            <span className="truncate max-w-[110px]">
+              {activeShift && activeShift.status !== 'closed'
+                ? `وردية #${activeShift.shiftNumber ?? (activeShift as any).ShiftNumber ?? 1}`
+                : 'الوردية مغلقة'}
+            </span>
+          </button>
+
           {/* Fast Switch User / Profile Badge */}
           <button
             type="button"
@@ -1809,6 +1865,19 @@ export default function App() {
         onClose={() => setIsUserManagerOpen(false)}
         onUsersChanged={async () => {
           void refreshUser();
+        }}
+      />
+
+      {/* Cash Drawer & Shift Lifecycle Modal (Top Bar & POS Shared) */}
+      <ShiftModal
+        isOpen={isShiftModalOpen}
+        onClose={() => {
+          setIsShiftModalOpen(false);
+          window.dispatchEvent(new CustomEvent('rafiq:close-shift-modal'));
+        }}
+        onShiftStatusChanged={(shift) => {
+          setActiveShift(shift);
+          window.dispatchEvent(new CustomEvent('rafiq:shift-updated', { detail: shift }));
         }}
       />
 

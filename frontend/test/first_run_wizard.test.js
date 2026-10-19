@@ -21,12 +21,12 @@ describe('Story 59: First-run Setup Wizard by Store Type (Feature #106)', () => 
     assert.ok(serviceContent.includes('supermarket'), 'Must define supermarket template');
     assert.ok(serviceContent.includes('سوبرماركت ومواد غذائية'), 'Must have Arabic title for supermarket');
     assert.ok(serviceContent.includes('feature_scale_weight'), 'Supermarket must configure scale weight feature');
-    assert.ok(serviceContent.includes('معلبات وبقوليات'), 'Supermarket must include grocery categories');
+    assert.ok(serviceContent.includes('feature_expiry_dates'), 'Supermarket must configure expiry dates feature');
 
     // 2. Dairy & Bakery template
     assert.ok(serviceContent.includes('dairy_bakery'), 'Must define dairy & bakery template');
     assert.ok(serviceContent.includes('ألبان ومخبوزات ومعلبات'), 'Must have Arabic title for dairy');
-    assert.ok(serviceContent.includes('ألبان سائبة ومعبأة'), 'Dairy must include bulk milk categories');
+    assert.ok(serviceContent.includes('t3.FeatureFlags["feature_scale_weight"] = true'), 'Dairy must configure scale weight');
 
     // 3. Stationery / Accessories & Gifts template
     assert.ok(serviceContent.includes('stationery_gifts') || serviceContent.includes('accessories_gifts'), 'Must define stationery/accessories template');
@@ -110,45 +110,16 @@ describe('Story 59: First-run Setup Wizard by Store Type (Feature #106)', () => 
     assert.ok(settingsContent.includes('معالج نوع المحل (Setup Wizard)') || storeProfileContent.includes('معالج نوع المحل (Setup Wizard)') || storeProfileContent.includes('معالج تهيئة المحل والنشاط'), 'SettingsView must offer button to rerun setup wizard');
   });
 
-  it('Task 106-5: Template data validation for each store preset', () => {
-    // Validate that templates have valid non-empty fields and integer piasters
-    const templates = [
-      {
-        id: 'supermarket',
-        categoriesCount: 7,
-        hasScale: true,
-        quickItemPrice: 3500, // 35 EGP
-      },
-      {
-        id: 'dairy_bakery',
-        categoriesCount: 5,
-        hasScale: true,
-        quickItemPrice: 7000, // 70 EGP
-      },
-      {
-        id: 'accessories_gifts',
-        categoriesCount: 5,
-        hasScale: false,
-        quickItemPrice: 4500, // 45 EGP
-      },
-      {
-        id: 'general_grocery',
-        categoriesCount: 5,
-        hasScale: true,
-        quickItemPrice: 1500, // 15 EGP
-      },
-      {
-        id: 'toys_kids',
-        categoriesCount: 6,
-        hasScale: false,
-        quickItemPrice: 4000, // 40 EGP
-      }
-    ];
+  it('Task 106-5: Template data validation enforces clean database (0 categories, 0 quick items)', () => {
+    // Validate that store presets only configure operational feature flags with zero injected categories
+    const storeTemplatesTs = fs.readFileSync(path.resolve('src', 'constants', 'storeTemplates.ts'), 'utf8');
+    const storeTemplateServiceCs = fs.readFileSync(templateServicePath, 'utf8');
 
-    for (const t of templates) {
-      assert.ok(t.categoriesCount >= 5, `${t.id} must define at least 5 categories`);
-      assert.ok(Number.isInteger(t.quickItemPrice), `${t.id} quick item prices must be integers (piasters)`);
-      assert.ok(t.quickItemPrice > 0, `${t.id} quick item price must be positive`);
-    }
+    assert.ok(storeTemplatesTs.includes('categories: []'), 'Frontend presets must define empty categories');
+    assert.ok(storeTemplatesTs.includes('quickItems: []'), 'Frontend presets must define empty quickItems');
+    assert.ok(storeTemplatesTs.includes('productsCount: 0'), 'Frontend presets must define 0 products');
+
+    assert.ok(storeTemplateServiceCs.includes('Categories = new List<string>()'), 'Backend presets must define empty categories');
+    assert.ok(storeTemplateServiceCs.includes('QuickItems = new List<TemplateQuickItem>()'), 'Backend presets must define empty quickItems');
   });
 });

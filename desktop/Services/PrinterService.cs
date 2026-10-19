@@ -521,10 +521,40 @@ namespace RafiqPOS.Services
         {
             try
             {
-                string configured = _settings != null ? _settings.Get("store_logo_path", "") : "";
-                if (!string.IsNullOrWhiteSpace(configured) && File.Exists(configured))
+                string showLogo = _settings != null ? _settings.Get("show_receipt_logo", "1") : "1";
+                if (showLogo == "0" || showLogo.Equals("false", StringComparison.OrdinalIgnoreCase))
                 {
-                    return Image.FromFile(configured);
+                    return null;
+                }
+
+                string configured = _settings != null ? _settings.Get("store_logo_path", "") : "";
+                if (string.IsNullOrWhiteSpace(configured) && _settings != null)
+                {
+                    configured = _settings.Get("store_logo_url", "");
+                }
+
+                if (!string.IsNullOrWhiteSpace(configured))
+                {
+                    if (configured.StartsWith("data:image", StringComparison.OrdinalIgnoreCase))
+                    {
+                        int commaIdx = configured.IndexOf(',');
+                        if (commaIdx >= 0)
+                        {
+                            byte[] bytes = Convert.FromBase64String(configured.Substring(commaIdx + 1));
+                            using (var ms = new MemoryStream(bytes))
+                            using (var tempImg = Image.FromStream(ms))
+                            {
+                                return new Bitmap(tempImg);
+                            }
+                        }
+                    }
+                    else if (File.Exists(configured))
+                    {
+                        using (var tempImg = Image.FromFile(configured))
+                        {
+                            return new Bitmap(tempImg);
+                        }
+                    }
                 }
 
                 string baseDir = AppDomain.CurrentDomain.BaseDirectory;
@@ -533,14 +563,19 @@ namespace RafiqPOS.Services
                     Path.Combine(baseDir, "logo.png"),
                     Path.Combine(baseDir, "logo_full.png"),
                     Path.Combine(baseDir, "branding", "logo.png"),
-                    Path.Combine(baseDir, "branding", "logo_full.png")
+                    Path.Combine(baseDir, "branding", "logo_full.png"),
+                    Path.Combine(baseDir, "dist", "logo.png"),
+                    Path.Combine(baseDir, "wwwroot", "logo.png")
                 };
 
                 for (int i = 0; i < candidates.Length; i++)
                 {
                     if (File.Exists(candidates[i]))
                     {
-                        return Image.FromFile(candidates[i]);
+                        using (var tempImg = Image.FromFile(candidates[i]))
+                        {
+                            return new Bitmap(tempImg);
+                        }
                     }
                 }
             }
@@ -879,6 +914,19 @@ namespace RafiqPOS.Services
                 var barcodeRect = new RectangleF(10, y, contentWidth - 20, barcodeH);
                 BarcodeGenerator.DrawBarcode(g, barcodeValue, barcodeRect, showText: true, textFont: fontSmall);
                 y += barcodeH + 6;
+
+                // 9. حقوق وتوقيع مطور النظام (دعاية ثابتة لا يمكن لغير الروت تغييرها)
+                string defaultSig = "نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965";
+                string devSig = _settings != null ? _settings.Get("developer_signature", defaultSig) : defaultSig;
+                if (string.IsNullOrWhiteSpace(devSig) || devSig == "نظام رفيق لإدارة المتاجر ونقاط البيع | تطوير: م. إسلام خالد")
+                {
+                    devSig = defaultSig;
+                }
+                y += 2;
+                g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
+                y += 4;
+                g.DrawString(devSig, fontSmall, Brushes.Black, new RectangleF(2, y, contentWidth - 4, isCompact ? 28 : 18), centerFormat);
+                y += isCompact ? 30 : 20;
 
                 return y;
             }
@@ -1233,6 +1281,18 @@ namespace RafiqPOS.Services
 
                 g.DrawString("تم توثيق المرتجع بنجاح في سجل العمليات الرقابي", fontSmall, Brushes.Black, new RectangleF(0, y, contentWidth, 16), centerFormat);
                 y += 18;
+
+                string defaultSig = "نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965";
+                string devSigReturn = _settings != null ? _settings.Get("developer_signature", defaultSig) : defaultSig;
+                if (string.IsNullOrWhiteSpace(devSigReturn) || devSigReturn == "نظام رفيق لإدارة المتاجر ونقاط البيع | تطوير: م. إسلام خالد")
+                {
+                    devSigReturn = defaultSig;
+                }
+                y += 2;
+                g.DrawLine(penDashed, 5, y, contentWidth - 5, y);
+                y += 4;
+                g.DrawString(devSigReturn, fontSmall, Brushes.Black, new RectangleF(2, y, contentWidth - 4, isCompact ? 28 : 18), centerFormat);
+                y += isCompact ? 30 : 20;
 
                 return y;
             }

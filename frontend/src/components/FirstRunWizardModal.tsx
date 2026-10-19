@@ -18,10 +18,14 @@ import {
   Check,
   Info,
   Pill,
-  Coffee
+  Coffee,
+  Upload,
+  RotateCcw,
+  Image as ImageIcon
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { CustomSelect } from './CustomSelect';
+import { ToggleSwitch } from './ToggleSwitch';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import { INITIAL_STORE_TEMPLATES, type StoreTemplateDto } from '../constants/storeTemplates';
 export type { StoreTemplateDto };
@@ -140,6 +144,54 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
     return 'شكراً لزيارتكم — الاستبدال خلال 3 أيام بالإيصال';
   });
 
+  const [showReceiptLogo, setShowReceiptLogo] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.showReceiptLogo !== undefined) return Boolean(parsed.showReceiptLogo);
+      }
+    } catch {
+      // ignore
+    }
+    return true;
+  });
+
+  const [storeLogoUrl, setStoreLogoUrl] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.storeLogoUrl) return parsed.storeLogoUrl;
+      }
+    } catch {
+      // ignore
+    }
+    return '/logo.png';
+  });
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      alert('حجم الصورة كبير جداً. يرجى اختيار صورة أقل من 2 ميجابايت.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setStoreLogoUrl(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleResetLogo = () => {
+    setStoreLogoUrl('/logo.png');
+  };
+
   // Step 3: Hardware & Backup
   const [printers, setPrinters] = useState<{ name: string; isDefault: boolean }[]>([]);
   const [selectedPrinter, setSelectedPrinter] = useState<string>(() => {
@@ -178,6 +230,8 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
         address,
         receiptHeader,
         receiptFooter,
+        showReceiptLogo,
+        storeLogoUrl,
         selectedPrinter,
         backupFolder,
       };
@@ -185,7 +239,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
     } catch {
       // ignore
     }
-  }, [step, selectedTemplateId, storeName, phone, address, receiptHeader, receiptFooter, selectedPrinter, backupFolder]);
+  }, [step, selectedTemplateId, storeName, phone, address, receiptHeader, receiptFooter, showReceiptLogo, storeLogoUrl, selectedPrinter, backupFolder]);
 
   // Result state
   const [appliedStats, setAppliedStats] = useState<{ categoriesCount: number; quickItemsCount: number; productsCount: number } | null>(null);
@@ -197,12 +251,21 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
     (async () => {
       try {
         setLoading(true);
-        const [tplList, printerList] = await Promise.all([
+        const [tplList, printerList, appSettings] = await Promise.all([
           invoke<StoreTemplateDto[]>('templates:getAll'),
           invoke<{ name: string; isDefault: boolean }[]>('printer:list'),
+          invoke<Record<string, string>>('settings:getAll').catch(() => ({} as Record<string, string>)),
         ]);
 
         if (active) {
+          if (appSettings) {
+            if (appSettings.show_receipt_logo !== undefined && !localStorage.getItem(WIZARD_STORAGE_KEY)) {
+              setShowReceiptLogo(appSettings.show_receipt_logo !== '0');
+            }
+            if (appSettings.store_logo_url && !localStorage.getItem(WIZARD_STORAGE_KEY)) {
+              setStoreLogoUrl(appSettings.store_logo_url);
+            }
+          }
           if (Array.isArray(tplList) && tplList.length > 0) {
             const cleanList = tplList.filter((t) => t.id !== 'accessories_gifts');
             if (cleanList.length > 0) {
@@ -268,10 +331,28 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
         storeAddress: address.trim(),
         receiptHeader: receiptHeader.trim(),
         receiptFooter: receiptFooter.trim(),
+        showReceiptLogo: showReceiptLogo ? '1' : '0',
+        storeLogoUrl: storeLogoUrl,
         defaultPrinter: selectedPrinter,
         backupFolder: backupFolder.trim(),
         seedInitialProducts: false,
       });
+
+      try {
+        await invoke('settings:save', {
+          store_name: storeName.trim(),
+          store_phone: phone.trim(),
+          store_address: address.trim(),
+          receipt_header: receiptHeader.trim(),
+          receipt_footer: receiptFooter.trim(),
+          show_receipt_logo: showReceiptLogo ? '1' : '0',
+          store_logo_url: storeLogoUrl,
+          default_printer_name: selectedPrinter,
+          backup_target_folder: backupFolder.trim(),
+        });
+      } catch {
+        // ignore
+      }
 
       if (res && res.success) {
         setAppliedStats({
@@ -353,7 +434,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
           <div className="bg-brand-soft border border-brand/50 rounded-[6px] p-3.5 flex items-center gap-3 shrink-0">
             <Info className="w-5 h-5 text-brand shrink-0" />
             <span className="text-[14px] text-brand font-medium">
-              اختر نشاط محلك لتهيئة الميزات الملائمة — قاعدة البيانات تبدأ نظيفة 100% بدون أي أصناف أو تصنيفات مسبقة
+              اختر نشاط محلك لضبط ميزات البيع المناسبة فقط — قاعدة البيانات تبدأ نظيفة 100% بدون أي أقسام أو تصنيفات أو أصناف مسبقة
             </span>
           </div>
 
@@ -486,6 +567,87 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
                 placeholder="شكراً لزيارتكم — الاستبدال خلال 3 أيام بالإيصال"
               />
             </div>
+
+            {/* Section: Store Logo Customization & Toggle */}
+            <div className="bg-canvas border border-line rounded-[6px] p-4 flex flex-col gap-3 mt-1">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="w-4 h-4 text-brand" />
+                  <span className="font-bold text-ink text-[13px]">
+                    شعار المتجر أعلى الإيصال والفاتورة
+                  </span>
+                </div>
+                <ToggleSwitch
+                  checked={showReceiptLogo}
+                  onChange={(next) => setShowReceiptLogo(next)}
+                  title={showReceiptLogo ? 'مفعّل (طباعة الشعار أعلى الوصل)' : 'معطّل (إلغاء طباعة الشعار)'}
+                />
+              </div>
+
+              {showReceiptLogo ? (
+                <div className="flex flex-col gap-3 pt-2 border-t border-line">
+                  <div className="flex flex-wrap items-center justify-between gap-3 bg-surface p-3 rounded-[6px] border border-line">
+                    <div className="flex items-center gap-3">
+                      <div className="w-14 h-11 rounded border border-line bg-white p-1 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
+                        <img
+                          src={storeLogoUrl}
+                          alt="معاينة الشعار"
+                          className="max-h-full max-w-full object-contain"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src = '/logo.png';
+                          }}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[12px] font-semibold text-ink">
+                          {storeLogoUrl !== '/logo.png' ? 'شعار مخصص للمتجر' : 'شعار رفيق الافتراضي'}
+                        </span>
+                        <span className="text-[11px] text-ink-muted">
+                          يظهر مطبوعاً في ترويسة جميع فواتير الكاشير والمرتجعات
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <label className="px-3 py-1.5 bg-brand text-white hover:bg-brand-hover rounded text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>رفع شعار جديد</span>
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="hidden"
+                          onChange={handleLogoUpload}
+                        />
+                      </label>
+
+                      {storeLogoUrl !== '/logo.png' && (
+                        <button
+                          type="button"
+                          onClick={handleResetLogo}
+                          className="px-2.5 py-1.5 bg-surface text-ink-muted hover:text-ink border border-line rounded text-xs font-medium flex items-center gap-1 transition-colors"
+                          title="استعادة الشعار الافتراضي لنظام رفيق"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>الافتراضي</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Technical Guidance */}
+                  <div className="bg-brand-soft/50 border border-brand/20 rounded p-2.5 text-[11px] leading-relaxed text-ink flex items-start gap-2">
+                    <Info className="w-4 h-4 text-brand shrink-0 mt-0.5" />
+                    <div className="flex-1 text-[11px] text-ink-muted">
+                      <strong className="text-ink font-semibold">المقاسات الموصى بها للطابعات الحرارية:</strong> أبعاد <span dir="ltr" className="font-mono font-semibold">200 × 70</span> بكسل (أو مربع حتى <span dir="ltr" className="font-mono font-semibold">120 × 120</span> بكسل) بصيغة PNG وخلفية بيضاء أو مفرغة عالية التباين لضمان نقاء وسرعة الطباعة الحرارية.
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-[11px] text-ink-muted bg-surface p-2.5 rounded border border-line text-center">
+                  تم إلغاء طباعة الشعار — سيتم إصدار الإيصال باسم المتجر والعناوين مباشرة دون صورة في الترويسة.
+                </div>
+              )}
+            </div>
           </div>
 
           {/* RIGHT CARD (5 columns in RTL): Live Receipt Preview (80 mm) */}
@@ -504,7 +666,19 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
               {/* Receipt Sheet (280px wide, pure white paper with 1px border and zigzag torn bottom edge) */}
               <div className="w-[280px] bg-white border border-line rounded-t-[4px] p-4 text-[11px] font-mono leading-relaxed text-ink relative pb-6 select-none shadow-sm">
                 {/* Centered Header Block */}
-                <div className="text-center flex flex-col gap-0.5">
+                <div className="text-center flex flex-col gap-0.5 items-center">
+                  {showReceiptLogo && (
+                    <div className="flex justify-center mb-1">
+                      <img
+                        src={storeLogoUrl}
+                        alt="شعار المتجر"
+                        className="h-9 object-contain"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = '/logo.png';
+                        }}
+                      />
+                    </div>
+                  )}
                   <div className="font-bold text-[14px] text-ink font-sans">
                     {storeName || 'متجر رفيق'}
                   </div>
@@ -556,6 +730,12 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
                 {/* Return policy centered */}
                 <div className="text-center font-sans text-[10px] text-ink-muted leading-tight px-1 mt-1">
                   {receiptFooter || 'شكراً لزيارتكم — الاستبدال خلال 3 أيام بالإيصال'}
+                </div>
+
+                {/* Developer signature */}
+                <div className="border-t border-dashed border-ink/40 my-2 pt-1.5" />
+                <div className="text-center font-sans text-[8.5px] text-ink-muted leading-tight px-1">
+                  نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965
                 </div>
 
                 {/* Zigzag torn bottom edge */}
@@ -679,28 +859,28 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
               <span className="text-ink-muted text-[12px] font-medium">حالة قاعدة البيانات</span>
               <span className="text-paid text-[15px] font-bold mt-2 flex items-center gap-1.5">
                 <Check className="w-4 h-4 text-paid" />
-                <span>نظيفة 100% وجاهزة</span>
+                <span>نظيفة 100% بدون أقسام أو أصناف</span>
               </span>
             </div>
 
             {/* Card 5 */}
             <div className="bg-surface border border-line rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
-              <span className="text-ink-muted text-[12px] font-medium">كتالوج الأصناف المسبقة</span>
+              <span className="text-ink-muted text-[12px] font-medium">الأقسام والأصناف المسبقة</span>
               <span className="text-ink text-[15px] font-semibold mt-2 font-mono">
-                0 أصناف مسبقة
+                0 أقسام · 0 أصناف
               </span>
             </div>
 
             {/* Card 6 (Special Highlighted) */}
             <div className="bg-brand-soft border border-brand rounded-[6px] p-4 flex flex-col justify-between shadow-2xs">
               <div className="flex items-center justify-between">
-                <span className="text-brand text-[12px] font-medium">استيراد الأصناف الجاهزة</span>
+                <span className="text-brand text-[12px] font-medium">إدخال بضاعتك وأقسامك</span>
                 <span className="text-[10px] font-semibold text-brand bg-white border border-brand/40 px-1.5 py-0.5 rounded-[3px]">
-                  ملفات Excel
+                  تسجيل حر
                 </span>
               </div>
               <span className="text-brand text-[14px] font-semibold mt-2">
-                متاح بضغطة زر من إدارة الأصناف
+                إدخال يدوي أو استيراد ملفات Excel
               </span>
             </div>
           </div>
@@ -712,10 +892,10 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
             </div>
             <div className="flex flex-col">
               <h4 className="text-ink text-[16px] font-semibold">
-                بداية نقية 100% بدون أي بيانات وهمية
+                بداية نظيفة 100% بدون أي أقسام أو أصناف مسبقة
               </h4>
               <p className="text-ink-muted text-[13px] mt-1 leading-relaxed">
-                تم تجهيز النظام وإعدادات نشاطك بقاعدة بيانات نظيفة تماماً بدون أي أصناف أو تصنيفات مسبقة لتتمكن من إدخال بضاعتك بنفسك. كما يمكنك في أي وقت استيراد كتالوج كامل جاهز لنشاطك من ملفات الإكسل المرفقة عبر شاشة إدارة المنتجات.
+                تم ضبط وتفعيل ميزات البيع المناسبة لنشاطك، وتبدأ قاعدة البيانات نظيفة تماماً بدون أي أقسام أو تصنيفات أو أصناف مسبقة لتتمكن من إضافة بضاعتك وترتيب أقسامك بنفسك بكل حرية.
               </p>
             </div>
           </div>
@@ -723,7 +903,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
           {/* Reassurance Line */}
           <div className="flex items-center gap-2.5 px-1 text-ink-muted text-[13px]">
             <ShieldCheck className="w-5 h-5 text-paid shrink-0" />
-            <span>تقدر في أي وقت من الإعدادات تعدل الأسعار والأصناف والأقسام</span>
+            <span>يمكنك في أي وقت تفعيل أو إيقاف أي ميزة وإضافة وتعديل أقسامك وبضاعتك</span>
           </div>
         </div>
       );
@@ -763,7 +943,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
               <div className="absolute top-4 right-[13px] bottom-4 w-[1px] bg-white/25 -z-0 pointer-events-none" />
 
               {[
-                { num: 1, title: 'نوع النشاط وتخصيص النظام', desc: 'تحديد نشاط المحل وضبط الميزات التشغيلية', badge: 'نظيف 100%' },
+                { num: 1, title: 'نوع النشاط والميزات التشغيلية', desc: 'تحديد نشاط المحل وضبط الميزات التشغيلية فقط', badge: 'نظيف 100%' },
                 { num: 2, title: 'بيانات المحل والفاتورة', desc: 'الاسم، الهاتف، وترويسة الإيصال' },
                 { num: 3, title: 'الأجهزة وحفظ البيانات', desc: 'طابعة الكاشير ومسار النسخ الاحتياطي' },
                 { num: 4, title: 'المراجعة وتأكيد البدء', desc: 'اعتماد التجهيزات والانتقال للكاشير' },
@@ -848,7 +1028,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
 
               {/* Description */}
               <p className="text-ink-muted text-[14px] leading-relaxed mb-8">
-                تم إنشاء {appliedStats.categoriesCount} تصنيفات رئيسية، و{appliedStats.productsCount} صنف فعلي بباركود حقيقي جاهز للبيع فوراً، و{appliedStats.quickItemsCount} أزرار كاشير سريعة. جاري نقلك لشاشة نقطة البيع…
+                تم ضبط ميزات نشاطك بنجاح، وقاعدة البيانات جاهزة ونظيفة 100% بدون أي أقسام أو تصنيفات أو أصناف مسبقة. جاري نقلك لشاشة نقطة البيع…
               </p>
 
               {/* 44px Progress Strip */}
@@ -880,7 +1060,7 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
                     {step === 4 && 'مراجعة التجهيزات والبدء الفعلي'}
                   </h1>
                   <p className="text-[13px] text-ink-muted mt-0.5">
-                    {step === 1 && 'سيقوم رفيق بضبط خصائص النظام وميزات البيع المناسبة لنشاطك مع إبقاء قاعدة البيانات نظيفة 100% للبدء الفوري'}
+                    {step === 1 && 'سيقوم رفيق بضبط خصائص وميزات البيع المناسبة لنشاطك مع إبقاء قاعدة البيانات نظيفة 100% بدون أي أقسام أو أصناف للبدء الفوري'}
                     {step === 2 && 'المعلومات اللي هتظهر في رأس وتذييل إيصال الكاشير للزبون'}
                     {step === 3 && 'حدد طابعة الإيصالات الحرارية ومسار النسخ الاحتياطي التلقائي لحماية بياناتك'}
                     {step === 4 && 'تأكيد الخيارات واعتماد التجهيز لفتح شاشة الكاشير وبدء البيع فوراً'}

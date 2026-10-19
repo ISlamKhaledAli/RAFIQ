@@ -163,7 +163,7 @@ export const CustomerReceiptVoucherModal: React.FC<CustomerReceiptVoucherModalPr
             </div>
 
             <div className="mt-4 pt-2 border-t border-dashed border-neutral-300 text-center text-[9px] text-neutral-400">
-              نظام رفيق لإدارة المتاجر ونقاط البيع - سند موثق بدفتر الأستاذ
+              نظام رفيق للأنظمة والحلول البرمجية | م. إسلام خالد (01097782965) - سند موثق بدفتر الأستاذ
             </div>
           </div>
         </div>

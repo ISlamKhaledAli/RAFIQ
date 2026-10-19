@@ -31,7 +31,7 @@ export const INITIAL_STORE_TEMPLATES: StoreTemplateDto[] = [
     categories: [],
     quickItems: [],
     productsCount: 0,
-    featuresSummary: ['دعم الميزان الإلكتروني', 'تاريخ الصلاحية', 'تعدد الوحدات والكرتونة', 'ماكينات شحن وخدمات دفع', 'محافظ وانستاباي'],
+    featuresSummary: ['دعم الميزان الإلكتروني', 'تواريخ الصلاحية', 'تعدد الوحدات والكرتونة', 'ماكينات شحن وخدمات دفع', 'سداد انستاباي ومحافظ'],
     defaultSettings: {
       receipt_header: 'أهلاً بكم في سوبرماركت رفيق',
       receipt_footer: 'شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل خلال 14 يوماً بموجب الفاتورة.',
@@ -56,7 +56,7 @@ export const INITIAL_STORE_TEMPLATES: StoreTemplateDto[] = [
     categories: [],
     quickItems: [],
     productsCount: 0,
-    featuresSummary: ['مصفوفة المقاسات والألوان', 'باركود لكل قطعة', 'سداد انستاباي ومحافظ كاش', 'بدون ميزان أو ماكينات شحن'],
+    featuresSummary: ['مصفوفة المقاسات والألوان', 'باركود متفرع للقطع', 'سداد انستاباي ومحافظ', 'إلغاء الميزان والصلاحية'],
     defaultSettings: {
       receipt_header: 'متاجر رفيق للملابس والأزياء',
       receipt_footer: 'شكراً لاختياركم متجرنا! الاستبدال خلال 14 يوماً مع وجود كارت الصنف والباركود.',
@@ -81,7 +81,7 @@ export const INITIAL_STORE_TEMPLATES: StoreTemplateDto[] = [
     categories: [],
     quickItems: [],
     productsCount: 0,
-    featuresSummary: ['إكسسوارات وصيانة', 'خدمات شحن وماكينات فوري', 'سداد انستاباي ومحافظ', 'بدون ميزان أو مقاسات'],
+    featuresSummary: ['خدمات شحن وماكينات فوري', 'سداد فواتير وأرصدة', 'سداد انستاباي ومحافظ', 'إلغاء الميزان والمقاسات'],
     defaultSettings: {
       receipt_header: 'متجر رفيق للهواتف والإلكترونيات',
       receipt_footer: 'شكراً لتعاملكم معنا! نحرص دائماً على تقديم أفضل المنتجات والضمان المعتمد.',
@@ -106,7 +106,7 @@ export const INITIAL_STORE_TEMPLATES: StoreTemplateDto[] = [
     categories: [],
     quickItems: [],
     productsCount: 0,
-    featuresSummary: ['دعم الميزان الإلكتروني', 'حساب الوزن بالجرام', 'سداد انستاباي ومحافظ', 'بدون مقاسات أو شحن'],
+    featuresSummary: ['دعم الميزان الإلكتروني', 'حساب الوزن بالجرام', 'سداد انستاباي ومحافظ', 'إلغاء المقاسات وماكينات الشحن'],
     defaultSettings: {
       receipt_header: 'أسواق رفيق للخضار والفاكهة واللحوم الطازجة',
       receipt_footer: 'بضاعة طازجة بأعلى جودة.. شكراً لزيارتكم!',
@@ -131,7 +131,7 @@ export const INITIAL_STORE_TEMPLATES: StoreTemplateDto[] = [
     categories: [],
     quickItems: [],
     productsCount: 0,
-    featuresSummary: ['دعم الميزان والجبن السائب', 'تاريخ الصلاحية للألبان', 'سداد انستاباي ومحافظ', 'بدون مقاسات'],
+    featuresSummary: ['دعم الميزان الإلكتروني', 'تواريخ الصلاحية للأصناف', 'سداد انستاباي ومحافظ', 'إلغاء المقاسات'],
     defaultSettings: {
       receipt_header: 'ألبان ومخبوزات رفيق',
       receipt_footer: 'منتجات طازجة يومياً.. شكراً لثقتكم الغالية',
@@ -156,7 +156,7 @@ export const INITIAL_STORE_TEMPLATES: StoreTemplateDto[] = [
     categories: [],
     quickItems: [],
     productsCount: 0,
-    featuresSummary: ['أدوات وقرطاسية', 'خدمات شحن ودفع فواتير', 'سداد انستاباي ومحافظ', 'بدون ميزان'],
+    featuresSummary: ['أزرار سريعة للخدمات', 'خدمات شحن ودفع فواتير', 'سداد انستاباي ومحافظ', 'إلغاء الميزان'],
     defaultSettings: {
       receipt_header: 'مكتبة رفيق للقرطاسية والهدايا',
       receipt_footer: 'نتمنى لطلابنا الأعزاء دوام التوفيق والنجاح!',
@@ -181,7 +181,7 @@ export const INITIAL_STORE_TEMPLATES: StoreTemplateDto[] = [
     categories: [],
     quickItems: [],
     productsCount: 0,
-    featuresSummary: ['ألعاب وهدايا', 'سداد انستاباي ومحافظ', 'بدون ميزان أو ماكينات شحن'],
+    featuresSummary: ['دعم الباركود والقطع', 'بيع آجل ونقدي', 'سداد انستاباي ومحافظ', 'إلغاء الميزان والصلاحية'],
     defaultSettings: {
       receipt_header: 'متجر عالم الألعاب للأطفال',
       receipt_footer: 'شكراً لاختياركم متجرنا! يسعدنا دائماً رسم البسمة على وجوه أطفالكم.',
@@ -206,7 +206,7 @@ export const INITIAL_STORE_TEMPLATES: StoreTemplateDto[] = [
     categories: [],
     quickItems: [],
     productsCount: 0,
-    featuresSummary: ['ميزان إلكتروني دقيق', 'أوزان جرامات وثمن وربع', 'تواريخ صلاحية', 'سداد انستاباي ومحافظ'],
+    featuresSummary: ['ميزان إلكتروني دقيق للأوزان', 'حساب الوزن بالجرام', 'تواريخ الصلاحية', 'سداد انستاباي ومحافظ'],
     defaultSettings: {
       receipt_header: 'عطارة ومحامص رفيق الفاخرة',
       receipt_footer: 'أجود أنواع البن والتوابل الطازجة.. بالهناء والشفاء',
@@ -231,7 +231,7 @@ export const INITIAL_STORE_TEMPLATES: StoreTemplateDto[] = [
     categories: [],
     quickItems: [],
     productsCount: 0,
-    featuresSummary: ['بيع نقدي وآجل', 'دعم الميزان والباركود', 'ماكينات شحن ودفع', 'محافظ وانستاباي'],
+    featuresSummary: ['دعم الميزان والباركود', 'ماكينات شحن وخدمات دفع', 'بيع نقدي وآجل', 'سداد انستاباي ومحافظ'],
     defaultSettings: {
       receipt_header: 'أهلاً بكم في متجرنا',
       receipt_footer: 'شكراً لتعاملكم معنا',
@@ -256,7 +256,7 @@ export const INITIAL_STORE_TEMPLATES: StoreTemplateDto[] = [
     categories: [],
     quickItems: [],
     productsCount: 0,
-    featuresSummary: ['تواريخ الصلاحية للأدوية', 'تعدد الوحدات والعلبة والشريط', 'سداد انستاباي ومحافظ', 'بدون ميزان'],
+    featuresSummary: ['تواريخ الصلاحية للأدوية', 'تعدد الوحدات (علبة وشريط)', 'سداد انستاباي ومحافظ', 'إلغاء الميزان'],
     defaultSettings: {
       receipt_header: 'صيدلية رفيق للرعاية الدوائية',
       receipt_footer: 'مع تمنياتنا لكم بالشفاء العاجل وموفور الصحة والعافية.',
@@ -281,7 +281,7 @@ export const INITIAL_STORE_TEMPLATES: StoreTemplateDto[] = [
     categories: [],
     quickItems: [],
     productsCount: 0,
-    featuresSummary: ['شاشة الأزرار السريعة للمشروبات والأطباق', 'سرعة إنجاز الطلبات', 'سداد انستاباي ومحافظ', 'بدون ميزان'],
+    featuresSummary: ['أزرار سريعة للطلبات والمشروبات', 'سرعة إنجاز الفواتير', 'سداد انستاباي ومحافظ', 'إلغاء الميزان'],
     defaultSettings: {
       receipt_header: 'كافيه ومطعم رفيق',
       receipt_footer: 'أهلاً وسهلاً بكم.. نتمنى لكم وجبة شهية ووقتاً ممتعاً!',

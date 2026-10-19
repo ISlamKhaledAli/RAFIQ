@@ -1,5 +1,5 @@
-import type { FormEvent } from 'react';
-import { Store, Save, Sparkles, CheckCircle2, Sun, Moon, Monitor, Palette } from 'lucide-react';
+import type { FormEvent, ChangeEvent } from 'react';
+import { Store, Save, Sparkles, CheckCircle2, Sun, Moon, Monitor, Palette, Image as ImageIcon, Upload, RotateCcw, Lock, ShieldCheck, Info } from 'lucide-react';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { useTheme } from '../../context/useTheme';
 
@@ -25,6 +25,13 @@ interface StoreProfileTabProps {
   setDefaultCustomerCreditLimitEgp: (val: number) => void;
   logoVariant?: 'classic' | 'modern';
   setLogoVariant?: (val: 'classic' | 'modern') => void;
+  showReceiptLogo?: boolean;
+  setShowReceiptLogo?: (val: boolean) => void;
+  storeLogoUrl?: string;
+  setStoreLogoUrl?: (val: string) => void;
+  developerSignature?: string;
+  setDeveloperSignature?: (val: string) => void;
+  isRoot?: boolean;
   saveLoading: boolean;
   handleSave: (e: FormEvent) => void;
   onOpenWizard: () => void;
@@ -50,11 +57,37 @@ export const StoreProfileTab = ({
   onToggleNegativeStock,
   defaultCustomerCreditLimitEgp,
   setDefaultCustomerCreditLimitEgp,
+  showReceiptLogo = true,
+  setShowReceiptLogo,
+  storeLogoUrl = '/logo.png',
+  setStoreLogoUrl,
+  developerSignature = 'نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965',
+  setDeveloperSignature,
+  isRoot = false,
   saveLoading,
   handleSave,
   onOpenWizard,
 }: StoreProfileTabProps) => {
   const { theme, setTheme, resolvedTheme } = useTheme();
+
+  const handleLogoUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string' && setStoreLogoUrl) {
+        setStoreLogoUrl(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleResetLogo = () => {
+    if (setStoreLogoUrl) {
+      setStoreLogoUrl('/logo.png');
+    }
+  };
 
   return (
     <div className="grid grid-cols-12 gap-5 flex-1 items-start">
@@ -172,6 +205,144 @@ export const StoreProfileTab = ({
               placeholder="مثلاً: شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل خلال 14 يوماً بالفاتورة."
               className="w-full bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded p-2.5 text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:ring-1 focus:ring-brand dark:focus:ring-brand-bright transition-colors resize-none leading-relaxed"
             />
+          </div>
+
+          {/* Section: Receipt Logo Customization & Technical Guidance */}
+          <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-brand dark:text-brand-bright" />
+                <span className="font-bold text-ink dark:text-ink-dark text-xs">شعار المتجر أعلى الإيصال الحراري</span>
+              </div>
+              <ToggleSwitch
+                checked={showReceiptLogo}
+                onChange={(next) => setShowReceiptLogo && setShowReceiptLogo(next)}
+                title={showReceiptLogo ? 'مفعّل (طباعة الشعار أعلى الوصل)' : 'معطّل (إلغاء طباعة الشعار)'}
+              />
+            </div>
+
+            {showReceiptLogo && (
+              <div className="flex flex-col gap-3 pt-1 border-t border-line dark:border-line-dark">
+                {/* Controls and current preview */}
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-surface dark:bg-surface-dark p-3 rounded border border-line dark:border-line-dark">
+                  <div className="flex items-center gap-3">
+                    <div className="w-16 h-12 rounded border border-line dark:border-line-dark bg-white dark:bg-surface-dark-3 p-1 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
+                      <img
+                        src={storeLogoUrl}
+                        alt="معاينة الشعار"
+                        className="max-h-full max-w-full object-contain"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = '/logo.png';
+                        }}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs font-semibold text-ink dark:text-ink-dark">
+                        {storeLogoUrl !== '/logo.png' ? 'شعار مخصص للمتجر' : 'شعار رفيق الافتراضي'}
+                      </span>
+                      <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
+                        يظهر مطبوعاً في ترويسة جميع فواتير الكاشير والمرتجعات
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <label className="px-3 py-1.5 bg-brand text-white hover:bg-brand-hover rounded text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>رفع شعار جديد</span>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        onChange={handleLogoUpload}
+                      />
+                    </label>
+
+                    {storeLogoUrl !== '/logo.png' && (
+                      <button
+                        type="button"
+                        onClick={handleResetLogo}
+                        className="px-2.5 py-1.5 bg-surface-2 dark:bg-surface-dark-2 text-ink-muted hover:text-ink dark:text-ink-muted-dark dark:hover:text-ink-dark border border-line dark:border-line-dark rounded text-xs font-medium flex items-center gap-1 transition-colors"
+                        title="استعادة الشعار الافتراضي لنظام رفيق"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>الافتراضي</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Technical Recommended Dimensions Banner */}
+                <div className="bg-brand-soft/40 dark:bg-brand-dark/20 border border-brand/20 dark:border-brand-bright/20 rounded p-2.5 text-[11px] leading-relaxed text-ink dark:text-ink-dark flex items-start gap-2">
+                  <Info className="w-4 h-4 text-brand dark:text-brand-bright shrink-0 mt-0.5" />
+                  <div className="flex-1 space-y-1">
+                    <div className="font-bold text-brand dark:text-brand-bright">
+                      المقاسات والمواصفات الفنية الموصى بها للطابعات الحرارية:
+                    </div>
+                    <ul className="list-disc list-inside space-y-0.5 text-ink-muted dark:text-ink-muted-dark text-[10.5px]">
+                      <li>
+                        <strong className="text-ink dark:text-ink-dark">ورق قياسي 80 مم:</strong> الأبعاد المثالية هي <span dir="ltr" className="font-mono font-semibold">200 × 70</span> بكسل (أو مربع حتى <span dir="ltr" className="font-mono font-semibold">120 × 120</span> بكسل).
+                      </li>
+                      <li>
+                        <strong className="text-ink dark:text-ink-dark">ورق مضغوط 57 مم:</strong> الأبعاد المثالية هي <span dir="ltr" className="font-mono font-semibold">150 × 50</span> بكسل.
+                      </li>
+                      <li>
+                        <strong className="text-ink dark:text-ink-dark">نقاء الطباعة:</strong> يُفضل دائماً ملف <span className="font-semibold">PNG</span> بخلفية بيضاء نقية أو مفرغة، مع تصميم أبيض وأسود عالي التباين (High Contrast / Grayscale) وبدقة 203 DPI لتجنب أي بهتان في رأس الطباعة الحراري.
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Section: Developer Signature & Branding (Root Protected) */}
+          <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex flex-col gap-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {isRoot ? (
+                  <ShieldCheck className="w-4 h-4 text-paid dark:text-paid-bright" />
+                ) : (
+                  <Lock className="w-4 h-4 text-amber-600 dark:text-warn-bright" />
+                )}
+                <span className="font-bold text-ink dark:text-ink-dark text-xs">
+                  حقوق وتوقيع مطور النظام (دعاية النظام أسفل الفاتورة)
+                </span>
+              </div>
+
+              {isRoot ? (
+                <span className="text-[10px] font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark/30 border border-paid/30 px-2 py-0.5 rounded flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3" />
+                  <span>صلاحية روت مفعّلة (قابل للتعديل)</span>
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold text-amber-700 dark:text-warn-bright bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 px-2 py-0.5 rounded flex items-center gap-1">
+                  <Lock className="w-3 h-3" />
+                  <span>محمي ومغلق (صلاحية روت فقط)</span>
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <input
+                type="text"
+                value={developerSignature}
+                onChange={(e) => isRoot && setDeveloperSignature && setDeveloperSignature(e.target.value)}
+                disabled={!isRoot}
+                readOnly={!isRoot}
+                placeholder="نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965"
+                className={`w-full rounded h-9 px-3 text-xs font-medium transition-colors ${
+                  isRoot
+                    ? 'bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright'
+                    : 'bg-surface/50 dark:bg-surface-dark/50 border border-line/60 dark:border-line-dark/60 text-ink-muted dark:text-ink-muted-dark cursor-not-allowed select-none'
+                }`}
+              />
+              <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
+                {isRoot
+                  ? 'بصفتك المطور (روت)، يمكنك تخصيص عبارة الدعاية والتوقيع البرمجي التي تظهر في سطر أسفل جميع فواتير البيع.'
+                  : 'هذا السطر ثابت في أسفل الفاتورة للدعاية وحفظ حقوق برمجة وتطوير النظام. لا يملك صاحب المحل أو الكاشير صلاحية حذفه أو تغييره.'}
+              </span>
+            </div>
           </div>
 
           {/* Feature #30: Negative Stock Policy */}
@@ -328,8 +499,20 @@ export const StoreProfileTab = ({
           {/* Top Zigzag Cut */}
           <div className="w-full h-2 receipt-zigzag mb-2 opacity-30"></div>
 
-          {/* Receipt Header */}
-          <div className="text-center flex flex-col gap-0.5">
+          {/* Receipt Header & Logo */}
+          <div className="text-center flex flex-col gap-0.5 items-center">
+            {showReceiptLogo && (
+              <div className="flex justify-center mb-1">
+                <img
+                  src={storeLogoUrl}
+                  alt="شعار المتجر"
+                  className="max-h-11 max-w-[150px] object-contain"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = '/logo.png';
+                  }}
+                />
+              </div>
+            )}
             <h4 className="text-base font-bold m-0 font-sans text-black">{storeName || 'متجر رفيق'}</h4>
             <p className="text-[11px] text-gray-700 m-0">{address || 'الفرع الرئيسي'}</p>
             {phone && <p className="text-[11px] text-gray-700 m-0 dir-ltr text-center">تليفون: {phone}</p>}
@@ -409,6 +592,11 @@ export const StoreProfileTab = ({
               {receiptFooter}
             </div>
           )}
+
+          {/* Developer Branding Signature */}
+          <div className="border-t border-dotted border-gray-400 pt-1.5 mt-2 text-center text-[9px] text-gray-500 font-sans tracking-tight">
+            {developerSignature}
+          </div>
 
           {/* Bottom Zigzag Cut */}
           <div className="w-full h-2 receipt-zigzag mt-3 opacity-30"></div>

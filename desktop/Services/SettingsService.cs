@@ -26,6 +26,16 @@ namespace RafiqPOS.Services
             if (!settings.ContainsKey("cashier_name")) settings["cashier_name"] = "كاشير (1)";
             if (!settings.ContainsKey("receipt_header")) settings["receipt_header"] = "أهلاً بكم في متجرنا";
             if (!settings.ContainsKey("receipt_footer")) settings["receipt_footer"] = "شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل وفقاً لسياسة المتجر.";
+            if (!settings.ContainsKey("show_receipt_logo")) settings["show_receipt_logo"] = "1";
+            if (!settings.ContainsKey("store_logo_url")) settings["store_logo_url"] = "/logo.png";
+            string defaultSig = "نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965";
+            if (!settings.ContainsKey("developer_signature") || 
+                string.IsNullOrWhiteSpace(settings["developer_signature"]) ||
+                settings["developer_signature"] == "نظام رفيق لإدارة المتاجر ونقاط البيع | تطوير: م. إسلام خالد")
+            {
+                settings["developer_signature"] = defaultSig;
+                _repo.Set("developer_signature", defaultSig);
+            }
 
             return settings;
         }

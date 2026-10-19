@@ -160,7 +160,8 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
         openingFloatPiasters,
         notes: openShiftNotes.trim() || undefined,
       });
-      setSuccessMessage(`تم فتح الوردية رقم #${newShift.shiftNumber} بنجاح واستلام عهدة الدرج`);
+      const shiftNum = newShift.shiftNumber ?? (newShift as unknown as { ShiftNumber?: number }).ShiftNumber ?? 1;
+      setSuccessMessage(`تم فتح الوردية رقم #${shiftNum} بنجاح واستلام عهدة الدرج`);
       setOpeningFloatPiasters(0);
       setOpenShiftNotes('');
       await fetchShiftData();
@@ -274,7 +275,8 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
       diffNotice = 'الدرج متطابق تماماً بدون عجز أو زيادة. ';
     }
 
-    const confirmMsg = `${diffNotice}هل أنت متأكد من رغبتك في إغلاق وتشميع الوردية رقم #${activeShift.shiftNumber}؟ لن يمكنك التراجع أو تعديل العمليات بعد الإغلاق.`;
+    const currentShiftNum = activeShift.shiftNumber ?? (activeShift as unknown as { ShiftNumber?: number }).ShiftNumber ?? 1;
+    const confirmMsg = `${diffNotice}هل أنت متأكد من رغبتك في إغلاق وتشميع الوردية رقم #${currentShiftNum}؟ لن يمكنك التراجع أو تعديل العمليات بعد الإغلاق.`;
     if (!window.confirm(confirmMsg)) {
       return;
     }
@@ -289,7 +291,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
         notes: closeShiftNotes.trim() || undefined,
         cashierId: currentUser?.id,
       });
-      setSuccessMessage(`تم إغلاق وتشميع الوردية #${activeShift.shiftNumber} بنجاح وتسليم الدرج`);
+      setSuccessMessage(`تم إغلاق وتشميع الوردية #${currentShiftNum} بنجاح وتسليم الدرج`);
       setCloseShiftNotes('');
       await fetchShiftData();
       setActiveTab('overview');
@@ -344,7 +346,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                 {activeShift ? (
                   <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-paid-soft text-paid border border-paid/20 flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-paid animate-pulse" />
-                    وردية #{activeShift.shiftNumber} مفتوحة
+                    وردية #{activeShift.shiftNumber ?? (activeShift as unknown as { ShiftNumber?: number }).ShiftNumber ?? 1} مفتوحة
                   </span>
                 ) : (
                   <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-warn/10 text-warn border border-warn/20">
@@ -548,7 +550,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                       <div key={s.id} className="p-3 bg-surface dark:bg-surface-dark flex items-center justify-between">
                         <div>
                           <div className="flex items-center gap-2 font-bold text-ink dark:text-ink-dark">
-                            <span>وردية #{s.shiftNumber}</span>
+                            <span>وردية #{s.shiftNumber ?? (s as unknown as { ShiftNumber?: number }).ShiftNumber ?? 1}</span>
                             <span className="text-xs font-normal text-ink-muted">({s.businessDate})</span>
                             <span className="text-xs px-2 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 border border-line">
                               {s.cashierName}

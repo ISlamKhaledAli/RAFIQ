@@ -132,7 +132,9 @@ namespace RafiqPOS.Services
 
             for (int i = 0; i < list.Count; i++)
             {
-                list[i].ProductsCount = StoreCatalogSeeder.GetCatalogCount(list[i].Id);
+                list[i].ProductsCount = 0;
+                list[i].Categories = new List<string>();
+                list[i].QuickItems = new List<TemplateQuickItem>();
             }
 
             return list;
@@ -166,8 +168,8 @@ namespace RafiqPOS.Services
                                 cmd.Parameters.AddWithValue("@desc", tpl.Description ?? "");
                                 cmd.Parameters.AddWithValue("@icon", tpl.Icon ?? "store");
                                 cmd.Parameters.AddWithValue("@flags", JsonConvert.SerializeObject(tpl.FeatureFlags));
-                                cmd.Parameters.AddWithValue("@cats", JsonConvert.SerializeObject(tpl.Categories));
-                                cmd.Parameters.AddWithValue("@items", JsonConvert.SerializeObject(tpl.QuickItems));
+                                cmd.Parameters.AddWithValue("@cats", "[]");
+                                cmd.Parameters.AddWithValue("@items", "[]");
                                 cmd.Parameters.AddWithValue("@settings", JsonConvert.SerializeObject(tpl.DefaultSettings));
                                 cmd.ExecuteNonQuery();
                             }
@@ -235,6 +237,10 @@ namespace RafiqPOS.Services
                     settingsBatch["default_printer_name"] = req.DefaultPrinter.Trim();
                 if (!string.IsNullOrWhiteSpace(req.BackupFolder))
                     settingsBatch["backup_target_folder"] = req.BackupFolder.Trim();
+                if (!string.IsNullOrWhiteSpace(req.ShowReceiptLogo))
+                    settingsBatch["show_receipt_logo"] = req.ShowReceiptLogo.Trim();
+                if (!string.IsNullOrWhiteSpace(req.StoreLogoUrl))
+                    settingsBatch["store_logo_url"] = req.StoreLogoUrl.Trim();
 
                 // Apply template feature flags with strict isolation (guarantee non-template features are turned off)
                 string[] allKnownFlags = new string[]
@@ -290,6 +296,7 @@ namespace RafiqPOS.Services
                         using (var trans = conn.BeginTransaction())
                         {
                             using (var delCmd = new SQLiteCommand(@"
+                                DELETE FROM quick_items;
                                 DELETE FROM categories 
                                 WHERE NOT EXISTS (SELECT 1 FROM products WHERE products.category_id = categories.id);
                             ", conn, trans))
@@ -572,18 +579,8 @@ namespace RafiqPOS.Services
             t1.FeatureFlags["feature_matrix_variants"] = false;
             t1.FeatureFlags["feature_epay_services"] = true;
             t1.FeatureFlags["feature_digital_wallets"] = true;
-            t1.Categories = new List<string> { "معلبات وبقوليات", "ألبان وأجبان", "منظفات وعناية منزلية", "بسكويت وحلويات", "مشروبات وعصائر", "مخبوزات", "خضار وفاكهة", "مجمدات", "دخان وسجائر" };
-            t1.QuickItems = new List<TemplateQuickItem>
-            {
-                new TemplateQuickItem { Name = "خبز بلدي طازج", PricePiasters = 100, Unit = "piece", CategoryName = "مخبوزات" },
-                new TemplateQuickItem { Name = "عيش فينو كيس 5 رغيف", PricePiasters = 1000, Unit = "piece", CategoryName = "مخبوزات" },
-                new TemplateQuickItem { Name = "سكر حر ناعم 1 كجم", PricePiasters = 3500, Unit = "piece", CategoryName = "معلبات وبقوليات" },
-                new TemplateQuickItem { Name = "شاي العروسة 40 جم", PricePiasters = 1200, Unit = "piece", CategoryName = "معلبات وبقوليات" },
-                new TemplateQuickItem { Name = "مياه معدنية 1.5 لتر", PricePiasters = 800, Unit = "piece", CategoryName = "مشروبات وعصائر" },
-                new TemplateQuickItem { Name = "لبن جهينة 1 لتر", PricePiasters = 4200, Unit = "piece", CategoryName = "ألبان وأجبان" },
-                new TemplateQuickItem { Name = "طماطم بلدي طازجة", PricePiasters = 1500, Unit = "kg", CategoryName = "خضار وفاكهة" },
-                new TemplateQuickItem { Name = "كيس تسوق كبير", PricePiasters = 150, Unit = "piece", CategoryName = "عام" }
-            };
+            t1.Categories = new List<string>();
+            t1.QuickItems = new List<TemplateQuickItem>();
             t1.DefaultSettings["receipt_header"] = "أهلاً بكم في سوبرماركت رفيق";
             t1.DefaultSettings["receipt_footer"] = "شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل خلال 14 يوماً بموجب الفاتورة.";
             list.Add(t1);
@@ -603,18 +600,8 @@ namespace RafiqPOS.Services
             t2.FeatureFlags["feature_matrix_variants"] = false;
             t2.FeatureFlags["feature_epay_services"] = true;
             t2.FeatureFlags["feature_digital_wallets"] = true;
-            t2.Categories = new List<string> { "كابلات وشواحن", "سماعات وصوتيات", "جرابات وحافظات", "لاصقات حماية وشاشات", "باور بانك وبطاريات", "كروت ميموري وفلاشات", "صيانة وخدمات سريعة" };
-            t2.QuickItems = new List<TemplateQuickItem>
-            {
-                new TemplateQuickItem { Name = "كابل شحن سريع Type-C", PricePiasters = 4500, Unit = "piece", CategoryName = "كابلات وشواحن" },
-                new TemplateQuickItem { Name = "كابل شحن آيفون Lightning", PricePiasters = 5000, Unit = "piece", CategoryName = "كابلات وشواحن" },
-                new TemplateQuickItem { Name = "رأس شاحن سريع 20W", PricePiasters = 12000, Unit = "piece", CategoryName = "كابلات وشواحن" },
-                new TemplateQuickItem { Name = "لاصقة حماية شاشة 9D", PricePiasters = 3000, Unit = "piece", CategoryName = "لاصقات حماية وشاشات" },
-                new TemplateQuickItem { Name = "جراب سيليكون شفاف حماية", PricePiasters = 3500, Unit = "piece", CategoryName = "جرابات وحافظات" },
-                new TemplateQuickItem { Name = "سماعة أذن سلكية AUX", PricePiasters = 4000, Unit = "piece", CategoryName = "سماعات وصوتيات" },
-                new TemplateQuickItem { Name = "كارت ميموري 32 جيجا", PricePiasters = 9500, Unit = "piece", CategoryName = "كروت ميموري وفلاشات" },
-                new TemplateQuickItem { Name = "صيانة وتركيب سريع", PricePiasters = 3000, Unit = "piece", CategoryName = "صيانة وخدمات سريعة", IsOpenPrice = true }
-            };
+            t2.Categories = new List<string>();
+            t2.QuickItems = new List<TemplateQuickItem>();
             t2.DefaultSettings["receipt_header"] = "متجر رفيق للهواتف والإلكترونيات";
             t2.DefaultSettings["receipt_footer"] = "شكراً لتعاملكم معنا! نحرص دائماً على تقديم أفضل المنتجات والضمان المعتمد.";
             list.Add(t2);
@@ -634,17 +621,8 @@ namespace RafiqPOS.Services
             t3.FeatureFlags["feature_matrix_variants"] = false;
             t3.FeatureFlags["feature_epay_services"] = false;
             t3.FeatureFlags["feature_digital_wallets"] = true;
-            t3.Categories = new List<string> { "ألبان سائبة ومعبأة", "أجبان بيضاء ومطبوخة", "مخبوزات طازجة", "بيض ومستلزمات", "معلبات وعسل" };
-            t3.QuickItems = new List<TemplateQuickItem>
-            {
-                new TemplateQuickItem { Name = "لبن جاموسي طازج كجم", PricePiasters = 3000, Unit = "kg", CategoryName = "ألبان سائبة ومعبأة" },
-                new TemplateQuickItem { Name = "لبن بقري طازج كجم", PricePiasters = 2600, Unit = "kg", CategoryName = "ألبان سائبة ومعبأة" },
-                new TemplateQuickItem { Name = "جبنة قريش كجم", PricePiasters = 7000, Unit = "kg", CategoryName = "أجبان بيضاء ومطبوخة" },
-                new TemplateQuickItem { Name = "جبنة براميلي فلفل كجم", PricePiasters = 14000, Unit = "kg", CategoryName = "أجبان بيضاء ومطبوخة" },
-                new TemplateQuickItem { Name = "رغيف فينو", PricePiasters = 150, Unit = "piece", CategoryName = "مخبوزات طازجة" },
-                new TemplateQuickItem { Name = "طبق بيض أحمر 30 بيضة", PricePiasters = 16500, Unit = "piece", CategoryName = "بيض ومستلزمات" },
-                new TemplateQuickItem { Name = "زبادي بلدي كبير", PricePiasters = 800, Unit = "piece", CategoryName = "ألبان سائبة ومعبأة" }
-            };
+            t3.Categories = new List<string>();
+            t3.QuickItems = new List<TemplateQuickItem>();
             t3.DefaultSettings["receipt_header"] = "ألبان ومخبوزات رفيق";
             t3.DefaultSettings["receipt_footer"] = "منتجات طازجة يومياً.. شكراً لثقتكم الغالية";
             list.Add(t3);
@@ -664,17 +642,8 @@ namespace RafiqPOS.Services
             t4.FeatureFlags["feature_matrix_variants"] = false;
             t4.FeatureFlags["feature_epay_services"] = false;
             t4.FeatureFlags["feature_digital_wallets"] = true;
-            t4.Categories = new List<string> { "خضروات طازجة", "فواكه موسمية", "ورقيات وأعشاب", "لحوم ودواجن", "مجمدات" };
-            t4.QuickItems = new List<TemplateQuickItem>
-            {
-                new TemplateQuickItem { Name = "طماطم بلدي طازجة", PricePiasters = 1500, Unit = "kg", CategoryName = "خضروات طازجة" },
-                new TemplateQuickItem { Name = "بطاطس تحمير كجم", PricePiasters = 1800, Unit = "kg", CategoryName = "خضروات طازجة" },
-                new TemplateQuickItem { Name = "بصل أحمر بلدي كجم", PricePiasters = 1400, Unit = "kg", CategoryName = "خضروات طازجة" },
-                new TemplateQuickItem { Name = "خيار صوب بلدي كجم", PricePiasters = 1600, Unit = "kg", CategoryName = "خضروات طازجة" },
-                new TemplateQuickItem { Name = "ليمون بلدي كجم", PricePiasters = 2500, Unit = "kg", CategoryName = "خضروات طازجة" },
-                new TemplateQuickItem { Name = "موز بلدي طازج كجم", PricePiasters = 2000, Unit = "kg", CategoryName = "فواكه موسمية" },
-                new TemplateQuickItem { Name = "تفاح أحمر سكري كجم", PricePiasters = 4500, Unit = "kg", CategoryName = "فواكه موسمية" }
-            };
+            t4.Categories = new List<string>();
+            t4.QuickItems = new List<TemplateQuickItem>();
             t4.DefaultSettings["receipt_header"] = "أسواق رفيق للخضار والفاكهة الطازجة";
             t4.DefaultSettings["receipt_footer"] = "بضاعة طازجة بأعلى جودة.. شكراً لزيارتكم!";
             list.Add(t4);
@@ -694,17 +663,8 @@ namespace RafiqPOS.Services
             t5.FeatureFlags["feature_matrix_variants"] = false;
             t5.FeatureFlags["feature_epay_services"] = true;
             t5.FeatureFlags["feature_digital_wallets"] = true;
-            t5.Categories = new List<string> { "أدوات كتابة وأقلام", "كشاكيل ودفاتر", "أدوات هندسية ومدرسية", "ألعاب وهدايا", "طباعة وتصوير مستندات" };
-            t5.QuickItems = new List<TemplateQuickItem>
-            {
-                new TemplateQuickItem { Name = "قلم جاف أزرق", PricePiasters = 500, Unit = "piece", CategoryName = "أدوات كتابة وأقلام" },
-                new TemplateQuickItem { Name = "كشكول سلك 60 ورقة", PricePiasters = 2000, Unit = "piece", CategoryName = "كشاكيل ودفاتر" },
-                new TemplateQuickItem { Name = "باكت ورق تصوير A4", PricePiasters = 18000, Unit = "piece", CategoryName = "طباعة وتصوير مستندات" },
-                new TemplateQuickItem { Name = "تصوير مستند وجهين", PricePiasters = 150, Unit = "piece", CategoryName = "طباعة وتصوير مستندات" },
-                new TemplateQuickItem { Name = "تغليف هدية فاخر", PricePiasters = 2500, Unit = "piece", CategoryName = "ألعاب وهدايا", IsOpenPrice = true },
-                new TemplateQuickItem { Name = "كيس هدايا كرتون", PricePiasters = 1000, Unit = "piece", CategoryName = "ألعاب وهدايا" },
-                new TemplateQuickItem { Name = "بطارية قلم AA", PricePiasters = 1500, Unit = "piece", CategoryName = "أدوات هندسية ومدرسية" }
-            };
+            t5.Categories = new List<string>();
+            t5.QuickItems = new List<TemplateQuickItem>();
             t5.DefaultSettings["receipt_header"] = "مكتبة رفيق للقرطاسية والهدايا";
             t5.DefaultSettings["receipt_footer"] = "نتمنى لطلابنا الأعزاء دوام التوفيق والنجاح!";
             list.Add(t5);
@@ -724,17 +684,8 @@ namespace RafiqPOS.Services
             tToys.FeatureFlags["feature_matrix_variants"] = false;
             tToys.FeatureFlags["feature_epay_services"] = false;
             tToys.FeatureFlags["feature_digital_wallets"] = true;
-            tToys.Categories = new List<string> { "ألعاب ذكاء وتركيب", "سيارات وطائرات تحكم", "عرائس ومجسمات", "ألعاب تعليمية ورضع", "ألعاب حركية ورياضية", "سكوتر وركوب", "هدايا وتغليف وبطاريات" };
-            tToys.QuickItems = new List<TemplateQuickItem>
-            {
-                new TemplateQuickItem { Name = "حجارة قلم AA باكت 4 حجر", PricePiasters = 4000, Unit = "piece", CategoryName = "هدايا وتغليف وبطاريات" },
-                new TemplateQuickItem { Name = "كيس هدايا كرتون كبير", PricePiasters = 1500, Unit = "piece", CategoryName = "هدايا وتغليف وبطاريات" },
-                new TemplateQuickItem { Name = "شريط تغليف وفيونكة هدية", PricePiasters = 500, Unit = "piece", CategoryName = "هدايا وتغليف وبطاريات" },
-                new TemplateQuickItem { Name = "فقاعات صابون بابلز كبيرة", PricePiasters = 2000, Unit = "piece", CategoryName = "ألعاب حركية وركوب" },
-                new TemplateQuickItem { Name = "سلايم ألوان للأطفال", PricePiasters = 2500, Unit = "piece", CategoryName = "ألعاب ذكاء وتركيب" },
-                new TemplateQuickItem { Name = "مكعبات تركيب علبة صغيرة", PricePiasters = 5500, Unit = "piece", CategoryName = "ألعاب ذكاء وتركيب" },
-                new TemplateQuickItem { Name = "عربية صغيرة معدن سباق", PricePiasters = 3500, Unit = "piece", CategoryName = "سيارات وطائرات تحكم" }
-            };
+            tToys.Categories = new List<string>();
+            tToys.QuickItems = new List<TemplateQuickItem>();
             tToys.DefaultSettings["receipt_header"] = "متجر عالم الألعاب للأطفال";
             tToys.DefaultSettings["receipt_footer"] = "شكراً لاختياركم متجرنا! يسعدنا دائماً رسم البسمة على وجوه أطفالكم.";
             list.Add(tToys);
@@ -754,16 +705,8 @@ namespace RafiqPOS.Services
             t6.FeatureFlags["feature_matrix_variants"] = false;
             t6.FeatureFlags["feature_epay_services"] = false;
             t6.FeatureFlags["feature_digital_wallets"] = true;
-            t6.Categories = new List<string> { "بن ومشروبات ساخنة", "مكسرات ومحامص", "توابل وبهارات", "أعشاب طبيعية", "ياميش وتمور" };
-            t6.QuickItems = new List<TemplateQuickItem>
-            {
-                new TemplateQuickItem { Name = "ثمن بن محوج وسط", PricePiasters = 4500, Unit = "piece", CategoryName = "بن ومشروبات ساخنة" },
-                new TemplateQuickItem { Name = "ربع بن سادة فاتح", PricePiasters = 7000, Unit = "piece", CategoryName = "بن ومشروبات ساخنة" },
-                new TemplateQuickItem { Name = "كمون بلدي مطحون 100 جم", PricePiasters = 2500, Unit = "piece", CategoryName = "توابل وبهارات" },
-                new TemplateQuickItem { Name = "فلفل أسود حب 100 جم", PricePiasters = 3500, Unit = "piece", CategoryName = "توابل وبهارات" },
-                new TemplateQuickItem { Name = "فول سوداني مقشر 250 جم", PricePiasters = 2500, Unit = "piece", CategoryName = "مكسرات ومحامص" },
-                new TemplateQuickItem { Name = "لب سوبر ممتاز 250 جم", PricePiasters = 3500, Unit = "piece", CategoryName = "مكسرات ومحامص" }
-            };
+            t6.Categories = new List<string>();
+            t6.QuickItems = new List<TemplateQuickItem>();
             t6.DefaultSettings["receipt_header"] = "محامص وعطارة رفيق الأصيلة";
             t6.DefaultSettings["receipt_footer"] = "أفضل مذاق وأجود حبوب البن المحمص.. نعتز بثقتكم!";
             list.Add(t6);
@@ -783,15 +726,8 @@ namespace RafiqPOS.Services
             t7.FeatureFlags["feature_matrix_variants"] = true;
             t7.FeatureFlags["feature_epay_services"] = false;
             t7.FeatureFlags["feature_digital_wallets"] = true;
-            t7.Categories = new List<string> { "ملابس رجالي", "ملابس حريمي", "ملابس أطفال", "أحذية وحقائب", "إكسسوارات ملابس" };
-            t7.QuickItems = new List<TemplateQuickItem>
-            {
-                new TemplateQuickItem { Name = "تيشيرت قطن أساسي", PricePiasters = 15000, Unit = "piece", CategoryName = "ملابس رجالي" },
-                new TemplateQuickItem { Name = "شراب قطن فاخر", PricePiasters = 2500, Unit = "piece", CategoryName = "إكسسوارات ملابس" },
-                new TemplateQuickItem { Name = "حزام جلد كلاسيك", PricePiasters = 8500, Unit = "piece", CategoryName = "إكسسوارات ملابس" },
-                new TemplateQuickItem { Name = "كيس تسوق فاخر", PricePiasters = 500, Unit = "piece", CategoryName = "عام" },
-                new TemplateQuickItem { Name = "طرحة شيفون سادة", PricePiasters = 6000, Unit = "piece", CategoryName = "ملابس حريمي" }
-            };
+            t7.Categories = new List<string>();
+            t7.QuickItems = new List<TemplateQuickItem>();
             t7.DefaultSettings["receipt_header"] = "متاجر رفيق للأزياء والموضة";
             t7.DefaultSettings["receipt_footer"] = "شكراً لزيارتكم! الاستبدال والاسترجاع خلال 14 يوماً مع الحفاظ على التيكت.";
             list.Add(t7);
@@ -811,15 +747,8 @@ namespace RafiqPOS.Services
             t8.FeatureFlags["feature_matrix_variants"] = false;
             t8.FeatureFlags["feature_epay_services"] = true;
             t8.FeatureFlags["feature_digital_wallets"] = true;
-            t8.Categories = new List<string> { "عام", "أغذية ومشروبات", "منظفات", "حلويات وتسالي", "دخان وسجائر" };
-            t8.QuickItems = new List<TemplateQuickItem>
-            {
-                new TemplateQuickItem { Name = "كيس تسوق", PricePiasters = 100, Unit = "piece", CategoryName = "عام" },
-                new TemplateQuickItem { Name = "ولاعة عادية", PricePiasters = 500, Unit = "piece", CategoryName = "دخان وسجائر" },
-                new TemplateQuickItem { Name = "علبة كبريت", PricePiasters = 100, Unit = "piece", CategoryName = "عام" },
-                new TemplateQuickItem { Name = "مياه صغيرة 500 مل", PricePiasters = 500, Unit = "piece", CategoryName = "أغذية ومشروبات" },
-                new TemplateQuickItem { Name = "شيبسي عائلي", PricePiasters = 1500, Unit = "piece", CategoryName = "حلويات وتسالي" }
-            };
+            t8.Categories = new List<string>();
+            t8.QuickItems = new List<TemplateQuickItem>();
             t8.DefaultSettings["receipt_header"] = "أهلاً بكم في متجرنا";
             t8.DefaultSettings["receipt_footer"] = "شكراً لتعاملكم معنا";
             list.Add(t8);
@@ -839,18 +768,8 @@ namespace RafiqPOS.Services
             tPharm.FeatureFlags["feature_matrix_variants"] = false;
             tPharm.FeatureFlags["feature_epay_services"] = false;
             tPharm.FeatureFlags["feature_digital_wallets"] = true;
-            tPharm.Categories = new List<string> { "أدوية ومسكنات شائعة", "مستلزمات وإسعافات", "عناية بالأم والطفل", "تجميل وعناية بالبشرة", "فيتامينات ومكملات" };
-            tPharm.QuickItems = new List<TemplateQuickItem>
-            {
-                new TemplateQuickItem { Name = "كحول طبي 70% بخاخ 120 مل", PricePiasters = 2500, Unit = "piece", CategoryName = "مستلزمات وإسعافات" },
-                new TemplateQuickItem { Name = "قطن طبي معقم 100 جم", PricePiasters = 2200, Unit = "piece", CategoryName = "مستلزمات وإسعافات" },
-                new TemplateQuickItem { Name = "بلاستر طبي لاصق جروح علبة 50 قطعة", PricePiasters = 3000, Unit = "piece", CategoryName = "مستلزمات وإسعافات" },
-                new TemplateQuickItem { Name = "سرنجة 3 سم معقمة سن دقيق", PricePiasters = 250, Unit = "piece", CategoryName = "مستلزمات وإسعافات" },
-                new TemplateQuickItem { Name = "سرنجة 5 سم معقمة", PricePiasters = 300, Unit = "piece", CategoryName = "مستلزمات وإسعافات" },
-                new TemplateQuickItem { Name = "كمامة طبية 3 طبقات دعامة أنف", PricePiasters = 4000, Unit = "piece", CategoryName = "مستلزمات وإسعافات" },
-                new TemplateQuickItem { Name = "شاش طبي معقم باكت 5 قطع", PricePiasters = 1500, Unit = "piece", CategoryName = "مستلزمات وإسعافات" },
-                new TemplateQuickItem { Name = "رباط ضاغط طبي 10 سم", PricePiasters = 2000, Unit = "piece", CategoryName = "مستلزمات وإسعافات" }
-            };
+            tPharm.Categories = new List<string>();
+            tPharm.QuickItems = new List<TemplateQuickItem>();
             tPharm.DefaultSettings["receipt_header"] = "صيدلية رفيق للرعاية الدوائية";
             tPharm.DefaultSettings["receipt_footer"] = "مع تمنياتنا لكم بالشفاء العاجل وموفور الصحة والعافية.";
             list.Add(tPharm);
@@ -870,17 +789,8 @@ namespace RafiqPOS.Services
             tCafe.FeatureFlags["feature_matrix_variants"] = false;
             tCafe.FeatureFlags["feature_epay_services"] = false;
             tCafe.FeatureFlags["feature_digital_wallets"] = true;
-            tCafe.Categories = new List<string> { "ساندوتشات وبرجر", "بيتزا ومكرونات", "مقبلات وجوانب", "مشروبات ساخنة", "مشروبات باردة" };
-            tCafe.QuickItems = new List<TemplateQuickItem>
-            {
-                new TemplateQuickItem { Name = "إسبريسو سنجل شوت إيطالي", PricePiasters = 3500, Unit = "piece", CategoryName = "مشروبات ساخنة" },
-                new TemplateQuickItem { Name = "قهوة تركي بن محوج فنجان", PricePiasters = 3000, Unit = "piece", CategoryName = "مشروبات ساخنة" },
-                new TemplateQuickItem { Name = "كابتشينو حليب مبخر رغوة غنية", PricePiasters = 5500, Unit = "piece", CategoryName = "مشروبات ساخنة" },
-                new TemplateQuickItem { Name = "شاي أحمر بالنعناع الطازج", PricePiasters = 2000, Unit = "piece", CategoryName = "مشروبات ساخنة" },
-                new TemplateQuickItem { Name = "كانز مياه غازية 330 مل باردة", PricePiasters = 2000, Unit = "piece", CategoryName = "مشروبات باردة" },
-                new TemplateQuickItem { Name = "زجاجة مياه معدنية 600 مل", PricePiasters = 1000, Unit = "piece", CategoryName = "مشروبات باردة" },
-                new TemplateQuickItem { Name = "بطاطس مقلية مقرمشة وسط", PricePiasters = 3000, Unit = "piece", CategoryName = "مقبلات وجوانب" }
-            };
+            tCafe.Categories = new List<string>();
+            tCafe.QuickItems = new List<TemplateQuickItem>();
             tCafe.DefaultSettings["receipt_header"] = "كافيه ومطعم رفيق";
             tCafe.DefaultSettings["receipt_footer"] = "أهلاً وسهلاً بكم.. نتمنى لكم وجبة شهية ووقتاً ممتعاً!";
             list.Add(tCafe);
