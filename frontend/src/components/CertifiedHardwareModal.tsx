@@ -230,6 +230,58 @@ const CERTIFIED_DEVICES: CertifiedDevice[] = [
     },
     notes: 'الخيار الأفضل للمتاجر والمحلات المزدحمة؛ يرفع سرعة الكاشير بنسبة 40% لعدم الحاجة لرفع المسدس اليدوي.',
   },
+  {
+    id: 'symbol_ls2208',
+    category: 'scanner',
+    model: 'LS2208 / DS2208 Handheld 1D & 2D',
+    brand: 'Zebra (Symbol Motorola)',
+    type: 'قارئ باركود يدوي كلاسيكي الأكثر اعتمادية عالمياً',
+    status: 'certified',
+    arabicSupport: 'ممتاز (مدمج بدون تشويه)',
+    connectionType: 'USB',
+    testResults: {
+      latency: '< 40ms (التقاط ليزري فوري)',
+      win7Compat: true,
+      win10_11Compat: true,
+      autoCutterOrTrigger: 'زناد فيزيائي مقاوم لمليون ضغطة + وضع الحامل الذكي',
+    },
+    setupSteps: [
+      'توصيل كابل USB بالكمبيوتر؛ يتعرف عليه ويندوز فوراً كـ HID Keyboard.',
+      'في حال عدم إرسال Enter تلقائياً: امسح باركود "Scan Options" ثم "Data Suffx" ثم "Enter" من كتالوج Zebra.',
+      'لتحويله لوضع USB HID القياسي في حال كان على Virtual COM: امسح باركود "HID KEYBOARD EMULATION".',
+    ],
+    recommendedSettings: {
+      baudRateOrSuffix: 'USB Keyboard Wedge (HID) + CR Suffix',
+      paperOrCode: 'Code 128, EAN-13, EAN-8, UPC-A, GS1-128',
+    },
+    notes: 'الجهاز الأكثر تحملاً واستقراراً في تاريخ أجهزة نقاط البيع، مقاوم للصدمات والسقوط المتكرر على الأرضيات الصلبة.',
+  },
+  {
+    id: 'netum_wireless_2d',
+    category: 'scanner',
+    model: 'NT-1228BL / C750 Wireless 2.4G & Bluetooth',
+    brand: 'Netum / Symcode',
+    type: 'قارئ باركود لاسلكي محمول مع فلاشة USB Dongle',
+    status: 'recommended',
+    arabicSupport: 'ممتاز (مدمج بدون تشويه)',
+    connectionType: 'USB',
+    testResults: {
+      latency: '< 65ms (مدى لاسلكي حتى 50 متر)',
+      win7Compat: true,
+      win10_11Compat: true,
+      autoCutterOrTrigger: 'تخزين أوفلاين فوري + مسح لاسلكي حر',
+    },
+    setupSteps: [
+      'توصيل فلاشة USB الصغيرة بالكمبيوتر.',
+      'تشغيل القارئ؛ يتصل بالقاعدة فوراً عبر تردد 2.4GHz المستقر.',
+      'يدعم وضعي "Instant Upload" للبيع المباشر، و "Inventory Storage Mode" لتخزين الباركودات أثناء جرد المخزن وتفريغها دفعة واحدة.',
+    ],
+    recommendedSettings: {
+      baudRateOrSuffix: '2.4GHz Wireless HID + Enter Suffix',
+      paperOrCode: '1D Barcodes + QR Code + DataMatrix',
+    },
+    notes: 'ممتاز للجرد والتنقل داخل المحل وحرية حركة الكاشير حول البضائع الكبيرة والأجهزة الثقيلة دون التقيد بأسلاك.',
+  },
 
   // 3. CASH DRAWERS
   {

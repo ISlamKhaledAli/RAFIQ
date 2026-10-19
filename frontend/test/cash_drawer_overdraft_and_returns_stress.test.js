@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {
   poundsToPiasters,
   formatArabicCurrency,
-  calculateLineTotal,
 } from '../src/utils/money.ts';
 
 /**

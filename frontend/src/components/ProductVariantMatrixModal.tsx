@@ -13,7 +13,6 @@ import {
 import { invoke } from '../bridge/ipc';
 import { CustomSelect } from './CustomSelect';
 import { MoneyInput } from './MoneyInput';
-import { normalizeArabicNumerals } from '../utils/money';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import type { Category, VariantMatrixCell, CreateVariantMatrixRequest, ParentProductWithVariants, Product, ProductVariant } from '../types/models';
 
@@ -686,49 +685,33 @@ export const ProductVariantMatrixModal: React.FC<ProductVariantMatrixModalProps>
                               />
                             </td>
                             <td className="p-3">
-                              <input
-                                type="text"
-                                inputMode="decimal"
-                                value={cell.pricePiasters > 0 ? (cell.pricePiasters / 100).toString() : ''}
-                                onChange={(e) => {
-                                  const norm = normalizeArabicNumerals(e.target.value);
-                                  if (/^[0-9]*\.?[0-9]{0,2}$/.test(norm)) {
-                                    setMatrixCells((prev) => ({
-                                      ...prev,
-                                      [key]: {
-                                        ...prev[key],
-                                        pricePiasters: Math.round((parseFloat(norm) || 0) * 100),
-                                      },
-                                    }));
-                                  }
-                                }}
-                                onFocus={(e) => e.target.select()}
+                              <MoneyInput
+                                valuePiasters={cell.pricePiasters}
+                                onChangePiasters={(val) =>
+                                  setMatrixCells((prev) => ({
+                                    ...prev,
+                                    [key]: { ...prev[key], pricePiasters: val },
+                                  }))
+                                }
                                 placeholder="0.00"
+                                hideCurrency={true}
                                 disabled={!isEnabled}
-                                className="w-full h-8 px-2 rounded border border-line bg-surface text-ink text-xs focus:border-brand outline-none"
+                                className="h-8 text-xs px-2 py-0"
                               />
                             </td>
                             <td className="p-3">
-                              <input
-                                type="text"
-                                inputMode="decimal"
-                                value={cell.costPiasters > 0 ? (cell.costPiasters / 100).toString() : ''}
-                                onChange={(e) => {
-                                  const norm = normalizeArabicNumerals(e.target.value);
-                                  if (/^[0-9]*\.?[0-9]{0,2}$/.test(norm)) {
-                                    setMatrixCells((prev) => ({
-                                      ...prev,
-                                      [key]: {
-                                        ...prev[key],
-                                        costPiasters: Math.round((parseFloat(norm) || 0) * 100),
-                                      },
-                                    }));
-                                  }
-                                }}
-                                onFocus={(e) => e.target.select()}
+                              <MoneyInput
+                                valuePiasters={cell.costPiasters}
+                                onChangePiasters={(val) =>
+                                  setMatrixCells((prev) => ({
+                                    ...prev,
+                                    [key]: { ...prev[key], costPiasters: val },
+                                  }))
+                                }
                                 placeholder="0.00"
+                                hideCurrency={true}
                                 disabled={!isEnabled}
-                                className="w-full h-8 px-2 rounded border border-line bg-surface text-ink text-xs focus:border-brand outline-none"
+                                className="h-8 text-xs px-2 py-0"
                               />
                             </td>
                             <td className="p-3">

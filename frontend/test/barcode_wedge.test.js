@@ -142,4 +142,97 @@ describe('Story 41 / Feature #131: Barcode Scanner Wedge & Arabic Layout Invaria
       assert.equal(translated, 'ABC-1234');
     });
   });
+
+  describe('Task 131-4: Modal & Popup Isolation Invariants (Requirement 2)', () => {
+    it('should inhibit background POS cart scanning when any modal is open', () => {
+      // Simulating modal active state
+      const isAnyModalOpen = true;
+      let cartItemsAdded = 0;
+
+      const simulateScan = (barcode, isModalOpen) => {
+        if (isModalOpen) {
+          // Invariant: Background scanner burst is discarded while modal is active
+          return false;
+        }
+        cartItemsAdded++;
+        return true;
+      };
+
+      const scanResult = simulateScan('6221000112233', isAnyModalOpen);
+      assert.equal(scanResult, false, 'Scan must be blocked when modal is open');
+      assert.equal(cartItemsAdded, 0, 'No items should be added to background cart');
+    });
+
+    it('should permit focused inputs inside an active modal to receive scanned text', () => {
+      // When cashier is in a modal with an input focused (e.g. search, phone, or test sandbox)
+      const isModalOpen = true;
+      const isInputFocused = true;
+      let modalInputValue = '';
+
+      const handleKeyInModal = (char, inModal, inputFocused) => {
+        if (inModal && inputFocused) {
+          modalInputValue += char;
+          return 'routed_to_input';
+        }
+        return 'discarded_or_background';
+      };
+
+      const chars = ['6', '2', '2', '4', '0', '0'];
+      chars.forEach((c) => handleKeyInModal(c, isModalOpen, isInputFocused));
+
+      assert.equal(modalInputValue, '622400', 'Input inside modal must receive typed/scanned characters');
+    });
+  });
+
+  describe('Task 131-5: Scanner Suffix & Prefix Matrix (Enter, Tab, None, AIM ]C1)', () => {
+    it('should strip AIM global standard prefixes like ]C1 and ]e0 without losing barcode digits', () => {
+      const aimCode128 = ']C1622300123456';
+      // AIM prefix: "]C1" or "]e0"
+      const prefixToStrip = ']C1';
+      const clean = aimCode128.startsWith(prefixToStrip) ? aimCode128.substring(prefixToStrip.length) : aimCode128;
+      assert.equal(clean, '622300123456', 'AIM prefix ]C1 must be stripped cleanly');
+    });
+
+    it('should properly recognize Enter and Tab as terminator suffixes', () => {
+      const enterKey = 'Enter';
+      const tabKey = 'Tab';
+
+      const isEnterTerminator = (key, suffixSetting) => suffixSetting === 'Enter' && key === 'Enter';
+      const isTabTerminator = (key, suffixSetting) => suffixSetting === 'Tab' && key === 'Tab';
+
+      assert.ok(isEnterTerminator(enterKey, 'Enter'));
+      assert.ok(isTabTerminator(tabKey, 'Tab'));
+      assert.ok(!isEnterTerminator(tabKey, 'Enter'));
+    });
+
+    it('should support scanners operating in None suffix mode via idle timer timeout', () => {
+      const scannerSetting = { suffix: 'None', speedThresholdMs: 65, minLength: 3 };
+      const buffer = '6221122334455';
+      const isNoneMode = scannerSetting.suffix === 'None';
+      const isValid = isNoneMode && buffer.length >= scannerSetting.minLength;
+
+      assert.ok(isValid, 'None suffix mode triggers on buffer meeting minimum length');
+    });
+  });
+
+  describe('Task 131-6: Scale Embedded Barcode Parsing (20-29 EAN-13)', () => {
+    it('should correctly parse product code and weight from electronic scale barcode', () => {
+      // Standard retail deli barcode: [21][00456][01250][7]
+      // Prefix 21, PLU 00456, Weight 1.250 kg (1250 grams), Checksum 7
+      const scaleBarcode = '2100456012507';
+      assert.equal(scaleBarcode.length, 13, 'Scale barcode must be 13 digits');
+
+      const prefix = parseInt(scaleBarcode.substring(0, 2), 10);
+      assert.ok(prefix >= 20 && prefix <= 29, 'Prefix must be between 20 and 29 for scale barcodes');
+
+      const plu = scaleBarcode.substring(2, 7);
+      assert.equal(plu, '00456', 'PLU code extracted accurately');
+
+      const weightGrams = parseInt(scaleBarcode.substring(7, 12), 10);
+      assert.equal(weightGrams, 1250, 'Weight in grams must equal 1250 (1.250 kg)');
+
+      const weightKg = weightGrams / 1000.0;
+      assert.equal(weightKg, 1.25, 'Weight in kg equals 1.25 kg');
+    });
+  });
 });

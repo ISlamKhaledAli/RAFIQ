@@ -32,13 +32,15 @@ import { CustomSelect } from './CustomSelect';
 import { ToggleSwitch } from './ToggleSwitch';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 
-interface BarcodeLabelModalProps {
+export interface BarcodeLabelModalProps {
   isOpen: boolean;
   onClose: () => void;
   preselectedProduct?: Product | null;
+  initialQueueItems?: LabelQueueItem[] | null;
+  sourceTitle?: string;
 }
 
-interface LabelQueueItem extends BarcodeLabelItem {
+export interface LabelQueueItem extends BarcodeLabelItem {
   stockQuantityMilli?: number;
   categoryName?: string;
 }
@@ -49,8 +51,12 @@ const PAPER_SIZES = [
   { value: '50x25', label: '50×25 مم (بكرة رول عريضة مدمجة)', widthMm: 50, heightMm: 25 },
   { value: '50x30', label: '50×30 مم (بكرة رول عريضة قياسية)', widthMm: 50, heightMm: 30 },
   { value: '50x40', label: '50×40 مم (ملصق رف وتخزين كبير)', widthMm: 50, heightMm: 40 },
+  { value: '60x40', label: '60×40 مم (بكرة رول كرتونة وشحن متوسطة)', widthMm: 60, heightMm: 40 },
+  { value: '80x50', label: '80×50 مم (ملصق مستودعات وكراتين كبيرة)', widthMm: 80, heightMm: 50 },
+  { value: '100x150', label: '100×150 مم (بوليصة شحن واستيكر طرود بريدية)', widthMm: 100, heightMm: 150 },
   { value: 'a4_24', label: 'ورق A4 ملصقات (24 ملصق: 3 أعمدة × 8 صفوف - 70×37 مم)', widthMm: 70, heightMm: 37 },
   { value: 'a4_40', label: 'ورق A4 ملصقات (40 ملصق: 4 أعمدة × 10 صفوف - 52×30 مم)', widthMm: 52, heightMm: 30 },
+  { value: 'custom', label: 'مقاس مخصص يدوي (تحديد العرض والارتفاع بالمليمتر)', widthMm: 50, heightMm: 30 },
 ];
 
 const DEFAULT_EXPIRY_FALLBACK = new Date(Date.now() + 180 * 86400000).toISOString().split('T')[0];
@@ -63,8 +69,15 @@ const BarcodeSvgPreview: React.FC<{
   showText: boolean; 
   height?: number; 
   widthFactor?: number 
-}> = ({ barcode, showText, height = 36, widthFactor = 1.4 }) => {
+}> = ({ barcode, showText, height = 36, widthFactor }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
+
+  const effectiveWidthFactor = useMemo(() => {
+    if (widthFactor !== undefined) return widthFactor;
+    if (barcode.length > 16) return 1.0;
+    if (barcode.length > 12) return 1.2;
+    return 1.4;
+  }, [barcode, widthFactor]);
 
   useEffect(() => {
     if (!svgRef.current || !barcode) return;
@@ -72,7 +85,7 @@ const BarcodeSvgPreview: React.FC<{
       JsBarcode(svgRef.current, barcode, {
         format: 'CODE128',
         lineColor: '#000000',
-        width: widthFactor,
+        width: effectiveWidthFactor,
         height,
         displayValue: showText,
         fontSize: 10,
@@ -85,7 +98,7 @@ const BarcodeSvgPreview: React.FC<{
     } catch {
       // Ignored for non-renderable characters
     }
-  }, [barcode, showText, height, widthFactor]);
+  }, [barcode, showText, height, effectiveWidthFactor]);
 
   if (!barcode) {
     return <div className="text-xs text-ink-muted italic py-2">لا يوجد باركود</div>;
@@ -102,6 +115,8 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
   isOpen,
   onClose,
   preselectedProduct,
+  initialQueueItems,
+  sourceTitle,
 }) => {
   const [queue, setQueue] = useState<LabelQueueItem[]>([]);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
@@ -116,6 +131,8 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
   // Settings & Toggles
   const [config, setConfig] = useState<BarcodeLabelConfig>({
     paperSize: '38x25',
+    customWidthMm: 50,
+    customHeightMm: 30,
     showStoreName: true,
     storeName: 'متجر رفيق',
     showPrice: true,
@@ -167,9 +184,15 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
     };
   }, [isOpen]);
 
-  // Handle preselected product
+  // Handle preselected product or initial items from purchase invoices
   useEffect(() => {
     if (!isOpen) return;
+
+    if (initialQueueItems && initialQueueItems.length > 0) {
+      setQueue(initialQueueItems);
+      setPreviewIndex(0);
+      return;
+    }
 
     if (preselectedProduct && preselectedProduct.barcode) {
       setQueue([
@@ -192,7 +215,7 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
         type: 'error',
       });
     }
-  }, [isOpen, preselectedProduct]);
+  }, [isOpen, preselectedProduct, initialQueueItems]);
 
   // Filtered available products to add
   const filteredProducts = useMemo(() => {
@@ -285,8 +308,18 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
 
   // Selected paper specs
   const selectedPaper = useMemo(() => {
+    if (config.paperSize === 'custom') {
+      const w = config.customWidthMm && config.customWidthMm > 0 ? config.customWidthMm : 50;
+      const h = config.customHeightMm && config.customHeightMm > 0 ? config.customHeightMm : 30;
+      return {
+        value: 'custom',
+        label: `مخصص (${w}×${h} مم)`,
+        widthMm: w,
+        heightMm: h,
+      };
+    }
     return PAPER_SIZES.find((p) => p.value === config.paperSize) || PAPER_SIZES[0];
-  }, [config.paperSize]);
+  }, [config.paperSize, config.customWidthMm, config.customHeightMm]);
 
   // Execute Direct Label Printing via IPC
   const handlePrintLabels = async () => {
@@ -343,6 +376,8 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
       const res = await invoke<PrintLabelsResult>('printer:testLabel', {
         printerName: config.printerName,
         paperSize: config.paperSize,
+        customWidthMm: config.customWidthMm,
+        customHeightMm: config.customHeightMm,
       });
       if (res && res.success) {
         setStatusMessage({
@@ -394,7 +429,14 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
               <Tag className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-base font-bold m-0 leading-tight">طباعة ملصقات الباركود والأسعار (فيتشر #57)</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold m-0 leading-tight">طباعة ملصقات الباركود والأسعار</h2>
+                {sourceTitle && (
+                  <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-bold">
+                    {sourceTitle}
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-brand-soft/80 m-0">توليد وطباعة باركود المنتجات على طابعات الباركود الحرارية وورق A4</p>
             </div>
           </div>
@@ -702,6 +744,42 @@ export const BarcodeLabelModal: React.FC<BarcodeLabelModalProps> = ({
                   size="sm"
                 />
               </div>
+
+              {config.paperSize === 'custom' && (
+                <div className="p-2.5 bg-surface-2 rounded-lg border border-line flex flex-col gap-2">
+                  <span className="text-[11px] font-bold text-ink">الأبعاد المخصصة (بالمليمتر):</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] text-ink-muted mb-0.5">العرض (مم)</label>
+                      <input
+                        type="number"
+                        min="15"
+                        max="120"
+                        value={config.customWidthMm || 50}
+                        onChange={(e) => {
+                          const val = Math.max(10, Math.min(200, parseInt(e.target.value, 10) || 10));
+                          setConfig((prev) => ({ ...prev, customWidthMm: val }));
+                        }}
+                        className="w-full px-2 py-1 text-xs bg-surface border border-line rounded font-mono text-center text-ink"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-ink-muted mb-0.5">الارتفاع (مم)</label>
+                      <input
+                        type="number"
+                        min="10"
+                        max="200"
+                        value={config.customHeightMm || 30}
+                        onChange={(e) => {
+                          const val = Math.max(10, Math.min(200, parseInt(e.target.value, 10) || 10));
+                          setConfig((prev) => ({ ...prev, customHeightMm: val }));
+                        }}
+                        className="w-full px-2 py-1 text-xs bg-surface border border-line rounded font-mono text-center text-ink"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-[11px] font-bold text-ink-muted mb-1">طابعة الملصقات المستهدفة</label>

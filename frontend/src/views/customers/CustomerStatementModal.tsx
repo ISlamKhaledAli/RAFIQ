@@ -17,6 +17,7 @@ import {
 import type { Customer, CustomerLedgerEntry, CustomerBalanceVerification } from '../../types/models';
 import { CustomSelect } from '../../components/CustomSelect';
 import { CustomDateRangePicker } from '../../components/CustomDatePicker';
+import { CustomerReceiptVoucherModal } from './CustomerReceiptVoucherModal';
 
 export interface CustomerStatementModalProps {
   isOpen: boolean;
@@ -81,6 +82,8 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
   onConfirmCancelPayment,
   onOpenPrintStatement,
 }) => {
+  const [viewingReceiptEntry, setViewingReceiptEntry] = React.useState<CustomerLedgerEntry | null>(null);
+
   React.useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -440,17 +443,30 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                           </td>
 
                           <td className="px-3 text-center">
-                            {isPayment && !alreadyCancelled && (
-                              <button
-                                type="button"
-                                onClick={() => setCancellingEntry(entry)}
-                                className="inline-flex items-center gap-1 text-[11px] text-danger dark:text-danger-bright hover:text-red-700 dark:hover:text-red-300 hover:underline font-semibold cursor-pointer"
-                                title="إلغاء دفعة السداد بقيد معاكس دون حذف"
-                              >
-                                <RotateCcw className="w-3 h-3" />
-                                <span>إلغاء السداد</span>
-                              </button>
-                            )}
+                            <div className="flex items-center justify-center gap-2">
+                              {isPayment && (
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingReceiptEntry(entry)}
+                                  className="inline-flex items-center gap-1 text-[11px] text-brand dark:text-brand-bright hover:underline font-semibold cursor-pointer"
+                                  title="عرض وطباعة سند القبض المالي للدفعة"
+                                >
+                                  <Receipt className="w-3 h-3" />
+                                  <span>سند قبض</span>
+                                </button>
+                              )}
+                              {isPayment && !alreadyCancelled && (
+                                <button
+                                  type="button"
+                                  onClick={() => setCancellingEntry(entry)}
+                                  className="inline-flex items-center gap-1 text-[11px] text-danger dark:text-danger-bright hover:text-red-700 dark:hover:text-red-300 hover:underline font-semibold cursor-pointer"
+                                  title="إلغاء دفعة السداد بقيد معاكس دون حذف"
+                                >
+                                  <RotateCcw className="w-3 h-3" />
+                                  <span>إلغاء</span>
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -583,6 +599,16 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Customer Receipt Voucher Printable Modal */}
+      {viewingReceiptEntry && selectedCustomer && (
+        <CustomerReceiptVoucherModal
+          isOpen={true}
+          onClose={() => setViewingReceiptEntry(null)}
+          customer={selectedCustomer}
+          entry={viewingReceiptEntry}
+        />
       )}
     </>
   );

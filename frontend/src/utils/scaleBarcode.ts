@@ -14,8 +14,9 @@ export interface ParsedScaleBarcode {
   itemPlu: string;        // e.g. "00045"
   itemPluTrimmed: string; // e.g. "45"
   weightGrams: number;    // e.g. 1250
-  weightMilli: number;    // e.g. 1250000
+  weightMilli: number;    // e.g. 1250 (1250 milli-units = 1.250 kg)
   weightKg: number;       // e.g. 1.250
+  pricePiasters: number;  // e.g. 1250 piasters if scale barcode encodes price
   fullBarcode: string;
 }
 
@@ -23,11 +24,11 @@ export function parseScaleBarcode(rawBarcode: string): ParsedScaleBarcode | null
   if (!rawBarcode || typeof rawBarcode !== 'string') return null;
   const bc = rawBarcode.trim();
 
-  // Must be 13 numeric digits and start with standard scale prefixes 20, 21, or 22
+  // Must be 13 numeric digits and start with standard scale prefixes 20, 21, 22, or 99
   if (bc.length !== 13 || !/^\d{13}$/.test(bc)) return null;
 
   const prefix = bc.substring(0, 2);
-  if (prefix !== '20' && prefix !== '21' && prefix !== '22') {
+  if (prefix !== '20' && prefix !== '21' && prefix !== '22' && prefix !== '99') {
     return null;
   }
 
@@ -39,7 +40,7 @@ export function parseScaleBarcode(rawBarcode: string): ParsedScaleBarcode | null
     return null;
   }
 
-  // Weight payload is digits 7 to 12 (5 digits, in grams)
+  // Weight / Amount payload is digits 7 to 12 (5 digits, in grams or piasters)
   const weightStr = bc.substring(7, 12);
   const weightGrams = parseInt(weightStr, 10);
   if (isNaN(weightGrams) || weightGrams <= 0) {
@@ -54,6 +55,7 @@ export function parseScaleBarcode(rawBarcode: string): ParsedScaleBarcode | null
     weightGrams,
     weightMilli: weightGrams,
     weightKg: weightGrams / 1000.0,
+    pricePiasters: weightGrams,
     fullBarcode: bc,
   };
 }

@@ -130,6 +130,8 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
       isActive: true,
       categoryId: parentProduct.categoryId,
       parentId: parentProduct.id,
+      hasVariants: false,
+      variantsCount: 0,
       variantColor: v.color,
       variantSize: v.size,
       variantSku: v.sku,

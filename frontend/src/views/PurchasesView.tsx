@@ -17,6 +17,7 @@ import { ProductVariantPickerModal } from '../components/ProductVariantPickerMod
 import { SupplierFormModal, type SupplierFormData } from './purchases/SupplierFormModal';
 import { SupplierPaymentModal } from './purchases/SupplierPaymentModal';
 import { SupplierStatementModal } from './purchases/SupplierStatementModal';
+import { BarcodeLabelModal, type LabelQueueItem } from '../components/BarcodeLabelModal';
 import { type PurchasesSubView, type NewPurchaseLineItem } from './purchases/types';
 import { calculateLineTotal, normalizeArabicNumerals } from '../utils/money';
 
@@ -74,6 +75,11 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
   const [isSearchingProduct, setIsSearchingProduct] = useState<boolean>(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Barcode Label Printing from Purchase Invoice
+  const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState<boolean>(false);
+  const [barcodeQueueItems, setBarcodeQueueItems] = useState<LabelQueueItem[]>([]);
+  const [barcodeSourceTitle, setBarcodeSourceTitle] = useState<string>('');
 
   // Confirm Modal State
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -371,6 +377,20 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
         loadPurchases();
         loadSuppliers();
         setActiveTab('invoices');
+
+        // Prompt to print labels directly for received items
+        if (result.items && result.items.length > 0) {
+          setConfirmDialog({
+            isOpen: true,
+            title: 'طباعة ملصقات الباركود للبضاعة المستلمة',
+            message: `تم حفظ الفاتورة بنجاح. هل ترغب في فتح مصمم وطباعة ملصقات الباركود للأصناف الواردة بعدد الكميات المشتراة؟`,
+            confirmText: 'نعم، طباعة الملصقات',
+            onConfirm: () => {
+              setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+              void handlePrintInvoiceLabels(result);
+            },
+          });
+        }
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'حدث خطأ أثناء حفظ فاتورة الشراء';
@@ -500,6 +520,90 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
     }
   };
 
+  const handlePrintInvoiceLabels = useCallback(async (purchase: Purchase) => {
+    let pur = purchase;
+    if (!pur.items || pur.items.length === 0) {
+      try {
+        const full = await invoke<Purchase>('purchases:getById', { id: purchase.id });
+        if (full && full.items) {
+          pur = full;
+        }
+      } catch (err) {
+        console.error('Failed to load full purchase items for labels:', err);
+      }
+    }
+
+    if (!pur.items || pur.items.length === 0) {
+      showToast('لا توجد أصناف في هذه الفاتورة لطباعة ملصقاتها', 'error');
+      return;
+    }
+
+    const itemsForLabels: LabelQueueItem[] = (
+      await Promise.all(
+        pur.items.map(async (item) => {
+          let barcode = (item.barcode || '').trim();
+          let pricePiasters =
+            item.newSellingPricePiasters && item.newSellingPricePiasters > 0
+              ? item.newSellingPricePiasters
+              : 0;
+          let variantInfo = item.batchNumber ? `شحنة: ${item.batchNumber}` : '';
+          let stockQuantityMilli: number | undefined;
+          let categoryName: string | undefined;
+
+          // If barcode or selling price is missing on the purchase item, fetch from catalog
+          if (!barcode || pricePiasters === 0) {
+            try {
+              const prod = await invoke<Product>('products:getById', { id: item.productId });
+              if (prod) {
+                if (!barcode && prod.barcode) barcode = prod.barcode.trim();
+                if (pricePiasters === 0 && prod.pricePiasters > 0) pricePiasters = prod.pricePiasters;
+                if (!variantInfo) {
+                  variantInfo =
+                    prod.variantColor && prod.variantSize
+                      ? `${prod.variantColor} / ${prod.variantSize}`
+                      : prod.variantSize || prod.variantColor || '';
+                }
+                stockQuantityMilli = prod.stockQuantityMilli;
+                categoryName = prod.categoryName;
+              }
+            } catch {
+              // fallback gracefully
+            }
+          }
+
+          if (pricePiasters === 0) {
+            pricePiasters = item.unitCostPiasters;
+          }
+
+          // احتساب إجمالي المستلم (الكمية المشتراة + بضاعة البونص المجانية)
+          const totalReceivedMilli = (item.quantityMilli || 0) + (item.bonusQuantityMilli || 0);
+          const copies = Math.max(1, Math.round(totalReceivedMilli / 1000.0));
+
+          return {
+            productId: item.productId,
+            productName: item.productName || 'صنف',
+            barcode,
+            pricePiasters,
+            variantInfo,
+            copies,
+            stockQuantityMilli,
+            categoryName,
+            expiryDate: item.expiryDate || undefined,
+          };
+        })
+      )
+    ).filter((item) => item.barcode.length > 0);
+
+    if (itemsForLabels.length === 0) {
+      showToast('أصناف هذه الفاتورة ليس لها أرقام باركود مسجلة بالكتالوج', 'error');
+      return;
+    }
+
+    setBarcodeQueueItems(itemsForLabels);
+    setBarcodeSourceTitle(`فاتورة شراء #${pur.invoiceNumber}`);
+    setIsBarcodeModalOpen(true);
+  }, [showToast]);
+
   const handleOpenStatement = async (sup: Supplier) => {
     setSelectedSupplierForModal(sup);
     try {
@@ -621,6 +725,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
                 setSelectedPurchaseDetails(pur);
               }
             }}
+            onPrintLabels={handlePrintInvoiceLabels}
           />
         )}
 
@@ -704,6 +809,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
       <PurchaseDetailsModal
         purchase={selectedPurchaseDetails}
         onClose={() => setSelectedPurchaseDetails(null)}
+        onPrintLabels={handlePrintInvoiceLabels}
       />
 
       {/* Product Variant Picker for Clothing / Colors & Sizes */}
@@ -726,6 +832,18 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
         isDanger={confirmDialog.isDanger}
         onConfirm={confirmDialog.onConfirm}
         onCancel={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
+      />
+
+      {/* Barcode Label Modal for Purchase Invoices */}
+      <BarcodeLabelModal
+        isOpen={isBarcodeModalOpen}
+        onClose={() => {
+          setIsBarcodeModalOpen(false);
+          setBarcodeQueueItems([]);
+          setBarcodeSourceTitle('');
+        }}
+        initialQueueItems={barcodeQueueItems}
+        sourceTitle={barcodeSourceTitle}
       />
     </div>
   );

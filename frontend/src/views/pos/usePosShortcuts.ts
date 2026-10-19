@@ -9,6 +9,7 @@ import {
 
 interface UsePosShortcutsProps {
   isActive?: boolean;
+  isAnyModalOpen?: boolean;
   cart: CartItem[];
   loading: boolean;
   lastCompletedSale: Sale | null;
@@ -31,10 +32,13 @@ interface UsePosShortcutsProps {
   setPaymentMethod: React.Dispatch<React.SetStateAction<'cash' | 'credit'>>;
   setIsReturnModalOpen: (val: boolean) => void;
   showStatus: (text: string, type?: 'success' | 'error' | 'warning') => void;
+  hasPermission?: (key: string) => boolean;
+  isAdmin?: boolean;
 }
 
 export const usePosShortcuts = ({
   isActive = true,
+  isAnyModalOpen = false,
   cart,
   loading,
   lastCompletedSale,
@@ -57,14 +61,37 @@ export const usePosShortcuts = ({
   setPaymentMethod,
   setIsReturnModalOpen,
   showStatus,
+  hasPermission,
+  isAdmin,
 }: UsePosShortcutsProps) => {
   useEffect(() => {
     if (!isActive) return;
 
     let scanBuffer = '';
     let lastKeyTime = 0;
+    let scanStartTime = 0;
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
 
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // 1. Modals & Popups Protection (Requirement 2):
+      // Check if any modal is currently visible or active in the application
+      const activeEl = document.activeElement as HTMLElement | null;
+      const isInputFocused = activeEl instanceof HTMLInputElement || activeEl instanceof HTMLTextAreaElement;
+      const isModalActive = Boolean(isAnyModalOpen) || Boolean(document.querySelector('.fixed.z-50, [role="dialog"], .modal-backdrop'));
+
+      if (isModalActive) {
+        // If an input is focused inside the modal (e.g. typing a search query, entering phone, or scanner test field),
+        // let the key events flow naturally into that input element without hijacking or triggering background cart actions!
+        if (isInputFocused) {
+          scanBuffer = '';
+          return;
+        }
+        // If a modal is open but no input is focused (e.g. Confirm or Payment modal active),
+        // safely discard any background scanner bursts so items are never added to the cart behind active modals!
+        scanBuffer = '';
+        return;
+      }
+
       // F1: Cheatsheet / Help Modal
       if (e.key === 'F1') {
         e.preventDefault();
@@ -105,6 +132,10 @@ export const usePosShortcuts = ({
       // F4: Edit Discount
       if (e.key === 'F4') {
         e.preventDefault();
+        if (hasPermission && !hasPermission('pos.discount_line') && !hasPermission('pos.discount_invoice') && !isAdmin) {
+          showStatus('ليس لديك صلاحية لإجراء خصومات على الفاتورة', 'warning');
+          return;
+        }
         setIsDiscountModalOpen(true);
         return;
       }
@@ -112,6 +143,10 @@ export const usePosShortcuts = ({
       // F6: Hold Current Cart or Open Held Sales Modal
       if (e.key === 'F6') {
         e.preventDefault();
+        if (hasPermission && !hasPermission('pos.hold_invoice') && !isAdmin) {
+          showStatus('ليس لديك صلاحية لتعليق أو استرجاع الفواتير', 'warning');
+          return;
+        }
         if (cart.length > 0) {
           void handleHoldCurrentSale();
         } else {
@@ -130,6 +165,10 @@ export const usePosShortcuts = ({
       // F8: Scanner Settings
       if (e.key === 'F8') {
         e.preventDefault();
+        if (hasPermission && !hasPermission('settings.barcode') && !isAdmin) {
+          showStatus('ليس لديك صلاحية لتعديل إعدادات قارئ الباركود', 'warning');
+          return;
+        }
         setIsScannerModalOpen(true);
         return;
       }
@@ -138,8 +177,16 @@ export const usePosShortcuts = ({
       if (e.key === 'F9') {
         e.preventDefault();
         if (cart.length > 0 && !loading && handleOpenCheckout) {
+          if (hasPermission && !hasPermission('pos.sell') && !isAdmin) {
+            showStatus('ليس لديك صلاحية لإتمام عمليات البيع', 'warning');
+            return;
+          }
           handleOpenCheckout('cash');
         } else if (lastCompletedSale) {
+          if (hasPermission && !hasPermission('pos.reprint') && !isAdmin) {
+            showStatus('ليس لديك صلاحية لإعادة طباعة الفواتير', 'warning');
+            return;
+          }
           setIsReceiptOpen(true);
         } else {
           showStatus('لا توجد فاتورة سابقة لإعادة طباعتها', 'warning');
@@ -151,8 +198,16 @@ export const usePosShortcuts = ({
       if (e.key === 'F10') {
         e.preventDefault();
         if (cart.length > 0 && !loading && handleInstapayCheckout) {
+          if (hasPermission && !hasPermission('pos.sell') && !isAdmin) {
+            showStatus('ليس لديك صلاحية لإتمام عمليات البيع', 'warning');
+            return;
+          }
           void handleInstapayCheckout();
         } else {
+          if (hasPermission && !hasPermission('customers.credit_sale') && !isAdmin) {
+            showStatus('ليس لديك صلاحية للبيع الآجل (على الحساب)', 'warning');
+            return;
+          }
           setPaymentMethod((prev) => {
             const next = prev === 'cash' ? 'credit' : 'cash';
             showStatus(next === 'credit' ? 'تم التبديل إلى البيع الآجل (F10)' : 'تم التبديل إلى الدفع النقدي (F10)', 'success');
@@ -165,6 +220,10 @@ export const usePosShortcuts = ({
       // F11: Sales Returns Modal
       if (e.key === 'F11') {
         e.preventDefault();
+        if (hasPermission && !hasPermission('returns.create') && !isAdmin) {
+          showStatus('ليس لديك صلاحية لإنشاء مرتجع مبيعات', 'warning');
+          return;
+        }
         setIsReturnModalOpen(true);
         return;
       }
@@ -172,6 +231,11 @@ export const usePosShortcuts = ({
       // F12: Quick Direct Cash Pay
       if (e.key === 'F12') {
         e.preventDefault();
+        if (e.repeat) return;
+        if (hasPermission && !hasPermission('pos.sell') && !isAdmin) {
+          showStatus('ليس لديك صلاحية لإتمام عمليات البيع', 'warning');
+          return;
+        }
         if (cart.length > 0 && !loading) {
           void handleFastCashCheckout();
         } else if (cart.length === 0) {
@@ -180,11 +244,14 @@ export const usePosShortcuts = ({
         return;
       }
 
-      // Modifiers
+      // 2. Hardware Barcode Scanner & Typing Discrimination (Requirement 1 & 3):
+      // Ignore OS shortcut modifiers
       if (e.altKey || e.ctrlKey || e.metaKey) return;
+      // Key repeat (holding down a key) is NEVER a scanner; ignore it to prevent false trigger
+      if (e.repeat) return;
 
-      const now = Date.now();
-      const timeDelta = now - lastKeyTime;
+      const now = performance.now();
+      const timeDelta = lastKeyTime > 0 ? now - lastKeyTime : 0;
       lastKeyTime = now;
 
       const isSuffix = 
@@ -192,32 +259,79 @@ export const usePosShortcuts = ({
         (scannerSettings.suffix === 'Tab' && e.key === 'Tab');
 
       if (isSuffix) {
-        if (scanBuffer.length >= scannerSettings.minBarcodeLength && timeDelta < (scannerSettings.speedThresholdMs + 30)) {
+        if (idleTimer) clearTimeout(idleTimer);
+        const totalElapsed = scanStartTime > 0 ? now - scanStartTime : timeDelta;
+        const avgDelta = scanBuffer.length > 1 ? totalElapsed / (scanBuffer.length - 1) : timeDelta;
+
+        // Strict discrimination: Scanner must have delivered characters rapidly (avgDelta <= threshold + 25ms)
+        // and met minimum barcode length
+        if (
+          scanBuffer.length >= scannerSettings.minBarcodeLength &&
+          avgDelta <= (scannerSettings.speedThresholdMs + 25) &&
+          timeDelta < (scannerSettings.speedThresholdMs + 40)
+        ) {
           const barcode = sanitizeScannedBarcode(scanBuffer, scannerSettings.prefix);
           scanBuffer = '';
+          scanStartTime = 0;
           e.preventDefault();
+          e.stopPropagation();
+
+          // If main search input was focused during scan, clear its raw text to prevent duplicate submission
+          if (barcodeInputRef.current) {
+            barcodeInputRef.current.value = '';
+          }
           void handleFastBarcodeScan(barcode);
           return;
         }
+
+        // If not a scanner burst, reset buffer so manual typing submits search normally
         scanBuffer = '';
+        scanStartTime = 0;
         return;
       }
 
-      // Feature #131: Physical Key Code extraction (immune to Arabic keyboard layout)
+      // Physical Key Code extraction (100% immune to Arabic Windows keyboard layout)
       const physicalChar = physicalCodeToChar(e.code, e.shiftKey);
       const charToAdd = physicalChar || (e.key.length === 1 ? e.key : null);
 
       if (charToAdd) {
         if (timeDelta < scannerSettings.speedThresholdMs || scanBuffer.length === 0) {
+          if (scanBuffer.length === 0) {
+            scanStartTime = now;
+          }
           scanBuffer += charToAdd;
         } else {
+          // Time gap exceeded scanner threshold; start new potential buffer with this key
           scanBuffer = charToAdd;
+          scanStartTime = now;
+        }
+
+        // Support scanners programmed without suffix (scannerSettings.suffix === 'None')
+        if (scannerSettings.suffix === 'None') {
+          if (idleTimer) clearTimeout(idleTimer);
+          idleTimer = setTimeout(() => {
+            if (scanBuffer.length >= scannerSettings.minBarcodeLength) {
+              const currentNow = performance.now();
+              const elapsed = scanStartTime > 0 ? currentNow - scanStartTime : 0;
+              const avg = scanBuffer.length > 1 ? elapsed / (scanBuffer.length - 1) : 0;
+              if (avg <= (scannerSettings.speedThresholdMs + 25)) {
+                const barcode = sanitizeScannedBarcode(scanBuffer, scannerSettings.prefix);
+                scanBuffer = '';
+                scanStartTime = 0;
+                if (barcodeInputRef.current) {
+                  barcodeInputRef.current.value = '';
+                }
+                void handleFastBarcodeScan(barcode);
+              }
+            }
+          }, scannerSettings.speedThresholdMs + 35);
         }
       }
     };
 
     window.addEventListener('keydown', handleGlobalKeyDown, true);
     return () => {
+      if (idleTimer) clearTimeout(idleTimer);
       window.removeEventListener('keydown', handleGlobalKeyDown, true);
     };
   }, [
@@ -244,5 +358,8 @@ export const usePosShortcuts = ({
     setIsReturnModalOpen,
     showStatus,
     isActive,
+    isAnyModalOpen,
+    hasPermission,
+    isAdmin,
   ]);
 };

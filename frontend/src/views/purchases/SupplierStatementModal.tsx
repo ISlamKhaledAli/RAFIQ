@@ -92,9 +92,11 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
                       {tx.transactionType === 'PURCHASE_INVOICE' && 'فاتورة بضاعة جديدة (على الحساب)'}
                       {tx.transactionType === 'PURCHASE_OVERPAYMENT' && 'دفعنا بالزيادة ونزل في حسابنا'}
                       {tx.transactionType === 'PAYMENT' && 'دفعنا له كاش (سداد)'}
+                      {tx.transactionType === 'PAYMENT_CANCEL' && 'قيد عكسي (إلغاء سند صرف)'}
+                      {tx.transactionType === 'PURCHASE_RETURN' && 'مرتجع مشتريات (تخفيض دين)'}
                       {tx.transactionType === 'PURCHASE_PAID_CASH' && 'فاتورة بضاعة مسددة نقداً بالكامل'}
                       {tx.transactionType === 'MANUAL_ADJUSTMENT' && 'تسوية رصيد يدوية'}
-                      {!['OPENING_BALANCE', 'PURCHASE_INVOICE', 'PURCHASE_OVERPAYMENT', 'PAYMENT', 'PURCHASE_PAID_CASH', 'MANUAL_ADJUSTMENT'].includes(tx.transactionType) && (tx.transactionType || 'حركة حسابية')}
+                      {!['OPENING_BALANCE', 'PURCHASE_INVOICE', 'PURCHASE_OVERPAYMENT', 'PAYMENT', 'PAYMENT_CANCEL', 'PURCHASE_RETURN', 'PURCHASE_PAID_CASH', 'MANUAL_ADJUSTMENT'].includes(tx.transactionType) && (tx.transactionType || 'حركة حسابية')}
                     </span>
                     <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted">
                       {new Date(tx.createdAt).toLocaleDateString('ar-EG-u-nu-latn', {
@@ -107,6 +109,11 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
                     </span>
                   </div>
                   {tx.notes && <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted block mt-0.5">{tx.notes}</span>}
+                  {tx.balanceAfterPiasters !== undefined && (
+                    <span className="text-[10px] font-mono text-ink-muted dark:text-ink-dark-muted block mt-0.5">
+                      الرصيد التراكمي: {formatMoney(tx.balanceAfterPiasters)}
+                    </span>
+                  )}
                 </div>
 
                 <div className="font-mono font-bold text-sm">

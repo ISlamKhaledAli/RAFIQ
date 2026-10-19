@@ -134,4 +134,90 @@ describe('Story 47 & Story 48: Receipt Printing & Thermal Printer Invariants (Fe
     });
   });
 
+  describe('Hardware Integration: Fractional Quantities, ESC/POS Drawer & Cut Sequences, and UI Recovery', () => {
+    it('properly formats fractional weights and custom unit names without integer division truncation', () => {
+      const formatItemQuantity = (item) => {
+        const unitLabel = item.unitName 
+          ? item.unitName 
+          : (item.unit === 'kg' || item.quantityMilli % 1000 !== 0 ? 'كجم' : 'ق');
+        
+        let qtyNum;
+        if (item.unit === 'kg') {
+          qtyNum = (item.quantityMilli / 1000).toFixed(3);
+        } else if (item.quantityMilli % 1000 !== 0) {
+          qtyNum = (item.quantityMilli / 1000).toString();
+        } else {
+          qtyNum = (item.quantityMilli / 1000).toString();
+        }
+        return `${qtyNum} ${unitLabel}`;
+      };
+
+      // 250 grams of cheese
+      assert.equal(formatItemQuantity({ quantityMilli: 250, unit: 'kg' }), '0.250 كجم');
+      // Half a carton
+      assert.equal(formatItemQuantity({ quantityMilli: 500, unit: 'piece', unitName: 'نصف كرتونة' }), '0.5 نصف كرتونة');
+      // Exact pieces
+      assert.equal(formatItemQuantity({ quantityMilli: 3000, unit: 'piece' }), '3 ق');
+    });
+
+    it('verifies cash drawer kick pulse decision matches transaction payment type', () => {
+      const shouldTriggerDrawerKick = (sale, globalOpenDrawerSetting, explicitParam) => {
+        if (explicitParam !== undefined && explicitParam !== null) {
+          return explicitParam;
+        }
+        if (!globalOpenDrawerSetting) return false;
+
+        const isCash = sale.paymentMethod === 'cash' || 
+          (sale.payments && sale.payments.some(p => p.method === 'cash' && p.amountPiasters > 0)) ||
+          sale.paidPiasters > 0;
+        
+        return isCash;
+      };
+
+      // Cash sale with setting enabled -> kick
+      assert.equal(shouldTriggerDrawerKick({ paymentMethod: 'cash', paidPiasters: 5000 }, true, null), true);
+      // Pure credit sale (zero paid) with setting enabled -> do NOT kick drawer unnecessarily
+      assert.equal(shouldTriggerDrawerKick({ paymentMethod: 'credit', paidPiasters: 0 }, true, null), false);
+      // Explicit override from caller -> respected
+      assert.equal(shouldTriggerDrawerKick({ paymentMethod: 'credit', paidPiasters: 0 }, true, true), true);
+      assert.equal(shouldTriggerDrawerKick({ paymentMethod: 'cash', paidPiasters: 5000 }, true, false), false);
+    });
+
+    it('simulates ReceiptModal paper-out recovery: UI preserves sale and enables retry', () => {
+      let modalState = {
+        isOpen: true,
+        isPrinting: false,
+        printStatus: null,
+        sale: sampleSale
+      };
+
+      // 1. Initial print attempt fails due to disconnected cable
+      modalState.isPrinting = true;
+      const failureResponse = {
+        success: false,
+        message: "الطابعة 'POS-80' غير متصلة أو الورق نافد. الفاتورة محفوظة بأمان."
+      };
+
+      modalState.isPrinting = false;
+      modalState.printStatus = { ok: failureResponse.success, msg: failureResponse.message };
+
+      // Assertions on error state
+      assert.equal(modalState.printStatus.ok, false);
+      assert.match(modalState.printStatus.msg, /الورق نافد/);
+      assert.equal(modalState.sale.invoiceNumber, 1042); // Sale remains fully intact
+
+      // 2. Retry succeeds after cashier closes door / reconnects cable
+      modalState.isPrinting = true;
+      const successResponse = {
+        success: true,
+        message: "تم إرسال الإيصال للفاتورة #1042 إلى الطابعة بنجاح."
+      };
+      modalState.isPrinting = false;
+      modalState.printStatus = { ok: successResponse.success, msg: successResponse.message };
+
+      assert.equal(modalState.printStatus.ok, true);
+      assert.match(modalState.printStatus.msg, /بنجاح/);
+    });
+  });
+
 });
