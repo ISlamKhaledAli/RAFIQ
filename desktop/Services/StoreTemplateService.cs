@@ -101,11 +101,15 @@ namespace RafiqPOS.Services
                 // Fallback to built-in presets if table query fails
             }
 
-            bool needsRefresh = (list.Count < 9);
+            bool needsRefresh = (list.Count < 11);
             if (!needsRefresh)
             {
+                bool hasPharmacy = false;
+                bool hasCafe = false;
                 for (int i = 0; i < list.Count; i++)
                 {
+                    if (list[i].Id == "pharmacy") hasPharmacy = true;
+                    if (list[i].Id == "cafe_restaurant") hasCafe = true;
                     if (list[i].FeatureFlags == null || 
                         !list[i].FeatureFlags.ContainsKey("feature_epay_services") ||
                         !list[i].FeatureFlags.ContainsKey("feature_digital_wallets"))
@@ -113,6 +117,10 @@ namespace RafiqPOS.Services
                         needsRefresh = true;
                         break;
                     }
+                }
+                if (!hasPharmacy || !hasCafe)
+                {
+                    needsRefresh = true;
                 }
             }
 
@@ -815,6 +823,67 @@ namespace RafiqPOS.Services
             t8.DefaultSettings["receipt_header"] = "أهلاً بكم في متجرنا";
             t8.DefaultSettings["receipt_footer"] = "شكراً لتعاملكم معنا";
             list.Add(t8);
+
+            // 9. Pharmacy & Cosmetics (صيدلية ومستحضرات تجميل وعناية)
+            var tPharm = new StoreTemplate();
+            tPharm.Id = "pharmacy";
+            tPharm.Name = "صيدلية ومستحضرات تجميل وعناية";
+            tPharm.Description = "مناسب للصيدليات ومحلات مستحضرات التجميل والعناية مع دعم تاريخ الصلاحية، بيع الأشرطة والعلب، وإدارة الآجل";
+            tPharm.Icon = "pill";
+            tPharm.FeatureFlags["feature_scale_weight"] = false;
+            tPharm.FeatureFlags["feature_credit_debts"] = true;
+            tPharm.FeatureFlags["feature_fast_buttons"] = true;
+            tPharm.FeatureFlags["feature_taxes"] = false;
+            tPharm.FeatureFlags["feature_expiry_dates"] = true;
+            tPharm.FeatureFlags["feature_multi_units"] = true;
+            tPharm.FeatureFlags["feature_matrix_variants"] = false;
+            tPharm.FeatureFlags["feature_epay_services"] = false;
+            tPharm.FeatureFlags["feature_digital_wallets"] = true;
+            tPharm.Categories = new List<string> { "أدوية ومسكنات شائعة", "مستلزمات وإسعافات", "عناية بالأم والطفل", "تجميل وعناية بالبشرة", "فيتامينات ومكملات" };
+            tPharm.QuickItems = new List<TemplateQuickItem>
+            {
+                new TemplateQuickItem { Name = "كحول طبي 70% بخاخ 120 مل", PricePiasters = 2500, Unit = "piece", CategoryName = "مستلزمات وإسعافات" },
+                new TemplateQuickItem { Name = "قطن طبي معقم 100 جم", PricePiasters = 2200, Unit = "piece", CategoryName = "مستلزمات وإسعافات" },
+                new TemplateQuickItem { Name = "بلاستر طبي لاصق جروح علبة 50 قطعة", PricePiasters = 3000, Unit = "piece", CategoryName = "مستلزمات وإسعافات" },
+                new TemplateQuickItem { Name = "سرنجة 3 سم معقمة سن دقيق", PricePiasters = 250, Unit = "piece", CategoryName = "مستلزمات وإسعافات" },
+                new TemplateQuickItem { Name = "سرنجة 5 سم معقمة", PricePiasters = 300, Unit = "piece", CategoryName = "مستلزمات وإسعافات" },
+                new TemplateQuickItem { Name = "كمامة طبية 3 طبقات دعامة أنف", PricePiasters = 4000, Unit = "piece", CategoryName = "مستلزمات وإسعافات" },
+                new TemplateQuickItem { Name = "شاش طبي معقم باكت 5 قطع", PricePiasters = 1500, Unit = "piece", CategoryName = "مستلزمات وإسعافات" },
+                new TemplateQuickItem { Name = "رباط ضاغط طبي 10 سم", PricePiasters = 2000, Unit = "piece", CategoryName = "مستلزمات وإسعافات" }
+            };
+            tPharm.DefaultSettings["receipt_header"] = "صيدلية رفيق للرعاية الدوائية";
+            tPharm.DefaultSettings["receipt_footer"] = "مع تمنياتنا لكم بالشفاء العاجل وموفور الصحة والعافية.";
+            list.Add(tPharm);
+
+            // 10. Cafes & Fast Food Restaurants (مطاعم وكافيهات ووجبات سريعة)
+            var tCafe = new StoreTemplate();
+            tCafe.Id = "cafe_restaurant";
+            tCafe.Name = "مطاعم وكافيهات ووجبات سريعة";
+            tCafe.Description = "مناسب للمطاعم، الكافيهات ومحلات العصائر والوجبات السريعة مع شاشة الأزرار السريعة بدون ميزان";
+            tCafe.Icon = "coffee";
+            tCafe.FeatureFlags["feature_scale_weight"] = false;
+            tCafe.FeatureFlags["feature_credit_debts"] = true;
+            tCafe.FeatureFlags["feature_fast_buttons"] = true;
+            tCafe.FeatureFlags["feature_taxes"] = false;
+            tCafe.FeatureFlags["feature_expiry_dates"] = false;
+            tCafe.FeatureFlags["feature_multi_units"] = false;
+            tCafe.FeatureFlags["feature_matrix_variants"] = false;
+            tCafe.FeatureFlags["feature_epay_services"] = false;
+            tCafe.FeatureFlags["feature_digital_wallets"] = true;
+            tCafe.Categories = new List<string> { "ساندوتشات وبرجر", "بيتزا ومكرونات", "مقبلات وجوانب", "مشروبات ساخنة", "مشروبات باردة" };
+            tCafe.QuickItems = new List<TemplateQuickItem>
+            {
+                new TemplateQuickItem { Name = "إسبريسو سنجل شوت إيطالي", PricePiasters = 3500, Unit = "piece", CategoryName = "مشروبات ساخنة" },
+                new TemplateQuickItem { Name = "قهوة تركي بن محوج فنجان", PricePiasters = 3000, Unit = "piece", CategoryName = "مشروبات ساخنة" },
+                new TemplateQuickItem { Name = "كابتشينو حليب مبخر رغوة غنية", PricePiasters = 5500, Unit = "piece", CategoryName = "مشروبات ساخنة" },
+                new TemplateQuickItem { Name = "شاي أحمر بالنعناع الطازج", PricePiasters = 2000, Unit = "piece", CategoryName = "مشروبات ساخنة" },
+                new TemplateQuickItem { Name = "كانز مياه غازية 330 مل باردة", PricePiasters = 2000, Unit = "piece", CategoryName = "مشروبات باردة" },
+                new TemplateQuickItem { Name = "زجاجة مياه معدنية 600 مل", PricePiasters = 1000, Unit = "piece", CategoryName = "مشروبات باردة" },
+                new TemplateQuickItem { Name = "بطاطس مقلية مقرمشة وسط", PricePiasters = 3000, Unit = "piece", CategoryName = "مقبلات وجوانب" }
+            };
+            tCafe.DefaultSettings["receipt_header"] = "كافيه ومطعم رفيق";
+            tCafe.DefaultSettings["receipt_footer"] = "أهلاً وسهلاً بكم.. نتمنى لكم وجبة شهية ووقتاً ممتعاً!";
+            list.Add(tCafe);
 
             return list;
         }

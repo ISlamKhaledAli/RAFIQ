@@ -42,6 +42,18 @@ describe('Store Type Features & First Startup Wizard Verification', () => {
     assert.match(content, /id:\s*'produce_butchery'[\s\S]*?feature_scale_weight:\s*true/);
     assert.match(content, /id:\s*'produce_butchery'[\s\S]*?feature_epay_services:\s*false/);
     assert.match(content, /id:\s*'produce_butchery'[\s\S]*?feature_digital_wallets:\s*true/);
+
+    // Pharmacy: expiry ON, multi_units ON, scale OFF
+    assert.ok(content.includes('pharmacy'), 'Must have pharmacy');
+    assert.match(content, /id:\s*'pharmacy'[\s\S]*?feature_expiry_dates:\s*true/);
+    assert.match(content, /id:\s*'pharmacy'[\s\S]*?feature_multi_units:\s*true/);
+    assert.match(content, /id:\s*'pharmacy'[\s\S]*?feature_scale_weight:\s*false/);
+
+    // Cafe / Restaurant: fast_buttons ON, scale OFF, matrix OFF
+    assert.ok(content.includes('cafe_restaurant'), 'Must have cafe_restaurant');
+    assert.match(content, /id:\s*'cafe_restaurant'[\s\S]*?feature_fast_buttons:\s*true/);
+    assert.match(content, /id:\s*'cafe_restaurant'[\s\S]*?feature_scale_weight:\s*false/);
+    assert.match(content, /id:\s*'cafe_restaurant'[\s\S]*?feature_matrix_variants:\s*false/);
   });
 
   it('2. Backend StoreTemplateService defines matching tailored flags for all store presets', () => {
@@ -65,6 +77,17 @@ describe('Store Type Features & First Startup Wizard Verification', () => {
     assert.ok(content.includes('t1.FeatureFlags["feature_epay_services"] = true'), 'Supermarket must enable epay machine');
     assert.ok(content.includes('t1.FeatureFlags["feature_digital_wallets"] = true'), 'Supermarket must enable digital wallets');
     assert.ok(content.includes('t1.FeatureFlags["feature_matrix_variants"] = false'), 'Supermarket must disable variants');
+
+    // Pharmacy preset in C#
+    assert.ok(content.includes('tPharm.Id = "pharmacy"'), 'Must define pharmacy preset');
+    assert.ok(content.includes('tPharm.FeatureFlags["feature_expiry_dates"] = true'), 'Pharmacy must enable expiry dates');
+    assert.ok(content.includes('tPharm.FeatureFlags["feature_multi_units"] = true'), 'Pharmacy must enable multi units');
+    assert.ok(content.includes('tPharm.FeatureFlags["feature_scale_weight"] = false'), 'Pharmacy must disable scale');
+
+    // Cafe / Restaurant preset in C#
+    assert.ok(content.includes('tCafe.Id = "cafe_restaurant"'), 'Must define cafe_restaurant preset');
+    assert.ok(content.includes('tCafe.FeatureFlags["feature_fast_buttons"] = true'), 'Cafe must enable fast buttons');
+    assert.ok(content.includes('tCafe.FeatureFlags["feature_scale_weight"] = false'), 'Cafe must disable scale');
   });
 
   it('3. Clean database startup policy (Zero injected initial categories)', () => {

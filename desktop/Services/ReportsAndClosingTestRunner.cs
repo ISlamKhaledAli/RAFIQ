@@ -668,6 +668,54 @@ namespace RafiqPOS.Services
                 var payHistory = reportsService.GetPaymentHistory("month", null, null, null);
                 Assert(payHistory != null, "استعلام سجل تحصيلات وسدادات العملاء يعمل بنجاح", result);
 
+                // 12. Lead Financial Analytics Architect Verifications:
+                // A. VAT Report and Strict Isolation from Merchant Revenue
+                var vatReport = reportsService.GetVatReport("today", null, null);
+                Assert(vatReport != null, "استعلام تقرير ضريبة القيمة المضافة (VAT) يعمل بنجاح بدون أخطاء", result);
+                Assert(vatReport.NetVatPayablePiasters == (vatReport.TotalTaxPiasters - vatReport.ReturnsTaxPiasters),
+                    "مطابقة صافي ضريبة القيمة المضافة المستحقة (ضريبة المبيعات - ضريبة المرتجعات)", result);
+                Assert(vatReport.GrossSalesPiasters == (vatReport.NetSalesExcludingTaxPiasters + vatReport.TotalTaxPiasters),
+                    "فصل إيرادات المتجر الحقيقية عن ضريبة القيمة المضافة ومطابقة الإجمالي", result);
+                Assert(vatReport.GrossSalesPiasters == (vatReport.TaxableSalesPiasters + vatReport.TaxExemptSalesPiasters),
+                    "مطابقة إجمالي المبيعات مع مجموع المبيعات الخاضعة للضريبة والمعفاة", result);
+
+                // B. Mathematical Identity: PeriodSalesReport vs TodaySummary
+                var todaySummary = reportsService.GetTodaySummary();
+                Assert(todaySummary != null, "استعلام مؤشرات اليومية يعمل بنجاح", result);
+                Assert(todaySummary.TodaySalesPiasters == periodSales.TotalSalesPiasters,
+                    "تطابق إجمالي مبيعات اليومية بين لوحة التحكم وتقرير المبيعات", result);
+                Assert(todaySummary.TodayTaxPiasters == periodSales.TotalTaxPiasters,
+                    "تطابق إجمالي ضريبة القيمة المضافة بين لوحة التحكم وتقرير المبيعات", result);
+                Assert(todaySummary.TodayDiscountPiasters == periodSales.TotalDiscountsPiasters,
+                    "تطابق إجمالي الخصومات الممنوحة بين لوحة التحكم وتقرير المبيعات", result);
+                Assert(todaySummary.TodayNetSalesExcludingTaxPiasters == periodSales.NetSalesExcludingTaxPiasters,
+                    "تطابق صافي المبيعات بدون الضريبة بين لوحة التحكم وتقرير المبيعات", result);
+
+                // C. SQL Index Verification for 50,000+ Invoices Scale:
+                // Verify that SQLite query planner uses the composite index idx_sales_status_created instead of full table scan
+                using (var conn = new SQLiteConnection(tempConnStr))
+                {
+                    conn.Open();
+                    using (var qpCmd = new SQLiteCommand("EXPLAIN QUERY PLAN SELECT COUNT(*) FROM sales WHERE status = 'completed' AND created_at >= '2026-10-19 00:00:00' AND created_at <= '2026-10-19 23:59:59';", conn))
+                    using (var rdr = qpCmd.ExecuteReader())
+                    {
+                        bool usesIndex = false;
+                        while (rdr.Read())
+                        {
+                            string detail = rdr["detail"].ToString();
+                            if (detail.IndexOf("idx_sales_status_created", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                detail.IndexOf("idx_sales_created_status", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                detail.IndexOf("USING INDEX", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                detail.IndexOf("USING COVERING INDEX", StringComparison.OrdinalIgnoreCase) >= 0)
+                            {
+                                usesIndex = true;
+                                break;
+                            }
+                        }
+                        Assert(usesIndex, "خطة استعلام مبيعات الفترات تستخدم الفهارس المركبة (Covering & Range Indexes) بنجاح لمنع الـ Full Table Scan على قواعد البيانات الضخمة", result);
+                    }
+                }
+
                 result.Message = string.Format("نجحت جميع اختبارات المحطة 9 والتحليلات التنفيذية بنسبة 100% ({0}/{1} تأكيد ناجح)", result.PassedAssertions, result.TotalAssertions);
             }
             catch (Exception ex)

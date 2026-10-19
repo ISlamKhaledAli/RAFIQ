@@ -16,7 +16,9 @@ import {
   Flame,
   Shirt,
   Check,
-  Info
+  Info,
+  Pill,
+  Coffee
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { CustomSelect } from './CustomSelect';
@@ -248,6 +250,8 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
         else if (id === 'spices_roastery') setStoreName('عطارة ومحامص رفيق');
         else if (id === 'clothing_apparel') setStoreName('متاجر رفيق للأزياء');
         else if (id === 'supermarket') setStoreName('سوبر ماركت النور');
+        else if (id === 'pharmacy') setStoreName('صيدلية رفيق الحديثة');
+        else if (id === 'cafe_restaurant') setStoreName('كافيه ومطعم رفيق');
         else setStoreName('متجر رفيق');
       }
     }
@@ -275,6 +279,15 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
           quickItemsCount: 0,
           productsCount: 0,
         });
+        try {
+          localStorage.setItem('rafiq_first_run_completed', 'true');
+          if (isFirstRun) {
+            localStorage.setItem('rafiq_show_guided_tour', 'true');
+          }
+          localStorage.removeItem(WIZARD_STORAGE_KEY);
+        } catch {
+          // ignore
+        }
         setTimeout(() => {
           onCompleted();
         }, 1800);
@@ -317,6 +330,13 @@ export const FirstRunWizardModal: React.FC<FirstRunWizardModalProps> = ({
       case 'clothing':
       case 'checkroom':
         return <Shirt className={iconClass} />;
+      case 'pill':
+      case 'pharmacy':
+        return <Pill className={iconClass} />;
+      case 'coffee':
+      case 'cafe':
+      case 'cafe_restaurant':
+        return <Coffee className={iconClass} />;
       default:
         return <Store className={iconClass} />;
     }

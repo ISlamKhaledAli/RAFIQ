@@ -72,6 +72,8 @@ namespace RafiqPOS.Services
                             END
                         ), 0) AS card_sales,
                         COALESCE(SUM(CASE WHEN s.total_piasters > (s.paid_piasters - s.service_fee_piasters) THEN (s.total_piasters - (s.paid_piasters - s.service_fee_piasters)) ELSE 0 END), 0) AS credit_sales,
+                        COALESCE(SUM(s.tax_piasters), 0) AS total_tax,
+                        COALESCE(SUM(s.discount_piasters), 0) AS total_discount,
                         COUNT(*) AS inv_count
                     FROM sales s
                     WHERE (date(s.created_at, 'localtime') = date('now', 'localtime') OR date(s.created_at) = date('now')) 
@@ -91,6 +93,9 @@ namespace RafiqPOS.Services
                             summary.TodayVodafoneCashPiasters = Convert.ToInt64(reader["vodafone_cash_sales"]);
                             summary.TodayCardPiasters = Convert.ToInt64(reader["card_sales"]);
                             summary.TodayCreditPiasters = Convert.ToInt64(reader["credit_sales"]);
+                            summary.TodayTaxPiasters = Convert.ToInt64(reader["total_tax"]);
+                            summary.TodayDiscountPiasters = Convert.ToInt64(reader["total_discount"]);
+                            summary.TodayNetSalesExcludingTaxPiasters = Math.Max(0, summary.TodaySalesPiasters - summary.TodayTaxPiasters);
                             summary.TodayInvoicesCount = Convert.ToInt32(reader["inv_count"]);
                             summary.CashDrawerPiasters = summary.TodayCashPiasters;
                         }
@@ -145,6 +150,9 @@ namespace RafiqPOS.Services
                         }
                     }
                 }
+
+                // Mathematical identity: net sales excluding tax = (gross sales - returns) - tax
+                summary.TodayNetSalesExcludingTaxPiasters = Math.Max(0, (summary.TodaySalesPiasters - summary.TodayReturnsPiasters) - summary.TodayTaxPiasters);
 
                 // 2. Customer Debt Collections (Cash received from old debts today, net of cancellations, excluding sale deposits already counted in cash sales)
                 string debtPaymentSql = @"
@@ -400,10 +408,10 @@ namespace RafiqPOS.Services
                 }
                 catch { }
 
-                // 3. Profit calculation from sales (Total sale price - Total cost)
+                // 3. Profit calculation from sales (Real revenue excluding VAT - Total cost)
                 string profitSql = @"
                     SELECT 
-                        COALESCE(SUM(si.total_piasters - (si.quantity_milli * si.unit_cost_piasters / 1000)), 0) AS total_profit
+                        COALESCE(SUM((si.total_piasters - COALESCE(si.tax_piasters, 0)) - (si.quantity_milli * si.unit_cost_piasters / 1000)), 0) AS total_profit
                     FROM sale_items si
                     INNER JOIN sales s ON si.sale_id = s.id
                     WHERE (date(s.created_at, 'localtime') = date('now', 'localtime') OR date(s.created_at) = date('now')) 
@@ -761,6 +769,8 @@ namespace RafiqPOS.Services
                             END
                         ), 0) AS card_sales,
                         COALESCE(SUM(CASE WHEN s.total_piasters > (s.paid_piasters - s.service_fee_piasters) THEN (s.total_piasters - (s.paid_piasters - s.service_fee_piasters)) ELSE 0 END), 0) AS credit_sales,
+                        COALESCE(SUM(s.tax_piasters), 0) AS total_tax,
+                        COALESCE(SUM(s.discount_piasters), 0) AS total_discount,
                         COUNT(*) AS inv_count
                     FROM sales s
                     WHERE {0}
@@ -786,6 +796,8 @@ namespace RafiqPOS.Services
                             report.VodafoneCashSalesPiasters = Convert.ToInt64(reader["vodafone_cash_sales"]);
                             report.CardSalesPiasters = Convert.ToInt64(reader["card_sales"]);
                             report.CreditSalesPiasters = Convert.ToInt64(reader["credit_sales"]);
+                            report.TotalTaxPiasters = Convert.ToInt64(reader["total_tax"]);
+                            report.TotalDiscountsPiasters = Convert.ToInt64(reader["total_discount"]);
                             report.InvoicesCount = Convert.ToInt32(reader["inv_count"]);
                         }
                     }
@@ -854,12 +866,13 @@ namespace RafiqPOS.Services
 
                 report.NetSalesPiasters = report.TotalSalesPiasters - report.ReturnsTotalPiasters;
                 if (report.NetSalesPiasters < 0) report.NetSalesPiasters = 0;
+                report.NetSalesExcludingTaxPiasters = Math.Max(0, report.NetSalesPiasters - report.TotalTaxPiasters);
 
                 // 4. Gross Profit (Story 84 / Task 46-1)
                 string profitDateClause = dateFilterClause.Replace("created_at", "s.created_at");
                 string profitSql = string.Format(@"
                     SELECT 
-                        COALESCE(SUM(si.total_piasters - (si.quantity_milli * si.unit_cost_piasters / 1000)), 0) AS total_profit,
+                        COALESCE(SUM((si.total_piasters - COALESCE(si.tax_piasters, 0)) - (si.quantity_milli * si.unit_cost_piasters / 1000)), 0) AS total_profit,
                         COUNT(CASE WHEN si.unit_cost_piasters <= 0 THEN 1 END) AS zero_cost_count
                     FROM sale_items si
                     INNER JOIN sales s ON si.sale_id = s.id
@@ -992,6 +1005,164 @@ namespace RafiqPOS.Services
                 catch
                 {
                     report.TotalExpensesPiasters = 0;
+                }
+
+                report.NetOperatingProfitPiasters = report.GrossProfitPiasters - report.TotalExpensesPiasters;
+            }
+
+            return report;
+        }
+
+        /// <summary>
+        /// تقرير ضريبة القيمة المضافة (VAT) وفصلها التام عن إيرادات المتجر
+        /// </summary>
+        public VatReport GetVatReport(string period, string customFromDate, string customToDate)
+        {
+            var report = new VatReport
+            {
+                Period = period ?? "today"
+            };
+
+            string dateClause = GetDateClause(period, customFromDate, customToDate, "s.created_at");
+            if (period == "yesterday")
+            {
+                report.StartDate = DateTime.Now.AddDays(-1).ToString("yyyy-MM-dd");
+                report.EndDate = report.StartDate;
+            }
+            else if (period == "week")
+            {
+                report.StartDate = DateTime.Now.AddDays(-7).ToString("yyyy-MM-dd");
+                report.EndDate = DateTime.Now.ToString("yyyy-MM-dd");
+            }
+            else if (period == "month")
+            {
+                report.StartDate = DateTime.Now.AddDays(-30).ToString("yyyy-MM-dd");
+                report.EndDate = DateTime.Now.ToString("yyyy-MM-dd");
+            }
+            else if (period == "3months")
+            {
+                report.StartDate = DateTime.Now.AddDays(-90).ToString("yyyy-MM-dd");
+                report.EndDate = DateTime.Now.ToString("yyyy-MM-dd");
+            }
+            else if (period == "year")
+            {
+                report.StartDate = DateTime.Now.AddDays(-365).ToString("yyyy-MM-dd");
+                report.EndDate = DateTime.Now.ToString("yyyy-MM-dd");
+            }
+            else if (period == "custom" && !string.IsNullOrEmpty(customFromDate) && !string.IsNullOrEmpty(customToDate))
+            {
+                report.StartDate = customFromDate;
+                report.EndDate = customToDate;
+            }
+            else
+            {
+                report.StartDate = DateTime.Now.ToString("yyyy-MM-dd");
+                report.EndDate = report.StartDate;
+            }
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+
+                // 1. Sales VAT aggregates
+                string salesVatSql = string.Format(@"
+                    SELECT 
+                        COALESCE(SUM(s.total_piasters), 0) AS gross_sales,
+                        COALESCE(SUM(s.tax_piasters), 0) AS total_tax,
+                        COALESCE(SUM(CASE WHEN s.tax_piasters > 0 THEN s.total_piasters ELSE 0 END), 0) AS taxable_sales,
+                        COALESCE(SUM(CASE WHEN s.tax_piasters <= 0 THEN s.total_piasters ELSE 0 END), 0) AS tax_exempt_sales,
+                        COUNT(CASE WHEN s.tax_piasters > 0 THEN 1 END) AS taxable_inv_count
+                    FROM sales s
+                    WHERE {0}
+                      AND s.status != 'cancelled'
+                      AND s.id NOT LIKE 'demo_%'
+                      AND s.id NOT LIKE 'stress_%';
+                ", dateClause);
+
+                using (var cmd = new SQLiteCommand(salesVatSql, conn))
+                {
+                    BindCustomDates(cmd, period, customFromDate, customToDate);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            report.GrossSalesPiasters = Convert.ToInt64(reader["gross_sales"]);
+                            report.TotalTaxPiasters = Convert.ToInt64(reader["total_tax"]);
+                            report.TaxableSalesPiasters = Convert.ToInt64(reader["taxable_sales"]);
+                            report.TaxExemptSalesPiasters = Convert.ToInt64(reader["tax_exempt_sales"]);
+                            report.TaxableInvoicesCount = Convert.ToInt32(reader["taxable_inv_count"]);
+                        }
+                    }
+                }
+
+                // 2. Returns VAT aggregates
+                using (var checkRetCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='returns';", conn))
+                {
+                    if (checkRetCmd.ExecuteScalar() != null)
+                    {
+                        string retDateClause = dateClause.Replace("s.created_at", "r.created_at");
+                        string retVatSql = string.Format(@"
+                            SELECT COALESCE(SUM(
+                                CASE 
+                                    WHEN COALESCE(si.tax_piasters, 0) > 0 AND COALESCE(si.quantity_milli, 0) > 0
+                                    THEN (ri.quantity_milli * si.tax_piasters) / si.quantity_milli
+                                    ELSE 0 
+                                END
+                            ), 0) AS returns_tax
+                            FROM return_items ri
+                            JOIN returns r ON ri.return_id = r.id
+                            LEFT JOIN sale_items si ON ri.sale_item_id = si.id
+                            WHERE {0};
+                        ", retDateClause);
+
+                        using (var cmd = new SQLiteCommand(retVatSql, conn))
+                        {
+                            BindCustomDates(cmd, period, customFromDate, customToDate);
+                            object res = cmd.ExecuteScalar();
+                            if (res != null && res != DBNull.Value)
+                            {
+                                report.ReturnsTaxPiasters = Convert.ToInt64(res);
+                            }
+                        }
+                    }
+                }
+
+                report.NetSalesExcludingTaxPiasters = Math.Max(0, report.GrossSalesPiasters - report.TotalTaxPiasters);
+                report.NetVatPayablePiasters = Math.Max(0, report.TotalTaxPiasters - report.ReturnsTaxPiasters);
+
+                // 3. Tax Rate Breakdown (e.g. 14%, 0%)
+                string breakdownSql = string.Format(@"
+                    SELECT 
+                        COALESCE(si.tax_rate_percent, 0) AS rate,
+                        COALESCE(SUM(si.total_piasters), 0) AS taxable_amt,
+                        COALESCE(SUM(si.tax_piasters), 0) AS tax_amt,
+                        COUNT(*) AS items_count
+                    FROM sale_items si
+                    INNER JOIN sales s ON si.sale_id = s.id
+                    WHERE {0}
+                      AND s.status != 'cancelled'
+                      AND s.id NOT LIKE 'demo_%'
+                      AND s.id NOT LIKE 'stress_%'
+                    GROUP BY si.tax_rate_percent
+                    ORDER BY rate DESC;
+                ", dateClause);
+
+                using (var cmd = new SQLiteCommand(breakdownSql, conn))
+                {
+                    BindCustomDates(cmd, period, customFromDate, customToDate);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            report.Breakdown.Add(new VatRateBreakdownItem
+                            {
+                                TaxRatePercent = Convert.ToInt32(reader["rate"]),
+                                TaxableAmountPiasters = Convert.ToInt64(reader["taxable_amt"]),
+                                TaxAmountPiasters = Convert.ToInt64(reader["tax_amt"]),
+                                ItemsCount = Convert.ToInt32(reader["items_count"])
+                            });
+                        }
+                    }
                 }
             }
 
@@ -1245,8 +1416,56 @@ namespace RafiqPOS.Services
                     }
                 }
 
+                // 2.5 Load valid category IDs and existing product IDs for orphan detection
+                var validCategoryIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                try
+                {
+                    using (var catCmd = new SQLiteCommand("SELECT id FROM categories;", conn))
+                    using (var cr = catCmd.ExecuteReader())
+                    {
+                        while (cr.Read())
+                        {
+                            validCategoryIds.Add(cr["id"].ToString());
+                        }
+                    }
+                }
+                catch { }
+
+                var existingProductIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                try
+                {
+                    using (var epCmd = new SQLiteCommand("SELECT id FROM products;", conn))
+                    using (var er = epCmd.ExecuteReader())
+                    {
+                        while (er.Read())
+                        {
+                            existingProductIds.Add(er["id"].ToString());
+                        }
+                    }
+                }
+                catch { }
+
+                bool hasParentIdCol = false;
+                try
+                {
+                    using (var colCmd = new SQLiteCommand("PRAGMA table_info(products);", conn))
+                    using (var colReader = colCmd.ExecuteReader())
+                    {
+                        while (colReader.Read())
+                        {
+                            if (string.Equals(colReader["name"].ToString(), "parent_id", StringComparison.OrdinalIgnoreCase))
+                            {
+                                hasParentIdCol = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                catch { }
+
                 // 3. Load all active products with categories
-                string productsSql = @"
+                string parentCol = hasParentIdCol ? "COALESCE(p.parent_id, '') AS parent_id" : "'' AS parent_id";
+                string productsSql = string.Format(@"
                     SELECT 
                         p.id,
                         p.name,
@@ -1256,12 +1475,13 @@ namespace RafiqPOS.Services
                         p.stock_quantity_milli,
                         p.cost_piasters,
                         p.price_piasters,
-                        p.unit
+                        p.unit,
+                        {0}
                     FROM products p
                     LEFT JOIN categories c ON p.category_id = c.id
                     WHERE p.is_active = 1
                     ORDER BY p.name ASC;
-                ";
+                ", parentCol);
 
                 var productsWithIssues = new HashSet<string>();
 
@@ -1281,6 +1501,7 @@ namespace RafiqPOS.Services
                         long costPiasters = Convert.ToInt64(reader["cost_piasters"]);
                         long pricePiasters = Convert.ToInt64(reader["price_piasters"]);
                         string unit = reader["unit"] != DBNull.Value ? reader["unit"].ToString() : "piece";
+                        string parentId = reader["parent_id"] != DBNull.Value ? reader["parent_id"].ToString().Trim() : "";
 
                         bool productHasIssue = false;
 
@@ -1308,7 +1529,31 @@ namespace RafiqPOS.Services
                             });
                         }
 
-                        // Check B: Missing Barcode (no primary barcode and no secondary barcode)
+                        // Check B: Missing Selling Price (price <= 0)
+                        if (pricePiasters <= 0)
+                        {
+                            productHasIssue = true;
+                            report.MissingPriceCount++;
+                            report.Issues.Add(new DataQualityIssueItem
+                            {
+                                ProductId = productId,
+                                ProductName = productName,
+                                Barcode = barcode,
+                                CategoryId = categoryId,
+                                CategoryName = categoryName,
+                                StockMilli = stockMilli,
+                                CostPiasters = costPiasters,
+                                PricePiasters = pricePiasters,
+                                Unit = unit,
+                                IssueType = "missing_price",
+                                Severity = "critical",
+                                IssueTitle = "بدون سعر بيع (0 ج.م)",
+                                IssueDescription = "الصنف مسجل بدون سعر بيع أو بسعر صفر، مما يؤدي للبيع المجاني أو حدوث خطأ عند الكاشير.",
+                                SuggestedFix = "حدد سعر بيع مناسب للصنف."
+                            });
+                        }
+
+                        // Check C: Missing Barcode (no primary barcode and no secondary barcode)
                         bool hasSecondary = productSecondaryBarcodes.ContainsKey(productId) && productSecondaryBarcodes[productId].Count > 0;
                         bool hasBarcode = !string.IsNullOrEmpty(barcode) || hasSecondary;
                         if (!hasBarcode)
@@ -1334,7 +1579,7 @@ namespace RafiqPOS.Services
                             });
                         }
 
-                        // Check C: Duplicate Barcode
+                        // Check D: Duplicate Barcode
                         string dupBarcode = null;
                         if (!string.IsNullOrEmpty(barcode) && duplicateBarcodes.Contains(barcode))
                         {
@@ -1375,7 +1620,7 @@ namespace RafiqPOS.Services
                             });
                         }
 
-                        // Check D: Negative Stock
+                        // Check E: Negative Stock
                         if (stockMilli < 0)
                         {
                             productHasIssue = true;
@@ -1401,7 +1646,7 @@ namespace RafiqPOS.Services
                             });
                         }
 
-                        // Check E: Missing or Unassigned Category
+                        // Check F: Missing or Unassigned Category
                         bool isCategoryMissing = string.IsNullOrEmpty(categoryId) || categoryId == "cat_general" || string.IsNullOrEmpty(categoryName);
                         if (isCategoryMissing)
                         {
@@ -1426,8 +1671,55 @@ namespace RafiqPOS.Services
                             });
                         }
 
-                        // Check F: Price Below Cost
-                        if (costPiasters > 0 && pricePiasters < costPiasters)
+                        // Check G: Orphan Product (pointing to deleted category or deleted parent variant)
+                        if (!string.IsNullOrEmpty(categoryId) && categoryId != "cat_general" && !validCategoryIds.Contains(categoryId))
+                        {
+                            productHasIssue = true;
+                            report.OrphanProductCount++;
+                            report.Issues.Add(new DataQualityIssueItem
+                            {
+                                ProductId = productId,
+                                ProductName = productName,
+                                Barcode = barcode,
+                                CategoryId = categoryId,
+                                CategoryName = "تصنيف محذوف/مفقود",
+                                StockMilli = stockMilli,
+                                CostPiasters = costPiasters,
+                                PricePiasters = pricePiasters,
+                                Unit = unit,
+                                IssueType = "orphan_product",
+                                Severity = "warning",
+                                IssueTitle = "صنف يتيم (تصنيف محذوف)",
+                                IssueDescription = string.Format("الصنف مرتبط بتصنيف غير موجود في قاعدة البيانات ({0}).", categoryId),
+                                SuggestedFix = "أعد ربط الصنف بتصنيف سليم أو التصنيف العام."
+                            });
+                        }
+
+                        if (!string.IsNullOrEmpty(parentId) && !existingProductIds.Contains(parentId))
+                        {
+                            productHasIssue = true;
+                            report.OrphanProductCount++;
+                            report.Issues.Add(new DataQualityIssueItem
+                            {
+                                ProductId = productId,
+                                ProductName = productName,
+                                Barcode = barcode,
+                                CategoryId = categoryId,
+                                CategoryName = categoryName,
+                                StockMilli = stockMilli,
+                                CostPiasters = costPiasters,
+                                PricePiasters = pricePiasters,
+                                Unit = unit,
+                                IssueType = "orphan_product",
+                                Severity = "critical",
+                                IssueTitle = "متغير يتيم (الصنف الأساسي محذوف)",
+                                IssueDescription = "هذا المتغير مسجل بتبعية لصنف أب غير موجود بالنظام.",
+                                SuggestedFix = "اربط المتغير بالصنف الأساسي الصحيح أو حوله لصنف مستقل."
+                            });
+                        }
+
+                        // Check H: Price Below Cost
+                        if (costPiasters > 0 && pricePiasters > 0 && pricePiasters < costPiasters)
                         {
                             productHasIssue = true;
                             report.PriceBelowCostCount++;
@@ -1458,10 +1750,154 @@ namespace RafiqPOS.Services
                     }
                 }
 
+                // 4. Incomplete / Broken Invoices Check
+                try
+                {
+                    string incompleteSalesSql = @"
+                        SELECT s.id, s.invoice_number, s.total_piasters, s.subtotal_piasters, s.discount_piasters, s.tax_piasters,
+                               (SELECT COUNT(*) FROM sale_items si WHERE si.sale_id = s.id) AS items_count
+                        FROM sales s
+                        WHERE s.status = 'completed'
+                          AND (
+                              (SELECT COUNT(*) FROM sale_items si WHERE si.sale_id = s.id) = 0
+                              OR s.total_piasters != (s.subtotal_piasters - s.discount_piasters + s.tax_piasters)
+                          );
+                    ";
+                    using (var incCmd = new SQLiteCommand(incompleteSalesSql, conn))
+                    using (var incReader = incCmd.ExecuteReader())
+                    {
+                        while (incReader.Read())
+                        {
+                            report.IncompleteInvoicesCount++;
+                            string saleId = incReader["id"].ToString();
+                            int invNumber = Convert.ToInt32(incReader["invoice_number"]);
+                            long invTotal = Convert.ToInt64(incReader["total_piasters"]);
+                            int itemsCount = Convert.ToInt32(incReader["items_count"]);
+
+                            report.Issues.Add(new DataQualityIssueItem
+                            {
+                                ProductId = saleId,
+                                ProductName = string.Format("فاتورة مبيعات #{0}", invNumber),
+                                Barcode = "",
+                                CategoryId = "",
+                                CategoryName = "فواتير المبيعات",
+                                StockMilli = 0,
+                                CostPiasters = 0,
+                                PricePiasters = invTotal,
+                                Unit = "فاتورة",
+                                IssueType = "incomplete_sale",
+                                Severity = "critical",
+                                IssueTitle = itemsCount == 0 
+                                    ? string.Format("فاتورة فارغة بدون بنود (#{0})", invNumber) 
+                                    : string.Format("خلل إجمالي الفاتورة (#{0})", invNumber),
+                                IssueDescription = itemsCount == 0 
+                                    ? "فاتورة مبيعات مسجلة كمعتمدة ولكن لا تحتوي على أي أصناف مباعة، مما يشوه التقارير المالية."
+                                    : "المجموع الكلي للفاتورة لا يتطابق حسابياً مع حاصل جمع الأصناف والخصم والضريبة.",
+                                SuggestedFix = "قم بتصحيح الفاتورة محاسبياً بإلغائها أو تسويتها لمنع تشويه الحسابات."
+                            });
+                        }
+                    }
+                }
+                catch { }
+
+                // 5. Suspended Transactions Check (held_sales older than 24h)
+                try
+                {
+                    string heldSql = @"
+                        SELECT id, hold_label, total_piasters, created_at 
+                        FROM held_sales 
+                        WHERE created_at < datetime('now', '-24 hours')
+                        ORDER BY created_at ASC;
+                    ";
+                    using (var hCmd = new SQLiteCommand(heldSql, conn))
+                    using (var hReader = hCmd.ExecuteReader())
+                    {
+                        while (hReader.Read())
+                        {
+                            report.SuspendedTransactionsCount++;
+                            string hId = hReader["id"].ToString();
+                            string hLabel = hReader["hold_label"] != DBNull.Value ? hReader["hold_label"].ToString() : "";
+                            long hTotal = Convert.ToInt64(hReader["total_piasters"]);
+                            string hDate = hReader["created_at"].ToString();
+
+                            report.Issues.Add(new DataQualityIssueItem
+                            {
+                                ProductId = hId,
+                                ProductName = string.Format("عملية معلقة: {0}", string.IsNullOrEmpty(hLabel) ? hId : hLabel),
+                                Barcode = "",
+                                CategoryId = "",
+                                CategoryName = "عمليات معلقة",
+                                StockMilli = 0,
+                                CostPiasters = 0,
+                                PricePiasters = hTotal,
+                                Unit = "سلة معلقة",
+                                IssueType = "stale_held_sale",
+                                Severity = "info",
+                                IssueTitle = string.Format("عملية معلقة قديمة ({0})", string.IsNullOrEmpty(hLabel) ? hId : hLabel),
+                                IssueDescription = string.Format("سلة بيع معلقة محفوظة منذ {0} ولم تستأنف أو تفرغ.", hDate),
+                                SuggestedFix = "استأنف العملية بالكاشير أو احذفها إذا لم يعد العميل راغباً بشرائها."
+                            });
+                        }
+                    }
+                }
+                catch { }
+
+                // 6. Accounting Imbalances Check (Customer Debts vs Immutable Ledger, and Shift Drawer Equation)
+                try
+                {
+                    string custBalSql = @"
+                        SELECT c.id, c.name, c.balance_piasters,
+                               COALESCE(SUM(
+                                   CASE 
+                                       WHEN cl.type IN ('sale', 'opening_balance', 'debit_adjustment') THEN cl.amount_piasters
+                                       WHEN cl.type IN ('payment', 'refund', 'credit_adjustment') THEN -cl.amount_piasters
+                                       ELSE 0
+                                   END
+                               ), 0) AS calculated_balance
+                        FROM customers c
+                        LEFT JOIN customer_ledger cl ON c.id = cl.customer_id
+                        GROUP BY c.id
+                        HAVING c.balance_piasters != calculated_balance;
+                    ";
+                    using (var cbCmd = new SQLiteCommand(custBalSql, conn))
+                    using (var cbReader = cbCmd.ExecuteReader())
+                    {
+                        while (cbReader.Read())
+                        {
+                            report.AccountingImbalanceCount++;
+                            string cId = cbReader["id"].ToString();
+                            string cName = cbReader["name"].ToString();
+                            long storedBal = Convert.ToInt64(cbReader["balance_piasters"]);
+                            long calcBal = Convert.ToInt64(cbReader["calculated_balance"]);
+                            long diff = storedBal - calcBal;
+
+                            report.Issues.Add(new DataQualityIssueItem
+                            {
+                                ProductId = cId,
+                                ProductName = string.Format("حساب العميل: {0}", cName),
+                                Barcode = "",
+                                CategoryId = "",
+                                CategoryName = "حسابات الآجل والديون",
+                                StockMilli = 0,
+                                CostPiasters = 0,
+                                PricePiasters = storedBal,
+                                Unit = "عميل",
+                                IssueType = "accounting_imbalance",
+                                Severity = "critical",
+                                IssueTitle = string.Format("خلل توازن حساب العميل ({0})", cName),
+                                IssueDescription = string.Format("الرصيد الدفتري المسجل ({0:N2} ج.م) يختلف عن مجموع قيود كشف الحساب ({1:N2} ج.م) بفرق ({2:N2} ج.م).",
+                                    storedBal / 100.0, calcBal / 100.0, diff / 100.0),
+                                SuggestedFix = "قم بتنفيذ التسوية المحاسبية التلقائية لمزامنة الرصيد مع القيود الفعلية غير القابلة للتعديل."
+                            });
+                        }
+                    }
+                }
+                catch { }
+
                 report.TotalIssuesCount = report.Issues.Count;
                 if (report.TotalProductsAudited > 0)
                 {
-                    report.HealthyProductsCount = report.TotalProductsAudited - productsWithIssues.Count;
+                    report.HealthyProductsCount = Math.Max(0, report.TotalProductsAudited - productsWithIssues.Count);
                     report.HealthScorePercent = Math.Max(0, (report.HealthyProductsCount * 100) / report.TotalProductsAudited);
                 }
                 else
@@ -1472,6 +1908,124 @@ namespace RafiqPOS.Services
             }
 
             return report;
+        }
+
+        /// <summary>
+        /// المعالجة والتسوية المحاسبية التلقائية لمشاكل البيانات والفواتير غير المكتملة والأصناف اليتيمة
+        /// </summary>
+        public DataQualityRepairResult RepairDataQualityIssues()
+        {
+            var result = new DataQualityRepairResult { Success = true };
+
+            lock (SaleService.FinancialWriteLock)
+            {
+                using (var conn = new SQLiteConnection(_connectionString))
+                {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction())
+                    {
+                        try
+                        {
+                            // 1. Repair incomplete/empty sales: Mark empty completed sales with 0 items as 'cancelled'
+                            string fixEmptySalesSql = @"
+                                UPDATE sales 
+                                SET status = 'cancelled', 
+                                    notes = COALESCE(notes, '') || ' [تم الإلغاء آلياً لعدم وجود بنود مباعة]'
+                                WHERE status = 'completed'
+                                  AND id NOT IN (SELECT DISTINCT sale_id FROM sale_items);
+                            ";
+                            using (var cmd = new SQLiteCommand(fixEmptySalesSql, conn, trans))
+                            {
+                                result.RepairedInvoicesCount = cmd.ExecuteNonQuery();
+                            }
+
+                            // 2. Repair orphan products pointing to deleted categories: reassign to cat_general
+                            string ensureCatSql = @"
+                                INSERT OR IGNORE INTO categories (id, name, created_at, updated_at)
+                                VALUES ('cat_general', 'عام', datetime('now'), datetime('now'));
+                            ";
+                            using (var cmd = new SQLiteCommand(ensureCatSql, conn, trans))
+                            {
+                                cmd.ExecuteNonQuery();
+                            }
+
+                            string fixOrphanCatsSql = @"
+                                UPDATE products 
+                                SET category_id = 'cat_general',
+                                    updated_at = datetime('now')
+                                WHERE is_active = 1 
+                                  AND category_id IS NOT NULL 
+                                  AND category_id != '' 
+                                  AND category_id != 'cat_general'
+                                  AND category_id NOT IN (SELECT id FROM categories);
+                            ";
+                            using (var cmd = new SQLiteCommand(fixOrphanCatsSql, conn, trans))
+                            {
+                                result.ReassignedOrphanProductsCount = cmd.ExecuteNonQuery();
+                            }
+
+                            // 3. Reconcile customer debt balances with immutable ledger
+                            string findDiscrepanciesSql = @"
+                                SELECT c.id,
+                                       COALESCE(SUM(
+                                           CASE 
+                                               WHEN cl.type IN ('sale', 'opening_balance', 'debit_adjustment') THEN cl.amount_piasters
+                                               WHEN cl.type IN ('payment', 'refund', 'credit_adjustment') THEN -cl.amount_piasters
+                                               ELSE 0
+                                           END
+                                       ), 0) AS calculated_balance
+                                FROM customers c
+                                LEFT JOIN customer_ledger cl ON c.id = cl.customer_id
+                                GROUP BY c.id
+                                HAVING c.balance_piasters != calculated_balance;
+                            ";
+                            var custFixList = new List<KeyValuePair<string, long>>();
+                            using (var cmd = new SQLiteCommand(findDiscrepanciesSql, conn, trans))
+                            using (var r = cmd.ExecuteReader())
+                            {
+                                while (r.Read())
+                                {
+                                    custFixList.Add(new KeyValuePair<string, long>(r["id"].ToString(), Convert.ToInt64(r["calculated_balance"])));
+                                }
+                            }
+
+                            foreach (var pair in custFixList)
+                            {
+                                string updateBalSql = "UPDATE customers SET balance_piasters = @bal WHERE id = @id;";
+                                using (var cmd = new SQLiteCommand(updateBalSql, conn, trans))
+                                {
+                                    cmd.Parameters.AddWithValue("@bal", pair.Value);
+                                    cmd.Parameters.AddWithValue("@id", pair.Key);
+                                    cmd.ExecuteNonQuery();
+                                }
+                                result.ReconciledCustomersCount++;
+                            }
+
+                            // 4. Clean stale held sales older than 7 days
+                            string cleanStaleHeldSql = @"
+                                DELETE FROM held_sales 
+                                WHERE created_at < datetime('now', '-7 days');
+                            ";
+                            using (var cmd = new SQLiteCommand(cleanStaleHeldSql, conn, trans))
+                            {
+                                result.ClearedStaleHeldSalesCount = cmd.ExecuteNonQuery();
+                            }
+
+                            trans.Commit();
+                            result.Message = string.Format("تمت المعالجة بنجاح: تصحيح {0} فاتورة، تسوية {1} حساب عميل، إعادة ربط {2} صنف يتيم، وتنظيف {3} سلة معلقة قديمة.",
+                                result.RepairedInvoicesCount, result.ReconciledCustomersCount, result.ReassignedOrphanProductsCount, result.ClearedStaleHeldSalesCount);
+                        }
+                        catch (Exception ex)
+                        {
+                            trans.Rollback();
+                            result.Success = false;
+                            result.Message = "فشل في عملية المعالجة والتسوية المحاسبية: " + ex.Message;
+                        }
+                    }
+                }
+            }
+
+            return result;
         }
 
         // ==========================================

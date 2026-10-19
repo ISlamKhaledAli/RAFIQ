@@ -29,6 +29,16 @@ namespace RafiqPOS.Models
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
 
+        [JsonProperty("userId")]
+        public string UserId { get; set; }
+
+        [JsonProperty("userName")]
+        public string UserName { get; set; }
+
+        [JsonProperty("batchId")]
+        public string BatchId { get; set; }
+
+
         // Presentation helpers
         [JsonProperty("oldPriceFormatted")]
         public string OldPriceFormatted

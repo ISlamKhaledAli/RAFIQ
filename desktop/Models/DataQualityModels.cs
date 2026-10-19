@@ -87,6 +87,21 @@ namespace RafiqPOS.Models
         [JsonProperty("priceBelowCostCount")]
         public int PriceBelowCostCount { get; set; }
 
+        [JsonProperty("missingPriceCount")]
+        public int MissingPriceCount { get; set; }
+
+        [JsonProperty("orphanProductCount")]
+        public int OrphanProductCount { get; set; }
+
+        [JsonProperty("incompleteInvoicesCount")]
+        public int IncompleteInvoicesCount { get; set; }
+
+        [JsonProperty("suspendedTransactionsCount")]
+        public int SuspendedTransactionsCount { get; set; }
+
+        [JsonProperty("accountingImbalanceCount")]
+        public int AccountingImbalanceCount { get; set; }
+
         [JsonProperty("issues")]
         public List<DataQualityIssueItem> Issues { get; set; }
 
@@ -94,5 +109,29 @@ namespace RafiqPOS.Models
         {
             Issues = new List<DataQualityIssueItem>();
         }
+    }
+
+    /// <summary>
+    /// نتيجة عملية المعالجة والتسوية المحاسبية التلقائية لمشاكل جودة البيانات
+    /// </summary>
+    public class DataQualityRepairResult
+    {
+        [JsonProperty("success")]
+        public bool Success { get; set; }
+
+        [JsonProperty("message")]
+        public string Message { get; set; }
+
+        [JsonProperty("repairedInvoicesCount")]
+        public int RepairedInvoicesCount { get; set; }
+
+        [JsonProperty("reconciledCustomersCount")]
+        public int ReconciledCustomersCount { get; set; }
+
+        [JsonProperty("reassignedOrphanProductsCount")]
+        public int ReassignedOrphanProductsCount { get; set; }
+
+        [JsonProperty("clearedStaleHeldSalesCount")]
+        public int ClearedStaleHeldSalesCount { get; set; }
     }
 }

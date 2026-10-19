@@ -118,6 +118,12 @@ namespace RafiqPOS.Services
                 var epayRepo = new EpayRepository(tempConnStr, auditRepo);
                 TestEpaySmartPricingAndTransactionsLifecycle(epayRepo, auditRepo, result);
 
+                // =========================================================================
+                // Scenario 10: Onboarding Demo Data & Zero-Residue Cleanup
+                // =========================================================================
+                var demoDataService = new DemoDataService(tempConnStr, settingsRepo, auditRepo);
+                TestOnboardingDemoDataAndResidueCleanup(demoDataService, tempConnStr, result);
+
                 result.Message = string.Format("اكتمل فحص الحالات المتقدمة بنجاح: تم اجتياز {0} من اصل {1} تحقق.", result.PassedAssertions, result.TotalAssertions);
             }
             catch (Exception ex)
@@ -191,7 +197,7 @@ namespace RafiqPOS.Services
                     ItemsCount = 1,
                     SubtotalPiasters = 5000 * (i + 1),
                     TotalPiasters = 5000 * (i + 1),
-                    CartJson = "[]"
+                    CartJson = "[{\"productId\":\"p_bulk\",\"name\":\"صنف معلق\",\"quantity\":1,\"price\":5000}]"
                 });
             }
             var bulkList = heldService.GetHeldSales();
@@ -347,6 +353,28 @@ namespace RafiqPOS.Services
             });
             Assert(phonesResult != null && phonesResult.Success, "التبديل الى قالب الهواتف والالكترونيات بنجاح", result);
             Assert(settingsRepo.Get("feature_scale_weight", "0") == "0", "ايقاف ميزة الميزان في قالب الالكترونيات", result);
+
+            // 5. Switch to Pharmacy template (pharmacy)
+            var pharmResult = templateService.ApplyTemplate(new ApplyTemplateRequest
+            {
+                TemplateId = "pharmacy",
+                StoreName = "صيدلية الشفاء والبركة"
+            });
+            Assert(pharmResult != null && pharmResult.Success, "التبديل الى قالب الصيدلية ومستحضرات التجميل بنجاح", result);
+            Assert(settingsRepo.Get("feature_expiry_dates", "0") == "1", "تفعيل ميزة تواريخ الصلاحية للأدوية في قالب الصيدلية", result);
+            Assert(settingsRepo.Get("feature_multi_units", "0") == "1", "تفعيل ميزة تعدد الوحدات في قالب الصيدلية", result);
+            Assert(settingsRepo.Get("feature_scale_weight", "0") == "0", "ايقاف ميزة الميزان في قالب الصيدلية", result);
+
+            // 6. Switch to Cafe & Restaurant template (cafe_restaurant)
+            var cafeResult = templateService.ApplyTemplate(new ApplyTemplateRequest
+            {
+                TemplateId = "cafe_restaurant",
+                StoreName = "كافيه ومطعم رفيق"
+            });
+            Assert(cafeResult != null && cafeResult.Success, "التبديل الى قالب الكافيه والمطاعم بنجاح", result);
+            Assert(settingsRepo.Get("feature_fast_buttons", "0") == "1", "تفعيل ميزة الأزرار السريعة في قالب الكافيه والمطاعم", result);
+            Assert(settingsRepo.Get("feature_scale_weight", "0") == "0", "ايقاف ميزة الميزان في قالب الكافيه والمطاعم", result);
+            Assert(settingsRepo.Get("feature_matrix_variants", "0") == "0", "ايقاف ميزة المقاسات في قالب الكافيه والمطاعم", result);
         }
 
         private static void TestExpensesAndDailyClosing(ExpenseService expenseService, DailyClosingService closingService, string connStr, SeniorMasterEdgeCaseResult result)
@@ -375,6 +403,7 @@ namespace RafiqPOS.Services
                 AmountPiasters = 3500, // 35 EGP
                 Category = "بوفيه وضيافة",
                 Notes = "شاي وسكر للمحل",
+                Source = "safe",
                 CreatedBy = "الكاشير",
                 BusinessDate = today
             });
@@ -385,6 +414,7 @@ namespace RafiqPOS.Services
                 AmountPiasters = 1500, // 15 EGP
                 Category = "نظافة",
                 Notes = "منظفات ارضيات",
+                Source = "safe",
                 CreatedBy = "الكاشير",
                 BusinessDate = today
             });
@@ -415,6 +445,7 @@ namespace RafiqPOS.Services
                         AmountPiasters = 1000, // 10 EGP
                         Category = "نثريات متوازية",
                         Notes = "مصروف متزامن " + idx,
+                        Source = "safe",
                         BusinessDate = today
                     });
                     if (exp != null)
@@ -517,13 +548,33 @@ namespace RafiqPOS.Services
             }
             Assert(threwDeleteProtected, "منع الحذف النهائي للمورد لوجود حركات مالية مسجلة عليه وحماية البيانات", result);
 
-            // 5. Archiving supplier
+            // 5. Archiving supplier with active balance MUST throw
+            bool threwArchiveWithBalance = false;
+            try
+            {
+                supplierService.Archive(supplier.Id);
+            }
+            catch (InvalidOperationException)
+            {
+                threwArchiveWithBalance = true;
+            }
+            Assert(threwArchiveWithBalance, "منع ارشفة المورد لوجود رصيد مالي قائم بذمته", result);
+
+            // Settle balance by canceling payment before archiving
+            var txs = supplierService.GetTransactions(supplier.Id);
+            Assert(txs != null && txs.Count > 0, "استرجاع سجل حركات المورد للالغاء والتسوية", result);
+            supplierService.CancelPayment(supplier.Id, txs[0].Id, "تسوية الحساب للارشفة");
+
+            var supSettled = supplierService.GetById(supplier.Id);
+            Assert(supSettled != null && supSettled.BalancePiasters == 0, "تصفير رصيد المورد بنجاح (0 قرش)", result);
+
+            // 6. Archiving supplier
             bool archiveOk = supplierService.Archive(supplier.Id);
-            Assert(archiveOk, "ارشفة المورد بنجاح بدلا من الحذف للحفاظ على القيود المحاسبية", result);
+            Assert(archiveOk, "ارشفة المورد بنجاح بعد تصفير الرصيد للحفاظ على القيود المحاسبية", result);
             var archivedSup = supplierService.GetById(supplier.Id);
             Assert(archivedSup != null && !archivedSup.IsActive, "تاكيد حالة المورد المؤرشف (غير نشط)", result);
 
-            // 6. Restoring supplier
+            // 7. Restoring supplier
             bool restoreOk = supplierService.Restore(supplier.Id);
             Assert(restoreOk, "استعادة المورد المؤرشف بنجاح", result);
             var restoredSup = supplierService.GetById(supplier.Id);
@@ -1217,6 +1268,62 @@ namespace RafiqPOS.Services
             });
             prodRepo.ImportBatchAtomic(items, "skip");
             return prodRepo.GetByBarcode(barcode);
+        }
+
+        private static void TestOnboardingDemoDataAndResidueCleanup(DemoDataService demoService, string connStr, SeniorMasterEdgeCaseResult result)
+        {
+            // 1. Initial status before loading demo data
+            var initialStatus = demoService.GetStatus();
+            Assert(initialStatus != null && !initialStatus.HasDemoData && initialStatus.DemoProductsCount == 0, "التحقق من خلو النظام من اي بيانات تجريبية مسبقة", result);
+
+            // 2. Load Pharmacy demo data
+            var loadResult = demoService.LoadDemoData("pharmacy");
+            Assert(loadResult != null && loadResult.Success && loadResult.ProductsAdded > 0, "تحميل البيانات التجريبية لنشاط الصيدلية: " + (loadResult != null ? loadResult.Message : "null"), result);
+            Assert(loadResult.CustomersAdded == 2 && loadResult.SalesAdded == 1, "توليد عميلين وفاتورة تدريبية تجريبية", result);
+
+            var activeStatus = demoService.GetStatus();
+            Assert(activeStatus.HasDemoData && activeStatus.DemoProductsCount > 0, "رصد وجود بيانات تجريبية نشطة في النظام", result);
+
+            // 3. Clear demo data (Zero-Residue cleanup)
+            var clearResult = demoService.ClearDemoData();
+            Assert(clearResult != null && clearResult.Success, "تصفير ومسح البيانات التجريبية بنقرة واحدة", result);
+            Assert(clearResult.DeletedProducts > 0 && clearResult.DeletedSales > 0, "حذف كافة المنتجات والفواتير التجريبية", result);
+
+            // 4. Verify zero residue in database and counter reset
+            using (var conn = new SQLiteConnection(connStr))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM products WHERE id LIKE 'demo_%' OR name LIKE '%تجريبي%';", conn))
+                {
+                    int remainingProds = Convert.ToInt32(cmd.ExecuteScalar());
+                    Assert(remainingProds == 0, "تطهير كامل لجدول المنتجات من اي رواسب تجريبية (0 متبقي)", result);
+                }
+
+                using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM sales WHERE id LIKE 'demo_%';", conn))
+                {
+                    int remainingSales = Convert.ToInt32(cmd.ExecuteScalar());
+                    Assert(remainingSales == 0, "تطهير كامل لجدول المبيعات من فواتير التدريب (0 متبقي)", result);
+                }
+
+                using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM sale_items WHERE sale_id LIKE 'demo_%' OR id LIKE 'demo_%';", conn))
+                {
+                    int remainingItems = Convert.ToInt32(cmd.ExecuteScalar());
+                    Assert(remainingItems == 0, "تطهير بنود الفواتير التجريبية بالكامل", result);
+                }
+
+                using (var cmd = new SQLiteCommand("SELECT COUNT(*) FROM customers WHERE id LIKE 'demo_%';", conn))
+                {
+                    int remainingCusts = Convert.ToInt32(cmd.ExecuteScalar());
+                    Assert(remainingCusts == 0, "تطهير العملاء التجريبيين بالكامل", result);
+                }
+
+                using (var cmd = new SQLiteCommand("SELECT current_value FROM counters WHERE name = 'invoice_number';", conn))
+                {
+                    object val = cmd.ExecuteScalar();
+                    long currentInvoiceCounter = val != null && val != DBNull.Value ? Convert.ToInt64(val) : 0L;
+                    Assert(currentInvoiceCounter < 99901, "تصفير ومزامنة عداد الفواتير بعد حذف الفواتير التجريبية لمنع تشويه الترقيم للمتجر الجديد", result);
+                }
+            }
         }
 
         private static void Assert(bool condition, string assertionName, SeniorMasterEdgeCaseResult result)

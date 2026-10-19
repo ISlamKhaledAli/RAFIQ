@@ -317,6 +317,8 @@ namespace RafiqPOS.Services
             {
                 try
                 {
+                    string actorId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
+                    string actorName = SecurityService.CurrentUser != null ? (SecurityService.CurrentUser.DisplayName ?? SecurityService.CurrentUser.Username) : "المدير";
                     if (existing != null)
                     {
                         if (existing.PricePiasters != product.PricePiasters || existing.CostPiasters != product.CostPiasters)
@@ -328,7 +330,9 @@ namespace RafiqPOS.Services
                                 NewPricePiasters = product.PricePiasters,
                                 OldCostPiasters = existing.CostPiasters,
                                 NewCostPiasters = product.CostPiasters,
-                                ChangeReason = "تعديل سعر وتكلفة يدوي"
+                                ChangeReason = "تعديل سعر وتكلفة يدوي",
+                                UserId = actorId,
+                                UserName = actorName
                             });
                         }
                     }
@@ -341,7 +345,9 @@ namespace RafiqPOS.Services
                             NewPricePiasters = product.PricePiasters,
                             OldCostPiasters = 0,
                             NewCostPiasters = product.CostPiasters,
-                            ChangeReason = "تسجيل السعر الأولي للصنف الجديد"
+                            ChangeReason = "تسجيل السعر الأولي للصنف الجديد",
+                            UserId = actorId,
+                            UserName = actorName
                         });
                     }
                 }
@@ -448,6 +454,9 @@ namespace RafiqPOS.Services
 
             switch (rule)
             {
+                case "quarter_pound": // 25 piasters (ربع جنيه)
+                    return ((piasters + 12) / 25) * 25;
+
                 case "half_pound": // 50 piasters
                     return ((piasters + 25) / 50) * 50;
 
@@ -591,6 +600,15 @@ namespace RafiqPOS.Services
             lock (SaleService.FinancialWriteLock)
             {
                 return _repo.ApplyBulkPriceAdjustment(request.Items, request.Reason, request.UserId);
+            }
+        }
+
+        public BulkPriceRevertResult RevertBulkPriceAdjustment(BulkPriceRevertRequest request)
+        {
+            if (request == null) throw new ArgumentNullException("request");
+            lock (SaleService.FinancialWriteLock)
+            {
+                return _repo.RevertBulkPriceAdjustment(request.BatchId, request.UserId);
             }
         }
 

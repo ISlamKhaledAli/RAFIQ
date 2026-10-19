@@ -29,10 +29,12 @@ namespace RafiqPOS.Repositories
             string sql = @"
                 INSERT INTO product_price_history (
                     id, product_id, old_price_piasters, new_price_piasters, 
-                    old_cost_piasters, new_cost_piasters, change_reason, created_at
+                    old_cost_piasters, new_cost_piasters, change_reason, created_at,
+                    user_id, user_name, batch_id
                 ) VALUES (
                     @id, @productId, @oldPrice, @newPrice, 
-                    @oldCost, @newCost, @reason, @createdAt
+                    @oldCost, @newCost, @reason, @createdAt,
+                    @userId, @userName, @batchId
                 );
             ";
 
@@ -48,6 +50,9 @@ namespace RafiqPOS.Repositories
                     cmd.Parameters.AddWithValue("@newCost", entry.NewCostPiasters);
                     cmd.Parameters.AddWithValue("@reason", (object)entry.ChangeReason ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@createdAt", entry.CreatedAt);
+                    cmd.Parameters.AddWithValue("@userId", (object)entry.UserId ?? "");
+                    cmd.Parameters.AddWithValue("@userName", (object)entry.UserName ?? "");
+                    cmd.Parameters.AddWithValue("@batchId", (object)entry.BatchId ?? "");
                     cmd.ExecuteNonQuery();
                 }
             }
@@ -66,6 +71,9 @@ namespace RafiqPOS.Repositories
                         cmd.Parameters.AddWithValue("@newCost", entry.NewCostPiasters);
                         cmd.Parameters.AddWithValue("@reason", (object)entry.ChangeReason ?? DBNull.Value);
                         cmd.Parameters.AddWithValue("@createdAt", entry.CreatedAt);
+                        cmd.Parameters.AddWithValue("@userId", (object)entry.UserId ?? "");
+                        cmd.Parameters.AddWithValue("@userName", (object)entry.UserName ?? "");
+                        cmd.Parameters.AddWithValue("@batchId", (object)entry.BatchId ?? "");
                         cmd.ExecuteNonQuery();
                     }
                 }
@@ -94,6 +102,25 @@ namespace RafiqPOS.Repositories
                     {
                         while (reader.Read())
                         {
+                            string uId = "";
+                            string uName = "";
+                            string bId = "";
+                            try
+                            {
+                                if (reader["user_id"] != DBNull.Value) uId = reader["user_id"].ToString();
+                            }
+                            catch { }
+                            try
+                            {
+                                if (reader["user_name"] != DBNull.Value) uName = reader["user_name"].ToString();
+                            }
+                            catch { }
+                            try
+                            {
+                                if (reader["batch_id"] != DBNull.Value) bId = reader["batch_id"].ToString();
+                            }
+                            catch { }
+
                             results.Add(new ProductPriceHistory
                             {
                                 Id = reader["id"].ToString(),
@@ -103,7 +130,10 @@ namespace RafiqPOS.Repositories
                                 OldCostPiasters = Convert.ToInt64(reader["old_cost_piasters"]),
                                 NewCostPiasters = Convert.ToInt64(reader["new_cost_piasters"]),
                                 ChangeReason = reader["change_reason"] != DBNull.Value ? reader["change_reason"].ToString() : "",
-                                CreatedAt = reader["created_at"].ToString()
+                                CreatedAt = reader["created_at"].ToString(),
+                                UserId = uId,
+                                UserName = uName,
+                                BatchId = bId
                             });
                         }
                     }

@@ -46,6 +46,28 @@ namespace RafiqPOS.Database
                     // Column already exists, safe to ignore
                 }
 
+                // Ensure price history has audit and batch tracking columns (Feature #116 Stabilization)
+                try
+                {
+                    using (var cmd = new SQLiteCommand("ALTER TABLE product_price_history ADD COLUMN user_id TEXT DEFAULT '';", conn)) { cmd.ExecuteNonQuery(); }
+                }
+                catch { }
+                try
+                {
+                    using (var cmd = new SQLiteCommand("ALTER TABLE product_price_history ADD COLUMN user_name TEXT DEFAULT '';", conn)) { cmd.ExecuteNonQuery(); }
+                }
+                catch { }
+                try
+                {
+                    using (var cmd = new SQLiteCommand("ALTER TABLE product_price_history ADD COLUMN batch_id TEXT DEFAULT '';", conn)) { cmd.ExecuteNonQuery(); }
+                }
+                catch { }
+                try
+                {
+                    using (var cmd = new SQLiteCommand("CREATE INDEX IF NOT EXISTS idx_price_history_batch_id ON product_price_history(batch_id);", conn)) { cmd.ExecuteNonQuery(); }
+                }
+                catch { }
+
                 // 3. Get current version
                 int currentVersion = 0;
                 using (var cmd = new SQLiteCommand("SELECT COALESCE(MAX(version), 0) FROM schema_migrations;", conn))
@@ -882,11 +904,27 @@ namespace RafiqPOS.Database
 
                     // 13. Ensure Enterprise High-Performance Covering Indexes exist (Feature #129 / Task 129-3)
                     using (var idxCmd = new SQLiteCommand(@"
+                        DROP INDEX IF EXISTS idx_sales_date_expr;
+                        DROP INDEX IF EXISTS idx_sales_date_utc_expr;
+                        DROP INDEX IF EXISTS idx_returns_date_expr;
+                        DROP INDEX IF EXISTS idx_expenses_date_expr;
+                        DROP INDEX IF EXISTS idx_customer_ledger_date_expr;
+
                         CREATE INDEX IF NOT EXISTS idx_stock_movements_covering ON stock_movements(product_id, quantity_milli);
                         CREATE INDEX IF NOT EXISTS idx_sales_status ON sales(status);
                         CREATE INDEX IF NOT EXISTS idx_sales_customer_id ON sales(customer_id);
                         CREATE INDEX IF NOT EXISTS idx_sales_payment_method ON sales(payment_method);
+                        CREATE INDEX IF NOT EXISTS idx_sales_created_at ON sales(created_at);
+                        CREATE INDEX IF NOT EXISTS idx_sales_created_status ON sales(created_at, status);
+                        CREATE INDEX IF NOT EXISTS idx_sales_status_created ON sales(status, created_at);
+                        CREATE INDEX IF NOT EXISTS idx_sales_date_substr ON sales(substr(created_at, 1, 10), status);
+                        CREATE INDEX IF NOT EXISTS idx_sales_tax_piasters ON sales(tax_piasters);
                         CREATE INDEX IF NOT EXISTS idx_sale_items_product_id ON sale_items(product_id);
+                        CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items(sale_id);
+                        CREATE INDEX IF NOT EXISTS idx_sale_items_perf ON sale_items(sale_id, unit_cost_piasters, quantity_milli);
+                        CREATE INDEX IF NOT EXISTS idx_returns_created_at ON returns(created_at);
+                        CREATE INDEX IF NOT EXISTS idx_expenses_created_cancelled ON expenses(created_at, is_cancelled);
+                        CREATE INDEX IF NOT EXISTS idx_customer_ledger_created_type ON customer_ledger(created_at, type);
                         CREATE INDEX IF NOT EXISTS idx_product_barcodes_covering ON product_barcodes(barcode, product_id);
                     ", conn, trans))
                     {
@@ -2227,11 +2265,15 @@ namespace RafiqPOS.Database
                             new_cost_piasters INTEGER NOT NULL,
                             change_reason TEXT,
                             created_at TEXT NOT NULL,
+                            user_id TEXT DEFAULT '',
+                            user_name TEXT DEFAULT '',
+                            batch_id TEXT DEFAULT '',
                             FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
                         );
 
                         CREATE INDEX IF NOT EXISTS idx_price_history_product ON product_price_history(product_id);
                         CREATE INDEX IF NOT EXISTS idx_price_history_created_at ON product_price_history(created_at);
+                        CREATE INDEX IF NOT EXISTS idx_price_history_batch_id ON product_price_history(batch_id);
 
                         INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
                         VALUES (6, 'product_price_history', datetime('now'));

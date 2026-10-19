@@ -13,10 +13,16 @@ import {
   Boxes, 
   Layers, 
   ExternalLink,
-  CheckCircle2
+  CheckCircle2,
+  Wrench,
+  Scale,
+  FileX,
+  Clock,
+  FolderX,
+  DollarSign
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
-import type { DataQualityReport, DataQualityIssueItem, DataQualityIssueType, BulkGenerateBarcodesResult, AssignBarcodeResult } from '../types/models';
+import type { DataQualityReport, DataQualityIssueItem, DataQualityIssueType, BulkGenerateBarcodesResult, AssignBarcodeResult, DataQualityRepairResult } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
 import { rafiqAlert } from '../utils/dialogService';
 import { useModalDismiss } from '../hooks/useModalDismiss';
@@ -39,6 +45,7 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeFilter, setActiveFilter] = useState<'all' | DataQualityIssueType>('all');
   const [isBulkGenerating, setIsBulkGenerating] = useState<boolean>(false);
+  const [isRepairing, setIsRepairing] = useState<boolean>(false);
   const [assigningProductId, setAssigningProductId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
@@ -117,6 +124,37 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
     }
   };
 
+  const handleRepairDataQuality = async () => {
+    try {
+      setIsRepairing(true);
+      const res = await invoke<DataQualityRepairResult>('reports:repairDataQuality');
+      if (res && res.success) {
+        await loadData();
+        onProductUpdated?.();
+        await rafiqAlert({
+          title: 'تمت التسوية والمعالجة بنجاح',
+          message: res.message,
+          variant: 'success'
+        });
+      } else {
+        await rafiqAlert({
+          title: 'تنبيه',
+          message: res?.message || 'فشلت عملية التسوية المحاسبية.',
+          variant: 'warning'
+        });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await rafiqAlert({
+        title: 'خطأ',
+        message: `حدث خطأ أثناء التسوية: ${msg}`,
+        variant: 'error'
+      });
+    } finally {
+      setIsRepairing(false);
+    }
+  };
+
   useEffect(() => {
     if (isOpen) {
       void loadData();
@@ -190,6 +228,17 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void handleRepairDataQuality()}
+              disabled={isRepairing || loading}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-paid hover:bg-paid/90 text-white transition flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50"
+              title="إصلاح الفواتير غير المكتملة، تسوية حسابات العملاء مع كشف الحساب، وإعادة ربط الأصناف اليتيمة"
+            >
+              <Wrench className={`w-3.5 h-3.5 ${isRepairing ? 'animate-spin' : ''}`} />
+              <span>{isRepairing ? 'جاري التسوية...' : 'تسوية ومعالجة آلية'}</span>
+            </button>
+
             <button
               type="button"
               onClick={() => void loadData()}
@@ -280,7 +329,7 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
           </div>
 
           {/* Quick Category Filter Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 print:hidden">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2 print:hidden">
             <button
               type="button"
               onClick={() => setActiveFilter('all')}
@@ -291,7 +340,7 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
               }`}
             >
               <div className="flex items-center justify-between text-xs font-bold mb-1">
-                <span>كل المشاكل</span>
+                <span>كل الملاحظات</span>
                 <Boxes className="w-3.5 h-3.5 opacity-80" />
               </div>
               <span className="text-base font-black font-mono leading-none block">
@@ -301,55 +350,73 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
 
             <button
               type="button"
-              onClick={() => setActiveFilter('missing_cost')}
+              onClick={() => setActiveFilter('missing_price')}
               className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
-                activeFilter === 'missing_cost'
-                  ? 'bg-warn text-white border-warn shadow-xs'
-                  : 'bg-surface border-line text-ink hover:border-warn'
-              }`}
-            >
-              <div className="flex items-center justify-between text-xs font-bold mb-1">
-                <span>بدون تكلفة</span>
-                <Coins className="w-3.5 h-3.5 opacity-80" />
-              </div>
-              <span className={`text-base font-black font-mono leading-none block ${activeFilter === 'missing_cost' ? 'text-white' : 'text-warn dark:text-warn-bright'}`}>
-                {report?.missingCostCount ?? 0}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveFilter('missing_barcode')}
-              className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
-                activeFilter === 'missing_barcode'
-                  ? 'bg-warn text-white border-warn shadow-xs'
-                  : 'bg-surface border-line text-ink hover:border-warn'
-              }`}
-            >
-              <div className="flex items-center justify-between text-xs font-bold mb-1">
-                <span>بدون باركود</span>
-                <Barcode className="w-3.5 h-3.5 opacity-80" />
-              </div>
-              <span className={`text-base font-black font-mono leading-none block ${activeFilter === 'missing_barcode' ? 'text-white' : 'text-warn dark:text-warn-bright'}`}>
-                {report?.missingBarcodeCount ?? 0}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveFilter('negative_stock')}
-              className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
-                activeFilter === 'negative_stock'
+                activeFilter === 'missing_price'
                   ? 'bg-[#b23a2e] text-white border-[#b23a2e] shadow-xs'
                   : 'bg-surface border-line text-ink hover:border-rose-400'
               }`}
             >
               <div className="flex items-center justify-between text-xs font-bold mb-1">
-                <span>رصيد سالب</span>
-                <TrendingDown className="w-3.5 h-3.5 opacity-80" />
+                <span>بدون سعر بيع</span>
+                <DollarSign className="w-3.5 h-3.5 opacity-80" />
               </div>
-              <span className={`text-base font-black font-mono leading-none block ${activeFilter === 'negative_stock' ? 'text-white' : 'text-[#b23a2e]'}`}>
-                {report?.negativeStockCount ?? 0}
+              <span className={`text-base font-black font-mono leading-none block ${activeFilter === 'missing_price' ? 'text-white' : 'text-[#b23a2e]'}`}>
+                {report?.missingPriceCount ?? 0}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveFilter('orphan_product')}
+              className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
+                activeFilter === 'orphan_product'
+                  ? 'bg-warn text-white border-warn shadow-xs'
+                  : 'bg-surface border-line text-ink hover:border-warn'
+              }`}
+            >
+              <div className="flex items-center justify-between text-xs font-bold mb-1">
+                <span>أصناف يتيمة</span>
+                <FolderX className="w-3.5 h-3.5 opacity-80" />
+              </div>
+              <span className={`text-base font-black font-mono leading-none block ${activeFilter === 'orphan_product' ? 'text-white' : 'text-warn dark:text-warn-bright'}`}>
+                {report?.orphanProductCount ?? 0}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveFilter('incomplete_sale')}
+              className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
+                activeFilter === 'incomplete_sale'
+                  ? 'bg-[#b23a2e] text-white border-[#b23a2e] shadow-xs'
+                  : 'bg-surface border-line text-ink hover:border-rose-400'
+              }`}
+            >
+              <div className="flex items-center justify-between text-xs font-bold mb-1">
+                <span>فواتير غير مكتملة</span>
+                <FileX className="w-3.5 h-3.5 opacity-80" />
+              </div>
+              <span className={`text-base font-black font-mono leading-none block ${activeFilter === 'incomplete_sale' ? 'text-white' : 'text-[#b23a2e]'}`}>
+                {report?.incompleteInvoicesCount ?? 0}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveFilter('accounting_imbalance')}
+              className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
+                activeFilter === 'accounting_imbalance'
+                  ? 'bg-[#b23a2e] text-white border-[#b23a2e] shadow-xs'
+                  : 'bg-surface border-line text-ink hover:border-rose-400'
+              }`}
+            >
+              <div className="flex items-center justify-between text-xs font-bold mb-1">
+                <span>توازن محاسبي</span>
+                <Scale className="w-3.5 h-3.5 opacity-80" />
+              </div>
+              <span className={`text-base font-black font-mono leading-none block ${activeFilter === 'accounting_imbalance' ? 'text-white' : 'text-[#b23a2e]'}`}>
+                {report?.accountingImbalanceCount ?? 0}
               </span>
             </button>
 
@@ -373,19 +440,55 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
 
             <button
               type="button"
-              onClick={() => setActiveFilter('missing_category')}
+              onClick={() => setActiveFilter('missing_barcode')}
               className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
-                activeFilter === 'missing_category'
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                  : 'bg-surface border-line text-ink hover:border-blue-400'
+                activeFilter === 'missing_barcode'
+                  ? 'bg-warn text-white border-warn shadow-xs'
+                  : 'bg-surface border-line text-ink hover:border-warn'
               }`}
             >
               <div className="flex items-center justify-between text-xs font-bold mb-1">
-                <span>بدون تصنيف</span>
-                <Layers className="w-3.5 h-3.5 opacity-80" />
+                <span>بدون باركود</span>
+                <Barcode className="w-3.5 h-3.5 opacity-80" />
               </div>
-              <span className={`text-base font-black font-mono leading-none block ${activeFilter === 'missing_category' ? 'text-white' : 'text-blue-700'}`}>
-                {report?.missingCategoryCount ?? 0}
+              <span className={`text-base font-black font-mono leading-none block ${activeFilter === 'missing_barcode' ? 'text-white' : 'text-warn dark:text-warn-bright'}`}>
+                {report?.missingBarcodeCount ?? 0}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveFilter('missing_cost')}
+              className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
+                activeFilter === 'missing_cost'
+                  ? 'bg-warn text-white border-warn shadow-xs'
+                  : 'bg-surface border-line text-ink hover:border-warn'
+              }`}
+            >
+              <div className="flex items-center justify-between text-xs font-bold mb-1">
+                <span>بدون تكلفة</span>
+                <Coins className="w-3.5 h-3.5 opacity-80" />
+              </div>
+              <span className={`text-base font-black font-mono leading-none block ${activeFilter === 'missing_cost' ? 'text-white' : 'text-warn dark:text-warn-bright'}`}>
+                {report?.missingCostCount ?? 0}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveFilter('negative_stock')}
+              className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
+                activeFilter === 'negative_stock'
+                  ? 'bg-[#b23a2e] text-white border-[#b23a2e] shadow-xs'
+                  : 'bg-surface border-line text-ink hover:border-rose-400'
+              }`}
+            >
+              <div className="flex items-center justify-between text-xs font-bold mb-1">
+                <span>رصيد سالب</span>
+                <TrendingDown className="w-3.5 h-3.5 opacity-80" />
+              </div>
+              <span className={`text-base font-black font-mono leading-none block ${activeFilter === 'negative_stock' ? 'text-white' : 'text-[#b23a2e]'}`}>
+                {report?.negativeStockCount ?? 0}
               </span>
             </button>
 
@@ -404,6 +507,42 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
               </div>
               <span className={`text-base font-black font-mono leading-none block ${activeFilter === 'price_below_cost' ? 'text-white' : 'text-[#b23a2e]'}`}>
                 {report?.priceBelowCostCount ?? 0}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveFilter('missing_category')}
+              className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
+                activeFilter === 'missing_category'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                  : 'bg-surface border-line text-ink hover:border-blue-400'
+              }`}
+            >
+              <div className="flex items-center justify-between text-xs font-bold mb-1">
+                <span>بدون تصنيف</span>
+                <Layers className="w-3.5 h-3.5 opacity-80" />
+              </div>
+              <span className={`text-base font-black font-mono leading-none block ${activeFilter === 'missing_category' ? 'text-white' : 'text-blue-700'}`}>
+                {report?.missingCategoryCount ?? 0}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveFilter('stale_held_sale')}
+              className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
+                activeFilter === 'stale_held_sale'
+                  ? 'bg-brand text-white border-brand shadow-xs'
+                  : 'bg-surface border-line text-ink hover:border-brand-dark'
+              }`}
+            >
+              <div className="flex items-center justify-between text-xs font-bold mb-1">
+                <span>سلات معلقة</span>
+                <Clock className="w-3.5 h-3.5 opacity-80" />
+              </div>
+              <span className={`text-base font-black font-mono leading-none block ${activeFilter === 'stale_held_sale' ? 'text-white' : 'text-brand'}`}>
+                {report?.suspendedTransactionsCount ?? 0}
               </span>
             </button>
           </div>
@@ -539,6 +678,18 @@ export const DataQualityAuditModal: React.FC<DataQualityAuditModalProps> = ({
                           </td>
                           <td className="py-3 px-4 text-center print:hidden">
                             <div className="flex items-center justify-center gap-1.5">
+                              {(issue.issueType === 'incomplete_sale' || issue.issueType === 'accounting_imbalance' || issue.issueType === 'orphan_product') && (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleRepairDataQuality()}
+                                  disabled={isRepairing}
+                                  className="px-2.5 py-1.5 bg-paid text-white hover:bg-paid/90 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95 disabled:opacity-50"
+                                  title="تنفيذ التسوية والمعالجة المحاسبية التلقائية"
+                                >
+                                  <Wrench className="w-3.5 h-3.5" />
+                                  <span>تسوية</span>
+                                </button>
+                              )}
                               {issue.issueType === 'missing_barcode' && (
                                 <button
                                   type="button"

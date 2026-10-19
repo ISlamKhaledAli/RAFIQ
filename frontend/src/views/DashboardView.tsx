@@ -403,7 +403,15 @@ export function DashboardView({
           </div>
 
           <div className="pt-1 flex items-center justify-between text-[10px] text-ink-muted dark:text-ink-dark-muted">
-            <span className="text-ink-muted dark:text-ink-dark-muted font-medium">تفاصيل المبيعات</span>
+            <span className="text-ink-muted dark:text-ink-dark-muted font-medium truncate">
+              {summary && (summary.todayTaxPiasters || 0) > 0 ? (
+                <span title="ضريبة القيمة المضافة المحصلة اليوم كأمانات لمصلحة الضرائب">
+                  ضريبة: <strong className="font-mono text-paid dark:text-paid-bright font-bold">{((summary.todayTaxPiasters || 0) / 100).toFixed(0)}</strong> ج.م
+                </span>
+              ) : (
+                'تفاصيل المبيعات'
+              )}
+            </span>
             <span className="text-paid dark:text-paid-bright font-bold text-[11px] flex items-center gap-0.5 group-hover:underline">
               كشف الحساب
               <ChevronLeft className="w-3 h-3" />

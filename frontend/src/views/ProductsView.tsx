@@ -19,12 +19,13 @@ import {
   ShieldCheck,
   Barcode,
   ChevronDown,
+  Undo2,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
 import { openHelpCenter } from '../utils/helpService';
 import { rafiqAlert } from '../utils/dialogService';
-import type { Product, Category, StockMovement, StockDiscrepancy, ProductUnit, BulkGenerateBarcodesResult } from '../types/models';
+import type { Product, Category, StockMovement, StockDiscrepancy, ProductUnit, BulkGenerateBarcodesResult, BulkPriceRevertResult } from '../types/models';
 import { normalizeArabicNumerals } from '../utils/money';
 import { exportProductsToExcel } from '../utils/excelImport';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -130,6 +131,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [showExcelImportModal, setShowExcelImportModal] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [importSuccessAlert, setImportSuccessAlert] = useState<string | null>(null);
+  const [bulkPriceUndoBatchId, setBulkPriceUndoBatchId] = useState<string | null>(null);
+  const [isRevertingBulkPrice, setIsRevertingBulkPrice] = useState(false);
   const [showVariantMatrixModal, setShowVariantMatrixModal] = useState(false);
   const [matrixParentProduct, setMatrixParentProduct] = useState<Product | null>(null);
   const [selectedParentForVariants, setSelectedParentForVariants] = useState<Product | null>(null);
@@ -210,10 +213,36 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
   useEffect(() => {
     if (importSuccessAlert) {
-      const timer = setTimeout(() => setImportSuccessAlert(null), 3500);
+      const timeoutMs = bulkPriceUndoBatchId ? 10000 : 3500;
+      const timer = setTimeout(() => {
+        setImportSuccessAlert(null);
+        setBulkPriceUndoBatchId(null);
+      }, timeoutMs);
       return () => clearTimeout(timer);
     }
-  }, [importSuccessAlert]);
+  }, [importSuccessAlert, bulkPriceUndoBatchId]);
+
+  const handleUndoBulkPrice = async () => {
+    if (!bulkPriceUndoBatchId) return;
+    setIsRevertingBulkPrice(true);
+    try {
+      const res = await invoke<BulkPriceRevertResult>('products:revertBulkPriceAdjustment', {
+        batchId: bulkPriceUndoBatchId,
+      });
+      if (res.success) {
+        setBulkPriceUndoBatchId(null);
+        setImportSuccessAlert(res.message || 'تم التراجع عن تعديل الأسعار بنجاح وإعادة الأصناف لأسعارها السابقة');
+        void loadProducts(searchQuery, currentPage, pageSize, stockStatusFilter, selectedCategoryFilter);
+      } else {
+        await rafiqAlert({ message: res.message || 'فشل التراجع عن التعديل', title: 'تنبيه', variant: 'warning' });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await rafiqAlert({ message: `فشل التراجع عن التعديل: ${msg}`, title: 'خطأ', variant: 'error' });
+    } finally {
+      setIsRevertingBulkPrice(false);
+    }
+  };
 
   const loadMovements = async () => {
     setMovementsLoading(true);
@@ -1030,10 +1059,25 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           <div className="flex items-center gap-2">
             <Check className="w-4 h-4 text-[#006D41] dark:text-paid-bright" />
             <span>{importSuccessAlert}</span>
+            {bulkPriceUndoBatchId && (
+              <button
+                type="button"
+                onClick={() => void handleUndoBulkPrice()}
+                disabled={isRevertingBulkPrice}
+                className="mr-3 px-2.5 py-1 rounded-lg bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright hover:bg-warn hover:text-white border border-warn/40 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title="تراجع فوري عن تعديل الأسعار الأخير وإعادة الأسعار السابقة"
+              >
+                <Undo2 className={`w-3.5 h-3.5 ${isRevertingBulkPrice ? 'animate-spin' : ''}`} />
+                <span>{isRevertingBulkPrice ? 'جاري التراجع...' : 'تراجع عن تعديل الأسعار الآن'}</span>
+              </button>
+            )}
           </div>
           <button
             type="button"
-            onClick={() => setImportSuccessAlert(null)}
+            onClick={() => {
+              setImportSuccessAlert(null);
+              setBulkPriceUndoBatchId(null);
+            }}
             className="text-[#006D41] dark:text-paid-bright hover:text-[#00372D] dark:hover:text-white p-1 cursor-pointer"
           >
             <X className="w-3.5 h-3.5" />
@@ -1481,8 +1525,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         onClose={() => setShowBulkPriceModal(false)}
         categories={categories}
         selectedProductIds={selectedProductIds}
-        onSuccess={(msg) => {
+        onSuccess={(msg, batchId) => {
           setImportSuccessAlert(msg);
+          if (batchId) setBulkPriceUndoBatchId(batchId);
           void loadProducts(searchQuery, currentPage, pageSize, stockStatusFilter, selectedCategoryFilter);
         }}
       />

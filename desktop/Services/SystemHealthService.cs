@@ -277,6 +277,61 @@ namespace RafiqPOS.Services
                 Logger.Warn("فحص سلامة سلسلة سجل العمليات واجه استثناء: " + ex.Message);
             }
 
+            // 4.6. Check Catalog Data Quality, Incomplete Invoices & Accounting Imbalances
+            try
+            {
+                if (DatabaseService.Reports != null)
+                {
+                    var dqReport = DatabaseService.Reports.GetDataQualityReport();
+                    if (dqReport != null)
+                    {
+                        if (dqReport.AccountingImbalanceCount > 0)
+                        {
+                            alerts.Add(new SystemAlert
+                            {
+                                Id = "accounting_imbalance_detected",
+                                Level = "critical",
+                                Title = "خلل في التوازن المحاسبي ومعادلة الديون أو الصناديق!",
+                                Message = string.Format("اكتشف النظام {0} مشكلة في توازن أرصدة العملاء أو الصناديق. يرجى مراجعة كشف الحساب وإجراء التسوية.", dqReport.AccountingImbalanceCount),
+                                FixAction = "مراجعة وتسوية الحسابات",
+                                FixTarget = "data-quality-audit"
+                            });
+                        }
+
+                        if (dqReport.IncompleteInvoicesCount > 0)
+                        {
+                            alerts.Add(new SystemAlert
+                            {
+                                Id = "incomplete_invoices_detected",
+                                Level = "critical",
+                                Title = "تنبيه مالي: كشف فواتير مبيعات غير مكتملة!",
+                                Message = string.Format("يوجد {0} فاتورة مبيعات مسجلة بدون بنود أصناف أو بإجمالي غير مطابق. يتوجب تصحيحها لضمان دقة الأرباح.", dqReport.IncompleteInvoicesCount),
+                                FixAction = "تصحيح الفواتير",
+                                FixTarget = "data-quality-audit"
+                            });
+                        }
+
+                        if (dqReport.DuplicateBarcodeCount > 0 || dqReport.OrphanProductCount > 0 || dqReport.MissingPriceCount > 0)
+                        {
+                            alerts.Add(new SystemAlert
+                            {
+                                Id = "catalog_anomaly_detected",
+                                Level = "warning",
+                                Title = "تنبيه في بيانات الكتالوج والأصناف",
+                                Message = string.Format("تم اكتشاف أصناف بباركود مكرر ({0}) أو أصناف يتيمة ({1}) أو بدون سعر بيع ({2}). راجع الكتالوج لمنع الأخطاء عند البيع.",
+                                    dqReport.DuplicateBarcodeCount, dqReport.OrphanProductCount, dqReport.MissingPriceCount),
+                                FixAction = "تدقيق الكتالوج",
+                                FixTarget = "data-quality-audit"
+                            });
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("فحص سلامة وتوازن البيانات المحاسبية واجه استثناء: " + ex.Message);
+            }
+
             // 5. Aggregate Health & One-Sentence Summary (Task 138-1 & 138-2)
             result.Alerts = alerts;
             result.Metrics = metrics;

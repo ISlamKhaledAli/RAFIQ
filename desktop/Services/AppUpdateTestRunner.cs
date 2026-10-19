@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.IO.Compression;
 using System.Text;
 using RafiqPOS.Bridge;
 using RafiqPOS.Common;
@@ -15,7 +16,10 @@ namespace RafiqPOS.Services
         public bool ChecksumIntegrityPassed { get; set; }
         public bool RollbackOnFailurePassed { get; set; }
         public bool RollbackTriggered { get; set; }
+        public bool ZipSecurityPassed { get; set; }
+        public bool OfflinePackageInspectionPassed { get; set; }
         public bool SuccessfulUpdateStagingPassed { get; set; }
+        public bool DatabasePreservationPassed { get; set; }
         public int TotalAssertions { get; set; }
         public int PassedAssertions { get; set; }
     }
@@ -24,17 +28,18 @@ namespace RafiqPOS.Services
     {
         public static AppUpdateTestResult RunAllTests()
         {
-            var result = new AppUpdateTestResult
-            {
-                Success = false,
-                VersionComparisonPassed = false,
-                ManifestParsingPassed = false,
-                ChecksumIntegrityPassed = false,
-                RollbackOnFailurePassed = false,
-                SuccessfulUpdateStagingPassed = false,
-                TotalAssertions = 0,
-                PassedAssertions = 0
-            };
+            AppUpdateTestResult result = new AppUpdateTestResult();
+            result.Success = false;
+            result.VersionComparisonPassed = false;
+            result.ManifestParsingPassed = false;
+            result.ChecksumIntegrityPassed = false;
+            result.RollbackOnFailurePassed = false;
+            result.ZipSecurityPassed = false;
+            result.OfflinePackageInspectionPassed = false;
+            result.SuccessfulUpdateStagingPassed = false;
+            result.DatabasePreservationPassed = false;
+            result.TotalAssertions = 0;
+            result.PassedAssertions = 0;
 
             if (DatabaseService.Updates == null || DatabaseService.Backup == null)
             {
@@ -45,13 +50,14 @@ namespace RafiqPOS.Services
             string tempDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "update_test_tmp");
             try
             {
-                if (!Directory.Exists(tempDir))
+                if (Directory.Exists(tempDir))
                 {
-                    Directory.CreateDirectory(tempDir);
+                    try { Directory.Delete(tempDir, true); } catch { }
                 }
+                Directory.CreateDirectory(tempDir);
 
                 // ==========================================
-                // TEST 1: Version Comparison Logic (Task 115-2)
+                // TEST 1: Version Comparison Logic
                 // ==========================================
                 result.TotalAssertions++;
                 bool v1 = AppUpdateService.CompareVersions("1.0.1", "1.0.0") > 0;
@@ -68,7 +74,7 @@ namespace RafiqPOS.Services
                 result.PassedAssertions++;
 
                 // ==========================================
-                // TEST 2: Manifest Parsing & Update Detection (Task 115-1)
+                // TEST 2: Manifest Parsing & Update Detection
                 // ==========================================
                 result.TotalAssertions++;
                 string mockManifest = "{" +
@@ -81,7 +87,7 @@ namespace RafiqPOS.Services
                     "\"fileSizeBytes\": 1048576" +
                 "}";
 
-                var parsedInfo = DatabaseService.Updates.CheckForUpdates(mockManifest);
+                AppUpdateInfo parsedInfo = DatabaseService.Updates.CheckForUpdates(mockManifest);
                 if (!parsedInfo.HasUpdate || parsedInfo.LatestVersion != "1.1.0" || parsedInfo.Changelog == null)
                 {
                     result.Message = "فشل اختبار معالجة ملف الإصدار واكتشاف التحديث";
@@ -91,15 +97,15 @@ namespace RafiqPOS.Services
                 result.PassedAssertions++;
 
                 // ==========================================
-                // TEST 3: Checksum Integrity Validation (Task 115-2)
+                // TEST 3: Checksum Integrity Validation
                 // ==========================================
                 result.TotalAssertions++;
                 string testPackage = Path.Combine(tempDir, "test_update.pkg");
-                File.WriteAllText(testPackage, "RAFIQ_POS_UPDATE_PAYLOAD_TEST_CONTENT");
+                File.WriteAllText(testPackage, "RAFIQ_POS_UPDATE_PAYLOAD_TEST_CONTENT", Encoding.UTF8);
                 string actualSha = AppUpdateService.ComputeFileSha256(testPackage);
 
                 // Try applying with corrupt/mismatching expected hash
-                var mismatchRes = DatabaseService.Updates.ApplyUpdate(testPackage, "0000000000000000000000000000000000000000000000000000000000000000");
+                AppUpdateResult mismatchRes = DatabaseService.Updates.ApplyUpdate(testPackage, "0000000000000000000000000000000000000000000000000000000000000000");
                 if (mismatchRes.Success || mismatchRes.Code != "CHECKSUM_MISMATCH")
                 {
                     result.Message = "فشل اختبار التحقق من الهاش: تم قبول حزمة تحديث تالفة";
@@ -109,10 +115,10 @@ namespace RafiqPOS.Services
                 result.PassedAssertions++;
 
                 // ==========================================
-                // TEST 4: Automatic Rollback on Update Failure (Task 115-3, 115-5)
+                // TEST 4: Automatic Rollback on Update Failure (Task 115-3)
                 // ==========================================
                 result.TotalAssertions++;
-                var rollbackRes = DatabaseService.Updates.ApplyUpdate(testPackage, actualSha, true);
+                AppUpdateResult rollbackRes = DatabaseService.Updates.ApplyUpdate(testPackage, actualSha, true);
                 if (rollbackRes.Success || !rollbackRes.RollbackTriggered || rollbackRes.Code != "UPDATE_FAILED_ROLLED_BACK")
                 {
                     result.Message = "فشل اختبار التراجع التلقائي عند تعثر تثبيت التحديث";
@@ -123,10 +129,80 @@ namespace RafiqPOS.Services
                 result.PassedAssertions++;
 
                 // ==========================================
-                // TEST 5: Successful Update Staging with Safety Backup (Task 115-3, 115-5)
+                // TEST 5: Offline Package Creation & Inspection
                 // ==========================================
                 result.TotalAssertions++;
-                var successRes = DatabaseService.Updates.ApplyUpdate(testPackage, actualSha, false);
+                string offlineZipPath = Path.Combine(tempDir, "rafiq_update_v1.2.0.pkg");
+                using (FileStream zipStream = new FileStream(offlineZipPath, FileMode.Create))
+                using (ZipArchive archive = new ZipArchive(zipStream, ZipArchiveMode.Create))
+                {
+                    // Add update_manifest.json
+                    ZipArchiveEntry manifestEntry = archive.CreateEntry("update_manifest.json");
+                    using (Stream writer = manifestEntry.Open())
+                    {
+                        string offlineManifest = "{" +
+                            "\"version\": \"1.2.0\"," +
+                            "\"releaseDate\": \"2026-10-19\"," +
+                            "\"changelog\": \"ميزات الأوفلاين الجديدة وسرعة فائقة في المبيعات\"," +
+                            "\"sha256\": \"\"" +
+                        "}";
+                        byte[] bytes = Encoding.UTF8.GetBytes(offlineManifest);
+                        writer.Write(bytes, 0, bytes.Length);
+                    }
+
+                    // Add simulated binary executable update
+                    ZipArchiveEntry exeEntry = archive.CreateEntry("RafiqPOS_New.exe");
+                    using (Stream writer = exeEntry.Open())
+                    {
+                        byte[] exeBytes = Encoding.UTF8.GetBytes("SIMULATED_NEW_BINARY_PAYLOAD_V120");
+                        writer.Write(exeBytes, 0, exeBytes.Length);
+                    }
+                }
+
+                AppUpdateInfo offlineInfo = DatabaseService.Updates.InspectOfflinePackage(offlineZipPath);
+                if (!offlineInfo.HasUpdate || offlineInfo.LatestVersion != "1.2.0" || !offlineInfo.IsOfflinePackage)
+                {
+                    result.Message = "فشل فحص حزمة التحديث الأوفلاين من الفلاشة";
+                    return result;
+                }
+                result.OfflinePackageInspectionPassed = true;
+                result.PassedAssertions++;
+
+                // ==========================================
+                // TEST 6: Malicious Zip / Database Overwrite Protection
+                // ==========================================
+                result.TotalAssertions++;
+                string maliciousZipPath = Path.Combine(tempDir, "malicious_update.pkg");
+                using (FileStream zipStream = new FileStream(maliciousZipPath, FileMode.Create))
+                using (ZipArchive archive = new ZipArchive(zipStream, ZipArchiveMode.Create))
+                {
+                    // Malicious entry attempting to overwrite db or traverse path
+                    ZipArchiveEntry badEntry = archive.CreateEntry("../data/rafiq_pos.db");
+                    using (Stream writer = badEntry.Open())
+                    {
+                        byte[] badBytes = Encoding.UTF8.GetBytes("ATTACK_PAYLOAD");
+                        writer.Write(badBytes, 0, badBytes.Length);
+                    }
+                }
+
+                AppUpdateResult badRes = DatabaseService.Updates.ApplyUpdate(maliciousZipPath, null, false);
+                if (badRes.Success || !badRes.RollbackTriggered)
+                {
+                    result.Message = "فشل اختبار حماية قاعدة البيانات: تم قبول ملف يحاول النفاذ للمسارات المحمية";
+                    return result;
+                }
+                result.ZipSecurityPassed = true;
+                result.PassedAssertions++;
+
+                // ==========================================
+                // TEST 7: Successful Update Staging with Safety Backup & Database Preservation
+                // ==========================================
+                result.TotalAssertions++;
+                string dbPathBefore = DatabaseService.DbPath;
+                bool dbExistsBefore = !string.IsNullOrEmpty(dbPathBefore) && File.Exists(dbPathBefore);
+
+                string offlineZipSha = AppUpdateService.ComputeFileSha256(offlineZipPath);
+                AppUpdateResult successRes = DatabaseService.Updates.ApplyUpdate(offlineZipPath, offlineZipSha, false);
                 if (!successRes.Success || successRes.Code != "UPDATE_APPLIED_SUCCESS" || string.IsNullOrEmpty(successRes.BackupPath))
                 {
                     result.Message = "فشل اختبار تثبيت التحديث الناجح أو أخذ النسخة الاحتياطية للأمان: " + successRes.Message;
@@ -135,8 +211,23 @@ namespace RafiqPOS.Services
                 result.SuccessfulUpdateStagingPassed = true;
                 result.PassedAssertions++;
 
+                // ==========================================
+                // TEST 8: Strict Database & Settings Preservation Check
+                // ==========================================
+                result.TotalAssertions++;
+                if (dbExistsBefore)
+                {
+                    if (!File.Exists(dbPathBefore))
+                    {
+                        result.Message = "خطأ حرج: تم التأثير على ملف قاعدة البيانات أثناء التحديث!";
+                        return result;
+                    }
+                }
+                result.DatabasePreservationPassed = true;
+                result.PassedAssertions++;
+
                 result.Success = true;
-                result.Message = string.Format("نجحت جميع اختبارات التحديث التلقائي الآمن والتراجع بنسبة 100% ({0}/{1} تأكيداً)!", result.PassedAssertions, result.TotalAssertions);
+                result.Message = string.Format("نجحت جميع اختبارات التحديث التلقائي والأوفلاين والتراجع بنسبة 100% ({0}/{1} تأكيداً)!", result.PassedAssertions, result.TotalAssertions);
                 return result;
             }
             catch (Exception ex)

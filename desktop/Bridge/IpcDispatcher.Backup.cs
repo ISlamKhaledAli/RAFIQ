@@ -345,6 +345,40 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, updateApplyRes);
                     return true;
 
+                case "updates:browsePackage":
+                    string selectedPkg = null;
+                    var updatePkgThread = new System.Threading.Thread(delegate()
+                    {
+                        using (var ofd = new System.Windows.Forms.OpenFileDialog())
+                        {
+                            ofd.Filter = "حزم تحديث رفيق (*.pkg;*.zip;*.rafiqupdate)|*.pkg;*.zip;*.rafiqupdate|جميع الملفات (*.*)|*.*";
+                            ofd.Title = "اختر حزمة تحديث رفيق من الفلاشة أو المجلد المحلي";
+                            if (ofd.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                            {
+                                selectedPkg = ofd.FileName;
+                            }
+                        }
+                    });
+                    updatePkgThread.SetApartmentState(System.Threading.ApartmentState.STA);
+                    updatePkgThread.Start();
+                    updatePkgThread.Join();
+                    response = BridgeResponse.Ok(request.Id, new { selectedPath = selectedPkg, cancelled = string.IsNullOrEmpty(selectedPkg) });
+                    return true;
+
+                case "updates:inspectPackage":
+                    string updateInspectPath = null;
+                    if (request.Payload != null)
+                    {
+                        var pObj = request.Payload as JObject;
+                        if (pObj != null && pObj["packagePath"] != null)
+                        {
+                            updateInspectPath = pObj["packagePath"].ToString();
+                        }
+                    }
+                    var offlineInspectInfo = DatabaseService.Updates.InspectOfflinePackage(updateInspectPath);
+                    response = BridgeResponse.Ok(request.Id, offlineInspectInfo);
+                    return true;
+
                 case "updates:runTests":
                     var updateTestRes = AppUpdateTestRunner.RunAllTests();
                     response = BridgeResponse.Ok(request.Id, updateTestRes);

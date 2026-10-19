@@ -886,6 +886,28 @@ namespace RafiqPOS.Services
                 int lastRow = ws.LastRowUsed() != null ? ws.LastRowUsed().RowNumber() : 0;
                 var seenPhonesInFile = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+                // Preload existing customer phones into memory once to eliminate N+1 database queries on large files
+                var existingDbPhones = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                if (customerRepo != null)
+                {
+                    var existingCusts = customerRepo.GetAll(100000);
+                    if (existingCusts != null)
+                    {
+                        for (int i = 0; i < existingCusts.Count; i++)
+                        {
+                            var ec = existingCusts[i];
+                            if (!string.IsNullOrEmpty(ec.Phone))
+                            {
+                                string clnP = ec.Phone.Replace(" ", "").Replace("-", "").Trim();
+                                if (!existingDbPhones.ContainsKey(clnP))
+                                {
+                                    existingDbPhones[clnP] = ec.Name ?? "";
+                                }
+                            }
+                        }
+                    }
+                }
+
                 for (int r = headerRow + 1; r <= lastRow; r++)
                 {
                     string name = ws.Cell(r, 1).GetString().Trim();
@@ -928,16 +950,13 @@ namespace RafiqPOS.Services
                             seenPhonesInFile.Add(row.Phone);
                         }
 
-                        // Check DB duplicate
-                        if (customerRepo != null)
+                        // Check DB duplicate via preloaded in-memory dictionary
+                        string existingCustName;
+                        if (existingDbPhones.TryGetValue(row.Phone, out existingCustName))
                         {
-                            var existing = customerRepo.FindByPhone(row.Phone, null);
-                            if (existing != null)
-                            {
-                                row.IsPhoneDuplicateInDb = true;
-                                row.Errors.Add(string.Format("رقم الهاتف مسجل مسبقاً للعميل «{0}»", existing.Name));
-                                row.IsValid = false;
-                            }
+                            row.IsPhoneDuplicateInDb = true;
+                            row.Errors.Add(string.Format("رقم الهاتف مسجل مسبقاً للعميل «{0}»", existingCustName));
+                            row.IsValid = false;
                         }
                     }
 
@@ -1330,9 +1349,11 @@ namespace RafiqPOS.Services
 
                 ws.Row(r).Height = 22;
                 ws.Cell(r, 1).Value = i + 1;
-                ws.Cell(r, 2).Value = p.InternalCode ?? "";
+                ws.Cell(r, 2).SetValue<string>(p.InternalCode ?? "");
+                ws.Cell(r, 2).Style.NumberFormat.Format = "@";
                 ws.Cell(r, 3).Value = p.Name ?? "";
-                ws.Cell(r, 4).SetValue(p.Barcode ?? "");
+                ws.Cell(r, 4).SetValue<string>(p.Barcode ?? "");
+                ws.Cell(r, 4).Style.NumberFormat.Format = "@";
                 ws.Cell(r, 5).Value = catName;
                 ws.Cell(r, 6).Value = p.Unit ?? "قطعة";
                 ws.Cell(r, 7).Value = cost;
@@ -1387,7 +1408,20 @@ namespace RafiqPOS.Services
             ws.Cell(sumRow, 12).Style.Font.Bold = true;
             ws.Range(sumRow, 1, sumRow, 14).Style.Fill.BackgroundColor = SoftMint;
 
-            ws.Columns().AdjustToContents(10, 45);
+            ws.Column(1).Width = 6;
+            ws.Column(2).Width = 18;
+            ws.Column(3).Width = 34;
+            ws.Column(4).Width = 20;
+            ws.Column(5).Width = 20;
+            ws.Column(6).Width = 14;
+            ws.Column(7).Width = 16;
+            ws.Column(8).Width = 16;
+            ws.Column(9).Width = 16;
+            ws.Column(10).Width = 14;
+            ws.Column(11).Width = 22;
+            ws.Column(12).Width = 22;
+            ws.Column(13).Width = 16;
+            ws.Column(14).Width = 18;
         }
 
         private static void PopulateCustomersWorksheet(IXLWorksheet ws, List<Customer> customers, string shopName)
@@ -1395,7 +1429,7 @@ namespace RafiqPOS.Services
             ws.RightToLeft = true;
             ws.ShowGridLines = true;
 
-            ws.Range("A1:I1").Merge();
+            ws.Range("A1:G1").Merge();
             var tCell = ws.Cell("A1");
             tCell.Value = string.Format("سجل العملاء وحسابات الديون - {0}", shopName);
             tCell.Style.Font.Bold = true;
@@ -1406,7 +1440,7 @@ namespace RafiqPOS.Services
             tCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
             ws.Row(1).Height = 36;
 
-            ws.Range("A2:I2").Merge();
+            ws.Range("A2:G2").Merge();
             var sCell = ws.Cell("A2");
             sCell.Value = string.Format("تاريخ التصدير: {0} | إجمالي العملاء: {1}", DateTime.Now.ToString("yyyy/MM/dd HH:mm"), customers.Count);
             sCell.Style.Font.Bold = true;
@@ -1448,7 +1482,8 @@ namespace RafiqPOS.Services
                 ws.Row(r).Height = 22;
                 ws.Cell(r, 1).Value = i + 1;
                 ws.Cell(r, 2).Value = c.Name ?? "";
-                ws.Cell(r, 3).SetValue(c.Phone ?? "");
+                ws.Cell(r, 3).SetValue<string>(c.Phone ?? "");
+                ws.Cell(r, 3).Style.NumberFormat.Format = "@";
                 ws.Cell(r, 4).Value = bal;
                 ws.Cell(r, 4).Style.NumberFormat.Format = "#,##0.00";
                 if (bal > 0) ws.Cell(r, 4).Style.Font.FontColor = XLColor.FromArgb(178, 58, 46);
@@ -1469,7 +1504,13 @@ namespace RafiqPOS.Services
             ws.Cell(sumRow, 4).Style.Font.Bold = true;
             ws.Range(sumRow, 1, sumRow, 7).Style.Fill.BackgroundColor = SoftMint;
 
-            ws.Columns().AdjustToContents(10, 40);
+            ws.Column(1).Width = 8;
+            ws.Column(2).Width = 32;
+            ws.Column(3).Width = 20;
+            ws.Column(4).Width = 24;
+            ws.Column(5).Width = 24;
+            ws.Column(6).Width = 20;
+            ws.Column(7).Width = 26;
         }
 
         private static void PopulateSuppliersWorksheet(IXLWorksheet ws, List<Supplier> suppliers, string shopName)
@@ -1529,7 +1570,8 @@ namespace RafiqPOS.Services
                 ws.Cell(r, 1).Value = i + 1;
                 ws.Cell(r, 2).Value = s.Name ?? "";
                 ws.Cell(r, 3).Value = s.CompanyName ?? "";
-                ws.Cell(r, 4).SetValue(s.Phone ?? "");
+                ws.Cell(r, 4).SetValue<string>(s.Phone ?? "");
+                ws.Cell(r, 4).Style.NumberFormat.Format = "@";
                 ws.Cell(r, 5).Value = s.Address ?? "";
                 ws.Cell(r, 6).Value = bal;
                 ws.Cell(r, 6).Style.NumberFormat.Format = "#,##0.00";
@@ -1548,7 +1590,14 @@ namespace RafiqPOS.Services
             ws.Cell(sumRow, 6).Style.Font.Bold = true;
             ws.Range(sumRow, 1, sumRow, 8).Style.Fill.BackgroundColor = SoftMint;
 
-            ws.Columns().AdjustToContents(10, 40);
+            ws.Column(1).Width = 8;
+            ws.Column(2).Width = 28;
+            ws.Column(3).Width = 26;
+            ws.Column(4).Width = 20;
+            ws.Column(5).Width = 28;
+            ws.Column(6).Width = 24;
+            ws.Column(7).Width = 16;
+            ws.Column(8).Width = 30;
         }
 
         private static void PopulateSalesWorksheet(IXLWorksheet ws, List<Sale> sales, string shopName)
@@ -1618,10 +1667,12 @@ namespace RafiqPOS.Services
 
                 ws.Row(r).Height = 22;
                 ws.Cell(r, 1).Value = i + 1;
-                ws.Cell(r, 2).Value = "#" + s.InvoiceNumber;
+                ws.Cell(r, 2).SetValue<string>("#" + s.InvoiceNumber);
+                ws.Cell(r, 2).Style.NumberFormat.Format = "@";
                 ws.Cell(r, 3).Value = s.CreatedAt ?? "";
                 ws.Cell(r, 4).Value = s.CustomerName ?? "عميل نقدي";
-                ws.Cell(r, 5).SetValue(s.CustomerPhone ?? "");
+                ws.Cell(r, 5).SetValue<string>(s.CustomerPhone ?? "");
+                ws.Cell(r, 5).Style.NumberFormat.Format = "@";
                 ws.Cell(r, 6).Value = sub;
                 ws.Cell(r, 6).Style.NumberFormat.Format = "#,##0.00";
                 ws.Cell(r, 7).Value = disc;
@@ -1656,7 +1707,20 @@ namespace RafiqPOS.Services
             ws.Cell(sumRow, 11).Style.Font.Bold = true;
             ws.Range(sumRow, 1, sumRow, 14).Style.Fill.BackgroundColor = SoftMint;
 
-            ws.Columns().AdjustToContents(10, 35);
+            ws.Column(1).Width = 6;
+            ws.Column(2).Width = 16;
+            ws.Column(3).Width = 22;
+            ws.Column(4).Width = 24;
+            ws.Column(5).Width = 20;
+            ws.Column(6).Width = 20;
+            ws.Column(7).Width = 16;
+            ws.Column(8).Width = 16;
+            ws.Column(9).Width = 20;
+            ws.Column(10).Width = 18;
+            ws.Column(11).Width = 18;
+            ws.Column(12).Width = 16;
+            ws.Column(13).Width = 16;
+            ws.Column(14).Width = 28;
         }
 
         private static void PopulateStockMovementsWorksheet(IXLWorksheet ws, List<StockMovement> movements, string shopName)
@@ -1715,19 +1779,29 @@ namespace RafiqPOS.Services
                 ws.Cell(r, 1).Value = i + 1;
                 ws.Cell(r, 2).Value = m.CreatedAt ?? "";
                 ws.Cell(r, 3).Value = m.ProductName ?? "";
-                ws.Cell(r, 4).SetValue(m.ProductBarcode ?? "");
+                ws.Cell(r, 4).SetValue<string>(m.ProductBarcode ?? "");
+                ws.Cell(r, 4).Style.NumberFormat.Format = "@";
                 ws.Cell(r, 5).Value = !string.IsNullOrEmpty(m.MovementTypeArabic) ? m.MovementTypeArabic : (m.MovementType ?? "");
                 ws.Cell(r, 6).Value = qty;
                 ws.Cell(r, 6).Style.NumberFormat.Format = "#,##0.##";
                 ws.Cell(r, 7).Value = cost;
                 ws.Cell(r, 7).Style.NumberFormat.Format = "#,##0.00";
-                ws.Cell(r, 8).Value = m.ReferenceId ?? "";
+                ws.Cell(r, 8).SetValue<string>(m.ReferenceId ?? "");
+                ws.Cell(r, 8).Style.NumberFormat.Format = "@";
                 ws.Cell(r, 9).Value = m.Note ?? "";
 
                 if (i % 2 == 1) ws.Range(r, 1, r, 9).Style.Fill.BackgroundColor = ZebraLight;
             }
 
-            ws.Columns().AdjustToContents(10, 35);
+            ws.Column(1).Width = 6;
+            ws.Column(2).Width = 22;
+            ws.Column(3).Width = 32;
+            ws.Column(4).Width = 22;
+            ws.Column(5).Width = 20;
+            ws.Column(6).Width = 16;
+            ws.Column(7).Width = 18;
+            ws.Column(8).Width = 22;
+            ws.Column(9).Width = 30;
         }
 
         private static void PopulateClosingsWorksheet(IXLWorksheet ws, List<DailyClosing> closings, string shopName)
@@ -1788,7 +1862,8 @@ namespace RafiqPOS.Services
 
                 ws.Row(r).Height = 22;
                 ws.Cell(r, 1).Value = i + 1;
-                ws.Cell(r, 2).Value = "#" + c.ClosingNumber;
+                ws.Cell(r, 2).SetValue<string>("#" + c.ClosingNumber);
+                ws.Cell(r, 2).Style.NumberFormat.Format = "@";
                 ws.Cell(r, 3).Value = c.BusinessDate ?? "";
                 ws.Cell(r, 4).Value = c.ClosedAt ?? "";
                 ws.Cell(r, 5).Value = c.CashierName ?? "";
@@ -1808,7 +1883,17 @@ namespace RafiqPOS.Services
                 if (i % 2 == 1) ws.Range(r, 1, r, 11).Style.Fill.BackgroundColor = ZebraLight;
             }
 
-            ws.Columns().AdjustToContents(10, 35);
+            ws.Column(1).Width = 6;
+            ws.Column(2).Width = 16;
+            ws.Column(3).Width = 18;
+            ws.Column(4).Width = 22;
+            ws.Column(5).Width = 24;
+            ws.Column(6).Width = 20;
+            ws.Column(7).Width = 18;
+            ws.Column(8).Width = 18;
+            ws.Column(9).Width = 18;
+            ws.Column(10).Width = 18;
+            ws.Column(11).Width = 16;
         }
     }
 }

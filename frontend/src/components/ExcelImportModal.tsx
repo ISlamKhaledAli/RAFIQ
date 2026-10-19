@@ -9,7 +9,10 @@ import {
   AlertTriangle, 
   CheckCircle2, 
   RefreshCw,
-  FileText
+  FileText,
+  Search,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import type { Product, Category } from '../types/models';
 import { 
@@ -48,6 +51,10 @@ export const ExcelImportModal = ({
   const [duplicateStrategy, setDuplicateStrategy] = useState<'skip' | 'update' | 'error'>('skip');
   const [onlyValidRows, setOnlyValidRows] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'valid' | 'warning' | 'error'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 50;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const validRows = parsedRows.filter(r => r.status === 'valid');
@@ -57,6 +64,25 @@ export const ExcelImportModal = ({
   const rowsToImport = onlyValidRows 
     ? parsedRows.filter(r => r.status !== 'error')
     : parsedRows;
+
+  // Filtered rows for fast, lightweight rendering (< 250MB RAM protection for 10,000 items)
+  const filteredRows = parsedRows.filter(r => {
+    if (statusFilter !== 'all' && r.status !== statusFilter) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      const matchName = r.data.name.toLowerCase().includes(q);
+      const matchBarcode = r.data.barcode.toLowerCase().includes(q);
+      const matchCat = r.data.categoryName.toLowerCase().includes(q);
+      const matchSku = r.data.internalCode.toLowerCase().includes(q);
+      return matchName || matchBarcode || matchCat || matchSku;
+    }
+    return true;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  const currentSafePage = Math.min(currentPage, totalPages);
+  const startIdx = (currentSafePage - 1) * PAGE_SIZE;
+  const displayedRows = filteredRows.slice(startIdx, startIdx + PAGE_SIZE);
 
   const canImport = rowsToImport.length > 0 && (
     duplicateStrategy !== 'error' || warningRows.length === 0
@@ -68,6 +94,9 @@ export const ExcelImportModal = ({
     setErrorMessage('');
     setSelectedFile(file);
     setParsing(true);
+    setStatusFilter('all');
+    setSearchQuery('');
+    setCurrentPage(1);
 
     try {
       const rawRows = await parseExcelOrCsvFile(file);
@@ -108,6 +137,9 @@ export const ExcelImportModal = ({
     setSelectedFile(null);
     setParsedRows([]);
     setErrorMessage('');
+    setStatusFilter('all');
+    setSearchQuery('');
+    setCurrentPage(1);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -321,33 +353,68 @@ export const ExcelImportModal = ({
           ) : parsedRows.length > 0 ? (
             <div className="space-y-3.5">
               
-              {/* Summary Metric Cards */}
+              {/* Summary Metric Cards (Clickable Filters) */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <div className="bg-surface-2 hairline-all p-2.5 rounded-md">
+                <button
+                  type="button"
+                  onClick={() => { setStatusFilter('all'); setCurrentPage(1); }}
+                  className={`p-2.5 rounded-md text-right transition-all cursor-pointer ${
+                    statusFilter === 'all'
+                      ? 'bg-surface-3 hairline-all ring-2 ring-brand'
+                      : 'bg-surface-2 hairline-all hover:bg-surface-3'
+                  }`}
+                >
                   <span className="text-ink-muted text-[10.5px]">إجمالي الأصناف بالملف</span>
                   <p className="text-base font-bold text-ink mt-0.5 font-mono">{parsedRows.length}</p>
-                </div>
-                <div className="bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 dark:border-paid/30 p-2.5 rounded-md">
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setStatusFilter('valid'); setCurrentPage(1); }}
+                  className={`p-2.5 rounded-md text-right transition-all cursor-pointer border ${
+                    statusFilter === 'valid'
+                      ? 'bg-paid-soft dark:bg-paid-dark-soft border-paid ring-2 ring-paid'
+                      : 'bg-paid-soft/50 dark:bg-paid-dark-soft/50 border-paid/20 hover:border-paid/40'
+                  }`}
+                >
                   <span className="text-paid dark:text-paid-bright text-[10.5px] font-bold flex items-center gap-1">
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     أصناف جديدة جاهزة
                   </span>
                   <p className="text-base font-bold text-paid dark:text-paid-bright mt-0.5 font-mono">{validRows.length}</p>
-                </div>
-                <div className="bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 p-2.5 rounded-md">
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setStatusFilter('warning'); setCurrentPage(1); }}
+                  className={`p-2.5 rounded-md text-right transition-all cursor-pointer border ${
+                    statusFilter === 'warning'
+                      ? 'bg-warn-soft dark:bg-warn-dark-soft border-warn ring-2 ring-warn'
+                      : 'bg-warn-soft/50 dark:bg-warn-dark-soft/50 border-warn/20 hover:border-warn/40'
+                  }`}
+                >
                   <span className="text-warn dark:text-warn-bright text-[10.5px] font-bold flex items-center gap-1">
                     <AlertTriangle className="w-3.5 h-3.5" />
                     أصناف مسجلة مسبقاً
                   </span>
                   <p className="text-base font-bold text-warn dark:text-warn-bright mt-0.5 font-mono">{warningRows.length}</p>
-                </div>
-                <div className="bg-danger-soft dark:bg-danger-dark-soft border border-danger/20 dark:border-danger-bright/30 p-2.5 rounded-md">
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setStatusFilter('error'); setCurrentPage(1); }}
+                  className={`p-2.5 rounded-md text-right transition-all cursor-pointer border ${
+                    statusFilter === 'error'
+                      ? 'bg-danger-soft dark:bg-danger-dark-soft border-danger ring-2 ring-danger'
+                      : 'bg-danger-soft/50 dark:bg-danger-dark-soft/50 border-danger/20 hover:border-danger/40'
+                  }`}
+                >
                   <span className="text-danger dark:text-danger-bright text-[10.5px] font-bold flex items-center gap-1">
                     <AlertCircle className="w-3.5 h-3.5" />
                     صفوف تحتوي أخطاء
                   </span>
                   <p className="text-base font-bold text-danger dark:text-danger-bright mt-0.5 font-mono">{errorRows.length}</p>
-                </div>
+                </button>
               </div>
 
               {/* Options & Strategies Bar */}
@@ -386,7 +453,7 @@ export const ExcelImportModal = ({
                       <button
                         type="button"
                         onClick={() => downloadErrorReport(errorRows)}
-                        className="h-7 px-2.5 rounded bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger/20 dark:hover:bg-danger-dark-soft/80 text-danger dark:text-danger-bright text-[10.5px] font-bold flex items-center gap-1 transition-colors border border-danger/20 dark:border-danger-bright/30"
+                        className="h-7 px-2.5 rounded bg-danger-soft dark:bg-danger-dark-soft hover:bg-danger/20 dark:hover:bg-danger-dark-soft/80 text-danger dark:text-danger-bright text-[10.5px] font-bold flex items-center gap-1 transition-colors border border-danger/20 dark:border-danger-bright/30 cursor-pointer"
                         title="تحميل تقرير تفصيلي بأسباب أخطاء الصفوف لتصحيحها"
                       >
                         <Download className="w-3 h-3" />
@@ -395,15 +462,73 @@ export const ExcelImportModal = ({
                     )}
                   </div>
                 </div>
+
+                {/* Search & Status Filter Tabs */}
+                <div className="pt-2 border-t border-line/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-1 text-[11px]">
+                    <span className="text-ink-muted ml-1">تصفية العرض:</span>
+                    <button
+                      type="button"
+                      onClick={() => { setStatusFilter('all'); setCurrentPage(1); }}
+                      className={`px-2 py-0.5 rounded font-bold transition-colors cursor-pointer ${
+                        statusFilter === 'all' ? 'bg-ink text-surface' : 'bg-surface hairline-all text-ink hover:bg-surface-3'
+                      }`}
+                    >
+                      الكل ({parsedRows.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setStatusFilter('valid'); setCurrentPage(1); }}
+                      className={`px-2 py-0.5 rounded font-bold transition-colors cursor-pointer ${
+                        statusFilter === 'valid' ? 'bg-paid text-white' : 'bg-surface hairline-all text-paid hover:bg-paid-soft'
+                      }`}
+                    >
+                      سليم ({validRows.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setStatusFilter('warning'); setCurrentPage(1); }}
+                      className={`px-2 py-0.5 rounded font-bold transition-colors cursor-pointer ${
+                        statusFilter === 'warning' ? 'bg-warn text-white' : 'bg-surface hairline-all text-warn hover:bg-warn-soft'
+                      }`}
+                    >
+                      مكرر ({warningRows.length})
+                    </button>
+                    {errorRows.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => { setStatusFilter('error'); setCurrentPage(1); }}
+                        className={`px-2 py-0.5 rounded font-bold transition-colors cursor-pointer ${
+                          statusFilter === 'error' ? 'bg-danger text-white' : 'bg-danger-soft text-danger border border-danger/30 hover:bg-danger/20'
+                        }`}
+                      >
+                        أخطاء ({errorRows.length})
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Fast Search Input */}
+                  <div className="relative w-full sm:w-60">
+                    <Search className="w-3.5 h-3.5 text-ink-muted absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                      placeholder="بحث بالاسم أو الباركود أو الكود..."
+                      className="w-full h-7 pr-8 pl-2.5 rounded bg-surface border border-line text-[11px] text-ink placeholder:text-ink-muted/70 focus:outline-none focus:border-brand"
+                    />
+                  </div>
+                </div>
               </div>
 
-              {/* Data Preview Table */}
+              {/* Data Preview Table (Paginated to 50 rows - Zero Freeze for 10,000 items) */}
               <div className="hairline-all rounded-md overflow-hidden bg-surface">
-                <div className="max-h-60 overflow-y-auto overflow-x-auto">
+                <div className="max-h-72 overflow-y-auto overflow-x-auto">
                   <table className="w-full text-right border-collapse text-[11px]">
                     <thead className="bg-surface-2 text-ink-muted font-bold sticky top-0 z-10 hairline-b">
                       <tr>
-                        <th className="py-2 px-3 w-16 text-center">الحالة</th>
+                        <th className="py-2 px-2.5 w-14 text-center">الصف</th>
+                        <th className="py-2 px-2.5 w-16 text-center">الحالة</th>
                         <th className="py-2 px-3">الباركود</th>
                         <th className="py-2 px-3">اسم الصنف</th>
                         <th className="py-2 px-3">القسم</th>
@@ -415,69 +540,122 @@ export const ExcelImportModal = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-line">
-                      {parsedRows.map((row, idx) => {
-                        return (
-                          <tr 
-                            key={idx} 
-                            className={`hover:bg-surface-2/60 transition-colors ${
-                              row.status === 'error' ? 'bg-danger-soft/30 dark:bg-danger-dark-soft/40' : row.status === 'warning' ? 'bg-warn-soft/30 dark:bg-warn-dark-soft/40' : ''
-                            }`}
-                          >
-                            <td className="py-2 px-3 text-center">
-                              {row.status === 'valid' ? (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid/30">
-                                  سليم
-                                </span>
-                              ) : row.status === 'warning' ? (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30">
-                                  مكرر
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/20 dark:border-danger-bright/30">
-                                  خطأ
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-2 px-3 font-mono text-ink font-semibold">
-                              {row.data.barcode || <span className="text-ink-muted italic">بدون</span>}
-                            </td>
-                            <td className="py-2 px-3 font-bold text-ink">
-                              <span>{row.data.name}</span>
-                              {(row.data.variantColor || row.data.variantSize) && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-brand-soft text-brand font-medium mr-1.5">
-                                  {row.data.variantColor && <span>{row.data.variantColor}</span>}
-                                  {row.data.variantColor && row.data.variantSize && <span>/</span>}
-                                  {row.data.variantSize && <span>{row.data.variantSize}</span>}
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-2 px-3 text-ink-muted">{row.data.categoryName || 'عام'}</td>
-                            <td className="py-2 px-3 text-center font-bold">
-                              {row.data.unit === 'kg' ? 'كجم' : 'قطعة'}
-                            </td>
-                            <td className="py-2 px-3 text-left font-mono font-bold text-ink">
-                              {formatArabicCurrency(row.payload.pricePiasters)}
-                            </td>
-                            <td className="py-2 px-3 text-left font-mono text-ink-muted">
-                              {formatArabicCurrency(row.payload.costPiasters)}
-                            </td>
-                            <td className="py-2 px-3 text-center font-mono">
-                              {row.data.unit === 'kg' ? (row.payload.stockQuantityMilli / 1000).toFixed(3) : (row.payload.stockQuantityMilli / 1000)}
-                            </td>
-                            <td className="py-2 px-3 text-[10.5px]">
-                              {row.errors.length > 0 ? (
-                                <span className="text-danger dark:text-danger-bright font-bold">{row.errors.join(' • ')}</span>
-                              ) : row.warnings.length > 0 ? (
-                                <span className="text-warn dark:text-warn-bright">{row.warnings.join(' • ')}</span>
-                              ) : (
-                                <span className="text-paid dark:text-paid-bright">جاهز للاستيراد</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {displayedRows.length === 0 ? (
+                        <tr>
+                          <td colSpan={10} className="py-8 text-center text-ink-muted text-xs">
+                            لا توجد أصناف مطابقة للتصفية أو البحث المحدد.
+                          </td>
+                        </tr>
+                      ) : (
+                        displayedRows.map((row, idx) => {
+                          return (
+                            <tr 
+                              key={idx} 
+                              className={`hover:bg-surface-2/60 transition-colors ${
+                                row.status === 'error' ? 'bg-danger-soft/30 dark:bg-danger-dark-soft/40' : row.status === 'warning' ? 'bg-warn-soft/30 dark:bg-warn-dark-soft/40' : ''
+                              }`}
+                            >
+                              <td className="py-2 px-2.5 text-center font-mono text-ink-muted font-bold">
+                                <span>#{row.rowIndex}</span>
+                                {row.sheetName && row.sheetName !== 'عام' && (
+                                  <span className="block text-[9px] text-ink-muted/80 truncate max-w-[50px] mx-auto" title={row.sheetName}>
+                                    {row.sheetName}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2 px-2.5 text-center">
+                                {row.status === 'valid' ? (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid/30">
+                                    سليم
+                                  </span>
+                                ) : row.status === 'warning' ? (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30">
+                                    مكرر
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/20 dark:border-danger-bright/30">
+                                    خطأ
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2 px-3 font-mono text-ink font-semibold">
+                                {row.data.barcode || <span className="text-ink-muted italic">بدون</span>}
+                              </td>
+                              <td className="py-2 px-3 font-bold text-ink">
+                                <span>{row.data.name}</span>
+                                {(row.data.variantColor || row.data.variantSize) && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-brand-soft text-brand font-medium mr-1.5">
+                                    {row.data.variantColor && <span>{row.data.variantColor}</span>}
+                                    {row.data.variantColor && row.data.variantSize && <span>/</span>}
+                                    {row.data.variantSize && <span>{row.data.variantSize}</span>}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2 px-3 text-ink-muted">{row.data.categoryName || 'عام'}</td>
+                              <td className="py-2 px-3 text-center font-bold">
+                                {row.data.unit === 'kg' ? 'كجم' : 'قطعة'}
+                              </td>
+                              <td className="py-2 px-3 text-left font-mono font-bold text-ink">
+                                {formatArabicCurrency(row.payload.pricePiasters)}
+                              </td>
+                              <td className="py-2 px-3 text-left font-mono text-ink-muted">
+                                {formatArabicCurrency(row.payload.costPiasters)}
+                              </td>
+                              <td className="py-2 px-3 text-center font-mono">
+                                {row.data.unit === 'kg' ? (row.payload.stockQuantityMilli / 1000).toFixed(3) : (row.payload.stockQuantityMilli / 1000)}
+                              </td>
+                              <td className="py-2 px-3 text-[10.5px]">
+                                {row.errors.length > 0 ? (
+                                  <span className="text-danger dark:text-danger-bright font-bold">{row.errors.join(' • ')}</span>
+                                ) : row.warnings.length > 0 ? (
+                                  <span className="text-warn dark:text-warn-bright">{row.warnings.join(' • ')}</span>
+                                ) : (
+                                  <span className="text-paid dark:text-paid-bright">جاهز للاستيراد</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Pagination Controls Bar */}
+                <div className="bg-surface-2 px-3 py-2 border-t border-line flex items-center justify-between text-[11px] text-ink-muted">
+                  <div>
+                    {filteredRows.length > 0 ? (
+                      <span>
+                        عرض <strong className="font-mono text-ink">{startIdx + 1}</strong> إلى <strong className="font-mono text-ink">{Math.min(startIdx + PAGE_SIZE, filteredRows.length)}</strong> من إجمالي <strong className="font-mono text-ink">{filteredRows.length}</strong> صنف
+                      </span>
+                    ) : (
+                      <span>لا توجد نتائج</span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-ink text-[11px] ml-2">
+                      صفحة {currentSafePage} من {totalPages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentSafePage <= 1}
+                      className="h-6 px-2 rounded bg-surface hairline-all text-ink hover:bg-surface-3 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-bold text-[10.5px]"
+                    >
+                      <ChevronRight className="w-3 h-3" />
+                      <span>السابق</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentSafePage >= totalPages}
+                      className="h-6 px-2 rounded bg-surface hairline-all text-ink hover:bg-surface-3 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-bold text-[10.5px]"
+                    >
+                      <span>التالي</span>
+                      <ChevronLeft className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
               </div>
 

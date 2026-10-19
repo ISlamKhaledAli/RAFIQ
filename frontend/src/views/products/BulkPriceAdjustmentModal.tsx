@@ -12,6 +12,7 @@ import {
   Sliders,
   CheckCircle2,
   ArrowLeft,
+  Undo2,
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
@@ -23,6 +24,7 @@ import type {
   BulkPriceApplyRequest,
   BulkPriceApplyResult,
   BulkPriceExcelItem,
+  BulkPriceRevertResult,
 } from '../../types/models';
 
 export interface BulkPriceAdjustmentModalProps {
@@ -30,7 +32,7 @@ export interface BulkPriceAdjustmentModalProps {
   onClose: () => void;
   categories: Category[];
   selectedProductIds: string[];
-  onSuccess: (message: string) => void;
+  onSuccess: (message: string, batchId?: string) => void;
 }
 
 export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> = ({
@@ -52,7 +54,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
   const [percentageValue, setPercentageValue] = useState<string>('10');
   const [amountValue, setAmountValue] = useState<string>('2.00');
   const [roundingRule, setRoundingRule] = useState<
-    'none' | 'half_pound' | 'one_pound' | 'five_pounds' | 'ceil_pound' | 'psychological_95' | 'psychological_50'
+    'none' | 'quarter_pound' | 'half_pound' | 'one_pound' | 'five_pounds' | 'ceil_pound' | 'psychological_95' | 'psychological_50'
   >('one_pound');
   const [reason, setReason] = useState<string>('تحديث أسعار دوري');
 
@@ -69,6 +71,8 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
 
   // Execution State
   const [applying, setApplying] = useState<boolean>(false);
+  const [reverting, setReverting] = useState<boolean>(false);
+  const [showRevertConfirm, setShowRevertConfirm] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Reset or initialize on open without cascading effect renders
@@ -259,7 +263,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
 
       const result = await invoke<BulkPriceApplyResult>('products:applyBulkPriceAdjustment', req);
       if (result.success) {
-        onSuccess(result.message || `تم تحديث أسعار ${result.updatedCount} صنف بنجاح`);
+        onSuccess(result.message || `تم تحديث أسعار ${result.updatedCount} صنف بنجاح`, result.batchId);
         onClose();
       } else {
         setErrorMsg(result.message || 'حدث خطأ أثناء تطبيق الأسعار');
@@ -269,6 +273,26 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
       setErrorMsg(`فشل تطبيق التعديل: ${msg}`);
     } finally {
       setApplying(false);
+    }
+  };
+
+  const handleRevertLastAdjustment = async () => {
+    setReverting(true);
+    setErrorMsg(null);
+    try {
+      const res = await invoke<BulkPriceRevertResult>('products:revertBulkPriceAdjustment', {});
+      if (res.success) {
+        setShowRevertConfirm(false);
+        onSuccess(res.message || `تم التراجع عن تعديل أسعار ${res.revertedCount} صنف بنجاح`);
+        onClose();
+      } else {
+        setErrorMsg(res.message || 'فشل التراجع عن التعديل الجماعي');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setErrorMsg(`فشل التراجع عن التعديل: ${msg}`);
+    } finally {
+      setReverting(false);
     }
   };
 
@@ -469,6 +493,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
                 onChange={(val) => setRoundingRule(val as typeof roundingRule)}
                 options={[
                   { value: 'none', label: 'بدون تقريب (بالقروش الأصلية زي ما هي)' },
+                  { value: 'quarter_pound', label: 'لأقرب ربع جنيه (0.25 ج.م)' },
                   { value: 'half_pound', label: 'لأقرب نص جنيه (0.50 ج.م)' },
                   { value: 'one_pound', label: 'لأقرب جنيه سليم (1.00 ج.م)' },
                   { value: 'five_pounds', label: 'لأقرب 5 جنيه' },
@@ -751,6 +776,17 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
           <div className="flex items-center gap-2.5">
             <button
               type="button"
+              onClick={() => setShowRevertConfirm(true)}
+              disabled={applying || reverting}
+              className="h-9 px-3.5 rounded-xl border border-warn/40 dark:border-warn-bright/40 text-warn dark:text-warn-bright font-bold text-xs hover:bg-warn-soft dark:hover:bg-warn-dark-soft transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+              title="التراجع السريع عن آخر تعديل جماعي واستعادة الأسعار السابقة"
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+              <span>تراجع عن آخر تعديل</span>
+            </button>
+
+            <button
+              type="button"
               onClick={requestClose}
               className="h-9 px-4 rounded-xl border border-line dark:border-line-dark text-ink dark:text-ink-dark font-bold text-xs hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
             >
@@ -759,7 +795,7 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
 
             <button
               type="button"
-              disabled={applying || activeSelectedCount === 0 || previewLoading}
+              disabled={applying || activeSelectedCount === 0 || previewLoading || reverting}
               onClick={() => void handleApplyChanges()}
               className="h-9 px-5 bg-brand hover:bg-brand-dark text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer active:scale-98"
             >
@@ -772,6 +808,47 @@ export const BulkPriceAdjustmentModal: React.FC<BulkPriceAdjustmentModalProps> =
             </button>
           </div>
         </div>
+
+        {/* 7. Confirm Revert Modal */}
+        {showRevertConfirm && (
+          <div className="fixed inset-0 z-60 bg-ink/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+            <div className="bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-2xl p-5 max-w-md w-full shadow-2xl flex flex-col gap-4 text-right">
+              <div className="flex items-center gap-2.5 text-warn dark:text-warn-bright">
+                <div className="w-9 h-9 rounded-xl bg-warn-soft dark:bg-warn-dark-soft flex items-center justify-center border border-warn/30">
+                  <Undo2 className="w-5 h-5 text-warn dark:text-warn-bright" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-ink dark:text-ink-dark">التراجع عن آخر تعديل جماعي للأسعار؟</h3>
+                  <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted">استعادة الأسعار والتكلفة القديمة لجميع الأصناف التي تم تعديلها في آخر دفعة</p>
+                </div>
+              </div>
+
+              <p className="text-xs text-ink-muted dark:text-ink-dark-muted leading-relaxed">
+                هل أنت متأكد من التراجع عن آخر دفعة تعديل أسعار؟ سيقوم النظام بإعادة الأسعار السابقة وتوثيق حركة التراجع في سجل تاريخ الأسعار وسجل العمليات.
+              </p>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-line dark:border-line-dark">
+                <button
+                  type="button"
+                  onClick={() => setShowRevertConfirm(false)}
+                  disabled={reverting}
+                  className="h-8 px-4 rounded-xl border border-line dark:border-line-dark text-ink dark:text-ink-dark text-xs font-bold hover:bg-surface-2 transition-colors cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleRevertLastAdjustment()}
+                  disabled={reverting}
+                  className="h-8 px-4 rounded-xl bg-warn hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                >
+                  <Undo2 className={`w-3.5 h-3.5 ${reverting ? 'animate-spin' : ''}`} />
+                  <span>{reverting ? 'جاري التراجع...' : 'تأكيد التراجع الآن'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>
