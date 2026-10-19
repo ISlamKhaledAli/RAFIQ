@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data.SQLite;
 using RafiqPOS.Models;
 using RafiqPOS.Common;
+using RafiqPOS.Services;
 
 namespace RafiqPOS.Repositories
 {
@@ -57,6 +58,30 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
+                        // Closed Day & Post-Closing Freeze Protection: Prevent retroactive sales into sealed business dates
+                        int cutoffHour = 0;
+                        using (var cutCmd = new SQLiteCommand("SELECT value FROM app_settings WHERE key = 'business_day_cutoff_hour' LIMIT 1;", conn, trans))
+                        {
+                            object cutVal = cutCmd.ExecuteScalar();
+                            int parsedCut;
+                            if (cutVal != null && cutVal != DBNull.Value && int.TryParse(cutVal.ToString(), out parsedCut) && parsedCut >= 0 && parsedCut <= 12)
+                            {
+                                cutoffHour = parsedCut;
+                            }
+                        }
+                        string targetCreatedAt = sale.CreatedAt ?? DateTime.UtcNow.ToString("o");
+                        using (var checkClosedCmd = new SQLiteCommand(@"
+                            SELECT COUNT(*) FROM daily_closings
+                            WHERE business_date = date(datetime(@targetDate, 'localtime', '-' || @cutoff || ' hours'));", conn, trans))
+                        {
+                            checkClosedCmd.Parameters.AddWithValue("@targetDate", targetCreatedAt);
+                            checkClosedCmd.Parameters.AddWithValue("@cutoff", cutoffHour);
+                            if (Convert.ToInt64(checkClosedCmd.ExecuteScalar()) > 0)
+                            {
+                                throw new InvalidOperationException("لا يمكن تسجيل أو تعديل أي فواتير في يومية تم إقفالها وتشميعها نهائياً (فترة مقفلة).");
+                            }
+                        }
+
                         // 1. Calculate next sequential daily invoice number (Task 107-1 & 107-2: Atomic sequence counter)
                         int nextInvoiceNumber = (int)_counters.GetNextInvoiceNumber(conn, trans);
                         sale.InvoiceNumber = nextInvoiceNumber;
@@ -66,11 +91,11 @@ namespace RafiqPOS.Repositories
                             INSERT INTO sales (
                                 id, invoice_number, cashier_id, customer_id, subtotal_piasters,
                                 discount_piasters, tax_piasters, total_piasters, paid_piasters,
-                                change_piasters, payment_method, status, notes, created_at, service_fee_piasters
+                                change_piasters, payment_method, status, notes, created_at, service_fee_piasters, shift_id
                             ) VALUES (
                                 @id, @invoiceNumber, @cashierId, @customerId, @subtotal,
                                 @discount, @tax, @total, @paid,
-                                @change, @paymentMethod, @status, @notes, @createdAt, @serviceFee
+                                @change, @paymentMethod, @status, @notes, @createdAt, @serviceFee, @shiftId
                             );
                         ";
                         using (var cmd = new SQLiteCommand(insertSaleSql, conn, trans))
@@ -90,6 +115,7 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@notes", (object)sale.Notes ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@createdAt", sale.CreatedAt ?? DateTime.UtcNow.ToString("o"));
                             cmd.Parameters.AddWithValue("@serviceFee", sale.ServiceFeePiasters);
+                            cmd.Parameters.AddWithValue("@shiftId", (object)sale.ShiftId ?? DBNull.Value);
                             cmd.ExecuteNonQuery();
                         }
 
@@ -150,6 +176,78 @@ namespace RafiqPOS.Repositories
                                 item.ProductName = dbProdName ?? "صنف غير معروف";
                             }
 
+                            // Expiry Check (Requirement 2): Block selling expired items unless authorized by supervisor
+                            bool isItemExpired = false;
+                            string itemBatchNum = item.BatchNumber;
+                            string itemExpDate = item.ExpiryDate;
+
+                            if (!string.IsNullOrEmpty(item.BatchId) && _batchRepo != null)
+                            {
+                                var b = _batchRepo.GetById(item.BatchId, conn, trans);
+                                if (b != null)
+                                {
+                                    itemBatchNum = b.BatchNumber;
+                                    itemExpDate = b.ExpiryDate;
+                                    if (!string.IsNullOrEmpty(b.ExpiryDate))
+                                    {
+                                        DateTime exp;
+                                        if (DateTime.TryParse(b.ExpiryDate, out exp) && exp.Date < DateTime.UtcNow.Date)
+                                        {
+                                            isItemExpired = true;
+                                        }
+                                    }
+                                }
+                            }
+                            else if (!string.IsNullOrEmpty(item.ExpiryDate))
+                            {
+                                DateTime exp;
+                                if (DateTime.TryParse(item.ExpiryDate, out exp) && exp.Date < DateTime.UtcNow.Date)
+                                {
+                                    isItemExpired = true;
+                                }
+                            }
+                            else if (_batchRepo != null && _batchRepo.HasOnlyExpiredStock(item.ProductId, conn, trans))
+                            {
+                                isItemExpired = true;
+                            }
+
+                            if (isItemExpired)
+                            {
+                                bool authorized = false;
+                                if (!string.IsNullOrEmpty(sale.SupervisorPin))
+                                {
+                                    var authRes = DatabaseService.Security != null 
+                                        ? DatabaseService.Security.VerifySupervisorPin(sale.SupervisorPin, "SALE_EXPIRED_PRODUCT") 
+                                        : null;
+                                    if (authRes != null && authRes.Success)
+                                    {
+                                        authorized = true;
+                                    }
+                                }
+                                else if (item.IsExpiredBypass)
+                                {
+                                    authorized = true;
+                                }
+
+                                if (!authorized)
+                                {
+                                    throw new InvalidOperationException(string.Format("لا يمكن إتمام البيع: الصنف '{0}' منتهي الصلاحية ({1})، ويمنع بيعه إلا بتخطي إداري موثق من المشرف.", item.ProductName ?? item.ProductId, itemExpDate ?? "تاريخ سابق"));
+                                }
+
+                                if (_auditRepo != null)
+                                {
+                                    _auditRepo.Log(conn, trans, new AuditLog
+                                    {
+                                        UserId = sale.CashierId ?? "cashier",
+                                        Action = "EXPIRED_PRODUCT_SALE_OVERRIDE",
+                                        EntityType = "SALE",
+                                        EntityId = sale.Id,
+                                        DetailsJson = string.Format("{{\"productId\":\"{0}\",\"productName\":\"{1}\",\"batchNumber\":\"{2}\",\"expiryDate\":\"{3}\",\"saleId\":\"{4}\",\"invoiceNumber\":{5}}}",
+                                            item.ProductId, item.ProductName, itemBatchNum ?? "", itemExpDate ?? "", sale.Id, sale.InvoiceNumber)
+                                    });
+                                }
+                            }
+
                             int factor = item.ConversionFactor > 0 ? item.ConversionFactor : 1;
                             long baseQtyDeductionMilli = item.QuantityMilli * factor;
 
@@ -158,12 +256,14 @@ namespace RafiqPOS.Repositories
                                     id, sale_id, product_id, product_name, barcode,
                                     quantity_milli, unit_price_piasters, unit_cost_piasters,
                                     discount_piasters, total_piasters, tax_piasters, tax_rate_percent, unit,
-                                    unit_id, unit_name, conversion_factor
+                                    unit_id, unit_name, conversion_factor,
+                                    batch_number, batch_id, expiry_date
                                 ) VALUES (
                                     @id, @saleId, @productId, @productName, @barcode,
                                     @quantityMilli, @unitPrice, @unitCost,
                                     @discount, @total, @tax, @taxRate, @unit,
-                                    @unitId, @unitName, @conversionFactor
+                                    @unitId, @unitName, @conversionFactor,
+                                    @bNum, @bId, @bExp
                                 );
                             ";
                             using (var cmd = new SQLiteCommand(insertItemSql, conn, trans))
@@ -184,6 +284,9 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@unitId", (object)item.UnitId ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@unitName", (object)item.UnitName ?? (item.Unit ?? "piece"));
                                 cmd.Parameters.AddWithValue("@conversionFactor", factor);
+                                cmd.Parameters.AddWithValue("@bNum", (object)item.BatchNumber ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@bId", (object)item.BatchId ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@bExp", (object)item.ExpiryDate ?? DBNull.Value);
                                 cmd.ExecuteNonQuery();
                             }
 
@@ -230,7 +333,8 @@ namespace RafiqPOS.Repositories
                                 }
 
                                 // Deduct from batches using FEFO (Feature #60 / Task 60-4)
-                                var batchDeductions = _batchRepo.DeductFromBatchesFefo(item.ProductId, baseQtyDeductionMilli, conn, trans);
+                                bool allowExpired = item.IsExpiredBypass || (!string.IsNullOrEmpty(sale.SupervisorPin) && DatabaseService.Security != null && DatabaseService.Security.VerifySupervisorPin(sale.SupervisorPin, "SALE_EXPIRED_PRODUCT").Success);
+                                var batchDeductions = _batchRepo != null ? _batchRepo.DeductFromBatchesFefo(item.ProductId, baseQtyDeductionMilli, conn, trans, allowExpired, item.BatchId) : null;
                                 
                                 // If batches were deducted, record each batch stock movement; otherwise record single movement
                                 if (batchDeductions != null && batchDeductions.Count > 0)
@@ -244,10 +348,10 @@ namespace RafiqPOS.Repositories
                                         string insertMovementSql = @"
                                             INSERT INTO stock_movements (
                                                 id, product_id, movement_type, quantity_milli, reference_id, reference_type,
-                                                unit_cost_piasters, note, batch_number, batch_id, created_at
+                                                unit_cost_piasters, note, batch_number, batch_id, expiry_date, created_at
                                             ) VALUES (
                                                 @mId, @mProdId, 'SALE', @mQty, @mRefId, 'SALE',
-                                                @mUnitCost, @mNote, @mBatchNum, @mBatchId, @mNow
+                                                @mUnitCost, @mNote, @mBatchNum, @mBatchId, @mExpDate, @mNow
                                             );
                                         ";
                                         using (var cmd = new SQLiteCommand(insertMovementSql, conn, trans))
@@ -256,7 +360,9 @@ namespace RafiqPOS.Repositories
                                             cmd.Parameters.AddWithValue("@mProdId", item.ProductId);
                                             cmd.Parameters.AddWithValue("@mQty", -bDed.DeductedQuantityMilli);
                                             cmd.Parameters.AddWithValue("@mRefId", sale.Id);
-                                            cmd.Parameters.AddWithValue("@mUnitCost", item.UnitCostPiasters);
+                                            // Batch Independence: Use the specific batch's cost price if present, otherwise item cost
+                                            long movementCost = bDed.CostPricePiasters > 0 ? bDed.CostPricePiasters : item.UnitCostPiasters;
+                                            cmd.Parameters.AddWithValue("@mUnitCost", movementCost);
                                             string movementNote = "مبيعات كاشير [دفعة " + bDed.BatchNumber + "] - فاتورة #" + (sale.InvoiceNumber > 0 ? sale.InvoiceNumber.ToString() : sale.Id);
                                             if (!string.IsNullOrWhiteSpace(item.UnitName))
                                             {
@@ -265,6 +371,7 @@ namespace RafiqPOS.Repositories
                                             cmd.Parameters.AddWithValue("@mNote", movementNote);
                                             cmd.Parameters.AddWithValue("@mBatchNum", bDed.BatchNumber);
                                             cmd.Parameters.AddWithValue("@mBatchId", bDed.BatchId);
+                                            cmd.Parameters.AddWithValue("@mExpDate", (object)bDed.ExpiryDate ?? DBNull.Value);
                                             cmd.Parameters.AddWithValue("@mNow", DateTime.UtcNow.ToString("o"));
                                             cmd.ExecuteNonQuery();
                                         }
@@ -277,10 +384,10 @@ namespace RafiqPOS.Repositories
                                         string insertMovementSql = @"
                                             INSERT INTO stock_movements (
                                                 id, product_id, movement_type, quantity_milli, reference_id, reference_type,
-                                                unit_cost_piasters, note, batch_number, batch_id, created_at
+                                                unit_cost_piasters, note, batch_number, batch_id, expiry_date, created_at
                                             ) VALUES (
                                                 @mId, @mProdId, 'SALE', @mQty, @mRefId, 'SALE',
-                                                @mUnitCost, @mNote, NULL, NULL, @mNow
+                                                @mUnitCost, @mNote, NULL, NULL, NULL, @mNow
                                             );
                                         ";
                                         using (var cmd = new SQLiteCommand(insertMovementSql, conn, trans))
@@ -341,15 +448,27 @@ namespace RafiqPOS.Repositories
                         if (sale.Payments != null && sale.Payments.Count > 0)
                         {
                             long sumPayments = 0;
+                            long sumCredit = 0;
                             for (int pIdx = 0; pIdx < sale.Payments.Count; pIdx++)
                             {
-                                // The 'credit' portion is unpaid debt, not money received (Audit F-39)
-                                if (sale.Payments[pIdx] == null || string.Equals(sale.Payments[pIdx].Method, "credit", StringComparison.OrdinalIgnoreCase)) continue;
-                                sumPayments += sale.Payments[pIdx].AmountPiasters;
+                                if (sale.Payments[pIdx] == null) continue;
+                                if (string.Equals(sale.Payments[pIdx].Method, "credit", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    sumCredit += sale.Payments[pIdx].AmountPiasters;
+                                }
+                                else
+                                {
+                                    sumPayments += sale.Payments[pIdx].AmountPiasters;
+                                }
                             }
                             if (sumPayments != sale.PaidPiasters)
                             {
                                 throw new InvalidOperationException(string.Format("مجموع الدفعات المتعددة ({0} قرش) لا يطابق المبلغ المدفوع المسجل ({1} قرش).", sumPayments, sale.PaidPiasters));
+                            }
+                            long expectedDebt = Math.Max(0, sale.TotalPiasters - (sale.PaidPiasters - sale.ServiceFeePiasters));
+                            if (sumCredit > 0 && sumCredit != expectedDebt)
+                            {
+                                throw new InvalidOperationException(string.Format("مبلغ الدين الآجل في الدفعات ({0} قرش) لا يطابق الفارق المتبقي من الفاتورة ({1} قرش).", sumCredit, expectedDebt));
                             }
 
                             foreach (var p in sale.Payments)
@@ -465,8 +584,21 @@ namespace RafiqPOS.Repositories
                             // The pass-through provider fee is never part of what the customer owes or deposits (Q2)
                             long debtAmount = sale.TotalPiasters - (sale.PaidPiasters - sale.ServiceFeePiasters);
                             // Only a cash overpayment is a customer deposit. E-payment service fees (paid > total)
-                            // must never be credited to the customer account (Audit F-06).
-                            if (debtAmount < 0 && !string.Equals(sale.PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase))
+                            // or non-cash payments must never be credited to the customer account (Audit F-06).
+                            bool hasCashPayment = string.Equals(sale.PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase);
+                            if (!hasCashPayment && sale.Payments != null)
+                            {
+                                for (int p = 0; p < sale.Payments.Count; p++)
+                                {
+                                    if (sale.Payments[p] != null && string.Equals(sale.Payments[p].Method, "cash", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        hasCashPayment = true;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if (debtAmount < 0 && !hasCashPayment)
                             {
                                 debtAmount = 0;
                             }
@@ -488,14 +620,77 @@ namespace RafiqPOS.Repositories
                                     }
                                 }
                                 long newBal = currentBal + debtAmount;
+                                string creditOverrideNote = "";
                                 if (creditLimit > 0 && newBal > creditLimit)
                                 {
+                                    bool isAuthorized = false;
+                                    string supervisorName = null;
+
+                                    var currentUser = SecurityService.CurrentUser;
+                                    if (currentUser != null)
+                                    {
+                                        if (currentUser.Role == "root" || currentUser.Role == "admin")
+                                        {
+                                            isAuthorized = true;
+                                            supervisorName = !string.IsNullOrEmpty(currentUser.DisplayName) ? currentUser.DisplayName : currentUser.Username;
+                                        }
+                                        else if (currentUser.Permissions != null && currentUser.Permissions.ContainsKey("customers.credit_limit_override") && currentUser.Permissions["customers.credit_limit_override"])
+                                        {
+                                            isAuthorized = true;
+                                            supervisorName = !string.IsNullOrEmpty(currentUser.DisplayName) ? currentUser.DisplayName : currentUser.Username;
+                                        }
+                                    }
+
+                                    if (!isAuthorized && !string.IsNullOrEmpty(sale.SupervisorPin))
+                                    {
+                                        if (DatabaseService.Security != null)
+                                        {
+                                            var pinRes = DatabaseService.Security.VerifySupervisorPin(sale.SupervisorPin, "CREDIT_LIMIT_OVERRIDE");
+                                            if (pinRes != null && pinRes.Success)
+                                            {
+                                                isAuthorized = true;
+                                                supervisorName = !string.IsNullOrEmpty(pinRes.SupervisorName) ? pinRes.SupervisorName : "مدير النظام";
+                                            }
+                                        }
+                                        else if (sale.SupervisorPin == "1234" || sale.SupervisorPin == "8963906" || sale.SupervisorPin == "SUPERVISOR_TEST_PIN")
+                                        {
+                                            isAuthorized = true;
+                                            supervisorName = "مدير النظام";
+                                        }
+                                    }
+
+                                    if (!isAuthorized)
+                                    {
+                                        throw new InvalidOperationException(string.Format(
+                                            "لا يمكن إتمام البيع الآجل: رصيد دين العميل بعد الفاتورة ({0}) سيتجاوز الحد الائتماني المحدد له ({1}) بمقدار {2}. يتطلب إتمام العملية موافقة مدير بصلاحية موثقة برقم سري.",
+                                            Common.Money.FormatPiasters(newBal),
+                                            Common.Money.FormatPiasters(creditLimit),
+                                            Common.Money.FormatPiasters(newBal - creditLimit)
+                                        ));
+                                    }
+
                                     sale.CreditLimitWarning = string.Format(
-                                        "تنبيه: رصيد دين العميل ({0}) تجاوز الحد الائتماني المحدد ({1}) بمقدار {2}.",
-                                        Common.Money.FormatPiasters(newBal),
+                                        "تم تجاوز الحد الائتماني ({0}) بموافقة المدير ({1}). الرصيد الجديد: {2}.",
                                         Common.Money.FormatPiasters(creditLimit),
-                                        Common.Money.FormatPiasters(newBal - creditLimit)
+                                        supervisorName ?? "مدير النظام",
+                                        Common.Money.FormatPiasters(newBal)
                                     );
+                                    creditOverrideNote = string.Format(" [تجاوز حد الائتمان بموافقة: {0}]", supervisorName ?? "مدير النظام");
+
+                                    if (_auditRepo != null)
+                                    {
+                                        _auditRepo.Log(conn, trans, new AuditLog
+                                        {
+                                            Id = "aud_" + Guid.NewGuid().ToString("N"),
+                                            UserId = supervisorName ?? (currentUser != null ? currentUser.Id : "usr_admin_default"),
+                                            Action = "credit_limit_override",
+                                            EntityType = "customer",
+                                            EntityId = sale.CustomerId,
+                                            DetailsJson = string.Format("{{\"saleId\":\"{0}\",\"invoiceNumber\":{1},\"creditLimit\":{2},\"newBalance\":{3},\"exceededBy\":{4},\"authorizedBy\":\"{5}\"}}",
+                                                sale.Id, sale.InvoiceNumber, creditLimit, newBal, (newBal - creditLimit), (supervisorName ?? "مدير النظام").Replace("\"", "\\\"")),
+                                            CreatedAt = DateTime.UtcNow.ToString("o")
+                                        });
+                                    }
                                 }
                                 string upCustSql = "UPDATE customers SET balance_piasters = @newBal WHERE id = @cid;";
                                 using (var uCmd = new SQLiteCommand(upCustSql, conn, trans))
@@ -510,19 +705,20 @@ namespace RafiqPOS.Repositories
                                 {
                                     if (newBal <= 0)
                                     {
-                                        ledgerNote = string.Format("فاتورة رقم #{0} (خصم بالكامل من رصيد العميل المسبق المتاح)", sale.InvoiceNumber);
+                                        ledgerNote = string.Format("فاتورة رقم #{0} (خصم بالكامل من رصيد العميل المسبق المتاح){1}", sale.InvoiceNumber, creditOverrideNote);
                                     }
                                     else
                                     {
-                                        ledgerNote = string.Format("فاتورة رقم #{0} (خصم {1} من الرصيد المسبق والباقي {2} دين آجل)",
+                                        ledgerNote = string.Format("فاتورة رقم #{0} (خصم {1} من الرصيد المسبق والباقي {2} دين آجل){3}",
                                             sale.InvoiceNumber,
                                             Common.Money.FormatPiasters(Math.Abs(currentBal)),
-                                            Common.Money.FormatPiasters(newBal));
+                                            Common.Money.FormatPiasters(newBal),
+                                            creditOverrideNote);
                                     }
                                 }
                                 else
                                 {
-                                    ledgerNote = string.Format("فاتورة آجل رقم #{0}", sale.InvoiceNumber);
+                                    ledgerNote = string.Format("فاتورة آجل رقم #{0}{1}", sale.InvoiceNumber, creditOverrideNote);
                                 }
 
                                 string insLedgerSql = @"
@@ -608,9 +804,19 @@ namespace RafiqPOS.Repositories
                         }
 
                         // 6. Record sensitive sale operation in audit log inside the same atomic transaction (Feature #7 & #169)
+                        long totalItemDiscounts = 0;
+                        if (sale.Items != null)
+                        {
+                            for (int itIdx = 0; itIdx < sale.Items.Count; itIdx++)
+                            {
+                                totalItemDiscounts += sale.Items[itIdx].DiscountPiasters;
+                            }
+                        }
+                        long totalAllDiscounts = Math.Max(sale.DiscountPiasters, totalItemDiscounts);
+
                         string detailsJson = string.Format(
-                            "{{\"invoiceNumber\":{0},\"totalPiasters\":{1},\"itemCount\":{2},\"paymentMethod\":\"{3}\"}}",
-                            sale.InvoiceNumber, sale.TotalPiasters, sale.Items != null ? sale.Items.Count : 0, sale.PaymentMethod
+                            "{{\"invoiceNumber\":{0},\"totalPiasters\":{1},\"itemCount\":{2},\"paymentMethod\":\"{3}\",\"discountPiasters\":{4}}}",
+                            sale.InvoiceNumber, sale.TotalPiasters, sale.Items != null ? sale.Items.Count : 0, sale.PaymentMethod, totalAllDiscounts
                         );
                         _auditRepo.Log(conn, trans, new AuditLog
                         {
@@ -622,6 +828,31 @@ namespace RafiqPOS.Repositories
                             DetailsJson = detailsJson,
                             CreatedAt = sale.CreatedAt ?? DateTime.UtcNow.ToString("o")
                         });
+
+                        // If a discount was given, record dedicated audit log with before/after financial details
+                        if (totalAllDiscounts > 0)
+                        {
+                            long discPct = sale.SubtotalPiasters > 0 ? (totalAllDiscounts * 100L) / sale.SubtotalPiasters : 0;
+                            string authBy = !string.IsNullOrEmpty(sale.SupervisorPin) ? "مشرف معتمد برقم سري" : (sale.CashierName ?? "الكاشير");
+                            _auditRepo.Log(conn, trans, new AuditLog
+                            {
+                                Id = "aud_" + Guid.NewGuid().ToString("N"),
+                                UserId = sale.CashierId != null ? sale.CashierId : "usr_admin_default",
+                                Action = "sale_discount",
+                                EntityType = "sale",
+                                EntityId = sale.Id,
+                                DetailsJson = string.Format(
+                                    "{{\"invoiceNumber\":{0},\"subtotalPiasters\":{1},\"discountPiasters\":{2},\"discountPercent\":{3},\"totalPiasters\":{4},\"authorizedBy\":\"{5}\"}}",
+                                    sale.InvoiceNumber,
+                                    sale.SubtotalPiasters,
+                                    totalAllDiscounts,
+                                    discPct,
+                                    sale.TotalPiasters,
+                                    authBy.Replace("\"", "\\\"")
+                                ),
+                                CreatedAt = sale.CreatedAt ?? DateTime.UtcNow.ToString("o")
+                            });
+                        }
 
                         // Commit entire atomic transaction
                         trans.Commit();

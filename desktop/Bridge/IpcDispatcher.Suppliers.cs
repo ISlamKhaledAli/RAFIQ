@@ -133,6 +133,34 @@ namespace RafiqPOS.Bridge
                     }
                     return true;
 
+                case "suppliers:cancelPayment":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات إلغاء السند فارغة");
+                        return true;
+                    }
+                    try
+                    {
+                        JObject cObj = request.Payload as JObject;
+                        if (cObj == null || cObj["supplierId"] == null || cObj["transactionId"] == null)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "معرف المورد ومعرف السند مطلوبان");
+                            return true;
+                        }
+                        string cSupId = cObj["supplierId"].ToString();
+                        string cTxId = cObj["transactionId"].ToString();
+                        string cReason = cObj["reason"] != null ? cObj["reason"].ToString() : "إلغاء بناء على طلب المستخدم";
+                        string cUserId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : null;
+                        DatabaseService.Suppliers.CancelPayment(cSupId, cTxId, cReason, cUserId);
+                        var updatedSupAfterCancel = DatabaseService.Suppliers.GetById(cSupId);
+                        response = BridgeResponse.Ok(request.Id, updatedSupAfterCancel);
+                    }
+                    catch (Exception ex)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "CANCEL_PAYMENT_FAILED", ex.Message);
+                    }
+                    return true;
+
                 case "suppliers:getTransactions":
                     if (request.Payload == null)
                     {

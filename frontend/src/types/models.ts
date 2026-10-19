@@ -34,6 +34,7 @@ export interface Product {
   variantsCount?: number;
   hasBatches?: boolean;
   nearestExpiryDate?: string | null;
+  suggestedBatchNumber?: string | null;
   isExpired?: boolean;
 }
 
@@ -98,6 +99,7 @@ export interface ProductUnit {
   barcode?: string | null;
   isDivisible: boolean;
   sortOrder: number;
+  hasSales?: boolean;
   createdAt?: string;
   updatedAt?: string;
   sellPriceFormatted?: string;
@@ -172,6 +174,10 @@ export interface SaleItem {
   unitId?: string;
   unitName?: string;
   conversionFactor?: number;
+  batchId?: string;
+  batchNumber?: string;
+  expiryDate?: string;
+  isExpiredBypass?: boolean;
 }
 
 export interface Sale {
@@ -192,9 +198,11 @@ export interface Sale {
   status: string;
   notes?: string | null;
   createdAt?: string;
+  supervisorPin?: string;
   items: SaleItem[];
   payments?: SalePayment[];
   negativeStockWarnings?: string[];
+  shiftId?: string | null;
 }
 
 export interface SalePayment {
@@ -497,7 +505,9 @@ export interface PurchaseItem {
   productName: string;
   barcode?: string | null;
   quantityMilli: number;
+  bonusQuantityMilli?: number;
   unitCostPiasters: number;
+  discountPiasters?: number;
   totalCostPiasters: number;
   previousCostPiasters: number;
   newSellingPricePiasters?: number | null;
@@ -563,13 +573,43 @@ export interface Purchase {
   items?: PurchaseItem[];
 }
 
+export interface PurchaseReturnItem {
+  id: string;
+  returnId: string;
+  productId: string;
+  productName: string;
+  barcode?: string | null;
+  quantityMilli: number;
+  unitCostPiasters: number;
+  totalCostPiasters: number;
+  batchNumber?: string | null;
+  reason?: string | null;
+  createdAt: string;
+}
+
+export interface PurchaseReturn {
+  id: string;
+  returnNumber: number;
+  purchaseId?: string | null;
+  supplierId: string;
+  supplierName?: string | null;
+  returnDate: string;
+  totalCostPiasters: number;
+  refundMethod?: string;
+  notes?: string | null;
+  createdByUserId?: string | null;
+  createdAt: string;
+  items?: PurchaseReturnItem[];
+}
+
 export interface SupplierTransaction {
   id: string;
   supplierId: string;
-  transactionType: 'OPENING_BALANCE' | 'PURCHASE_INVOICE' | 'PAYMENT' | 'RETURN' | string;
+  transactionType: 'OPENING_BALANCE' | 'PURCHASE_INVOICE' | 'PAYMENT' | 'PAYMENT_CANCEL' | 'PURCHASE_RETURN' | 'RETURN' | string;
   referenceId?: string | null;
   amountPiasters: number;
   paymentSource?: 'cash_drawer' | 'owner_pocket' | 'external_cash' | string;
+  balanceAfterPiasters?: number;
   notes?: string | null;
   createdAt: string;
 }
@@ -668,12 +708,30 @@ export interface DailyClosingPreview {
 
 export interface Expense {
   id: string;
+  expenseNumber?: number;
   amountPiasters: number;
   category: string;
   notes?: string;
+  source?: 'drawer' | 'safe';
+  createdBy?: string;
+  businessDate?: string;
+  shiftId?: string;
+  isCancelled?: boolean;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  cancelReason?: string;
+  updatedAt?: string;
   createdAt: string;
   cashierName?: string;
   amountFormatted?: string;
+}
+
+export interface ExpenseCategory {
+  id: string;
+  name: string;
+  description?: string;
+  isPredefined?: boolean;
+  createdAt?: string;
 }
 
 export interface DailyClosingSaveRequest {
@@ -1370,5 +1428,100 @@ export interface DigitalAnalyticsSummary {
   todayVolumeFormatted?: string;
 }
 
+export interface Shift {
+  id: string;
+  shiftNumber: number;
+  cashierId: string;
+  cashierName: string;
+  posRegisterId: string;
+  businessDate: string;
+  openedAt: string;
+  closedAt?: string | null;
+  status: 'open' | 'closed';
+  openingFloatPiasters: number;
+  cashSalesPiasters: number;
+  visaSalesPiasters: number;
+  instapaySalesPiasters: number;
+  vodafoneCashSalesPiasters: number;
+  creditSalesPiasters: number;
+  returnsCashPiasters: number;
+  debtPaymentsCashPiasters: number;
+  expensesCashPiasters: number;
+  cashInPiasters: number;
+  cashOutPiasters: number;
+  epayCashPiasters: number;
+  walletsCashPiasters: number;
+  purchasesCashPiasters: number;
+  supplierPaymentsCashPiasters: number;
+  expectedCashPiasters: number;
+  actualCashPiasters: number;
+  differencePiasters: number;
+  invoicesCount: number;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  isDanglingFromPreviousDay?: boolean;
+}
 
+export interface CashDrawerTransaction {
+  id: string;
+  shiftId: string;
+  type: 'cash_in' | 'cash_out';
+  amountPiasters: number;
+  reason: string;
+  performedById: string;
+  performedByName: string;
+  createdAt: string;
+}
 
+export interface ShiftSummary {
+  shiftId: string;
+  shiftNumber: number;
+  cashierId: string;
+  cashierName: string;
+  posRegisterId: string;
+  businessDate: string;
+  status: string;
+  openedAt: string;
+  openingFloatPiasters: number;
+  cashSalesPiasters: number;
+  returnsCashPiasters: number;
+  debtPaymentsCashPiasters: number;
+  cashInPiasters: number;
+  cashOutPiasters: number;
+  expensesCashPiasters: number;
+  purchasesCashPiasters: number;
+  supplierPaymentsCashPiasters: number;
+  epayCashPiasters: number;
+  walletsCashPiasters: number;
+  visaSalesPiasters: number;
+  instapaySalesPiasters: number;
+  vodafoneCashSalesPiasters: number;
+  creditSalesPiasters: number;
+  expectedCashPiasters: number;
+  invoicesCount: number;
+  isDanglingFromPreviousDay?: boolean;
+}
+
+export interface OpenShiftRequest {
+  cashierId?: string;
+  cashierName?: string;
+  posRegisterId?: string;
+  openingFloatPiasters: number;
+  notes?: string;
+}
+
+export interface CloseShiftRequest {
+  shiftId: string;
+  actualCashPiasters: number;
+  notes?: string;
+  cashierId?: string;
+}
+
+export interface CashMovementRequest {
+  shiftId?: string;
+  amountPiasters: number;
+  reason: string;
+  performedById?: string;
+  performedByName?: string;
+}

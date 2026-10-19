@@ -465,31 +465,47 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
   }, [statementEntries, statementStartDate, statementEndDate]);
 
   const statementPeriodSummary = useMemo(() => {
+    let openingBal = 0;
     let salesDebits = 0;
     let activeCashPayments = 0;
     let refundsCredits = 0;
+
+    if (statementStartDate) {
+      // Calculate running balance strictly prior to startDate
+      statementEntries.forEach(entry => {
+        const d = entry.createdAt.slice(0, 10);
+        if (d < statementStartDate) {
+          const t = entry.type.toLowerCase();
+          const amt = Math.abs(entry.amountPiasters);
+          if (t === 'sale' || (t === 'opening_balance' && entry.amountPiasters >= 0) || t === 'debt_increase' || t === 'payment_cancel') {
+            openingBal += amt;
+          } else if (t === 'payment' || t === 'refund' || t === 'cancellation' || t === 'debt_decrease' || t === 'deposit' || (t === 'opening_balance' && entry.amountPiasters < 0)) {
+            openingBal -= amt;
+          }
+        }
+      });
+    }
 
     filteredStatementEntries.forEach(entry => {
       const t = entry.type.toLowerCase();
       const amt = Math.abs(entry.amountPiasters);
 
-      if (t === 'sale') {
-        salesDebits += amt;
-      } else if (t === 'opening_balance') {
-        if (entry.amountPiasters >= 0) {
-          salesDebits += amt;
-        } else {
-          activeCashPayments += amt;
+      if (t === 'opening_balance') {
+        if (!statementStartDate) {
+          if (entry.amountPiasters >= 0) {
+            openingBal += amt;
+          } else {
+            openingBal -= amt;
+          }
         }
-      } else if (t === 'debt_increase') {
+      } else if (t === 'sale' || t === 'debt_increase') {
         salesDebits += amt;
       } else if (t === 'payment') {
-        // Only count as active cash payment if NOT cancelled
         if (!isEntryCancelled(entry.id)) {
           activeCashPayments += amt;
         }
       } else if (t === 'payment_cancel') {
-        // Contra entry reversing an annulled payment: already offsets the payment, do NOT inflate sales
+        // Handled via !isEntryCancelled above
       } else if (t === 'refund' || t === 'debt_decrease') {
         refundsCredits += amt;
       } else if (t === 'deposit') {
@@ -497,34 +513,16 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
       }
     });
 
-    let priorBal = 0;
-    if (statementStartDate) {
-      statementEntries.forEach(entry => {
-        const d = entry.createdAt.slice(0, 10);
-        if (d < statementStartDate) {
-          const t = entry.type.toLowerCase();
-          const amt = Math.abs(entry.amountPiasters);
-          if (t === 'sale' || (t === 'opening_balance' && entry.amountPiasters >= 0) || t === 'debt_increase' || t === 'payment_cancel') {
-            priorBal += amt;
-          } else if (t === 'payment' || t === 'refund' || t === 'cancellation' || t === 'debt_decrease' || t === 'deposit' || (t === 'opening_balance' && entry.amountPiasters < 0)) {
-            priorBal -= amt;
-          }
-        }
-      });
-    }
-
-    const currentCustomerBalance = selectedCustomer?.balancePiasters || 0;
-    const netPeriodChange = salesDebits - activeCashPayments - refundsCredits;
-    const closingBal = statementStartDate ? (priorBal + netPeriodChange) : currentCustomerBalance;
+    const closingBal = openingBal + salesDebits - activeCashPayments - refundsCredits;
 
     return {
+      openingBalancePiasters: openingBal,
       periodDebitsPiasters: salesDebits,
       periodCreditsPiasters: activeCashPayments,
       periodRefundsPiasters: refundsCredits,
-      openingBalancePiasters: priorBal,
       closingBalancePiasters: closingBal
     };
-  }, [filteredStatementEntries, statementEntries, statementStartDate, selectedCustomer, isEntryCancelled]);
+  }, [filteredStatementEntries, statementEntries, statementStartDate, isEntryCancelled]);
 
   const handleConfirmCancelPayment = async () => {
     if (!selectedCustomer || !cancellingEntry) return;

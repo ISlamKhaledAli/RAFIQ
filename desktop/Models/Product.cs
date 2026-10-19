@@ -104,6 +104,9 @@ namespace RafiqPOS.Models
         [JsonProperty("nearestExpiryDate")]
         public string NearestExpiryDate { get; set; }
 
+        [JsonProperty("suggestedBatchNumber")]
+        public string SuggestedBatchNumber { get; set; }
+
         [JsonProperty("isExpired")]
         public bool IsExpired { get; set; }
 

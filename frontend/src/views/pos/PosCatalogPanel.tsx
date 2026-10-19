@@ -257,9 +257,9 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                   )}
 
                   {isEnabled('feature_expiry_dates') && !item.isExpired && item.nearestExpiryDate && (
-                    <span className="text-[10px] font-semibold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30 px-1.5 py-0.2 rounded flex items-center gap-0.5 font-mono" title={`أقرب تاريخ صلاحية: ${item.nearestExpiryDate}`}>
+                    <span className="text-[10px] font-semibold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30 px-1.5 py-0.2 rounded flex items-center gap-0.5 font-mono" title={`أقرب تشغيلة: ${item.suggestedBatchNumber || 'افتراضية'} - تاريخ الصلاحية: ${item.nearestExpiryDate}`}>
                       <Calendar className="w-2.5 h-2.5 text-warn dark:text-warn-bright shrink-0" />
-                      <span>صلاحية: {item.nearestExpiryDate}</span>
+                      <span>{item.suggestedBatchNumber ? `${item.suggestedBatchNumber} (${item.nearestExpiryDate})` : `صلاحية: ${item.nearestExpiryDate}`}</span>
                     </span>
                   )}
 

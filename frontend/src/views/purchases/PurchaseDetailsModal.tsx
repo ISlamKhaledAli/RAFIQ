@@ -1,5 +1,5 @@
 import React from 'react';
-import { Receipt, X } from 'lucide-react';
+import { Receipt, X, Tag } from 'lucide-react';
 import type { Purchase } from '../../types/models';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 import { formatMoney } from './types';
@@ -7,9 +7,10 @@ import { formatMoney } from './types';
 interface PurchaseDetailsModalProps {
   purchase: Purchase | null;
   onClose: () => void;
+  onPrintLabels?: (purchase: Purchase) => void;
 }
 
-export const PurchaseDetailsModal: React.FC<PurchaseDetailsModalProps> = ({ purchase, onClose }) => {
+export const PurchaseDetailsModal: React.FC<PurchaseDetailsModalProps> = ({ purchase, onClose, onPrintLabels }) => {
   const { requestClose, handleBackdropClick } = useModalDismiss({
     isOpen: Boolean(purchase),
     onClose,
@@ -168,7 +169,18 @@ export const PurchaseDetailsModal: React.FC<PurchaseDetailsModalProps> = ({ purc
           </div>
         </div>
 
-        <div className="p-3.5 bg-surface dark:bg-surface-dark border-t border-line dark:border-line-dark flex justify-end shrink-0">
+        <div className="p-3.5 bg-surface dark:bg-surface-dark border-t border-line dark:border-line-dark flex justify-between items-center shrink-0">
+          {onPrintLabels ? (
+            <button
+              type="button"
+              onClick={() => onPrintLabels(purchase)}
+              className="px-4 h-9 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              title="طباعة ملصقات الباركود لأصناف هذه الفاتورة بالكميات المشتراة"
+            >
+              <Tag className="w-4 h-4" />
+              <span>طباعة ملصقات الباركود</span>
+            </button>
+          ) : <div />}
           <button
             type="button"
             onClick={() => void requestClose()}

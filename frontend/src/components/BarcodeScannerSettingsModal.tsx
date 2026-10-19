@@ -8,7 +8,9 @@ import {
   CheckCircle, 
   Trash2, 
   Keyboard, 
-  ShieldCheck 
+  ShieldCheck,
+  Cpu,
+  Server
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { rafiqAlert } from '../utils/dialogService';
@@ -60,8 +62,9 @@ export const BarcodeScannerSettingsModal = ({
       try {
         const all = await invoke<Record<string, string>>('settings:getAll');
         if (active && all) {
+          const speedVal = all.scanner_speed_ms || all.scanner_speed_threshold_ms;
           const loaded: BarcodeScannerSettings = {
-            speedThresholdMs: all.scanner_speed_ms ? parseInt(all.scanner_speed_ms, 10) || 65 : 65,
+            speedThresholdMs: speedVal ? parseInt(speedVal, 10) || 65 : 65,
             prefix: all.scanner_prefix || '',
             suffix: (all.scanner_suffix as 'Enter' | 'Tab' | 'None') || 'Enter',
             minBarcodeLength: all.scanner_min_length ? parseInt(all.scanner_min_length, 10) || 3 : 3,
@@ -97,13 +100,27 @@ export const BarcodeScannerSettingsModal = ({
     confirmMessage: 'هناك تعديلات على إعدادات قارئ الباركود لم يتم حفظها. هل أنت متأكد من الخروج وتجاهل التعديلات؟',
   });
 
-  // Focus testing input when modal opens
+  // Focus testing input when modal opens and enable window-level capture for testing
   useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => {
-        testInputRef.current?.focus();
-      }, 100);
-    }
+    if (!isOpen) return;
+
+    setTimeout(() => {
+      testInputRef.current?.focus();
+    }, 100);
+
+    // Capture scans anywhere in modal even if input lost focus
+    const handleModalWideKeyDown = (e: KeyboardEvent) => {
+      // If target is already an input, let its native event handler take care
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      testInputRef.current?.focus();
+    };
+
+    window.addEventListener('keydown', handleModalWideKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleModalWideKeyDown);
+    };
   }, [isOpen]);
 
   const handleSaveSettings = async () => {
@@ -111,6 +128,7 @@ export const BarcodeScannerSettingsModal = ({
     try {
       const payload: Record<string, string> = {
         scanner_speed_ms: settings.speedThresholdMs.toString(),
+        scanner_speed_threshold_ms: settings.speedThresholdMs.toString(),
         scanner_prefix: settings.prefix,
         scanner_suffix: settings.suffix,
         scanner_min_length: settings.minBarcodeLength.toString(),
@@ -444,6 +462,39 @@ export const BarcodeScannerSettingsModal = ({
                 <p className="text-[10px] text-ink-muted m-0">
                   بيتجاهل أي ضغطة مفتاح قصيرة بالخطأ عشان ما يضيفش حاجة غلط.
                 </p>
+              </div>
+            </div>
+
+            {/* Hardware Interface Mode & Virtual COM / USB HID Selector */}
+            <div className="bg-surface-2 p-3.5 rounded-lg border border-line flex flex-col gap-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Cpu className="w-4 h-4 text-brand" />
+                  <span className="text-xs font-bold text-ink">نمط اتصال القارئ (Scanner Interface Mode):</span>
+                </div>
+                <span className="text-[11px] font-bold text-paid bg-paid-soft px-2 py-0.5 rounded border border-paid/20">
+                  USB HID متصل ونشط
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <div className="p-2.5 rounded bg-surface border-2 border-brand/40 flex flex-col gap-1">
+                  <span className="font-bold text-ink flex items-center gap-1.5">
+                    <CheckCircle className="w-3.5 h-3.5 text-paid" />
+                    <span>وضع محاكاة الكيبورد (USB HID Keyboard Wedge)</span>
+                  </span>
+                  <p className="text-[11px] text-ink-muted m-0 leading-relaxed">
+                    الوضع القياسي المعتمد في رفيق (99% من المحلات). لا يحتاج تعريفات خاصة، ويرسل الباركود كنبضات مفاتيح فائقة السرعة مع حماية فورية من لغة ويندوز.
+                  </p>
+                </div>
+                <div className="p-2.5 rounded bg-surface border border-line flex flex-col gap-1">
+                  <span className="font-bold text-ink-muted flex items-center gap-1.5">
+                    <Server className="w-3.5 h-3.5 text-ink-muted" />
+                    <span>المنفذ التسلسلي الافتراضي (USB Virtual COM / RS232)</span>
+                  </span>
+                  <p className="text-[11px] text-ink-muted m-0 leading-relaxed">
+                    يستخدم للقارئات الصناعية. تنبيه: لو تم تحويل القارئ لهذا الوضع بالخطأ وتوقف عن الكتابة، امسح باركود البرمجة &quot;USB HID Mode&quot; من كتالوج القارئ لإعادته فوراً.
+                  </p>
+                </div>
               </div>
             </div>
 

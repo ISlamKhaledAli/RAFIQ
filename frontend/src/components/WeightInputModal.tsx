@@ -82,13 +82,15 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter') {
         e.preventDefault();
-        handleConfirm();
+        if (weightMilli > 0) {
+          onConfirm(weightMilli);
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  });
+  }, [weightMilli, onConfirm]);
 
   const handleKeypadPress = (val: string) => {
     if (val === 'C') {
@@ -218,7 +220,7 @@ const WeightInputModalContent: React.FC<WeightInputModalContentProps> = ({
                 inputMode="decimal"
                 value={inputValue}
                 onChange={(e) => {
-                  const norm = normalizeArabicNumerals(e.target.value);
+                  const norm = normalizeArabicNumerals(e.target.value.replace(/,/g, '.'));
                   if (/^[0-9]*\.?[0-9]*$/.test(norm)) {
                     setInputValue(norm);
                   }

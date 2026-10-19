@@ -212,12 +212,14 @@ namespace RafiqPOS.Services
             {
                 try
                 {
+                    string actorId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
                     if (existing != null)
                     {
                         if (existing.PricePiasters != product.PricePiasters)
                         {
                             _auditRepo.Log(new AuditLog
                             {
+                                UserId = actorId,
                                 Action = "price_update",
                                 EntityType = "product",
                                 EntityId = product.Id,
@@ -228,6 +230,7 @@ namespace RafiqPOS.Services
                         {
                             _auditRepo.Log(new AuditLog
                             {
+                                UserId = actorId,
                                 Action = "cost_update",
                                 EntityType = "product",
                                 EntityId = product.Id,
@@ -238,6 +241,7 @@ namespace RafiqPOS.Services
                         {
                             _auditRepo.Log(new AuditLog
                             {
+                                UserId = actorId,
                                 Action = "stock_adjust",
                                 EntityType = "product",
                                 EntityId = product.Id,
@@ -249,6 +253,7 @@ namespace RafiqPOS.Services
                     {
                         _auditRepo.Log(new AuditLog
                         {
+                            UserId = actorId,
                             Action = "product_create",
                             EntityType = "product",
                             EntityId = product.Id,
@@ -367,8 +372,10 @@ namespace RafiqPOS.Services
             {
                 try
                 {
+                    string actorId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
                     _auditRepo.Log(new AuditLog
                     {
+                        UserId = actorId,
                         Action = "product_delete",
                         EntityType = "product",
                         EntityId = id,

@@ -30,6 +30,7 @@ import {
   DollarSign,
   Smartphone,
   Wallet,
+  Clock,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { UserDto } from '../bridge/ipc';
@@ -76,6 +77,18 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'pos.void_line', label: 'حذف سطر من الفاتورة', description: 'حذف منتج تم إدخاله في الفاتورة الحالية' },
       { key: 'pos.quick_add', label: 'إضافة صنف سريع', description: 'إضافة بند مباشر بدون كود مسبق' },
       { key: 'pos.reprint', label: 'إعادة طباعة الفاتورة', description: 'إعادة طباعة إيصالات العمليات السابقة' },
+    ],
+  },
+  {
+    id: 'shifts',
+    name: 'الورديات والخزينة وحركات الدرج',
+    icon: <Clock className="w-4 h-4 text-brand" />,
+    items: [
+      { key: 'shifts.view', label: 'الاطلاع على الوردية وسجل الدرج', description: 'السماح بالاطلاع على تفاصيل الوردية الحالية والسابقة وحركات النقدية' },
+      { key: 'shifts.open', label: 'فتح وردية جديدة واستلام الدرج', description: 'السماح بفتح وردية عمل جديدة وإدخال العهدة الافتتاحية' },
+      { key: 'shifts.close', label: 'إغلاق وتشميع الوردية وتسليم النقدية', description: 'السماح بإغلاق الوردية وإدخال النقد الفعلي بالدرج واحتساب العجز والزيادة' },
+      { key: 'shifts.cash_in', label: 'تغذية نقدية للدرج (Cash In)', description: 'إضافة مبالغ نقدية كفكة أو عهدة إضافية للدرج' },
+      { key: 'shifts.cash_out', label: 'سحب نقدي من الدرج (Cash Out)', description: 'سحب مبالغ نقدية من الدرج لتوريدها للخزينة الرئيسية' },
     ],
   },
   {
@@ -157,6 +170,7 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'customers.payment', label: 'سداد دفعة / قبض دين', description: 'تسجيل تحصيل مالي من العميل وتوريده للخزينة' },
       { key: 'customers.payment_cancel', label: 'إلغاء سند قبض', description: 'إلغاء دفعة مسجلة للعميل' },
       { key: 'customers.credit_sale', label: 'البيع الآجل', description: 'إمكانية إتمام فواتير بيع بالآجل على الحساب' },
+      { key: 'customers.credit_limit_override', label: 'تجاوز الحد الائتماني', description: 'السماح بإتمام فواتير آجل تتجاوز سقف الدين المحدد' },
     ],
   },
   {
@@ -206,8 +220,10 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
     icon: <DollarSign className="w-4 h-4 text-brand" />,
     items: [
       { key: 'expenses.view', label: 'عرض المصروفات', description: 'استعراض قيود الصرف وسجلات الخزينة' },
-      { key: 'expenses.create', label: 'تسجيل مصروف جديد', description: 'سحب مبالغ من الدرج وتسجيل البند والسبب' },
-      { key: 'expenses.delete', label: 'حذف قيود المصروفات', description: 'إلغاء قيد صرف مالي' },
+      { key: 'expenses.create', label: 'تسجيل مصروف جديد', description: 'سحب مبالغ من الدرج أو الخزينة وتسجيل البند والسبب' },
+      { key: 'expenses.edit', label: 'تعديل بنود المصروفات', description: 'تعديل مبالغ وتفاصيل قيود الصرف المسجلة' },
+      { key: 'expenses.delete', label: 'حذف قيود المصروفات', description: 'حذف قيود الصرف المالي وتوثيق السبب في سجل التدقيق' },
+      { key: 'expenses.cancel', label: 'إلغاء قيود المصروفات', description: 'إلغاء وتراجع عن قيد الصرف واسترجاع المبلغ للخزينة' },
     ],
   },
 ];

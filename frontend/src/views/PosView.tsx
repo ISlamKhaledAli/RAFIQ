@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { FormEvent } from 'react';
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
-import { extractProducts, type Product, type Sale, type Customer, type QuickItem, type SalePayment, type ProductUnit, type HeldSale, type Category, type DigitalAccount } from '../types/models';
+import { extractProducts, type Product, type Sale, type Customer, type QuickItem, type SalePayment, type ProductUnit, type HeldSale, type Category, type DigitalAccount, type Shift } from '../types/models';
 import { 
   formatArabicCurrency, 
   calculateLineTotal, 
@@ -28,6 +28,7 @@ import { ProductVariantPickerModal } from '../components/ProductVariantPickerMod
 import { ProductVariantMatrixModal } from '../components/ProductVariantMatrixModal';
 import { ProductUnitPickerModal } from '../components/ProductUnitPickerModal';
 import { ExpenseModal } from '../components/ExpenseModal';
+import { ShiftModal } from '../components/ShiftModal';
 import { 
   convertArabicLayoutToBarcode,
   loadScannerSettings,
@@ -36,6 +37,7 @@ import {
 } from '../utils/barcodeReader';
 import { parseScaleBarcode } from '../utils/scaleBarcode';
 import { useFeatures } from '../context/useFeatures';
+import { useAuth } from '../context/useAuth';
 
 // Modular POS Subcomponents & Hooks
 import type { CartItem } from './pos/types';
@@ -57,6 +59,7 @@ export interface PosViewProps {
 }
 
 export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToEpay, onNavigateToWallets }) => {
+  const { hasPermission, isAdmin } = useAuth();
   const { isEnabled } = useFeatures();
   const showFastItems = isEnabled('feature_fast_buttons');
   const showCredit = isEnabled('feature_credit_debts');
@@ -92,6 +95,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const [isHeldSalesModalOpen, setIsHeldSalesModalOpen] = useState(false);
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+  const [currentShift, setCurrentShift] = useState<Shift | null>(null);
+  const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const [unregisteredBarcode, setUnregisteredBarcode] = useState('');
   const [scannerSettings, setScannerSettings] = useState<BarcodeScannerSettings>(DEFAULT_SCANNER_SETTINGS);
   const [draftPrompt, setDraftPrompt] = useState<{
@@ -125,6 +130,24 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const [initialWeightMilli, setInitialWeightMilli] = useState<number>(1000);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  // Synchronous Mutex & Checkout Idempotency (Anti-Spam / Anti-Race F12 Guard)
+  const isCheckingOutRef = useRef(false);
+  const supervisorPinRef = useRef<string | null>(null);
+  const cartSessionIdRef = useRef<string>('cart_initial_session');
+  const addProductToCartRef = useRef<(prod: Product, customWeightMilli?: number, specificUnit?: ProductUnit, isExpiredBypassed?: boolean) => boolean>(() => false);
+
+  const resetCartSession = useCallback(() => {
+    cartSessionIdRef.current = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `cart_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    supervisorPinRef.current = null;
+    isCheckingOutRef.current = false;
+  }, []);
+
+  useEffect(() => {
+    resetCartSession();
+  }, [resetCartSession]);
 
   // Branded Invoice Discount Modal State (Feature #24 / Tasks 24-1 to 24-4)
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
@@ -206,15 +229,33 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     barcodeInputRef.current?.focus();
   };
 
-  const addProductToCart = useCallback((prod: Product, customWeightMilli?: number, specificUnit?: ProductUnit): boolean => {
+  const addProductToCart = useCallback((
+    prod: Product, 
+    customWeightMilli?: number, 
+    specificUnit?: ProductUnit, 
+    isExpiredBypassed?: boolean
+  ): boolean => {
     // If this product has variants (matrix parent), prompt variant picker modal
     if (prod.hasVariants) {
       setVariantPickerParentProduct(prod);
       return false;
     }
 
-    if (isEnabled('feature_expiry_dates') && prod.isExpired) {
-      showStatus(`تنبيه هالك: الصنف "${prod.name}" يحتوي على دفعات منتهية الصلاحية!`, 'warning');
+    // FEFO / Expiry Check: Block expired products unless supervisor bypasses (Requirement 2)
+    if (isEnabled('feature_expiry_dates') && prod.isExpired && !isExpiredBypassed) {
+      setSupervisorPrompt({
+        isOpen: true,
+        title: 'بيع صنف منتهي الصلاحية',
+        description: `الصنف "${prod.name}" منتهي الصلاحية بتاريخ (${prod.nearestExpiryDate || 'سابق'}). البيع محظور نظاماً إلا بتخطي واعتماد إداري موثق. هل تريد المتابعة؟`,
+        onApproved: () => {
+          addProductToCartRef.current(prod, customWeightMilli, specificUnit, true);
+        },
+      });
+      return false;
+    }
+
+    if (isEnabled('feature_expiry_dates') && prod.isExpired && isExpiredBypassed) {
+      showStatus(`تم اعتماد إضافة الصنف المنتهي "${prod.name}" للسلة بتصريح إداري موثق.`, 'warning');
     }
 
     let unitToUse = specificUnit;
@@ -295,7 +336,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         item.productId === prod.id && 
         (item.unitId || '') === (unitId || '') &&
         item.unitPricePiasters === unitPrice &&
-        item.productName === prod.name
+        item.productName === prod.name &&
+        (item.isExpiredBypass || false) === (!!isExpiredBypassed)
       );
 
       if (idx >= 0) {
@@ -332,13 +374,20 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         unitId: unitId,
         conversionFactor: factor,
         productUnits: prod.units,
-        isDivisible: isDivisible
+        isDivisible: isDivisible,
+        batchNumber: prod.suggestedBatchNumber || undefined,
+        expiryDate: prod.nearestExpiryDate || undefined,
+        isExpiredBypass: !!isExpiredBypassed,
       };
       return [newItem, ...prev];
     });
 
     return true;
   }, [cart, allowNegativeStock, showStatus, isEnabled]);
+
+  useEffect(() => {
+    addProductToCartRef.current = addProductToCart;
+  }, [addProductToCart]);
 
   const changeCartItemUnit = useCallback((index: number, newUnitId: string) => {
     setCart((prev) => {
@@ -442,19 +491,31 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     setCart((prev) => {
       if (prev.length === 0) return prev;
 
-      const itemGrossList = prev.map((it) => ({
-        grossPiasters: Math.round((it.unitPricePiasters * it.quantityMilli) / 1000),
-      }));
+      // Preserve existing item discounts and distribute invoice discount proportionally on the remaining net
+      const existingItemDiscountsSum = prev.reduce((sum, it) => sum + (it.discountPiasters || 0), 0);
+      let extraInvoiceDiscount = totalPiastersToDiscount;
 
-      const distributed = distributeInvoiceDiscount(itemGrossList, totalPiastersToDiscount);
+      // If caller passed total discount including item discounts:
+      if (totalPiastersToDiscount > existingItemDiscountsSum) {
+        extraInvoiceDiscount = totalPiastersToDiscount - existingItemDiscountsSum;
+      }
+
+      const itemNetList = prev.map((it) => {
+        const gross = Math.round((it.unitPricePiasters * it.quantityMilli) / 1000);
+        return {
+          grossPiasters: Math.max(0, gross - (it.discountPiasters || 0)),
+        };
+      });
+
+      const distributedExtra = distributeInvoiceDiscount(itemNetList, extraInvoiceDiscount);
 
       return prev.map((it, idx) => {
-        const itemDiscount = distributed[idx] || 0;
-        const totalP = calculateLineTotal(it.unitPricePiasters, it.quantityMilli, itemDiscount);
+        const lineTotalDiscount = (it.discountPiasters || 0) + (distributedExtra[idx] || 0);
+        const totalP = calculateLineTotal(it.unitPricePiasters, it.quantityMilli, lineTotalDiscount);
         const taxP = calculateTaxPiasters(totalP, it.taxRatePercent || 0, true);
         return {
           ...it,
-          discountPiasters: itemDiscount,
+          discountPiasters: lineTotalDiscount,
           totalPiasters: totalP,
           taxPiasters: taxP,
         };
@@ -554,16 +615,50 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       }
     }
     if (itemsToRestore.length > 0) {
-      setCart(itemsToRestore);
+      // Scenario 1: Refresh prices from catalog if changed while on hold, preserving weights & discounts
+      let priceChangedCount = 0;
+      const priceChangeNotes: string[] = [];
+      const refreshedItems = itemsToRestore.map((it) => {
+        const liveProd = catalogProducts.find((p) => p.id === it.productId);
+        if (liveProd && liveProd.pricePiasters > 0) {
+          let expectedUnitPrice = liveProd.pricePiasters;
+          if (it.conversionFactor && it.conversionFactor > 1) {
+            expectedUnitPrice = liveProd.pricePiasters * it.conversionFactor;
+          }
+          if (it.unitPricePiasters !== expectedUnitPrice) {
+            priceChangedCount++;
+            priceChangeNotes.push(`${it.productName || liveProd.name}: من ${(it.unitPricePiasters / 100).toFixed(2)} إلى ${(expectedUnitPrice / 100).toFixed(2)} ج.م`);
+            const newTotal = calculateLineTotal(expectedUnitPrice, it.quantityMilli, it.discountPiasters || 0);
+            const newTax = calculateTaxPiasters(newTotal, it.taxRatePercent || 0, true);
+            return {
+              ...it,
+              unitPricePiasters: expectedUnitPrice,
+              totalPiasters: newTotal,
+              taxPiasters: newTax,
+            };
+          }
+        }
+        return it;
+      });
+
+      setCart(refreshedItems);
       setDiscountPiasters(heldSale.discountPiasters || 0);
       if (heldSale.customerId) {
         setSelectedCustomerId(heldSale.customerId);
       }
-      showStatus(`تم استرجاع الفاتورة المعلقة بنجاح (${itemsToRestore.length} صنف)`, 'success');
+      resetCartSession();
+      if (priceChangedCount > 0) {
+        showStatus(
+          `تم استرجاع الفاتورة المعلقة وتحديث أسعار ${priceChangedCount} صنف لأسعار الكتالوج الحالية (${priceChangeNotes.slice(0, 2).join('، ')})`,
+          'warning'
+        );
+      } else {
+        showStatus(`تم استرجاع الفاتورة المعلقة بنجاح (${refreshedItems.length} صنف)`, 'success');
+      }
       void loadHeldSalesCount();
       barcodeInputRef.current?.focus();
     }
-  }, [loadHeldSalesCount, showStatus]);
+  }, [catalogProducts, loadHeldSalesCount, resetCartSession, showStatus]);
 
   // Load customers for selection
   const loadCustomers = useCallback(async () => {
@@ -582,6 +677,20 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   useEffect(() => {
     void loadCustomers();
   }, [loadCustomers]);
+
+  // Load Active Shift (Scenario 1 & Story 8)
+  const loadActiveShift = useCallback(async () => {
+    try {
+      const active = await invoke<Shift | null>('shifts:getActive', { posRegisterId: 'default_pos' });
+      setCurrentShift(active);
+    } catch {
+      // Offline fallback
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadActiveShift();
+  }, [loadActiveShift]);
 
   // Load Categories for POS category panel
   const loadCategories = useCallback(async () => {
@@ -748,6 +857,11 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       showStatus('سلة البيع فارغة! يرجى إضافة أصناف أولاً.', 'error');
       return;
     }
+    if (!currentShift) {
+      showStatus('لا يمكن إتمام البيع قبل فتح وردية رسمية للكاشير واستلام عهدة الدرج. يرجى فتح وردية جديدة أولاً.', 'error');
+      setIsShiftModalOpen(true);
+      return;
+    }
     if (forcedMethod === 'vodafone_cash' || forcedMethod === 'instapay') {
       setDigitalPaymentMethod(forcedMethod);
       setIsDigitalPaymentModalOpen(true);
@@ -759,7 +873,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setPaymentMethod('cash');
     }
     setIsPaymentModalOpen(true);
-  }, [cart.length, showStatus]);
+  }, [cart.length, currentShift, showStatus]);
 
   const handleConfirmPayment = useCallback(async (paymentData: {
     paymentMethod: 'cash' | 'credit' | 'card' | 'multi' | 'instapay' | 'vodafone_cash';
@@ -769,11 +883,20 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     customerId?: string | null;
     totalPiastersOverride?: number;
     serviceFeeNote?: string;
+    supervisorPin?: string;
   }) => {
+    if (isCheckingOutRef.current) return;
+    if (!currentShift) {
+      showStatus('لا يمكن إتمام البيع قبل فتح وردية رسمية للكاشير واستلام عهدة الدرج. يرجى فتح وردية جديدة أولاً.', 'error');
+      setIsShiftModalOpen(true);
+      return;
+    }
+    isCheckingOutRef.current = true;
     setIsPaymentModalOpen(false);
     setLoading(true);
     try {
-      const salePayload: Partial<Sale> = {
+      const shiftId = currentShift.id || (currentShift as unknown as { Id?: string }).Id;
+      const salePayload: Partial<Sale> & { idempotencyKey?: string; supervisorPin?: string } = {
         subtotalPiasters,
         discountPiasters,
         taxPiasters: totalTaxPiasters,
@@ -781,11 +904,14 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         paidPiasters: paymentData.paidPiasters,
         paymentMethod: paymentData.paymentMethod,
         customerId: paymentData.customerId || selectedCustomerId || undefined,
+        shiftId: shiftId || undefined,
         status: 'completed',
         items: cart,
         payments: paymentData.payments,
         notes: paymentData.serviceFeeNote,
         changePiasters: paymentData.changeDuePiasters,
+        idempotencyKey: cartSessionIdRef.current,
+        supervisorPin: paymentData.supervisorPin || supervisorPinRef.current || undefined,
       };
 
       const completedSale = await invoke<Sale>('sales:create', salePayload);
@@ -816,6 +942,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setDiscountPiasters(0);
       setSelectedCustomerId('');
       setPaymentMethod('cash');
+      resetCartSession();
       void loadSmartCatalog();
       void loadHeldSalesCount();
       try {
@@ -830,13 +957,14 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       if (rawMsg.includes('SQL') || rawMsg.includes('SQLite') || rawMsg.includes('table') || rawMsg.includes('column') || rawMsg.includes('INTERNAL_ERROR')) {
         friendlyMsg = 'تعذر حفظ الفاتورة في قاعدة البيانات، يرجى إعادة المحاولة.';
       }
-      if (friendlyMsg.includes('لا يمكن إتمام البيع') || friendlyMsg.includes('رصيد الصنف') || friendlyMsg.includes('غير كافٍ') || friendlyMsg.includes('غير قابلة للتجزئة')) {
+      if (friendlyMsg.includes('لا يمكن إتمام البيع') || friendlyMsg.includes('رصيد الصنف') || friendlyMsg.includes('غير كافٍ') || friendlyMsg.includes('غير قابلة للتجزئة') || friendlyMsg.includes('المشرف')) {
         showStatus(friendlyMsg, 'error');
       } else {
         showStatus(`تعذر إتمام الفاتورة: ${friendlyMsg}`, 'error');
       }
     } finally {
       setLoading(false);
+      isCheckingOutRef.current = false;
       barcodeInputRef.current?.focus();
     }
   }, [
@@ -849,6 +977,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     showStatus,
     loadSmartCatalog,
     loadHeldSalesCount,
+    resetCartSession,
+    currentShift,
   ]);
 
   const setDirectQuantity = useCallback((index: number, newQtyPieces: number) => {
@@ -964,7 +1094,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       let results = extractProducts(res);
 
       if ((!results || results.length === 0) && scaleInfo) {
-        // Try matching: 1) Prefix+PLU (e.g. 2100045), 2) Trimmed PLU (e.g. 45), 3) 5-digit PLU (e.g. 00045)
+        // Try matching: 1) Prefix+PLU (e.g. 2100045, 9900045, 2000045), 2) Trimmed PLU (e.g. 45), 3) 5-digit PLU (e.g. 00045)
         const prefixPlu = `${scaleInfo.prefix}${scaleInfo.itemPlu}`;
         res = await invoke<unknown>('products:search', { query: prefixPlu, limit: 5 });
         results = extractProducts(res);
@@ -975,6 +1105,28 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         if (!results || results.length === 0) {
           res = await invoke<unknown>('products:search', { query: scaleInfo.itemPlu, limit: 5 });
           results = extractProducts(res);
+        }
+        if ((!results || results.length === 0) && (scaleInfo.prefix === '99' || scaleInfo.prefix === '20')) {
+          const altPrefix = scaleInfo.prefix === '99' ? '20' : '99';
+          res = await invoke<unknown>('products:search', { query: `${altPrefix}${scaleInfo.itemPlu}`, limit: 5 });
+          results = extractProducts(res);
+        }
+        // In-memory catalog lookup fallback for instant POS response without IPC lag
+        if (!results || results.length === 0) {
+          const inMemMatch = catalogProducts.find(p => 
+            p.barcode === prefixPlu ||
+            p.barcode === scaleInfo.itemPlu ||
+            p.barcode === scaleInfo.itemPluTrimmed ||
+            (p.barcode && p.barcode.endsWith(scaleInfo.itemPluTrimmed)) ||
+            (p.barcodes && (
+              p.barcodes.includes(prefixPlu) || 
+              p.barcodes.includes(scaleInfo.itemPlu) || 
+              p.barcodes.includes(scaleInfo.itemPluTrimmed)
+            ))
+          );
+          if (inMemMatch) {
+            results = [inMemMatch];
+          }
         }
         if (results && results.length > 0) {
           scaleWeightMilli = scaleInfo.weightMilli;
@@ -1016,7 +1168,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setLoading(false);
       barcodeInputRef.current?.focus();
     }
-  }, [addProductToCart, showStatus]);
+  }, [addProductToCart, showStatus, catalogProducts]);
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
@@ -1041,16 +1193,29 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     const query = convertArabicLayoutToBarcode(barcodeQuery.trim());
     if (!query) return;
 
-    if (isSearchDropdownOpen && liveSearchResults.length > 0 && liveSearchResults[selectedDropdownIndex]) {
-      const selected = liveSearchResults[selectedDropdownIndex];
-      const added = addProductToCart(selected);
-      setBarcodeQuery('');
-      setIsSearchDropdownOpen(false);
-      if (added) {
-        showStatus(`تمت إضافة: ${selected.name}`, 'success');
+    // Priority 1: Check liveSearchResults for an exact barcode match (fast in-memory path)
+    if (isSearchDropdownOpen && liveSearchResults.length > 0) {
+      const exactMatch = liveSearchResults.find((p) => {
+        if (p.barcode === query) return true;
+        if (p.barcodes && p.barcodes.includes(query)) return true;
+        if (p.units && p.units.some((u) => u.barcode === query)) return true;
+        return false;
+      });
+
+      if (exactMatch) {
+        let matchedUnit: ProductUnit | undefined;
+        if (exactMatch.units && exactMatch.units.length > 0) {
+          matchedUnit = exactMatch.units.find((u) => u.barcode === query);
+        }
+        const added = addProductToCart(exactMatch, undefined, matchedUnit);
+        setBarcodeQuery('');
+        setIsSearchDropdownOpen(false);
+        if (added) {
+          showStatus(`تمت إضافة: ${exactMatch.name}`, 'success');
+        }
+        barcodeInputRef.current?.focus();
+        return;
       }
-      barcodeInputRef.current?.focus();
-      return;
     }
 
     try {
@@ -1062,7 +1227,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       let results = extractProducts(res);
 
       if ((!results || results.length === 0) && scaleInfo) {
-        // Try matching: 1) Prefix+PLU (e.g. 2100045), 2) Trimmed PLU (e.g. 45), 3) 5-digit PLU (e.g. 00045)
+        // Try matching: 1) Prefix+PLU (e.g. 2100045, 9900045, 2000045), 2) Trimmed PLU (e.g. 45), 3) 5-digit PLU (e.g. 00045)
         const prefixPlu = `${scaleInfo.prefix}${scaleInfo.itemPlu}`;
         res = await invoke<unknown>('products:search', { query: prefixPlu, limit: 5 });
         results = extractProducts(res);
@@ -1073,6 +1238,28 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         if (!results || results.length === 0) {
           res = await invoke<unknown>('products:search', { query: scaleInfo.itemPlu, limit: 5 });
           results = extractProducts(res);
+        }
+        if ((!results || results.length === 0) && (scaleInfo.prefix === '99' || scaleInfo.prefix === '20')) {
+          const altPrefix = scaleInfo.prefix === '99' ? '20' : '99';
+          res = await invoke<unknown>('products:search', { query: `${altPrefix}${scaleInfo.itemPlu}`, limit: 5 });
+          results = extractProducts(res);
+        }
+        // In-memory catalog lookup fallback for instant POS response without IPC lag
+        if (!results || results.length === 0) {
+          const inMemMatch = catalogProducts.find(p => 
+            p.barcode === prefixPlu ||
+            p.barcode === scaleInfo.itemPlu ||
+            p.barcode === scaleInfo.itemPluTrimmed ||
+            (p.barcode && p.barcode.endsWith(scaleInfo.itemPluTrimmed)) ||
+            (p.barcodes && (
+              p.barcodes.includes(prefixPlu) || 
+              p.barcodes.includes(scaleInfo.itemPlu) || 
+              p.barcodes.includes(scaleInfo.itemPluTrimmed)
+            ))
+          );
+          if (inMemMatch) {
+            results = [inMemMatch];
+          }
         }
         if (results && results.length > 0) {
           scaleWeightMilli = scaleInfo.weightMilli;
@@ -1103,6 +1290,15 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           const unitSuffix = matchedUnit ? ` [${matchedUnit.unitName}]` : '';
           const weightDesc = scaleWeightMilli ? ` (${(scaleWeightMilli / 1000.0).toFixed(3)} كجم - ميزان)` : '';
           showStatus(`تمت إضافة: ${targetProd.name}${unitSuffix}${weightDesc}`, 'success');
+        }
+      } else if (isSearchDropdownOpen && liveSearchResults.length > 0 && liveSearchResults[selectedDropdownIndex]) {
+        // Fallback to dropdown selection only if backend exact search returned no matches
+        const selected = liveSearchResults[selectedDropdownIndex];
+        const added = addProductToCart(selected);
+        setBarcodeQuery('');
+        setIsSearchDropdownOpen(false);
+        if (added) {
+          showStatus(`تمت إضافة: ${selected.name}`, 'success');
         }
       } else {
         setUnregisteredBarcode(query);
@@ -1310,8 +1506,14 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
 
   // Fast cash checkout (F12)
   const handleFastCashCheckout = useCallback(async () => {
+    if (isCheckingOutRef.current || loading) return;
     if (cart.length === 0) {
       showStatus('سلة البيع فارغة! أضف أصنافاً أولاً للبيع (F2)', 'warning');
+      return;
+    }
+    if (!currentShift) {
+      showStatus('لا يمكن إتمام البيع قبل فتح وردية رسمية للكاشير واستلام عهدة الدرج. يرجى فتح وردية جديدة أولاً.', 'error');
+      setIsShiftModalOpen(true);
       return;
     }
     if (paymentMethod === 'credit' && !selectedCustomerId) {
@@ -1327,7 +1529,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       changeDuePiasters: 0,
       customerId: selectedCustomerId || undefined
     });
-  }, [cart.length, paymentMethod, selectedCustomerId, netTotalPiasters, handleConfirmPayment, showStatus]);
+  }, [loading, cart.length, paymentMethod, selectedCustomerId, netTotalPiasters, handleConfirmPayment, showStatus, currentShift]);
 
   // Fast direct digital checkouts (InstaPay & Vodafone Cash)
   const handleInstapayCheckout = useCallback(async () => {
@@ -1338,9 +1540,32 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     handleOpenCheckout('vodafone_cash');
   }, [handleOpenCheckout]);
 
+  const isAnyModalOpen = Boolean(
+    isPaymentModalOpen ||
+    isDigitalPaymentModalOpen ||
+    isReceiptOpen ||
+    isClearConfirmOpen ||
+    isScannerModalOpen ||
+    isQuickAddModalOpen ||
+    isQuickItemsManagerOpen ||
+    isQuickFastItemModalOpen ||
+    isHelpModalOpen ||
+    isHeldSalesModalOpen ||
+    isReturnModalOpen ||
+    isShiftModalOpen ||
+    isDiscountModalOpen ||
+    isExpenseModalOpen ||
+    quantityModalItem !== null ||
+    weightModalProduct !== null ||
+    variantPickerParentProduct !== null ||
+    unitPickerProduct !== null ||
+    supervisorPrompt.isOpen
+  );
+
   // Hook 2: Cashier Keyboard Shortcuts & Hardware Scanner Listener (F1 to F12)
   usePosShortcuts({
     isActive,
+    isAnyModalOpen,
     cart,
     loading,
     lastCompletedSale,
@@ -1363,15 +1588,13 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     setPaymentMethod,
     setIsReturnModalOpen,
     showStatus,
+    hasPermission,
+    isAdmin,
   });
 
   // Focus Management - Always return focus to barcode/search input when POS is active
   useEffect(() => {
     if (!isActive) return;
-
-    const isAnyModalOpen = isPaymentModalOpen || isDigitalPaymentModalOpen || isReceiptOpen || isClearConfirmOpen || 
-      isScannerModalOpen || isQuickAddModalOpen || isQuickItemsManagerOpen || 
-      isQuickFastItemModalOpen || isHelpModalOpen || isHeldSalesModalOpen || isReturnModalOpen || !!weightModalProduct || !!variantPickerParentProduct || !!unitPickerProduct;
 
     if (!isAnyModalOpen) {
       const timer = setTimeout(() => {
@@ -1379,23 +1602,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       }, 60);
       return () => clearTimeout(timer);
     }
-  }, [
-    isPaymentModalOpen, 
-    isDigitalPaymentModalOpen,
-    isReceiptOpen, 
-    isClearConfirmOpen, 
-    isScannerModalOpen, 
-    isQuickAddModalOpen, 
-    isQuickItemsManagerOpen, 
-    isQuickFastItemModalOpen, 
-    isHelpModalOpen, 
-    isHeldSalesModalOpen,
-    isReturnModalOpen,
-    weightModalProduct,
-    variantPickerParentProduct,
-    unitPickerProduct,
-    isActive,
-  ]);
+  }, [isAnyModalOpen, isActive]);
 
   return (
     <div className="flex flex-col h-full w-full bg-canvas dark:bg-canvas-dark overflow-hidden">
@@ -1430,6 +1637,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
               barcodeInputRef.current?.focus();
             }}
             onNavigateToEpay={onNavigateToEpay}
+            activeShift={currentShift}
+            onOpenShiftModal={() => setIsShiftModalOpen(true)}
           />
 
           <PosCartTable
@@ -1615,7 +1824,6 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         isOpen={isPaymentModalOpen}
         onClose={() => {
           setIsPaymentModalOpen(false);
-          setSelectedCustomerId('');
           setPaymentMethod('cash');
           barcodeInputRef.current?.focus();
         }}
@@ -1642,7 +1850,6 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         isOpen={isDigitalPaymentModalOpen}
         onClose={() => {
           setIsDigitalPaymentModalOpen(false);
-          setSelectedCustomerId('');
           barcodeInputRef.current?.focus();
         }}
         method={digitalPaymentMethod}
@@ -1756,8 +1963,10 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       <SupervisorPromptModal
         isOpen={supervisorPrompt.isOpen}
         actionTitle={supervisorPrompt.title}
-        actionDescription={supervisorPrompt.description}
-        onApproved={(supervisorName) => {
+        onApproved={(supervisorName, verifiedPin) => {
+          if (verifiedPin) {
+            supervisorPinRef.current = verifiedPin;
+          }
           const cb = supervisorPrompt.onApproved;
           setSupervisorPrompt({ isOpen: false, title: '', onApproved: () => {} });
           showStatus(`تم اعتماد العملية بواسطة المشرف: ${supervisorName || 'المشرف'}`, 'success');
@@ -1858,6 +2067,16 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         onExpenseAdded={() => {
           showStatus('تم تسجيل المصروف وخصمه من الدرج بنجاح', 'success');
         }}
+      />
+
+      {/* 20. CASH DRAWER & SHIFT LIFECYCLE MODAL */}
+      <ShiftModal
+        isOpen={isShiftModalOpen}
+        onClose={() => {
+          setIsShiftModalOpen(false);
+          barcodeInputRef.current?.focus();
+        }}
+        onShiftStatusChanged={setCurrentShift}
       />
     </div>
   );

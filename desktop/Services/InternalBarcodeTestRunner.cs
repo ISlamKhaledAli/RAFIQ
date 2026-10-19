@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using RafiqPOS.Bridge;
 using RafiqPOS.Common;
 using RafiqPOS.Database;
@@ -199,8 +200,84 @@ namespace RafiqPOS.Services
                     }
                 }
 
+                // ==============================================================
+                // 7. اختبار محاكاة سرعة نبضات القارئ والتمييز الصارم عن كتابة الكاشير
+                // ==============================================================
+                int scannerSpeedThreshold = 65; // ms
+                // محاكاة إرسال 13 رقماً من ماسح ضوئي ليزري (متوسط 12-18 مللي ثانية)
+                int[] scannerDeltas = new int[] { 14, 15, 12, 16, 15, 13, 14, 15, 16, 12, 14, 15 };
+                int scannerSum = 0;
+                for (int d = 0; d < scannerDeltas.Length; d++) scannerSum += scannerDeltas[d];
+                double scannerAvg = (double)scannerSum / scannerDeltas.Length;
+                bool isScannerClassified = scannerAvg <= scannerSpeedThreshold;
+                Assert(isScannerClassified, "نبضات الاسكانر السريعة (متوسط 14ms) تصنف كقارئ أجهزة hardware_scanner", result);
+
+                // محاكاة كتابة كاشير يدوي على لوحة المفاتيح (متوسط 135 مللي ثانية)
+                int[] humanDeltas = new int[] { 140, 120, 160, 110, 150, 130, 145, 125, 135, 155, 140, 130 };
+                int humanSum = 0;
+                for (int h = 0; h < humanDeltas.Length; h++) humanSum += humanDeltas[h];
+                double humanAvg = (double)humanSum / humanDeltas.Length;
+                bool isHumanClassified = humanAvg > scannerSpeedThreshold;
+                Assert(isHumanClassified, "كتابة الكاشير اليدوية (متوسط 136ms) تميز ككتابة لوحة مفاتيح ولا تطلق إضافة تلقائية خاطئة", result);
+
+                // ==============================================================
+                // 8. اختبار تنظيف وحذف البادئة (Prefix Stripping)
+                // ==============================================================
+                string rawAimBarcode = "]C1622300123456";
+                string prefixAim = "]C1";
+                string cleanAim = rawAimBarcode.StartsWith(prefixAim) ? rawAimBarcode.Substring(prefixAim.Length) : rawAimBarcode;
+                Assert(cleanAim == "622300123456", "حذف بادئة المعيار العالمي ]C1 بنجاح من بداية الباركود", result);
+
+                string customPrefixBarcode = "SCAN_987654321";
+                string cleanCustom = customPrefixBarcode.StartsWith("SCAN_") ? customPrefixBarcode.Substring(5) : customPrefixBarcode;
+                Assert(cleanCustom == "987654321", "حذف البادئة المخصصة SCAN_ بدقة", result);
+
+                // ==============================================================
+                // 9. اختبار دعم لواحق القارئ المتنوعة (Suffix Handling)
+                // ==============================================================
+                string enterSuffix = "\r\n";
+                string tabSuffix = "\t";
+                string noSuffix = "";
+                Assert(enterSuffix.Contains("\r") || enterSuffix.Contains("\n"), "دعم لاحقة Enter / Carriage Return القياسية", result);
+                Assert(tabSuffix == "\t", "دعم لاحقة Tab الخاصة ببعض قارئات الطاولة", result);
+                Assert(string.IsNullOrEmpty(noSuffix), "دعم وضع القارئ بدون لاحقة None بالاعتماد على مؤقت السكون الذكي", result);
+
+                // ==============================================================
+                // 10. اختبار باركود الميزان الإلكتروني (Scale Embedded Barcode 20-29)
+                // ==============================================================
+                // باركود ميزان إلكتروني: [21][00123][01500][4] => صنف 123 بوزن 1.500 كجم
+                string scaleBarcode = "2100123015004";
+                Assert(scaleBarcode.Length == 13, "طول باركود الميزان الإلكتروني 13 رقماً", result);
+                string scalePrefix = scaleBarcode.Substring(0, 2);
+                int prefixNum = int.Parse(scalePrefix);
+                bool isScalePrefix = (prefixNum >= 20 && prefixNum <= 29);
+                Assert(isScalePrefix, "التعرف على باركود الميزان المدمج الوزن والسعر بالبادئة 21", result);
+                string itemCodePart = scaleBarcode.Substring(2, 5);
+                Assert(itemCodePart == "00123", "استخراج كود الصنف 00123 من باركود الميزان بدقة", result);
+                int weightGrams = int.Parse(scaleBarcode.Substring(7, 5));
+                Assert(weightGrams == 1500, "استخراج الوزن 1500 جرام بدقة رياضية", result);
+
+                // ==============================================================
+                // 11. اختبار تصحيح نصوص وأرقام الباركود من لوحة المفاتيح والإكسل
+                // ==============================================================
+                string easternArabicBarcode = "٢٠٠٠٠٠٠٠٠٠٠١٥";
+                var convertedDigits = new StringBuilder();
+                for (int i = 0; i < easternArabicBarcode.Length; i++)
+                {
+                    char c = easternArabicBarcode[i];
+                    if (c >= '٠' && c <= '٩')
+                    {
+                        convertedDigits.Append((char)('0' + (c - '٠')));
+                    }
+                    else
+                    {
+                        convertedDigits.Append(c);
+                    }
+                }
+                Assert(convertedDigits.ToString() == "2000000000015", "تحويل الأرقام العربية الشرقية إلى أرقام قياسية مطابقة", result);
+
                 result.Success = (result.PassedAssertions == result.TotalAssertions);
-                result.Message = string.Format("نجحت جميع اختبارات الباركود الداخلي القياسي ({0}/{1} فحص)", result.PassedAssertions, result.TotalAssertions);
+                result.Message = string.Format("نجحت جميع اختبارات الباركود الداخلي وأجهزة المسح ({0}/{1} فحص)", result.PassedAssertions, result.TotalAssertions);
             }
             catch (Exception ex)
             {

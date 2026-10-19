@@ -351,13 +351,16 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // 7. Cash Drawer Expenses for the business date
+                // 7. Cash Drawer & Operational Expenses for the business date
                 string expensesSql = @"
                     SELECT 
                         COALESCE(SUM(amount_piasters), 0) AS total_expenses,
+                        COALESCE(SUM(CASE WHEN (source = 'drawer' OR source IS NULL OR source = '') THEN amount_piasters ELSE 0 END), 0) AS drawer_expenses,
+                        COALESCE(SUM(CASE WHEN (source = 'safe' OR source = 'main_safe') THEN amount_piasters ELSE 0 END), 0) AS safe_expenses,
                         COUNT(*) AS expenses_count
                     FROM expenses
-                    WHERE business_date = @bdate;
+                    WHERE business_date = @bdate
+                      AND (is_cancelled = 0 OR is_cancelled IS NULL);
                 ";
                 using (var cmd = new SQLiteCommand(expensesSql, conn))
                 {
@@ -367,6 +370,8 @@ namespace RafiqPOS.Services
                         if (reader.Read())
                         {
                             preview.ExpensesPiasters = Convert.ToInt64(reader["total_expenses"]);
+                            preview.DrawerExpensesPiasters = Convert.ToInt64(reader["drawer_expenses"]);
+                            preview.SafeExpensesPiasters = Convert.ToInt64(reader["safe_expenses"]);
                             preview.ExpensesCount = Convert.ToInt32(reader["expenses_count"]);
                         }
                     }
@@ -560,11 +565,11 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // Expected Cash in Drawer = Cash Sales - Cash Refunds + Cash Debt Collections - Expenses + Epay Drawer Cash - Epay Drawer Funding + Wallets Drawer Cash - Wallets Drawer Funding - Purchases Drawer Cash - Supplier Payments Drawer Cash
+                // Expected Cash in Drawer = Cash Sales - Cash Refunds + Cash Debt Collections - Drawer Expenses + Epay Drawer Cash - Epay Drawer Funding + Wallets Drawer Cash - Wallets Drawer Funding - Purchases Drawer Cash - Supplier Payments Drawer Cash
                 preview.ExpectedCashPiasters = preview.CashSalesPiasters 
                     - preview.ReturnsCashPiasters 
                     + preview.DebtPaymentsPiasters 
-                    - preview.ExpensesPiasters
+                    - preview.DrawerExpensesPiasters
                     + preview.EpayDrawerCashPiasters
                     - preview.EpayDrawerFundingPiasters
                     + preview.WalletsDrawerCashPiasters

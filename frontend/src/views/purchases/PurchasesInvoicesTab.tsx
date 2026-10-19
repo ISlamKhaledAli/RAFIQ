@@ -9,6 +9,7 @@ import {
   CreditCard,
   Building2,
   HelpCircle,
+  Tag,
 } from 'lucide-react';
 import { CustomSelect } from '../../components/CustomSelect';
 import { PaginationBar } from '../../components/PaginationBar';
@@ -30,6 +31,7 @@ interface PurchasesInvoicesTabProps {
   setPurchasePaymentFilter: (val: string) => void;
   onOpenNewInvoice: () => void;
   onSelectPurchase: (purchase: Purchase) => void;
+  onPrintLabels?: (purchase: Purchase) => void;
 }
 
 export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
@@ -43,6 +45,7 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
   setPurchasePaymentFilter,
   onOpenNewInvoice,
   onSelectPurchase,
+  onPrintLabels,
 }) => {
   const showLoading = useSmoothLoading(loading, 300);
   const filteredPurchases = useMemo(() => {
@@ -260,7 +263,17 @@ export const PurchasesInvoicesTab: React.FC<PurchasesInvoicesTabProps> = ({
                     </span>
                   )}
                 </div>
-                <div className="col-span-1 text-left">
+                <div className="col-span-1 text-left flex items-center justify-end gap-1">
+                  {onPrintLabels && (
+                    <button
+                      type="button"
+                      onClick={() => onPrintLabels(pur)}
+                      className="p-1.5 text-ink-muted dark:text-ink-dark-muted hover:text-brand dark:hover:text-brand-bright hover:bg-brand-soft dark:hover:bg-brand-soft/20 rounded-lg transition-colors cursor-pointer"
+                      title="طباعة ملصقات الباركود لأصناف الفاتورة"
+                    >
+                      <Tag className="w-4 h-4" />
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => onSelectPurchase(pur)}

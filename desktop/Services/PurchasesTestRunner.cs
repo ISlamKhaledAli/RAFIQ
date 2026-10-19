@@ -118,10 +118,26 @@ namespace RafiqPOS.Services
                 var sup2Tx = DatabaseService.Suppliers.GetTransactions(sup2.Id);
                 assert(sup2Tx.Count == 1 && sup2Tx[0].TransactionType == "OPENING_BALANCE", "تسجيل حركة رصيد افتتاحي في دفتر المورد");
 
-                // Supplier Payment test
-                DatabaseService.Suppliers.RecordPayment(sup2.Id, 50000, "سداد دفعة نقدية"); // Paid 500.00 EGP
+                // Supplier Payment test (Scenario 2: سندات الصرف للموردين وتحديث كشف الحساب والقيد المعاكس)
+                DatabaseService.Suppliers.RecordPayment(sup2.Id, 50000, "سداد دفعة نقدية", null, "external_cash"); // Paid 500.00 EGP
                 var sup2AfterPay = DatabaseService.Suppliers.GetById(sup2.Id);
                 assert(sup2AfterPay.BalancePiasters == 100000, "سداد دفعة يخفض رصيد المورد بدقة");
+
+                var sup2Txs = DatabaseService.Suppliers.GetTransactions(sup2.Id);
+                assert(sup2Txs.Count >= 2 && sup2Txs[0].BalanceAfterPiasters == 100000, "تحديث الرصيد التراكمي balance_after_piasters في كشف حساب المورد بدقة");
+
+                // Test contra-entry payment cancellation (Rule 2: Zero hard deletes, reversal via contra-entry)
+                string payTxId = sup2Txs[0].Id;
+                DatabaseService.Suppliers.CancelPayment(sup2.Id, payTxId, "إلغاء السند لوجود خطأ محاسبي");
+                var sup2AfterCancel = DatabaseService.Suppliers.GetById(sup2.Id);
+                assert(sup2AfterCancel.BalancePiasters == 150000, "إلغاء سند الصرف بقيد عكسي يستعيد رصيد مديونية المورد بالكامل");
+
+                var sup2TxsAfterCancel = DatabaseService.Suppliers.GetTransactions(sup2.Id);
+                assert(sup2TxsAfterCancel[0].TransactionType == "PAYMENT_CANCEL", "توثيق حركة القيد العكسي PAYMENT_CANCEL في كشف حساب المورد");
+                assert(sup2TxsAfterCancel[0].BalanceAfterPiasters == 150000, "رصيد كشف الحساب بعد القيد العكسي سليم 100%");
+
+                // Re-apply payment to maintain clean state
+                DatabaseService.Suppliers.RecordPayment(sup2.Id, 50000, "إعادة سداد الدفعة بعد التصحيح", null, "external_cash");
 
                 // ==========================================
                 // 2. Purchase Invoice Tests (Story 81 / Feature #38)
@@ -244,6 +260,160 @@ namespace RafiqPOS.Services
                     threwNegativeQty = true;
                 }
                 assert(threwNegativeQty, "رفض كمية شراء سالبة");
+
+                // ==========================================
+                // 3. Scenario 1: ACID Atomic Transaction Rollback Test
+                // ==========================================
+                long prod1StockBeforeFail = DatabaseService.Products.GetById(prod1.Id).StockQuantityMilli;
+                long sup1BalanceBeforeFail = DatabaseService.Suppliers.GetById(sup1.Id).BalancePiasters;
+                bool threwAtomic = false;
+                try
+                {
+                    DatabaseService.Purchases.CreatePurchase(new Purchase
+                    {
+                        SupplierId = sup1.Id,
+                        PaidAmountPiasters = 0,
+                        Items = new List<PurchaseItem>
+                        {
+                            new PurchaseItem
+                            {
+                                ProductId = prod1.Id,
+                                QuantityMilli = 10000,
+                                UnitCostPiasters = 4000
+                            },
+                            new PurchaseItem
+                            {
+                                ProductId = "invalid_non_existent_product_id",
+                                QuantityMilli = 5000,
+                                UnitCostPiasters = 2000
+                            }
+                        }
+                    });
+                }
+                catch (Exception)
+                {
+                    threwAtomic = true;
+                }
+                assert(threwAtomic, "رفض العملية الذرية عند وجود صنف خاطئ داخل الفاتورة");
+                var prod1StockAfterFail = DatabaseService.Products.GetById(prod1.Id).StockQuantityMilli;
+                var sup1BalanceAfterFail = DatabaseService.Suppliers.GetById(sup1.Id).BalancePiasters;
+                assert(prod1StockAfterFail == prod1StockBeforeFail, "ضمان ACID: تراجع المخزون بالكامل وعدم تعديل أي صنف عند فشل الفاتورة");
+                assert(sup1BalanceAfterFail == sup1BalanceBeforeFail, "ضمان ACID: تراجع رصيد المورد بالكامل عند فشل الفاتورة");
+
+                // ==========================================
+                // 4. Scenario 3: Supplier Bonuses & Discounts Real Effective Cost
+                // ==========================================
+                var prod3 = DatabaseService.Products.SaveProduct(new Product
+                {
+                    Name = "شاي أسود ناعم 250 جم - اختبار بونص وخصم",
+                    Barcode = "9900112255",
+                    PricePiasters = 12000,
+                    CostPiasters = 0,
+                    StockQuantityMilli = 0,
+                    MinStockQuantityMilli = 1000,
+                    Unit = "piece",
+                    IsActive = true
+                });
+
+                // Buy 10 units @ 100 EGP (10,000 piasters) = 1,000 EGP gross
+                // Bonus = 2 units (2,000 milli) free
+                // Line discount = 100 EGP (10,000 piasters)
+                // Invoice discount = 100 EGP (10,000 piasters)
+                // Net cost paid = 1,000 - 100 - 100 = 800 EGP (80,000 piasters)
+                // Total units received = 10 + 2 = 12 units (12,000 milli)
+                // Real Effective Unit Cost = (80,000 * 1000) / 12,000 = 6,667 piasters (66.67 EGP)
+                long sup1BalBeforeBonus = DatabaseService.Suppliers.GetById(sup1.Id).BalancePiasters;
+                var bonusPurchase = DatabaseService.Purchases.CreatePurchase(new Purchase
+                {
+                    SupplierId = sup1.Id,
+                    SupplierInvoiceNumber = "INV-BONUS-01",
+                    DiscountPiasters = 10000, // 100.00 EGP overall invoice discount
+                    PaidAmountPiasters = 0,    // On credit
+                    Items = new List<PurchaseItem>
+                    {
+                        new PurchaseItem
+                        {
+                            ProductId = prod3.Id,
+                            QuantityMilli = 10000,
+                            BonusQuantityMilli = 2000,
+                            UnitCostPiasters = 10000,
+                            DiscountPiasters = 10000 // 100.00 EGP line discount
+                        }
+                    }
+                }, "LATEST");
+
+                assert(bonusPurchase.TotalCostPiasters == 90000, "إجمالي الفاتورة بعد الخصم السطري 90,000 قرش");
+                assert(bonusPurchase.NetCostPiasters == 80000, "صافي الفاتورة بعد خصم الفاتورة الإجمالي 80,000 قرش (800 ج.م)");
+
+                var prod3After = DatabaseService.Products.GetById(prod3.Id);
+                assert(prod3After.StockQuantityMilli == 12000, "دخول كمية الشراء والبونص معاً في المخزن (10 + 2 = 12 وحدة)");
+                assert(prod3After.CostPiasters == 6667, "توزيع الخصومات والبونص بدقة وحساب التكلفة الفعلية (6667 قرش للوحدة)");
+
+                var sup1BalAfterBonus = DatabaseService.Suppliers.GetById(sup1.Id).BalancePiasters;
+                assert(sup1BalAfterBonus == sup1BalBeforeBonus + 80000, "زيادة رصيد المورد الدائن بصافي تكلفة الفاتورة الحقيقية (80,000 قرش)");
+
+                // ==========================================
+                // 5. Scenario 4: Purchase Returns (مردودات المشتريات)
+                // ==========================================
+                // Return 2 units (2,000 milli) of prod3 to supplier
+                // Return cost = 2 * 6667 = 13,334 piasters
+                var retDoc = DatabaseService.Purchases.CreatePurchaseReturn(new PurchaseReturn
+                {
+                    SupplierId = sup1.Id,
+                    PurchaseId = bonusPurchase.Id,
+                    ReturnDate = DateTime.Now.ToString("yyyy-MM-dd"),
+                    Notes = "إرجاع 2 علبة شاي لوجود تلف في التغليف",
+                    Items = new List<PurchaseReturnItem>
+                    {
+                        new PurchaseReturnItem
+                        {
+                            ProductId = prod3.Id,
+                            QuantityMilli = 2000,
+                            UnitCostPiasters = 6667,
+                            Reason = "تلف في كرتونة الشاي"
+                        }
+                    }
+                });
+
+                assert(retDoc != null && retDoc.ReturnNumber > 0, "إنشاء مرتجع مشتريات وتوليد رقم تسلسلي للمرتجع");
+                assert(retDoc.TotalCostPiasters == 13334, "قيمة المرتجع صحيحة بالمليم (2 * 6667 = 13,334 قرش)");
+
+                // Check stock decreased
+                var prod3AfterRet = DatabaseService.Products.GetById(prod3.Id);
+                assert(prod3AfterRet.StockQuantityMilli == 10000, "تخفيض رصيد المخزن بدقة بعد المرتجع (12 - 2 = 10 وحدات)");
+
+                // Check supplier balance decreased
+                var sup1BalAfterRet = DatabaseService.Suppliers.GetById(sup1.Id).BalancePiasters;
+                assert(sup1BalAfterRet == sup1BalAfterBonus - 13334, "تخفيض مديونية المورد بقيمة المرتجع (خصم 13,334 قرش)");
+
+                // Check transactions ledger has return entry
+                var sup1TxsAfterRet = DatabaseService.Suppliers.GetTransactions(sup1.Id);
+                assert(sup1TxsAfterRet[0].TransactionType == "PURCHASE_RETURN", "تسجيل حركة PURCHASE_RETURN في كشف حساب المورد");
+                assert(sup1TxsAfterRet[0].AmountPiasters == -13334, "مبلغ المرتجع مسجل بالسالب في دفتر المورد لتخفيض دينيته");
+
+                // Check protection: cannot return more than available stock
+                bool threwOverReturn = false;
+                try
+                {
+                    DatabaseService.Purchases.CreatePurchaseReturn(new PurchaseReturn
+                    {
+                        SupplierId = sup1.Id,
+                        Items = new List<PurchaseReturnItem>
+                        {
+                            new PurchaseReturnItem
+                            {
+                                ProductId = prod3.Id,
+                                QuantityMilli = 50000, // 50 units (only 10 in stock!)
+                                UnitCostPiasters = 6667
+                            }
+                        }
+                    });
+                }
+                catch (InvalidOperationException)
+                {
+                    threwOverReturn = true;
+                }
+                assert(threwOverReturn, "منع مرتجع مشتريات بكمية أكبر من الرصيد المتاح بالمخزن");
 
                 return new PurchasesTestResult
                 {

@@ -14,9 +14,15 @@ namespace RafiqPOS.Services
             _repo = repo;
         }
 
-        public List<AuditLog> GetLogs(int limit = 100, string action = null)
+        public List<AuditLog> GetLogs(
+            int limit = 100,
+            string action = null,
+            string userId = null,
+            string startDate = null,
+            string endDate = null,
+            string search = null)
         {
-            return _repo.GetLogs(limit, action);
+            return _repo.GetLogs(limit, action, userId, startDate, endDate, search);
         }
 
         public void Log(string action, string entityType, string entityId, string detailsJson, string userId = null)

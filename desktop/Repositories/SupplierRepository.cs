@@ -141,10 +141,10 @@ namespace RafiqPOS.Repositories
                                 string transSql = @"
                                     INSERT INTO supplier_transactions (
                                         id, supplier_id, transaction_type, reference_id,
-                                        amount_piasters, notes, created_at
+                                        amount_piasters, balance_after_piasters, notes, created_at
                                     ) VALUES (
                                         @id, @supplierId, 'OPENING_BALANCE', NULL,
-                                        @amount, 'رصيد افتتاحي للمورد', @createdAt
+                                        @amount, @amount, 'رصيد افتتاحي للمورد', @createdAt
                                     );
                                 ";
                                 using (var cmd = new SQLiteCommand(transSql, conn, trans))
@@ -426,13 +426,21 @@ namespace RafiqPOS.Repositories
                     cmd.ExecuteNonQuery();
                 }
 
+                long balanceAfter = 0;
+                using (var balCmd = new SQLiteCommand("SELECT balance_piasters FROM suppliers WHERE id = @id LIMIT 1;", c, t))
+                {
+                    balCmd.Parameters.AddWithValue("@id", supplierId);
+                    object bRes = balCmd.ExecuteScalar();
+                    if (bRes != null && bRes != DBNull.Value) balanceAfter = Convert.ToInt64(bRes);
+                }
+
                 string insertSql = @"
                     INSERT INTO supplier_transactions (
                         id, supplier_id, transaction_type, reference_id,
-                        amount_piasters, payment_source, notes, created_at
+                        amount_piasters, payment_source, balance_after_piasters, notes, created_at
                     ) VALUES (
                         @id, @supplierId, @transType, @refId,
-                        @amount, @paymentSource, @notes, @createdAt
+                        @amount, @paymentSource, @balanceAfter, @notes, @createdAt
                     );
                 ";
                 using (var cmd = new SQLiteCommand(insertSql, c, t))
@@ -443,6 +451,7 @@ namespace RafiqPOS.Repositories
                     cmd.Parameters.AddWithValue("@refId", (object)referenceId ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@amount", deltaPiasters);
                     cmd.Parameters.AddWithValue("@paymentSource", !string.IsNullOrWhiteSpace(paymentSource) ? paymentSource : "cash_drawer");
+                    cmd.Parameters.AddWithValue("@balanceAfter", balanceAfter);
                     cmd.Parameters.AddWithValue("@notes", (object)notes ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@createdAt", now);
                     cmd.ExecuteNonQuery();
@@ -552,6 +561,88 @@ namespace RafiqPOS.Repositories
             }
         }
 
+        public void CancelPayment(string supplierId, string transactionId, string reason, string userId = null)
+        {
+            if (string.IsNullOrWhiteSpace(supplierId)) throw new ArgumentException("معرف المورد مطلوب");
+            if (string.IsNullOrWhiteSpace(transactionId)) throw new ArgumentException("معرف سند الصرف مطلوب");
+            if (string.IsNullOrWhiteSpace(reason)) throw new ArgumentException("سبب إلغاء سند الصرف مطلوب");
+
+            lock (SaleService.FinancialWriteLock)
+            {
+                using (var conn = new SQLiteConnection(_connectionString))
+                {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction())
+                    {
+                        try
+                        {
+                            long origAmount = 0;
+                            string origPaymentSource = "cash_drawer";
+                            string origType = null;
+
+                            using (var cmd = new SQLiteCommand("SELECT transaction_type, amount_piasters, payment_source FROM supplier_transactions WHERE id = @id AND supplier_id = @supId LIMIT 1;", conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@id", transactionId);
+                                cmd.Parameters.AddWithValue("@supId", supplierId);
+                                using (var reader = cmd.ExecuteReader())
+                                {
+                                    if (reader.Read())
+                                    {
+                                        origType = reader["transaction_type"].ToString();
+                                        origAmount = Convert.ToInt64(reader["amount_piasters"]);
+                                        origPaymentSource = reader["payment_source"] != DBNull.Value ? reader["payment_source"].ToString() : "cash_drawer";
+                                    }
+                                    else
+                                    {
+                                        throw new InvalidOperationException("سند الصرف غير موجود في كشف حساب المورد");
+                                    }
+                                }
+                            }
+
+                            if (origType != "PAYMENT")
+                            {
+                                throw new InvalidOperationException("لا يمكن إلغاء هذه الحركة المحاسبية، الحركة ليست سند صرف سداد");
+                            }
+
+                            // Check if already cancelled
+                            using (var checkCmd = new SQLiteCommand("SELECT 1 FROM supplier_transactions WHERE reference_id = @refId AND transaction_type = 'PAYMENT_CANCEL' LIMIT 1;", conn, trans))
+                            {
+                                checkCmd.Parameters.AddWithValue("@refId", transactionId);
+                                if (checkCmd.ExecuteScalar() != null)
+                                {
+                                    throw new InvalidOperationException("تم إلغاء سند الصرف مسبقاً بقيد عكسي.");
+                                }
+                            }
+
+                            // Payment was negative delta (-paid). Reversal adds back positive delta (+paid).
+                            long reversalAmount = Math.Abs(origAmount);
+                            string contraNotes = string.Format("قيد عكسي لإلغاء سند الصرف: {0}", reason);
+
+                            AdjustBalance(supplierId, reversalAmount, "PAYMENT_CANCEL", transactionId, contraNotes, conn, trans, origPaymentSource);
+
+                            _auditRepo.Log(conn, trans, new AuditLog
+                            {
+                                Id = "aud_" + Guid.NewGuid().ToString("N"),
+                                UserId = string.IsNullOrWhiteSpace(userId) ? "usr_admin_default" : userId,
+                                Action = "supplier_payment_cancel",
+                                EntityType = "suppliers",
+                                EntityId = supplierId,
+                                DetailsJson = string.Format("{{\"transactionId\":\"{0}\",\"amountPiasters\":{1},\"reason\":\"{2}\"}}", transactionId, reversalAmount, reason.Replace("\"", "\\\"")),
+                                CreatedAt = DateTime.UtcNow.ToString("o")
+                            });
+
+                            trans.Commit();
+                        }
+                        catch
+                        {
+                            trans.Rollback();
+                            throw;
+                        }
+                    }
+                }
+            }
+        }
+
         public List<SupplierTransaction> GetTransactions(string supplierId, int limit = 50)
         {
             var list = new List<SupplierTransaction>();
@@ -577,6 +668,7 @@ namespace RafiqPOS.Repositories
                                 ReferenceId = reader["reference_id"] != DBNull.Value ? reader["reference_id"].ToString() : null,
                                 AmountPiasters = Convert.ToInt64(reader["amount_piasters"]),
                                 PaymentSource = HasColumn(reader, "payment_source") && reader["payment_source"] != DBNull.Value ? reader["payment_source"].ToString() : "cash_drawer",
+                                BalanceAfterPiasters = HasColumn(reader, "balance_after_piasters") && reader["balance_after_piasters"] != DBNull.Value ? Convert.ToInt64(reader["balance_after_piasters"]) : 0L,
                                 Notes = reader["notes"] != DBNull.Value ? reader["notes"].ToString() : null,
                                 CreatedAt = reader["created_at"].ToString()
                             });

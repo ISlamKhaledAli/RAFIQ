@@ -403,7 +403,7 @@ namespace RafiqPOS.Repositories
             }
         }
 
-        public List<BatchDeductionResult> DeductFromBatchesFefo(string productId, long quantityMilliToDeduct, SQLiteConnection conn, SQLiteTransaction trans)
+        public List<BatchDeductionResult> DeductFromBatchesFefo(string productId, long quantityMilliToDeduct, SQLiteConnection conn, SQLiteTransaction trans, bool allowExpired = false, string specificBatchId = null)
         {
             var results = new List<BatchDeductionResult>();
             if (string.IsNullOrEmpty(productId) || quantityMilliToDeduct <= 0)
@@ -411,25 +411,61 @@ namespace RafiqPOS.Repositories
                 return results;
             }
 
-            // Fetch active batches with remaining quantity ordered by expiry date (FEFO: First-Expired First-Out)
-            // Rules from Task 60-1:
-            // 1. Batches with expiry date are deducted before batches without expiry date.
-            // 2. Earliest expiry date deducted first.
-            // 3. If multiple batches have the same expiry date, earlier created_at deducted first.
+            var batches = new List<ProductBatch>();
+
+            // 1. If specific batch is requested, deduct from it first
+            if (!string.IsNullOrEmpty(specificBatchId))
+            {
+                string specSql = @"
+                    SELECT id, batch_number, expiry_date, quantity_milli, cost_price_piasters
+                    FROM product_batches
+                    WHERE id = @bid AND status = 'ACTIVE' AND quantity_milli > 0;
+                ";
+                using (var cmd = new SQLiteCommand(specSql, conn, trans))
+                {
+                    cmd.Parameters.AddWithValue("@bid", specificBatchId);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            batches.Add(new ProductBatch
+                            {
+                                Id = reader["id"].ToString(),
+                                BatchNumber = reader["batch_number"].ToString(),
+                                ExpiryDate = reader["expiry_date"] != DBNull.Value ? reader["expiry_date"].ToString() : null,
+                                QuantityMilli = Convert.ToInt64(reader["quantity_milli"]),
+                                CostPricePiasters = Convert.ToInt64(reader["cost_price_piasters"])
+                            });
+                        }
+                    }
+                }
+            }
+
+            // 2. Fetch active batches with remaining quantity ordered by FEFO (First-Expired First-Out)
+            // Rule: Unless explicitly overridden by supervisor (allowExpired == true), expired batches are NEVER sold automatically!
+            string filterExpired = allowExpired 
+                ? "" 
+                : " AND (expiry_date IS NULL OR expiry_date = '' OR date(expiry_date) >= date('now'))";
+
             string sql = @"
-                SELECT id, batch_number, expiry_date, quantity_milli
+                SELECT id, batch_number, expiry_date, quantity_milli, cost_price_piasters
                 FROM product_batches
-                WHERE product_id = @pid AND status = 'ACTIVE' AND quantity_milli > 0
+                WHERE product_id = @pid AND status = 'ACTIVE' AND quantity_milli > 0"
+                + filterExpired
+                + (!string.IsNullOrEmpty(specificBatchId) ? " AND id != @specId" : "") + @"
                 ORDER BY 
                     CASE WHEN expiry_date IS NULL OR expiry_date = '' THEN 1 ELSE 0 END ASC,
                     expiry_date ASC,
                     created_at ASC;
             ";
 
-            var batches = new List<ProductBatch>();
             using (var cmd = new SQLiteCommand(sql, conn, trans))
             {
                 cmd.Parameters.AddWithValue("@pid", productId);
+                if (!string.IsNullOrEmpty(specificBatchId))
+                {
+                    cmd.Parameters.AddWithValue("@specId", specificBatchId);
+                }
                 using (var reader = cmd.ExecuteReader())
                 {
                     while (reader.Read())
@@ -439,7 +475,8 @@ namespace RafiqPOS.Repositories
                             Id = reader["id"].ToString(),
                             BatchNumber = reader["batch_number"].ToString(),
                             ExpiryDate = reader["expiry_date"] != DBNull.Value ? reader["expiry_date"].ToString() : null,
-                            QuantityMilli = Convert.ToInt64(reader["quantity_milli"])
+                            QuantityMilli = Convert.ToInt64(reader["quantity_milli"]),
+                            CostPricePiasters = Convert.ToInt64(reader["cost_price_piasters"])
                         });
                     }
                 }
@@ -447,7 +484,7 @@ namespace RafiqPOS.Repositories
 
             if (batches.Count == 0)
             {
-                return results; // No batches recorded for this product
+                return results; // No eligible batches recorded for this product
             }
 
             string now = DateTime.UtcNow.ToString("o");
@@ -484,13 +521,180 @@ namespace RafiqPOS.Repositories
                     BatchNumber = b.BatchNumber,
                     ExpiryDate = b.ExpiryDate,
                     DeductedQuantityMilli = deductFromThisBatch,
-                    RemainingQuantityMilli = newQty
+                    RemainingQuantityMilli = newQty,
+                    CostPricePiasters = b.CostPricePiasters
                 });
 
                 remainingToDeduct -= deductFromThisBatch;
             }
 
             return results;
+        }
+
+        public ProductBatch GetSuggestedBatch(string productId, SQLiteConnection conn = null, SQLiteTransaction trans = null)
+        {
+            if (string.IsNullOrEmpty(productId)) return null;
+
+            // 1. Try to find the earliest expiring VALID batch (FEFO)
+            string sqlValid = @"
+                SELECT b.id, b.product_id, b.batch_number, b.expiry_date, b.production_date,
+                       b.quantity_milli, b.cost_price_piasters, b.supplier_id, b.purchase_id,
+                       b.status, b.notes, b.created_at, b.updated_at,
+                       p.name AS product_name, p.barcode AS product_barcode, p.unit,
+                       s.name AS supplier_name
+                FROM product_batches b
+                JOIN products p ON b.product_id = p.id
+                LEFT JOIN suppliers s ON b.supplier_id = s.id
+                WHERE b.product_id = @pid 
+                  AND b.status = 'ACTIVE' 
+                  AND b.quantity_milli > 0
+                  AND (b.expiry_date IS NULL OR b.expiry_date = '' OR date(b.expiry_date) >= date('now'))
+                ORDER BY 
+                    CASE WHEN b.expiry_date IS NULL OR b.expiry_date = '' THEN 1 ELSE 0 END ASC,
+                    b.expiry_date ASC,
+                    b.created_at ASC
+                LIMIT 1;
+            ";
+
+            if (conn != null && trans != null)
+            {
+                using (var cmd = new SQLiteCommand(sqlValid, conn, trans))
+                {
+                    cmd.Parameters.AddWithValue("@pid", productId);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            return MapBatch(reader);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                using (var localConn = new SQLiteConnection(_connectionString))
+                {
+                    localConn.Open();
+                    using (var cmd = new SQLiteCommand(sqlValid, localConn))
+                    {
+                        cmd.Parameters.AddWithValue("@pid", productId);
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                return MapBatch(reader);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. If no valid batch, check if an expired active batch exists (for supervisor bypass identification)
+            string sqlExpired = @"
+                SELECT b.id, b.product_id, b.batch_number, b.expiry_date, b.production_date,
+                       b.quantity_milli, b.cost_price_piasters, b.supplier_id, b.purchase_id,
+                       b.status, b.notes, b.created_at, b.updated_at,
+                       p.name AS product_name, p.barcode AS product_barcode, p.unit,
+                       s.name AS supplier_name
+                FROM product_batches b
+                JOIN products p ON b.product_id = p.id
+                LEFT JOIN suppliers s ON b.supplier_id = s.id
+                WHERE b.product_id = @pid 
+                  AND b.quantity_milli > 0
+                  AND b.expiry_date IS NOT NULL
+                  AND b.expiry_date != ''
+                  AND date(b.expiry_date) < date('now')
+                ORDER BY b.expiry_date ASC
+                LIMIT 1;
+            ";
+
+            if (conn != null && trans != null)
+            {
+                using (var cmd = new SQLiteCommand(sqlExpired, conn, trans))
+                {
+                    cmd.Parameters.AddWithValue("@pid", productId);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            return MapBatch(reader);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                using (var localConn = new SQLiteConnection(_connectionString))
+                {
+                    localConn.Open();
+                    using (var cmd = new SQLiteCommand(sqlExpired, localConn))
+                    {
+                        cmd.Parameters.AddWithValue("@pid", productId);
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                return MapBatch(reader);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        public bool HasOnlyExpiredStock(string productId, SQLiteConnection conn = null, SQLiteTransaction trans = null)
+        {
+            if (string.IsNullOrEmpty(productId)) return false;
+
+            string sql = @"
+                SELECT 
+                    COUNT(CASE WHEN (expiry_date IS NULL OR expiry_date = '' OR date(expiry_date) >= date('now')) AND status = 'ACTIVE' AND quantity_milli > 0 THEN 1 END) AS valid_count,
+                    COUNT(CASE WHEN date(expiry_date) < date('now') AND quantity_milli > 0 THEN 1 END) AS expired_count
+                FROM product_batches
+                WHERE product_id = @pid;
+            ";
+
+            int validCount = 0;
+            int expiredCount = 0;
+
+            if (conn != null && trans != null)
+            {
+                using (var cmd = new SQLiteCommand(sql, conn, trans))
+                {
+                    cmd.Parameters.AddWithValue("@pid", productId);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            validCount = Convert.ToInt32(reader["valid_count"]);
+                            expiredCount = Convert.ToInt32(reader["expired_count"]);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                using (var localConn = new SQLiteConnection(_connectionString))
+                {
+                    localConn.Open();
+                    using (var cmd = new SQLiteCommand(sql, localConn))
+                    {
+                        cmd.Parameters.AddWithValue("@pid", productId);
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                validCount = Convert.ToInt32(reader["valid_count"]);
+                                expiredCount = Convert.ToInt32(reader["expired_count"]);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return validCount == 0 && expiredCount > 0;
         }
 
         public void AdjustBatchStock(string batchId, long newQuantityMilli, string reason, string userId, SQLiteConnection conn = null, SQLiteTransaction trans = null)
@@ -574,10 +778,10 @@ namespace RafiqPOS.Repositories
                 string insertSmSql = @"
                     INSERT INTO stock_movements (
                         id, product_id, movement_type, quantity_milli, reference_id, reference_type,
-                        unit_cost_piasters, note, batch_number, batch_id, created_at
+                        unit_cost_piasters, note, batch_number, batch_id, expiry_date, created_at
                     ) VALUES (
                         @id, @pid, 'ADJUSTMENT', @qty, @refId, 'BATCH_ADJUSTMENT',
-                        @cost, @note, @bnum, @bid, @now
+                        @cost, @note, @bnum, @bid, @expDate, @now
                     );
                 ";
                 using (var cmd = new SQLiteCommand(insertSmSql, activeConn, activeTrans))
@@ -590,6 +794,7 @@ namespace RafiqPOS.Repositories
                     cmd.Parameters.AddWithValue("@note", "تسوية رصيد الدفعة [" + batch.BatchNumber + "]: " + (reason ?? "تعديل يدوي"));
                     cmd.Parameters.AddWithValue("@bnum", batch.BatchNumber);
                     cmd.Parameters.AddWithValue("@bid", batch.Id);
+                    cmd.Parameters.AddWithValue("@expDate", (object)batch.ExpiryDate ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@now", now);
                     cmd.ExecuteNonQuery();
                 }
@@ -703,10 +908,10 @@ namespace RafiqPOS.Repositories
                         string insertSmSql = @"
                             INSERT INTO stock_movements (
                                 id, product_id, movement_type, quantity_milli, reference_id, reference_type,
-                                unit_cost_piasters, note, batch_number, batch_id, created_at
+                                unit_cost_piasters, note, batch_number, batch_id, expiry_date, created_at
                             ) VALUES (
                                 @id, @pid, 'DAMAGE', @qty, @refId, 'EXPIRED_DISPOSAL',
-                                @cost, @note, @bnum, @bid, @now
+                                @cost, @note, @bnum, @bid, @expDate, @now
                             );
                         ";
                         using (var cmd = new SQLiteCommand(insertSmSql, conn, trans))
@@ -719,6 +924,7 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@note", "إتلاف بضاعة منتهية الصلاحية للدفعة [" + batch.BatchNumber + "]: " + (reason ?? "تالف"));
                             cmd.Parameters.AddWithValue("@bnum", batch.BatchNumber);
                             cmd.Parameters.AddWithValue("@bid", batch.Id);
+                            cmd.Parameters.AddWithValue("@expDate", (object)batch.ExpiryDate ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@now", now);
                             cmd.ExecuteNonQuery();
                         }

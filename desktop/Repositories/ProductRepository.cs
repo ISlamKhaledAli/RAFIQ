@@ -142,12 +142,13 @@ namespace RafiqPOS.Repositories
             try
             {
                 string sql = @"
-                    SELECT id, product_id, unit_name, conversion_factor, is_base_unit,
-                           sell_price_piasters, cost_price_piasters, barcode, is_divisible,
-                           sort_order, created_at, updated_at
-                    FROM product_units
-                    WHERE product_id = @pid
-                    ORDER BY is_base_unit DESC, sort_order ASC, unit_name ASC;
+                    SELECT pu.id, pu.product_id, pu.unit_name, pu.conversion_factor, pu.is_base_unit,
+                           pu.sell_price_piasters, pu.cost_price_piasters, pu.barcode, pu.is_divisible,
+                           pu.sort_order, pu.created_at, pu.updated_at,
+                           (SELECT COUNT(*) FROM sale_items si WHERE si.unit_id = pu.id LIMIT 1) > 0 AS has_sales
+                    FROM product_units pu
+                    WHERE pu.product_id = @pid
+                    ORDER BY pu.is_base_unit DESC, pu.sort_order ASC, pu.unit_name ASC;
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn, trans))
                 {
@@ -156,6 +157,14 @@ namespace RafiqPOS.Repositories
                     {
                         while (reader.Read())
                         {
+                            bool hasSales = false;
+                            try
+                            {
+                                int colIdx = reader.GetOrdinal("has_sales");
+                                if (colIdx >= 0 && reader[colIdx] != DBNull.Value) hasSales = Convert.ToInt32(reader[colIdx]) == 1;
+                            }
+                            catch { }
+
                             list.Add(new ProductUnit
                             {
                                 Id = reader["id"].ToString(),
@@ -168,6 +177,7 @@ namespace RafiqPOS.Repositories
                                 Barcode = reader["barcode"] == DBNull.Value ? null : reader["barcode"].ToString(),
                                 IsDivisible = Convert.ToInt32(reader["is_divisible"]) == 1,
                                 SortOrder = Convert.ToInt32(reader["sort_order"]),
+                                HasSales = hasSales,
                                 CreatedAt = reader["created_at"].ToString(),
                                 UpdatedAt = reader["updated_at"].ToString()
                             });
@@ -209,7 +219,14 @@ namespace RafiqPOS.Repositories
                 }
 
                 string sql = @"
-                    SELECT DISTINCT p.*, COALESCE(c.name, 'عام') AS category_name FROM products p
+                    SELECT DISTINCT p.*, COALESCE(c.name, 'عام') AS category_name,
+                        CASE 
+                            WHEN p.has_variants = 1 THEN 1
+                            WHEN EXISTS(SELECT 1 FROM product_variants pv WHERE pv.parent_product_id = p.id) THEN 1
+                            ELSE 0 
+                        END AS has_variants_computed,
+                        (SELECT COUNT(*) FROM product_variants pv WHERE pv.parent_product_id = p.id) AS variants_count
+                    FROM products p
                     LEFT JOIN categories c ON p.category_id = c.id
                     LEFT JOIN product_barcodes pb ON p.id = pb.product_id
                     LEFT JOIN product_units pu ON p.id = pu.product_id
@@ -217,6 +234,7 @@ namespace RafiqPOS.Repositories
                       AND (
                            p.barcode = @exact 
                         OR pb.barcode = @exact 
+                        OR pu.barcode = @exact
                         OR p.internal_code = @exact 
                         OR p.normalized_name = @normExactText
                         OR p.normalized_name LIKE @normPrefix
@@ -225,7 +243,7 @@ namespace RafiqPOS.Repositories
                       )
                     ORDER BY 
                       CASE 
-                        WHEN p.barcode = @exact OR pb.barcode = @exact OR p.internal_code = @exact THEN 1
+                        WHEN p.barcode = @exact OR pb.barcode = @exact OR pu.barcode = @exact OR p.internal_code = @exact THEN 1
                         WHEN p.normalized_name = @normExactText THEN 2
                         WHEN p.normalized_name LIKE @normPrefix THEN 3
                         WHEN p.normalized_name LIKE @normLike THEN 4
@@ -291,9 +309,20 @@ namespace RafiqPOS.Repositories
                             WHEN EXISTS(SELECT 1 FROM product_variants pv WHERE pv.parent_product_id = p.id) THEN 1
                             ELSE 0 
                         END AS has_variants_computed,
-                        (SELECT COUNT(*) FROM product_variants pv WHERE pv.parent_product_id = p.id) AS variants_count,
-                        (SELECT MIN(pb.expiry_date) FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND pb.expiry_date IS NOT NULL AND pb.expiry_date != '') AS nearest_expiry_date,
-                        CASE WHEN EXISTS(SELECT 1 FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND pb.expiry_date < date('now')) THEN 1 ELSE 0 END AS is_expired,
+                        COALESCE(
+                            (SELECT MIN(pb.expiry_date) FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND pb.expiry_date IS NOT NULL AND pb.expiry_date != '' AND date(pb.expiry_date) >= date('now')),
+                            (SELECT MIN(pb.expiry_date) FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND pb.expiry_date IS NOT NULL AND pb.expiry_date != '')
+                        ) AS nearest_expiry_date,
+                        CASE 
+                            WHEN EXISTS(SELECT 1 FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND date(pb.expiry_date) < date('now'))
+                             AND NOT EXISTS(SELECT 1 FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND (pb.expiry_date IS NULL OR pb.expiry_date = '' OR date(pb.expiry_date) >= date('now'))) 
+                            THEN 1 
+                            ELSE 0 
+                        END AS is_expired,
+                        COALESCE(
+                            (SELECT pb.batch_number FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND (pb.expiry_date IS NULL OR pb.expiry_date = '' OR date(pb.expiry_date) >= date('now')) ORDER BY CASE WHEN pb.expiry_date IS NULL OR pb.expiry_date = '' THEN 1 ELSE 0 END ASC, pb.expiry_date ASC, pb.created_at ASC LIMIT 1),
+                            (SELECT pb.batch_number FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' ORDER BY pb.created_at DESC LIMIT 1)
+                        ) AS suggested_batch_number,
                         CASE WHEN EXISTS(SELECT 1 FROM product_batches pb WHERE pb.product_id = p.id) THEN 1 ELSE 0 END AS has_batches
                     FROM products p
                     LEFT JOIN categories c ON p.category_id = c.id
@@ -542,8 +571,20 @@ namespace RafiqPOS.Repositories
                             ELSE 0 
                         END AS has_variants_computed,
                         (SELECT COUNT(*) FROM product_variants pv WHERE pv.parent_product_id = p.id) AS variants_count,
-                        (SELECT MIN(pb.expiry_date) FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND pb.expiry_date IS NOT NULL AND pb.expiry_date != '') AS nearest_expiry_date,
-                        CASE WHEN EXISTS(SELECT 1 FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND pb.expiry_date < date('now')) THEN 1 ELSE 0 END AS is_expired,
+                        COALESCE(
+                            (SELECT MIN(pb.expiry_date) FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND pb.expiry_date IS NOT NULL AND pb.expiry_date != '' AND date(pb.expiry_date) >= date('now')),
+                            (SELECT MIN(pb.expiry_date) FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND pb.expiry_date IS NOT NULL AND pb.expiry_date != '')
+                        ) AS nearest_expiry_date,
+                        CASE 
+                            WHEN EXISTS(SELECT 1 FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND date(pb.expiry_date) < date('now'))
+                             AND NOT EXISTS(SELECT 1 FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND (pb.expiry_date IS NULL OR pb.expiry_date = '' OR date(pb.expiry_date) >= date('now'))) 
+                            THEN 1 
+                            ELSE 0 
+                        END AS is_expired,
+                        COALESCE(
+                            (SELECT pb.batch_number FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND (pb.expiry_date IS NULL OR pb.expiry_date = '' OR date(pb.expiry_date) >= date('now')) ORDER BY CASE WHEN pb.expiry_date IS NULL OR pb.expiry_date = '' THEN 1 ELSE 0 END ASC, pb.expiry_date ASC, pb.created_at ASC LIMIT 1),
+                            (SELECT pb.batch_number FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' ORDER BY pb.created_at DESC LIMIT 1)
+                        ) AS suggested_batch_number,
                         CASE WHEN EXISTS(SELECT 1 FROM product_batches pb WHERE pb.product_id = p.id) THEN 1 ELSE 0 END AS has_batches
                     FROM products p
                     LEFT JOIN categories c ON p.category_id = c.id
@@ -738,6 +779,33 @@ namespace RafiqPOS.Repositories
                                 {
                                     if (string.IsNullOrWhiteSpace(u.Id)) u.Id = Guid.NewGuid().ToString("N");
                                     u.ProductId = product.Id;
+
+                                    // Guard: Prevent changing conversion factor if unit has sales in sale_items
+                                    using (var checkFactorCmd = new SQLiteCommand("SELECT conversion_factor, unit_name FROM product_units WHERE id = @id LIMIT 1;", conn, trans))
+                                    {
+                                        checkFactorCmd.Parameters.AddWithValue("@id", u.Id);
+                                        using (var r = checkFactorCmd.ExecuteReader())
+                                        {
+                                            if (r.Read())
+                                            {
+                                                int existingFactor = Convert.ToInt32(r["conversion_factor"]);
+                                                int targetFactor = u.IsBaseUnit ? 1 : (u.ConversionFactor <= 0 ? 1 : u.ConversionFactor);
+                                                if (existingFactor != targetFactor)
+                                                {
+                                                    using (var salesCheckCmd = new SQLiteCommand("SELECT COUNT(*) FROM sale_items WHERE unit_id = @uid LIMIT 1;", conn, trans))
+                                                    {
+                                                        salesCheckCmd.Parameters.AddWithValue("@uid", u.Id);
+                                                        long salesCount = Convert.ToInt64(salesCheckCmd.ExecuteScalar());
+                                                        if (salesCount > 0)
+                                                        {
+                                                            throw new InvalidOperationException(string.Format("لا يمكن تعديل معامل التحويل للوحدة ({0}) من {1} إلى {2} لوجود مبيعات وفواتير مسجلة بها سابقاً لضمان سلامة السجل التاريخي وتقارير الجرد.", r["unit_name"].ToString(), existingFactor, targetFactor));
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
                                     using (var uCmd = new SQLiteCommand(upsertUnitSql, conn, trans))
                                     {
                                         uCmd.Parameters.AddWithValue("@id", u.Id);
@@ -763,6 +831,33 @@ namespace RafiqPOS.Repositories
                                 }
                                 if (keptIds.Count > 0)
                                 {
+                                    // Guard: Prevent deleting units with recorded sales in sale_items
+                                    using (var checkDelCmd = new SQLiteCommand(conn))
+                                    {
+                                        checkDelCmd.Transaction = trans;
+                                        checkDelCmd.Parameters.AddWithValue("@productId", product.Id);
+                                        var pNames = new List<string>();
+                                        for (int i = 0; i < keptIds.Count; i++)
+                                        {
+                                            string pName = "@keptId" + i;
+                                            pNames.Add(pName);
+                                            checkDelCmd.Parameters.AddWithValue(pName, keptIds[i]);
+                                        }
+                                        checkDelCmd.CommandText = @"
+                                            SELECT pu.unit_name 
+                                            FROM product_units pu
+                                            WHERE pu.product_id = @productId 
+                                              AND pu.id NOT IN (" + string.Join(",", pNames.ToArray()) + @")
+                                              AND (SELECT COUNT(*) FROM sale_items si WHERE si.unit_id = pu.id LIMIT 1) > 0
+                                            LIMIT 1;
+                                        ";
+                                        object blockingUnit = checkDelCmd.ExecuteScalar();
+                                        if (blockingUnit != null && blockingUnit != DBNull.Value)
+                                        {
+                                            throw new InvalidOperationException(string.Format("لا يمكن حذف الوحدة ({0}) لوجود مبيعات وفواتير مسجلة بها سابقاً لحماية السجل التاريخي وتقارير الجرد.", blockingUnit.ToString()));
+                                        }
+                                    }
+
                                     using (var delCmd = new SQLiteCommand(conn))
                                     {
                                         delCmd.Transaction = trans;
@@ -906,6 +1001,46 @@ namespace RafiqPOS.Repositories
                 {
                     try
                     {
+                        // 0. Guard against deleting variant with previous sales or stock movements
+                        using (var chkVarCmd = new SQLiteCommand("SELECT parent_id, name FROM products WHERE id = @id LIMIT 1;", conn, trans))
+                        {
+                            chkVarCmd.Parameters.AddWithValue("@id", id);
+                            using (var rdr = chkVarCmd.ExecuteReader())
+                            {
+                                if (rdr.Read() && rdr["parent_id"] != DBNull.Value && !string.IsNullOrEmpty(rdr["parent_id"].ToString()))
+                                {
+                                    string varName = rdr["name"].ToString();
+                                    using (var saleCmd = new SQLiteCommand("SELECT COUNT(*) FROM sale_items WHERE product_id = @id;", conn, trans))
+                                    {
+                                        saleCmd.Parameters.AddWithValue("@id", id);
+                                        long sc = Convert.ToInt64(saleCmd.ExecuteScalar());
+                                        if (sc > 0)
+                                        {
+                                            throw new InvalidOperationException(string.Format("لا يمكن حذف المتغير '{0}' لوجود مبيعات سابقة مسجلة له.", varName));
+                                        }
+                                    }
+                                    using (var purCmd = new SQLiteCommand("SELECT COUNT(*) FROM purchase_items WHERE product_id = @id;", conn, trans))
+                                    {
+                                        purCmd.Parameters.AddWithValue("@id", id);
+                                        long pc = Convert.ToInt64(purCmd.ExecuteScalar());
+                                        if (pc > 0)
+                                        {
+                                            throw new InvalidOperationException(string.Format("لا يمكن حذف المتغير '{0}' لوجود فواتير شراء سابقة مسجلة له.", varName));
+                                        }
+                                    }
+                                    using (var smCmd = new SQLiteCommand("SELECT COUNT(*) FROM stock_movements WHERE product_id = @id AND reference_type != 'OPENING_BALANCE';", conn, trans))
+                                    {
+                                        smCmd.Parameters.AddWithValue("@id", id);
+                                        long smc = Convert.ToInt64(smCmd.ExecuteScalar());
+                                        if (smc > 0)
+                                        {
+                                            throw new InvalidOperationException(string.Format("لا يمكن حذف المتغير '{0}' لوجود حركات مخزنية سابقة مسجلة له.", varName));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         // 1. Soft delete the target product
                         string sql = "UPDATE products SET is_active = 0, updated_at = @updatedAt WHERE id = @id;";
                         using (var cmd = new SQLiteCommand(sql, conn, trans))
@@ -913,6 +1048,13 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@id", id);
                             cmd.Parameters.AddWithValue("@updatedAt", now);
                             cmd.ExecuteNonQuery();
+                        }
+
+                        // Also remove from product_variants if it was a variant relation
+                        using (var delVarRelCmd = new SQLiteCommand("DELETE FROM product_variants WHERE variant_product_id = @id;", conn, trans))
+                        {
+                            delVarRelCmd.Parameters.AddWithValue("@id", id);
+                            delVarRelCmd.ExecuteNonQuery();
                         }
 
                         // 2. If target is a parent product, cascade soft-delete to all child variants
@@ -1056,6 +1198,9 @@ namespace RafiqPOS.Repositories
             bool isExpired = false;
             try { if (reader["is_expired"] != DBNull.Value) isExpired = Convert.ToInt32(reader["is_expired"]) == 1; } catch { }
 
+            string suggestedBatchNumber = null;
+            try { if (reader["suggested_batch_number"] != DBNull.Value) suggestedBatchNumber = reader["suggested_batch_number"].ToString(); } catch { }
+
             return new Product
             {
                 Id = reader["id"].ToString(),
@@ -1088,6 +1233,7 @@ namespace RafiqPOS.Repositories
                 VariantsCount = variantsCount,
                 HasBatches = hasBatches,
                 NearestExpiryDate = nearestExpiryDate,
+                SuggestedBatchNumber = suggestedBatchNumber,
                 IsExpired = isExpired
             };
         }

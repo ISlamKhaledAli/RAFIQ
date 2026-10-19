@@ -102,6 +102,7 @@ namespace RafiqPOS.Repositories
 
                         var createdVariants = new List<ProductVariant>();
                         long totalParentStockMilli = 0;
+                        var processedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                         // Load existing variants if updating an existing parent product
                         var existingMap = new Dictionary<string, ProductVariant>(StringComparer.OrdinalIgnoreCase);
@@ -149,6 +150,7 @@ namespace RafiqPOS.Repositories
                             if (!cell.IsEnabled) continue;
 
                             string cellKey = (cell.Size ?? "").Trim() + "__" + (cell.Color ?? "").Trim();
+                            processedKeys.Add(cellKey);
                             ProductVariant existingVar = null;
                             if (existingMap.ContainsKey(cellKey))
                             {
@@ -170,10 +172,20 @@ namespace RafiqPOS.Repositories
                             else
                             {
                                 variantBarcode = variantBarcode.Trim();
-                                // Validate barcode is not already owned by another active product (excluding self when updating)
+                                // Validate barcode is not already owned by another active product, barcode, or unit
                                 string checkCollisionSql = @"
-                                    SELECT name FROM products 
-                                    WHERE is_active = 1 AND barcode = @b AND (@excludeId IS NULL OR id != @excludeId) LIMIT 1;
+                                    SELECT name FROM (
+                                        SELECT p.name FROM products p 
+                                        WHERE p.is_active = 1 AND p.barcode = @b AND (@excludeId IS NULL OR p.id != @excludeId)
+                                        UNION ALL
+                                        SELECT p.name FROM products p 
+                                        INNER JOIN product_barcodes pb ON p.id = pb.product_id 
+                                        WHERE p.is_active = 1 AND pb.barcode = @b AND (@excludeId IS NULL OR p.id != @excludeId)
+                                        UNION ALL
+                                        SELECT p.name FROM products p 
+                                        INNER JOIN product_units pu ON p.id = pu.product_id 
+                                        WHERE p.is_active = 1 AND pu.barcode = @b AND (@excludeId IS NULL OR p.id != @excludeId)
+                                    ) LIMIT 1;
                                 ";
                                 using (var chkCmd = new SQLiteCommand(checkCollisionSql, conn, trans))
                                 {
@@ -291,6 +303,35 @@ namespace RafiqPOS.Repositories
                                     }
                                 }
                                 catch { }
+
+                                // Log price history if prices changed
+                                if (price != existingVar.PricePiasters || cost != existingVar.CostPiasters)
+                                {
+                                    try
+                                    {
+                                        string phSql = @"
+                                            INSERT INTO product_price_history (
+                                                id, product_id, old_price_piasters, new_price_piasters,
+                                                old_cost_piasters, new_cost_piasters, change_reason, created_at
+                                            ) VALUES (
+                                                @id, @product_id, @old_price, @new_price,
+                                                @old_cost, @new_cost, 'تحديث من مصفوفة متغيرات الصنف', @created_at
+                                            );
+                                        ";
+                                        using (var phCmd = new SQLiteCommand(phSql, conn, trans))
+                                        {
+                                            phCmd.Parameters.AddWithValue("@id", "ph_" + Guid.NewGuid().ToString("N"));
+                                            phCmd.Parameters.AddWithValue("@product_id", variantProdId);
+                                            phCmd.Parameters.AddWithValue("@old_price", existingVar.PricePiasters);
+                                            phCmd.Parameters.AddWithValue("@new_price", price);
+                                            phCmd.Parameters.AddWithValue("@old_cost", existingVar.CostPiasters);
+                                            phCmd.Parameters.AddWithValue("@new_cost", cost);
+                                            phCmd.Parameters.AddWithValue("@created_at", now);
+                                            phCmd.ExecuteNonQuery();
+                                        }
+                                    }
+                                    catch { }
+                                }
 
                                 // Record stock adjustment movement if stock changed
                                 if (stock != oldStock)
@@ -463,6 +504,75 @@ namespace RafiqPOS.Repositories
                                 CreatedAt = now,
                                 UpdatedAt = now
                             });
+                        }
+
+                        // 2b. Handle variants in existingMap that were omitted or disabled in this request
+                        foreach (var kvp in existingMap)
+                        {
+                            if (!processedKeys.Contains(kvp.Key))
+                            {
+                                var ev = kvp.Value;
+                                // Guard: if variant has sales, reject deletion/deactivation
+                                using (var saleCmd = new SQLiteCommand("SELECT COUNT(*) FROM sale_items WHERE product_id = @vid;", conn, trans))
+                                {
+                                    saleCmd.Parameters.AddWithValue("@vid", ev.VariantProductId);
+                                    long sc = Convert.ToInt64(saleCmd.ExecuteScalar());
+                                    if (sc > 0)
+                                    {
+                                        throw new InvalidOperationException(string.Format("لا يمكن حذف أو إلغاء تفعيل المتغير '{0} - {1}' لوجود مبيعات سابقة مسجلة له ({2} حركة بيع).", ev.Color, ev.Size, sc));
+                                    }
+                                }
+
+                                // Guard: if variant has purchases, reject
+                                using (var purCmd = new SQLiteCommand("SELECT COUNT(*) FROM purchase_items WHERE product_id = @vid;", conn, trans))
+                                {
+                                    purCmd.Parameters.AddWithValue("@vid", ev.VariantProductId);
+                                    long pc = Convert.ToInt64(purCmd.ExecuteScalar());
+                                    if (pc > 0)
+                                    {
+                                        throw new InvalidOperationException(string.Format("لا يمكن حذف أو إلغاء تفعيل المتغير '{0} - {1}' لوجود فواتير شراء سابقة مسجلة له.", ev.Color, ev.Size));
+                                    }
+                                }
+
+                                // Guard: if variant has movements beyond opening balance, reject
+                                using (var smCmd = new SQLiteCommand("SELECT COUNT(*) FROM stock_movements WHERE product_id = @vid AND reference_type != 'OPENING_BALANCE';", conn, trans))
+                                {
+                                    smCmd.Parameters.AddWithValue("@vid", ev.VariantProductId);
+                                    long smc = Convert.ToInt64(smCmd.ExecuteScalar());
+                                    if (smc > 0)
+                                    {
+                                        throw new InvalidOperationException(string.Format("لا يمكن حذف أو إلغاء تفعيل المتغير '{0} - {1}' لوجود حركات مخزنية سابقة مسجلة له.", ev.Color, ev.Size));
+                                    }
+                                }
+
+                                // Clean deactivation of untouched variant
+                                using (var deactCmd = new SQLiteCommand("UPDATE products SET is_active = 0, updated_at = @now WHERE id = @vid;", conn, trans))
+                                {
+                                    deactCmd.Parameters.AddWithValue("@vid", ev.VariantProductId);
+                                    deactCmd.Parameters.AddWithValue("@now", now);
+                                    deactCmd.ExecuteNonQuery();
+                                }
+                                using (var delVarCmd = new SQLiteCommand("DELETE FROM product_variants WHERE variant_product_id = @vid;", conn, trans))
+                                {
+                                    delVarCmd.Parameters.AddWithValue("@vid", ev.VariantProductId);
+                                    delVarCmd.ExecuteNonQuery();
+                                }
+                                using (var delBcCmd = new SQLiteCommand("DELETE FROM product_barcodes WHERE product_id = @vid;", conn, trans))
+                                {
+                                    delBcCmd.Parameters.AddWithValue("@vid", ev.VariantProductId);
+                                    delBcCmd.ExecuteNonQuery();
+                                }
+                                using (var delUnitCmd = new SQLiteCommand("DELETE FROM product_units WHERE product_id = @vid;", conn, trans))
+                                {
+                                    delUnitCmd.Parameters.AddWithValue("@vid", ev.VariantProductId);
+                                    delUnitCmd.ExecuteNonQuery();
+                                }
+                                using (var delSmCmd = new SQLiteCommand("DELETE FROM stock_movements WHERE product_id = @vid AND reference_type = 'OPENING_BALANCE';", conn, trans))
+                                {
+                                    delSmCmd.Parameters.AddWithValue("@vid", ev.VariantProductId);
+                                    delSmCmd.ExecuteNonQuery();
+                                }
+                            }
                         }
 
                         // 3. Update parent product stock to reflect total of all active variants
@@ -653,6 +763,136 @@ namespace RafiqPOS.Repositories
             }
 
             return list;
+        }
+
+        public void DeleteVariant(string variantProductId)
+        {
+            if (string.IsNullOrWhiteSpace(variantProductId))
+                throw new ArgumentException("معرف المتغير مطلوب");
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var trans = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        string parentId = null;
+                        string variantName = null;
+                        using (var checkCmd = new SQLiteCommand("SELECT parent_id, name FROM products WHERE id = @id LIMIT 1;", conn, trans))
+                        {
+                            checkCmd.Parameters.AddWithValue("@id", variantProductId.Trim());
+                            using (var rdr = checkCmd.ExecuteReader())
+                            {
+                                if (rdr.Read())
+                                {
+                                    parentId = rdr["parent_id"] != DBNull.Value ? rdr["parent_id"].ToString() : null;
+                                    variantName = rdr["name"].ToString();
+                                }
+                            }
+                        }
+
+                        if (string.IsNullOrEmpty(parentId))
+                        {
+                            throw new ArgumentException("الصنف المحدد ليس متغيراً تابعاً لمنتج أب أو غير موجود");
+                        }
+
+                        // 1. Guard against deleting variant with sales
+                        using (var saleCmd = new SQLiteCommand("SELECT COUNT(*) FROM sale_items WHERE product_id = @id;", conn, trans))
+                        {
+                            saleCmd.Parameters.AddWithValue("@id", variantProductId.Trim());
+                            long saleCount = Convert.ToInt64(saleCmd.ExecuteScalar());
+                            if (saleCount > 0)
+                            {
+                                throw new InvalidOperationException(string.Format("لا يمكن حذف المتغير '{0}' لوجود مبيعات سابقة مسجلة له في النظام ({1} حركة بيع).", variantName, saleCount));
+                            }
+                        }
+
+                        // 2. Guard against deleting variant with purchases
+                        using (var purCmd = new SQLiteCommand("SELECT COUNT(*) FROM purchase_items WHERE product_id = @id;", conn, trans))
+                        {
+                            purCmd.Parameters.AddWithValue("@id", variantProductId.Trim());
+                            long purCount = Convert.ToInt64(purCmd.ExecuteScalar());
+                            if (purCount > 0)
+                            {
+                                throw new InvalidOperationException(string.Format("لا يمكن حذف المتغير '{0}' لوجود فواتير شراء سابقة مسجلة له ({1} فاتورة شراء).", variantName, purCount));
+                            }
+                        }
+
+                        // 3. Guard against deleting variant with non-opening stock movements
+                        using (var smCmd = new SQLiteCommand("SELECT COUNT(*) FROM stock_movements WHERE product_id = @id AND reference_type != 'OPENING_BALANCE';", conn, trans))
+                        {
+                            smCmd.Parameters.AddWithValue("@id", variantProductId.Trim());
+                            long smCount = Convert.ToInt64(smCmd.ExecuteScalar());
+                            if (smCount > 0)
+                            {
+                                throw new InvalidOperationException(string.Format("لا يمكن حذف المتغير '{0}' لوجود حركات مخزنية سابقة مسجلة له في المخزن.", variantName));
+                            }
+                        }
+
+                        string now = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
+
+                        // Deactivate product row
+                        using (var deactCmd = new SQLiteCommand("UPDATE products SET is_active = 0, updated_at = @now WHERE id = @id;", conn, trans))
+                        {
+                            deactCmd.Parameters.AddWithValue("@id", variantProductId.Trim());
+                            deactCmd.Parameters.AddWithValue("@now", now);
+                            deactCmd.ExecuteNonQuery();
+                        }
+
+                        // Remove from product_variants
+                        using (var delVarCmd = new SQLiteCommand("DELETE FROM product_variants WHERE variant_product_id = @id;", conn, trans))
+                        {
+                            delVarCmd.Parameters.AddWithValue("@id", variantProductId.Trim());
+                            delVarCmd.ExecuteNonQuery();
+                        }
+
+                        // Clean up product_barcodes & product_units
+                        using (var delBcCmd = new SQLiteCommand("DELETE FROM product_barcodes WHERE product_id = @id;", conn, trans))
+                        {
+                            delBcCmd.Parameters.AddWithValue("@id", variantProductId.Trim());
+                            delBcCmd.ExecuteNonQuery();
+                        }
+
+                        using (var delUnitCmd = new SQLiteCommand("DELETE FROM product_units WHERE product_id = @id;", conn, trans))
+                        {
+                            delUnitCmd.Parameters.AddWithValue("@id", variantProductId.Trim());
+                            delUnitCmd.ExecuteNonQuery();
+                        }
+
+                        using (var delSmCmd = new SQLiteCommand("DELETE FROM stock_movements WHERE product_id = @id AND reference_type = 'OPENING_BALANCE';", conn, trans))
+                        {
+                            delSmCmd.Parameters.AddWithValue("@id", variantProductId.Trim());
+                            delSmCmd.ExecuteNonQuery();
+                        }
+
+                        // Recalculate parent product total stock
+                        string syncParentSql = @"
+                            UPDATE products
+                            SET stock_quantity_milli = (
+                                SELECT COALESCE(SUM(p2.stock_quantity_milli), 0)
+                                FROM products p2
+                                WHERE p2.parent_id = @pid AND p2.is_active = 1
+                            ),
+                            updated_at = @now
+                            WHERE id = @pid;
+                        ";
+                        using (var sCmd = new SQLiteCommand(syncParentSql, conn, trans))
+                        {
+                            sCmd.Parameters.AddWithValue("@pid", parentId);
+                            sCmd.Parameters.AddWithValue("@now", now);
+                            sCmd.ExecuteNonQuery();
+                        }
+
+                        trans.Commit();
+                    }
+                    catch
+                    {
+                        trans.Rollback();
+                        throw;
+                    }
+                }
+            }
         }
 
         private static string GenerateUniqueVariantBarcode(SQLiteConnection conn, SQLiteTransaction trans)

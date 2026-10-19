@@ -52,6 +52,14 @@ namespace RafiqPOS.Services
             }
         }
 
+        public void CancelPayment(string supplierId, string transactionId, string reason, string userId = null)
+        {
+            lock (SaleService.FinancialWriteLock)
+            {
+                _supplierRepo.CancelPayment(supplierId, transactionId, reason, userId);
+            }
+        }
+
         public List<SupplierTransaction> GetTransactions(string supplierId, int limit = 50)
         {
             return _supplierRepo.GetTransactions(supplierId, limit);

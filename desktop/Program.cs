@@ -100,12 +100,72 @@ namespace RafiqPOS
                     {
                         try
                         {
+                            var sw = new System.IO.StringWriter();
+                            var originalOut = Console.Out;
+                            Console.SetOut(sw);
                             bool passed = Services.BarcodeLabelTestRunner.RunAllTests();
+                            Console.SetOut(originalOut);
+                            string output = sw.ToString();
+                            string outputPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "label_test_output.txt");
+                            System.IO.File.WriteAllText(outputPath, output);
                             Environment.Exit(passed ? 0 : 1);
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine("Barcode label test error: " + ex.Message);
+                            string outputPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "label_test_output.txt");
+                            System.IO.File.WriteAllText(outputPath, "Barcode label test error: " + ex.Message + "\n" + ex.StackTrace);
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
+                    if (args[i] == "--run-internal-barcode-tests")
+                    {
+                        try
+                        {
+                            var res = Services.InternalBarcodeTestRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "internal_barcode_test_output.json"), json);
+                            Environment.Exit(res.Success ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Barcode scanner test error: " + ex.Message);
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
+                    if (args[i] == "--run-shift-tests")
+                    {
+                        try
+                        {
+                            var res = Services.ShiftAndCashDrawerTestRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "shift_test_output.json"), json);
+                            Environment.Exit(res.Success ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Shift and drawer test error: " + ex.Message);
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
+                    if (args[i] == "--run-printer-tests")
+                    {
+                        try
+                        {
+                            Services.DatabaseService.Initialize();
+                            var res = Services.PrinterHardwareTestRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "printer_test_output.json"), json);
+                            Environment.Exit(res.Success ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Printer hardware test error: " + ex.Message);
                             Environment.Exit(2);
                         }
                         return;
@@ -210,6 +270,23 @@ namespace RafiqPOS
                         catch (Exception ex)
                         {
                             Console.WriteLine("Purchases test error: " + ex.ToString());
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
+                    if (args[i] == "--run-shift-audit-tests")
+                    {
+                        try
+                        {
+                            var res = Services.ShiftAndCashDrawerTestRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "shift_audit_test_output.json"), json);
+                            Environment.Exit(res.Success ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Shift audit test error: " + ex.ToString());
                             Environment.Exit(2);
                         }
                         return;
@@ -491,6 +568,24 @@ namespace RafiqPOS
                         catch (Exception ex)
                         {
                             Console.WriteLine("Ruthless audit test error: " + ex.ToString());
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
+
+                    if (args[i] == "--run-forensic-audit-tests")
+                    {
+                        try
+                        {
+                            var res = Services.ForensicAuditTestRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "forensic_audit_test_output.json"), json);
+                            Environment.Exit(res.Success ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Forensic audit test error: " + ex.ToString());
                             Environment.Exit(2);
                         }
                         return;

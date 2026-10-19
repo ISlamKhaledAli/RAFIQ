@@ -648,33 +648,35 @@ export default function App() {
       if (e.altKey && !e.ctrlKey && !e.shiftKey) {
         if (e.key === '1') {
           e.preventDefault();
-          setActiveTab('pos');
+          if (hasPermission('pos.access')) setActiveTab('pos');
         } else if (e.key === '2') {
           e.preventDefault();
-          setActiveTab('epay');
+          if (hasPermission('epay.access')) setActiveTab('epay');
         } else if (e.key === '3') {
           e.preventDefault();
-          setActiveTab('wallets');
-        } else if (e.key === '4') {
-          e.preventDefault();
-          setActiveTab('dashboard');
+          if (hasPermission('wallets.access')) setActiveTab('wallets');
         } else if (currentUser?.role !== 'cashier') {
-          if (e.key === '5') {
+          if (e.key === '4') {
             e.preventDefault();
-            setActiveTab('customers');
+            if (isAdmin || hasPermission('reports.sales')) setActiveTab('dashboard');
+          } else if (e.key === '5') {
+            e.preventDefault();
+            if (hasPermission('customers.view')) setActiveTab('customers');
           } else if (e.key === '6') {
             e.preventDefault();
-            setActiveTab('purchases');
+            if (isAdmin || hasPermission('purchases.view')) setActiveTab('purchases');
           } else if (e.key === '7') {
             e.preventDefault();
-            setActiveTab('sales');
+            if (isAdmin || hasPermission('invoices.view')) setActiveTab('sales');
           } else if (e.key === '8') {
             e.preventDefault();
-            setActiveTab('audit');
+            if (isRoot || hasPermission('audit_log.view')) setActiveTab('audit');
           } else if (e.key === '9') {
             e.preventDefault();
-            setActiveTab('settings');
-            setIsSettingsMenuExpanded(true);
+            if (isAdmin || hasPermission('settings.store') || hasPermission('settings.printer') || hasPermission('settings.barcode')) {
+              setActiveTab('settings');
+              setIsSettingsMenuExpanded(true);
+            }
           }
         }
         return;
@@ -704,7 +706,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [activeTab, currentUser?.role, handleUniversalRefresh]);
+  }, [activeTab, currentUser?.role, handleUniversalRefresh, hasPermission, isAdmin, isRoot]);
 
   const handleExitApp = async () => {
     const confirmed = await rafiqConfirm({
@@ -733,10 +735,14 @@ export default function App() {
       });
       return;
     }
-    if (currentUser?.role === 'cashier' && ADMIN_ONLY_TABS.includes(tabId)) {
+    if ((currentUser?.role === 'cashier' || (!isAdmin && !isRoot)) && ADMIN_ONLY_TABS.includes(tabId)) {
       setActiveTab('pos');
       return;
     }
+    if (tabId === 'pos' && !hasPermission('pos.access')) return;
+    if (tabId === 'epay' && !hasPermission('epay.access')) return;
+    if (tabId === 'wallets' && !hasPermission('wallets.access')) return;
+    if (tabId === 'customers' && !hasPermission('customers.view')) return;
     setActiveTab(tabId);
     if (subAction) subAction();
   };
@@ -942,6 +948,22 @@ export default function App() {
 
         {/* Left Side: Staff Management, Action Buttons, Window Controls, Date & Time */}
         <div className="flex items-center gap-1.5 sm:gap-2 text-xs shrink-0">
+          {/* Fast Switch User / Profile Badge */}
+          <button
+            type="button"
+            onClick={() => setIsLoginModalOpen(true)}
+            className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-brand-soft/70 dark:hover:bg-brand-dark-soft border border-line dark:border-line-dark hover:border-brand/40 text-ink dark:text-ink-dark text-xs shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer shrink-0"
+            title="تبديل المستخدم الحالي سريعاً برقم الـ PIN"
+          >
+            <div className={`w-5 h-5 rounded-md flex items-center justify-center font-bold text-[10px] ${
+              isAdmin ? 'bg-paid-soft text-paid border border-paid-border' : 'bg-brand-soft text-brand border border-brand/20'
+            }`}>
+              {currentUser?.displayName ? currentUser.displayName.slice(0, 1) : 'U'}
+            </div>
+            <span className="font-bold hidden md:inline truncate max-w-[90px]">{currentUser?.displayName}</span>
+            <span className="text-[10px] text-ink-muted hidden lg:inline">({currentUser?.role === 'root' ? 'المالك' : (isAdmin ? 'صاحب المحل' : 'كاشير')})</span>
+          </button>
+
           {/* Manage Users Button for Admin/Root or authorized managers (Task 166-4) */}
           {(isAdmin || hasPermission('users.view')) && (
             <button
@@ -1727,10 +1749,11 @@ export default function App() {
         isOpen={isLoginModalOpen}
         canCancel={Boolean(currentUser)}
         onClose={() => setIsLoginModalOpen(false)}
-        onSuccess={() => {
-          void refreshUser();
+        onSuccess={async () => {
+          await refreshUser();
           setIsLoginModalOpen(false);
           setActiveTab('pos');
+          emitDataChanged('all');
         }}
       />
 

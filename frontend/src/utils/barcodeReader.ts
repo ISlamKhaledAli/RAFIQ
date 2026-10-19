@@ -30,11 +30,12 @@ export async function loadScannerSettings(): Promise<BarcodeScannerSettings> {
   try {
     const all = await invoke<Record<string, string>>('settings:getAll');
     if (all) {
+      const speedVal = all.scanner_speed_ms || all.scanner_speed_threshold_ms;
       return {
-        speedThresholdMs: all.scanner_speed_threshold_ms ? parseInt(all.scanner_speed_threshold_ms, 10) : DEFAULT_SCANNER_SETTINGS.speedThresholdMs,
+        speedThresholdMs: speedVal ? parseInt(speedVal, 10) || DEFAULT_SCANNER_SETTINGS.speedThresholdMs : DEFAULT_SCANNER_SETTINGS.speedThresholdMs,
         prefix: all.scanner_prefix !== undefined ? all.scanner_prefix : DEFAULT_SCANNER_SETTINGS.prefix,
         suffix: (all.scanner_suffix as 'Enter' | 'Tab' | 'None') || DEFAULT_SCANNER_SETTINGS.suffix,
-        minBarcodeLength: all.scanner_min_length ? parseInt(all.scanner_min_length, 10) : DEFAULT_SCANNER_SETTINGS.minBarcodeLength,
+        minBarcodeLength: all.scanner_min_length ? parseInt(all.scanner_min_length, 10) || DEFAULT_SCANNER_SETTINGS.minBarcodeLength : DEFAULT_SCANNER_SETTINGS.minBarcodeLength,
       };
     }
   } catch {

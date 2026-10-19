@@ -53,6 +53,18 @@ namespace RafiqPOS.Models
 
         [JsonProperty("conversionFactor")]
         public int ConversionFactor { get; set; }
+
+        [JsonProperty("batchId")]
+        public string BatchId { get; set; }
+
+        [JsonProperty("batchNumber")]
+        public string BatchNumber { get; set; }
+
+        [JsonProperty("expiryDate")]
+        public string ExpiryDate { get; set; }
+
+        [JsonProperty("isExpiredBypass")]
+        public bool IsExpiredBypass { get; set; }
     }
 
     public class Sale
@@ -111,6 +123,15 @@ namespace RafiqPOS.Models
         /// </summary>
         [JsonProperty("serviceFeePiasters")]
         public long ServiceFeePiasters { get; set; }
+
+        [JsonProperty("idempotencyKey")]
+        public string IdempotencyKey { get; set; }
+
+        [JsonProperty("supervisorPin")]
+        public string SupervisorPin { get; set; }
+
+        [JsonProperty("shiftId")]
+        public string ShiftId { get; set; }
 
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }

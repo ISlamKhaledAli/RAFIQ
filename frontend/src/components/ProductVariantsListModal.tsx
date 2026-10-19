@@ -7,7 +7,9 @@ import {
   Tag,
   Loader2,
   CheckCircle2,
-  Plus
+  Plus,
+  Trash2,
+  AlertCircle
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
@@ -20,6 +22,7 @@ interface ProductVariantsListModalProps {
   parentProduct: Product | null;
   onPrintVariantLabel?: (variant: ProductVariant) => void;
   onOpenMatrixModal?: () => void;
+  onVariantsChanged?: () => void;
 }
 
 export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> = ({
@@ -28,13 +31,20 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
   parentProduct,
   onPrintVariantLabel,
   onOpenMatrixModal,
+  onVariantsChanged,
 }) => {
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [variantToDelete, setVariantToDelete] = useState<ProductVariant | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen && parentProduct?.id) {
       setIsLoading(true);
+      setErrorMessage(null);
+      setSuccessMessage(null);
       void invoke<ProductVariant[]>('variants:getByParentId', { parentId: parentProduct.id })
         .then((res) => {
           setVariants(res || []);
@@ -48,6 +58,9 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
         });
     } else {
       setVariants([]);
+      setVariantToDelete(null);
+      setErrorMessage(null);
+      setSuccessMessage(null);
     }
   }, [isOpen, parentProduct]);
 
@@ -60,6 +73,29 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
   if (!isOpen || !parentProduct) return null;
 
   const totalStockUnits = variants.reduce((acc, v) => acc + (v.stockQuantityMilli / 1000), 0);
+
+  const handleDeleteVariant = async () => {
+    if (!variantToDelete) return;
+    setIsDeleting(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    try {
+      await invoke('variants:delete', { variantProductId: variantToDelete.variantProductId });
+      setSuccessMessage(`تم حذف المتغير (${variantToDelete.color || 'عام'} - ${variantToDelete.size || 'حر'}) بنجاح`);
+      setVariantToDelete(null);
+      if (parentProduct?.id) {
+        const res = await invoke<ProductVariant[]>('variants:getByParentId', { parentId: parentProduct.id });
+        setVariants(res || []);
+      }
+      if (onVariantsChanged) {
+        onVariantsChanged();
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'تعذر حذف هذا المتغير');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <div
@@ -115,6 +151,38 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
 
         {/* Table Content */}
         <div className="p-5 overflow-y-auto flex-1">
+          {errorMessage && (
+            <div className="mb-4 p-3 rounded-xl bg-danger/10 border border-danger/20 text-danger text-xs font-bold flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setErrorMessage(null)}
+                className="p-1 hover:bg-danger/20 rounded cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="mb-4 p-3 rounded-xl bg-paid-soft border border-paid/20 text-paid text-xs font-bold flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>{successMessage}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSuccessMessage(null)}
+                className="p-1 hover:bg-paid/20 rounded cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {isLoading ? (
             <div className="py-16 flex flex-col items-center justify-center gap-2 text-ink-muted">
               <Loader2 className="w-6 h-6 animate-spin text-brand" />
@@ -184,16 +252,30 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
                           {formatArabicCurrency(v.costPiasters)}
                         </td>
                         <td className="py-2.5 px-3 text-center">
-                          {onPrintVariantLabel && (
+                          <div className="flex items-center justify-center gap-1">
+                            {onPrintVariantLabel && (
+                              <button
+                                type="button"
+                                onClick={() => onPrintVariantLabel(v)}
+                                className="p-1.5 rounded-lg text-ink-muted hover:text-brand hover:bg-brand-soft transition-colors cursor-pointer"
+                                title="طباعة ملصق باركود لهذا المقاس"
+                              >
+                                <Tag className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                             <button
                               type="button"
-                              onClick={() => onPrintVariantLabel(v)}
-                              className="p-1 rounded-lg text-ink-muted hover:text-brand hover:bg-brand-soft transition-colors cursor-pointer"
-                              title="طباعة ملصق باركود لهذا المقاس"
+                              onClick={() => {
+                                setErrorMessage(null);
+                                setSuccessMessage(null);
+                                setVariantToDelete(v);
+                              }}
+                              className="p-1.5 rounded-lg text-ink-muted hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer"
+                              title="حذف هذا المتغير (المقاس واللون)"
                             >
-                              <Tag className="w-3.5 h-3.5" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
-                          )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -203,6 +285,42 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
             </div>
           )}
         </div>
+
+        {/* Confirmation Modal */}
+        {variantToDelete && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-100">
+            <div className="bg-surface rounded-2xl border border-line shadow-2xl p-5 max-w-sm w-full text-right font-sans">
+              <div className="w-10 h-10 rounded-xl bg-danger/10 text-danger flex items-center justify-center mb-3">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <h4 className="text-sm font-bold text-ink mb-1">تأكيد حذف المتغير</h4>
+              <p className="text-xs text-ink-muted mb-4 leading-relaxed">
+                هل أنت متأكد من حذف المتغير <strong className="text-ink">({variantToDelete.color || 'عام'} - {variantToDelete.size || 'حر'})</strong>؟
+                <br />
+                <span className="text-[11px] text-warn font-semibold">تنبيه: سيتم رفض الحذف تلقائياً إذا كان للمتغير مبيعات أو حركات مخزنية سابقة.</span>
+              </p>
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setVariantToDelete(null)}
+                  disabled={isDeleting}
+                  className="px-3 py-1.5 rounded-lg border border-line text-ink text-xs font-medium hover:bg-surface-2 transition-colors cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteVariant()}
+                  disabled={isDeleting}
+                  className="px-4 py-1.5 rounded-lg bg-danger text-white text-xs font-bold hover:bg-danger/90 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  <span>{isDeleting ? 'جاري الحذف...' : 'تأكيد الحذف'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="px-5 py-3.5 border-t border-line bg-surface-2/40 flex items-center justify-between shrink-0">

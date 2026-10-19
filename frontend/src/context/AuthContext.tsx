@@ -63,9 +63,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [refreshUser]);
 
   const login = useCallback(async (username: string, secret: string): Promise<LoginResult> => {
+    // 1. Immediately wipe previous session data from memory & local storage to prevent session leakage
+    setCurrentUser(null);
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('rafiq_user_session');
+      }
+    } catch {
+      // ignore
+    }
+
     try {
       const res = await invoke<LoginResult>('auth:login', {
         username: username.trim(),
+        usernameOrId: username.trim(),
         password: secret,
         pin: secret,
       });
@@ -172,3 +183,4 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     </AuthContext.Provider>
   );
 };
+

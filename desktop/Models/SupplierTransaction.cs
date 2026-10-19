@@ -20,6 +20,9 @@ namespace RafiqPOS.Models
         [JsonProperty("amountPiasters")]
         public long AmountPiasters { get; set; }
 
+        [JsonProperty("balanceAfterPiasters")]
+        public long BalanceAfterPiasters { get; set; }
+
         [JsonProperty("notes")]
         public string Notes { get; set; }
 

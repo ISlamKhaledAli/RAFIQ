@@ -22,6 +22,14 @@ namespace RafiqPOS.Services
             }
         }
 
+        public void DeleteVariant(string variantProductId)
+        {
+            lock (SaleService.FinancialWriteLock)
+            {
+                _repository.DeleteVariant(variantProductId);
+            }
+        }
+
         public List<ProductVariant> GetVariantsByParentId(string parentId)
         {
             return _repository.GetVariantsByParentId(parentId);

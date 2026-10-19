@@ -95,6 +95,7 @@
     <Compile Include="Common\TimeGuard.cs" />
     <Compile Include="Common\WindowHelper.cs" />
     <Compile Include="Common\ArabicTextNormalizer.cs" />
+    <Compile Include="Common\RawPrinterHelper.cs" />
     <Compile Include="Database\MigrationRunner.cs" />
     <Compile Include="Models\Product.cs" />
     <Compile Include="Models\ProductUnit.cs" />
@@ -103,6 +104,8 @@
     <Compile Include="Models\Supplier.cs" />
     <Compile Include="Models\Purchase.cs" />
     <Compile Include="Models\PurchaseItem.cs" />
+    <Compile Include="Models\PurchaseReturn.cs" />
+    <Compile Include="Models\PurchaseReturnItem.cs" />
     <Compile Include="Models\SupplierTransaction.cs" />
     <Compile Include="Models\DashboardSummary.cs" />
     <Compile Include="Models\AuditLog.cs" />
@@ -168,6 +171,7 @@
     <Compile Include="Services\BackupService.cs" />
     <Compile Include="Services\ExcelService.cs" />
     <Compile Include="Services\PrinterService.cs" />
+    <Compile Include="Services\PrinterHardwareTestRunner.cs" />
     <Compile Include="Services\SecurityService.cs" />
     <Compile Include="Services\StoreTemplateService.cs" />
     <Compile Include="Services\StoreCatalogSeeder.cs" />
@@ -216,6 +220,13 @@
     <Compile Include="Services\SeniorDomainStressTestRunner.cs" />
     <Compile Include="Services\SeniorComprehensiveAuditRunner.cs" />
     <Compile Include="Services\SeniorRuthlessAuditRunner.cs" />
+    <Compile Include="Bridge\IpcDispatcher.Shifts.cs" />
+    <Compile Include="Models\ShiftModels.cs" />
+    <Compile Include="Repositories\ShiftRepository.cs" />
+    <Compile Include="Services\ShiftService.cs" />
+    <Compile Include="Services\CashDrawerService.cs" />
+    <Compile Include="Services\ShiftAndCashDrawerTestRunner.cs" />
+    <Compile Include="Services\ForensicAuditTestRunner.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

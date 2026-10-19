@@ -10,7 +10,8 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
-  AlertTriangle
+  AlertTriangle,
+  Lock
 } from 'lucide-react';
 import { ToggleSwitch } from './ToggleSwitch';
 import type { ProductUnit } from '../types/models';
@@ -99,6 +100,11 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
   const handleToggleEnabled = () => {
     setErrorMsg(null);
     if (isEnabled) {
+      const hasSoldUnit = additionalUnits.some(u => u.hasSales);
+      if (hasSoldUnit) {
+        setErrorMsg('لا يمكن إلغاء العبوات لوجود مبيعات وفواتير سابقة مسجلة بها لحماية سجلات وتقارير الجرد.');
+        return;
+      }
       onChange(currentUnits.filter(u => u.isBaseUnit));
     } else {
       const defaultPreset = presets[0];
@@ -120,6 +126,11 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
 
   const handleApplyPreset = (addIndex: number, preset: UnitPreset) => {
     setErrorMsg(null);
+    const target = additionalUnits[addIndex];
+    if (target && target.hasSales && target.conversionFactor !== preset.factor) {
+      setErrorMsg(`لا يمكن تغيير قالب العبوة إلى (${preset.name}) لأن معامل التحويل مختلف (${target.conversionFactor} مقابل ${preset.factor}) ويوجد مبيعات سابقة مسجلة بها.`);
+      return;
+    }
     handleUpdateAdditionalUnit(addIndex, {
       unitName: preset.name,
       conversionFactor: preset.factor,
@@ -130,6 +141,11 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
 
   const handleUpdateAdditionalUnit = (addIndex: number, updates: Partial<ProductUnit>) => {
     setErrorMsg(null);
+    const target = additionalUnits[addIndex];
+    if (target && target.hasSales && updates.conversionFactor !== undefined && updates.conversionFactor !== target.conversionFactor) {
+      setErrorMsg(`لا يمكن تعديل معامل التحويل للعبوة (${target.unitName}) لوجود مبيعات سابقة مسجلة بها لحماية السجل التاريخي وتقارير الجرد.`);
+      return;
+    }
     let count = 0;
     const updated = currentUnits.map((u) => {
       if (u.isBaseUnit) return u;
@@ -145,6 +161,11 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
 
   const handleDeleteAdditionalUnit = (addIndex: number) => {
     setErrorMsg(null);
+    const target = additionalUnits[addIndex];
+    if (target && target.hasSales) {
+      setErrorMsg(`لا يمكن حذف العبوة (${target.unitName}) لوجود مبيعات وفواتير مسجلة بها سابقاً.`);
+      return;
+    }
     let count = 0;
     const updated = currentUnits.filter((u) => {
       if (u.isBaseUnit) return true;
@@ -229,9 +250,9 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
             onChange={handleToggleEnabled}
           />
           {isEnabled ? (
-            <ChevronUp className="w-4 h-4 text-[#006D41] dark:text-paid-bright" />
+            <ChevronUp className="w-4 h-4 text-paid dark:text-paid-bright" />
           ) : (
-            <ChevronDown className="w-4 h-4 text-[#64748B] dark:text-ink-dark-muted" />
+            <ChevronDown className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted" />
           )}
         </div>
       </div>
@@ -273,17 +294,28 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
                     <span className="text-[12px] font-bold text-ink dark:text-ink-dark">
                       {additionalUnits.length > 1 ? `العبوة رقم (${idx + 1}):` : 'اختر قالب العبوة أو حددها بنفسك:'}
                     </span>
+                    {u.hasSales && (
+                      <span className="text-[10.5px] font-bold text-ink-muted bg-surface dark:bg-surface-dark px-2 py-0.5 rounded border border-line dark:border-line-dark flex items-center gap-1 shadow-2xs" title="معامل التحويل لهذه العبوة مقيد لوجود فواتير مبيعات سابقة مسجلة بها">
+                        <Lock className="w-3 h-3 text-brand dark:text-brand-bright" />
+                        <span>مقيدة بمبيعات سابقة</span>
+                      </span>
+                    )}
                     <div className="flex items-center gap-1 flex-wrap">
                       {presets.map((tpl) => {
                         const isSelected = u.conversionFactor === tpl.factor && u.unitName.trim().toLowerCase() === tpl.name.toLowerCase();
+                        const isPresetDisabled = Boolean(u.hasSales && u.conversionFactor !== tpl.factor);
                         return (
                           <button
                             key={tpl.name}
                             type="button"
+                            disabled={isPresetDisabled}
                             onClick={() => handleApplyPreset(idx, tpl)}
+                            title={isPresetDisabled ? 'لا يمكن تغيير المعامل لوجود مبيعات سابقة' : undefined}
                             className={`px-2.5 py-1 rounded text-[11px] font-bold transition-all flex items-center gap-1 border ${
                               isSelected
                                 ? 'bg-brand dark:bg-brand text-white border-brand shadow-xs'
+                                : isPresetDisabled
+                                ? 'opacity-40 cursor-not-allowed bg-surface dark:bg-surface-dark text-ink-muted border-line dark:border-line-dark'
                                 : 'bg-surface dark:bg-surface-dark hover:bg-brand-soft dark:hover:bg-brand-soft/20 text-ink dark:text-ink-dark hover:text-brand dark:hover:text-brand-bright border-line dark:border-line-dark hover:border-brand/40 shadow-xs'
                             }`}
                           >
@@ -298,9 +330,14 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
                   {additionalUnits.length > 1 && (
                     <button
                       type="button"
+                      disabled={Boolean(u.hasSales)}
                       onClick={() => handleDeleteAdditionalUnit(idx)}
-                      className="text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft p-1 rounded text-[11px] font-bold flex items-center gap-1 transition-colors"
-                      title="حذف هذه العبوة"
+                      className={`p-1 rounded text-[11px] font-bold flex items-center gap-1 transition-colors ${
+                        u.hasSales
+                          ? 'opacity-40 cursor-not-allowed text-ink-muted'
+                          : 'text-danger dark:text-danger-bright hover:bg-danger-soft dark:hover:bg-danger-dark-soft'
+                      }`}
+                      title={u.hasSales ? 'لا يمكن حذف هذه العبوة لوجود مبيعات سابقة مسجلة بها' : 'حذف هذه العبوة'}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       <span>حذف</span>
@@ -326,13 +363,22 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
 
                   {/* 2. Factor (Quantity inside) */}
                   <div className="col-span-6 sm:col-span-2">
-                    <label className="block text-[11.5px] font-semibold text-ink dark:text-ink-dark mb-1 whitespace-nowrap truncate" title={`تحتوي على كم ${baseUnitName}؟`}>
-                      العدد ({baseUnitName}) *
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11.5px] font-semibold text-ink dark:text-ink-dark whitespace-nowrap truncate" title={`تحتوي على كم ${baseUnitName}؟`}>
+                        العدد ({baseUnitName}) *
+                      </label>
+                      {u.hasSales && (
+                        <span title="معامل التحويل ثابت ومقيد بالفواتير السابقة">
+                          <Lock className="w-3 h-3 text-brand dark:text-brand-bright shrink-0" />
+                        </span>
+                      )}
+                    </div>
                     <input
                       type="number"
                       min="1"
                       step="1"
+                      disabled={Boolean(u.hasSales)}
+                      title={u.hasSales ? 'تم قفل معامل التحويل لوجود فواتير مبيعات سابقة مسجلة بهذه العبوة' : undefined}
                       value={u.conversionFactor}
                       onChange={(e) => {
                         const val = parseInt(normalizeArabicNumerals(e.target.value), 10);
@@ -344,7 +390,11 @@ export const ProductUnitsEditor: React.FC<ProductUnitsEditorProps> = ({
                           });
                         }
                       }}
-                      className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[36px] px-2 text-[13px] font-mono text-center font-bold text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright shadow-xs"
+                      className={`w-full border rounded h-[36px] px-2 text-[13px] font-mono text-center font-bold text-ink dark:text-ink-dark focus:outline-none shadow-xs ${
+                        u.hasSales
+                          ? 'bg-surface-2 dark:bg-surface-dark-2 border-line/60 dark:border-line-dark/60 cursor-not-allowed opacity-80'
+                          : 'bg-surface dark:bg-surface-dark border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright'
+                      }`}
                     />
                   </div>
 

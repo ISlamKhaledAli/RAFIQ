@@ -6,7 +6,7 @@ import {
   X, 
   Printer, 
   ArrowRight, 
-  UserPlus, 
+  UserPlus,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { Customer, SalePayment } from '../types/models';
@@ -15,6 +15,9 @@ import { rafiqConfirm, rafiqAlert } from '../utils/dialogService';
 import { MoneyInput } from './MoneyInput';
 import { CustomSelect } from './CustomSelect';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+
+import { useAuth } from '../context/useAuth';
+import { SupervisorPromptModal } from './SupervisorPromptModal';
 
 import { CashPaymentSection } from './payment/CashPaymentSection';
 
@@ -40,6 +43,7 @@ interface PaymentModalProps {
     customerId?: string | null;
     totalPiastersOverride?: number;
     serviceFeeNote?: string;
+    supervisorPin?: string;
   }) => void;
   loading?: boolean;
 }
@@ -71,6 +75,19 @@ export const PaymentModal = ({
   const [quickSaving, setQuickSaving] = useState(false);
   const [isFullCreditMode, setIsFullCreditMode] = useState(false);
   const [saveChangeToCustomerAccount, setSaveChangeToCustomerAccount] = useState(false);
+
+  const { isRoot, isAdmin, hasPermission } = useAuth();
+  const [supervisorPrompt, setSupervisorPrompt] = useState<{
+    isOpen: boolean;
+    actionTitle: string;
+    actionDescription: string;
+    onApproved: (supervisorName?: string, verifiedPin?: string) => void;
+  }>({
+    isOpen: false,
+    actionTitle: '',
+    actionDescription: '',
+    onApproved: () => {},
+  });
 
   const localCustomers = useMemo(() => {
     const map = new Map<string, Customer>();
@@ -250,6 +267,7 @@ export const PaymentModal = ({
 
   const handleConfirm = async () => {
     const hasRegisteredCustomer = !!(selectedCustomer && selectedCustomer.id !== 'cust_general_cash');
+
     const isCreditSubmission = isFullCreditMode || (receivedPiasters === 0 && hasRegisteredCustomer);
 
     if (isCreditSubmission) {
@@ -262,34 +280,54 @@ export const PaymentModal = ({
         return;
       }
 
-      if (selectedCustomer.creditLimitPiasters > 0) {
-        const newProjectedBalance = selectedCustomer.balancePiasters + netTotalPiasters;
-        if (newProjectedBalance > selectedCustomer.creditLimitPiasters) {
+      const newProjectedBalance = selectedCustomer.balancePiasters + netTotalPiasters;
+      const isExceeded = selectedCustomer.creditLimitPiasters > 0 && newProjectedBalance > selectedCustomer.creditLimitPiasters;
+
+      const proceedWithCreditSale = (verifiedSupervisorPin?: string) => {
+        const payments: SalePayment[] = [
+          {
+            amountPiasters: 0,
+            method: 'credit',
+          },
+        ];
+
+        onConfirmPayment({
+          paymentMethod: 'credit',
+          paidPiasters: 0,
+          payments,
+          changeDuePiasters: 0,
+          customerId: currentCustomerId,
+          supervisorPin: verifiedSupervisorPin,
+        });
+      };
+
+      if (isExceeded) {
+        const canOverride = isRoot || isAdmin || hasPermission('customers.credit_limit_override');
+        if (canOverride) {
           const confirmExceeded = await rafiqConfirm({
-            title: 'تنبيه: العميل عدى الحد المسموح بيه للشكك',
-            message: `اللي على العميل دلوقتي: ${formatArabicCurrency(selectedCustomer.balancePiasters)}\nقيمة الفاتورة دي: ${formatArabicCurrency(netTotalPiasters)}\nإجمالي اللي هيبقى عليه بعد الفاتورة: ${formatArabicCurrency(newProjectedBalance)}\nأعلى حد مسموح بيه: ${formatArabicCurrency(selectedCustomer.creditLimitPiasters)}\n\nعاوز تكمل العملية وتسجل الفاتورة في حسابه؟`,
-            confirmText: 'متابعة وتجاوز الحد',
+            title: 'تأكيد تجاوز الحد الائتماني للعميل (بصلاحية مدير)',
+            message: `اللي على العميل دلوقتي: ${formatArabicCurrency(selectedCustomer.balancePiasters)}\nقيمة الفاتورة دي: ${formatArabicCurrency(netTotalPiasters)}\nإجمالي اللي هيبقى عليه بعد الفاتورة: ${formatArabicCurrency(newProjectedBalance)}\nأعلى حد مسموح بيه: ${formatArabicCurrency(selectedCustomer.creditLimitPiasters)}\n\nهل تؤكد كمدير نظام تجاوز الحد الائتماني وإتمام الفاتورة؟`,
+            confirmText: 'تأكيد وتجاوز الحد',
             cancelText: 'إلغاء وتعديل',
             variant: 'danger',
           });
           if (!confirmExceeded) return;
+          proceedWithCreditSale();
+        } else {
+          setSupervisorPrompt({
+            isOpen: true,
+            actionTitle: 'تجاوز الحد الائتماني للعميل',
+            actionDescription: `رصيد العميل (${selectedCustomer.name}) سيتجاوز الحد الائتماني المحدد (${formatArabicCurrency(selectedCustomer.creditLimitPiasters)}) بمقدار ${formatArabicCurrency(newProjectedBalance - selectedCustomer.creditLimitPiasters)}. يتطلب إتمام العملية موافقة مدير بصلاحية موثقة برقم سري.`,
+            onApproved: (_supervisorName, verifiedPin) => {
+              setSupervisorPrompt(prev => ({ ...prev, isOpen: false }));
+              proceedWithCreditSale(verifiedPin);
+            },
+          });
         }
+        return;
       }
 
-      const payments: SalePayment[] = [
-        {
-          amountPiasters: 0,
-          method: 'credit',
-        },
-      ];
-
-      onConfirmPayment({
-        paymentMethod: 'credit',
-        paidPiasters: 0,
-        payments,
-        changeDuePiasters: 0,
-        customerId: currentCustomerId,
-      });
+      proceedWithCreditSale();
       return;
     }
 
@@ -330,50 +368,68 @@ export const PaymentModal = ({
         return;
       }
 
-      if (selectedCustomer) {
-        const isExceeded = selectedCustomer.creditLimitPiasters > 0 && 
-          (selectedCustomer.balancePiasters + shortAmountPiasters > selectedCustomer.creditLimitPiasters);
-        if (isExceeded) {
+      const newProjectedBalance = (selectedCustomer?.balancePiasters || 0) + shortAmountPiasters;
+      const isExceeded = (selectedCustomer?.creditLimitPiasters || 0) > 0 && 
+        newProjectedBalance > (selectedCustomer?.creditLimitPiasters || 0);
+
+      const proceedWithShortPayment = async (verifiedSupervisorPin?: string) => {
+        const proceed = await rafiqConfirm({
+          title: 'تأكيد الدفع الجزئي وتسجيل الباقي كآجل',
+          message: `تفاصيل العملية:\n• المدفوع كاش الآن: ${formatArabicCurrency(receivedPiasters)} (يُضاف لدرج الخزينة)\n• الباقي كدين آجل: ${formatArabicCurrency(shortAmountPiasters)} (يُقيد في دفتر العميل: ${selectedCustomer?.name || ''})\n\nهل تريد المتابعة وإتمام الفاتورة؟`,
+          confirmText: 'نعم، إتمام الفاتورة',
+          cancelText: 'تراجع وتعديل المبلغ',
+          variant: 'info',
+        });
+        if (!proceed) return;
+
+        const payments: SalePayment[] = [
+          {
+            amountPiasters: receivedPiasters,
+            method: 'cash',
+          },
+          {
+            amountPiasters: shortAmountPiasters,
+            method: 'credit',
+          }
+        ];
+
+        onConfirmPayment({
+          paymentMethod: 'multi',
+          paidPiasters: receivedPiasters,
+          payments,
+          changeDuePiasters: 0,
+          customerId: currentCustomerId,
+          supervisorPin: verifiedSupervisorPin,
+        });
+      };
+
+      if (isExceeded && selectedCustomer) {
+        const canOverride = isRoot || isAdmin || hasPermission('customers.credit_limit_override');
+        if (canOverride) {
           const confirmExceeded = await rafiqConfirm({
-            title: 'تحذير تجاوز الحد الائتماني للعميل',
-            message: `دين العميل الحالي: ${formatArabicCurrency(selectedCustomer.balancePiasters)}\nالمبلغ المتبقي كآجل: ${formatArabicCurrency(shortAmountPiasters)}\nإجمالي الدين بعد الفاتورة: ${formatArabicCurrency(selectedCustomer.balancePiasters + shortAmountPiasters)}\nالحد الائتماني المسموح: ${formatArabicCurrency(selectedCustomer.creditLimitPiasters)}\n\nهل تريد تأكيد العملية وتجاوز الحد الائتماني؟`,
+            title: 'تحذير تجاوز الحد الائتماني للعميل (بصلاحية مدير)',
+            message: `دين العميل الحالي: ${formatArabicCurrency(selectedCustomer.balancePiasters)}\nالمبلغ المتبقي كآجل: ${formatArabicCurrency(shortAmountPiasters)}\nإجمالي الدين بعد الفاتورة: ${formatArabicCurrency(newProjectedBalance)}\nالحد الائتماني المسموح: ${formatArabicCurrency(selectedCustomer.creditLimitPiasters)}\n\nهل تؤكد كمدير نظام تجاوز الحد الائتماني وإتمام الفاتورة؟`,
             confirmText: 'متابعة وتجاوز الحد',
             cancelText: 'إلغاء وتعديل المبلغ',
             variant: 'danger',
           });
           if (!confirmExceeded) return;
+          await proceedWithShortPayment();
+        } else {
+          setSupervisorPrompt({
+            isOpen: true,
+            actionTitle: 'تجاوز الحد الائتماني للعميل',
+            actionDescription: `دين العميل (${selectedCustomer.name}) سيتجاوز الحد الائتماني المسموح (${formatArabicCurrency(selectedCustomer.creditLimitPiasters)}) بمقدار ${formatArabicCurrency(newProjectedBalance - selectedCustomer.creditLimitPiasters)}. يتطلب إتمام العملية موافقة مدير بصلاحية موثقة برقم سري.`,
+            onApproved: (_supervisorName, verifiedPin) => {
+              setSupervisorPrompt(prev => ({ ...prev, isOpen: false }));
+              void proceedWithShortPayment(verifiedPin);
+            },
+          });
         }
-      }
-
-      const proceed = await rafiqConfirm({
-        title: 'تأكيد الدفع الجزئي وتسجيل الباقي كآجل',
-        message: `تفاصيل العملية:\n• المدفوع كاش الآن: ${formatArabicCurrency(receivedPiasters)} (يُضاف لدرج الخزينة)\n• الباقي كدين آجل: ${formatArabicCurrency(shortAmountPiasters)} (يُقيد في دفتر العميل: ${selectedCustomer?.name || ''})\n\nهل تريد المتابعة وإتمام الفاتورة؟`,
-        confirmText: 'نعم، إتمام الفاتورة',
-        cancelText: 'تراجع وتعديل المبلغ',
-        variant: 'info',
-      });
-      if (!proceed) {
         return;
       }
 
-      const payments: SalePayment[] = [
-        {
-          amountPiasters: receivedPiasters,
-          method: 'cash',
-        },
-        {
-          amountPiasters: shortAmountPiasters,
-          method: 'credit',
-        }
-      ];
-
-      onConfirmPayment({
-        paymentMethod: 'multi',
-        paidPiasters: receivedPiasters,
-        payments,
-        changeDuePiasters: 0,
-        customerId: currentCustomerId,
-      });
+      await proceedWithShortPayment();
       return;
     }
 
@@ -586,7 +642,7 @@ export const PaymentModal = ({
             )}
           </div>
 
-          {/* 2. Cash Payment Section (استلام النقدية والباقي والآجل) */}
+          {/* 2. Cash Payment Section */}
           <CashPaymentSection
             receivedInput={receivedInput}
             onReceivedChange={handleReceivedChange}
@@ -629,6 +685,14 @@ export const PaymentModal = ({
           </button>
         </div>
       </div>
+
+      <SupervisorPromptModal
+        isOpen={supervisorPrompt.isOpen}
+        actionTitle={supervisorPrompt.actionTitle}
+        actionDescription={supervisorPrompt.actionDescription}
+        onApproved={supervisorPrompt.onApproved}
+        onCancel={() => setSupervisorPrompt(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

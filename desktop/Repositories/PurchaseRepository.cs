@@ -80,7 +80,8 @@ namespace RafiqPOS.Repositories
                         purchase.InvoiceNumber = _counterRepo.GetNextCounterNumber(conn, trans, "purchase_invoice", "purchases", "invoice_number");
 
                         // 2. Calculate item totals and compute invoice total
-                        long totalCost = 0;
+                        long totalGrossCost = 0;
+                        long totalLineDiscounts = 0;
                         for (int i = 0; i < purchase.Items.Count; i++)
                         {
                             var item = purchase.Items[i];
@@ -92,14 +93,28 @@ namespace RafiqPOS.Repositories
                             {
                                 throw new ArgumentException(string.Format("كمية الشراء للصنف '{0}' يجب أن تكون أكبر من الصفر", item.ProductName ?? item.ProductId));
                             }
+                            if (item.BonusQuantityMilli < 0)
+                            {
+                                throw new ArgumentException(string.Format("كمية البونص المجانية للصنف '{0}' لا يمكن أن تكون سالبة", item.ProductName ?? item.ProductId));
+                            }
                             if (item.UnitCostPiasters < 0)
                             {
                                 throw new ArgumentException(string.Format("تكلفة شراء الصنف '{0}' لا يمكن أن تكون سالبة", item.ProductName ?? item.ProductId));
                             }
+                            if (item.DiscountPiasters < 0)
+                            {
+                                throw new ArgumentException(string.Format("قيمة خصم الصنف '{0}' لا يمكن أن تكون سالبة", item.ProductName ?? item.ProductId));
+                            }
 
                             // Integer Financial Arithmetic: compute exact piasters via Money struct (Half-Up AwayFromZero)
-                            item.TotalCostPiasters = Money.FromPiasters(item.UnitCostPiasters).MultiplyByMilliUnits(item.QuantityMilli).Piasters;
-                            totalCost += item.TotalCostPiasters;
+                            long lineGross = Money.FromPiasters(item.UnitCostPiasters).MultiplyByMilliUnits(item.QuantityMilli).Piasters;
+                            if (item.DiscountPiasters > lineGross)
+                            {
+                                item.DiscountPiasters = lineGross;
+                            }
+                            item.TotalCostPiasters = lineGross - item.DiscountPiasters;
+                            totalGrossCost += lineGross;
+                            totalLineDiscounts += item.DiscountPiasters;
                         }
 
                         if (purchase.DiscountPiasters < 0)
@@ -107,8 +122,14 @@ namespace RafiqPOS.Repositories
                             throw new ArgumentException("قيمة الخصم في فاتورة الشراء لا يمكن أن تكون سالبة");
                         }
 
-                        purchase.TotalCostPiasters = totalCost;
-                        purchase.NetCostPiasters = Math.Max(0, totalCost - purchase.DiscountPiasters);
+                        long totalAfterLineDiscounts = Math.Max(0, totalGrossCost - totalLineDiscounts);
+                        if (purchase.DiscountPiasters > totalAfterLineDiscounts)
+                        {
+                            purchase.DiscountPiasters = totalAfterLineDiscounts;
+                        }
+
+                        purchase.TotalCostPiasters = totalAfterLineDiscounts;
+                        purchase.NetCostPiasters = Math.Max(0, totalAfterLineDiscounts - purchase.DiscountPiasters);
 
                         // Reject unpaid/overpaid purchases without a registered supplier (Prevents orphaned debts/credits)
                         if (purchase.PaidAmountPiasters != purchase.NetCostPiasters && string.IsNullOrWhiteSpace(purchase.SupplierId))
@@ -190,12 +211,38 @@ namespace RafiqPOS.Repositories
                         }
 
                         // 4. Process Each Item (Insert item, update stock, cost, price history, stock movement)
+                        long remainingInvDiscount = purchase.DiscountPiasters;
                         for (int i = 0; i < purchase.Items.Count; i++)
                         {
                             var item = purchase.Items[i];
                             item.Id = string.IsNullOrWhiteSpace(item.Id) ? "pi_" + Guid.NewGuid().ToString("N") : item.Id;
                             item.PurchaseId = purchase.Id;
                             item.CreatedAt = now;
+
+                            long itemInvDiscount = 0;
+                            if (purchase.DiscountPiasters > 0 && totalAfterLineDiscounts > 0)
+                            {
+                                if (i == purchase.Items.Count - 1)
+                                {
+                                    itemInvDiscount = remainingInvDiscount;
+                                }
+                                else
+                                {
+                                    itemInvDiscount = (long)Math.Round((decimal)purchase.DiscountPiasters * item.TotalCostPiasters / totalAfterLineDiscounts, MidpointRounding.AwayFromZero);
+                                    if (itemInvDiscount > remainingInvDiscount) itemInvDiscount = remainingInvDiscount;
+                                    remainingInvDiscount -= itemInvDiscount;
+                                }
+                            }
+
+                            long lineNetCost = Math.Max(0, item.TotalCostPiasters - itemInvDiscount);
+                            long totalReceivedMilli = item.QuantityMilli + item.BonusQuantityMilli;
+
+                            // Real effective unit cost (Net Cost / Total Received Quantity)
+                            long effectiveUnitCost = item.UnitCostPiasters;
+                            if (totalReceivedMilli > 0)
+                            {
+                                effectiveUnitCost = (long)Math.Round(((decimal)lineNetCost * 1000m) / totalReceivedMilli, MidpointRounding.AwayFromZero);
+                            }
 
                             // Fetch current product state
                             long currentStock = 0;
@@ -238,6 +285,7 @@ namespace RafiqPOS.Repositories
                                                 }
                                             }
                                         }
+
                                         if (hasVariants)
                                         {
                                             throw new InvalidOperationException(string.Format("لا يمكن إضافة كميات شراء للمنتج الرئيسي '{0}' مباشرة لوجود متغيرات (ألوان ومقاسات) مرتبطة به. يرجى اختيار المتغير المحدد للشراء.", productName));
@@ -269,8 +317,8 @@ namespace RafiqPOS.Repositories
                                     BatchNumber = batchNumber,
                                     ExpiryDate = item.ExpiryDate,
                                     ProductionDate = item.ProductionDate,
-                                    QuantityMilli = item.QuantityMilli,
-                                    CostPricePiasters = item.UnitCostPiasters,
+                                    QuantityMilli = totalReceivedMilli,
+                                    CostPricePiasters = effectiveUnitCost,
                                     SupplierId = purchase.SupplierId,
                                     PurchaseId = purchase.Id,
                                     Notes = "فاتورة شراء #" + purchase.InvoiceNumber
@@ -284,12 +332,12 @@ namespace RafiqPOS.Repositories
                             string insertItemSql = @"
                                 INSERT INTO purchase_items (
                                     id, purchase_id, product_id, product_name, barcode,
-                                    quantity_milli, unit_cost_piasters, total_cost_piasters,
+                                    quantity_milli, bonus_quantity_milli, unit_cost_piasters, discount_piasters, total_cost_piasters,
                                     previous_cost_piasters, new_selling_price_piasters,
                                     batch_number, expiry_date, production_date, created_at
                                 ) VALUES (
                                     @id, @purId, @prodId, @prodName, @barcode,
-                                    @qty, @unitCost, @totalCost,
+                                    @qty, @bonusQty, @unitCost, @discount, @totalCost,
                                     @prevCost, @newPrice,
                                     @bnum, @exp, @prodDate, @createdAt
                                 );
@@ -302,8 +350,10 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@prodName", item.ProductName);
                                 cmd.Parameters.AddWithValue("@barcode", (object)item.Barcode ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@qty", item.QuantityMilli);
+                                cmd.Parameters.AddWithValue("@bonusQty", item.BonusQuantityMilli);
                                 cmd.Parameters.AddWithValue("@unitCost", item.UnitCostPiasters);
-                                cmd.Parameters.AddWithValue("@totalCost", item.TotalCostPiasters);
+                                cmd.Parameters.AddWithValue("@discount", item.DiscountPiasters + itemInvDiscount);
+                                cmd.Parameters.AddWithValue("@totalCost", lineNetCost);
                                 cmd.Parameters.AddWithValue("@prevCost", item.PreviousCostPiasters);
                                 cmd.Parameters.AddWithValue("@newPrice", (object)item.NewSellingPricePiasters ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@bnum", (object)item.BatchNumber ?? DBNull.Value);
@@ -314,15 +364,15 @@ namespace RafiqPOS.Repositories
                             }
 
                             // Calculate new cost
-                            long newCost = item.UnitCostPiasters;
+                            long newCost = effectiveUnitCost;
                             if (string.Equals(costingMethod, "WEIGHTED_AVERAGE", StringComparison.OrdinalIgnoreCase))
                             {
                                 long validCurrentStock = Math.Max(0, currentStock);
-                                long totalQty = validCurrentStock + item.QuantityMilli;
+                                long totalQty = validCurrentStock + totalReceivedMilli;
                                 if (totalQty > 0)
                                 {
                                     // Weighted average cost with Half-Up AwayFromZero financial rounding
-                                    decimal totalValue = ((decimal)validCurrentStock * currentCost) + ((decimal)item.QuantityMilli * item.UnitCostPiasters);
+                                    decimal totalValue = ((decimal)validCurrentStock * currentCost) + ((decimal)totalReceivedMilli * effectiveUnitCost);
                                     newCost = (long)Math.Round(totalValue / (decimal)totalQty, 0, MidpointRounding.AwayFromZero);
                                 }
                             }
@@ -346,7 +396,7 @@ namespace RafiqPOS.Repositories
                             ";
                             using (var cmd = new SQLiteCommand(updateProdSql, conn, trans))
                             {
-                                cmd.Parameters.AddWithValue("@qtyDelta", item.QuantityMilli);
+                                cmd.Parameters.AddWithValue("@qtyDelta", totalReceivedMilli);
                                 cmd.Parameters.AddWithValue("@newCost", newCost);
                                 cmd.Parameters.AddWithValue("@newPrice", newPriceToSet);
                                 cmd.Parameters.AddWithValue("@now", now);
@@ -392,7 +442,7 @@ namespace RafiqPOS.Repositories
                             ";
                             using (var cmdSync = new SQLiteCommand(syncVariantSql, conn, trans))
                             {
-                                cmdSync.Parameters.AddWithValue("@qtyDelta", item.QuantityMilli);
+                                cmdSync.Parameters.AddWithValue("@qtyDelta", totalReceivedMilli);
                                 cmdSync.Parameters.AddWithValue("@newCost", newCost);
                                 cmdSync.Parameters.AddWithValue("@newPrice", newPriceToSet);
                                 cmdSync.Parameters.AddWithValue("@now", now);
@@ -404,22 +454,24 @@ namespace RafiqPOS.Repositories
                             string insertSmSql = @"
                                 INSERT INTO stock_movements (
                                     id, product_id, movement_type, quantity_milli, reference_id, reference_type,
-                                    unit_cost_piasters, note, batch_number, batch_id, created_at
+                                    unit_cost_piasters, note, batch_number, batch_id, expiry_date, created_at
                                 ) VALUES (
                                     @id, @prodId, 'PURCHASE', @qty, @refId, 'PURCHASE_INVOICE',
-                                    @unitCost, @note, @bnum, @bid, @createdAt
+                                    @unitCost, @note, @bnum, @bid, @expDate, @createdAt
                                 );
                             ";
                             using (var cmd = new SQLiteCommand(insertSmSql, conn, trans))
                             {
                                 cmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
                                 cmd.Parameters.AddWithValue("@prodId", item.ProductId);
-                                cmd.Parameters.AddWithValue("@qty", item.QuantityMilli);
+                                cmd.Parameters.AddWithValue("@qty", totalReceivedMilli);
                                 cmd.Parameters.AddWithValue("@refId", purchase.Id);
-                                cmd.Parameters.AddWithValue("@unitCost", item.UnitCostPiasters);
-                                cmd.Parameters.AddWithValue("@note", "فاتورة شراء رقم #" + purchase.InvoiceNumber);
+                                cmd.Parameters.AddWithValue("@unitCost", effectiveUnitCost);
+                                string smNote = "فاتورة شراء رقم #" + purchase.InvoiceNumber + (item.BonusQuantityMilli > 0 ? " (شامل بونص)" : "");
+                                cmd.Parameters.AddWithValue("@note", smNote);
                                 cmd.Parameters.AddWithValue("@bnum", (object)item.BatchNumber ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@bid", (object)batchId ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@expDate", (object)item.ExpiryDate ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@createdAt", now);
                                 cmd.ExecuteNonQuery();
                             }
@@ -624,6 +676,386 @@ namespace RafiqPOS.Repositories
             return false;
         }
 
+        public PurchaseReturn CreatePurchaseReturn(PurchaseReturn returnDoc, string userId = null)
+        {
+            if (returnDoc == null) throw new ArgumentNullException("returnDoc");
+            if (string.IsNullOrWhiteSpace(returnDoc.SupplierId)) throw new ArgumentException("يجب تحديد المورد لإجراء مرتجع مشتريات");
+            if (returnDoc.Items == null || returnDoc.Items.Count == 0) throw new ArgumentException("يجب إضافة صنف واحد على الأقل للمرتجع");
+
+            string now = DateTime.UtcNow.ToString("o");
+
+            lock (SaleService.FinancialWriteLock)
+            {
+                using (var conn = new SQLiteConnection(_connectionString))
+                {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction())
+                    {
+                        try
+                        {
+                            // Validate supplier
+                            using (var sCmd = new SQLiteCommand("SELECT name, is_active FROM suppliers WHERE id = @supId LIMIT 1;", conn, trans))
+                            {
+                                sCmd.Parameters.AddWithValue("@supId", returnDoc.SupplierId);
+                                using (var reader = sCmd.ExecuteReader())
+                                {
+                                    if (reader.Read())
+                                    {
+                                        returnDoc.SupplierName = reader["name"].ToString();
+                                        bool isAct = true;
+                                        try { isAct = Convert.ToInt32(reader["is_active"]) == 1; } catch { }
+                                        if (!isAct) throw new InvalidOperationException("لا يمكن عمل مرتجع لمورد مؤرشف");
+                                    }
+                                    else
+                                    {
+                                        throw new InvalidOperationException("المورد المحدد غير موجود في قاعدة البيانات");
+                                    }
+                                }
+                            }
+
+                            // 1. Get next return number
+                            returnDoc.ReturnNumber = _counterRepo.GetNextCounterNumber(conn, trans, "purchase_return", "purchase_returns", "return_number");
+                            returnDoc.Id = string.IsNullOrWhiteSpace(returnDoc.Id) ? "pret_" + Guid.NewGuid().ToString("N") : returnDoc.Id;
+                            returnDoc.CreatedAt = now;
+                            returnDoc.ReturnDate = string.IsNullOrWhiteSpace(returnDoc.ReturnDate) ? DateTime.Now.ToString("yyyy-MM-dd") : returnDoc.ReturnDate;
+                            returnDoc.CreatedByUserId = userId;
+
+                            // 2. Validate items and compute totals
+                            long totalCost = 0;
+                            for (int i = 0; i < returnDoc.Items.Count; i++)
+                            {
+                                var item = returnDoc.Items[i];
+                                if (string.IsNullOrWhiteSpace(item.ProductId))
+                                    throw new ArgumentException(string.Format("الصنف رقم {0} غير صالح في المرتجع", i + 1));
+                                if (item.QuantityMilli <= 0)
+                                    throw new ArgumentException(string.Format("كمية المرتجع للصنف '{0}' يجب أن تكون أكبر من الصفر", item.ProductName ?? item.ProductId));
+                                if (item.UnitCostPiasters < 0)
+                                    throw new ArgumentException(string.Format("تكلفة مرتجع الصنف '{0}' لا يمكن أن تكون سالبة", item.ProductName ?? item.ProductId));
+
+                                item.TotalCostPiasters = Money.FromPiasters(item.UnitCostPiasters).MultiplyByMilliUnits(item.QuantityMilli).Piasters;
+                                totalCost += item.TotalCostPiasters;
+                            }
+                            returnDoc.TotalCostPiasters = totalCost;
+
+                            // 3. Insert purchase_returns master
+                            string insertMasterSql = @"
+                                INSERT INTO purchase_returns (
+                                    id, return_number, purchase_id, supplier_id,
+                                    return_date, total_cost_piasters, refund_amount_piasters,
+                                    refund_status, refund_source, notes, created_by_user_id, created_at
+                                ) VALUES (
+                                    @id, @retNum, @purId, @supId,
+                                    @retDate, @totalCost, 0,
+                                    'CREDIT', 'supplier_balance', @notes, @userId, @createdAt
+                                );
+                            ";
+                            using (var cmd = new SQLiteCommand(insertMasterSql, conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@id", returnDoc.Id);
+                                cmd.Parameters.AddWithValue("@retNum", returnDoc.ReturnNumber);
+                                cmd.Parameters.AddWithValue("@purId", (object)returnDoc.PurchaseId ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@supId", returnDoc.SupplierId);
+                                cmd.Parameters.AddWithValue("@retDate", returnDoc.ReturnDate);
+                                cmd.Parameters.AddWithValue("@totalCost", returnDoc.TotalCostPiasters);
+                                cmd.Parameters.AddWithValue("@notes", (object)returnDoc.Notes ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@userId", (object)userId ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@createdAt", now);
+                                cmd.ExecuteNonQuery();
+                            }
+
+                            // 4. Process each return item
+                            for (int i = 0; i < returnDoc.Items.Count; i++)
+                            {
+                                var item = returnDoc.Items[i];
+                                item.Id = string.IsNullOrWhiteSpace(item.Id) ? "pri_" + Guid.NewGuid().ToString("N") : item.Id;
+                                item.ReturnId = returnDoc.Id;
+                                item.CreatedAt = now;
+
+                                // Fetch current product state
+                                long currentStock = 0;
+                                string prodName = item.ProductName;
+                                string barcode = item.Barcode;
+
+                                using (var pCmd = new SQLiteCommand("SELECT name, barcode, stock_quantity_milli, is_active FROM products WHERE id = @pid LIMIT 1;", conn, trans))
+                                {
+                                    pCmd.Parameters.AddWithValue("@pid", item.ProductId);
+                                    using (var reader = pCmd.ExecuteReader())
+                                    {
+                                        if (reader.Read())
+                                        {
+                                            prodName = reader["name"].ToString();
+                                            barcode = reader["barcode"] != DBNull.Value ? reader["barcode"].ToString() : null;
+                                            currentStock = Convert.ToInt64(reader["stock_quantity_milli"]);
+                                            bool isAct = true;
+                                            try { isAct = Convert.ToInt32(reader["is_active"]) == 1; } catch { }
+                                            if (!isAct)
+                                            {
+                                                throw new InvalidOperationException(string.Format("الصنف '{0}' مؤرشف أو محذوف.", prodName));
+                                            }
+                                        }
+                                        else
+                                        {
+                                            throw new InvalidOperationException("المنتج غير موجود: " + item.ProductId);
+                                        }
+                                    }
+                                }
+
+                                if (currentStock < item.QuantityMilli)
+                                {
+                                    throw new InvalidOperationException(string.Format("رصيد المخزن للصنف '{0}' ({1:N2}) غير كافٍ لإرجاع كمية ({2:N2}) للمورد.",
+                                        prodName, currentStock / 1000.0, item.QuantityMilli / 1000.0));
+                                }
+
+                                item.ProductName = prodName;
+                                item.Barcode = barcode;
+
+                                // Insert purchase_return_items
+                                string insertItemSql = @"
+                                    INSERT INTO purchase_return_items (
+                                        id, return_id, product_id, product_name, barcode,
+                                        quantity_milli, unit_cost_piasters, total_cost_piasters,
+                                        batch_number, reason, created_at
+                                    ) VALUES (
+                                        @id, @retId, @prodId, @prodName, @barcode,
+                                        @qty, @unitCost, @totalCost,
+                                        @bnum, @reason, @createdAt
+                                    );
+                                ";
+                                using (var cmd = new SQLiteCommand(insertItemSql, conn, trans))
+                                {
+                                    cmd.Parameters.AddWithValue("@id", item.Id);
+                                    cmd.Parameters.AddWithValue("@retId", returnDoc.Id);
+                                    cmd.Parameters.AddWithValue("@prodId", item.ProductId);
+                                    cmd.Parameters.AddWithValue("@prodName", item.ProductName);
+                                    cmd.Parameters.AddWithValue("@barcode", (object)item.Barcode ?? DBNull.Value);
+                                    cmd.Parameters.AddWithValue("@qty", item.QuantityMilli);
+                                    cmd.Parameters.AddWithValue("@unitCost", item.UnitCostPiasters);
+                                    cmd.Parameters.AddWithValue("@totalCost", item.TotalCostPiasters);
+                                    cmd.Parameters.AddWithValue("@bnum", (object)item.BatchNumber ?? DBNull.Value);
+                                    cmd.Parameters.AddWithValue("@reason", (object)item.Reason ?? DBNull.Value);
+                                    cmd.Parameters.AddWithValue("@createdAt", now);
+                                    cmd.ExecuteNonQuery();
+                                }
+
+                                // Deduct stock from products
+                                string deductStockSql = @"
+                                    UPDATE products
+                                    SET stock_quantity_milli = stock_quantity_milli - @qty,
+                                        updated_at = @now
+                                    WHERE id = @pid;
+                                ";
+                                using (var cmd = new SQLiteCommand(deductStockSql, conn, trans))
+                                {
+                                    cmd.Parameters.AddWithValue("@qty", item.QuantityMilli);
+                                    cmd.Parameters.AddWithValue("@now", now);
+                                    cmd.Parameters.AddWithValue("@pid", item.ProductId);
+                                    cmd.ExecuteNonQuery();
+                                }
+
+                                // Sync variant & parent product if applicable
+                                string syncVarSql = @"
+                                    UPDATE product_variants
+                                    SET stock_quantity_milli = stock_quantity_milli - @qty,
+                                        updated_at = @now
+                                    WHERE variant_product_id = @pid;
+
+                                    UPDATE products
+                                    SET stock_quantity_milli = (
+                                        SELECT COALESCE(SUM(p2.stock_quantity_milli), 0)
+                                        FROM products p2
+                                        WHERE p2.parent_id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @pid)
+                                          AND p2.is_active = 1
+                                    ),
+                                    updated_at = @now
+                                    WHERE id = (SELECT p1.parent_id FROM products p1 WHERE p1.id = @pid AND p1.parent_id IS NOT NULL);
+                                ";
+                                using (var cmdSync = new SQLiteCommand(syncVarSql, conn, trans))
+                                {
+                                    cmdSync.Parameters.AddWithValue("@qty", item.QuantityMilli);
+                                    cmdSync.Parameters.AddWithValue("@now", now);
+                                    cmdSync.Parameters.AddWithValue("@pid", item.ProductId);
+                                    cmdSync.ExecuteNonQuery();
+                                }
+
+                                // Deduct batch if specified
+                                if (!string.IsNullOrEmpty(item.BatchNumber))
+                                {
+                                    string batchDeductSql = @"
+                                        UPDATE product_batches
+                                        SET quantity_milli = MAX(0, quantity_milli - @qty),
+                                            updated_at = @now
+                                        WHERE product_id = @pid AND batch_number = @bnum;
+                                    ";
+                                    using (var cmd = new SQLiteCommand(batchDeductSql, conn, trans))
+                                    {
+                                        cmd.Parameters.AddWithValue("@qty", item.QuantityMilli);
+                                        cmd.Parameters.AddWithValue("@now", now);
+                                        cmd.Parameters.AddWithValue("@pid", item.ProductId);
+                                        cmd.Parameters.AddWithValue("@bnum", item.BatchNumber);
+                                        cmd.ExecuteNonQuery();
+                                    }
+                                }
+
+                                // Record Stock Movement (Return decreases stock)
+                                string insertSmSql = @"
+                                    INSERT INTO stock_movements (
+                                        id, product_id, movement_type, quantity_milli, reference_id, reference_type,
+                                        unit_cost_piasters, note, batch_number, created_at
+                                    ) VALUES (
+                                        @id, @prodId, 'PURCHASE_RETURN', @qty, @refId, 'PURCHASE_RETURN',
+                                        @unitCost, @note, @bnum, @createdAt
+                                    );
+                                ";
+                                using (var cmd = new SQLiteCommand(insertSmSql, conn, trans))
+                                {
+                                    cmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
+                                    cmd.Parameters.AddWithValue("@prodId", item.ProductId);
+                                    cmd.Parameters.AddWithValue("@qty", -item.QuantityMilli);
+                                    cmd.Parameters.AddWithValue("@refId", returnDoc.Id);
+                                    cmd.Parameters.AddWithValue("@unitCost", item.UnitCostPiasters);
+                                    cmd.Parameters.AddWithValue("@note", "مرتجع مشتريات رقم #" + returnDoc.ReturnNumber);
+                                    cmd.Parameters.AddWithValue("@bnum", (object)item.BatchNumber ?? DBNull.Value);
+                                    cmd.Parameters.AddWithValue("@createdAt", now);
+                                    cmd.ExecuteNonQuery();
+                                }
+                            }
+
+                            // 5. Update Supplier Balance & Ledger (Deducts debt or creates advance credit)
+                            long returnDelta = -returnDoc.TotalCostPiasters;
+                            string retNote = string.Format("مرتجع مشتريات #{0} بمبلغ {1:N2} ج.م",
+                                returnDoc.ReturnNumber,
+                                returnDoc.TotalCostPiasters / 100.0);
+                            _supplierRepo.AdjustBalance(returnDoc.SupplierId, returnDelta, "PURCHASE_RETURN", returnDoc.Id, retNote, conn, trans);
+
+                            _auditRepo.Log(conn, trans, new AuditLog
+                            {
+                                Id = "aud_" + Guid.NewGuid().ToString("N"),
+                                UserId = string.IsNullOrWhiteSpace(userId) ? "usr_admin_default" : userId,
+                                Action = "purchase_return_create",
+                                EntityType = "purchase_returns",
+                                EntityId = returnDoc.Id,
+                                DetailsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { returnNumber = returnDoc.ReturnNumber, totalCost = returnDoc.TotalCostPiasters, supplierId = returnDoc.SupplierId }),
+                                CreatedAt = now
+                            });
+
+                            trans.Commit();
+                            return returnDoc;
+                        }
+                        catch
+                        {
+                            trans.Rollback();
+                            throw;
+                        }
+                    }
+                }
+            }
+        }
+
+        public List<PurchaseReturn> GetReturns(string supplierId = null, int limit = 50)
+        {
+            var list = new List<PurchaseReturn>();
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = @"
+                    SELECT pr.*, s.name as supplier_name
+                    FROM purchase_returns pr
+                    LEFT JOIN suppliers s ON pr.supplier_id = s.id
+                    WHERE (@supId IS NULL OR pr.supplier_id = @supId)
+                    ORDER BY pr.return_number DESC
+                    LIMIT @limit;
+                ";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@supId", (object)supplierId ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@limit", limit);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            list.Add(MapReaderToPurchaseReturn(reader));
+                        }
+                    }
+                }
+            }
+            return list;
+        }
+
+        public PurchaseReturn GetReturnById(string id)
+        {
+            if (string.IsNullOrWhiteSpace(id)) return null;
+            PurchaseReturn retDoc = null;
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = @"
+                    SELECT pr.*, s.name as supplier_name
+                    FROM purchase_returns pr
+                    LEFT JOIN suppliers s ON pr.supplier_id = s.id
+                    WHERE pr.id = @id
+                    LIMIT 1;
+                ";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", id);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            retDoc = MapReaderToPurchaseReturn(reader);
+                        }
+                    }
+                }
+
+                if (retDoc != null)
+                {
+                    string itemsSql = "SELECT * FROM purchase_return_items WHERE return_id = @retId ORDER BY rowid ASC;";
+                    using (var cmd = new SQLiteCommand(itemsSql, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@retId", retDoc.Id);
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                retDoc.Items.Add(new PurchaseReturnItem
+                                {
+                                    Id = reader["id"].ToString(),
+                                    ReturnId = reader["return_id"].ToString(),
+                                    ProductId = reader["product_id"].ToString(),
+                                    ProductName = reader["product_name"].ToString(),
+                                    Barcode = reader["barcode"] != DBNull.Value ? reader["barcode"].ToString() : null,
+                                    QuantityMilli = Convert.ToInt64(reader["quantity_milli"]),
+                                    UnitCostPiasters = Convert.ToInt64(reader["unit_cost_piasters"]),
+                                    TotalCostPiasters = Convert.ToInt64(reader["total_cost_piasters"]),
+                                    BatchNumber = reader["batch_number"] != DBNull.Value ? reader["batch_number"].ToString() : null,
+                                    Reason = reader["reason"] != DBNull.Value ? reader["reason"].ToString() : null,
+                                    CreatedAt = reader["created_at"].ToString()
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            return retDoc;
+        }
+
+        private static PurchaseReturn MapReaderToPurchaseReturn(SQLiteDataReader reader)
+        {
+            return new PurchaseReturn
+            {
+                Id = reader["id"].ToString(),
+                ReturnNumber = Convert.ToInt64(reader["return_number"]),
+                PurchaseId = reader["purchase_id"] != DBNull.Value ? reader["purchase_id"].ToString() : null,
+                SupplierId = reader["supplier_id"].ToString(),
+                SupplierName = reader["supplier_name"] != DBNull.Value ? reader["supplier_name"].ToString() : null,
+                ReturnDate = reader["return_date"].ToString(),
+                TotalCostPiasters = Convert.ToInt64(reader["total_cost_piasters"]),
+                Notes = reader["notes"] != DBNull.Value ? reader["notes"].ToString() : null,
+                CreatedByUserId = reader["created_by_user_id"] != DBNull.Value ? reader["created_by_user_id"].ToString() : null,
+                CreatedAt = reader["created_at"].ToString()
+            };
+        }
+
         private static PurchaseItem MapReaderToPurchaseItem(SQLiteDataReader reader)
         {
             long? newPrice = null;
@@ -653,6 +1085,17 @@ namespace RafiqPOS.Repositories
                 }
             }
 
+            long bonusQty = 0;
+            long lineDiscount = 0;
+            if (HasColumn(reader, "bonus_quantity_milli") && reader["bonus_quantity_milli"] != DBNull.Value)
+            {
+                bonusQty = Convert.ToInt64(reader["bonus_quantity_milli"]);
+            }
+            if (HasColumn(reader, "discount_piasters") && reader["discount_piasters"] != DBNull.Value)
+            {
+                lineDiscount = Convert.ToInt64(reader["discount_piasters"]);
+            }
+
             return new PurchaseItem
             {
                 Id = reader["id"].ToString(),
@@ -661,7 +1104,9 @@ namespace RafiqPOS.Repositories
                 ProductName = reader["product_name"].ToString(),
                 Barcode = reader["barcode"] != DBNull.Value ? reader["barcode"].ToString() : null,
                 QuantityMilli = Convert.ToInt64(reader["quantity_milli"]),
+                BonusQuantityMilli = bonusQty,
                 UnitCostPiasters = Convert.ToInt64(reader["unit_cost_piasters"]),
+                DiscountPiasters = lineDiscount,
                 TotalCostPiasters = Convert.ToInt64(reader["total_cost_piasters"]),
                 PreviousCostPiasters = Convert.ToInt64(reader["previous_cost_piasters"]),
                 NewSellingPricePiasters = newPrice,

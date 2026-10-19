@@ -1,7 +1,7 @@
 import React from 'react';
 import type { FormEvent } from 'react';
-import { Barcode, Search, Loader2, Package } from 'lucide-react';
-import type { Product, ProductUnit } from '../../types/models';
+import { Barcode, Search, Loader2, Package, Clock } from 'lucide-react';
+import type { Product, ProductUnit, Shift } from '../../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
 
 interface PosBarcodeBarProps {
@@ -22,6 +22,8 @@ interface PosBarcodeBarProps {
   setSelectedDropdownIndex: (val: number) => void;
   onSelectProduct: (prod: Product, specificUnit?: ProductUnit) => void;
   onNavigateToEpay?: () => void;
+  activeShift?: Shift | null;
+  onOpenShiftModal?: () => void;
 }
 
 export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
@@ -41,6 +43,8 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
   selectedDropdownIndex,
   setSelectedDropdownIndex,
   onSelectProduct,
+  activeShift,
+  onOpenShiftModal,
 }) => {
   return (
     <div ref={searchContainerRef} className="p-2 sm:p-3 bg-white dark:bg-surface-dark border-b border-[#dce1dc] dark:border-line-dark shrink-0 relative">
@@ -95,6 +99,22 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
           <span className="hidden sm:inline">فحص القارئ</span>
         </button>
 
+        <button
+          type="button"
+          onClick={onOpenShiftModal}
+          className={`h-11 px-3 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all shrink-0 shadow-2xs active:scale-[0.98] cursor-pointer ${
+            activeShift
+              ? 'bg-brand-soft hover:bg-brand-soft/80 text-brand-dark border-brand/30'
+              : 'bg-warn/10 hover:bg-warn/20 text-warn border-warn/40 animate-pulse'
+          }`}
+          title="إدارة الوردية والدرج وحركات النقدية (وردية الكاشير)"
+        >
+          <Clock className={`w-4 h-4 ${activeShift ? 'text-brand' : 'text-warn'}`} />
+          <div className="flex flex-col text-right leading-tight">
+            <span className="text-[10px] text-ink-muted">الوردية والدرج</span>
+            <span>{activeShift ? `وردية #${activeShift.shiftNumber}` : 'الوردية مغلقة'}</span>
+          </div>
+        </button>
       </form>
 
       {/* Live Search Floating Dropdown (Task 22-4) */}

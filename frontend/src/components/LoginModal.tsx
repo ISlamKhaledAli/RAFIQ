@@ -139,6 +139,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       });
 
       if (result.success && result.user) {
+        setPin('');
+        setError('');
         onSuccess(result.user);
       } else {
         if (result.isLocked && result.remainingLockoutSeconds) {

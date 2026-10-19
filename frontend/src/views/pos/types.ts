@@ -30,5 +30,6 @@ export interface SmartCatalogItem {
   variantsCount?: number;
   hasBatches?: boolean;
   nearestExpiryDate?: string | null;
+  suggestedBatchNumber?: string | null;
   isExpired?: boolean;
 }

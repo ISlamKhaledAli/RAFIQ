@@ -7,7 +7,9 @@ import {
   CheckCircle, 
   AlertCircle, 
   Scale, 
-  Tag 
+  Tag,
+  Calendar,
+  AlertTriangle
 } from 'lucide-react';
 import type { CartItem } from './types';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
@@ -180,6 +182,24 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                     {item.unitName && item.conversionFactor && item.conversionFactor > 1 && (
                       <span className="text-paid dark:text-paid-bright font-bold bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 px-1 rounded shrink-0">
                         {item.unitName} = {item.conversionFactor} قطعة
+                      </span>
+                    )}
+                    {item.isExpiredBypass && (
+                      <span 
+                        className="text-danger dark:text-danger-bright bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger/30 font-bold px-1 rounded flex items-center gap-0.5 shrink-0"
+                        title={`تاريخ الانتهاء: ${item.expiryDate || 'منتهي'} - بيع بتخطي واعتماد إداري`}
+                      >
+                        <AlertTriangle className="w-2.5 h-2.5 text-danger dark:text-danger-bright shrink-0" />
+                        منتهي (بتخطي إداري){item.expiryDate ? `: ${item.expiryDate}` : ''}
+                      </span>
+                    )}
+                    {!item.isExpiredBypass && (item.batchNumber || item.expiryDate) && (
+                      <span 
+                        className="text-paid dark:text-paid-bright font-bold bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 px-1 rounded flex items-center gap-0.5 shrink-0 font-mono"
+                        title={`تشغيلة: ${item.batchNumber || 'افتراضية'} - صلاحية: ${item.expiryDate || 'غير محدد'}`}
+                      >
+                        <Calendar className="w-2.5 h-2.5 text-paid dark:text-paid-bright shrink-0" />
+                        {item.batchNumber ? `${item.batchNumber}` : ''}{item.batchNumber && item.expiryDate ? ' | ' : ''}{item.expiryDate ? `${item.expiryDate}` : ''}
                       </span>
                     )}
                   </div>

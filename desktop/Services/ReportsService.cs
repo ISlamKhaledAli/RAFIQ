@@ -175,17 +175,24 @@ namespace RafiqPOS.Services
                 try
                 {
                     string expenseSql = @"
-                        SELECT COALESCE(SUM(amount_piasters), 0) FROM expenses
-                        WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR business_date = date('now', 'localtime') OR date(created_at) = date('now'));
+                        SELECT 
+                            COALESCE(SUM(amount_piasters), 0) AS total_expenses,
+                            COALESCE(SUM(CASE WHEN (source = 'drawer' OR source IS NULL OR source = '') THEN amount_piasters ELSE 0 END), 0) AS drawer_expenses
+                        FROM expenses
+                        WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR business_date = date('now', 'localtime') OR date(created_at) = date('now'))
+                          AND (is_cancelled = 0 OR is_cancelled IS NULL);
                     ";
                     using (var cmd = new SQLiteCommand(expenseSql, conn))
                     {
-                        object res = cmd.ExecuteScalar();
-                        if (res != null && res != DBNull.Value)
+                        using (var reader = cmd.ExecuteReader())
                         {
-                            summary.TodayExpensesPiasters = Convert.ToInt64(res);
-                            summary.CashDrawerPiasters -= summary.TodayExpensesPiasters;
-                            if (summary.CashDrawerPiasters < 0) summary.CashDrawerPiasters = 0;
+                            if (reader.Read())
+                            {
+                                summary.TodayExpensesPiasters = Convert.ToInt64(reader["total_expenses"]);
+                                long drawerExp = Convert.ToInt64(reader["drawer_expenses"]);
+                                summary.CashDrawerPiasters -= drawerExp;
+                                if (summary.CashDrawerPiasters < 0) summary.CashDrawerPiasters = 0;
+                            }
                         }
                     }
                 }
@@ -966,7 +973,8 @@ namespace RafiqPOS.Services
                             string expSql = string.Format(@"
                                 SELECT COALESCE(SUM(amount_piasters), 0)
                                 FROM expenses
-                                WHERE ({0} OR {1});
+                                WHERE ({0} OR {1})
+                                  AND (is_cancelled = 0 OR is_cancelled IS NULL);
                             ", dateFilterClause, expDateClause);
 
                             using (var expCmd = new SQLiteCommand(expSql, conn))
