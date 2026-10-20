@@ -484,8 +484,10 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // Net Operating Profit = Sales Gross Profit - Operational Expenses - Inventory Losses + Inventory Surplus + Epay Net Profit
-                summary.TodayNetProfitsPiasters = summary.TodayProfitsPiasters - summary.TodayExpensesPiasters - summary.TodayInventoryLossPiasters + summary.TodayInventorySurplusPiasters + summary.TodayEpayNetProfitPiasters;
+                // Net Operating Profit = Sales Gross Profit - Operational Expenses - Inventory Losses + Epay Net Profit
+                // Note: Inventory Surplus (positive adjustments / stock entries) increases inventory asset value, but is NOT realized operating income.
+                // Adding it here would cause double-counting profit when items are later sold.
+                summary.TodayNetProfitsPiasters = summary.TodayProfitsPiasters - summary.TodayExpensesPiasters - summary.TodayInventoryLossPiasters + summary.TodayEpayNetProfitPiasters;
 
                 // 5. Recent Inventory Adjustments for today
                 string recentAdjSql = @"

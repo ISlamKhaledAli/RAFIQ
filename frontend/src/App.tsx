@@ -999,8 +999,8 @@ export default function App() {
             onClick={() => setIsShiftModalOpen(true)}
             className={`flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-lg border text-xs font-bold shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer shrink-0 ${
               activeShift && activeShift.status !== 'closed'
-                ? 'bg-paid-soft hover:bg-paid-soft/80 text-paid border-paid/30'
-                : 'bg-warn-soft/60 hover:bg-warn-soft text-warn border-warn/40 animate-pulse'
+                ? 'bg-paid-soft hover:bg-paid-soft/80 text-paid border-paid/30 dark:bg-paid-dark-soft dark:hover:bg-paid-dark-soft/80 dark:text-paid-bright dark:border-paid-dark-border'
+                : 'bg-warn-soft/60 hover:bg-warn-soft text-warn border-warn/40 dark:bg-warn-dark-soft dark:hover:bg-warn-dark-soft/80 dark:text-warn-bright dark:border-warn-bright/30 animate-pulse'
             }`}
             title={
               activeShift && activeShift.status !== 'closed'
@@ -1008,7 +1008,7 @@ export default function App() {
                 : 'الوردية مغلقة - اضغط لفتح وردية جديدة واستلام عهدة الدرج'
             }
           >
-            <Clock className={`w-3.5 h-3.5 shrink-0 ${activeShift && activeShift.status !== 'closed' ? 'text-paid' : 'text-warn'}`} />
+            <Clock className={`w-3.5 h-3.5 shrink-0 ${activeShift && activeShift.status !== 'closed' ? 'text-paid dark:text-paid-bright' : 'text-warn dark:text-warn-bright'}`} />
             <span className="truncate max-w-[110px]">
               {activeShift && activeShift.status !== 'closed'
                 ? `وردية #${activeShift.shiftNumber ?? (activeShift as any).ShiftNumber ?? 1}`
@@ -1024,12 +1024,12 @@ export default function App() {
             title="تبديل المستخدم الحالي سريعاً برقم الـ PIN"
           >
             <div className={`w-5 h-5 rounded-md flex items-center justify-center font-bold text-[10px] ${
-              isAdmin ? 'bg-paid-soft text-paid border border-paid-border' : 'bg-brand-soft text-brand border border-brand/20'
+              isAdmin ? 'bg-paid-soft text-paid border border-paid-border dark:bg-paid-dark-soft dark:text-paid-bright dark:border-paid-dark-border' : 'bg-brand-soft text-brand border border-brand/20 dark:bg-brand-dark-soft dark:text-brand-bright dark:border-brand-bright/20'
             }`}>
               {currentUser?.displayName ? currentUser.displayName.slice(0, 1) : 'U'}
             </div>
             <span className="font-bold hidden md:inline truncate max-w-[90px]">{currentUser?.displayName}</span>
-            <span className="text-[10px] text-ink-muted hidden lg:inline">({currentUser?.role === 'root' ? 'المالك' : (isAdmin ? 'صاحب المحل' : 'كاشير')})</span>
+            <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted hidden lg:inline">({currentUser?.role === 'root' ? 'المالك' : (isAdmin ? 'صاحب المحل' : 'كاشير')})</span>
           </button>
 
           {/* Manage Users Button for Admin/Root or authorized managers (Task 166-4) */}
@@ -1234,8 +1234,12 @@ export default function App() {
                   >
                     <Icon className={`w-5 h-5 ${isActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/80 group-hover:text-ink dark:group-hover:text-white'}`} />
                     {isProductsItem && lowStockCount > 0 && (
-                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-danger text-white text-[9px] font-medium flex items-center justify-center animate-pulse border-2 border-surface dark:border-surface-dark shadow-2xs">
-                        {lowStockCount > 9 ? '+9' : lowStockCount}
+                      <span
+                        dir="ltr"
+                        className="absolute -top-1.5 -start-1.5 min-w-[20px] h-[20px] px-1 rounded-full bg-danger text-white text-[10px] font-black font-mono leading-none flex items-center justify-center border-2 border-surface dark:border-surface-dark shadow-xs pointer-events-none select-none tracking-tight"
+                        title={`${lowStockCount} أصناف نواقص / قاربت على النفاد`}
+                      >
+                        {lowStockCount > 99 ? '99+' : lowStockCount > 9 ? '9+' : lowStockCount}
                       </span>
                     )}
                     <span className="sr-only">{item.label}</span>
@@ -1297,6 +1301,15 @@ export default function App() {
                     <div className="flex items-center gap-2.5 min-w-0">
                       <Icon className={`w-4.5 h-4.5 shrink-0 ${isActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/80 group-hover:dark:text-white'}`} />
                       <span className="truncate whitespace-nowrap">{item.label}</span>
+                      {isProductsItem && lowStockCount > 0 && (
+                        <span
+                          dir="ltr"
+                          className="mr-1.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold font-mono bg-danger text-white shrink-0 leading-none shadow-2xs"
+                          title={`${lowStockCount} أصناف نواقص / قاربت على النفاد`}
+                        >
+                          {lowStockCount > 99 ? '99+' : lowStockCount > 9 ? '9+' : lowStockCount}
+                        </span>
+                      )}
                     </div>
 
                     {(isEpayItem || isWalletsItem || isDashboardItem || isProductsItem || isPurchasesItem || isSettingsItem) && (

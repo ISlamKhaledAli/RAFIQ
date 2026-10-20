@@ -134,13 +134,15 @@ namespace RafiqPOS.Services
             var flags = new Dictionary<string, bool>();
             var settings = _repo.GetAll();
 
-            flags["feature_scale_weight"] = GetBool(settings, "feature_scale_weight", true);
+            flags["feature_scale_weight"] = GetBool(settings, "feature_scale_weight", false);
             flags["feature_credit_debts"] = GetBool(settings, "feature_credit_debts", true);
             flags["feature_fast_buttons"] = GetBool(settings, "feature_fast_buttons", true);
             flags["feature_taxes"] = GetBool(settings, "feature_taxes", false);
-            flags["feature_expiry_dates"] = GetBool(settings, "feature_expiry_dates", true);
-            flags["feature_multi_units"] = GetBool(settings, "feature_multi_units", true);
+            flags["feature_expiry_dates"] = GetBool(settings, "feature_expiry_dates", false);
+            flags["feature_multi_units"] = GetBool(settings, "feature_multi_units", false);
             flags["feature_matrix_variants"] = GetBool(settings, "feature_matrix_variants", false);
+            flags["feature_epay_services"] = GetBool(settings, "feature_epay_services", true);
+            flags["feature_digital_wallets"] = GetBool(settings, "feature_digital_wallets", true);
 
             return flags;
         }

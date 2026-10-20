@@ -418,7 +418,6 @@ namespace RafiqPOS.Bridge
             { "settings:getAll", REQUIRE_ANY_SETTINGS },
             { "settings:save", REQUIRE_ANY_SETTINGS },
             { "settings:updateBatch", REQUIRE_ANY_SETTINGS },
-            { "features:getAll", REQUIRE_ANY_SETTINGS },
             { "features:set", "settings.features" },
             { "backup:getStatus", "settings.backup" },
             { "backup:create", "settings.backup" },
@@ -540,6 +539,13 @@ namespace RafiqPOS.Bridge
 
             // Guided recovery: when the database is corrupt nobody can log in, so restoring a backup must remain possible.
             if (DatabaseService.IsCorrupted && (request.Action == "database:restore" || request.Action == "migration:restore"))
+            {
+                return null;
+            }
+
+            // Initial onboarding: when setting up the store before login, applying store template and saving initial settings is allowed.
+            if (request.Action == "templates:apply" ||
+                (DatabaseService.Templates != null && DatabaseService.Templates.IsFirstRunNeeded() && request.Action == "settings:save"))
             {
                 return null;
             }

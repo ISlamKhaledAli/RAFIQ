@@ -8,12 +8,12 @@ export interface FeaturesState {
 }
 
 export const DEFAULT_FLAGS: Record<string, boolean> = {
-  feature_scale_weight: true,
+  feature_scale_weight: false,
   feature_credit_debts: true,
   feature_fast_buttons: true,
   feature_taxes: false,
-  feature_expiry_dates: true,
-  feature_multi_units: true,
+  feature_expiry_dates: false,
+  feature_multi_units: false,
   feature_matrix_variants: false,
   feature_epay_services: true,
   feature_digital_wallets: true,

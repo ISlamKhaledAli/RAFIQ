@@ -1204,6 +1204,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       }
     } else if (e.key === 'Escape') {
       setIsSearchDropdownOpen(false);
+      setLiveSearchResults([]);
     }
   };
 
@@ -1229,6 +1230,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         const added = addProductToCart(exactMatch, undefined, matchedUnit);
         setBarcodeQuery('');
         setIsSearchDropdownOpen(false);
+        setLiveSearchResults([]);
         if (added) {
           showStatus(`تمت إضافة: ${exactMatch.name}`, 'success');
         }
@@ -1650,6 +1652,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
               const added = addProductToCart(prod, undefined, specificUnit);
               setBarcodeQuery('');
               setIsSearchDropdownOpen(false);
+              setLiveSearchResults([]);
+              setSelectedDropdownIndex(0);
               if (added) {
                 showStatus(`تمت إضافة: ${prod.name}${specificUnit ? ` (${specificUnit.unitName})` : ''}`, 'success');
               }

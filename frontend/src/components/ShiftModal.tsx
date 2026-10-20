@@ -335,7 +335,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
         {/* Modal Top Header */}
         <div className="p-4 sm:p-5 bg-surface-2 dark:bg-surface-dark-2 border-b border-line dark:border-line-dark flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${activeShift ? 'bg-brand/10 text-brand' : 'bg-warn/10 text-warn'}`}>
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${activeShift ? 'bg-brand/10 dark:bg-brand-dark-soft text-brand dark:text-brand-bright' : 'bg-warn/10 dark:bg-warn-dark-soft text-warn dark:text-warn-bright'}`}>
               <Clock className="w-5 h-5" />
             </div>
             <div>
@@ -344,12 +344,12 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                   إدارة الوردية والخزينة وحركات الدرج
                 </h2>
                 {activeShift ? (
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-paid-soft text-paid border border-paid/20 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-paid animate-pulse" />
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid-dark-border flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-paid dark:bg-paid-bright animate-pulse" />
                     وردية #{activeShift.shiftNumber ?? (activeShift as unknown as { ShiftNumber?: number }).ShiftNumber ?? 1} مفتوحة
                   </span>
                 ) : (
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-warn/10 text-warn border border-warn/20">
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-warn/10 dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn/20 dark:border-warn-bright/30">
                     الوردية مغلقة
                   </span>
                 )}
@@ -474,8 +474,8 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
           {/* CASE A: NO ACTIVE SHIFT (PROMPT TO OPEN) */}
           {!activeShift ? (
             <div className="space-y-6">
-              <div className="bg-brand-soft border border-brand/20 rounded-2xl p-6 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-brand/10 text-brand flex items-center justify-center mx-auto mb-3">
+              <div className="bg-brand-soft dark:bg-surface-dark-2 border border-brand/20 dark:border-line-dark rounded-2xl p-6 text-center shadow-2xs">
+                <div className="w-16 h-16 rounded-2xl bg-brand/10 dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/10 dark:border-brand-bright/20 flex items-center justify-center mx-auto mb-3">
                   <Unlock className="w-8 h-8" />
                 </div>
                 <h3 className="text-lg font-bold text-ink dark:text-ink-dark">
@@ -492,9 +492,9 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                     الكاشير المستلم
                   </label>
                   <div className="h-10 px-3 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl flex items-center gap-2 text-xs text-ink dark:text-ink-dark">
-                    <User className="w-4 h-4 text-brand" />
+                    <User className="w-4 h-4 text-brand dark:text-brand-bright" />
                     <span className="font-bold">{currentUser?.displayName || currentUser?.username || 'مستخدم غير محدد'}</span>
-                    <span className="text-xs text-ink-muted mr-auto">({currentUser?.role || 'cashier'})</span>
+                    <span className="text-xs text-ink-muted dark:text-ink-dark-muted mr-auto">({currentUser?.role || 'cashier'})</span>
                   </div>
                 </div>
 
@@ -508,9 +508,9 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                     placeholder="0.00"
                     autoFocus
                     containerClassName="w-full"
-                    className="h-11 text-base font-bold text-paid"
+                    className="h-11 text-base font-bold text-paid dark:text-paid-bright"
                   />
-                  <p className="text-xs text-ink-muted mt-1">
+                  <p className="text-xs text-ink-muted dark:text-ink-dark-muted mt-1">
                     أدخل المبلغ الفعلي الموجود في الدرج قبل بدء البيع (مثل 200 أو 500 ج.م فكة).
                   </p>
                 </div>
@@ -541,8 +541,8 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
               {/* Recent closed shifts archive */}
               {recentShifts.length > 0 && (
                 <div className="space-y-3 pt-4 border-t border-line dark:border-line-dark">
-                  <h4 className="text-xs font-bold text-ink-muted uppercase tracking-wider flex items-center gap-1.5">
-                    <History className="w-4 h-4 text-brand" />
+                  <h4 className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted uppercase tracking-wider flex items-center gap-1.5">
+                    <History className="w-4 h-4 text-brand dark:text-brand-bright" />
                     <span>آخر الورديات المغلقة السابقة</span>
                   </h4>
                   <div className="border border-line dark:border-line-dark rounded-xl overflow-hidden divide-y divide-line dark:divide-line-dark text-xs">
@@ -551,21 +551,21 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                         <div>
                           <div className="flex items-center gap-2 font-bold text-ink dark:text-ink-dark">
                             <span>وردية #{s.shiftNumber ?? (s as unknown as { ShiftNumber?: number }).ShiftNumber ?? 1}</span>
-                            <span className="text-xs font-normal text-ink-muted">({s.businessDate})</span>
-                            <span className="text-xs px-2 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 border border-line">
+                            <span className="text-xs font-normal text-ink-muted dark:text-ink-dark-muted">({s.businessDate})</span>
+                            <span className="text-xs px-2 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark">
                               {s.cashierName}
                             </span>
                           </div>
-                          <div className="text-xs text-ink-muted mt-1 flex items-center gap-3">
+                          <div className="text-xs text-ink-muted dark:text-ink-dark-muted mt-1 flex items-center gap-3">
                             <span>الفواتير: {s.invoicesCount}</span>
                             <span>المبيعات النقدية: {formatArabicCurrency(s.cashSalesPiasters)}</span>
                           </div>
                         </div>
                         <div className="text-left">
-                          <div className="font-bold text-ink">
+                          <div className="font-bold text-ink dark:text-ink-dark">
                             المغلق: {formatArabicCurrency(s.actualCashPiasters)}
                           </div>
-                          <div className={`text-xs font-medium ${s.differencePiasters < 0 ? 'text-danger' : s.differencePiasters > 0 ? 'text-brand' : 'text-paid'}`}>
+                          <div className={`text-xs font-medium ${s.differencePiasters < 0 ? 'text-danger dark:text-danger-bright' : s.differencePiasters > 0 ? 'text-brand dark:text-brand-bright' : 'text-paid dark:text-paid-bright'}`}>
                             {s.differencePiasters === 0
                               ? 'متطابق تماماً'
                               : `الفرق: ${formatArabicCurrency(s.differencePiasters)}`}
@@ -628,47 +628,47 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                       </span>
                     </div>
 
-                    <div className="bg-paid-soft p-3.5 rounded-xl border border-paid/20">
-                      <span className="text-xs text-paid font-medium block">
+                    <div className="bg-paid-soft dark:bg-paid-dark-soft p-3.5 rounded-xl border border-paid/20 dark:border-paid-dark-border">
+                      <span className="text-xs text-paid dark:text-paid-bright font-medium block">
                         مبيعات نقدية (كاش)
                       </span>
-                      <span className="text-base font-bold text-paid mt-1 block">
+                      <span className="text-base font-bold text-paid dark:text-paid-bright mt-1 block">
                         +{formatArabicCurrency(shiftSummary?.cashSalesPiasters ?? 0)}
                       </span>
                     </div>
 
-                    <div className="bg-paid-soft p-3.5 rounded-xl border border-paid/20">
-                      <span className="text-xs text-paid font-medium block">
+                    <div className="bg-paid-soft dark:bg-paid-dark-soft p-3.5 rounded-xl border border-paid/20 dark:border-paid-dark-border">
+                      <span className="text-xs text-paid dark:text-paid-bright font-medium block">
                         إيداعات نقدية (Cash In)
                       </span>
-                      <span className="text-base font-bold text-paid mt-1 block">
+                      <span className="text-base font-bold text-paid dark:text-paid-bright mt-1 block">
                         +{formatArabicCurrency(shiftSummary?.cashInPiasters ?? 0)}
                       </span>
                     </div>
 
-                    <div className="bg-danger/10 p-3.5 rounded-xl border border-danger/20">
-                      <span className="text-xs text-danger font-medium block">
+                    <div className="bg-danger/10 dark:bg-danger-dark-soft p-3.5 rounded-xl border border-danger/20 dark:border-danger-bright/20">
+                      <span className="text-xs text-danger dark:text-danger-bright font-medium block">
                         سحوبات نقدية (Cash Out)
                       </span>
-                      <span className="text-base font-bold text-danger mt-1 block">
+                      <span className="text-base font-bold text-danger dark:text-danger-bright mt-1 block">
                         -{formatArabicCurrency(shiftSummary?.cashOutPiasters ?? 0)}
                       </span>
                     </div>
 
-                    <div className="bg-danger/10 p-3.5 rounded-xl border border-danger/20">
-                      <span className="text-xs text-danger font-medium block">
+                    <div className="bg-danger/10 dark:bg-danger-dark-soft p-3.5 rounded-xl border border-danger/20 dark:border-danger-bright/20">
+                      <span className="text-xs text-danger dark:text-danger-bright font-medium block">
                         مرتجعات نقدية للعملاء
                       </span>
-                      <span className="text-base font-bold text-danger mt-1 block">
+                      <span className="text-base font-bold text-danger dark:text-danger-bright mt-1 block">
                         -{formatArabicCurrency(shiftSummary?.returnsCashPiasters ?? 0)}
                       </span>
                     </div>
 
-                    <div className="bg-danger/10 p-3.5 rounded-xl border border-danger/20">
-                      <span className="text-xs text-danger font-medium block">
+                    <div className="bg-danger/10 dark:bg-danger-dark-soft p-3.5 rounded-xl border border-danger/20 dark:border-danger-bright/20">
+                      <span className="text-xs text-danger dark:text-danger-bright font-medium block">
                         مصروفات نقدية من الدرج
                       </span>
-                      <span className="text-base font-bold text-danger mt-1 block">
+                      <span className="text-base font-bold text-danger dark:text-danger-bright mt-1 block">
                         -{formatArabicCurrency(shiftSummary?.expensesCashPiasters ?? 0)}
                       </span>
                     </div>
@@ -677,7 +677,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                       <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-medium block">
                         تحصيلات آجلة نقدية
                       </span>
-                      <span className="text-base font-bold text-paid mt-1 block">
+                      <span className="text-base font-bold text-paid dark:text-paid-bright mt-1 block">
                         +{formatArabicCurrency(shiftSummary?.debtPaymentsCashPiasters ?? 0)}
                       </span>
                     </div>
@@ -693,8 +693,8 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                   </div>
 
                   {/* Non-Cash Channels Info Box */}
-                  <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-xl border border-line dark:border-line-dark text-xs text-ink-muted flex items-start gap-3">
-                    <Info className="w-5 h-5 text-brand shrink-0 mt-0.5" />
+                  <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-xl border border-line dark:border-line-dark text-xs text-ink-muted dark:text-ink-dark-muted flex items-start gap-3">
+                    <Info className="w-5 h-5 text-brand dark:text-brand-bright shrink-0 mt-0.5" />
                     <div>
                       <span className="font-bold text-ink dark:text-ink-dark block mb-1">
                         قنوات الدفع غير النقدية (لا تؤثر في كاش الدرج):
@@ -713,11 +713,11 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
               {/* TAB 2: CASH IN */}
               {activeTab === 'cash_in' && (
                 <div className="max-w-md mx-auto space-y-4">
-                  <div className="bg-paid-soft p-4 rounded-xl border border-paid/20 flex items-center gap-3">
-                    <ArrowDownLeft className="w-6 h-6 text-paid shrink-0" />
+                  <div className="bg-paid-soft dark:bg-paid-dark-soft p-4 rounded-xl border border-paid/20 dark:border-paid-dark-border flex items-center gap-3">
+                    <ArrowDownLeft className="w-6 h-6 text-paid dark:text-paid-bright shrink-0" />
                     <div>
-                      <h4 className="text-sm font-bold text-paid">تغذية نقدية للدرج (Cash In)</h4>
-                      <p className="text-xs text-paid/80">
+                      <h4 className="text-sm font-bold text-paid dark:text-paid-bright">تغذية نقدية للدرج (Cash In)</h4>
+                      <p className="text-xs text-paid/80 dark:text-paid-bright/80">
                         تسجيل مبالغ نقدية إضافية تدخل الدرج كفكة صباحية أو عهدة إضافية.
                       </p>
                     </div>
@@ -733,7 +733,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                       placeholder="0.00"
                       autoFocus
                       containerClassName="w-full"
-                      className="h-11 text-base font-bold text-paid"
+                      className="h-11 text-base font-bold text-paid dark:text-paid-bright"
                     />
                   </div>
 
@@ -778,11 +778,11 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
               {/* TAB 3: CASH OUT */}
               {activeTab === 'cash_out' && (
                 <div className="max-w-md mx-auto space-y-4">
-                  <div className="bg-danger/10 p-4 rounded-xl border border-danger/20 flex items-center gap-3">
-                    <ArrowUpRight className="w-6 h-6 text-danger shrink-0" />
+                  <div className="bg-danger/10 dark:bg-danger-dark-soft p-4 rounded-xl border border-danger/20 dark:border-danger-bright/20 flex items-center gap-3">
+                    <ArrowUpRight className="w-6 h-6 text-danger dark:text-danger-bright shrink-0" />
                     <div>
-                      <h4 className="text-sm font-bold text-danger">سحب نقدي من الدرج (Cash Out)</h4>
-                      <p className="text-xs text-danger/80">
+                      <h4 className="text-sm font-bold text-danger dark:text-danger-bright">سحب نقدي من الدرج (Cash Out)</h4>
+                      <p className="text-xs text-danger/80 dark:text-danger-bright/80">
                         تسجيل مبالغ نقدية مسحوبة من الدرج لتوريدها للخزينة الرئيسية أو الإدارة.
                       </p>
                     </div>
@@ -791,7 +791,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                   <div>
                     <label className="block text-xs font-bold text-ink dark:text-ink-dark mb-1.5 flex items-center justify-between">
                       <span>مبلغ السحب</span>
-                      <span className="text-xs font-normal text-ink-muted">
+                      <span className="text-xs font-normal text-ink-muted dark:text-ink-dark-muted">
                         المتوفر بالدرج: {formatArabicCurrency(expectedCash)}
                       </span>
                     </label>
@@ -801,7 +801,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                       placeholder="0.00"
                       autoFocus
                       containerClassName="w-full"
-                      className="h-11 text-base font-bold text-danger"
+                      className="h-11 text-base font-bold text-danger dark:text-danger-bright"
                     />
                   </div>
 
@@ -848,16 +848,16 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h4 className="text-xs font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
-                      <History className="w-4 h-4 text-brand" />
+                      <History className="w-4 h-4 text-brand dark:text-brand-bright" />
                       <span>حركات الإيداع والسحب النثري للوردية الحالية</span>
                     </h4>
-                    <span className="text-xs text-ink-muted">
+                    <span className="text-xs text-ink-muted dark:text-ink-dark-muted">
                       إجمالي الحركات: {drawerTransactions.length}
                     </span>
                   </div>
 
                   {drawerTransactions.length === 0 ? (
-                    <div className="p-8 text-center text-xs text-ink-muted bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark">
+                    <div className="p-8 text-center text-xs text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark">
                       لا توجد أي حركات إيداع أو سحب نثري مسجلة في هذه الوردية حتى الآن.
                     </div>
                   ) : (
@@ -865,23 +865,23 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                       {drawerTransactions.map((tx) => (
                         <div key={tx.id} className="p-3 bg-surface dark:bg-surface-dark flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${tx.type === 'cash_in' ? 'bg-paid-soft text-paid' : 'bg-danger/10 text-danger'}`}>
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${tx.type === 'cash_in' ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright' : 'bg-danger/10 dark:bg-danger-dark-soft text-danger dark:text-danger-bright'}`}>
                               {tx.type === 'cash_in' ? <ArrowDownLeft className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
                             </div>
                             <div>
                               <div className="font-bold text-ink dark:text-ink-dark flex items-center gap-2">
                                 <span>{tx.reason}</span>
-                                <span className="text-xs px-2 py-0.2 rounded bg-surface-2 border border-line">
+                                <span className="text-xs px-2 py-0.2 rounded bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark">
                                   {tx.performedByName}
                                 </span>
                               </div>
-                              <span className="text-xs text-ink-muted">
+                              <span className="text-xs text-ink-muted dark:text-ink-dark-muted">
                                 {new Date(tx.createdAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
                               </span>
                             </div>
                           </div>
 
-                          <div className={`text-sm font-bold ${tx.type === 'cash_in' ? 'text-paid' : 'text-danger'}`}>
+                          <div className={`text-sm font-bold ${tx.type === 'cash_in' ? 'text-paid dark:text-paid-bright' : 'text-danger dark:text-danger-bright'}`}>
                             {tx.type === 'cash_in' ? '+' : '-'}{formatArabicCurrency(tx.amountPiasters)}
                           </div>
                         </div>
@@ -894,11 +894,11 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
               {/* TAB 5: CLOSE SHIFT */}
               {activeTab === 'close' && (
                 <div className="max-w-lg mx-auto space-y-4">
-                  <div className="bg-danger/10 p-4 rounded-xl border border-danger/30 flex items-center gap-3">
-                    <Lock className="w-6 h-6 text-danger shrink-0" />
+                  <div className="bg-danger/10 dark:bg-danger-dark-soft p-4 rounded-xl border border-danger/30 dark:border-danger-bright/30 flex items-center gap-3">
+                    <Lock className="w-6 h-6 text-danger dark:text-danger-bright shrink-0" />
                     <div>
-                      <h4 className="text-sm font-bold text-danger">إغلاق وتشميع الوردية نهائياً</h4>
-                      <p className="text-xs text-danger/80">
+                      <h4 className="text-sm font-bold text-danger dark:text-danger-bright">إغلاق وتشميع الوردية نهائياً</h4>
+                      <p className="text-xs text-danger/80 dark:text-danger-bright/80">
                         قم بعد النقدية الفعلية الموجودة في الدرج وإدخالها لاحتساب العجز أو الزيادة وتشميع السجل.
                       </p>
                     </div>
@@ -907,8 +907,8 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                   {/* Summary Comparison */}
                   <div className="bg-surface-2 dark:bg-surface-dark-2 p-4 rounded-xl border border-line dark:border-line-dark space-y-3">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-ink-muted">النقد المتوقع في الدرج (Expected):</span>
-                      <span className="font-bold text-ink text-sm">{formatArabicCurrency(expectedCash)}</span>
+                      <span className="text-ink-muted dark:text-ink-dark-muted">النقد المتوقع في الدرج (Expected):</span>
+                      <span className="font-bold text-ink dark:text-ink-dark text-sm">{formatArabicCurrency(expectedCash)}</span>
                     </div>
 
                     <div>
@@ -921,7 +921,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                         placeholder="0.00"
                         autoFocus
                         containerClassName="w-full"
-                        className="h-11 text-base font-bold text-brand"
+                        className="h-11 text-base font-bold text-brand dark:text-brand-bright"
                       />
                     </div>
 
@@ -931,17 +931,17 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                         نتيجة المطابقة والتسوية:
                       </span>
                       {currentDiffPiasters === 0 ? (
-                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-paid-soft text-paid border border-paid/20 flex items-center gap-1">
+                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid/20 dark:border-paid-dark-border flex items-center gap-1">
                           <CheckCircle2 className="w-3.5 h-3.5" />
                           متطابق تماماً (0.00 ج.م)
                         </span>
                       ) : currentDiffPiasters < 0 ? (
-                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-danger/10 text-danger border border-danger/30 flex items-center gap-1">
+                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-danger/10 dark:bg-danger-dark-soft text-danger dark:text-danger-bright border border-danger/30 dark:border-danger-bright/30 flex items-center gap-1">
                           <AlertTriangle className="w-3.5 h-3.5" />
                           عجز بالدرج: {formatArabicCurrency(currentDiffPiasters)}
                         </span>
                       ) : (
-                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-brand/10 text-brand border border-brand/20 flex items-center gap-1">
+                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-brand/10 dark:bg-brand-dark-soft text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/20 flex items-center gap-1">
                           <Coins className="w-3.5 h-3.5" />
                           زيادة بالدرج: +{formatArabicCurrency(currentDiffPiasters)}
                         </span>
@@ -977,15 +977,16 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
         </div>
 
         {/* Modal Bottom Footer */}
-        <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-between shrink-0 text-xs text-ink-muted">
+        <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-between shrink-0 text-xs text-ink-muted dark:text-ink-dark-muted">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-paid" />
+            <span className="w-2 h-2 rounded-full bg-paid dark:bg-paid-bright" />
             <span>نظام رفيق المحاسبي - حماية الدرج ضد التلاعب المحاسبي 100%</span>
           </div>
 
           <button
+            type="button"
             onClick={() => void requestClose()}
-            className="px-4 py-1.5 rounded-xl border border-line hover:bg-surface text-ink font-bold transition-all"
+            className="px-4 py-1.5 rounded-xl border border-line dark:border-line-dark bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-ink dark:text-ink-dark font-bold text-xs shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer"
           >
             إغلاق النافذة
           </button>

@@ -67,10 +67,16 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
           license?: { isActive: boolean; status: string };
         }>('license:verify');
 
-        if (!isCancelled && res?.success && res.license?.isActive && res.license.status === 'active') {
+        const isLicenseActive = Boolean(
+          res?.success &&
+            res.license?.isActive &&
+            (res.license.status === 'active' || res.license.status === 'trial')
+        );
+
+        if (!isCancelled && isLicenseActive) {
           void rafiqAlert({
             title: 'الترخيص سارٍ!',
-            message: res.message || 'تم التحقق من تمديد الاشتراك من السيرفر بنجاح!',
+            message: res?.message || 'تم التحقق من تمديد الاشتراك من السيرفر بنجاح!',
             variant: 'success',
           });
           onUnlocked();
@@ -207,10 +213,16 @@ export const LicenseExpiredLockScreen: FC<LicenseExpiredLockScreenProps> = ({
         license?: { isActive: boolean; status: string };
       }>('license:verify');
 
-      if (res?.success && res.license?.isActive && res.license.status === 'active') {
+      const isLicenseActive = Boolean(
+        res?.success &&
+          res.license?.isActive &&
+          (res.license.status === 'active' || res.license.status === 'trial')
+      );
+
+      if (isLicenseActive) {
         void rafiqAlert({
           title: 'الترخيص سارٍ!',
-          message: res.message || 'تم التحقق من تمديد الاشتراك من السيرفر بنجاح!',
+          message: res?.message || 'تم التحقق من تمديد الاشتراك من السيرفر بنجاح!',
           variant: 'success',
         });
         onUnlocked();

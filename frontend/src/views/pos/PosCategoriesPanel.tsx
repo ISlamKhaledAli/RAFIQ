@@ -38,9 +38,9 @@ export const PosCategoriesPanel: React.FC<PosCategoriesPanelProps> = ({
     try {
       const saved = localStorage.getItem('rafiq_pos_categories_collapsed');
       if (saved !== null) return saved === 'true';
-      return window.innerWidth < 1250;
+      return true; // Default to collapsed so screen breathes without 3-column crowding
     } catch {
-      return false;
+      return true;
     }
   });
 

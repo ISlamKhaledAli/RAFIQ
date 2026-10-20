@@ -43,10 +43,10 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
   onSelectProduct,
 }) => {
   return (
-    <div ref={searchContainerRef} className="p-2 sm:p-3 bg-white dark:bg-surface-dark border-b border-[#dce1dc] dark:border-line-dark shrink-0 relative">
+    <div ref={searchContainerRef} className="p-2 sm:p-2.5 bg-surface dark:bg-surface-dark border-b border-line dark:border-line-dark shrink-0 relative">
       <form onSubmit={handleBarcodeSubmit} className="flex items-center gap-1.5 sm:gap-2">
-        <div className="relative flex-1 h-11 flex items-center bg-[#fdfdfd] dark:bg-surface-dark-2 rounded-xl border-2 border-[#006d41] dark:border-brand px-3 focus-within:ring-2 focus-within:ring-[#006d41]/20 dark:focus-within:ring-brand/30 shadow-2xs transition-all">
-          <Barcode className="w-5 h-5 text-[#006d41] dark:text-brand-bright ml-2 shrink-0" />
+        <div className="relative flex-1 h-11 flex items-center bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark focus-within:border-brand dark:focus-within:border-brand-bright focus-within:bg-surface dark:focus-within:bg-surface-dark focus-within:ring-2 focus-within:ring-brand/20 px-3 shadow-2xs transition-all">
+          <Barcode className="w-5 h-5 text-brand dark:text-brand-bright ml-2 shrink-0" />
           <input
             ref={barcodeInputRef}
             type="text"
@@ -62,15 +62,17 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
             }}
             onKeyDown={handleSearchKeyDown}
             onFocus={() => {
-              if (liveSearchResults.length > 0) setIsSearchDropdownOpen(true);
+              if (barcodeQuery.trim().length >= 2 && liveSearchResults.length > 0) {
+                setIsSearchDropdownOpen(true);
+              }
             }}
-            className="w-full h-full bg-transparent border-none text-xs sm:text-sm text-[#0f172a] dark:text-ink-dark placeholder:text-[#52605d] dark:placeholder:text-ink-dark-muted focus:outline-none font-mono font-medium"
+            className="w-full h-full bg-transparent border-none text-xs sm:text-sm text-ink dark:text-ink-dark placeholder:text-ink-muted/70 dark:placeholder:text-ink-dark-muted/70 focus:outline-none font-mono font-medium"
           />
           {isSearching && (
-            <Loader2 className="w-4 h-4 text-[#006d41] dark:text-brand-bright animate-spin ml-2 shrink-0" />
+            <Loader2 className="w-4 h-4 text-brand dark:text-brand-bright animate-spin ml-2 shrink-0" />
           )}
           <div className="mr-2 flex items-center shrink-0">
-            <span className="px-2 py-0.5 text-xs font-mono font-bold bg-[#f1f5f4] dark:bg-surface-dark-3 text-[#52605d] dark:text-ink-dark-muted rounded-md border border-[#dce1dc] dark:border-line-dark">
+            <span className="px-2 py-0.5 text-xs font-mono font-bold bg-surface dark:bg-surface-dark-3 text-ink-muted dark:text-ink-dark-muted rounded-md border border-line dark:border-line-dark">
               F2
             </span>
           </div>
@@ -79,7 +81,7 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
         <button
           type="submit"
           disabled={loading}
-          className="h-11 px-4.5 bg-paid hover:bg-paid-hover text-white rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shrink-0 shadow-xs active:scale-[0.98] cursor-pointer"
+          className="h-11 px-4 bg-brand hover:bg-brand-hover text-white rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all shrink-0 shadow-2xs active:scale-[0.98] cursor-pointer"
         >
           <Search className="w-4 h-4 stroke-[2.5]" />
           <span>إضافة</span>
@@ -88,11 +90,11 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
         <button
           type="button"
           onClick={onOpenScannerModal}
-          className="h-11 px-3.5 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark hover:border-paid/50 dark:hover:border-paid text-ink dark:text-ink-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 shadow-2xs active:scale-[0.98] cursor-pointer"
+          className="h-11 px-2.5 sm:px-3 bg-surface-2 dark:bg-surface-dark-2 hover:bg-surface dark:hover:bg-surface-dark border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer"
           title="فحص واختبار قارئ الباركود (F8)"
         >
-          <Barcode className="w-4 h-4 text-paid dark:text-brand-bright" />
-          <span className="hidden sm:inline">فحص القارئ</span>
+          <Barcode className="w-4 h-4 text-ink-muted dark:text-ink-dark-muted" />
+          <span className="hidden md:inline">فحص القارئ</span>
         </button>
       </form>
 
@@ -110,7 +112,10 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
             </div>
             <button
               type="button"
-              onClick={() => setIsSearchDropdownOpen(false)}
+              onClick={() => {
+                setIsSearchDropdownOpen(false);
+                setLiveSearchResults([]);
+              }}
               className="hover:text-ink dark:hover:text-ink-dark text-xs font-bold cursor-pointer"
             >
               إغلاق (Esc)

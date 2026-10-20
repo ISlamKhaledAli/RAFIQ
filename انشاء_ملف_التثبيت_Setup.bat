@@ -7,6 +7,14 @@ echo        Rafiq POS - Single Setup Builder (Inno Setup)
 echo ========================================================
 echo.
 
+:: Check and close any running RafiqPOS instances to prevent file lock errors (MSB3021 / MSB3027)
+tasklist /FI "IMAGENAME eq RafiqPOS.exe" 2>nul | find /I /N "RafiqPOS.exe" >nul
+if "%ERRORLEVEL%"=="0" (
+    echo [ملاحظة] تم رصد تشغيل برنامج رفيق - جاري إغلاقه تلقائياً لتحرير الملفات...
+    taskkill /F /IM RafiqPOS.exe >nul 2>&1
+    timeout /t 2 /nobreak >nul
+)
+
 echo [1/4] Building Frontend UI (React + Vite)...
 cd /d "%~dp0frontend"
 call npm run build
