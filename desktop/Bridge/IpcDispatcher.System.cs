@@ -16,6 +16,8 @@ namespace RafiqPOS.Bridge
         {
             var clean = new Dictionary<string, string>();
             if (input == null) return clean;
+            bool isRoot = SecurityService.CurrentUser != null && SecurityService.CurrentUser.Role == "root";
+
             foreach (var kvp in input)
             {
                 string key = kvp.Key ?? "";
@@ -27,6 +29,17 @@ namespace RafiqPOS.Bridge
                     lower.StartsWith("last_online_verify") ||
                     lower == "last_known_utc" ||
                     lower == "consumed_offline_codes";
+
+                // حماية دعاية وتوقيع مطور النظام: محجوزة حصرياً لحساب الروت (المطور)
+                if (lower == "developer_signature" || lower == "developer_branding" || lower == "system_developer_signature")
+                {
+                    if (!isRoot)
+                    {
+                        Logger.Warn("تم منع تعديل توقيع ودعاية المطور: يتطلب صلاحية روت.");
+                        continue;
+                    }
+                }
+
                 if (isProtected)
                 {
                     Logger.Warn("تم تجاهل محاولة تعديل إعداد محمي عبر الواجهة: " + key);
@@ -229,7 +242,16 @@ namespace RafiqPOS.Bridge
                     return true;
 
                 case "system:factoryReset":
-                    var resetResult = DatabaseService.FactoryReset();
+                    bool wipeBackups = false;
+                    if (request.Payload != null)
+                    {
+                        var pObj = request.Payload as JObject;
+                        if (pObj != null && pObj["wipeBackups"] != null)
+                        {
+                            wipeBackups = pObj["wipeBackups"].Value<bool>();
+                        }
+                    }
+                    var resetResult = DatabaseService.FactoryReset(wipeBackups);
                     response = BridgeResponse.Ok(request.Id, resetResult);
                     return true;
 

@@ -457,9 +457,9 @@ export function DashboardView({
               </div>
               <div className="pt-2 mt-2 border-t border-line/60 dark:border-line-dark/60 flex items-center justify-between text-[11px] text-ink-muted dark:text-ink-dark-muted">
                 <span className="truncate">
-                  {summary && (summary.todayInventoryLossPiasters || 0) > 0
-                    ? `مبيعات: ${((summary.todayProfitsPiasters || 0) / 100).toFixed(0)} | عجز: -${((summary.todayInventoryLossPiasters || 0) / 100).toFixed(0)}`
-                    : 'صافي بعد التكاليف'}
+                  {summary && ((summary.todayInventoryLossPiasters || 0) > 0 || (summary.todayExpensesPiasters || 0) > 0)
+                    ? `مبيعات: ${((summary.todayProfitsPiasters || 0) / 100).toFixed(0)}${(summary.todayExpensesPiasters || 0) > 0 ? ` | مصاريف: -${((summary.todayExpensesPiasters || 0) / 100).toFixed(0)}` : ''}${(summary.todayInventoryLossPiasters || 0) > 0 ? ` | عجز: -${((summary.todayInventoryLossPiasters || 0) / 100).toFixed(0)}` : ''}`
+                    : 'صافي بعد التكاليف والمصاريف'}
                 </span>
                 <span className={`font-bold font-mono text-[10px] px-1.5 py-0.2 rounded-md border ${
                   isLoss ? 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger-border dark:border-danger-bright/30' : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/20 dark:border-paid/40'

@@ -219,9 +219,7 @@ namespace RafiqPOS
                 if (_shimmerProgress > 1f) _shimmerProgress = 0f;
                 if (_splashCard != null && !_splashCard.IsDisposed)
                 {
-                    int progW = 260;
-                    int progX = (_splashCard.Width - progW) / 2;
-                    _splashCard.Invalidate(new Rectangle(progX - 2, 184, progW + 4, 8));
+                    _splashCard.Invalidate(new Rectangle(0, 160, _splashCard.Width, 95));
                 }
             };
             _splashAnimTimer.Start();
@@ -304,11 +302,29 @@ namespace RafiqPOS
                     g.DrawString("نظام نقاط البيع وإدارة المتاجر ومحلات التجزئة", subFont, subBrush, subRect, sf);
                 }
 
-                // 6. Progress Bar Track & Shimmer (Y=186, 260x4)
-                int progW = 260;
+                // 6. Circular Spinner Ring (Y=175, 30x30)
+                int spinSize = 30;
+                int spinX = (_splashCard.Width - spinSize) / 2;
+                int spinY = 175;
+                Rectangle spinRect = new Rectangle(spinX, spinY, spinSize, spinSize);
+                Color spinBgColor = isDark ? Color.FromArgb(40, 95, 191, 162) : Color.FromArgb(30, 0, 109, 65);
+                using (Pen spinBgPen = new Pen(spinBgColor, 2.8f))
+                {
+                    g.DrawEllipse(spinBgPen, spinRect);
+                }
+                Color spinArcColor = isDark ? Color.FromArgb(95, 191, 162) : Color.FromArgb(0, 109, 65);
+                using (Pen spinArcPen = new Pen(spinArcColor, 2.8f))
+                {
+                    spinArcPen.StartCap = LineCap.Round;
+                    spinArcPen.EndCap = LineCap.Round;
+                    g.DrawArc(spinArcPen, spinRect, _shimmerProgress * 360f, 100f);
+                }
+
+                // 7. Progress Bar Track & Shimmer (Y=216, 200x4)
+                int progW = 200;
                 int progH = 4;
                 int progX = (_splashCard.Width - progW) / 2;
-                int progY = 186;
+                int progY = 216;
                 Rectangle progTrack = new Rectangle(progX, progY, progW, progH);
                 Color trackColor = isDark ? Color.FromArgb(28, 36, 35) : Color.FromArgb(241, 245, 244);
                 using (SolidBrush trackBrush = new SolidBrush(trackColor))
@@ -316,7 +332,7 @@ namespace RafiqPOS
                     g.FillRectangle(trackBrush, progTrack);
                 }
 
-                int shimW = 80;
+                int shimW = 70;
                 int shimX = progX + (int)((progW - shimW) * _shimmerProgress);
                 Rectangle shimRect = new Rectangle(shimX, progY, shimW, progH);
                 Color shimmerColor = isDark ? Color.FromArgb(95, 191, 162) : Color.FromArgb(0, 109, 65);
@@ -325,35 +341,48 @@ namespace RafiqPOS
                     g.FillRectangle(progBrush, shimRect);
                 }
 
-                // 7. Dynamic Status Label (Segoe UI 9.5, #93A19D in Dark, #52605D in Light)
-                string statusText = _splashStatusText ?? "جاري تهيئة قاعدة البيانات المحلية ومحرك العرض السريع...";
+                // 8. Dynamic Status Label (Segoe UI 9.5)
+                string statusText = _splashStatusText ?? "جاري تشغيل مساحة العمل والاتصال بالسجلات المحلية...";
                 Color statusColor = isDark ? Color.FromArgb(147, 161, 157) : Color.FromArgb(82, 96, 93);
                 using (Font statusFont = new Font("Segoe UI", 9.5f, FontStyle.Regular))
                 using (SolidBrush statusBrush = new SolidBrush(statusColor))
                 {
-                    Rectangle statusRect = new Rectangle(20, 204, 480, 24);
+                    Rectangle statusRect = new Rectangle(20, 230, 480, 24);
                     g.DrawString(statusText, statusFont, statusBrush, statusRect, sf);
                 }
 
-                // 8. Footer Badge (Y=275, 440x32, #12302A in Dark, #EAF5EE in Light)
-                int badgeW = 440;
-                int badgeH = 32;
+                // 9. Footer Badge (Y=275, rounded capsule, matching web browser badge)
+                int badgeW = 350;
+                int badgeH = 28;
                 int badgeX = (_splashCard.Width - badgeW) / 2;
                 int badgeY = 275;
                 Rectangle badgeRect = new Rectangle(badgeX, badgeY, badgeW, badgeH);
                 Color badgeBgColor = isDark ? Color.FromArgb(18, 48, 42) : Color.FromArgb(234, 245, 238);
                 Color badgeBorderColor = isDark ? Color.FromArgb(38, 73, 66) : Color.FromArgb(200, 230, 215);
                 Color badgeTextColor = isDark ? Color.FromArgb(95, 191, 162) : Color.FromArgb(0, 109, 65);
+                using (GraphicsPath badgePath = CreateRoundedRectanglePath(badgeRect, 14))
                 using (SolidBrush badgeBg = new SolidBrush(badgeBgColor))
                 using (Pen badgeBorder = new Pen(badgeBorderColor, 1f))
                 using (Font footerFont = new Font("Segoe UI", 8.5f, FontStyle.Bold))
                 using (SolidBrush footerBrush = new SolidBrush(badgeTextColor))
                 {
-                    g.FillRectangle(badgeBg, badgeRect);
-                    g.DrawRectangle(badgeBorder, badgeRect);
-                    g.DrawString("Enterprise Offline-First Retail System • إصدار سطح المكتب المعتمد", footerFont, footerBrush, badgeRect, sf);
+                    g.FillPath(badgeBg, badgePath);
+                    g.DrawPath(badgeBorder, badgePath);
+                    g.DrawString("نظام أوفلاين معتمد • إصدار التجزئة الاحترافي", footerFont, footerBrush, badgeRect, sf);
                 }
             }
+        }
+
+        private static GraphicsPath CreateRoundedRectanglePath(Rectangle rect, int radius)
+        {
+            GraphicsPath path = new GraphicsPath();
+            int d = radius * 2;
+            path.AddArc(rect.X, rect.Y, d, d, 180, 90);
+            path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
+            path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
+            path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
         }
 
         private void CenterSplashCard()

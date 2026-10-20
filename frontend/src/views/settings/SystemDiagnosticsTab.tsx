@@ -15,11 +15,13 @@ import {
   PhoneCall,
   DownloadCloud,
   Sparkles,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Trash2
 } from 'lucide-react';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { AppUpdateModal } from '../../components/AppUpdateModal';
 import { FullStoreExportModal } from '../../components/FullStoreExportModal';
+import { FactoryResetModal } from '../../components/FactoryResetModal';
 import type { SystemInfo } from '../../App';
 
 interface SystemDiagnosticsTabProps {
@@ -61,6 +63,7 @@ export const SystemDiagnosticsTab = ({
 }: SystemDiagnosticsTabProps) => {
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
   return (
     <div className="flex flex-col gap-5 text-xs text-ink dark:text-ink-dark">
@@ -405,6 +408,35 @@ export const SystemDiagnosticsTab = ({
             <span>{supportLoading ? 'جاري تجهيز ملف الدعم...' : 'تجهيز ملف للدعم الفني (Support Bundle)'}</span>
           </button>
         </div>
+
+        {/* Total Factory Reset & Wipe Data Section */}
+        <div className="mt-1 p-4 rounded-lg bg-danger-soft/60 dark:bg-danger-dark-soft/50 border border-danger/30 dark:border-danger-bright/30 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Trash2 className="w-4 h-4 text-danger dark:text-danger-bright" />
+              <span className="font-bold text-danger-ink dark:text-danger-bright text-xs">
+                تصفير ومسح كافة البيانات نهائياً (إعادة ضبط المصنع كأول مرة)
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-danger dark:text-danger-bright font-bold">
+              <ShieldAlert className="w-4 h-4" />
+              <span>تنظيف شامل وتصفير كامل</span>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed m-0 font-sans">
+            يمسح كافة بيانات المبيعات والأصناف وحركات المخزن والديون بالكامل، مع إمكانية مسح كافة النسخ الاحتياطية وإعادة تشغيل البرنامج نظيفاً كأنك لسه مثبته حالا لأول مرة.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => setIsResetModalOpen(true)}
+            className="h-10 bg-danger hover:bg-danger-hover text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-colors text-xs cursor-pointer shadow-xs"
+          >
+            <Trash2 className="w-4 h-4 text-white" />
+            <span>مسح وتصفير كافة البيانات وبدء المحل من الصفر</span>
+          </button>
+        </div>
       </div>
 
       <AppUpdateModal
@@ -415,6 +447,11 @@ export const SystemDiagnosticsTab = ({
       <FullStoreExportModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
+      />
+
+      <FactoryResetModal
+        isOpen={isResetModalOpen}
+        onClose={() => setIsResetModalOpen(false)}
       />
     </div>
   );

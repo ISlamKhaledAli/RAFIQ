@@ -61,6 +61,8 @@ namespace RafiqPOS.Models
         public string ReceiptFooter { get; set; }
         public string DefaultPrinter { get; set; }
         public string BackupFolder { get; set; }
+        public string ShowReceiptLogo { get; set; }
+        public string StoreLogoUrl { get; set; }
         public bool SeedInitialProducts { get; set; }
 
         public ApplyTemplateRequest()

@@ -713,10 +713,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     try {
       setLoading(true);
       setFormError('');
-      const allBarcodes = Array.from(new Set([
-        ...(barcode.trim() ? [barcode.trim()] : []),
-        ...additionalBarcodes.map(b => b.trim()).filter(Boolean)
-      ]));
+      const cleanPrimary = barcode.trim();
+      const extraBarcodes = Array.from(new Set(
+        additionalBarcodes
+          .map(b => b.trim())
+          .filter(b => b && b !== cleanPrimary)
+      ));
+      const primaryBarcode = cleanPrimary || (extraBarcodes.length > 0 ? extraBarcodes[0] : null);
+      const remainingExtra = primaryBarcode ? extraBarcodes.filter(b => b !== primaryBarcode) : extraBarcodes;
 
       const parsedStock = parseFloat(normalizeArabicNumerals(stockInput)) || 0;
       const stockQuantityMilli = Math.round(parsedStock * 1000);
@@ -729,7 +733,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             ...u,
             sellPricePiasters: pricePiasters,
             costPricePiasters: costPiasters,
-            barcode: barcode.trim() || null,
+            barcode: primaryBarcode,
             unitName: u.unitName.trim() || (unit === 'kg' ? 'كيلو' : 'قطعة'),
             isDivisible: unit === 'kg' || u.isDivisible
           };
@@ -739,8 +743,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
       const productPayload: Partial<Product> & { confirmSimilarName?: boolean; confirmBelowCost?: boolean } = {
         name: name.trim(),
-        barcode: barcode.trim() || (allBarcodes.length > 0 ? allBarcodes[0] : null),
-        barcodes: allBarcodes,
+        barcode: primaryBarcode,
+        barcodes: remainingExtra,
         categoryId: categoryId || 'cat_general',
         internalCode: internalCode.trim(),
         taxCategoryCode: taxCategoryCode.trim(),

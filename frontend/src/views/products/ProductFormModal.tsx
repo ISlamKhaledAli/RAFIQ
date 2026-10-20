@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { FormEvent } from 'react';
 import {
   Package,
@@ -305,6 +305,14 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     stayText: 'البقاء ومتابعة التعديل',
   });
 
+  const formBodyRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (formError && formBodyRef.current) {
+      formBodyRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [formError]);
+
   if (!isOpen) return null;
 
   return (
@@ -345,9 +353,9 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         {/* Modal Form */}
         <form onSubmit={(e) => onSave(e)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
           {/* Scrollable Form Body */}
-          <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 flex flex-col gap-3 text-[12px]">
+          <div ref={formBodyRef} className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 flex flex-col gap-3 text-[12px]">
             {formError && (
-              <div className="p-2.5 rounded bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger-bright/30 text-danger dark:text-danger-bright flex items-center gap-2 text-[12px] font-bold">
+              <div className="p-2.5 rounded bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger-bright/30 text-danger dark:text-danger-bright flex items-center gap-2 text-[12px] font-bold animate-in fade-in">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{formError}</span>
               </div>
@@ -1283,23 +1291,34 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
           </div>
 
           {/* Footer Actions (Docked and Fixed at bottom) */}
-          <div className="h-[52px] bg-surface-2 dark:bg-surface-dark-2 hairline-t border-t border-line dark:border-line-dark px-4 sm:px-5 flex items-center justify-end gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => void requestClose()}
-              className="h-[36px] px-4 bg-surface dark:bg-surface-dark hover:bg-surface-3 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded text-[12px] font-semibold transition-colors cursor-pointer"
-            >
-              إلغاء
-            </button>
+          <div className="h-[52px] bg-surface-2 dark:bg-surface-dark-2 hairline-t border-t border-line dark:border-line-dark px-4 sm:px-5 flex items-center justify-between gap-2 shrink-0">
+            <div className="flex-1 min-w-0 pl-2">
+              {formError && (
+                <div className="text-danger dark:text-danger-bright text-[11.5px] font-bold truncate flex items-center gap-1.5" title={formError}>
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span className="truncate">{formError}</span>
+                </div>
+              )}
+            </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="h-[36px] px-5 bg-brand hover:bg-brand-hover dark:hover:bg-emerald-700 text-white rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
-            >
-              <Check className="w-4 h-4" />
-              <span>{editingId ? 'حفظ التعديلات' : 'حفظ الصنف في المحل'}</span>
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => void requestClose()}
+                className="h-[36px] px-4 bg-surface dark:bg-surface-dark hover:bg-surface-3 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded text-[12px] font-semibold transition-colors cursor-pointer"
+              >
+                إلغاء
+              </button>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="h-[36px] px-5 bg-brand hover:bg-brand-hover dark:hover:bg-emerald-700 text-white rounded text-[12px] font-bold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+              >
+                <Check className="w-4 h-4" />
+                <span>{editingId ? 'حفظ التعديلات' : 'حفظ الصنف في المحل'}</span>
+              </button>
+            </div>
           </div>
         </form>
       </div>

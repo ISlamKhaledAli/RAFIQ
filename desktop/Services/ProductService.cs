@@ -153,33 +153,42 @@ namespace RafiqPOS.Services
             }
 
             var codesToCheck = new List<string>();
+            var seenInProduct = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
             if (!string.IsNullOrWhiteSpace(product.Barcode))
             {
                 product.Barcode = product.Barcode.Trim();
                 codesToCheck.Add(product.Barcode);
+                seenInProduct.Add(product.Barcode);
             }
+
             if (product.Barcodes != null)
             {
+                var cleanedBarcodes = new List<string>();
                 for (int i = 0; i < product.Barcodes.Count; i++)
                 {
                     if (!string.IsNullOrWhiteSpace(product.Barcodes[i]))
                     {
                         string trimmed = product.Barcodes[i].Trim();
-                        product.Barcodes[i] = trimmed;
+                        // If it's identical to the primary barcode, skip it gracefully
+                        if (!string.IsNullOrWhiteSpace(product.Barcode) && string.Equals(trimmed, product.Barcode, StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+                        if (seenInProduct.Contains(trimmed))
+                        {
+                            throw new InvalidOperationException("الباركود '" + trimmed + "' مكرر في قائمة باركودات نفس المنتج");
+                        }
+                        seenInProduct.Add(trimmed);
                         codesToCheck.Add(trimmed);
+                        cleanedBarcodes.Add(trimmed);
                     }
                 }
+                product.Barcodes = cleanedBarcodes;
             }
 
-            var uniqueCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var code in codesToCheck)
             {
-                if (uniqueCodes.Contains(code))
-                {
-                    throw new InvalidOperationException("الباركود '" + code + "' مكرر في قائمة باركودات نفس المنتج");
-                }
-                uniqueCodes.Add(code);
-
                 var existingOwner = _repo.GetOwnerOfBarcode(code);
                 if (existingOwner != null && existingOwner.Id != product.Id)
                 {

@@ -28,7 +28,6 @@ import { ProductVariantPickerModal } from '../components/ProductVariantPickerMod
 import { ProductVariantMatrixModal } from '../components/ProductVariantMatrixModal';
 import { ProductUnitPickerModal } from '../components/ProductUnitPickerModal';
 import { ExpenseModal } from '../components/ExpenseModal';
-import { ShiftModal } from '../components/ShiftModal';
 import { 
   convertArabicLayoutToBarcode,
   loadScannerSettings,
@@ -690,6 +689,26 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
 
   useEffect(() => {
     void loadActiveShift();
+
+    const handleOpen = () => setIsShiftModalOpen(true);
+    const handleClose = () => {
+      setIsShiftModalOpen(false);
+      barcodeInputRef.current?.focus();
+    };
+    const handleShiftUpdated = (e: Event) => {
+      const customEvent = e as CustomEvent<Shift | null>;
+      setCurrentShift(customEvent.detail);
+    };
+
+    window.addEventListener('rafiq:open-shift-modal', handleOpen);
+    window.addEventListener('rafiq:close-shift-modal', handleClose);
+    window.addEventListener('rafiq:shift-updated', handleShiftUpdated as EventListener);
+
+    return () => {
+      window.removeEventListener('rafiq:open-shift-modal', handleOpen);
+      window.removeEventListener('rafiq:close-shift-modal', handleClose);
+      window.removeEventListener('rafiq:shift-updated', handleShiftUpdated as EventListener);
+    };
   }, [loadActiveShift]);
 
   // Load Categories for POS category panel
@@ -1185,6 +1204,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       }
     } else if (e.key === 'Escape') {
       setIsSearchDropdownOpen(false);
+      setLiveSearchResults([]);
     }
   };
 
@@ -1210,6 +1230,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         const added = addProductToCart(exactMatch, undefined, matchedUnit);
         setBarcodeQuery('');
         setIsSearchDropdownOpen(false);
+        setLiveSearchResults([]);
         if (added) {
           showStatus(`تمت إضافة: ${exactMatch.name}`, 'success');
         }
@@ -1631,14 +1652,14 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
               const added = addProductToCart(prod, undefined, specificUnit);
               setBarcodeQuery('');
               setIsSearchDropdownOpen(false);
+              setLiveSearchResults([]);
+              setSelectedDropdownIndex(0);
               if (added) {
                 showStatus(`تمت إضافة: ${prod.name}${specificUnit ? ` (${specificUnit.unitName})` : ''}`, 'success');
               }
               barcodeInputRef.current?.focus();
             }}
             onNavigateToEpay={onNavigateToEpay}
-            activeShift={currentShift}
-            onOpenShiftModal={() => setIsShiftModalOpen(true)}
           />
 
           <PosCartTable
@@ -2067,16 +2088,6 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         onExpenseAdded={() => {
           showStatus('تم تسجيل المصروف وخصمه من الدرج بنجاح', 'success');
         }}
-      />
-
-      {/* 20. CASH DRAWER & SHIFT LIFECYCLE MODAL */}
-      <ShiftModal
-        isOpen={isShiftModalOpen}
-        onClose={() => {
-          setIsShiftModalOpen(false);
-          barcodeInputRef.current?.focus();
-        }}
-        onShiftStatusChanged={setCurrentShift}
       />
     </div>
   );

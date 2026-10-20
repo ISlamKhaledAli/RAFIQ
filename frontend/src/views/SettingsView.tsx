@@ -64,6 +64,9 @@ export const SettingsView = ({
   const [taxNumber, setTaxNumber] = useState('');
   const [receiptHeader, setReceiptHeader] = useState('أهلاً بكم في متجرنا');
   const [receiptFooter, setReceiptFooter] = useState('شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل خلال 14 يوماً بموجب الفاتورة.');
+  const [showReceiptLogo, setShowReceiptLogo] = useState(true);
+  const [storeLogoUrl, setStoreLogoUrl] = useState('/logo.png');
+  const [developerSignature, setDeveloperSignature] = useState('نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965');
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
   const [defaultCustomerCreditLimitEgp, setDefaultCustomerCreditLimitEgp] = useState(1000);
   const [logoVariant, setLogoVariant] = useState<'classic' | 'modern'>(() => {
@@ -136,6 +139,17 @@ export const SettingsView = ({
           if (settings.tax_number) setTaxNumber(settings.tax_number);
           if (settings.receipt_header) setReceiptHeader(settings.receipt_header);
           if (settings.receipt_footer) setReceiptFooter(settings.receipt_footer);
+          if (settings.show_receipt_logo !== undefined) {
+            setShowReceiptLogo(settings.show_receipt_logo === '1' || settings.show_receipt_logo === 'true');
+          }
+          if (settings.store_logo_url) setStoreLogoUrl(settings.store_logo_url);
+          if (settings.developer_signature) {
+            if (settings.developer_signature === 'نظام رفيق لإدارة المتاجر ونقاط البيع | تطوير: م. إسلام خالد') {
+              setDeveloperSignature('نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965');
+            } else {
+              setDeveloperSignature(settings.developer_signature);
+            }
+          }
           if (settings.allow_negative_stock !== undefined) {
             setAllowNegativeStock(settings.allow_negative_stock === '1' || settings.allow_negative_stock === 'true');
           }
@@ -218,11 +232,14 @@ export const SettingsView = ({
         tax_number: taxNumber.trim(),
         receipt_header: receiptHeader.trim(),
         receipt_footer: receiptFooter.trim(),
+        show_receipt_logo: showReceiptLogo ? '1' : '0',
+        store_logo_url: storeLogoUrl,
         allow_negative_stock: allowNegativeStock ? '1' : '0',
         default_customer_credit_limit_egp: String(defaultCustomerCreditLimitEgp),
         instapay_fee_percent: '0',
         vodafone_cash_fee_percent: '0',
         logo_variant: logoVariant,
+        ...(isRoot ? { developer_signature: developerSignature.trim() } : {}),
       };
       await invoke('settings:save', payload);
       setSaved(true);
@@ -510,6 +527,13 @@ export const SettingsView = ({
           setDefaultCustomerCreditLimitEgp={setDefaultCustomerCreditLimitEgp}
           logoVariant={logoVariant}
           setLogoVariant={handleLogoVariantChange}
+          showReceiptLogo={showReceiptLogo}
+          setShowReceiptLogo={setShowReceiptLogo}
+          storeLogoUrl={storeLogoUrl}
+          setStoreLogoUrl={setStoreLogoUrl}
+          developerSignature={developerSignature}
+          setDeveloperSignature={setDeveloperSignature}
+          isRoot={isRoot}
           saveLoading={saveLoading}
           handleSave={handleSave}
           onOpenWizard={() => setIsWizardOpen(true)}

@@ -2699,8 +2699,8 @@ namespace RafiqPOS.Database
                             'مناسب لمحلات السوبرماركت ومحلات البقالة الكبيرة التي تستخدم الباركود والميزان والآجل',
                             'shopping-cart',
                             '{""feature_scale_weight"":true,""feature_credit_debts"":true,""feature_fast_buttons"":true,""feature_taxes"":false,""feature_expiry_dates"":true,""feature_multi_units"":true}',
-                            '[""معلبات وبقوليات"",""ألبان وأجبان"",""منظفات وعناية منزلية"",""بسكويت وحلويات"",""مشروبات وعصائر"",""مخبوزات"",""خضار وفاكهة"",""مجمدات"",""دخان وسجائر""]',
-                            '[{""Name"":""خبز بلدي طازج"",""PricePiasters"":100,""Unit"":""piece"",""CategoryName"":""مخبوزات"",""IsOpenPrice"":false},{""Name"":""عيش فينو كيس 5 رغيف"",""PricePiasters"":1000,""Unit"":""piece"",""CategoryName"":""مخبوزات"",""IsOpenPrice"":false},{""Name"":""سكر حر ناعم 1 كجم"",""PricePiasters"":3500,""Unit"":""piece"",""CategoryName"":""معلبات وبقوليات"",""IsOpenPrice"":false},{""Name"":""شاي العروسة 40 جم"",""PricePiasters"":1200,""Unit"":""piece"",""CategoryName"":""معلبات وبقوليات"",""IsOpenPrice"":false},{""Name"":""مياه معدنية 1.5 لتر"",""PricePiasters"":800,""Unit"":""piece"",""CategoryName"":""مشروبات وعصائر"",""IsOpenPrice"":false},{""Name"":""لبن جهينة 1 لتر"",""PricePiasters"":4200,""Unit"":""piece"",""CategoryName"":""ألبان وأجبان"",""IsOpenPrice"":false},{""Name"":""طماطم بلدي طازجة"",""PricePiasters"":1500,""Unit"":""kg"",""CategoryName"":""خضار وفاكهة"",""IsOpenPrice"":false},{""Name"":""كيس تسوق كبير"",""PricePiasters"":150,""Unit"":""piece"",""CategoryName"":""عام"",""IsOpenPrice"":false}]',
+                            '[]',
+                            '[]',
                             '{""receipt_header"":""أهلاً بكم في سوبرماركت رفيق"",""receipt_footer"":""شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل خلال 14 يوماً بموجب الفاتورة.""}',
                             1,
                             datetime('now')
@@ -2714,29 +2714,14 @@ namespace RafiqPOS.Database
                             'مناسب لمحلات اللبانة والأجبان والمخابز التي تعتمد على البيع بالوزن والأصناف الطازجة',
                             'milk',
                             '{""feature_scale_weight"":true,""feature_credit_debts"":true,""feature_fast_buttons"":true,""feature_taxes"":false,""feature_expiry_dates"":true,""feature_multi_units"":false}',
-                            '[""ألبان سائبة ومعبأة"",""أجبان بيضاء ومطبوخة"",""مخبوزات طازجة"",""بيض ومستلزمات"",""معلبات وعسل""]',
-                            '[{""Name"":""لبن جاموسي طازج كجم"",""PricePiasters"":3000,""Unit"":""kg"",""CategoryName"":""ألبان سائبة ومعبأة"",""IsOpenPrice"":false},{""Name"":""لبن بقري طازج كجم"",""PricePiasters"":2600,""Unit"":""kg"",""CategoryName"":""ألبان سائبة ومعبأة"",""IsOpenPrice"":false},{""Name"":""جبنة قريش كجم"",""PricePiasters"":7000,""Unit"":""kg"",""CategoryName"":""أجبان بيضاء ومطبوخة"",""IsOpenPrice"":false},{""Name"":""جبنة براميلي فلفل كجم"",""PricePiasters"":14000,""Unit"":""kg"",""CategoryName"":""أجبان بيضاء ومطبوخة"",""IsOpenPrice"":false},{""Name"":""رغيف فينو"",""PricePiasters"":150,""Unit"":""piece"",""CategoryName"":""مخبوزات طازجة"",""IsOpenPrice"":false},{""Name"":""طبق بيض أحمر 30 بيضة"",""PricePiasters"":16500,""Unit"":""piece"",""CategoryName"":""بيض ومستلزمات"",""IsOpenPrice"":false},{""Name"":""زبادي بلدي كبير"",""PricePiasters"":800,""Unit"":""piece"",""CategoryName"":""ألبان سائبة ومعبأة"",""IsOpenPrice"":false}]',
+                            '[]',
+                            '[]',
                             '{""receipt_header"":""ألبان ومخبوزات رفيق"",""receipt_footer"":""منتجات طازجة يومياً.. شكراً لثقتكم الغالية""}',
                             1,
                             datetime('now')
                         );
 
-                        -- 3. قالب إكسسوارات ومكتبات وهدايا
-                        INSERT OR REPLACE INTO store_templates (id, name, description, icon, feature_flags_json, categories_json, quick_items_json, default_settings_json, is_active, created_at)
-                        VALUES (
-                            'accessories_gifts',
-                            'إكسسوارات ومكتبات وهدايا',
-                            'مناسب لمحلات الإكسسوارات والموبايل، الهدايا، والمكتبات (بدون ميزان وأوزان)',
-                            'gift',
-                            '{""feature_scale_weight"":false,""feature_credit_debts"":true,""feature_fast_buttons"":true,""feature_taxes"":false,""feature_expiry_dates"":false,""feature_multi_units"":false}',
-                            '[""إكسسوارات هاتف"",""أدوات مكتبية ومدرسية"",""هدايا وعطور"",""ألعاب وهوايات"",""إلكترونيات وشواحن""]',
-                            '[{""Name"":""كابل شحن سريع Type-C"",""PricePiasters"":4500,""Unit"":""piece"",""CategoryName"":""إكسسوارات هاتف"",""IsOpenPrice"":false},{""Name"":""قلم جاف أزرق فاخر"",""PricePiasters"":500,""Unit"":""piece"",""CategoryName"":""أدوات مكتبية ومدرسية"",""IsOpenPrice"":false},{""Name"":""بطارية قلم AA"",""PricePiasters"":1500,""Unit"":""piece"",""CategoryName"":""إلكترونيات وشواحن"",""IsOpenPrice"":false},{""Name"":""تغليف هدية فاخر"",""PricePiasters"":2500,""Unit"":""piece"",""CategoryName"":""هدايا وعطور"",""IsOpenPrice"":true},{""Name"":""كيس هدايا كرتون"",""PricePiasters"":1000,""Unit"":""piece"",""CategoryName"":""هدايا وعطور"",""IsOpenPrice"":false},{""Name"":""لاصقة حماية شاشة"",""PricePiasters"":3000,""Unit"":""piece"",""CategoryName"":""إكسسوارات هاتف"",""IsOpenPrice"":false}]',
-                            '{""receipt_header"":""رفيق للإكسسوارات والهدايا"",""receipt_footer"":""شكراً لزيارتكم.. نتمنى لكم يوماً سعيداً""}',
-                            1,
-                            datetime('now')
-                        );
-
-                        -- 4. قالب بقالة ومحل تجاري عام
+                        -- 3. قالب بقالة ومحل تجاري عام
                         INSERT OR REPLACE INTO store_templates (id, name, description, icon, feature_flags_json, categories_json, quick_items_json, default_settings_json, is_active, created_at)
                         VALUES (
                             'general_grocery',
@@ -2744,8 +2729,8 @@ namespace RafiqPOS.Database
                             'إعداد عام متوازن يناسب كافة المحلات والأنشطة التجارية المتنوعة',
                             'store',
                             '{""feature_scale_weight"":true,""feature_credit_debts"":true,""feature_fast_buttons"":true,""feature_taxes"":false,""feature_expiry_dates"":false,""feature_multi_units"":false}',
-                            '[""عام"",""أغذية ومشروبات"",""منظفات"",""حلويات وتسالي"",""دخان وسجائر""]',
-                            '[{""Name"":""كيس تسوق"",""PricePiasters"":100,""Unit"":""piece"",""CategoryName"":""عام"",""IsOpenPrice"":false},{""Name"":""ولاعة عادية"",""PricePiasters"":500,""Unit"":""piece"",""CategoryName"":""دخان وسجائر"",""IsOpenPrice"":false},{""Name"":""علبة كبريت"",""PricePiasters"":100,""Unit"":""piece"",""CategoryName"":""عام"",""IsOpenPrice"":false},{""Name"":""مياه صغيرة 500 مل"",""PricePiasters"":500,""Unit"":""piece"",""CategoryName"":""أغذية ومشروبات"",""IsOpenPrice"":false},{""Name"":""شيبسي عائلي"",""PricePiasters"":1500,""Unit"":""piece"",""CategoryName"":""حلويات وتسالي"",""IsOpenPrice"":false}]',
+                            '[]',
+                            '[]',
                             '{""receipt_header"":""أهلاً بكم في متجرنا"",""receipt_footer"":""شكراً لتعاملكم معنا""}',
                             1,
                             datetime('now')

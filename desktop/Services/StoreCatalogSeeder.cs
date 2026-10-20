@@ -8,64 +8,14 @@ namespace RafiqPOS.Services
     {
         public static int GetCatalogCount(string templateId)
         {
-            var list = GetCatalogForTemplate(templateId);
-            return list != null ? list.Count : 0;
+            // Zero categories and zero injected products policy: application starts 100% clean
+            return 0;
         }
 
         public static List<TemplateProductItem> GetCatalogForTemplate(string templateId)
         {
-            if (string.IsNullOrEmpty(templateId))
-            {
-                templateId = "supermarket";
-            }
-
-            templateId = templateId.Trim().ToLowerInvariant();
-
-            if (templateId == "phones_electronics")
-            {
-                return GetPhonesElectronicsCatalog();
-            }
-            else if (templateId == "dairy_bakery")
-            {
-                return GetDairyBakeryCatalog();
-            }
-            else if (templateId == "produce_butchery")
-            {
-                return GetProduceButcheryCatalog();
-            }
-            else if (templateId == "stationery_gifts" || templateId == "accessories_gifts")
-            {
-                return GetStationeryGiftsCatalog();
-            }
-            else if (templateId == "toys_kids")
-            {
-                return GetToysKidsCatalog();
-            }
-            else if (templateId == "spices_roastery")
-            {
-                return GetSpicesRoasteryCatalog();
-            }
-            else if (templateId == "clothing_apparel")
-            {
-                return GetClothingApparelCatalog();
-            }
-            else if (templateId == "pharmacy")
-            {
-                return GetPharmacyCatalog();
-            }
-            else if (templateId == "cafe_restaurant" || templateId == "cafe" || templateId == "restaurant" || templateId == "restaurants_cafe")
-            {
-                return GetCafeRestaurantCatalog();
-            }
-            else if (templateId == "general_grocery")
-            {
-                return GetGeneralGroceryCatalog();
-            }
-            else
-            {
-                // Default: supermarket
-                return GetSupermarketCatalog();
-            }
+            // Zero categories and zero injected products policy: application starts 100% clean
+            return new List<TemplateProductItem>();
         }
 
 // 1. سوبرماركت ومواد غذائية (Supermarket & Groceries)
