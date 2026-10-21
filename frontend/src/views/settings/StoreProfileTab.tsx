@@ -22,6 +22,9 @@ interface StoreProfileTabProps {
   allowNegativeStock: boolean;
   setAllowNegativeStock: (val: boolean) => void;
   onToggleNegativeStock?: (val: boolean) => void;
+  requireOpenShiftToSell?: boolean;
+  setRequireOpenShiftToSell?: (val: boolean) => void;
+  onToggleRequireOpenShift?: (val: boolean) => void;
   defaultCustomerCreditLimitEgp: number;
   setDefaultCustomerCreditLimitEgp: (val: number) => void;
   logoVariant?: 'classic' | 'modern';
@@ -56,6 +59,9 @@ export const StoreProfileTab = ({
   allowNegativeStock,
   setAllowNegativeStock,
   onToggleNegativeStock,
+  requireOpenShiftToSell = true,
+  setRequireOpenShiftToSell,
+  onToggleRequireOpenShift,
   defaultCustomerCreditLimitEgp,
   setDefaultCustomerCreditLimitEgp,
   showReceiptLogo = true,
@@ -410,6 +416,24 @@ export const StoreProfileTab = ({
                 if (onToggleNegativeStock) onToggleNegativeStock(next);
               }}
               title={allowNegativeStock ? 'مفعّل (البيع شغال مع تنبيه بالسالب)' : 'معطّل (منع البيع لو الرصيد خلص)'}
+            />
+          </div>
+
+          {/* Feature: Require Open Shift to Sell */}
+          <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex items-center justify-between gap-4">
+            <div className="flex flex-col gap-0.5">
+              <span className="font-bold text-ink dark:text-ink-dark text-xs">إلزام فتح وردية واستلام الدرج لإتمام البيع</span>
+              <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
+                عند التفعيل: يمنع الكاشير من البيع إلا بعد فتح وردية واستلام عهدة الدرج لحماية أموال المحل ضد التلاعب. عند الإيقاف: يتيح البيع السريع المباشر في المحلات الفردية دون الحاجة لفتح وردية.
+              </span>
+            </div>
+            <ToggleSwitch
+              checked={requireOpenShiftToSell}
+              onChange={(next) => {
+                if (setRequireOpenShiftToSell) setRequireOpenShiftToSell(next);
+                if (onToggleRequireOpenShift) onToggleRequireOpenShift(next);
+              }}
+              title={requireOpenShiftToSell ? 'مفعّل (يمنع البيع إلا بعد فتح وردية)' : 'معطّل (بيع مباشر وسريع بدون وردية)'}
             />
           </div>
 

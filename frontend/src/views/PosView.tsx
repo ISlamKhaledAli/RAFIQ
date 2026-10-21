@@ -96,6 +96,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [currentShift, setCurrentShift] = useState<Shift | null>(null);
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
+  const [requireOpenShiftToSell, setRequireOpenShiftToSell] = useState<boolean>(true);
   const [unregisteredBarcode, setUnregisteredBarcode] = useState('');
   const [scannerSettings, setScannerSettings] = useState<BarcodeScannerSettings>(DEFAULT_SCANNER_SETTINGS);
   const [draftPrompt, setDraftPrompt] = useState<{
@@ -814,28 +815,41 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     };
   }, []);
 
-  // Feature #131: Load scanner settings on mount
+  // Feature #131: Load scanner and POS settings on mount
+  const loadAppSettings = useCallback(async () => {
+    try {
+      const appSettings = await invoke<Record<string, string>>('settings:getAll');
+      if (appSettings) {
+        if (appSettings.printer_auto_print !== undefined) {
+          localStorage.setItem('rafiq_pos_printer_auto_print', appSettings.printer_auto_print);
+        }
+        if (appSettings.max_discount_percent_cashier) {
+          setMaxDiscountPercentCashier(parseFloat(appSettings.max_discount_percent_cashier) || 10);
+        }
+        if (appSettings.max_discount_amount_cashier_piasters) {
+          setMaxDiscountAmountCashierPiasters(parseInt(appSettings.max_discount_amount_cashier_piasters, 10) || 5000);
+        }
+        if (appSettings.allow_negative_stock !== undefined) {
+          setAllowNegativeStock(appSettings.allow_negative_stock === '1' || appSettings.allow_negative_stock.toLowerCase() === 'true');
+        }
+        if (appSettings.require_open_shift_to_sell !== undefined) {
+          setRequireOpenShiftToSell(appSettings.require_open_shift_to_sell === '1' || appSettings.require_open_shift_to_sell.toLowerCase() === 'true');
+        }
+      }
+    } catch {
+      // non-blocking
+    }
+  }, []);
+
+  useDataSubscription(['settings', 'all'], loadAppSettings);
+
   useEffect(() => {
     let active = true;
     void (async () => {
       const s = await loadScannerSettings();
       if (active) setScannerSettings(s);
+      void loadAppSettings();
       try {
-        const appSettings = await invoke<Record<string, string>>('settings:getAll');
-        if (appSettings) {
-          if (appSettings.printer_auto_print !== undefined) {
-            localStorage.setItem('rafiq_pos_printer_auto_print', appSettings.printer_auto_print);
-          }
-          if (appSettings.max_discount_percent_cashier) {
-            setMaxDiscountPercentCashier(parseFloat(appSettings.max_discount_percent_cashier) || 10);
-          }
-          if (appSettings.max_discount_amount_cashier_piasters) {
-            setMaxDiscountAmountCashierPiasters(parseInt(appSettings.max_discount_amount_cashier_piasters, 10) || 5000);
-          }
-          if (appSettings.allow_negative_stock !== undefined) {
-            setAllowNegativeStock(appSettings.allow_negative_stock === '1' || appSettings.allow_negative_stock.toLowerCase() === 'true');
-          }
-        }
         const cnt = await invoke<{ nextInvoiceNumber: number }>('counters:getNextExpectedInvoiceNumber');
         if (active && cnt && cnt.nextInvoiceNumber) {
           setNextExpectedInvoiceNumber(cnt.nextInvoiceNumber);
@@ -850,7 +864,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       }
     })();
     return () => { active = false; };
-  }, [loadHeldSalesCount]);
+  }, [loadHeldSalesCount, loadAppSettings]);
 
   // Feature #132: Auto-save draft on cart change
   useEffect(() => {
@@ -876,7 +890,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       showStatus('سلة البيع فارغة! يرجى إضافة أصناف أولاً.', 'error');
       return;
     }
-    if (!currentShift) {
+    if (requireOpenShiftToSell && !currentShift) {
       showStatus('لا يمكن إتمام البيع قبل فتح وردية رسمية للكاشير واستلام عهدة الدرج. يرجى فتح وردية جديدة أولاً.', 'error');
       setIsShiftModalOpen(true);
       return;
@@ -892,7 +906,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setPaymentMethod('cash');
     }
     setIsPaymentModalOpen(true);
-  }, [cart.length, currentShift, showStatus]);
+  }, [cart.length, currentShift, requireOpenShiftToSell, showStatus]);
 
   const handleConfirmPayment = useCallback(async (paymentData: {
     paymentMethod: 'cash' | 'credit' | 'card' | 'multi' | 'instapay' | 'vodafone_cash';
@@ -905,7 +919,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     supervisorPin?: string;
   }) => {
     if (isCheckingOutRef.current) return;
-    if (!currentShift) {
+    if (requireOpenShiftToSell && !currentShift) {
       showStatus('لا يمكن إتمام البيع قبل فتح وردية رسمية للكاشير واستلام عهدة الدرج. يرجى فتح وردية جديدة أولاً.', 'error');
       setIsShiftModalOpen(true);
       return;
@@ -914,7 +928,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     setIsPaymentModalOpen(false);
     setLoading(true);
     try {
-      const shiftId = currentShift.id || (currentShift as unknown as { Id?: string }).Id;
+      const shiftId = currentShift ? (currentShift.id || (currentShift as unknown as { Id?: string }).Id) : undefined;
       const salePayload: Partial<Sale> & { idempotencyKey?: string; supervisorPin?: string } = {
         subtotalPiasters,
         discountPiasters,
@@ -998,6 +1012,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     loadHeldSalesCount,
     resetCartSession,
     currentShift,
+    requireOpenShiftToSell,
   ]);
 
   const setDirectQuantity = useCallback((index: number, newQtyPieces: number) => {

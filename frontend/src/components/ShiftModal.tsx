@@ -21,6 +21,7 @@ import { useModalDismiss } from '../hooks/useModalDismiss';
 import { MoneyInput } from './MoneyInput';
 import { CustomSelect } from './CustomSelect';
 import type { SelectOption } from './CustomSelect';
+import { ConfirmModal } from './ConfirmModal';
 import { formatArabicCurrency } from '../utils/money';
 import type { Shift, ShiftSummary, CashDrawerTransaction } from '../types/models';
 
@@ -72,6 +73,8 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
   // Form states: Close Shift
   const [actualCashPiasters, setActualCashPiasters] = useState<number>(0);
   const [closeShiftNotes, setCloseShiftNotes] = useState<string>('');
+  const [isConfirmCloseOpen, setIsConfirmCloseOpen] = useState<boolean>(false);
+  const [confirmNotice, setConfirmNotice] = useState<string>('');
 
   const isDirty = openingFloatPiasters > 0 || cashInAmountPiasters > 0 || cashOutAmountPiasters > 0;
 
@@ -257,7 +260,7 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
     }
   };
 
-  const handleCloseShift = async () => {
+  const handleCloseShift = () => {
     if (!canCloseShift) {
       setErrorMessage('ليس لديك صلاحية لإغلاق الوردية.');
       return;
@@ -275,12 +278,15 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
       diffNotice = 'الدرج متطابق تماماً بدون عجز أو زيادة. ';
     }
 
-    const currentShiftNum = activeShift.shiftNumber ?? (activeShift as unknown as { ShiftNumber?: number }).ShiftNumber ?? 1;
-    const confirmMsg = `${diffNotice}هل أنت متأكد من رغبتك في إغلاق وتشميع الوردية رقم #${currentShiftNum}؟ لن يمكنك التراجع أو تعديل العمليات بعد الإغلاق.`;
-    if (!window.confirm(confirmMsg)) {
-      return;
-    }
+    setConfirmNotice(diffNotice);
+    setIsConfirmCloseOpen(true);
+  };
 
+  const executeCloseShift = async () => {
+    if (!activeShift) return;
+    const currentShiftNum = activeShift.shiftNumber ?? (activeShift as unknown as { ShiftNumber?: number }).ShiftNumber ?? 1;
+
+    setIsConfirmCloseOpen(false);
     setActionLoading(true);
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -992,6 +998,19 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Styled Confirmation Modal replacing native window.confirm */}
+      <ConfirmModal
+        isOpen={isConfirmCloseOpen}
+        title={`إغلاق وتشميع الوردية رقم #${activeShift?.shiftNumber ?? (activeShift as unknown as { ShiftNumber?: number })?.ShiftNumber ?? 1}`}
+        message={`${confirmNotice}هل أنت متأكد من رغبتك في إغلاق وتشميع الوردية وتسليم نقدية الدرج؟`}
+        consequence="لن يمكنك التراجع أو تسجيل أي مبيعات جديدة على هذه الوردية بعد تشميعها وإغلاقها."
+        confirmText="تأكيد التشميع والإغلاق"
+        cancelText="تراجع ومراجعة الدرج"
+        isDanger={true}
+        onConfirm={() => void executeCloseShift()}
+        onCancel={() => setIsConfirmCloseOpen(false)}
+      />
     </div>
   );
 };
