@@ -62,7 +62,10 @@ export function ReceiptModal({
   const activeFooter = liveSettings.receipt_footer || receiptFooter;
   const activeCashier = liveSettings.cashier_name || 'كاشير (1)';
   const showReceiptLogo = liveSettings.show_receipt_logo !== '0';
-  const activeLogoUrl = liveSettings.store_logo_url || '/logo.png';
+  const activeLogoUrl = 
+    liveSettings.store_logo_url === '/logo.png' || liveSettings.store_logo_url === '/receipt_logo.png'
+      ? '/receipt_logo_square.png' 
+      : (liveSettings.store_logo_url || '/receipt_logo_square.png');
   const developerSignature = 
     liveSettings.developer_signature && liveSettings.developer_signature !== 'نظام رفيق لإدارة المتاجر ونقاط البيع | تطوير: م. إسلام خالد'
       ? liveSettings.developer_signature
@@ -219,7 +222,7 @@ export function ReceiptModal({
                   alt="شعار المتجر"
                   className={`object-contain max-h-[48px] ${is57mm ? 'max-w-[120px]' : 'max-w-[150px]'}`}
                   onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).src = '/logo.png';
+                    (e.currentTarget as HTMLImageElement).src = '/receipt_logo_square.png';
                   }}
                 />
               </div>

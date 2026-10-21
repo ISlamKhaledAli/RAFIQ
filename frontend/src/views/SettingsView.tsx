@@ -65,7 +65,7 @@ export const SettingsView = ({
   const [receiptHeader, setReceiptHeader] = useState('أهلاً بكم في متجرنا');
   const [receiptFooter, setReceiptFooter] = useState('شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل خلال 14 يوماً بموجب الفاتورة.');
   const [showReceiptLogo, setShowReceiptLogo] = useState(true);
-  const [storeLogoUrl, setStoreLogoUrl] = useState('/logo.png');
+  const [storeLogoUrl, setStoreLogoUrl] = useState('/receipt_logo_square.png');
   const [developerSignature, setDeveloperSignature] = useState('نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965');
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
   const [defaultCustomerCreditLimitEgp, setDefaultCustomerCreditLimitEgp] = useState(1000);
@@ -142,7 +142,13 @@ export const SettingsView = ({
           if (settings.show_receipt_logo !== undefined) {
             setShowReceiptLogo(settings.show_receipt_logo === '1' || settings.show_receipt_logo === 'true');
           }
-          if (settings.store_logo_url) setStoreLogoUrl(settings.store_logo_url);
+          if (settings.store_logo_url) {
+            setStoreLogoUrl(
+              settings.store_logo_url === '/logo.png' || settings.store_logo_url === '/receipt_logo.png'
+                ? '/receipt_logo_square.png'
+                : settings.store_logo_url
+            );
+          }
           if (settings.developer_signature) {
             if (settings.developer_signature === 'نظام رفيق لإدارة المتاجر ونقاط البيع | تطوير: م. إسلام خالد') {
               setDeveloperSignature('نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965');
@@ -536,7 +542,7 @@ export const SettingsView = ({
           isRoot={isRoot}
           saveLoading={saveLoading}
           handleSave={handleSave}
-          onOpenWizard={() => setIsWizardOpen(true)}
+          onOpenWizard={isRoot ? () => setIsWizardOpen(true) : undefined}
         />
       )}
 
@@ -557,7 +563,7 @@ export const SettingsView = ({
           supportMessage={supportMessage}
           setSupportMessage={setSupportMessage}
           runCreateSupportBundle={runCreateSupportBundle}
-          onOpenWizard={() => setIsWizardOpen(true)}
+          onOpenWizard={isRoot ? () => setIsWizardOpen(true) : undefined}
         />
       )}
 

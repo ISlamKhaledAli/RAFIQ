@@ -154,10 +154,15 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const [packSizeInput, setPackSizeInput] = useState<string>('');
   const [cartonsInput, setCartonsInput] = useState<string>('');
   const [looseInput, setLooseInput] = useState<string>('');
+  const [showVariantFields, setShowVariantFields] = useState<boolean>(false);
 
   // Synchronize on modal open or editingId change
   useEffect(() => {
     if (!isOpen) return;
+
+    if (!editingId) {
+      setShowVariantFields(false);
+    }
 
     const detected = productUnits.find(u => !u.isBaseUnit && u.conversionFactor > 1);
     if (editingId) {
@@ -525,66 +530,79 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             </div>
 
             {/* Unit Selection: Piece vs Weight (Feature #19 / Tasks 19-1 & 19-2) */}
-            <div>
-              <label className="block text-ink dark:text-ink-dark font-semibold mb-1">طريقة بيع الصنف (الوحدة) *</label>
-              <div className="grid grid-cols-2 gap-2 p-1 bg-surface-2 dark:bg-surface-dark-2 rounded border border-line dark:border-line-dark">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUnit('piece');
-                    setProductUnits(productUnits.map(u => u.isBaseUnit ? { ...u, unitName: 'قطعة', isDivisible: false } : u));
-                  }}
-                  className={`py-1.5 px-3 rounded text-[12px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                    unit === 'piece'
-                      ? 'bg-brand dark:bg-brand text-white shadow-xs'
-                      : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-                  }`}
-                >
-                  <Package className="w-3.5 h-3.5" />
-                  <span>بالقطعة / بالواحدة (قطعة)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUnit('kg');
-                    setProductUnits(productUnits.map(u => u.isBaseUnit ? { ...u, unitName: 'كيلو', isDivisible: true } : u));
-                  }}
-                  className={`py-1.5 px-3 rounded text-[12px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                    unit === 'kg'
-                      ? 'bg-brand dark:bg-brand text-white shadow-xs'
-                      : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
-                  }`}
-                >
-                  <Scale className="w-3.5 h-3.5" />
-                  <span>بالوزن / ميزان (كيلوجرام)</span>
-                </button>
+            {(isEnabled('feature_scale_weight') || unit === 'kg') && (
+              <div>
+                <label className="block text-ink dark:text-ink-dark font-semibold mb-1">طريقة بيع الصنف (الوحدة) *</label>
+                <div className="grid grid-cols-2 gap-2 p-1 bg-surface-2 dark:bg-surface-dark-2 rounded border border-line dark:border-line-dark">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUnit('piece');
+                      setProductUnits(productUnits.map(u => u.isBaseUnit ? { ...u, unitName: 'قطعة', isDivisible: false } : u));
+                    }}
+                    className={`py-1.5 px-3 rounded text-[12px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      unit === 'piece'
+                        ? 'bg-brand dark:bg-brand text-white shadow-xs'
+                        : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                    }`}
+                  >
+                    <Package className="w-3.5 h-3.5" />
+                    <span>بالقطعة / بالواحدة (قطعة)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUnit('kg');
+                      setProductUnits(productUnits.map(u => u.isBaseUnit ? { ...u, unitName: 'كيلو', isDivisible: true } : u));
+                    }}
+                    className={`py-1.5 px-3 rounded text-[12px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      unit === 'kg'
+                        ? 'bg-brand dark:bg-brand text-white shadow-xs'
+                        : 'text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark'
+                    }`}
+                  >
+                    <Scale className="w-3.5 h-3.5" />
+                    <span>بالوزن / ميزان (كيلوجرام)</span>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Variant Attributes: Size & Color (Feature #114) */}
-            {(isEnabled('feature_matrix_variants') || Boolean(variantSize || variantColor)) && (
+            {(isEnabled('feature_matrix_variants') || Boolean(variantSize || variantColor) || showVariantFields) ? (
               <div className="p-3 bg-brand-soft/60 dark:bg-brand-soft/10 border border-brand/20 dark:border-brand/30 rounded-lg flex flex-col gap-2.5 shadow-2xs">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-brand-dark dark:text-brand-bright font-bold text-[12px]">
                     <Layers className="w-4 h-4 text-brand dark:text-brand-bright" />
                     <span>المقاس واللون (اختياري)</span>
                   </div>
-                  {!editingId && onOpenVariantMatrix && (
-                    <button
-                      type="button"
-                      onClick={onOpenVariantMatrix}
-                      className="text-[11px] text-brand dark:text-brand-bright hover:text-brand-dark dark:hover:text-emerald-300 font-bold hover:underline flex items-center gap-1 cursor-pointer"
-                    >
-                      <span>عمل مصفوفة سريعة (مقاس × لون)</span>
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {!editingId && onOpenVariantMatrix && isEnabled('feature_matrix_variants') && (
+                      <button
+                        type="button"
+                        onClick={onOpenVariantMatrix}
+                        className="text-[11px] text-brand dark:text-brand-bright hover:text-brand-dark dark:hover:text-emerald-300 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>عمل مصفوفة سريعة (مقاس × لون)</span>
+                      </button>
+                    )}
+                    {!isEnabled('feature_matrix_variants') && !variantSize && !variantColor && showVariantFields && (
+                      <button
+                        type="button"
+                        onClick={() => setShowVariantFields(false)}
+                        className="text-[11px] text-ink-muted hover:text-danger font-medium hover:underline cursor-pointer"
+                      >
+                        إلغاء وإخفاء
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">المقاس</label>
                     <input
                       type="text"
-                      placeholder="مثلاً: L أو 42 أو 2XL"
+                      placeholder="مثلاً: 1.2 متر أو 6.7 بوصة أو L"
                       value={variantSize}
                       onChange={(e) => setVariantSize?.(e.target.value)}
                       className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[36px] px-3 text-[12px] font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
@@ -594,13 +612,24 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     <label className="block text-[11px] font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">اللون</label>
                     <input
                       type="text"
-                      placeholder="مثلاً: كحلي أو أبيض أو أسود"
+                      placeholder="مثلاً: أبيض أو أسود أو كحلي"
                       value={variantColor}
                       onChange={(e) => setVariantColor?.(e.target.value)}
                       className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[36px] px-3 text-[12px] text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
                     />
                   </div>
                 </div>
+              </div>
+            ) : (
+              <div className="flex justify-start">
+                <button
+                  type="button"
+                  onClick={() => setShowVariantFields(true)}
+                  className="text-[11px] font-bold text-brand dark:text-brand-bright hover:text-brand-dark dark:hover:text-emerald-300 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-soft/50 hover:bg-brand-soft transition-all cursor-pointer border border-brand/20 shadow-2xs"
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>+ إضافة مقاس أو لون لهذا الصنف (اختياري للإكسسوارات والجرابات)</span>
+                </button>
               </div>
             )}
 

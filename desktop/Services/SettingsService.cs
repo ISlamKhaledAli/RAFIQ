@@ -27,7 +27,10 @@ namespace RafiqPOS.Services
             if (!settings.ContainsKey("receipt_header")) settings["receipt_header"] = "أهلاً بكم في متجرنا";
             if (!settings.ContainsKey("receipt_footer")) settings["receipt_footer"] = "شكراً لزيارتكم! البضاعة المباعة ترد وتستبدل وفقاً لسياسة المتجر.";
             if (!settings.ContainsKey("show_receipt_logo")) settings["show_receipt_logo"] = "1";
-            if (!settings.ContainsKey("store_logo_url")) settings["store_logo_url"] = "/logo.png";
+            if (!settings.ContainsKey("store_logo_url") || settings["store_logo_url"] == "/logo.png" || settings["store_logo_url"] == "/receipt_logo.png")
+            {
+                settings["store_logo_url"] = "/receipt_logo_square.png";
+            }
             string defaultSig = "نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965";
             if (!settings.ContainsKey("developer_signature") || 
                 string.IsNullOrWhiteSpace(settings["developer_signature"]) ||
