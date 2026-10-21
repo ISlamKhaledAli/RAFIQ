@@ -33,6 +33,7 @@ export function QuickAddProductModal({
   const [variantColor, setVariantColor] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
   const [batchNumber, setBatchNumber] = useState('');
+  const [showVariants, setShowVariants] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -255,27 +256,42 @@ export function QuickAddProductModal({
           </div>
 
           {/* Unit & Category Grid */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-ink-muted mb-1">نوع الوحدة</label>
-              <div className="grid grid-cols-2 gap-1 bg-surface-2 p-1 rounded-lg border border-line">
-                <button
-                  type="button"
-                  onClick={() => setUnit('piece')}
-                  className={`py-1 text-xs font-bold rounded ${unit === 'piece' ? 'bg-surface text-brand shadow-xs' : 'text-ink-muted hover:text-ink'}`}
-                >
-                  قطعة (عدد)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setUnit('kg')}
-                  className={`py-1 text-xs font-bold rounded ${unit === 'kg' ? 'bg-surface text-brand shadow-xs' : 'text-ink-muted hover:text-ink'}`}
-                >
-                  وزن (كجم)
-                </button>
+          {isEnabled('feature_scale_weight') ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-ink-muted mb-1">نوع الوحدة</label>
+                <div className="grid grid-cols-2 gap-1 bg-surface-2 p-1 rounded-lg border border-line">
+                  <button
+                    type="button"
+                    onClick={() => setUnit('piece')}
+                    className={`py-1 text-xs font-bold rounded ${unit === 'piece' ? 'bg-surface text-brand shadow-xs' : 'text-ink-muted hover:text-ink'}`}
+                  >
+                    قطعة (عدد)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUnit('kg')}
+                    className={`py-1 text-xs font-bold rounded ${unit === 'kg' ? 'bg-surface text-brand shadow-xs' : 'text-ink-muted hover:text-ink'}`}
+                  >
+                    وزن (كجم)
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-ink-muted mb-1">التصنيف</label>
+                <CustomSelect
+                  value={categoryId}
+                  onChange={setCategoryId}
+                  options={
+                    categories.length === 0
+                      ? [{ value: 'cat_general', label: 'عام / متنوع' }]
+                      : categories.map((c) => ({ value: c.id, label: c.name }))
+                  }
+                />
               </div>
             </div>
-
+          ) : (
             <div>
               <label className="block text-xs font-semibold text-ink-muted mb-1">التصنيف</label>
               <CustomSelect
@@ -288,14 +304,25 @@ export function QuickAddProductModal({
                 }
               />
             </div>
-          </div>
+          )}
 
           {/* Optional Variants Fields (Feature #114) */}
-          {isEnabled('feature_matrix_variants') && (
+          {(isEnabled('feature_matrix_variants') || Boolean(variantSize || variantColor) || showVariants) ? (
             <div className="p-2.5 rounded-lg bg-surface-2 border border-line space-y-2">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-ink">
-                <Layers className="w-3.5 h-3.5 text-purple-600" />
-                <span>المقاس واللون (اختياري)</span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-ink">
+                  <Layers className="w-3.5 h-3.5 text-purple-600" />
+                  <span>المقاس واللون (اختياري)</span>
+                </div>
+                {!isEnabled('feature_matrix_variants') && !variantSize && !variantColor && showVariants && (
+                  <button
+                    type="button"
+                    onClick={() => setShowVariants(false)}
+                    className="text-[11px] text-ink-muted hover:text-danger font-medium hover:underline cursor-pointer"
+                  >
+                    إلغاء وإخفاء
+                  </button>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -303,7 +330,7 @@ export function QuickAddProductModal({
                     type="text"
                     value={variantSize}
                     onChange={(e) => setVariantSize(e.target.value)}
-                    placeholder="المقاس (مثال: L أو 42)"
+                    placeholder="المقاس (مثال: 1.2 متر أو L)"
                     className="w-full h-8 px-2.5 text-xs bg-surface rounded-lg border border-line text-ink placeholder:text-ink-muted focus:outline-none focus:border-brand"
                   />
                 </div>
@@ -312,11 +339,22 @@ export function QuickAddProductModal({
                     type="text"
                     value={variantColor}
                     onChange={(e) => setVariantColor(e.target.value)}
-                    placeholder="اللون (مثال: أزرق أو كحلي)"
+                    placeholder="اللون (مثال: أبيض أو أسود)"
                     className="w-full h-8 px-2.5 text-xs bg-surface rounded-lg border border-line text-ink placeholder:text-ink-muted focus:outline-none focus:border-brand"
                   />
                 </div>
               </div>
+            </div>
+          ) : (
+            <div className="flex justify-start">
+              <button
+                type="button"
+                onClick={() => setShowVariants(true)}
+                className="text-[11px] font-bold text-brand hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <Layers className="w-3 h-3 text-purple-600" />
+                <span>+ إضافة مقاس أو لون لهذا الصنف (للإكسسوارات والجرابات)</span>
+              </button>
             </div>
           )}
 

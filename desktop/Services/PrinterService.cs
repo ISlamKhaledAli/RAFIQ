@@ -533,7 +533,9 @@ namespace RafiqPOS.Services
                     configured = _settings.Get("store_logo_url", "");
                 }
 
-                if (!string.IsNullOrWhiteSpace(configured))
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+
+                if (!string.IsNullOrWhiteSpace(configured) && configured != "/logo.png" && configured != "/receipt_logo.png" && configured != "/receipt_logo_square.png")
                 {
                     if (configured.StartsWith("data:image", StringComparison.OrdinalIgnoreCase))
                     {
@@ -555,11 +557,31 @@ namespace RafiqPOS.Services
                             return new Bitmap(tempImg);
                         }
                     }
+                    else
+                    {
+                        string rel = configured.TrimStart('/', '\\');
+                        string localPath = Path.Combine(baseDir, "dist", rel);
+                        if (!File.Exists(localPath)) localPath = Path.Combine(baseDir, rel);
+                        if (File.Exists(localPath))
+                        {
+                            using (var tempImg = Image.FromFile(localPath))
+                            {
+                                return new Bitmap(tempImg);
+                            }
+                        }
+                    }
                 }
 
-                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
                 string[] candidates = new string[]
                 {
+                    Path.Combine(baseDir, "receipt_logo_square.png"),
+                    Path.Combine(baseDir, "dist", "receipt_logo_square.png"),
+                    Path.Combine(baseDir, "receipt_logo.png"),
+                    Path.Combine(baseDir, "dist", "receipt_logo.png"),
+                    Path.Combine(baseDir, "branding", "receipt_logo_square.png"),
+                    Path.Combine(baseDir, "branding", "receipt_logo.png"),
+                    Path.Combine(baseDir, "wwwroot", "receipt_logo_square.png"),
+                    Path.Combine(baseDir, "wwwroot", "receipt_logo.png"),
                     Path.Combine(baseDir, "logo.png"),
                     Path.Combine(baseDir, "logo_full.png"),
                     Path.Combine(baseDir, "branding", "logo.png"),

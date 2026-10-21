@@ -627,39 +627,41 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
 
               {/* Unit & Category */}
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-ink mb-1">
-                    وحدة الصنف
-                  </label>
-                  <div className="grid grid-cols-2 gap-1.5 h-10 bg-surface-2 p-1 rounded-lg border border-line">
-                    <button
-                      type="button"
-                      onClick={() => setUnit('piece')}
-                      className={`flex items-center justify-center gap-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                        unit === 'piece'
-                          ? 'bg-surface text-paid shadow-2xs border border-line'
-                          : 'text-ink-muted hover:text-ink'
-                      }`}
-                    >
-                      <Package className="w-3.5 h-3.5" />
-                      <span>قطعة/عدد</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setUnit('kg')}
-                      className={`flex items-center justify-center gap-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                        unit === 'kg'
-                          ? 'bg-surface text-paid shadow-2xs border border-line'
-                          : 'text-ink-muted hover:text-ink'
-                      }`}
-                    >
-                      <Scale className="w-3.5 h-3.5" />
-                      <span>وزن (كجم)</span>
-                    </button>
+                {isEnabled('feature_scale_weight') ? (
+                  <div>
+                    <label className="block text-xs font-bold text-ink mb-1">
+                      وحدة الصنف
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5 h-10 bg-surface-2 p-1 rounded-lg border border-line">
+                      <button
+                        type="button"
+                        onClick={() => setUnit('piece')}
+                        className={`flex items-center justify-center gap-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                          unit === 'piece'
+                            ? 'bg-surface text-paid shadow-2xs border border-line'
+                            : 'text-ink-muted hover:text-ink'
+                        }`}
+                      >
+                        <Package className="w-3.5 h-3.5" />
+                        <span>قطعة/عدد</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setUnit('kg')}
+                        className={`flex items-center justify-center gap-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                          unit === 'kg'
+                            ? 'bg-surface text-paid shadow-2xs border border-line'
+                            : 'text-ink-muted hover:text-ink'
+                        }`}
+                      >
+                        <Scale className="w-3.5 h-3.5" />
+                        <span>وزن (كجم)</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
+                ) : null}
 
-                <div>
+                <div className={isEnabled('feature_scale_weight') ? '' : 'col-span-2'}>
                   <label className="block text-xs font-bold text-ink mb-1">
                     القسم / التبويب
                   </label>
@@ -1031,39 +1033,41 @@ export const QuickFastItemModal: React.FC<QuickFastItemModalProps> = ({
 
               {/* Unit & Category */}
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-ink mb-1">
-                    وحدة الصنف
-                  </label>
-                  <div className="grid grid-cols-2 gap-1.5 h-10 bg-surface-2 p-1 rounded-lg border border-line">
-                    <button
-                      type="button"
-                      onClick={() => setUnit('piece')}
-                      className={`flex items-center justify-center gap-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                        unit === 'piece'
-                          ? 'bg-surface text-paid shadow-2xs border border-line'
-                          : 'text-ink-muted hover:text-ink'
-                      }`}
-                    >
-                      <Package className="w-3.5 h-3.5" />
-                      <span>قطعة/عدد</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setUnit('kg')}
-                      className={`flex items-center justify-center gap-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                        unit === 'kg'
-                          ? 'bg-surface text-paid shadow-2xs border border-line'
-                          : 'text-ink-muted hover:text-ink'
-                      }`}
-                    >
-                      <Scale className="w-3.5 h-3.5" />
-                      <span>وزن (كجم)</span>
-                    </button>
+                {isEnabled('feature_scale_weight') ? (
+                  <div>
+                    <label className="block text-xs font-bold text-ink mb-1">
+                      وحدة الصنف
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5 h-10 bg-surface-2 p-1 rounded-lg border border-line">
+                      <button
+                        type="button"
+                        onClick={() => setUnit('piece')}
+                        className={`flex items-center justify-center gap-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                          unit === 'piece'
+                            ? 'bg-surface text-paid shadow-2xs border border-line'
+                            : 'text-ink-muted hover:text-ink'
+                        }`}
+                      >
+                        <Package className="w-3.5 h-3.5" />
+                        <span>قطعة/عدد</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setUnit('kg')}
+                        className={`flex items-center justify-center gap-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                          unit === 'kg'
+                            ? 'bg-surface text-paid shadow-2xs border border-line'
+                            : 'text-ink-muted hover:text-ink'
+                        }`}
+                      >
+                        <Scale className="w-3.5 h-3.5" />
+                        <span>وزن (كجم)</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
+                ) : null}
 
-                <div>
+                <div className={isEnabled('feature_scale_weight') ? '' : 'col-span-2'}>
                   <label className="block text-xs font-bold text-ink mb-1">
                     القسم / التبويب
                   </label>

@@ -1106,7 +1106,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     if (!scannedBarcode) return;
     try {
       setLoading(true);
-      const scaleInfo = parseScaleBarcode(scannedBarcode);
+      const scaleInfo = isEnabled('feature_scale_weight') ? parseScaleBarcode(scannedBarcode) : null;
       let scaleWeightMilli: number | undefined;
 
       let res = await invoke<unknown>('products:search', { query: scannedBarcode, limit: 5 });
@@ -1187,7 +1187,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setLoading(false);
       barcodeInputRef.current?.focus();
     }
-  }, [addProductToCart, showStatus, catalogProducts]);
+  }, [addProductToCart, showStatus, catalogProducts, isEnabled]);
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
@@ -1241,7 +1241,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
 
     try {
       setLoading(true);
-      const scaleInfo = parseScaleBarcode(query);
+      const scaleInfo = isEnabled('feature_scale_weight') ? parseScaleBarcode(query) : null;
       let scaleWeightMilli: number | undefined;
 
       let res = await invoke<unknown>('products:search', { query, limit: 10 });

@@ -33,7 +33,7 @@ namespace RafiqPOS
         private DoubleBufferedPanel _splashPanel;
         private DoubleBufferedPanel _splashCard;
         private Image _splashLogoImage;
-        private string _splashStatusText = "جاري تهيئة قاعدة البيانات المحلية ومحرك العرض السريع...";
+        private string _splashStatusText = "جاري تشغيل مساحة العمل والاتصال بالسجلات المحلية...";
         private System.Windows.Forms.Timer _splashAnimTimer;
         private float _shimmerProgress = 0f;
         private bool _isSplashDarkMode = false;
@@ -76,7 +76,7 @@ namespace RafiqPOS
             this.Size = new Size(1280, 800);
             this.MinimumSize = new Size(1024, 768); // Support compact screens (Task 159)
             _isSplashDarkMode = DetectSplashDarkMode();
-            Color defaultCanvas = _isSplashDarkMode ? Color.FromArgb(14, 19, 18) : Color.FromArgb(248, 250, 252);
+            Color defaultCanvas = _isSplashDarkMode ? Color.FromArgb(14, 19, 18) : Color.FromArgb(243, 245, 242);
             this.BackColor = defaultCanvas;
 
             // Default to borderless desktop mode matching Windows WorkingArea (respecting Windows Taskbar and preventing bottom bar overflow)
@@ -142,7 +142,7 @@ namespace RafiqPOS
         {
             _splashStartTime = DateTime.UtcNow;
 
-            Color canvasBg = _isSplashDarkMode ? Color.FromArgb(14, 19, 18) : Color.FromArgb(248, 250, 252);
+            Color canvasBg = _isSplashDarkMode ? Color.FromArgb(14, 19, 18) : Color.FromArgb(243, 245, 242);
             Color cardBg = _isSplashDarkMode ? Color.FromArgb(21, 27, 26) : Color.White;
 
             _splashPanel = new DoubleBufferedPanel
@@ -160,9 +160,13 @@ namespace RafiqPOS
             _splashCard = new DoubleBufferedPanel
             {
                 BackColor = cardBg,
-                Size = new Size(520, 360),
+                Size = new Size(520, 390),
                 RightToLeft = RightToLeft.No
             };
+            using (GraphicsPath cardRegionPath = CreateRoundedRectanglePath(new Rectangle(0, 0, 520, 390), 20))
+            {
+                _splashCard.Region = new Region(cardRegionPath);
+            }
             _splashCard.Paint += SplashCard_Paint;
 
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
@@ -261,21 +265,22 @@ namespace RafiqPOS
 
             // 2. Refined Card Border (#2A3532 in Dark Mode, #DCE1DC in Light Mode)
             Color borderColor = isDark ? Color.FromArgb(42, 53, 50) : Color.FromArgb(220, 225, 220);
+            using (GraphicsPath borderPath = CreateRoundedRectanglePath(new Rectangle(0, 0, _splashCard.Width - 1, _splashCard.Height - 1), 20))
             using (Pen pen = new Pen(borderColor, 1.5f))
             {
-                g.DrawRectangle(pen, 0, 0, _splashCard.Width - 1, _splashCard.Height - 1);
+                g.DrawPath(pen, borderPath);
             }
 
-            // 3. Logo (Centered at Y=28)
+            // 3. Logo (Centered at Y=32)
             if (_splashLogoImage != null)
             {
-                int maxW = 250;
-                int maxH = 68;
+                int maxW = 230;
+                int maxH = 62;
                 float ratio = Math.Min((float)maxW / _splashLogoImage.Width, (float)maxH / _splashLogoImage.Height);
                 int logoW = Math.Max(1, (int)(_splashLogoImage.Width * ratio));
                 int logoH = Math.Max(1, (int)(_splashLogoImage.Height * ratio));
                 int logoX = (_splashCard.Width - logoW) / 2;
-                int logoY = 28 + (maxH - logoH) / 2;
+                int logoY = 32 + (maxH - logoH) / 2;
                 g.DrawImage(_splashLogoImage, logoX, logoY, logoW, logoH);
             }
 
@@ -284,86 +289,114 @@ namespace RafiqPOS
                 sf.Alignment = StringAlignment.Center;
                 sf.LineAlignment = StringAlignment.Center;
 
-                // 4. App Title (Segoe UI 20 Bold, #E6ECEA in Dark, #00372D in Light)
+                // 4. App Title (Segoe UI 22 Bold, #E6ECEA in Dark, #00372D in Light)
                 Color titleColor = isDark ? Color.FromArgb(230, 236, 234) : Color.FromArgb(0, 55, 45);
-                using (Font titleFont = new Font("Segoe UI", 20, FontStyle.Bold))
+                using (Font titleFont = new Font("Segoe UI", 22f, FontStyle.Bold))
                 using (SolidBrush titleBrush = new SolidBrush(titleColor))
+                using (StringFormat sfTitle = new StringFormat())
                 {
-                    Rectangle titleRect = new Rectangle(20, 108, 480, 36);
-                    g.DrawString("رفيق POS", titleFont, titleBrush, titleRect, sf);
+                    sfTitle.Alignment = StringAlignment.Center;
+                    sfTitle.LineAlignment = StringAlignment.Center;
+                    sfTitle.FormatFlags = StringFormatFlags.DirectionRightToLeft;
+                    Rectangle titleRect = new Rectangle(10, 106, _splashCard.Width - 20, 36);
+                    g.DrawString("رفيق POS", titleFont, titleBrush, titleRect, sfTitle);
                 }
 
-                // 5. Subtitle (Segoe UI 10.5, #5FBFA2 in Dark, #006D41 in Light)
+                // 5. Subtitle (Segoe UI 11, #5FBFA2 in Dark, #006D41 in Light)
                 Color subColor = isDark ? Color.FromArgb(95, 191, 162) : Color.FromArgb(0, 109, 65);
-                using (Font subFont = new Font("Segoe UI", 10.5f, FontStyle.Regular))
+                using (Font subFont = new Font("Segoe UI", 11f, FontStyle.Regular))
                 using (SolidBrush subBrush = new SolidBrush(subColor))
                 {
-                    Rectangle subRect = new Rectangle(20, 146, 480, 24);
+                    Rectangle subRect = new Rectangle(10, 146, _splashCard.Width - 20, 24);
                     g.DrawString("نظام نقاط البيع وإدارة المتاجر ومحلات التجزئة", subFont, subBrush, subRect, sf);
                 }
 
-                // 6. Circular Spinner Ring (Y=175, 30x30)
-                int spinSize = 30;
+                // 6. Circular Spinner Ring (Y=186, 38x38)
+                int spinSize = 38;
                 int spinX = (_splashCard.Width - spinSize) / 2;
-                int spinY = 175;
+                int spinY = 186;
                 Rectangle spinRect = new Rectangle(spinX, spinY, spinSize, spinSize);
                 Color spinBgColor = isDark ? Color.FromArgb(40, 95, 191, 162) : Color.FromArgb(30, 0, 109, 65);
-                using (Pen spinBgPen = new Pen(spinBgColor, 2.8f))
+                using (Pen spinBgPen = new Pen(spinBgColor, 3.2f))
                 {
                     g.DrawEllipse(spinBgPen, spinRect);
                 }
                 Color spinArcColor = isDark ? Color.FromArgb(95, 191, 162) : Color.FromArgb(0, 109, 65);
-                using (Pen spinArcPen = new Pen(spinArcColor, 2.8f))
+                using (Pen spinArcPen = new Pen(spinArcColor, 3.2f))
                 {
                     spinArcPen.StartCap = LineCap.Round;
                     spinArcPen.EndCap = LineCap.Round;
                     g.DrawArc(spinArcPen, spinRect, _shimmerProgress * 360f, 100f);
                 }
 
-                // 7. Progress Bar Track & Shimmer (Y=216, 200x4)
+                // 7. Progress Bar Track & Smooth Rounded Gradient (Y=236, 200x4)
                 int progW = 200;
                 int progH = 4;
                 int progX = (_splashCard.Width - progW) / 2;
-                int progY = 216;
+                int progY = 236;
                 Rectangle progTrack = new Rectangle(progX, progY, progW, progH);
-                Color trackColor = isDark ? Color.FromArgb(28, 36, 35) : Color.FromArgb(241, 245, 244);
-                using (SolidBrush trackBrush = new SolidBrush(trackColor))
+                using (GraphicsPath trackPath = CreateRoundedRectanglePath(progTrack, 2))
                 {
-                    g.FillRectangle(trackBrush, progTrack);
+                    Color trackColor = isDark ? Color.FromArgb(28, 36, 35) : Color.FromArgb(241, 245, 244);
+                    using (SolidBrush trackBrush = new SolidBrush(trackColor))
+                    {
+                        g.FillPath(trackBrush, trackPath);
+                    }
+
+                    using (LinearGradientBrush progBrush = new LinearGradientBrush(
+                        progTrack,
+                        Color.Transparent,
+                        Color.Transparent,
+                        LinearGradientMode.Horizontal))
+                    {
+                        ColorBlend blend = new ColorBlend();
+                        if (isDark)
+                        {
+                            blend.Colors = new Color[] {
+                                Color.FromArgb(0, 77, 63),
+                                Color.FromArgb(0, 109, 65),
+                                Color.FromArgb(95, 191, 162),
+                                Color.FromArgb(0, 77, 63)
+                            };
+                        }
+                        else
+                        {
+                            blend.Colors = new Color[] {
+                                Color.FromArgb(0, 77, 63),
+                                Color.FromArgb(0, 109, 65),
+                                Color.FromArgb(52, 211, 153),
+                                Color.FromArgb(0, 77, 63)
+                            };
+                        }
+                        blend.Positions = new float[] { 0.0f, 0.35f, 0.85f, 1.0f };
+                        progBrush.InterpolationColors = blend;
+                        g.FillPath(progBrush, trackPath);
+                    }
                 }
 
-                int shimW = 70;
-                int shimX = progX + (int)((progW - shimW) * _shimmerProgress);
-                Rectangle shimRect = new Rectangle(shimX, progY, shimW, progH);
-                Color shimmerColor = isDark ? Color.FromArgb(95, 191, 162) : Color.FromArgb(0, 109, 65);
-                using (SolidBrush progBrush = new SolidBrush(shimmerColor))
-                {
-                    g.FillRectangle(progBrush, shimRect);
-                }
-
-                // 8. Dynamic Status Label (Segoe UI 9.5)
+                // 8. Dynamic Status Label (Y=254, Segoe UI 10)
                 string statusText = _splashStatusText ?? "جاري تشغيل مساحة العمل والاتصال بالسجلات المحلية...";
                 Color statusColor = isDark ? Color.FromArgb(147, 161, 157) : Color.FromArgb(82, 96, 93);
-                using (Font statusFont = new Font("Segoe UI", 9.5f, FontStyle.Regular))
+                using (Font statusFont = new Font("Segoe UI", 10f, FontStyle.Regular))
                 using (SolidBrush statusBrush = new SolidBrush(statusColor))
                 {
-                    Rectangle statusRect = new Rectangle(20, 230, 480, 24);
+                    Rectangle statusRect = new Rectangle(10, 254, _splashCard.Width - 20, 24);
                     g.DrawString(statusText, statusFont, statusBrush, statusRect, sf);
                 }
 
-                // 9. Footer Badge (Y=275, rounded capsule, matching web browser badge)
+                // 9. Footer Badge (Y=298, 350x30, rounded capsule, matching web browser badge)
                 int badgeW = 350;
-                int badgeH = 28;
+                int badgeH = 30;
                 int badgeX = (_splashCard.Width - badgeW) / 2;
-                int badgeY = 275;
+                int badgeY = 298;
                 Rectangle badgeRect = new Rectangle(badgeX, badgeY, badgeW, badgeH);
                 Color badgeBgColor = isDark ? Color.FromArgb(18, 48, 42) : Color.FromArgb(234, 245, 238);
                 Color badgeBorderColor = isDark ? Color.FromArgb(38, 73, 66) : Color.FromArgb(200, 230, 215);
                 Color badgeTextColor = isDark ? Color.FromArgb(95, 191, 162) : Color.FromArgb(0, 109, 65);
-                using (GraphicsPath badgePath = CreateRoundedRectanglePath(badgeRect, 14))
+                using (GraphicsPath badgePath = CreateRoundedRectanglePath(badgeRect, 15))
                 using (SolidBrush badgeBg = new SolidBrush(badgeBgColor))
                 using (Pen badgeBorder = new Pen(badgeBorderColor, 1f))
-                using (Font footerFont = new Font("Segoe UI", 8.5f, FontStyle.Bold))
+                using (Font footerFont = new Font("Segoe UI", 9f, FontStyle.Bold))
                 using (SolidBrush footerBrush = new SolidBrush(badgeTextColor))
                 {
                     g.FillPath(badgeBg, badgePath);
@@ -1164,7 +1197,7 @@ namespace RafiqPOS
 #endif
 
                 // Navigate to app with cache-buster parameter
-                UpdateSplashStatus("جاري فتح واجهة نظام رفيق...");
+                UpdateSplashStatus("جاري تشغيل مساحة العمل والاتصال بالسجلات المحلية...");
                 string cacheBuster = DateTime.UtcNow.Ticks.ToString();
                 Logger.Info("جاري استدعاء Navigate إلى واجهة التطبيق...");
 

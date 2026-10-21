@@ -1,7 +1,8 @@
-import type { FormEvent, ChangeEvent } from 'react';
-import { Store, Save, Sparkles, CheckCircle2, Sun, Moon, Monitor, Palette, Image as ImageIcon, Upload, RotateCcw, Lock, ShieldCheck, Info } from 'lucide-react';
+import { useState, type FormEvent, type ChangeEvent } from 'react';
+import { Store, Save, Sparkles, CheckCircle2, Sun, Moon, Monitor, Palette, Image as ImageIcon, Upload, RotateCcw, ShieldCheck, Info, Wand2 } from 'lucide-react';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { useTheme } from '../../context/useTheme';
+import { optimizeImageForThermal } from '../../utils/thermalImageOptimizer';
 
 interface StoreProfileTabProps {
   storeName: string;
@@ -34,7 +35,7 @@ interface StoreProfileTabProps {
   isRoot?: boolean;
   saveLoading: boolean;
   handleSave: (e: FormEvent) => void;
-  onOpenWizard: () => void;
+  onOpenWizard?: () => void;
 }
 
 export const StoreProfileTab = ({
@@ -59,7 +60,7 @@ export const StoreProfileTab = ({
   setDefaultCustomerCreditLimitEgp,
   showReceiptLogo = true,
   setShowReceiptLogo,
-  storeLogoUrl = '/logo.png',
+  storeLogoUrl = '/receipt_logo_square.png',
   setStoreLogoUrl,
   developerSignature = 'نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965',
   setDeveloperSignature,
@@ -69,23 +70,43 @@ export const StoreProfileTab = ({
   onOpenWizard,
 }: StoreProfileTabProps) => {
   const { theme, setTheme, resolvedTheme } = useTheme();
+  const [isOptimizing, setIsOptimizing] = useState(false);
 
   const handleLogoUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       if (typeof reader.result === 'string' && setStoreLogoUrl) {
-        setStoreLogoUrl(reader.result);
+        try {
+          // Auto-optimize to recommended thermal dimensions (200x70) & pure high contrast monochrome
+          const optimized = await optimizeImageForThermal(reader.result, 200, 70);
+          setStoreLogoUrl(optimized);
+        } catch {
+          setStoreLogoUrl(reader.result);
+        }
       }
     };
     reader.readAsDataURL(file);
   };
 
-  const handleResetLogo = () => {
+  const handleOptimizeCurrentLogo = async () => {
+    if (!storeLogoUrl || !setStoreLogoUrl || isOptimizing) return;
+    setIsOptimizing(true);
+    try {
+      const optimized = await optimizeImageForThermal(storeLogoUrl, 200, 70);
+      setStoreLogoUrl(optimized);
+    } catch (err) {
+      console.error('Failed to optimize logo:', err);
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
+
+  const handleResetLogo = (variant: 'wide' | 'square' = 'square') => {
     if (setStoreLogoUrl) {
-      setStoreLogoUrl('/logo.png');
+      setStoreLogoUrl(variant === 'wide' ? '/receipt_logo.png' : '/receipt_logo_square.png');
     }
   };
 
@@ -108,14 +129,16 @@ export const StoreProfileTab = ({
                 <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">بتظهر في وصل الكاشير الحراري وفواتير البيع للزبائن</span>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={onOpenWizard}
-              className="px-3 py-1.5 bg-brand-soft dark:bg-brand-bright/15 hover:bg-brand/20 dark:hover:bg-brand-bright/25 text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 rounded text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-              <span>معالج تهيئة المحل والنشاط</span>
-            </button>
+            {isRoot && onOpenWizard && (
+              <button
+                type="button"
+                onClick={onOpenWizard}
+                className="px-3 py-1.5 bg-brand-soft dark:bg-brand-bright/15 hover:bg-brand/20 dark:hover:bg-brand-bright/25 text-brand dark:text-brand-bright border border-brand/20 dark:border-brand-bright/30 rounded text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
+                <span>معالج تهيئة المحل والنشاط</span>
+              </button>
+            )}
           </div>
 
           {/* Section: Basic Identity */}
@@ -232,21 +255,65 @@ export const StoreProfileTab = ({
                         alt="معاينة الشعار"
                         className="max-h-full max-w-full object-contain"
                         onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src = '/logo.png';
+                          (e.currentTarget as HTMLImageElement).src = '/receipt_logo_square.png';
                         }}
                       />
                     </div>
                     <div className="flex flex-col gap-0.5">
                       <span className="text-xs font-semibold text-ink dark:text-ink-dark">
-                        {storeLogoUrl !== '/logo.png' ? 'شعار مخصص للمتجر' : 'شعار رفيق الافتراضي'}
+                        {storeLogoUrl !== '/receipt_logo.png' && storeLogoUrl !== '/receipt_logo_square.png' && storeLogoUrl !== '/logo.png'
+                          ? 'شعار مخصص للمتجر (مجهّز حرارياً)'
+                          : 'شعار رفيق المعتمد للطابعات الحرارية (Monochrome)'}
                       </span>
                       <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark">
-                        يظهر مطبوعاً في ترويسة جميع فواتير الكاشير والمرتجعات
+                        أبيض وأسود نقي عالي التباين بدقة 203 DPI بدون بهتان
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center flex-wrap gap-2">
+                    {/* Default Rafiq Variants Toggle */}
+                    {(storeLogoUrl === '/receipt_logo.png' || storeLogoUrl === '/receipt_logo_square.png' || storeLogoUrl === '/logo.png') && (
+                      <div className="flex items-center gap-1 bg-surface-2 dark:bg-surface-dark-2 p-0.5 rounded border border-line dark:border-line-dark text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => handleResetLogo('square')}
+                          className={`px-2 py-1 rounded transition-colors ${
+                            storeLogoUrl === '/receipt_logo_square.png'
+                              ? 'bg-brand text-white font-bold'
+                              : 'text-ink-muted hover:text-ink dark:text-ink-muted-dark'
+                          }`}
+                        >
+                          شعار مربع (120×120) • الافتراضي
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleResetLogo('wide')}
+                          className={`px-2 py-1 rounded transition-colors ${
+                            storeLogoUrl === '/receipt_logo.png' || storeLogoUrl === '/logo.png'
+                              ? 'bg-brand text-white font-bold'
+                              : 'text-ink-muted hover:text-ink dark:text-ink-muted-dark'
+                          }`}
+                        >
+                          شعار عريض (200×60)
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Optimize custom logo button */}
+                    {storeLogoUrl !== '/receipt_logo.png' && storeLogoUrl !== '/receipt_logo_square.png' && storeLogoUrl !== '/logo.png' && (
+                      <button
+                        type="button"
+                        onClick={handleOptimizeCurrentLogo}
+                        disabled={isOptimizing}
+                        className="px-2.5 py-1.5 bg-paid-soft dark:bg-paid-dark/30 text-paid dark:text-paid-bright border border-paid/30 hover:bg-paid/20 rounded text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                        title="تحسين ومعالجة الشعار تلقائياً إلى أبيض وأسود عالي التباين وأبعاد 200×70"
+                      >
+                        <Wand2 className="w-3.5 h-3.5" />
+                        <span>{isOptimizing ? 'جاري المعالجة...' : 'تحسين حراري'}</span>
+                      </button>
+                    )}
+
                     <label className="px-3 py-1.5 bg-brand text-white hover:bg-brand-hover rounded text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors">
                       <Upload className="w-3.5 h-3.5" />
                       <span>رفع شعار جديد</span>
@@ -258,10 +325,10 @@ export const StoreProfileTab = ({
                       />
                     </label>
 
-                    {storeLogoUrl !== '/logo.png' && (
+                    {storeLogoUrl !== '/receipt_logo.png' && storeLogoUrl !== '/receipt_logo_square.png' && storeLogoUrl !== '/logo.png' && (
                       <button
                         type="button"
-                        onClick={handleResetLogo}
+                        onClick={() => handleResetLogo('square')}
                         className="px-2.5 py-1.5 bg-surface-2 dark:bg-surface-dark-2 text-ink-muted hover:text-ink dark:text-ink-muted-dark dark:hover:text-ink-dark border border-line dark:border-line-dark rounded text-xs font-medium flex items-center gap-1 transition-colors"
                         title="استعادة الشعار الافتراضي لنظام رفيق"
                       >
@@ -297,53 +364,36 @@ export const StoreProfileTab = ({
           </div>
 
           {/* Section: Developer Signature & Branding (Root Protected) */}
-          <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex flex-col gap-2.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {isRoot ? (
+          {isRoot && (
+            <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex flex-col gap-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-paid dark:text-paid-bright" />
-                ) : (
-                  <Lock className="w-4 h-4 text-amber-600 dark:text-warn-bright" />
-                )}
-                <span className="font-bold text-ink dark:text-ink-dark text-xs">
-                  حقوق وتوقيع مطور النظام (دعاية النظام أسفل الفاتورة)
+                  <span className="font-bold text-ink dark:text-ink-dark text-xs">
+                    حقوق وتوقيع مطور النظام (دعاية النظام أسفل الفاتورة)
+                  </span>
+                </div>
+
+                <span className="text-[10px] font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark/30 border border-paid/30 px-2 py-0.5 rounded flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3" />
+                  <span>صلاحية روت مفعّلة (المطور)</span>
                 </span>
               </div>
 
-              {isRoot ? (
-                <span className="text-[10px] font-bold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark/30 border border-paid/30 px-2 py-0.5 rounded flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3" />
-                  <span>صلاحية روت مفعّلة (قابل للتعديل)</span>
+              <div className="flex flex-col gap-1">
+                <input
+                  type="text"
+                  value={developerSignature}
+                  onChange={(e) => setDeveloperSignature && setDeveloperSignature(e.target.value)}
+                  placeholder="نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965"
+                  className="w-full rounded h-9 px-3 text-xs font-medium transition-colors bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+                />
+                <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
+                  بصفتك المطور (روت)، يمكنك تخصيص عبارة الدعاية والتوقيع البرمجي التي تظهر في سطر أسفل جميع فواتير البيع.
                 </span>
-              ) : (
-                <span className="text-[10px] font-bold text-amber-700 dark:text-warn-bright bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 px-2 py-0.5 rounded flex items-center gap-1">
-                  <Lock className="w-3 h-3" />
-                  <span>محمي ومغلق (صلاحية روت فقط)</span>
-                </span>
-              )}
+              </div>
             </div>
-
-            <div className="flex flex-col gap-1">
-              <input
-                type="text"
-                value={developerSignature}
-                onChange={(e) => isRoot && setDeveloperSignature && setDeveloperSignature(e.target.value)}
-                disabled={!isRoot}
-                readOnly={!isRoot}
-                placeholder="نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965"
-                className={`w-full rounded h-9 px-3 text-xs font-medium transition-colors ${
-                  isRoot
-                    ? 'bg-surface dark:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright'
-                    : 'bg-surface/50 dark:bg-surface-dark/50 border border-line/60 dark:border-line-dark/60 text-ink-muted dark:text-ink-muted-dark cursor-not-allowed select-none'
-                }`}
-              />
-              <span className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed">
-                {isRoot
-                  ? 'بصفتك المطور (روت)، يمكنك تخصيص عبارة الدعاية والتوقيع البرمجي التي تظهر في سطر أسفل جميع فواتير البيع.'
-                  : 'هذا السطر ثابت في أسفل الفاتورة للدعاية وحفظ حقوق برمجة وتطوير النظام. لا يملك صاحب المحل أو الكاشير صلاحية حذفه أو تغييره.'}
-              </span>
-            </div>
-          </div>
+          )}
 
           {/* Feature #30: Negative Stock Policy */}
           <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex items-center justify-between gap-4">
@@ -508,7 +558,7 @@ export const StoreProfileTab = ({
                   alt="شعار المتجر"
                   className="max-h-11 max-w-[150px] object-contain"
                   onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).src = '/logo.png';
+                    (e.currentTarget as HTMLImageElement).src = '/receipt_logo_square.png';
                   }}
                 />
               </div>
