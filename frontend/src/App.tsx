@@ -571,9 +571,21 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // Initial fetch of public store settings on mount
     void refreshSettings();
-    void refreshLowStock();
-  }, [refreshSettings, refreshLowStock]);
+  }, [refreshSettings]);
+
+  useEffect(() => {
+    // Reactive sync on auth resolution: once the session is verified in C#, fetch low stock & store profile
+    if (!isLoading) {
+      void refreshSettings();
+      if (currentUser) {
+        void refreshLowStock();
+      } else {
+        setLowStockCount(0);
+      }
+    }
+  }, [currentUser, isLoading, refreshSettings, refreshLowStock]);
 
   useDataSubscription(['settings', 'all'], refreshSettings);
   useDataSubscription(['products', 'all'], refreshLowStock);
@@ -993,26 +1005,26 @@ export default function App() {
 
         {/* Left Side: Staff Management, Action Buttons, Window Controls, Date & Time */}
         <div className="flex items-center gap-1.5 sm:gap-2 text-xs shrink-0">
-          {/* Shift & Cash Drawer Quick Access Button */}
+          {/* Shift & Cash Drawer Quick Access Button (Always accessible to open or manage/close shift) */}
           <button
             type="button"
             onClick={() => setIsShiftModalOpen(true)}
             className={`flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-lg border text-xs font-bold shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer shrink-0 ${
               activeShift && activeShift.status !== 'closed'
                 ? 'bg-paid-soft hover:bg-paid-soft/80 text-paid border-paid/30 dark:bg-paid-dark-soft dark:hover:bg-paid-dark-soft/80 dark:text-paid-bright dark:border-paid-dark-border'
-                : 'bg-warn-soft/60 hover:bg-warn-soft text-warn border-warn/40 dark:bg-warn-dark-soft dark:hover:bg-warn-dark-soft/80 dark:text-warn-bright dark:border-warn-bright/30 animate-pulse'
+                : 'bg-surface dark:bg-surface-dark-2 hover:bg-brand-soft/70 dark:hover:bg-brand-dark-soft border-line dark:border-line-dark hover:border-brand/40 text-ink dark:text-ink-dark'
             }`}
             title={
               activeShift && activeShift.status !== 'closed'
                 ? `إدارة الوردية والدرج وحركات النقدية (وردية #${activeShift.shiftNumber ?? (activeShift as any).ShiftNumber ?? 1} مفتوحة)`
-                : 'الوردية مغلقة - اضغط لفتح وردية جديدة واستلام عهدة الدرج'
+                : 'فتح وردية جديدة واستلام عهدة الدرج'
             }
           >
             <Clock className={`w-3.5 h-3.5 shrink-0 ${activeShift && activeShift.status !== 'closed' ? 'text-paid dark:text-paid-bright' : 'text-warn dark:text-warn-bright'}`} />
             <span className="truncate max-w-[110px]">
               {activeShift && activeShift.status !== 'closed'
                 ? `وردية #${activeShift.shiftNumber ?? (activeShift as any).ShiftNumber ?? 1}`
-                : 'الوردية مغلقة'}
+                : 'فتح وردية'}
             </span>
           </button>
 
@@ -1232,16 +1244,17 @@ export default function App() {
                         : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white'
                     }`}
                   >
-                    <Icon className={`w-5 h-5 ${isActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/80 group-hover:text-ink dark:group-hover:text-white'}`} />
-                    {isProductsItem && lowStockCount > 0 && (
-                      <span
-                        dir="ltr"
-                        className="absolute -top-1.5 -start-1.5 min-w-[20px] h-[20px] px-1 rounded-full bg-danger text-white text-[10px] font-black font-mono leading-none flex items-center justify-center border-2 border-surface dark:border-surface-dark shadow-xs pointer-events-none select-none tracking-tight"
-                        title={`${lowStockCount} أصناف نواقص / قاربت على النفاد`}
-                      >
-                        {lowStockCount > 99 ? '99+' : lowStockCount > 9 ? '9+' : lowStockCount}
-                      </span>
-                    )}
+                    <div className="relative inline-flex items-center justify-center">
+                      <Icon className={`w-5 h-5 ${isActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/80 group-hover:text-ink dark:group-hover:text-white'}`} />
+                      {isProductsItem && lowStockCount > 0 && (
+                        <span
+                          className="absolute -top-1.5 -end-2.5 min-w-[18px] h-[18px] px-1 rounded-full bg-danger text-white text-[9px] font-black font-mono leading-none flex items-center justify-center border-2 border-surface dark:border-surface-dark shadow-xs pointer-events-none select-none tracking-tight"
+                          title={`${lowStockCount} أصناف نواقص / قاربت على النفاد`}
+                        >
+                          <span dir="ltr">{lowStockCount > 99 ? '99+' : lowStockCount > 9 ? '9+' : lowStockCount}</span>
+                        </span>
+                      )}
+                    </div>
                     <span className="sr-only">{item.label}</span>
                   </button>
                 );

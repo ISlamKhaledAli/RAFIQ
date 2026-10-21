@@ -181,11 +181,11 @@ export const LoginScreen: React.FC = () => {
             </div>
           </div>
 
-          <div className="pt-6 border-t border-white/15 text-xs text-emerald-200/70 flex items-center justify-between">
-            <span>العمل بدون إنترنت (Offline-First)</span>
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+          <div className="pt-6 border-t border-white/15 text-xs text-emerald-200/80 flex items-center justify-between">
+            <span className="font-medium">يعمل محلياً بالكامل بدون إنترنت</span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[11px] font-semibold">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              جاهز
+              جاهز للعمل
             </span>
           </div>
         </div>

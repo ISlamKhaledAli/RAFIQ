@@ -68,6 +68,7 @@ export const SettingsView = ({
   const [storeLogoUrl, setStoreLogoUrl] = useState('/receipt_logo_square.png');
   const [developerSignature, setDeveloperSignature] = useState('نظام رفيق للأنظمة والحلول البرمجية | تطوير: م. إسلام خالد - 01097782965');
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
+  const [requireOpenShiftToSell, setRequireOpenShiftToSell] = useState(true);
   const [defaultCustomerCreditLimitEgp, setDefaultCustomerCreditLimitEgp] = useState(1000);
   const [logoVariant, setLogoVariant] = useState<'classic' | 'modern'>(() => {
     try {
@@ -159,6 +160,9 @@ export const SettingsView = ({
           if (settings.allow_negative_stock !== undefined) {
             setAllowNegativeStock(settings.allow_negative_stock === '1' || settings.allow_negative_stock === 'true');
           }
+          if (settings.require_open_shift_to_sell !== undefined) {
+            setRequireOpenShiftToSell(settings.require_open_shift_to_sell === '1' || settings.require_open_shift_to_sell.toLowerCase() === 'true');
+          }
           if (settings.default_customer_credit_limit_egp) {
             const lim = Number(settings.default_customer_credit_limit_egp);
             if (!isNaN(lim) && lim >= 0) setDefaultCustomerCreditLimitEgp(lim);
@@ -241,6 +245,7 @@ export const SettingsView = ({
         show_receipt_logo: showReceiptLogo ? '1' : '0',
         store_logo_url: storeLogoUrl,
         allow_negative_stock: allowNegativeStock ? '1' : '0',
+        require_open_shift_to_sell: requireOpenShiftToSell ? '1' : '0',
         default_customer_credit_limit_egp: String(defaultCustomerCreditLimitEgp),
         instapay_fee_percent: '0',
         vodafone_cash_fee_percent: '0',
@@ -293,6 +298,17 @@ export const SettingsView = ({
       });
     } catch (err) {
       console.error('Failed to auto-save negative stock setting:', err);
+    }
+  };
+
+  const handleToggleRequireShift = async (newVal: boolean) => {
+    setRequireOpenShiftToSell(newVal);
+    try {
+      await invoke('settings:save', {
+        require_open_shift_to_sell: newVal ? '1' : '0'
+      });
+    } catch (err) {
+      console.error('Failed to auto-save require open shift setting:', err);
     }
   };
 
@@ -529,6 +545,9 @@ export const SettingsView = ({
           allowNegativeStock={allowNegativeStock}
           setAllowNegativeStock={setAllowNegativeStock}
           onToggleNegativeStock={handleToggleNegativeStock}
+          requireOpenShiftToSell={requireOpenShiftToSell}
+          setRequireOpenShiftToSell={setRequireOpenShiftToSell}
+          onToggleRequireOpenShift={handleToggleRequireShift}
           defaultCustomerCreditLimitEgp={defaultCustomerCreditLimitEgp}
           setDefaultCustomerCreditLimitEgp={setDefaultCustomerCreditLimitEgp}
           logoVariant={logoVariant}

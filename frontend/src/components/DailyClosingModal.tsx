@@ -204,7 +204,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold tracking-tight text-white dark:text-ink-dark">تقفيل الوردية وحساب اليومية</h2>
+                <h2 className="text-xl font-bold tracking-tight text-white dark:text-ink-dark">الإقفال المحاسبي لليومية وتشميع الحسابات (Z-Report)</h2>
                 {savedClosing && (
                   <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-paid text-white">
                     معتمد #{savedClosing.closingNumber}
@@ -212,7 +212,7 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                 )}
               </div>
               <p className="text-xs text-white/80 dark:text-ink-dark-muted mt-0.5">
-                جرد الدرج وحساب مبيعات ومصاريف الوردية والتقفيل النهائي لليومية
+                تشميع وقفل الحسابات لليوم التجاري بالكامل (لتسليم نقدية الكاشير استخدم نافذة الوردية)
               </p>
             </div>
           </div>
@@ -345,6 +345,19 @@ export const DailyClosingModal: React.FC<DailyClosingModalProps> = ({
                     />
                     <span>أؤكد صحة الإقفال على هذا التاريخ بالرغم من تحذير الساعة، وأتحمل المسؤولية</span>
                   </label>
+                </div>
+              )}
+
+              {/* Zero-Sales Warning: Prevent accidental lockouts */}
+              {!savedClosing && preview.invoicesCount === 0 && preview.totalSalesPiasters === 0 && (
+                <div className="p-4 rounded-xl bg-warn-soft dark:bg-warn-dark-soft border border-warn/30 dark:border-warn-bright/30 text-warn dark:text-warn-bright space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 shrink-0" />
+                    <h4 className="font-bold text-sm">تنبيه: لا توجد أي مبيعات أو فواتير مسجلة في هذا اليوم (0.00 ج.م)</h4>
+                  </div>
+                  <p className="text-xs leading-relaxed text-ink-muted dark:text-ink-dark-muted">
+                    إقفال اليومية يعني انتهاء يوم العمل بالكامل وتشميع الحسابات، ولن يتمكن أي كاشير من فتح ورديات أو تسجيل فواتير جديدة في هذا التاريخ بعد إقفاله. إذا كنت تريد فقط تسليم نقدية الكاشير يرجى استخدام نافذة <strong>إدارة الوردية</strong> بدلاً من إقفال اليومية.
+                  </p>
                 </div>
               )}
 
