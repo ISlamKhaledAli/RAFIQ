@@ -62,6 +62,9 @@ namespace RafiqPOS.Models
 
         [JsonProperty("lastLoginAt")]
         public string LastLoginAt { get; set; }
+
+        [JsonProperty("mustChangePin")]
+        public bool MustChangePin { get; set; }
     }
 
     public class UserDto
@@ -113,6 +116,9 @@ namespace RafiqPOS.Models
 
         [JsonProperty("lastLoginAt")]
         public string LastLoginAt { get; set; }
+
+        [JsonProperty("mustChangePin")]
+        public bool MustChangePin { get; set; }
     }
 
     public class LoginResult
@@ -131,5 +137,8 @@ namespace RafiqPOS.Models
 
         [JsonProperty("message")]
         public string Message { get; set; }
+
+        [JsonProperty("mustChangePin")]
+        public bool MustChangePin { get; set; }
     }
 }

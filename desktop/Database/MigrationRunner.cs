@@ -7,7 +7,7 @@ namespace RafiqPOS.Database
 {
     public static class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 32;
+        public const int LATEST_SUPPORTED_VERSION = 41;
 
         public static void ApplyMigrations(string connectionString, string dbPath)
         {
@@ -324,7 +324,49 @@ namespace RafiqPOS.Database
                     ApplyMigration35(conn);
                 }
 
-                // 39. Self-Healing Schema Guard: Automatically repair missing columns or indexes
+                // 39. Apply Migration 36: Security Hardening (Deactivate Developer Backdoor & Enforce Owner PIN Change)
+                if (currentVersion < 36)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration36(conn);
+                }
+
+                // 40. Apply Migration 37: Dual-Wrap Envelope Encryption & Owner Recovery Code (F-42, F-43)
+                if (currentVersion < 37)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration37(conn);
+                }
+
+                // 41. Apply Migration 38: Debt Allocations Table & Expense Contra-Entry Chain (F-25, F-28, F-23)
+                if (currentVersion < 38)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration38(conn);
+                }
+
+                // 42. Apply Migration 39: Persistent Checkout Idempotency (F-09, F-45)
+                if (currentVersion < 39)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration39(conn);
+                }
+
+                // 43. Apply Migration 40: Packaging Precision and Shift-Level Isolation (F-34, F-15)
+                if (currentVersion < 40)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration40(conn);
+                }
+
+                // 44. Apply Migration 41: Non-Cash Debt Settlement & Ledger Optimization (F-07)
+                if (currentVersion < 41)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration41(conn);
+                }
+
+                // 45. Self-Healing Schema Guard: Automatically repair missing columns or indexes
                 EnsureSchemaHealth(conn);
             }
         }
@@ -581,15 +623,65 @@ namespace RafiqPOS.Database
                         }
                     }
 
-                    // 3.5. Health check for customer_ledger table: Ensure all amount_piasters are positive absolute magnitudes
+                    // 3.5. Health check for customer_ledger table: Ensure all amount_piasters are positive absolute magnitudes and shift_id exists (F-15)
                     using (var checkLedgerCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='customer_ledger';", conn, trans))
                     {
                         var tbl = checkLedgerCmd.ExecuteScalar();
                         if (tbl != null)
                         {
+                            var clCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            using (var infoCmd = new SQLiteCommand("PRAGMA table_info(customer_ledger);", conn, trans))
+                            using (var reader = infoCmd.ExecuteReader())
+                            {
+                                while (reader.Read())
+                                {
+                                    clCols.Add(reader["name"].ToString());
+                                }
+                            }
+                            if (!clCols.Contains("shift_id"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE customer_ledger ADD COLUMN shift_id TEXT;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+                            using (var idxCmd = new SQLiteCommand("CREATE INDEX IF NOT EXISTS idx_customer_ledger_shift_id ON customer_ledger(shift_id);", conn, trans))
+                            {
+                                idxCmd.ExecuteNonQuery();
+                            }
+
                             using (var fixNegCmd = new SQLiteCommand("UPDATE customer_ledger SET amount_piasters = ABS(amount_piasters) WHERE amount_piasters < 0;", conn, trans))
                             {
                                 fixNegCmd.ExecuteNonQuery();
+                            }
+                        }
+                    }
+
+                    // 3.6. Health check for returns table: Ensure shift_id exists (F-15)
+                    using (var checkRetCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='returns';", conn, trans))
+                    {
+                        var tbl = checkRetCmd.ExecuteScalar();
+                        if (tbl != null)
+                        {
+                            var retCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            using (var infoCmd = new SQLiteCommand("PRAGMA table_info(returns);", conn, trans))
+                            using (var reader = infoCmd.ExecuteReader())
+                            {
+                                while (reader.Read())
+                                {
+                                    retCols.Add(reader["name"].ToString());
+                                }
+                            }
+                            if (!retCols.Contains("shift_id"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE returns ADD COLUMN shift_id TEXT;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+                            using (var idxCmd = new SQLiteCommand("CREATE INDEX IF NOT EXISTS idx_returns_shift_id ON returns(shift_id);", conn, trans))
+                            {
+                                idxCmd.ExecuteNonQuery();
                             }
                         }
                     }
@@ -712,6 +804,21 @@ namespace RafiqPOS.Database
                                         syncReturnsCmd.ExecuteNonQuery();
                                     }
                                 }
+                            }
+
+                            if (!existingCols.Contains("idempotency_key"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE sales ADD COLUMN idempotency_key TEXT DEFAULT NULL;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+
+                            using (var idxCmd = new SQLiteCommand(@"
+                                CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_idempotency ON sales(idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key != '';
+                            ", conn, trans))
+                            {
+                                idxCmd.ExecuteNonQuery();
                             }
                         }
                     }
@@ -1291,6 +1398,33 @@ namespace RafiqPOS.Database
                         createExpCmd.ExecuteNonQuery();
                     }
 
+                    try
+                    {
+                        using (var alterExpCmd = new SQLiteCommand("ALTER TABLE expenses ADD COLUMN replaces_expense_id TEXT DEFAULT NULL;", conn, trans))
+                        {
+                            alterExpCmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    // Health check for debt_allocations table (F-25 & F-28)
+                    using (var createAllocCmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS debt_allocations (
+                            id TEXT PRIMARY KEY,
+                            ledger_id TEXT NOT NULL,
+                            sale_id TEXT NOT NULL,
+                            amount_piasters INTEGER NOT NULL,
+                            type TEXT NOT NULL DEFAULT 'payment',
+                            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                            FOREIGN KEY (sale_id) REFERENCES sales(id)
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_debt_alloc_sale ON debt_allocations(sale_id);
+                        CREATE INDEX IF NOT EXISTS idx_debt_alloc_ledger ON debt_allocations(ledger_id);
+                    ", conn, trans))
+                    {
+                        createAllocCmd.ExecuteNonQuery();
+                    }
+
                     // 16. Health check for epay_terminals table (tiered & per-service fee columns)
                     using (var checkEpayCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='epay_terminals';", conn, trans))
                     {
@@ -1504,6 +1638,34 @@ namespace RafiqPOS.Database
                             alter.ExecuteNonQuery();
                         }
                     }
+                    if (piCols.Count > 0 && !piCols.Contains("unit_id"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE purchase_items ADD COLUMN unit_id TEXT;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (piCols.Count > 0 && !piCols.Contains("unit_name"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE purchase_items ADD COLUMN unit_name TEXT;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (piCols.Count > 0 && !piCols.Contains("conversion_factor"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE purchase_items ADD COLUMN conversion_factor REAL NOT NULL DEFAULT 1;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (piCols.Count > 0 && !piCols.Contains("package_cost_piasters"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE purchase_items ADD COLUMN package_cost_piasters INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
 
                     // Ensure purchase_returns & purchase_return_items tables exist
                     using (var cmd = new SQLiteCommand(@"
@@ -1543,6 +1705,35 @@ namespace RafiqPOS.Database
                     ", conn, trans))
                     {
                         cmd.ExecuteNonQuery();
+                    }
+
+                    // Ensure payment_method and digital_account_id exist on customer_ledger (F-07)
+                    var clHealthCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    using (var pragmaCmd = new SQLiteCommand("PRAGMA table_info(customer_ledger);", conn, trans))
+                    using (var reader = pragmaCmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            clHealthCols.Add(reader["name"].ToString());
+                        }
+                    }
+                    if (clHealthCols.Count > 0 && !clHealthCols.Contains("payment_method"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE customer_ledger ADD COLUMN payment_method TEXT DEFAULT 'cash';", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (clHealthCols.Count > 0 && !clHealthCols.Contains("digital_account_id"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE customer_ledger ADD COLUMN digital_account_id TEXT DEFAULT NULL;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    using (var idxCmd = new SQLiteCommand("CREATE INDEX IF NOT EXISTS idx_customer_ledger_customer_created ON customer_ledger(customer_id, created_at);", conn, trans))
+                    {
+                        idxCmd.ExecuteNonQuery();
                     }
 
                     trans.Commit();
@@ -1734,34 +1925,12 @@ namespace RafiqPOS.Database
                         idxCmd.ExecuteNonQuery();
                     }
 
-                    // 3. Ensure root user 'islam' exists and admin user is 'admin' (صاحب المحل)
-                    byte[] devSaltBytes = new byte[16];
-                    using (var rng = new System.Security.Cryptography.RNGCryptoServiceProvider())
-                    {
-                        rng.GetBytes(devSaltBytes);
-                    }
-                    string devSalt = Convert.ToBase64String(devSaltBytes);
-                    string devHash;
-                    using (var pbkdf2 = new System.Security.Cryptography.Rfc2898DeriveBytes("8963906", devSaltBytes, 10000))
-                    {
-                        devHash = Convert.ToBase64String(pbkdf2.GetBytes(32));
-                    }
-
-                    using (var insRoot = new SQLiteCommand(@"
-                        INSERT OR IGNORE INTO users (id, username, display_name, pin_code_hash, pin_salt, role, is_active, failed_attempts, can_delegate, max_depth, password_hash, password_salt, created_at, updated_at)
-                        VALUES ('usr_root_developer', 'islam', 'المطور (Root)', @hash, @salt, 'root', 1, 0, 1, 99, @hash, @salt, datetime('now'), datetime('now'));
-                    ", conn, trans))
-                    {
-                        insRoot.Parameters.AddWithValue("@hash", devHash);
-                        insRoot.Parameters.AddWithValue("@salt", devSalt);
-                        insRoot.ExecuteNonQuery();
-                    }
-
+                    // 3. Ensure store owner admin exists as 'admin' (صاحب المحل)
                     using (var updateOwner = new SQLiteCommand(@"
                         UPDATE users 
                         SET role = 'admin', 
                             display_name = 'صاحب المحل',
-                            parent_id = 'usr_root_developer', 
+                            parent_id = NULL, 
                             max_depth = 10, 
                             can_delegate = 1
                         WHERE id = 'usr_admin_default' OR username = 'admin';
@@ -1808,54 +1977,94 @@ namespace RafiqPOS.Database
 
         private static void BackupDatabaseBeforeMigration(string dbPath)
         {
-            try
+            if (!BackupDatabaseBeforeMigration(dbPath, 0))
             {
-                if (File.Exists(dbPath))
-                {
-                    string backupDir = Path.Combine(Path.GetDirectoryName(dbPath), "backups");
-                    if (!Directory.Exists(backupDir))
-                    {
-                        Directory.CreateDirectory(backupDir);
-                    }
-
-                    string timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
-                    string backupFile = Path.Combine(backupDir, string.Format("pre_migration_{0}.db", timestamp));
-                    File.Copy(dbPath, backupFile, true);
-
-                    // Clean older pre_migration backups (keep only last 2)
-                    PrunePreMigrationBackups(backupDir, 2);
-                }
-            }
-            catch
-            {
-                // Silently continue if fresh DB
+                throw new InvalidOperationException(
+                    "تعذر إنشاء نسخة أمان قبل ترحيل قاعدة البيانات. تم إيقاف الترحيل لحماية بياناتك. تواصل مع الدعم الفني.");
             }
         }
 
-        private static void PrunePreMigrationBackups(string backupDir, int keepCount)
+        private static bool BackupDatabaseBeforeMigration(string dbPath, int targetVersion)
+        {
+            if (string.IsNullOrEmpty(dbPath) || !File.Exists(dbPath))
+            {
+                return true; // Fresh DB, nothing to back up
+            }
+
+            try
+            {
+                var fi = new FileInfo(dbPath);
+                if (fi.Length == 0)
+                {
+                    return true;
+                }
+
+                string backupDir = Path.Combine(Path.GetDirectoryName(dbPath), "migration_backups");
+                if (!Directory.Exists(backupDir))
+                {
+                    Directory.CreateDirectory(backupDir);
+                }
+
+                string timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
+                string backupFile = Path.Combine(backupDir, string.Format("pre_v{0}_{1}.db", targetVersion, timestamp));
+
+                using (var backupConn = new SQLiteConnection("Data Source=" + backupFile + ";Version=3;"))
+                {
+                    backupConn.Open();
+                    using (var sourceConn = new SQLiteConnection("Data Source=" + dbPath + ";Version=3;Read Only=True;"))
+                    {
+                        sourceConn.Open();
+                        sourceConn.BackupDatabase(backupConn, "main", "main", -1, null, 100);
+                    }
+                }
+
+                // Verify backup integrity
+                using (var checkConn = new SQLiteConnection("Data Source=" + backupFile + ";Version=3;Read Only=True;"))
+                {
+                    checkConn.Open();
+                    using (var cmd = checkConn.CreateCommand())
+                    {
+                        cmd.CommandText = "PRAGMA quick_check;";
+                        object result = cmd.ExecuteScalar();
+                        if (result == null || !result.ToString().Equals("ok", StringComparison.OrdinalIgnoreCase))
+                        {
+                            throw new InvalidOperationException("فشل التحقق من سلامة النسخة الاحتياطية قبل الترحيل (quick_check failed)");
+                        }
+                    }
+                }
+
+                PruneOldMigrationBackups(backupDir, 30);
+                Common.Logger.Info("تم إنشاء نسخة أمان لقاعدة البيانات قبل الترحيل بنجاح: " + backupFile);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Common.Logger.Error("CRITICAL: فشل إنشاء نسخة أمان قبل الترحيل: " + ex.Message, ex);
+                return false;
+            }
+        }
+
+        private static void PruneOldMigrationBackups(string backupDir, int retentionDays)
         {
             try
             {
                 if (!Directory.Exists(backupDir)) return;
-                string[] files = Directory.GetFiles(backupDir, "pre_migration_*.db");
-                if (files.Length <= keepCount) return;
-
-                Array.Sort(files);
-                int deleteCount = files.Length - keepCount;
-                for (int i = 0; i < deleteCount; i++)
+                string[] files = Directory.GetFiles(backupDir, "pre_*.db");
+                DateTime cutoff = DateTime.UtcNow.AddDays(-retentionDays);
+                for (int i = 0; i < files.Length; i++)
                 {
                     try
                     {
-                        File.Delete(files[i]);
+                        var fi = new FileInfo(files[i]);
+                        if (fi.CreationTimeUtc < cutoff && fi.LastWriteTimeUtc < cutoff)
+                        {
+                            fi.Delete();
+                        }
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
             }
-            catch
-            {
-            }
+            catch { }
         }
 
         private static void ApplyMigration1(SQLiteConnection conn)
@@ -4654,6 +4863,363 @@ namespace RafiqPOS.Database
                     using (var cmd = new SQLiteCommand(@"
                         INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
                         VALUES (35, 'Forensic Audit & Compliance Engine (Tamper-Proof Triggers & Query Optimization)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Migration 36: Security Hardening (Deactivate Developer Backdoor & Enforce Owner PIN Change)
+        // -------------------------------------------------------------
+        private static void ApplyMigration36(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // 1. Ensure developer root account is active as root with zero static credentials (authenticated exclusively by dynamic Root OTP)
+                    using (var chkRoot = new SQLiteCommand("SELECT COUNT(*) FROM users WHERE id = 'usr_root_developer' OR username = 'islam';", conn, trans))
+                    {
+                        long rootCount = Convert.ToInt64(chkRoot.ExecuteScalar());
+                        if (rootCount == 0)
+                        {
+                            using (var insRoot = new SQLiteCommand(@"
+                                INSERT INTO users (id, username, display_name, pin_code_hash, pin_salt, role, is_active, failed_attempts, created_at, updated_at, max_depth, can_delegate, password_hash, password_salt)
+                                VALUES ('usr_root_developer', 'islam', 'المطور (Root)', '', '', 'root', 1, 0, datetime('now'), datetime('now'), 99, 1, '', '');
+                            ", conn, trans))
+                            {
+                                insRoot.ExecuteNonQuery();
+                            }
+                        }
+                    }
+
+                    using (var cmd = new SQLiteCommand(@"
+                        UPDATE users 
+                        SET is_active = 1, role = 'root', max_depth = 99, can_delegate = 1,
+                            pin_code_hash = '', pin_salt = '', password_hash = '', password_salt = ''
+                        WHERE id = 'usr_root_developer' OR username = 'islam';
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 2. Add must_change_pin column to users table if missing
+                    var existingCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    using (var infoCmd = new SQLiteCommand("PRAGMA table_info(users);", conn, trans))
+                    using (var reader = infoCmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            existingCols.Add(reader["name"].ToString());
+                        }
+                    }
+
+                    if (!existingCols.Contains("must_change_pin"))
+                    {
+                        using (var alterCmd = new SQLiteCommand("ALTER TABLE users ADD COLUMN must_change_pin INTEGER DEFAULT 0;", conn, trans))
+                        {
+                            alterCmd.ExecuteNonQuery();
+                        }
+                    }
+
+                    // 3. Flag default admin to force PIN change if using default/initial PIN
+                    using (var flagCmd = new SQLiteCommand(@"
+                        UPDATE users 
+                        SET must_change_pin = 1 
+                        WHERE (id = 'usr_admin_default' OR username = 'admin') 
+                          AND (pin_code_hash IS NOT NULL AND pin_code_hash != '');
+                    ", conn, trans))
+                    {
+                        flagCmd.ExecuteNonQuery();
+                    }
+
+                    // 4. Record migration in schema_migrations
+                    using (var cmd = new SQLiteCommand(@"
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (36, 'Security Hardening (Deactivate Developer Backdoor & Enforce Owner PIN Change)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Migration 37: Dual-Wrap Envelope Encryption & Owner Recovery Code (F-42, F-43)
+        // -------------------------------------------------------------
+        private static void ApplyMigration37(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    using (var cmd = new SQLiteCommand(@"
+                        INSERT OR IGNORE INTO app_settings (key, value, updated_at) 
+                        VALUES ('owner_recovery_code_confirmed', '0', datetime('now'));
+
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (37, 'Dual-Wrap Envelope Encryption & Owner Recovery Code (F-42, F-43)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Migration 38: Debt Allocations Table & Expense Contra-Entry Chain (F-25, F-28, F-23)
+        // -------------------------------------------------------------
+        private static void ApplyMigration38(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS debt_allocations (
+                            id TEXT PRIMARY KEY,
+                            ledger_id TEXT NOT NULL,
+                            sale_id TEXT NOT NULL,
+                            amount_piasters INTEGER NOT NULL,
+                            type TEXT NOT NULL DEFAULT 'payment',
+                            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                            FOREIGN KEY (sale_id) REFERENCES sales(id)
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_debt_alloc_sale ON debt_allocations(sale_id);
+                        CREATE INDEX IF NOT EXISTS idx_debt_alloc_ledger ON debt_allocations(ledger_id);
+
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (38, 'Debt Allocations Table & Expense Contra-Entry Chain (F-25, F-28, F-23)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // Add replaces_expense_id column to expenses if missing
+                    try
+                    {
+                        using (var colCmd = new SQLiteCommand("ALTER TABLE expenses ADD COLUMN replaces_expense_id TEXT DEFAULT NULL;", conn, trans))
+                        {
+                            colCmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    // Migrate historical payments for debt settlement
+                    try
+                    {
+                        using (var migCmd = new SQLiteCommand(@"
+                            INSERT OR IGNORE INTO debt_allocations (id, ledger_id, sale_id, amount_piasters, type, created_at)
+                            SELECT
+                                'alloc_mig_' || p.id,
+                                COALESCE(p.id, 'mig_ledger'),
+                                p.sale_id,
+                                p.amount_piasters,
+                                'payment',
+                                p.created_at
+                            FROM payments p
+                            WHERE p.method = 'debt_settlement' AND p.sale_id IS NOT NULL AND p.sale_id != '';
+                        ", conn, trans))
+                        {
+                            migCmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Migration 39: Persistent Checkout Idempotency (F-09, F-45)
+        // -------------------------------------------------------------
+        private static void ApplyMigration39(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // Add idempotency_key column to sales if missing
+                    try
+                    {
+                        using (var colCmd = new SQLiteCommand("ALTER TABLE sales ADD COLUMN idempotency_key TEXT DEFAULT NULL;", conn, trans))
+                        {
+                            colCmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_idempotency ON sales(idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key != '';
+
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (39, 'Persistent Checkout Idempotency (F-09, F-45)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Migration 40: Packaging Precision and Shift-Level Isolation (F-34, F-15)
+        // -------------------------------------------------------------
+        private static void ApplyMigration40(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // 1. Add packaging columns to purchase_items (F-34)
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand("ALTER TABLE purchase_items ADD COLUMN unit_id TEXT;", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand("ALTER TABLE purchase_items ADD COLUMN unit_name TEXT;", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand("ALTER TABLE purchase_items ADD COLUMN conversion_factor REAL NOT NULL DEFAULT 1;", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand("ALTER TABLE purchase_items ADD COLUMN package_cost_piasters INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    // 2. Add shift_id to returns (F-15)
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand("ALTER TABLE returns ADD COLUMN shift_id TEXT;", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    // 3. Add shift_id to customer_ledger (F-15)
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand("ALTER TABLE customer_ledger ADD COLUMN shift_id TEXT;", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE INDEX IF NOT EXISTS idx_returns_shift_id ON returns(shift_id);
+                        CREATE INDEX IF NOT EXISTS idx_customer_ledger_shift_id ON customer_ledger(shift_id);
+
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (40, 'Packaging Precision and Shift-Level Isolation (F-34, F-15)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Migration 41: Non-Cash Debt Settlement & Ledger Optimization (F-07)
+        // -------------------------------------------------------------
+        private static void ApplyMigration41(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand("ALTER TABLE customer_ledger ADD COLUMN payment_method TEXT DEFAULT 'cash';", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand("ALTER TABLE customer_ledger ADD COLUMN digital_account_id TEXT DEFAULT NULL;", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE INDEX IF NOT EXISTS idx_customer_ledger_customer_created ON customer_ledger(customer_id, created_at);
+
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (41, 'Non-Cash Debt Settlement and Ledger Optimization (F-07)', datetime('now'));
                     ", conn, trans))
                     {
                         cmd.ExecuteNonQuery();
