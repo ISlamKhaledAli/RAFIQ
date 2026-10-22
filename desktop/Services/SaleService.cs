@@ -30,7 +30,7 @@ namespace RafiqPOS.Services
         private const int IDEMPOTENCY_CACHE_SIZE = 200;
 
         /// <summary>
-        /// Creates a sale at most once per client checkout key, so a retry after a UI timeout cannot duplicate it (Audit F-16).
+        /// Creates a sale at most once per client checkout key, so a retry after a UI timeout cannot duplicate it (Audit F-09, F-16).
         /// </summary>
         public Sale ProcessSale(Sale sale, string idempotencyKey)
         {
@@ -41,9 +41,26 @@ namespace RafiqPOS.Services
                     idempotencyKey = sale.IdempotencyKey;
                 }
 
+                // 1. Fast in-memory cache lookup
                 if (!string.IsNullOrWhiteSpace(idempotencyKey) && _completedByIdempotencyKey.ContainsKey(idempotencyKey))
                 {
                     return _completedByIdempotencyKey[idempotencyKey];
+                }
+
+                // 2. Persistent SQLite idempotency check across app restarts (Audit F-09)
+                if (!string.IsNullOrWhiteSpace(idempotencyKey))
+                {
+                    Sale existing = _saleRepo.GetSaleByIdempotencyKey(idempotencyKey);
+                    if (existing != null)
+                    {
+                        _completedByIdempotencyKey[idempotencyKey] = existing;
+                        return existing;
+                    }
+                }
+
+                if (sale != null && !string.IsNullOrWhiteSpace(idempotencyKey))
+                {
+                    sale.IdempotencyKey = idempotencyKey;
                 }
 
                 Sale created = ProcessSaleCore(sale);
@@ -61,9 +78,24 @@ namespace RafiqPOS.Services
             }
         }
 
+        public static void ClearIdempotencyCache()
+        {
+            lock (FinancialWriteLock)
+            {
+                _completedByIdempotencyKey.Clear();
+                _idempotencyOrder.Clear();
+            }
+        }
+
         public Sale ProcessSale(Sale sale)
         {
             return ProcessSale(sale, null);
+        }
+
+        public Sale GetSaleByIdempotencyKey(string idempotencyKey)
+        {
+            if (string.IsNullOrWhiteSpace(idempotencyKey)) return null;
+            return _saleRepo.GetSaleByIdempotencyKey(idempotencyKey);
         }
 
         public const long MAX_QUANTITY_MILLI = 10000000000L; // 10,000,000 units
@@ -477,75 +509,47 @@ namespace RafiqPOS.Services
                 }
             }
 
-            // Task 24-2: Proportional Invoice Discount Distribution
+            // Task 24-2: Proportional Invoice Discount Distribution (F-01 & C3)
             long existingItemDiscountsSum = 0;
             long[] grossPiasters = new long[sale.Items.Count];
+            long[] remainingNetPiasters = new long[sale.Items.Count];
+
             for (int i = 0; i < sale.Items.Count; i++)
             {
                 var it = sale.Items[i];
                 Money uPrice = Money.FromPiasters(it.UnitPricePiasters);
                 grossPiasters[i] = uPrice.MultiplyByMilliUnits(it.QuantityMilli).Piasters;
+
+                if (it.DiscountPiasters < 0) it.DiscountPiasters = 0;
+                if (it.DiscountPiasters > grossPiasters[i]) it.DiscountPiasters = grossPiasters[i];
+
                 existingItemDiscountsSum += it.DiscountPiasters;
+                remainingNetPiasters[i] = Math.Max(0, grossPiasters[i] - it.DiscountPiasters);
             }
 
-            if (sale.DiscountPiasters > 0 && existingItemDiscountsSum == 0)
+            long totalRemainingNet = 0;
+            for (int i = 0; i < sale.Items.Count; i++)
             {
-                // Proportionally distribute invoice discount to line items using Largest Remainder
-                long[] distributed = Money.DistributeInvoiceDiscount(grossPiasters, sale.DiscountPiasters);
-                for (int i = 0; i < sale.Items.Count; i++)
-                {
-                    sale.Items[i].DiscountPiasters = distributed[i];
-                }
+                totalRemainingNet += remainingNetPiasters[i];
             }
-            else if (existingItemDiscountsSum > 0 && sale.DiscountPiasters == 0)
-            {
-                sale.DiscountPiasters = existingItemDiscountsSum;
-            }
-            else if (sale.DiscountPiasters > 0 && existingItemDiscountsSum > 0)
-            {
-                // Both item discounts and invoice discount exist (TEST-9 & Scenario 2)
-                long extraInvoiceDiscount = 0;
-                if (sale.DiscountPiasters > existingItemDiscountsSum)
-                {
-                    extraInvoiceDiscount = sale.DiscountPiasters - existingItemDiscountsSum;
-                }
-                else if (sale.DiscountPiasters < existingItemDiscountsSum)
-                {
-                    // Caller specified extra invoice discount separately (TEST-9 compatibility)
-                    extraInvoiceDiscount = sale.DiscountPiasters;
-                    sale.DiscountPiasters = existingItemDiscountsSum + extraInvoiceDiscount;
-                }
-                else
-                {
-                    // sale.DiscountPiasters == existingItemDiscountsSum
-                    // All discounts are already accounted for at the item level; no extra invoice discount
-                    extraInvoiceDiscount = 0;
-                }
 
-                if (extraInvoiceDiscount > 0)
-                {
-                    // Distribute extra invoice discount across remaining net amounts of lines
-                    long[] remainingNetPiasters = new long[sale.Items.Count];
-                    for (int i = 0; i < sale.Items.Count; i++)
-                    {
-                        remainingNetPiasters[i] = Math.Max(0, grossPiasters[i] - sale.Items[i].DiscountPiasters);
-                    }
+            long invoiceDiscount = sale.DiscountPiasters;
+            if (invoiceDiscount < 0) invoiceDiscount = 0;
+            if (invoiceDiscount > totalRemainingNet) invoiceDiscount = totalRemainingNet;
+            sale.DiscountPiasters = invoiceDiscount;
 
-                    long[] distributedExtra = Money.DistributeInvoiceDiscount(remainingNetPiasters, extraInvoiceDiscount);
-                    for (int i = 0; i < sale.Items.Count; i++)
-                    {
-                        sale.Items[i].DiscountPiasters += distributedExtra[i];
-                    }
-                }
+            long[] distributedInvoiceDiscount = new long[sale.Items.Count];
+            if (invoiceDiscount > 0 && totalRemainingNet > 0)
+            {
+                distributedInvoiceDiscount = Money.DistributeInvoiceDiscount(remainingNetPiasters, invoiceDiscount);
             }
 
             // Finalize item line totals and calculate tax
             for (int i = 0; i < sale.Items.Count; i++)
             {
                 var it = sale.Items[i];
-                Money lineDiscount = Money.FromPiasters(it.DiscountPiasters);
-                Money lineTotal = Money.FromPiasters(grossPiasters[i]).Subtract(lineDiscount);
-                it.TotalPiasters = Math.Max(0, lineTotal.Piasters);
+                // Item Total is net after line discount AND its distributed share of invoice discount
+                it.TotalPiasters = Math.Max(0, remainingNetPiasters[i] - distributedInvoiceDiscount[i]);
 
                 if (it.TaxRatePercent.HasValue && it.TaxRatePercent.Value > 0)
                 {
@@ -560,8 +564,9 @@ namespace RafiqPOS.Services
 
             sale.SubtotalPiasters = subtotal.Piasters;
             sale.TaxPiasters = totalTax.Piasters;
-            totalDiscount = Money.FromPiasters(sale.DiscountPiasters);
-            Money grandTotal = subtotal.Subtract(totalDiscount);
+            long totalDiscountPiasters = existingItemDiscountsSum + sale.DiscountPiasters;
+            totalDiscount = Money.FromPiasters(totalDiscountPiasters);
+            Money grandTotal = subtotal.Subtract(totalDiscount).Add(totalTax);
             sale.TotalPiasters = Math.Max(0, grandTotal.Piasters);
 
             // Server-side Cashier Discount Limit Enforcement (Scenario 3 / Audit Security Rule 8 & F-10)
@@ -573,7 +578,7 @@ namespace RafiqPOS.Services
                                         DatabaseService.Security.HasPermission(SecurityService.CurrentUser.Id, "pos.discount_unlimited") ||
                                         DatabaseService.Security.HasPermission(SecurityService.CurrentUser.Id, "pos.discount_override");
 
-                if (!isPrivilegedUser && subtotal.Piasters > 0 && sale.DiscountPiasters > 0)
+                if (!isPrivilegedUser && subtotal.Piasters > 0 && totalDiscountPiasters > 0)
                 {
                     int maxPct = 10;
                     long maxAmountPiasters = 5000; // 50 EGP
@@ -583,9 +588,9 @@ namespace RafiqPOS.Services
                         long.TryParse(DatabaseService.Settings.Get("max_discount_amount_cashier_piasters", "5000"), out maxAmountPiasters);
                     }
 
-                    long discountPct = (sale.DiscountPiasters * 100L) / subtotal.Piasters;
+                    long discountPct = (totalDiscountPiasters * 100L) / subtotal.Piasters;
                     bool exceedsPercent = discountPct > maxPct;
-                    bool exceedsAmount = sale.DiscountPiasters > maxAmountPiasters;
+                    bool exceedsAmount = totalDiscountPiasters > maxAmountPiasters;
 
                     if (exceedsPercent || exceedsAmount)
                     {
@@ -594,7 +599,7 @@ namespace RafiqPOS.Services
                         {
                             throw new InvalidOperationException(string.Format(
                                 "قيمة الخصم ({0:0.00} ج.م / {1}%) تتجاوز الحد الأقصى المصرح به للكاشير ({2:0.00} ج.م / {3}%) وتتطلب إدخال واعتماد الرقم السري للمشرف.",
-                                sale.DiscountPiasters / 100.0,
+                                totalDiscountPiasters / 100.0,
                                 discountPct,
                                 maxAmountPiasters / 100.0,
                                 maxPct
@@ -605,6 +610,22 @@ namespace RafiqPOS.Services
                         if (!supCheck.Success)
                         {
                             throw new InvalidOperationException("الرقم السري للمشرف غير صحيح أو غير مصرح له باعتماد الخصم: " + supCheck.Message);
+                        }
+
+                        // F-11: Log supervisor override server-side with full cryptographic audit trail
+                        if (DatabaseService.AuditRepo != null)
+                        {
+                            DatabaseService.AuditRepo.Log(new AuditLog
+                            {
+                                Id = "aud_" + Guid.NewGuid().ToString("N"),
+                                UserId = !string.IsNullOrEmpty(supCheck.SupervisorName) ? supCheck.SupervisorName : (SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Username : "cashier"),
+                                Action = "DISCOUNT_SUPERVISOR_OVERRIDE",
+                                EntityType = "SALE",
+                                EntityId = sale.Id,
+                                DetailsJson = string.Format("{{\"discountPiasters\":{0},\"subtotalPiasters\":{1},\"supervisor\":\"{2}\",\"saleId\":\"{3}\"}}",
+                                    totalDiscountPiasters, subtotal.Piasters, supCheck.SupervisorName ?? "", sale.Id),
+                                CreatedAt = DateTime.UtcNow.ToString("o")
+                            });
                         }
                     }
                 }
@@ -755,10 +776,12 @@ namespace RafiqPOS.Services
                 string feePctStr = DatabaseService.Settings.Get(key, null);
                 if (!string.IsNullOrEmpty(feePctStr))
                 {
-                    double pct;
-                    if (double.TryParse(feePctStr, out pct) && pct > 0)
+                    decimal pct;
+                    if (decimal.TryParse(feePctStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out pct) && pct > 0)
                     {
-                        return (long)Math.Round(totalPiasters * (pct / 100.0), MidpointRounding.AwayFromZero);
+                        // F-21: Integer basis points arithmetic (e.g. 1.5% -> 150 bps)
+                        long bps = (long)Math.Round(pct * 100m, MidpointRounding.AwayFromZero);
+                        return (totalPiasters * bps + 5000) / 10000;
                     }
                 }
             }

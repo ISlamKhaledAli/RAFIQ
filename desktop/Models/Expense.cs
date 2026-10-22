@@ -54,6 +54,9 @@ namespace RafiqPOS.Models
         [JsonProperty("updatedAt")]
         public string UpdatedAt { get; set; }
 
+        [JsonProperty("replacesExpenseId")]
+        public string ReplacesExpenseId { get; set; }
+
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
     }

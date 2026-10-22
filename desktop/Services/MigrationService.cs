@@ -364,8 +364,21 @@ namespace RafiqPOS.Services
                     File.Delete(targetFilePath);
                 }
 
-                // 8. Create zip package (.rafiqpkg)
-                ZipFile.CreateFromDirectory(stagingDir, targetFilePath, CompressionLevel.Optimal, false);
+                // 8. Create temporary zip package, then encrypt with Dual-Wrap Envelope Encryption (F-43)
+                string tempRawZip = targetFilePath + ".zip.tmp";
+                if (File.Exists(tempRawZip))
+                {
+                    try { File.Delete(tempRawZip); } catch { }
+                }
+                ZipFile.CreateFromDirectory(stagingDir, tempRawZip, CompressionLevel.Optimal, false);
+
+                string recoveryCode = DatabaseService.Backup != null
+                    ? DatabaseService.Backup.GetOrCreateRecoveryCode()
+                    : EncryptionService.GenerateRecoveryCode();
+
+                var encService = DatabaseService.Encryption ?? new EncryptionService();
+                encService.EncryptFileDualWrap(tempRawZip, targetFilePath, recoveryCode);
+                try { File.Delete(tempRawZip); } catch { }
 
                 var fi = new FileInfo(targetFilePath);
 
@@ -417,6 +430,11 @@ namespace RafiqPOS.Services
 
         public MigrationPackageInspectResult InspectPackage(string packagePath)
         {
+            return InspectPackage(packagePath, null);
+        }
+
+        public MigrationPackageInspectResult InspectPackage(string packagePath, string recoveryCode)
+        {
             var result = new MigrationPackageInspectResult();
             result.PackagePath = packagePath;
 
@@ -427,9 +445,34 @@ namespace RafiqPOS.Services
                 return result;
             }
 
+            string tempDecryptedZip = null;
+            string fileToOpen = packagePath;
+
             try
             {
-                using (var archive = ZipFile.OpenRead(packagePath))
+                // Feature F-43: If package is encrypted, decrypt to temp zip staging
+                if (EncryptionService.IsFileEncrypted(packagePath))
+                {
+                    tempDecryptedZip = Path.Combine(Path.GetTempPath(), "rafiq_mig_ins_" + Guid.NewGuid().ToString("N") + ".zip");
+                    var enc = DatabaseService.Encryption ?? new EncryptionService();
+                    try
+                    {
+                        enc.DecryptFile(packagePath, tempDecryptedZip, recoveryCode);
+                    }
+                    catch (Exception ex)
+                    {
+                        result.Success = false;
+                        result.Message = "فشل فك تشفير حزمة النقل: " + ex.Message;
+                        return result;
+                    }
+                    fileToOpen = tempDecryptedZip;
+                }
+                else
+                {
+                    result.CompatibilityNotes = "حزمة النقل غير مشفرة (تنسيق قديم).";
+                }
+
+                using (var archive = ZipFile.OpenRead(fileToOpen))
                 {
                     // 1. Locate manifest.json
                     ZipArchiveEntry manifestEntry = archive.GetEntry("manifest.json");
@@ -484,9 +527,12 @@ namespace RafiqPOS.Services
                     }
 
                     result.IsCompatible = true;
-                    result.CompatibilityNotes = "الحزمة متوافقة تماماً مع هذا الإصدار من رفيق POS.";
+                    if (string.IsNullOrEmpty(result.CompatibilityNotes))
+                    {
+                        result.CompatibilityNotes = "الحزمة مشفرة ومتوافقة تماماً مع هذا الإصدار من رفيق POS.";
+                    }
                     result.Success = true;
-                    result.Message = "تم فحص الحزمة بنجاح: البيانات سليمة ومتوافقة تماماً.";
+                    result.Message = "تم فحص الحزمة بنجاح: البيانات مشفرة وسليمة ومتوافقة تماماً.";
                 }
             }
             catch (Exception ex)
@@ -495,16 +541,28 @@ namespace RafiqPOS.Services
                 result.Message = "تعذر قراءة أو فحص حزمة النقل: " + ex.Message;
                 Logger.Error("خطأ عند فحص حزمة النقل: " + ex.Message, ex);
             }
+            finally
+            {
+                if (tempDecryptedZip != null && File.Exists(tempDecryptedZip))
+                {
+                    try { File.Delete(tempDecryptedZip); } catch { }
+                }
+            }
 
             return result;
         }
 
         public MigrationRestoreResult RestorePackage(string packagePath)
         {
+            return RestorePackage(packagePath, null);
+        }
+
+        public MigrationRestoreResult RestorePackage(string packagePath, string recoveryCode)
+        {
             var result = new MigrationRestoreResult();
 
             // 1. Inspect package first
-            MigrationPackageInspectResult inspectRes = InspectPackage(packagePath);
+            MigrationPackageInspectResult inspectRes = InspectPackage(packagePath, recoveryCode);
             if (!inspectRes.Success || !inspectRes.IsCompatible || !inspectRes.IsChecksumValid)
             {
                 result.Success = false;
@@ -514,17 +572,28 @@ namespace RafiqPOS.Services
 
             result.SourceMetrics = inspectRes.Manifest.Metrics;
             string tempExtractDir = null;
+            string tempDecryptedZip = null;
+            string fileToExtract = packagePath;
 
             try
             {
                 Logger.Info(string.Format("بدء استرجاع حزمة النقل ({0})...", packagePath));
+
+                // Feature F-43: If package is encrypted, decrypt to temp zip staging
+                if (EncryptionService.IsFileEncrypted(packagePath))
+                {
+                    tempDecryptedZip = Path.Combine(Path.GetTempPath(), "rafiq_mig_res_" + Guid.NewGuid().ToString("N") + ".zip");
+                    var enc = DatabaseService.Encryption ?? new EncryptionService();
+                    enc.DecryptFile(packagePath, tempDecryptedZip, recoveryCode);
+                    fileToExtract = tempDecryptedZip;
+                }
 
                 tempExtractDir = Path.Combine(Path.GetTempPath(), "rafiq_mig_extract_" + Guid.NewGuid().ToString("N"));
                 Directory.CreateDirectory(tempExtractDir);
 
                 string extractedDbPath = Path.Combine(tempExtractDir, "rafiq_pos.db");
 
-                using (var archive = ZipFile.OpenRead(packagePath))
+                using (var archive = ZipFile.OpenRead(fileToExtract))
                 {
                     ZipArchiveEntry dbEntry = archive.GetEntry("rafiq_pos.db");
                     if (dbEntry == null)
@@ -733,6 +802,10 @@ namespace RafiqPOS.Services
             }
             finally
             {
+                if (tempDecryptedZip != null && File.Exists(tempDecryptedZip))
+                {
+                    try { File.Delete(tempDecryptedZip); } catch { }
+                }
                 if (tempExtractDir != null && Directory.Exists(tempExtractDir))
                 {
                     try

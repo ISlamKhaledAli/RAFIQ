@@ -173,14 +173,27 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
+                        // F-15: Link return to current active shift if not already provided
+                        if (string.IsNullOrEmpty(returnObj.ShiftId))
+                        {
+                            using (var shiftCmd = new SQLiteCommand("SELECT id FROM shifts WHERE status = 'open' ORDER BY opened_at DESC LIMIT 1;", conn, trans))
+                            {
+                                object openShiftId = shiftCmd.ExecuteScalar();
+                                if (openShiftId != null && openShiftId != DBNull.Value)
+                                {
+                                    returnObj.ShiftId = openShiftId.ToString();
+                                }
+                            }
+                        }
+
                         // 2. Insert Returns Master record
                         string insertReturnSql = @"
                             INSERT INTO returns (
                                 id, return_number, sale_id, invoice_number, customer_id, customer_name,
-                                cashier_id, total_piasters, refund_method, reason, is_without_invoice, created_at
+                                cashier_id, total_piasters, refund_method, reason, is_without_invoice, shift_id, created_at
                             ) VALUES (
                                 @id, @returnNumber, @saleId, @invoiceNumber, @customerId, @customerName,
-                                @cashierId, @total, @refundMethod, @reason, @isWithoutInvoice, @createdAt
+                                @cashierId, @total, @refundMethod, @reason, @isWithoutInvoice, @shiftId, @createdAt
                             );
                         ";
                         using (var cmd = new SQLiteCommand(insertReturnSql, conn, trans))
@@ -196,6 +209,7 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@refundMethod", returnObj.RefundMethod ?? "cash");
                             cmd.Parameters.AddWithValue("@reason", (object)returnObj.Reason ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@isWithoutInvoice", returnObj.IsWithoutInvoice ? 1 : 0);
+                            cmd.Parameters.AddWithValue("@shiftId", (object)returnObj.ShiftId ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@createdAt", returnObj.CreatedAt);
                             cmd.ExecuteNonQuery();
                         }
@@ -238,17 +252,38 @@ namespace RafiqPOS.Repositories
                                 cmd.ExecuteNonQuery();
                             }
 
-                            // Fetch product cost and verify warehouse existence (Audit F-28 / Quick Items Support)
+                            // Fetch product cost, catalog price, and verify warehouse existence (Audit F-28 / F-10)
                             long unitCost = 0;
+                            long catalogPrice = 0;
+                            string catalogProdName = null;
                             bool prodExistsInDb = false;
-                            using (var cCmd = new SQLiteCommand("SELECT cost_piasters FROM products WHERE id = @pid LIMIT 1;", conn, trans))
+                            using (var cCmd = new SQLiteCommand("SELECT cost_piasters, price_piasters, name FROM products WHERE id = @pid LIMIT 1;", conn, trans))
                             {
                                 cCmd.Parameters.AddWithValue("@pid", item.ProductId);
-                                object cRes = cCmd.ExecuteScalar();
-                                if (cRes != null && cRes != DBNull.Value)
+                                using (var cRdr = cCmd.ExecuteReader())
                                 {
-                                    unitCost = Convert.ToInt64(cRes);
-                                    prodExistsInDb = true;
+                                    if (cRdr.Read())
+                                    {
+                                        if (cRdr["cost_piasters"] != DBNull.Value) unitCost = Convert.ToInt64(cRdr["cost_piasters"]);
+                                        if (cRdr["price_piasters"] != DBNull.Value) catalogPrice = Convert.ToInt64(cRdr["price_piasters"]);
+                                        if (cRdr["name"] != DBNull.Value) catalogProdName = cRdr["name"].ToString();
+                                        prodExistsInDb = true;
+                                    }
+                                }
+                            }
+
+                            // Price ceiling for without-invoice returns (F-10)
+                            if (string.IsNullOrEmpty(returnObj.SaleId) || returnObj.IsWithoutInvoice)
+                            {
+                                if (catalogPrice > 0 && item.UnitPricePiasters > catalogPrice)
+                                {
+                                    bool hasOverride = RafiqPOS.Services.DatabaseService.Security != null && RafiqPOS.Services.DatabaseService.Security.HasPermission(returnObj.CashierId, "pos.price_override");
+                                    if (!hasOverride)
+                                    {
+                                        throw new InvalidOperationException(string.Format(
+                                            "سعر الوحدة للصنف '{0}' في المرتجع ({1:N2} ج.م) يتجاوز سعر البيع في الكتالوج ({2:N2} ج.م) ويتطلب صلاحية تجاوز السعر (pos.price_override).",
+                                            catalogProdName ?? item.ProductName ?? item.ProductId, item.UnitPricePiasters / 100.0, catalogPrice / 100.0));
+                                    }
                                 }
                             }
 
@@ -593,13 +628,14 @@ namespace RafiqPOS.Repositories
                                 uCmd.ExecuteNonQuery();
                             }
 
+                            string refundLedgerId = "led_" + Guid.NewGuid().ToString("N").Substring(0, 12);
                             string insLedgerSql = @"
                                 INSERT INTO customer_ledger (id, customer_id, type, sale_id, amount_piasters, balance_after_piasters, notes, created_at)
                                 VALUES (@lid, @cid, 'refund', @sid, @amt, @after, @notes, @cat);
                             ";
                             using (var lCmd = new SQLiteCommand(insLedgerSql, conn, trans))
                             {
-                                lCmd.Parameters.AddWithValue("@lid", "led_" + Guid.NewGuid().ToString("N").Substring(0, 12));
+                                lCmd.Parameters.AddWithValue("@lid", refundLedgerId);
                                 lCmd.Parameters.AddWithValue("@cid", returnObj.CustomerId);
                                 lCmd.Parameters.AddWithValue("@sid", (object)returnObj.SaleId ?? DBNull.Value);
                                 lCmd.Parameters.AddWithValue("@amt", returnObj.TotalPiasters);
@@ -610,6 +646,25 @@ namespace RafiqPOS.Repositories
                                 lCmd.Parameters.AddWithValue("@notes", ledgerNote);
                                 lCmd.Parameters.AddWithValue("@cat", returnObj.CreatedAt);
                                 lCmd.ExecuteNonQuery();
+                            }
+
+                            // Record refund allocation against the original invoice in debt_allocations (F-28)
+                            if (!string.IsNullOrEmpty(returnObj.SaleId))
+                            {
+                                string retAllocId = "alloc_ret_" + Guid.NewGuid().ToString("N").Substring(0, 12);
+                                string insRetAllocSql = @"
+                                    INSERT INTO debt_allocations (id, ledger_id, sale_id, amount_piasters, type, created_at)
+                                    VALUES (@aid, @lid, @sid, @amt, 'refund', @cat);
+                                ";
+                                using (var aCmd = new SQLiteCommand(insRetAllocSql, conn, trans))
+                                {
+                                    aCmd.Parameters.AddWithValue("@aid", retAllocId);
+                                    aCmd.Parameters.AddWithValue("@lid", refundLedgerId);
+                                    aCmd.Parameters.AddWithValue("@sid", returnObj.SaleId);
+                                    aCmd.Parameters.AddWithValue("@amt", returnObj.TotalPiasters);
+                                    aCmd.Parameters.AddWithValue("@cat", returnObj.CreatedAt);
+                                    aCmd.ExecuteNonQuery();
+                                }
                             }
                         }
 
@@ -763,6 +818,25 @@ namespace RafiqPOS.Repositories
                             CreatedAt = returnObj.CreatedAt
                         });
 
+                        if (string.IsNullOrEmpty(returnObj.SaleId) || returnObj.IsWithoutInvoice)
+                        {
+                            for (int aIdx = 0; aIdx < returnObj.Items.Count; aIdx++)
+                            {
+                                var aItem = returnObj.Items[aIdx];
+                                _auditRepo.Log(conn, trans, new AuditLog
+                                {
+                                    Id = "aud_" + Guid.NewGuid().ToString("N"),
+                                    UserId = !string.IsNullOrEmpty(returnObj.CashierId) ? returnObj.CashierId : "usr_admin_default",
+                                    Action = "RETURN_WITHOUT_INVOICE",
+                                    EntityType = "return",
+                                    EntityId = returnObj.Id,
+                                    DetailsJson = string.Format("{{\"product\":\"{0}\",\"pricePiasters\":{1},\"reason\":\"{2}\",\"returnNumber\":{3}}}",
+                                        aItem.ProductName ?? aItem.ProductId, aItem.UnitPricePiasters, returnObj.Reason ?? "مرتجع بدون فاتورة", returnObj.ReturnNumber),
+                                    CreatedAt = returnObj.CreatedAt
+                                });
+                            }
+                        }
+
                         trans.Commit();
                         return returnObj;
                     }
@@ -906,8 +980,21 @@ namespace RafiqPOS.Repositories
                 RefundMethod = reader["refund_method"].ToString(),
                 Reason = reader["reason"] != DBNull.Value ? reader["reason"].ToString() : null,
                 IsWithoutInvoice = Convert.ToInt32(reader["is_without_invoice"]) == 1,
+                ShiftId = HasColumn(reader, "shift_id") && reader["shift_id"] != DBNull.Value ? reader["shift_id"].ToString() : null,
                 CreatedAt = reader["created_at"].ToString()
             };
+        }
+
+        private static bool HasColumn(SQLiteDataReader reader, string columnName)
+        {
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                if (string.Equals(reader.GetName(i), columnName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 }

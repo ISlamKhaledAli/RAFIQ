@@ -2,6 +2,7 @@ using System;
 using System.Security.Cryptography;
 using System.Text;
 using Newtonsoft.Json.Linq;
+using RafiqPOS.Services;
 
 namespace RafiqPOS.Common
 {
@@ -91,8 +92,14 @@ namespace RafiqPOS.Common
                 if (!string.IsNullOrEmpty(deviceFingerprint) &&
                     !string.Equals(result.Fingerprint.Trim(), deviceFingerprint.Trim(), StringComparison.OrdinalIgnoreCase))
                 {
-                    error = "الترخيص صادر لجهاز آخر";
-                    return null;
+                    // Fallback: check legacy device fingerprint in case of machine salt / hardware upgrade
+                    string legacyFp = EncryptionService.GenerateLegacyDeviceFingerprint();
+                    if (string.IsNullOrEmpty(legacyFp) ||
+                        !string.Equals(result.Fingerprint.Trim(), legacyFp.Trim(), StringComparison.OrdinalIgnoreCase))
+                    {
+                        error = "الترخيص صادر لجهاز آخر";
+                        return null;
+                    }
                 }
 
                 return result;

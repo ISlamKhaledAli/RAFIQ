@@ -413,6 +413,7 @@ namespace RafiqPOS.Services
                 {
                     license_key = cleanKey,
                     machine_fingerprint = fp,
+                    legacy_fingerprint = EncryptionService.GenerateLegacyDeviceFingerprint(),
                     device_name = machineName,
                     app_version = "1.0.0"
                 };
@@ -543,7 +544,8 @@ namespace RafiqPOS.Services
                 {
                     token = token,
                     license_key = key,
-                    machine_fingerprint = fp
+                    machine_fingerprint = fp,
+                    legacy_fingerprint = EncryptionService.GenerateLegacyDeviceFingerprint()
                 };
 
                 byte[] postBytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(payload));

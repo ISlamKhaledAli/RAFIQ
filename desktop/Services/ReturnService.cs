@@ -75,23 +75,24 @@ namespace RafiqPOS.Services
                 }
             }
 
-            // 1. If return is without invoice, require Supervisor PIN
+            // 1. If return is without invoice, require permission and supervisor PIN (F-10)
             if (returnObj.IsWithoutInvoice || string.IsNullOrEmpty(returnObj.SaleId))
             {
                 if (DatabaseService.Security != null)
                 {
-                    var pinStatus = DatabaseService.Security.GetStatus();
-                    if (pinStatus.IsEnabled)
+                    if (!DatabaseService.Security.HasPermission("returns.without_invoice"))
                     {
-                        if (string.IsNullOrEmpty(supervisorPin))
-                        {
-                            throw new UnauthorizedAccessException("المرتجع بدون فاتورة أصلية يتطلب إدخال الرقم السري للمشرف.");
-                        }
-                        var pinCheck = DatabaseService.Security.VerifySupervisorPin(supervisorPin, "RETURN_WITHOUT_INVOICE");
-                        if (!pinCheck.Success)
-                        {
-                            throw new UnauthorizedAccessException("الرقم السري للمشرف غير صحيح: " + (pinCheck.Message ?? ""));
-                        }
+                        throw new UnauthorizedAccessException("ليس لديك صلاحية تسجيل مرتجع بدون فاتورة (returns.without_invoice).");
+                    }
+
+                    if (string.IsNullOrEmpty(supervisorPin))
+                    {
+                        throw new UnauthorizedAccessException("المرتجع بدون فاتورة أصلية يتطلب إدخال الرقم السري للمشرف.");
+                    }
+                    var pinCheck = DatabaseService.Security.VerifySupervisorPin(supervisorPin, "RETURN_WITHOUT_INVOICE");
+                    if (!pinCheck.Success)
+                    {
+                        throw new UnauthorizedAccessException("الرقم السري للمشرف غير صحيح: " + (pinCheck.Message ?? ""));
                     }
                 }
             }
@@ -286,6 +287,7 @@ namespace RafiqPOS.Services
                     // If returning an unpaid credit sale, cash or digital money cannot be disbursed;
                     // it must be routed to 'credit' to reduce customer debt.
                     long netCashPaidOnOrig = 0;
+                    long netCardPaidOnOrig = 0;
                     long netInstapayPaidOnOrig = 0;
                     long netWalletPaidOnOrig = 0;
 
@@ -300,6 +302,10 @@ namespace RafiqPOS.Services
                                 if (string.Equals(pm.Method, "cash", StringComparison.OrdinalIgnoreCase))
                                 {
                                     cashSum += pm.AmountPiasters;
+                                }
+                                else if (string.Equals(pm.Method, "card", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    netCardPaidOnOrig += pm.AmountPiasters;
                                 }
                                 else if (string.Equals(pm.Method, "instapay", StringComparison.OrdinalIgnoreCase))
                                 {
@@ -318,9 +324,15 @@ namespace RafiqPOS.Services
                     {
                         netCashPaidOnOrig = Math.Max(0, origSale.PaidPiasters - origSale.ChangePiasters);
                     }
+                    else if (string.Equals(origSale.PaymentMethod, "card", StringComparison.OrdinalIgnoreCase))
+                    {
+                        netCardPaidOnOrig = Math.Max(0, origSale.PaidPiasters);
+                    }
                     else if (string.Equals(origSale.PaymentMethod, "credit", StringComparison.OrdinalIgnoreCase))
                     {
-                        netCashPaidOnOrig = Math.Max(0, origSale.PaidPiasters);
+                        // F-14: Credit sales can be refunded in cash up to the cash actually paid (down payment + cash debt settlements)
+                        long allocatedDebtCash = _saleRepo != null ? _saleRepo.GetAllocatedDebtCashPiasters(origSale.Id) : 0;
+                        netCashPaidOnOrig = Math.Max(0, origSale.PaidPiasters + allocatedDebtCash);
                     }
                     else if (string.Equals(origSale.PaymentMethod, "instapay", StringComparison.OrdinalIgnoreCase))
                     {
@@ -333,6 +345,7 @@ namespace RafiqPOS.Services
                     }
 
                     long pastCashRefunds = 0;
+                    long pastCardRefunds = 0;
                     long pastInstapayRefunds = 0;
                     long pastWalletRefunds = 0;
                     long pastTotalRefunds = 0;
@@ -343,6 +356,10 @@ namespace RafiqPOS.Services
                         if (string.Equals(pastReturns[r].RefundMethod, "cash", StringComparison.OrdinalIgnoreCase))
                         {
                             pastCashRefunds += pastReturns[r].TotalPiasters;
+                        }
+                        else if (string.Equals(pastReturns[r].RefundMethod, "card", StringComparison.OrdinalIgnoreCase))
+                        {
+                            pastCardRefunds += pastReturns[r].TotalPiasters;
                         }
                         else if (string.Equals(pastReturns[r].RefundMethod, "instapay", StringComparison.OrdinalIgnoreCase))
                         {
@@ -356,6 +373,7 @@ namespace RafiqPOS.Services
                     }
 
                     long allowableCashRefund = Math.Max(0, netCashPaidOnOrig - pastCashRefunds);
+                    long allowableCardRefund = Math.Max(0, netCardPaidOnOrig - pastCardRefunds);
                     long allowableInstapayRefund = Math.Max(0, netInstapayPaidOnOrig - pastInstapayRefunds);
                     long allowableWalletRefund = Math.Max(0, netWalletPaidOnOrig - pastWalletRefunds);
 
@@ -372,6 +390,15 @@ namespace RafiqPOS.Services
                             (pastTotalRefunds + currentReturnTotal) / 100.0, origSale.TotalPiasters / 100.0));
                     }
 
+                    // Whitelist validation (F-13)
+                    string refundMethod = (returnObj.RefundMethod ?? "").ToLowerInvariant();
+                    if (refundMethod != "cash" && refundMethod != "card" && refundMethod != "instapay" && refundMethod != "wallet" && refundMethod != "vodafone_cash" && refundMethod != "credit" && refundMethod != "customer_balance")
+                    {
+                        throw new InvalidOperationException(string.Format(
+                            "طريقة استرداد المرتجع غير صالحة: '{0}'. الطرق المسموح بها هي: نقدي (cash)، بطاقة (card)، إنستاباي (instapay)، محفظة (wallet)، رصيد آجل (credit).",
+                            returnObj.RefundMethod));
+                    }
+
                     if (string.Equals(returnObj.RefundMethod, "cash", StringComparison.OrdinalIgnoreCase))
                     {
                         if (netCashPaidOnOrig <= 0)
@@ -383,6 +410,19 @@ namespace RafiqPOS.Services
                             throw new InvalidOperationException(string.Format(
                                 "لا يمكن صرف مرتجع نقدي من الدرج بمبلغ ({0:N2} ج.م) يتجاوز النقد المسدد فعلياً في الفاتورة الأصلية ({1:N2} ج.م). يجب اختيار الاسترداد كرصيد آجل (credit) لخصم القيمة من حساب العميل.",
                                 currentReturnTotal / 100.0, allowableCashRefund / 100.0));
+                        }
+                    }
+                    else if (string.Equals(returnObj.RefundMethod, "card", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (netCardPaidOnOrig <= 0)
+                        {
+                            throw new InvalidOperationException("لا يمكن استرداد المرتجع عبر البطاقة (card) لفاتورة بيع لم يُسدد منها بالبطاقة.");
+                        }
+                        else if (currentReturnTotal > allowableCardRefund)
+                        {
+                            throw new InvalidOperationException(string.Format(
+                                "لا يمكن صرف مرتجع عبر البطاقة بمبلغ ({0:N2} ج.م) يتجاوز المسدد فعلياً بالبطاقة في الفاتورة الأصلية ({1:N2} ج.م).",
+                                currentReturnTotal / 100.0, allowableCardRefund / 100.0));
                         }
                     }
                     else if (string.Equals(returnObj.RefundMethod, "instapay", StringComparison.OrdinalIgnoreCase))

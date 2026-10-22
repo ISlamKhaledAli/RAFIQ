@@ -60,6 +60,37 @@ namespace RafiqPOS.Services
                     result.Message = "فشل مطابقة النص بعد فك التشفير.";
                     return result;
                 }
+
+                // Test Dual-Wrap Envelope Encryption (RFBK v2) & Cross-Machine Recovery Code Decryption (F-42)
+                string testDualEncFile = Path.Combine(Path.GetTempPath(), "test_dual_enc_" + Guid.NewGuid().ToString("N") + ".txt");
+                string testDualDecFile = Path.Combine(Path.GetTempPath(), "test_dual_dec_" + Guid.NewGuid().ToString("N") + ".txt");
+                try
+                {
+                    string recCode = EncryptionService.GenerateRecoveryCode();
+                    enc.EncryptFileDualWrap(testPlainFile, testDualEncFile, recCode);
+
+                    if (!EncryptionService.IsFileEncrypted(testDualEncFile))
+                    {
+                        result.Message = "فشل فحص ترويسة التشفير الثنائي RFBK.";
+                        return result;
+                    }
+
+                    // Decrypt with another instance (simulating another machine) using recoveryCode
+                    var foreignEnc = new EncryptionService("FOREIGN_MACHINE_KEY_DIFFERENT");
+                    foreignEnc.DecryptFile(testDualEncFile, testDualDecFile, recCode);
+                    string dualDecText = File.ReadAllText(testDualDecFile);
+                    if (dualDecText != originalText)
+                    {
+                        result.Message = "فشل فك التشفير الثنائي عبر كود الاسترجاع على جهاز أجنبي.";
+                        return result;
+                    }
+                }
+                finally
+                {
+                    try { if (File.Exists(testDualEncFile)) File.Delete(testDualEncFile); } catch { }
+                    try { if (File.Exists(testDualDecFile)) File.Delete(testDualDecFile); } catch { }
+                }
+
                 result.EncryptionPassed = true;
             }
             finally

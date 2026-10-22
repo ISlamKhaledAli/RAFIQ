@@ -45,6 +45,7 @@ export interface ActivationLogRecord {
 export interface ActivateRequest {
   license_key: string;
   machine_fingerprint: string;
+  legacy_fingerprint?: string;
   shop_name?: string;
   app_version?: string;
 }

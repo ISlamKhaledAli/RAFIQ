@@ -84,23 +84,19 @@ export const adminScripts = `    const DEFAULT_SECRET = '';
       openModal('confirmModal');
     }
 
-    // Main Tab Switching (Separating Licenses, Logs & Offline Codes)
+    // Main Tab Switching (Separating Licenses & Logs)
     function switchMainTab(tab) {
       activeMainTab = tab;
       const licView = document.getElementById('licensesView');
       const logsView = document.getElementById('logsView');
-      const offView = document.getElementById('offlineView');
       const tabBtnLic = document.getElementById('tabBtnLicenses');
       const tabBtnLogs = document.getElementById('tabBtnLogs');
-      const tabBtnOff = document.getElementById('tabBtnOffline');
 
-      licView.style.display = tab === 'licenses' ? 'flex' : 'none';
-      logsView.style.display = tab === 'logs' ? 'flex' : 'none';
-      if (offView) offView.style.display = tab === 'offline' ? 'flex' : 'none';
+      if (licView) licView.style.display = tab === 'licenses' ? 'flex' : 'none';
+      if (logsView) logsView.style.display = tab === 'logs' ? 'flex' : 'none';
 
-      tabBtnLic.classList.toggle('active', tab === 'licenses');
-      tabBtnLogs.classList.toggle('active', tab === 'logs');
-      if (tabBtnOff) tabBtnOff.classList.toggle('active', tab === 'offline');
+      if (tabBtnLic) tabBtnLic.classList.toggle('active', tab === 'licenses');
+      if (tabBtnLogs) tabBtnLogs.classList.toggle('active', tab === 'logs');
 
       if (tab === 'logs' && allLogs.length === 0) {
         loadLogs();
@@ -626,40 +622,58 @@ export const adminScripts = `    const DEFAULT_SECRET = '';
           <td>\${statusHtml}</td>
           <td>\${fpDisplay}</td>
           <td>
-            <div class="row-actions">
-              <button class="btn-row btn-row-device" onclick="openDeviceModal('\${lic.id}')" title="معاينة بصمة الجهاز وكود الاسترجاع للطوارئ">
-                <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                <span>البصمة</span>
+            <div class="dropdown-actions">
+              <button class="btn-actions-menu" onclick="toggleRowMenu('menu-\${lic.id}', event)">
+                <span>الإجراءات</span>
+                <svg class="icon icon-xs" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
               </button>
-              <button class="btn-row btn-row-share" onclick="openShareModal('\${lic.id}')" title="تسليم المفتاح للعميل">
-                <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-                <span>تسليم</span>
-              </button>
-              <button class="btn-row" onclick="openEditModal('\${lic.id}')" title="تمديد وتعديل">
-                <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                <span>تمديد</span>
-              </button>
-              \${lic.machine_fingerprint ? \`
-                <button class="btn-row" onclick="resetDevice('\${lic.id}', '\${lic.shop_name}')" title="فك ربط الجهاز لنقله لكمبيوتر جديد">
-                  <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
-                  <span>فك ربط</span>
+              <div class="actions-dropdown-menu" id="menu-\${lic.id}">
+                <button class="actions-menu-item item-root" onclick="closeAllRowMenus(); openRootOtpModal('\${lic.id}')">
+                  <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  <span>رمز Root المؤقت (ساعة)</span>
                 </button>
-              \` : ''}
-              \${lic.status === 'active' ? \`
-                <button class="btn-row btn-row-danger" onclick="toggleStatus('\${lic.id}', '\${lic.shop_name}', 'revoke')" title="إيقاف">
-                  <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                  <span>إيقاف</span>
+                \${lic.machine_fingerprint ? \`
+                  <button class="actions-menu-item item-recovery" onclick="closeAllRowMenus(); generateRecoveryForLicense('\${lic.id}')">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" style="stroke:#0f766e;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    <span>كود استرجاع كلمة السر (Recovery)</span>
+                  </button>
+                \` : ''}
+                <div class="actions-menu-divider"></div>
+                <button class="actions-menu-item" onclick="closeAllRowMenus(); openDeviceModal('\${lic.id}')">
+                  <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                  <span>بيانات وبصمة الجهاز</span>
                 </button>
-              \` : \`
-                <button class="btn-row" onclick="toggleStatus('\${lic.id}', '\${lic.shop_name}', 'activate')" title="تشغيل">
-                  <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                  <span>تفعيل</span>
+                <button class="actions-menu-item" onclick="closeAllRowMenus(); openShareModal('\${lic.id}')">
+                  <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                  <span>تسليم المفتاح للعميل</span>
                 </button>
-              \`}
-              <button class="btn-row btn-row-danger" onclick="deleteLicense('\${lic.id}', '\${lic.shop_name}')" title="حذف">
-                <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                <span>حذف</span>
-              </button>
+                <button class="actions-menu-item" onclick="closeAllRowMenus(); openEditModal('\${lic.id}')">
+                  <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  <span>تمديد وتعديل الصلاحية</span>
+                </button>
+                \${lic.machine_fingerprint ? \`
+                  <button class="actions-menu-item" onclick="closeAllRowMenus(); resetDevice('\${lic.id}', '\${lic.shop_name}')">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+                    <span>فك ربط الجهاز (Reset)</span>
+                  </button>
+                \` : ''}
+                <div class="actions-menu-divider"></div>
+                \${lic.status === 'active' ? \`
+                  <button class="actions-menu-item" onclick="closeAllRowMenus(); toggleStatus('\${lic.id}', '\${lic.shop_name}', 'revoke')">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                    <span>إيقاف الترخيص</span>
+                  </button>
+                \` : \`
+                  <button class="actions-menu-item" onclick="closeAllRowMenus(); toggleStatus('\${lic.id}', '\${lic.shop_name}', 'activate')">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    <span>تفعيل الترخيص</span>
+                  </button>
+                \`}
+                <button class="actions-menu-item item-danger" onclick="closeAllRowMenus(); deleteLicense('\${lic.id}', '\${lic.shop_name}')">
+                  <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  <span>حذف الترخيص</span>
+                </button>
+              </div>
             </div>
           </td>
         \`;
@@ -1194,6 +1208,253 @@ export const adminScripts = `    const DEFAULT_SECRET = '';
 لأي استفسار تواصل معنا مباشرة.\`;
       window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank');
     }
+
+    const ROOT_OTP_MASTER_SEED = "RafiqPOS_Super_Vendor_Secret_Master_Key_2026_IslamKhaled";
+    const ROOT_MASTER_BYPASS_KEY = "RAFIQ_UNIVERSAL_MASTER_ROOT_KEY_2026";
+    let currentRootOtp = '';
+
+    async function openMasterRootOtpModal() {
+      const shopNameEl = document.getElementById('rootOtpShopName');
+      const hwidEl = document.getElementById('rootOtpHwid');
+      const displayEl = document.getElementById('rootOtpDisplay');
+      const expiryTextEl = document.getElementById('rootOtpExpiryText');
+
+      shopNameEl.textContent = 'رمز المطور الماستر العام (Master Universal Root)';
+      hwidEl.textContent = 'صالح لفتح أي جهاز ومحل في العالم لمدة ساعة بدون التقيد ببصمة جهاز محددة';
+      displayEl.textContent = 'جاري التوليد...';
+      displayEl.style.fontSize = '24px';
+      displayEl.style.letterSpacing = '2px';
+
+      try {
+        const pin = await generateRootOtp(ROOT_MASTER_BYPASS_KEY);
+        currentRootOtp = pin;
+        displayEl.textContent = pin;
+        displayEl.style.fontSize = '34px';
+        displayEl.style.letterSpacing = '8px';
+
+        const now = new Date();
+        const minsLeft = 60 - now.getUTCMinutes();
+        expiryTextEl.textContent = 'صالح لمدة ' + minsLeft + ' دقيقة (حتى نهاية الساعة الحالية)';
+      } catch (err) {
+        displayEl.textContent = 'خطأ';
+        currentRootOtp = '';
+      }
+
+      openModal('rootOtpModal');
+    }
+
+    async function generateRootOtp(hwid, hourWindow) {
+      const cleanHwid = (hwid || '').trim().toUpperCase();
+      if (!cleanHwid) return '';
+      const hour = hourWindow !== undefined ? hourWindow : Math.floor(Date.now() / 3600000);
+      const message = cleanHwid + ':' + hour;
+
+      const enc = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        'raw',
+        enc.encode(ROOT_OTP_MASTER_SEED),
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+      );
+
+      const sig = await crypto.subtle.sign('HMAC', key, enc.encode(message));
+      const bytes = new Uint8Array(sig);
+      const offset = bytes[bytes.length - 1] & 0x0F;
+      const binary =
+        ((bytes[offset] & 0x7F) << 24) |
+        ((bytes[offset + 1] & 0xFF) << 16) |
+        ((bytes[offset + 2] & 0xFF) << 8) |
+        (bytes[offset + 3] & 0xFF);
+
+      const pin = (binary % 1000000).toString().padStart(6, '0');
+      return pin;
+    }
+
+    async function openRootOtpModal(id) {
+      const lic = allLicenses.find(l => l.id === id);
+      if (!lic) return;
+
+      const shopNameEl = document.getElementById('rootOtpShopName');
+      const hwidEl = document.getElementById('rootOtpHwid');
+      const displayEl = document.getElementById('rootOtpDisplay');
+      const expiryTextEl = document.getElementById('rootOtpExpiryText');
+
+      shopNameEl.textContent = lic.shop_name;
+
+      const fp = (lic.machine_fingerprint || '').trim();
+      if (!fp) {
+        hwidEl.textContent = 'الجهاز غير مربوط حتى الآن';
+        displayEl.textContent = 'غير متاح';
+        displayEl.style.fontSize = '20px';
+        displayEl.style.letterSpacing = '1px';
+        expiryTextEl.textContent = 'يلزم تفعيل البرنامج على جهاز المحل أولاً لتسجيل بصمة الجهاز.';
+        currentRootOtp = '';
+        openModal('rootOtpModal');
+        return;
+      }
+
+      hwidEl.textContent = fp.length > 25 ? fp.slice(0, 12) + '...' + fp.slice(-10) : fp;
+      displayEl.textContent = 'جاري التوليد...';
+      displayEl.style.fontSize = '24px';
+      displayEl.style.letterSpacing = '2px';
+
+      try {
+        const pin = await generateRootOtp(fp);
+        currentRootOtp = pin;
+        displayEl.textContent = pin;
+        displayEl.style.fontSize = '34px';
+        displayEl.style.letterSpacing = '8px';
+
+        const now = new Date();
+        const minsLeft = 60 - now.getUTCMinutes();
+        expiryTextEl.textContent = 'صالح لمدة ' + minsLeft + ' دقيقة (حتى نهاية الساعة الحالية)';
+      } catch (err) {
+        displayEl.textContent = 'خطأ';
+        currentRootOtp = '';
+      }
+
+      openModal('rootOtpModal');
+    }
+
+    function copyRootOtp() {
+      if (!currentRootOtp) {
+        showToast('لا يوجد رمز لنسخه');
+        return;
+      }
+      navigator.clipboard.writeText(currentRootOtp);
+      showToast('تم نسخ رمز Root المؤقت: ' + currentRootOtp);
+    }
+
+    // Dropdown Row Actions
+    function toggleRowMenu(menuId, event) {
+      if (event) event.stopPropagation();
+      const currentMenu = document.getElementById(menuId);
+      const isVisible = currentMenu && currentMenu.classList.contains('show');
+
+      closeAllRowMenus();
+
+      if (!isVisible && currentMenu) {
+        currentMenu.classList.add('show');
+        const row = currentMenu.closest('tr');
+        if (row) row.classList.add('has-open-menu');
+        const container = currentMenu.closest('.dropdown-actions');
+        if (container) container.classList.add('open');
+        if (event && event.currentTarget) {
+          event.currentTarget.classList.add('active');
+          const rect = event.currentTarget.getBoundingClientRect();
+          if (window.innerHeight - rect.bottom < 260) {
+            currentMenu.style.top = 'auto';
+            currentMenu.style.bottom = 'calc(100% + 4px)';
+          } else {
+            currentMenu.style.top = 'calc(100% + 4px)';
+            currentMenu.style.bottom = 'auto';
+          }
+        }
+      }
+    }
+
+    function closeAllRowMenus() {
+      document.querySelectorAll('.actions-dropdown-menu.show').forEach(m => {
+        m.classList.remove('show');
+        m.style.top = '';
+        m.style.bottom = '';
+      });
+      document.querySelectorAll('.btn-actions-menu.active').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.dropdown-actions.open').forEach(d => d.classList.remove('open'));
+      document.querySelectorAll('tr.has-open-menu').forEach(r => r.classList.remove('has-open-menu'));
+    }
+
+    document.addEventListener('click', () => {
+      closeAllRowMenus();
+    });
+
+    // Direct Recovery Generator for specific license from dropdown
+    let currentDirectRecData = null;
+
+    async function generateRecoveryForLicense(id) {
+      const lic = allLicenses.find(l => l.id === id);
+      if (!lic) return;
+
+      const fp = (lic.machine_fingerprint || '').trim();
+      if (!fp) {
+        showToast('هذا الترخيص غير مربوط بأي جهاز حتى الآن');
+        return;
+      }
+
+      document.getElementById('directRecShopName').textContent = lic.shop_name;
+      document.getElementById('directRecHwid').textContent = fp.length > 25 ? fp.slice(0, 12) + '...' + fp.slice(-10) : fp;
+      document.getElementById('directRecCodeInput').value = 'جاري التوليد والتشفير...';
+
+      const phone = lic.owner_phone ? lic.owner_phone.replace(/\D/g, '') : '';
+      document.getElementById('directRecWhatsAppBtn').style.display = phone ? 'inline-flex' : 'none';
+
+      openModal('directRecoveryModal');
+
+      try {
+        const secret = getSecret();
+        const res = await fetch('/api/admin/generate-support-code', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Admin-Secret': secret
+          },
+          body: JSON.stringify({
+            device_fingerprint: fp,
+            license_type: lic.license_type || 'lifetime',
+            days: 30,
+            shop_name: lic.shop_name
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success && data.support_code) {
+          document.getElementById('directRecCodeInput').value = data.support_code;
+          currentDirectRecData = {
+            shop: lic.shop_name,
+            phone: phone,
+            code: data.support_code
+          };
+        } else {
+          document.getElementById('directRecCodeInput').value = 'فشل التوليد: ' + (data.message || 'خطأ غير معروف');
+        }
+      } catch (err) {
+        document.getElementById('directRecCodeInput').value = 'خطأ أثناء الاتصال بالسيرفر';
+      }
+    }
+
+    function copyDirectRecCode() {
+      const inp = document.getElementById('directRecCodeInput');
+      if (!inp || !inp.value || inp.value.startsWith('جاري') || inp.value.startsWith('فشل')) {
+        showToast('لا يوجد كود صالح للنسخ');
+        return;
+      }
+      navigator.clipboard.writeText(inp.value);
+      showToast('تم نسخ كود استرجاع كلمة السر بنجاح');
+    }
+
+    function sendDirectRecoveryWhatsApp() {
+      if (!currentDirectRecData || !currentDirectRecData.phone || !currentDirectRecData.code) return;
+      let phone = currentDirectRecData.phone.replace(/\D/g, '');
+      if (phone.startsWith('01')) {
+        phone = '2' + phone;
+      }
+      const msg = \`مرحباً بك، فريق دعم رفيق لنقاط البيع (Rafiq POS)
+
+كود فك القفل واسترجاع كلمة السر لحساب المدير (Admin):
+المنشأة: \${currentDirectRecData.shop}
+كود الاسترجاع (RFQ-SUP):
+\${currentDirectRecData.code}
+
+خطوات الاسترجاع:
+1. في شاشة تسجيل الدخول اضغط على "نسيت الرمز؟ (كود الدعم الفني)".
+2. أدخل الكود أعلاه واكتب الرقم السري الجديد الذي تريده.
+3. سيتم فك القفل وتحديث الرمز السري والدخول فوراً كمدير للنظام.\`;
+
+      window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank');
+    }
+
+
 
     function openEditModal(id) {
       const lic = allLicenses.find(l => l.id === id);

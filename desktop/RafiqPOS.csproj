@@ -90,6 +90,7 @@
     <Compile Include="Common\Money.cs" />
     <Compile Include="Common\LicenseConfig.cs" />
     <Compile Include="Common\LicenseTokenVerifier.cs" />
+    <Compile Include="Common\RootOtpHelper.cs" />
     <Compile Include="Common\OsDetector.cs" />
     <Compile Include="Common\Logger.cs" />
     <Compile Include="Common\TimeGuard.cs" />
@@ -186,6 +187,8 @@
     <Compile Include="Repositories\DailyClosingRepository.cs" />
     <Compile Include="Repositories\ExpenseRepository.cs" />
     <Compile Include="Services\DailyClosingService.cs" />
+    <Compile Include="Services\BusinessDayHelper.cs" />
+    <Compile Include="Services\DrawerCashCalculator.cs" />
     <Compile Include="Services\ExpenseService.cs" />
     <Compile Include="Services\ReportsAndClosingTestRunner.cs" />
     <Compile Include="Services\LicenseService.cs" />

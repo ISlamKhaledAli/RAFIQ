@@ -139,7 +139,7 @@ namespace RafiqPOS.Services
                 // 3. Sales totals (Excluding cancelled and demo sales - strictly isolating cash, card, and credit)
                 string salesSql = @"
                     SELECT 
-                        COALESCE(SUM(CASE WHEN (s.paid_piasters - s.service_fee_piasters) > s.total_piasters THEN (s.paid_piasters - s.service_fee_piasters) ELSE s.total_piasters END), 0) AS total_sales,
+                        COALESCE(SUM(s.total_piasters), 0) AS total_sales,
                         COALESCE(SUM(
                             CASE 
                                 -- Cash kept in the drawer = paid minus change handed back (includes cash deposited to a customer account - Audit F-27)
@@ -279,6 +279,7 @@ namespace RafiqPOS.Services
                     ), 0) AS debt_payments
                     FROM customer_ledger
                     WHERE ((type = 'payment' AND sale_id IS NULL) OR type = 'payment_cancel')
+                      AND (payment_method = 'cash' OR payment_method IS NULL OR payment_method = '')
                       AND date(datetime(created_at, 'localtime', '-' || @cutoff || ' hours')) = @bdate
                       AND customer_id NOT LIKE 'demo_%';
                 ";
@@ -565,18 +566,17 @@ namespace RafiqPOS.Services
                     }
                 }
 
-                // Expected Cash in Drawer = Cash Sales - Cash Refunds + Cash Debt Collections - Drawer Expenses + Epay Drawer Cash - Epay Drawer Funding + Wallets Drawer Cash - Wallets Drawer Funding - Purchases Drawer Cash - Supplier Payments Drawer Cash
-                preview.ExpectedCashPiasters = preview.CashSalesPiasters 
-                    - preview.ReturnsCashPiasters 
-                    + preview.DebtPaymentsPiasters 
-                    - preview.DrawerExpensesPiasters
-                    + preview.EpayDrawerCashPiasters
-                    - preview.EpayDrawerFundingPiasters
-                    + preview.WalletsDrawerCashPiasters
-                    - preview.WalletsDrawerFundingPiasters
-                    - preview.PurchasesDrawerCashPiasters
-                    - preview.SupplierPaymentsDrawerCashPiasters;
-                if (preview.ExpectedCashPiasters < 0) preview.ExpectedCashPiasters = 0;
+                // F-02, F-22, F-24 & F-08: Unified Senior Drawer Cash Calculation without zero-clamping
+                DateTime bDate;
+                if (!DateTime.TryParse(businessDate, out bDate))
+                {
+                    bDate = BusinessDayHelper.GetCurrentBusinessDate(conn, null);
+                }
+                DateTime wStart, wEnd;
+                BusinessDayHelper.GetBusinessDayWindow(conn, null, bDate, out wStart, out wEnd);
+
+                var calc = DrawerCashCalculator.Calculate(conn, null, wStart, wEnd, null);
+                preview.ExpectedCashPiasters = calc.ExpectedCashPiasters;
             }
 
             return preview;

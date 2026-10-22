@@ -350,25 +350,60 @@ namespace RafiqPOS.Repositories
                             }
 
                             string nowUtc = DateTime.UtcNow.ToString("o");
-                            string updSql = @"
+                            string updatedBy = !string.IsNullOrWhiteSpace(request.UpdatedBy) ? request.UpdatedBy : "المدير";
+                            string cancelReason = "تم التعديل: " + (request.Reason ?? "").Trim();
+
+                            // 1. Cancel the existing expense (Immutable audit trail - F-23)
+                            string cancelOldSql = @"
                                 UPDATE expenses
-                                SET amount_piasters = @amount,
-                                    category = @category,
-                                    notes = @notes,
-                                    source = @source,
+                                SET is_cancelled = 1,
+                                    cancel_reason = @cancelReason,
+                                    cancelled_at = @now,
+                                    cancelled_by = @cancelledBy,
                                     updated_at = @now
                                 WHERE id = @id;
                             ";
-
-                            using (var updCmd = new SQLiteCommand(updSql, conn, trans))
+                            using (var cancelCmd = new SQLiteCommand(cancelOldSql, conn, trans))
                             {
-                                updCmd.Parameters.AddWithValue("@amount", request.AmountPiasters);
-                                updCmd.Parameters.AddWithValue("@category", !string.IsNullOrEmpty(request.Category) ? request.Category.Trim() : existing.Category);
-                                updCmd.Parameters.AddWithValue("@notes", (object)request.Notes ?? DBNull.Value);
-                                updCmd.Parameters.AddWithValue("@source", targetSource);
-                                updCmd.Parameters.AddWithValue("@now", nowUtc);
-                                updCmd.Parameters.AddWithValue("@id", request.ExpenseId);
-                                updCmd.ExecuteNonQuery();
+                                cancelCmd.Parameters.AddWithValue("@cancelReason", cancelReason);
+                                cancelCmd.Parameters.AddWithValue("@cancelledBy", updatedBy);
+                                cancelCmd.Parameters.AddWithValue("@now", nowUtc);
+                                cancelCmd.Parameters.AddWithValue("@id", existing.Id);
+                                cancelCmd.ExecuteNonQuery();
+                            }
+
+                            // 2. Insert new replacement expense linked via replaces_expense_id
+                            string newExpId = "exp_" + Guid.NewGuid().ToString("N").Substring(0, 12);
+                            long newExpNumber = _counterRepo != null 
+                                ? _counterRepo.GetNextCounterNumber(conn, trans, "expense", "expenses", "expense_number") 
+                                : (existing.ExpenseNumber + 1);
+                            string targetCategory = !string.IsNullOrEmpty(request.Category) ? request.Category.Trim() : existing.Category;
+
+                            string insNewSql = @"
+                                INSERT INTO expenses (
+                                    id, expense_number, amount_piasters, category, notes, source,
+                                    created_by, business_date, shift_id, is_cancelled,
+                                    replaces_expense_id, created_at, updated_at
+                                ) VALUES (
+                                    @newId, @expenseNumber, @amount, @category, @notes, @source,
+                                    @createdBy, @businessDate, @shiftId, 0,
+                                    @replacesId, @now, @now
+                                );
+                            ";
+                            using (var insCmd = new SQLiteCommand(insNewSql, conn, trans))
+                            {
+                                insCmd.Parameters.AddWithValue("@newId", newExpId);
+                                insCmd.Parameters.AddWithValue("@expenseNumber", newExpNumber);
+                                insCmd.Parameters.AddWithValue("@amount", request.AmountPiasters);
+                                insCmd.Parameters.AddWithValue("@category", targetCategory);
+                                insCmd.Parameters.AddWithValue("@notes", (object)request.Notes ?? DBNull.Value);
+                                insCmd.Parameters.AddWithValue("@source", targetSource);
+                                insCmd.Parameters.AddWithValue("@createdBy", updatedBy);
+                                insCmd.Parameters.AddWithValue("@businessDate", existing.BusinessDate);
+                                insCmd.Parameters.AddWithValue("@shiftId", (object)existing.ShiftId ?? DBNull.Value);
+                                insCmd.Parameters.AddWithValue("@replacesId", existing.Id);
+                                insCmd.Parameters.AddWithValue("@now", nowUtc);
+                                insCmd.ExecuteNonQuery();
                             }
 
                             if (_auditRepo != null)
@@ -378,15 +413,17 @@ namespace RafiqPOS.Repositories
                                     _auditRepo.Log(conn, trans, new AuditLog
                                     {
                                         Id = "aud_" + Guid.NewGuid().ToString("N"),
-                                        UserId = !string.IsNullOrWhiteSpace(request.UpdatedBy) ? request.UpdatedBy : "المدير",
+                                        UserId = updatedBy,
                                         Action = "update_expense",
                                         EntityType = "expense",
-                                        EntityId = request.ExpenseId,
-                                        DetailsJson = string.Format("{{\"oldAmount\":{0},\"newAmount\":{1},\"oldCat\":\"{2}\",\"newCat\":\"{3}\",\"reason\":\"{4}\"}}",
+                                        EntityId = newExpId,
+                                        DetailsJson = string.Format("{{\"oldExpenseId\":\"{0}\",\"newExpenseId\":\"{1}\",\"oldAmount\":{2},\"newAmount\":{3},\"oldCat\":\"{4}\",\"newCat\":\"{5}\",\"reason\":\"{6}\"}}",
+                                            existing.Id,
+                                            newExpId,
                                             existing.AmountPiasters,
                                             request.AmountPiasters,
                                             (existing.Category ?? "").Replace("\"", "\\\""),
-                                            (request.Category ?? "").Replace("\"", "\\\""),
+                                            targetCategory.Replace("\"", "\\\""),
                                             request.Reason.Trim().Replace("\"", "\\\"")),
                                         CreatedAt = nowUtc
                                     });
@@ -396,12 +433,23 @@ namespace RafiqPOS.Repositories
 
                             trans.Commit();
 
-                            existing.AmountPiasters = request.AmountPiasters;
-                            if (!string.IsNullOrEmpty(request.Category)) existing.Category = request.Category.Trim();
-                            existing.Notes = request.Notes;
-                            existing.Source = targetSource;
-                            existing.UpdatedAt = nowUtc;
-                            return existing;
+                            var replacedExpense = new Expense
+                            {
+                                Id = newExpId,
+                                ExpenseNumber = newExpNumber,
+                                AmountPiasters = request.AmountPiasters,
+                                Category = targetCategory,
+                                Notes = request.Notes,
+                                Source = targetSource,
+                                CreatedBy = updatedBy,
+                                BusinessDate = existing.BusinessDate,
+                                ShiftId = existing.ShiftId,
+                                IsCancelled = false,
+                                ReplacesExpenseId = existing.Id,
+                                CreatedAt = nowUtc,
+                                UpdatedAt = nowUtc
+                            };
+                            return replacedExpense;
                         }
                         catch
                         {
@@ -603,6 +651,10 @@ namespace RafiqPOS.Repositories
                 else if (string.Equals(col, "updated_at", StringComparison.OrdinalIgnoreCase))
                 {
                     exp.UpdatedAt = reader[i] != DBNull.Value ? reader[i].ToString() : null;
+                }
+                else if (string.Equals(col, "replaces_expense_id", StringComparison.OrdinalIgnoreCase))
+                {
+                    exp.ReplacesExpenseId = reader[i] != DBNull.Value ? reader[i].ToString() : null;
                 }
             }
 

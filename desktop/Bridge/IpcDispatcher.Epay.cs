@@ -99,6 +99,42 @@ namespace RafiqPOS.Bridge
                         return true;
                     }
 
+                case "epay:adjustBalance":
+                    {
+                        var repo = GetEpayRepo();
+                        if (request.Payload == null)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "بيانات التسوية فارغة");
+                            return true;
+                        }
+
+                        JObject payloadObj = request.Payload as JObject ?? JObject.Parse(request.Payload.ToString());
+                        string terminalId = payloadObj["terminalId"] != null ? (string)payloadObj["terminalId"] : null;
+                        long newBalancePiasters = payloadObj["newBalancePiasters"] != null ? (long)payloadObj["newBalancePiasters"] : 0;
+                        string reason = payloadObj["reason"] != null ? (string)payloadObj["reason"] : null;
+
+                        if (string.IsNullOrWhiteSpace(terminalId))
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "معرف ماكينة الدفع مطلوب");
+                            return true;
+                        }
+                        if (string.IsNullOrWhiteSpace(reason))
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "سبب تسوية الرصيد إلزامي ولا يمكن تركه فارغاً");
+                            return true;
+                        }
+
+                        var sessionUser = SecurityService.CurrentUser;
+                        string userId = sessionUser != null ? sessionUser.Id : "admin";
+
+                        lock (SaleService.FinancialWriteLock)
+                        {
+                            var updated = repo.AdjustBalance(terminalId, newBalancePiasters, reason, userId);
+                            response = BridgeResponse.Ok(request.Id, updated);
+                        }
+                        return true;
+                    }
+
                 case "epay:fundTerminal":
                     {
                         var repo = GetEpayRepo();

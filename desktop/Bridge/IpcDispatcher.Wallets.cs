@@ -99,6 +99,42 @@ namespace RafiqPOS.Bridge
                         return true;
                     }
 
+                case "wallets:adjustBalance":
+                    {
+                        var repo = GetWalletsRepo();
+                        if (request.Payload == null)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "بيانات التسوية فارغة");
+                            return true;
+                        }
+
+                        JObject payloadObj = request.Payload as JObject ?? JObject.Parse(request.Payload.ToString());
+                        string accountId = payloadObj["accountId"] != null ? (string)payloadObj["accountId"] : null;
+                        long newBalancePiasters = payloadObj["newBalancePiasters"] != null ? (long)payloadObj["newBalancePiasters"] : 0;
+                        string reason = payloadObj["reason"] != null ? (string)payloadObj["reason"] : null;
+
+                        if (string.IsNullOrWhiteSpace(accountId))
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "معرف الحساب أو المحفظة مطلوب");
+                            return true;
+                        }
+                        if (string.IsNullOrWhiteSpace(reason))
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "سبب تسوية الرصيد إلزامي ولا يمكن تركه فارغاً");
+                            return true;
+                        }
+
+                        var sessionUser = SecurityService.CurrentUser;
+                        string userId = sessionUser != null ? sessionUser.Id : "admin";
+
+                        lock (SaleService.FinancialWriteLock)
+                        {
+                            var updated = repo.AdjustBalance(accountId, newBalancePiasters, reason, userId);
+                            response = BridgeResponse.Ok(request.Id, updated);
+                        }
+                        return true;
+                    }
+
                 case "wallets:fundAccount":
                     {
                         var repo = GetWalletsRepo();
@@ -180,6 +216,42 @@ namespace RafiqPOS.Bridge
                         lock (SaleService.FinancialWriteLock)
                         {
                             var result = repo.ProcessTransaction(tx);
+                            response = BridgeResponse.Ok(request.Id, result);
+                        }
+                        return true;
+                    }
+
+                case "wallets:cancelTransaction":
+                    {
+                        var repo = GetWalletsRepo();
+                        if (request.Payload == null)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "بيانات الإلغاء فارغة");
+                            return true;
+                        }
+
+                        JObject payloadObj = request.Payload as JObject ?? JObject.Parse(request.Payload.ToString());
+                        string transactionId = payloadObj["transactionId"] != null ? (string)payloadObj["transactionId"] : null;
+                        string reason = payloadObj["reason"] != null ? (string)payloadObj["reason"] : null;
+
+                        if (string.IsNullOrWhiteSpace(transactionId))
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "معرف المعاملة مطلوب لإلغائها");
+                            return true;
+                        }
+                        if (string.IsNullOrWhiteSpace(reason))
+                        {
+                            response = BridgeResponse.Fail(request.Id, "VALIDATION_ERROR", "سبب الإلغاء إلزامي ولا يمكن تركه فارغاً");
+                            return true;
+                        }
+
+                        string cancelledBy = SecurityService.CurrentUser != null
+                            ? (!string.IsNullOrEmpty(SecurityService.CurrentUser.DisplayName) ? SecurityService.CurrentUser.DisplayName : SecurityService.CurrentUser.Username)
+                            : "الكاشير";
+
+                        lock (SaleService.FinancialWriteLock)
+                        {
+                            var result = repo.CancelTransaction(transactionId, reason, cancelledBy);
                             response = BridgeResponse.Ok(request.Id, result);
                         }
                         return true;

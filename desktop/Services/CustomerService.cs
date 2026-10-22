@@ -47,11 +47,11 @@ namespace RafiqPOS.Services
             }
         }
 
-        public Customer RecordPayment(string customerId, long amountPiasters, string notes)
+        public Customer RecordPayment(string customerId, long amountPiasters, string notes, string shiftId = null, string paymentMethod = "cash", string digitalAccountId = null)
         {
             lock (SaleService.FinancialWriteLock)
             {
-                return _repo.RecordPayment(customerId, amountPiasters, notes);
+                return _repo.RecordPayment(customerId, amountPiasters, notes, shiftId, paymentMethod, digitalAccountId);
             }
         }
 

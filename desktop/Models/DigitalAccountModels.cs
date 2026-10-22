@@ -170,6 +170,37 @@ namespace RafiqPOS.Models
         {
             get { return Money.FormatPiasters(TotalCollectedPiasters); }
         }
+
+        [JsonProperty("txTypeArabic")]
+        public string TxTypeArabic
+        {
+            get
+            {
+                switch (TxType)
+                {
+                    case "cash_out": return "سحب كاش";
+                    case "cash_in": return "إيداع كاش";
+                    case "pos_sale": return "مبيعات كاشير";
+                    case "pos_return": return "مرتجع مبيعات";
+                    case "funding": return "شحن وتغذية";
+                    case "customer_debt_payment": return "سداد آجل عميل";
+                    case "payment_cancellation": return "إلغاء سداد";
+                    case "balance_adjustment": return "تسوية رصيد";
+                    default: return TxType;
+                }
+            }
+        }
+
+        [JsonProperty("transactionNumber")]
+        public string TransactionNumber
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(Id)) return "";
+                string clean = Id.Replace("-", "").ToUpperInvariant();
+                return clean.Length > 8 ? clean.Substring(clean.Length - 8) : clean;
+            }
+        }
     }
 
     public class DigitalAccountFunding
@@ -216,11 +247,32 @@ namespace RafiqPOS.Models
         [JsonProperty("totalWalletsBalancePiasters")]
         public long TotalWalletsBalancePiasters { get; set; }
 
+        [JsonProperty("walletsBalancePiasters")]
+        public long WalletsBalancePiasters
+        {
+            get { return TotalWalletsBalancePiasters; }
+            set { TotalWalletsBalancePiasters = value; }
+        }
+
         [JsonProperty("totalInstapayBalancePiasters")]
         public long TotalInstapayBalancePiasters { get; set; }
 
+        [JsonProperty("instapayBalancePiasters")]
+        public long InstapayBalancePiasters
+        {
+            get { return TotalInstapayBalancePiasters; }
+            set { TotalInstapayBalancePiasters = value; }
+        }
+
         [JsonProperty("totalDigitalBalancePiasters")]
         public long TotalDigitalBalancePiasters { get; set; }
+
+        [JsonProperty("totalBalancePiasters")]
+        public long TotalBalancePiasters
+        {
+            get { return TotalDigitalBalancePiasters; }
+            set { TotalDigitalBalancePiasters = value; }
+        }
 
         [JsonProperty("todayTransactionsCount")]
         public int TodayTransactionsCount { get; set; }
@@ -237,11 +289,24 @@ namespace RafiqPOS.Models
         [JsonProperty("totalProfitPiasters")]
         public long TotalProfitPiasters { get; set; }
 
+        [JsonProperty("monthProfitPiasters")]
+        public long MonthProfitPiasters
+        {
+            get { return TotalProfitPiasters; }
+            set { TotalProfitPiasters = value; }
+        }
+
         [JsonProperty("activeAccountsCount")]
         public int ActiveAccountsCount { get; set; }
 
         [JsonProperty("totalWalletsBalanceFormatted")]
         public string TotalWalletsBalanceFormatted
+        {
+            get { return Money.FormatPiasters(TotalWalletsBalancePiasters); }
+        }
+
+        [JsonProperty("walletsBalanceFormatted")]
+        public string WalletsBalanceFormatted
         {
             get { return Money.FormatPiasters(TotalWalletsBalancePiasters); }
         }
@@ -252,8 +317,20 @@ namespace RafiqPOS.Models
             get { return Money.FormatPiasters(TotalInstapayBalancePiasters); }
         }
 
+        [JsonProperty("instapayBalanceFormatted")]
+        public string InstapayBalanceFormatted
+        {
+            get { return Money.FormatPiasters(TotalInstapayBalancePiasters); }
+        }
+
         [JsonProperty("totalDigitalBalanceFormatted")]
         public string TotalDigitalBalanceFormatted
+        {
+            get { return Money.FormatPiasters(TotalDigitalBalancePiasters); }
+        }
+
+        [JsonProperty("totalBalanceFormatted")]
+        public string TotalBalanceFormatted
         {
             get { return Money.FormatPiasters(TotalDigitalBalancePiasters); }
         }
@@ -268,6 +345,18 @@ namespace RafiqPOS.Models
         public string TotalProfitFormatted
         {
             get { return Money.FormatPiasters(TotalProfitPiasters); }
+        }
+
+        [JsonProperty("monthProfitFormatted")]
+        public string MonthProfitFormatted
+        {
+            get { return Money.FormatPiasters(TotalProfitPiasters); }
+        }
+
+        [JsonProperty("todayVolumeFormatted")]
+        public string TodayVolumeFormatted
+        {
+            get { return Money.FormatPiasters(TodayVolumePiasters); }
         }
     }
 }

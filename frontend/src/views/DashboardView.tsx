@@ -380,30 +380,40 @@ export function DashboardView({
             <div className={`grid ${
               paymentPills.length === 4 ? 'grid-cols-4' : paymentPills.length >= 5 ? 'grid-cols-5 gap-0.5' : 'grid-cols-3'
             } gap-1 pt-2 my-1.5 border-t border-line/60 dark:border-line-dark/60`}>
-              {paymentPills.map((pill) => (
-                <div 
-                  key={pill.key}
-                  className={`${pill.bg} border ${pill.border} rounded-md py-1 px-1 flex flex-col items-center justify-center text-center`}
-                  title={pill.title}
-                >
-                  <span className={`text-[9px] font-extrabold leading-none truncate max-w-full ${pill.textCls}`}>
-                    {pill.label}
-                  </span>
-                  <span 
-                    className={`font-mono text-[10px] sm:text-[11px] font-black tabular-nums leading-tight mt-1 truncate max-w-full ${pill.textCls}`}
+              {paymentPills.map((pill) => {
+                // Formatting for compact card display: no truncation dots
+                // If amount >= 100, show clean rounded integer (e.g. 371 or 1,232)
+                // If amount < 100 and has decimals, show up to 1 decimal place (e.g. 0.5)
+                const formattedVal = pill.amount >= 1000
+                  ? `${(pill.amount / 1000).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 1 })}k`
+                  : pill.amount >= 100
+                  ? Math.round(pill.amount).toLocaleString('en-US')
+                  : pill.amount % 1 !== 0
+                  ? pill.amount.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+                  : pill.amount.toString();
+
+                return (
+                  <div 
+                    key={pill.key}
+                    className={`${pill.bg} border ${pill.border} rounded-md py-1 px-0.5 flex flex-col items-center justify-center text-center overflow-hidden`}
+                    title={`${pill.title}: ${pill.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ج.م`}
                   >
-                    {pill.amount.toLocaleString('en-US', { 
-                      minimumFractionDigits: pill.amount % 1 !== 0 ? 2 : 0, 
-                      maximumFractionDigits: 2 
-                    })}
-                  </span>
-                </div>
-              ))}
+                    <span className={`text-[8.5px] sm:text-[9px] font-extrabold leading-none truncate max-w-full ${pill.textCls}`}>
+                      {pill.label}
+                    </span>
+                    <span 
+                      className={`font-mono text-[9px] sm:text-[10px] font-black tabular-nums tracking-tighter leading-tight mt-1 whitespace-nowrap ${pill.textCls}`}
+                    >
+                      {formattedVal}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          <div className="pt-1 flex items-center justify-between text-[10px] text-ink-muted dark:text-ink-dark-muted">
-            <span className="text-ink-muted dark:text-ink-dark-muted font-medium truncate">
+          <div className="pt-1 flex items-center justify-between text-[10px] text-ink-muted dark:text-ink-dark-muted gap-1">
+            <span className="text-ink-muted dark:text-ink-dark-muted font-medium truncate min-w-0">
               {summary && (summary.todayTaxPiasters || 0) > 0 ? (
                 <span title="ضريبة القيمة المضافة المحصلة اليوم كأمانات لمصلحة الضرائب">
                   ضريبة: <strong className="font-mono text-paid dark:text-paid-bright font-bold">{((summary.todayTaxPiasters || 0) / 100).toFixed(0)}</strong> ج.م
@@ -412,7 +422,7 @@ export function DashboardView({
                 'تفاصيل المبيعات'
               )}
             </span>
-            <span className="text-paid dark:text-paid-bright font-bold text-[11px] flex items-center gap-0.5 group-hover:underline">
+            <span className="text-paid dark:text-paid-bright font-bold text-[11px] flex items-center gap-0.5 group-hover:underline whitespace-nowrap shrink-0">
               كشف الحساب
               <ChevronLeft className="w-3 h-3" />
             </span>
@@ -455,13 +465,13 @@ export function DashboardView({
                   <span className={`text-[11px] font-bold ${isLoss ? 'text-danger dark:text-danger-bright' : 'text-ink-muted dark:text-ink-dark-muted'}`}>ج.م</span>
                 </div>
               </div>
-              <div className="pt-2 mt-2 border-t border-line/60 dark:border-line-dark/60 flex items-center justify-between text-[11px] text-ink-muted dark:text-ink-dark-muted">
-                <span className="truncate">
+              <div className="pt-2 mt-2 border-t border-line/60 dark:border-line-dark/60 flex items-center justify-between gap-1 text-[11px] text-ink-muted dark:text-ink-dark-muted">
+                <span className="truncate min-w-0" title="صافي الأرباح بعد خصم المصاريف والتوالف">
                   {summary && ((summary.todayInventoryLossPiasters || 0) > 0 || (summary.todayExpensesPiasters || 0) > 0)
-                    ? `مبيعات: ${((summary.todayProfitsPiasters || 0) / 100).toFixed(0)}${(summary.todayExpensesPiasters || 0) > 0 ? ` | مصاريف: -${((summary.todayExpensesPiasters || 0) / 100).toFixed(0)}` : ''}${(summary.todayInventoryLossPiasters || 0) > 0 ? ` | عجز: -${((summary.todayInventoryLossPiasters || 0) / 100).toFixed(0)}` : ''}`
-                    : 'صافي بعد التكاليف والمصاريف'}
+                    ? `مبيعات: ${((summary.todayProfitsPiasters || 0) / 100).toFixed(0)}${(summary.todayExpensesPiasters || 0) > 0 ? ` | م: -${((summary.todayExpensesPiasters || 0) / 100).toFixed(0)}` : ''}${(summary.todayInventoryLossPiasters || 0) > 0 ? ` | ع: -${((summary.todayInventoryLossPiasters || 0) / 100).toFixed(0)}` : ''}`
+                    : 'صافي بعد المصاريف'}
                 </span>
-                <span className={`font-bold font-mono text-[10px] px-1.5 py-0.2 rounded-md border ${
+                <span className={`font-bold font-mono text-[10px] px-1.5 py-0.5 rounded-md border whitespace-nowrap shrink-0 ${
                   isLoss ? 'bg-danger-soft dark:bg-danger-dark-soft text-danger dark:text-danger-bright border-danger-border dark:border-danger-bright/30' : 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/20 dark:border-paid/40'
                 }`}>
                   {isLoss ? 'بعد التوالف' : 'ربح صافي'}
@@ -497,9 +507,9 @@ export function DashboardView({
               <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted">ج.م</span>
             </div>
           </div>
-          <div className="pt-2 mt-2 border-t border-line/60 dark:border-line-dark/60 flex items-center justify-between text-[11px] text-ink-muted dark:text-ink-dark-muted">
-            <span>حركات الجرد: <strong className="text-ink dark:text-ink-dark font-mono tabular-nums">{summary?.todayAdjustmentsCount || 0}</strong></span>
-            <span className="text-paid dark:text-paid-bright font-bold text-[11px] flex items-center gap-0.5 group-hover:underline">
+          <div className="pt-2 mt-2 border-t border-line/60 dark:border-line-dark/60 flex items-center justify-between text-[11px] text-ink-muted dark:text-ink-dark-muted gap-1">
+            <span className="truncate min-w-0">حركات الجرد: <strong className="text-ink dark:text-ink-dark font-mono tabular-nums">{summary?.todayAdjustmentsCount || 0}</strong></span>
+            <span className="text-paid dark:text-paid-bright font-bold text-[11px] flex items-center gap-0.5 group-hover:underline whitespace-nowrap shrink-0">
               كشف التوالف
               <ChevronLeft className="w-3 h-3" />
             </span>
@@ -522,16 +532,16 @@ export function DashboardView({
               <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted">فاتورة</span>
             </div>
           </div>
-          <div className="pt-2 mt-2 border-t border-line/60 dark:border-line-dark/60 flex items-center justify-between text-[11px] text-ink-muted dark:text-ink-dark-muted">
-            <span>متوسط الفاتورة: <strong className="text-ink dark:text-ink-dark font-bold font-mono tabular-nums">{summary && summary.todayInvoicesCount > 0 ? ((todaySalesTotalPiasters / summary.todayInvoicesCount) / 100).toFixed(0) : '0'}</strong> ج.م</span>
-            <div className="flex items-center gap-1.5 font-bold text-[10px]">
+          <div className="pt-2 mt-2 border-t border-line/60 dark:border-line-dark/60 flex items-center justify-between text-[11px] text-ink-muted dark:text-ink-dark-muted gap-1">
+            <span className="truncate min-w-0">متوسط: <strong className="text-ink dark:text-ink-dark font-bold font-mono tabular-nums">{summary && summary.todayInvoicesCount > 0 ? ((todaySalesTotalPiasters / summary.todayInvoicesCount) / 100).toFixed(0) : '0'}</strong> ج.م</span>
+            <div className="flex items-center gap-1.5 font-bold text-[10px] shrink-0">
               {summary && (summary.todayCancelledCount || 0) > 0 && (
-                <span className="text-danger dark:text-danger-bright bg-danger-soft dark:bg-danger-dark-soft px-1.5 py-0.2 rounded-md border border-danger-border dark:border-danger-bright/30" title="فواتير اتلغت النهاردة">
+                <span className="text-danger dark:text-danger-bright bg-danger-soft dark:bg-danger-dark-soft px-1.5 py-0.2 rounded-md border border-danger-border dark:border-danger-bright/30 whitespace-nowrap" title="فواتير اتلغت النهاردة">
                   {summary.todayCancelledCount} اتلغت
                 </span>
               )}
               {summary && (summary.todayReturnsCount || 0) > 0 && (
-                <span className="text-warn dark:text-warn-bright bg-warn-soft dark:bg-warn-dark-soft px-1.5 py-0.2 rounded-md border border-warn-border dark:border-warn-bright/30" title="عمليات مرتجع النهاردة">
+                <span className="text-warn dark:text-warn-bright bg-warn-soft dark:bg-warn-dark-soft px-1.5 py-0.2 rounded-md border border-warn-border dark:border-warn-bright/30 whitespace-nowrap" title="عمليات مرتجع النهاردة">
                   {summary.todayReturnsCount} رجعت
                 </span>
               )}
@@ -567,33 +577,42 @@ export function DashboardView({
                 {/* Branded Cash Breakdown Pills (مبيعات كاش / سداد شكك / مصاريف) - Identical to KPI 1 */}
                 <div className="grid grid-cols-3 gap-1 pt-2 my-1.5 border-t border-line/60 dark:border-line-dark/60">
                   {/* مبيعات كاش */}
-                  <div className="bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/40 rounded-md py-1 px-1 flex flex-col items-center justify-center text-center">
-                    <span className="text-[9px] font-extrabold text-[#006D41] dark:text-paid-bright leading-none">مبيعات كاش</span>
-                    <span className="font-mono text-[10px] sm:text-[11px] font-black text-[#006D41] dark:text-paid-bright tabular-nums leading-tight mt-1">
+                  <div 
+                    className="bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/40 rounded-md py-1 px-0.5 flex flex-col items-center justify-center text-center overflow-hidden"
+                    title="مبيعات كاش محصلة في الدرج"
+                  >
+                    <span className="text-[9px] font-extrabold text-[#006D41] dark:text-paid-bright leading-none whitespace-nowrap">مبيعات</span>
+                    <span className="font-mono text-[9px] sm:text-[10px] font-black text-[#006D41] dark:text-paid-bright tabular-nums tracking-tighter leading-tight mt-1 whitespace-nowrap">
                       {summary ? ((summary.todayCashPiasters || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: ((summary.todayCashPiasters || 0) / 100) % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 }) : '0'}
                     </span>
                   </div>
 
                   {/* سداد شكك */}
-                  <div className="bg-teal-50/70 dark:bg-teal-950/40 border border-teal-200/60 dark:border-teal-800/40 rounded-md py-1 px-1 flex flex-col items-center justify-center text-center">
-                    <span className="text-[9px] font-extrabold text-[#006D41] dark:text-paid-bright leading-none">سداد شكك</span>
-                    <span className="font-mono text-[10px] sm:text-[11px] font-black text-[#006D41] dark:text-paid-bright tabular-nums leading-tight mt-1">
+                  <div 
+                    className="bg-teal-50/70 dark:bg-teal-950/40 border border-teal-200/60 dark:border-teal-800/40 rounded-md py-1 px-0.5 flex flex-col items-center justify-center text-center overflow-hidden"
+                    title="تحصيل وسداد فواتير شكك سابقة"
+                  >
+                    <span className="text-[9px] font-extrabold text-[#006D41] dark:text-paid-bright leading-none whitespace-nowrap">سداد شكك</span>
+                    <span className="font-mono text-[9px] sm:text-[10px] font-black text-[#006D41] dark:text-paid-bright tabular-nums tracking-tighter leading-tight mt-1 whitespace-nowrap">
                       {summary && (summary.todayDebtPaymentsPiasters || 0) > 0 ? '+' : ''}{summary ? (((summary.todayDebtPaymentsPiasters || 0) / 100)).toLocaleString('en-US', { minimumFractionDigits: ((summary.todayDebtPaymentsPiasters || 0) / 100) % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 }) : '0'}
                     </span>
                   </div>
 
                   {/* مصاريف ومرتجع */}
-                  <div className="bg-danger-soft/70 dark:bg-danger-dark-soft/40 border border-danger-border/60 dark:border-danger-bright/30 rounded-md py-1 px-1 flex flex-col items-center justify-center text-center">
-                    <span className="text-[9px] font-extrabold text-danger dark:text-danger-bright leading-none">مصاريف/مرتجع</span>
-                    <span className="font-mono text-[10px] sm:text-[11px] font-black text-danger dark:text-danger-bright tabular-nums leading-tight mt-1">
+                  <div 
+                    className="bg-danger-soft/70 dark:bg-danger-dark-soft/40 border border-danger-border/60 dark:border-danger-bright/30 rounded-md py-1 px-0.5 flex flex-col items-center justify-center text-center overflow-hidden"
+                    title="مصاريف ونثريات ومرتجعات خرجت من الدرج"
+                  >
+                    <span className="text-[9px] font-extrabold text-danger dark:text-danger-bright leading-none whitespace-nowrap">مصاريف</span>
+                    <span className="font-mono text-[9px] sm:text-[10px] font-black text-danger dark:text-danger-bright tabular-nums tracking-tighter leading-tight mt-1 whitespace-nowrap">
                       {todayOutPiasters > 0 ? '-' : ''}{(todayOutPiasters / 100).toLocaleString('en-US', { minimumFractionDigits: (todayOutPiasters / 100) % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 })}
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div className="pt-1 flex items-center justify-between text-[10px] text-ink-muted dark:text-ink-dark-muted">
-                <span className="text-ink-muted dark:text-ink-dark-muted font-medium truncate">
+              <div className="pt-1 flex items-center justify-between text-[10px] text-ink-muted dark:text-ink-dark-muted gap-1">
+                <span className="text-ink-muted dark:text-ink-dark-muted font-medium truncate min-w-0">
                   {epayTillPiasters > 0 ? (
                     <span className="text-slate-600 dark:text-ink-dark-muted" title="نقدية محفظة ماكينات الدفع والخدمات الإلكترونية مستقلة تماماً عن درج المحل">
                       كاش محفظة المكن: <strong className="font-mono font-bold text-slate-800 dark:text-ink-dark">{(epayTillPiasters / 100).toFixed(0)}</strong> ج.م
@@ -602,7 +621,7 @@ export function DashboardView({
                     'نقدية الدرج الفعلية'
                   )}
                 </span>
-                <span className="text-paid dark:text-paid-bright font-bold text-[11px] flex items-center gap-0.5 group-hover:underline shrink-0">
+                <span className="text-paid dark:text-paid-bright font-bold text-[11px] flex items-center gap-0.5 group-hover:underline whitespace-nowrap shrink-0">
                   تقفيل الوردية
                   <ChevronLeft className="w-3 h-3" />
                 </span>
@@ -636,11 +655,11 @@ export function DashboardView({
               <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted">ج.م</span>
             </div>
           </div>
-          <div className="pt-2 mt-2 border-t border-line/60 dark:border-line-dark/60 flex items-center justify-between text-[11px] text-ink-muted dark:text-ink-dark-muted">
-            <span title={`إجمالي كل الشكك لعدد ${summary?.debtorsCount || 0} عميل`}>
+          <div className="pt-2 mt-2 border-t border-line/60 dark:border-line-dark/60 flex items-center justify-between text-[11px] text-ink-muted dark:text-ink-dark-muted gap-1">
+            <span className="truncate min-w-0" title={`إجمالي كل الشكك لعدد ${summary?.debtorsCount || 0} عميل`}>
               إجمالي برة: <strong className="text-danger dark:text-danger-bright font-mono font-bold tabular-nums">{summary ? ((summary.totalCustomerDebtsPiasters || 0) / 100).toLocaleString('en-US', { maximumFractionDigits: 0 }) : '0'}</strong> ج.م
             </span>
-            <span className="text-paid dark:text-paid-bright font-bold text-[11px] flex items-center gap-0.5 group-hover:underline">
+            <span className="text-paid dark:text-paid-bright font-bold text-[11px] flex items-center gap-0.5 group-hover:underline whitespace-nowrap shrink-0">
               دفتر الشكك
               <ChevronLeft className="w-3 h-3" />
             </span>

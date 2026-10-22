@@ -72,6 +72,15 @@ namespace RafiqPOS.Models
         [JsonProperty("notes")]
         public string Notes { get; set; }
 
+        [JsonProperty("shiftId")]
+        public string ShiftId { get; set; }
+
+        [JsonProperty("paymentMethod")]
+        public string PaymentMethod { get; set; }
+
+        [JsonProperty("digitalAccountId")]
+        public string DigitalAccountId { get; set; }
+
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
 

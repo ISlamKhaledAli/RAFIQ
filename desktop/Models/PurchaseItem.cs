@@ -50,6 +50,18 @@ namespace RafiqPOS.Models
         [JsonProperty("productionDate")]
         public string ProductionDate { get; set; }
 
+        [JsonProperty("unitId")]
+        public string UnitId { get; set; }
+
+        [JsonProperty("unitName")]
+        public string UnitName { get; set; }
+
+        [JsonProperty("conversionFactor")]
+        public double ConversionFactor { get; set; }
+
+        [JsonProperty("packageCostPiasters")]
+        public long PackageCostPiasters { get; set; }
+
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
     }

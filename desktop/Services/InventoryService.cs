@@ -267,7 +267,9 @@ namespace RafiqPOS.Services
 
 
         /// <summary>
-        /// Tasks 161-8, 161-9, 161-10: تسجيل استلام مشتريات بالوحدات المتعددة مع زيادة المخزون واحتساب التكلفة بالوحدة الأساسية
+        /// <summary>
+        /// F-31: إلغاء مسار الشراء الموازي المنفصل وتوحيده عبر دورة المشتريات المركزية CreatePurchase
+        /// تضمن تحديث الحسابات، الأرصدة، وسجل المشتريات، وتسجيل الباتشات والتكلفة المرجحة بدقة.
         /// </summary>
         public StockMovement RecordPurchase(
             string productId,
@@ -292,9 +294,7 @@ namespace RafiqPOS.Services
                 throw new ArgumentException("سعر الشراء لا يمكن أن يكون سالباً", "packageCostPiasters");
             }
 
-            lock (SaleService.FinancialWriteLock)
-            {
-                var product = _productRepo.GetById(productId);
+            var product = _productRepo.GetById(productId);
             if (product == null)
             {
                 throw new InvalidOperationException("المنتج غير موجود: " + productId);
@@ -315,136 +315,101 @@ namespace RafiqPOS.Services
                 unitName = unit.UnitName;
             }
 
-            // Task 161-9: إضافة المخزون بالوحدة الأساسية تلقائياً (الكمية × المعامل)
             long baseQuantityDeltaMilli = (long)Math.Round(purchaseQuantity * factor * 1000);
-
-            // Task 161-10: حساب سعر التكلفة للوحدة الأساسية تلقائياً من سعر الشراء بالوحدة الكبيرة
             long baseCostPiasters = factor > 0 ? (long)Math.Round((decimal)packageCostPiasters / factor, 0, MidpointRounding.AwayFromZero) : packageCostPiasters;
+            long totalCostPiasters = (long)Math.Round(purchaseQuantity * packageCostPiasters);
 
-            string cleanSupplier = string.IsNullOrWhiteSpace(supplierName) ? "مورد عام" : supplierName.Trim();
-            string cleanInvoice = string.IsNullOrWhiteSpace(invoiceNumber) ? ("PO-" + DateTime.Now.ToString("yyyyMMddHHmmss")) : invoiceNumber.Trim();
-
-            string fullNote = string.Format("استلام مشتريات: {0} {1} (×{2}) بسعر {3:N2} ج.م/{1} | مورد: {4} | إذن/فاتورة: {5}",
-                purchaseQuantity.ToString("0.###"),
-                unitName,
-                factor,
-                packageCostPiasters / 100.0,
-                cleanSupplier,
-                cleanInvoice
-            );
-
-            StockMovement movement = null;
-
-            using (var conn = new SQLiteConnection(_connectionString))
+            string supplierId = null;
+            if (!string.IsNullOrWhiteSpace(supplierName))
             {
-                conn.Open();
-                using (var trans = conn.BeginTransaction())
+                using (var conn = new SQLiteConnection(_connectionString))
                 {
-                    try
+                    conn.Open();
+                    using (var findCmd = new SQLiteCommand("SELECT id FROM suppliers WHERE name = @name AND is_active = 1 LIMIT 1;", conn))
                     {
-                        // 1. Record stock change in ledger & update stock_quantity_milli
-                        movement = RecordStockChange(
-                            productId: product.Id,
-                            movementType: "PURCHASE",
-                            quantityDeltaMilli: baseQuantityDeltaMilli,
-                            unitCostPiasters: baseCostPiasters,
-                            referenceId: cleanInvoice,
-                            referenceType: "PURCHASE_RECEIPT",
-                            note: fullNote,
-                            batchNumber: null,
-                            conn: conn,
-                            trans: trans
-                        );
-
-                        // 2. Update product default cost if requested (Task 161-10)
-                        if (updateProductCost && baseCostPiasters > 0 && baseCostPiasters != product.CostPiasters)
+                        findCmd.Parameters.AddWithValue("@name", supplierName.Trim());
+                        object sObj = findCmd.ExecuteScalar();
+                        if (sObj != null && sObj != DBNull.Value)
                         {
-                            long oldCost = product.CostPiasters;
-                            string updateCostSql = @"
-                                UPDATE products
-                                SET cost_piasters = @cost,
-                                    updated_at = @now
-                                WHERE id = @pid;
-
-                                UPDATE product_units
-                                SET cost_price_piasters = @cost,
-                                    updated_at = @now
-                                WHERE product_id = @pid AND is_base_unit = 1;
-                            ";
-                            using (var cmd = new SQLiteCommand(updateCostSql, conn, trans))
-                            {
-                                cmd.Parameters.AddWithValue("@cost", baseCostPiasters);
-                                cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
-                                cmd.Parameters.AddWithValue("@pid", product.Id);
-                                cmd.ExecuteNonQuery();
-                            }
-
-                            // 3. Log price history for cost change
-                            if (_priceHistoryRepo != null)
-                            {
-                                var hist = new ProductPriceHistory
-                                {
-                                    Id = Guid.NewGuid().ToString(),
-                                    ProductId = product.Id,
-                                    OldPricePiasters = product.PricePiasters,
-                                    NewPricePiasters = product.PricePiasters,
-                                    OldCostPiasters = oldCost,
-                                    NewCostPiasters = baseCostPiasters,
-                                    ChangeReason = string.Format("تحديث تكلفة تلقائي من شراء {0} {1}", purchaseQuantity, unitName),
-                                    CreatedAt = DateTime.UtcNow.ToString("o")
-                                };
-                                _priceHistoryRepo.Add(hist, conn, trans);
-                            }
+                            supplierId = sObj.ToString();
                         }
-
-                        // 4. Update the package unit costPricePiasters in product_units if applicable
-                        if (unit != null && packageCostPiasters > 0 && !unit.IsBaseUnit)
-                        {
-                            string updateUnitSql = @"
-                                UPDATE product_units
-                                SET cost_price_piasters = @cost,
-                                    updated_at = @now
-                                WHERE id = @uid;
-                            ";
-                            using (var cmd = new SQLiteCommand(updateUnitSql, conn, trans))
-                            {
-                                cmd.Parameters.AddWithValue("@cost", packageCostPiasters);
-                                cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
-                                cmd.Parameters.AddWithValue("@uid", unit.Id);
-                                cmd.ExecuteNonQuery();
-                            }
-                        }
-
-                        trans.Commit();
                     }
-                    catch
+                    if (string.IsNullOrEmpty(supplierId))
                     {
-                        trans.Rollback();
-                        throw;
+                        supplierId = Guid.NewGuid().ToString();
+                        using (var insCmd = new SQLiteCommand(@"
+                            INSERT INTO suppliers (id, name, phone, address, balance_piasters, is_active, created_at, updated_at)
+                            VALUES (@id, @name, '', '', 0, 1, datetime('now'), datetime('now'));
+                        ", conn))
+                        {
+                            insCmd.Parameters.AddWithValue("@id", supplierId);
+                            insCmd.Parameters.AddWithValue("@name", supplierName.Trim());
+                            insCmd.ExecuteNonQuery();
+                        }
                     }
                 }
             }
 
-            // Audit Log
-            if (_auditRepo != null)
-            {
-                try
-                {
-                    _auditRepo.Log(new AuditLog
-                    {
-                        Action = "purchase_recorded",
-                        EntityType = "inventory",
-                        EntityId = product.Id,
-                        UserId = userId,
-                        DetailsJson = string.Format("{{\"productName\":\"{0}\",\"unitName\":\"{1}\",\"quantity\":{2},\"baseAdded\":{3},\"packageCostPiasters\":{4},\"baseCostPiasters\":{5},\"invoice\":\"{6}\"}}",
-                            product.Name, unitName, purchaseQuantity, baseQuantityDeltaMilli / 1000.0, packageCostPiasters, baseCostPiasters, cleanInvoice)
-                    });
-                }
-                catch { }
-            }
+            string cleanInvoice = string.IsNullOrWhiteSpace(invoiceNumber) ? null : invoiceNumber.Trim();
+            string nowIso = DateTime.UtcNow.ToString("o");
 
-                return movement;
-            }
+            var purchase = new Purchase
+            {
+                Id = Guid.NewGuid().ToString(),
+                SupplierId = supplierId,
+                SupplierName = !string.IsNullOrWhiteSpace(supplierName) ? supplierName.Trim() : null,
+                SupplierInvoiceNumber = cleanInvoice,
+                InvoiceDate = nowIso,
+                TotalCostPiasters = totalCostPiasters,
+                DiscountPiasters = 0,
+                NetCostPiasters = totalCostPiasters,
+                PaidAmountPiasters = totalCostPiasters,
+                RemainingAmountPiasters = 0,
+                PaymentStatus = "PAID",
+                PaymentSource = "external_cash",
+                Status = "COMPLETED",
+                Notes = string.Format("تسجيل استلام بضاعة سريع: {0} {1}", purchaseQuantity.ToString("0.###"), unitName),
+                CreatedByUserId = userId,
+                Items = new List<PurchaseItem>
+                {
+                    new PurchaseItem
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        ProductId = product.Id,
+                        ProductName = product.Name,
+                        Barcode = !string.IsNullOrWhiteSpace(unit != null ? unit.Barcode : null) ? unit.Barcode : product.Barcode,
+                        QuantityMilli = baseQuantityDeltaMilli,
+                        BonusQuantityMilli = 0,
+                        UnitCostPiasters = baseCostPiasters,
+                        DiscountPiasters = 0,
+                        TotalCostPiasters = totalCostPiasters,
+                        PreviousCostPiasters = product.CostPiasters,
+                        NewSellingPricePiasters = null,
+                        UnitId = unit != null ? unit.Id : null,
+                        UnitName = unitName,
+                        ConversionFactor = factor,
+                        PackageCostPiasters = packageCostPiasters,
+                        CreatedAt = nowIso
+                    }
+                }
+            };
+
+            var purchaseRepo = new PurchaseRepository(_connectionString, auditRepo: _auditRepo);
+            string costingMethod = updateProductCost ? "WEIGHTED_AVERAGE" : "KEEP";
+            var createdPurchase = purchaseRepo.CreatePurchase(purchase, costingMethod, userId);
+
+            return new StockMovement
+            {
+                Id = Guid.NewGuid().ToString(),
+                ProductId = product.Id,
+                MovementType = "PURCHASE",
+                QuantityMilli = baseQuantityDeltaMilli,
+                UnitCostPiasters = baseCostPiasters,
+                ReferenceId = createdPurchase.InvoiceNumber.ToString(),
+                ReferenceType = "PURCHASE_RECEIPT",
+                Note = purchase.Notes,
+                CreatedAt = nowIso
+            };
         }
 
         public List<StockMovement> GetMovements(string productId = null, string movementType = null, string fromDate = null, string toDate = null, int limit = 200)

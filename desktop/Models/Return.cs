@@ -81,6 +81,9 @@ namespace RafiqPOS.Models
         [JsonProperty("isWithoutInvoice")]
         public bool IsWithoutInvoice { get; set; }
 
+        [JsonProperty("shiftId")]
+        public string ShiftId { get; set; }
+
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
 

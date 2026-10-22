@@ -82,6 +82,21 @@ namespace RafiqPOS.Repositories
                             }
                         }
 
+                        // 0.5. Persistent Idempotency Check (Audit F-09): Prevent duplicate sale and stock deduction on retries
+                        if (!string.IsNullOrWhiteSpace(sale.IdempotencyKey))
+                        {
+                            using (var checkIdemCmd = new SQLiteCommand("SELECT id FROM sales WHERE idempotency_key = @idemKey LIMIT 1;", conn, trans))
+                            {
+                                checkIdemCmd.Parameters.AddWithValue("@idemKey", sale.IdempotencyKey);
+                                object existingId = checkIdemCmd.ExecuteScalar();
+                                if (existingId != null && existingId != DBNull.Value)
+                                {
+                                    trans.Rollback();
+                                    return GetSaleById(existingId.ToString());
+                                }
+                            }
+                        }
+
                         // 1. Calculate next sequential daily invoice number (Task 107-1 & 107-2: Atomic sequence counter)
                         int nextInvoiceNumber = (int)_counters.GetNextInvoiceNumber(conn, trans);
                         sale.InvoiceNumber = nextInvoiceNumber;
@@ -91,11 +106,11 @@ namespace RafiqPOS.Repositories
                             INSERT INTO sales (
                                 id, invoice_number, cashier_id, customer_id, subtotal_piasters,
                                 discount_piasters, tax_piasters, total_piasters, paid_piasters,
-                                change_piasters, payment_method, status, notes, created_at, service_fee_piasters, shift_id
+                                change_piasters, payment_method, status, notes, created_at, service_fee_piasters, shift_id, idempotency_key
                             ) VALUES (
                                 @id, @invoiceNumber, @cashierId, @customerId, @subtotal,
                                 @discount, @tax, @total, @paid,
-                                @change, @paymentMethod, @status, @notes, @createdAt, @serviceFee, @shiftId
+                                @change, @paymentMethod, @status, @notes, @createdAt, @serviceFee, @shiftId, @idempotencyKey
                             );
                         ";
                         using (var cmd = new SQLiteCommand(insertSaleSql, conn, trans))
@@ -116,6 +131,7 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@createdAt", sale.CreatedAt ?? DateTime.UtcNow.ToString("o"));
                             cmd.Parameters.AddWithValue("@serviceFee", sale.ServiceFeePiasters);
                             cmd.Parameters.AddWithValue("@shiftId", (object)sale.ShiftId ?? DBNull.Value);
+                            cmd.Parameters.AddWithValue("@idempotencyKey", (object)sale.IdempotencyKey ?? DBNull.Value);
                             cmd.ExecuteNonQuery();
                         }
 
@@ -214,6 +230,7 @@ namespace RafiqPOS.Repositories
                             if (isItemExpired)
                             {
                                 bool authorized = false;
+                                string supervisorName = null;
                                 if (!string.IsNullOrEmpty(sale.SupervisorPin))
                                 {
                                     var authRes = DatabaseService.Security != null 
@@ -222,11 +239,8 @@ namespace RafiqPOS.Repositories
                                     if (authRes != null && authRes.Success)
                                     {
                                         authorized = true;
+                                        supervisorName = authRes.SupervisorName;
                                     }
-                                }
-                                else if (item.IsExpiredBypass)
-                                {
-                                    authorized = true;
                                 }
 
                                 if (!authorized)
@@ -238,12 +252,12 @@ namespace RafiqPOS.Repositories
                                 {
                                     _auditRepo.Log(conn, trans, new AuditLog
                                     {
-                                        UserId = sale.CashierId ?? "cashier",
+                                        UserId = !string.IsNullOrEmpty(supervisorName) ? supervisorName : (sale.CashierId ?? "cashier"),
                                         Action = "EXPIRED_PRODUCT_SALE_OVERRIDE",
                                         EntityType = "SALE",
                                         EntityId = sale.Id,
-                                        DetailsJson = string.Format("{{\"productId\":\"{0}\",\"productName\":\"{1}\",\"batchNumber\":\"{2}\",\"expiryDate\":\"{3}\",\"saleId\":\"{4}\",\"invoiceNumber\":{5}}}",
-                                            item.ProductId, item.ProductName, itemBatchNum ?? "", itemExpDate ?? "", sale.Id, sale.InvoiceNumber)
+                                        DetailsJson = string.Format("{{\"productId\":\"{0}\",\"productName\":\"{1}\",\"batchNumber\":\"{2}\",\"expiryDate\":\"{3}\",\"saleId\":\"{4}\",\"invoiceNumber\":{5},\"supervisor\":\"{6}\"}}",
+                                            item.ProductId, item.ProductName, itemBatchNum ?? "", itemExpDate ?? "", sale.Id, sale.InvoiceNumber, supervisorName ?? "")
                                     });
                                 }
                             }
@@ -332,8 +346,8 @@ namespace RafiqPOS.Repositories
                                     vSyncCmd.ExecuteNonQuery();
                                 }
 
-                                // Deduct from batches using FEFO (Feature #60 / Task 60-4)
-                                bool allowExpired = item.IsExpiredBypass || (!string.IsNullOrEmpty(sale.SupervisorPin) && DatabaseService.Security != null && DatabaseService.Security.VerifySupervisorPin(sale.SupervisorPin, "SALE_EXPIRED_PRODUCT").Success);
+                                // Deduct from batches using FEFO (Feature #60 / Task 60-4 / F-05)
+                                bool allowExpired = (!string.IsNullOrEmpty(sale.SupervisorPin) && DatabaseService.Security != null && DatabaseService.Security.VerifySupervisorPin(sale.SupervisorPin, "SALE_EXPIRED_PRODUCT").Success);
                                 var batchDeductions = _batchRepo != null ? _batchRepo.DeductFromBatchesFefo(item.ProductId, baseQtyDeductionMilli, conn, trans, allowExpired, item.BatchId) : null;
                                 
                                 // If batches were deducted, record each batch stock movement; otherwise record single movement
@@ -520,61 +534,57 @@ namespace RafiqPOS.Repositories
 
                         if (digitalPayments.Count > 0)
                         {
-                            try
+                            foreach (var dp in digitalPayments)
                             {
-                                foreach (var dp in digitalPayments)
+                                string dType = string.Equals(dp.Method, "instapay", StringComparison.OrdinalIgnoreCase) ? "instapay" : "wallet";
+                                string targetAccId = null;
+
+                                using (var fCmd = new SQLiteCommand("SELECT id FROM digital_accounts WHERE type = @t AND is_active = 1 ORDER BY is_default DESC, created_at ASC LIMIT 1;", conn, trans))
                                 {
-                                    string dType = string.Equals(dp.Method, "instapay", StringComparison.OrdinalIgnoreCase) ? "instapay" : "wallet";
-                                    string targetAccId = null;
-
-                                    using (var fCmd = new SQLiteCommand("SELECT id FROM digital_accounts WHERE type = @t AND is_active = 1 ORDER BY is_default DESC, created_at ASC LIMIT 1;", conn, trans))
+                                    fCmd.Parameters.AddWithValue("@t", dType);
+                                    using (var fRdr = fCmd.ExecuteReader())
                                     {
-                                        fCmd.Parameters.AddWithValue("@t", dType);
-                                        using (var fRdr = fCmd.ExecuteReader())
+                                        if (fRdr.Read())
                                         {
-                                            if (fRdr.Read())
-                                            {
-                                                targetAccId = fRdr["id"].ToString();
-                                            }
-                                        }
-                                    }
-
-                                    if (!string.IsNullOrEmpty(targetAccId))
-                                    {
-                                        using (var uCmd = new SQLiteCommand("UPDATE digital_accounts SET balance_piasters = balance_piasters + @amt, updated_at = @now WHERE id = @id;", conn, trans))
-                                        {
-                                            uCmd.Parameters.AddWithValue("@amt", dp.AmountPiasters);
-                                            uCmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
-                                            uCmd.Parameters.AddWithValue("@id", targetAccId);
-                                            uCmd.ExecuteNonQuery();
-                                        }
-
-                                        string insTx = @"
-                                            INSERT INTO digital_transactions (
-                                                id, account_id, tx_type, amount_piasters, profit_piasters, total_collected_piasters,
-                                                customer_name, sale_id, cashier_name, payment_destination, status, notes, created_at
-                                            ) VALUES (
-                                                @id, @accId, 'pos_sale', @amt, 0, @amt,
-                                                @cust, @saleId, @cashier, 'wallet', 'completed', @notes, @now
-                                            );";
-                                        using (var iCmd = new SQLiteCommand(insTx, conn, trans))
-                                        {
-                                            iCmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
-                                            iCmd.Parameters.AddWithValue("@accId", targetAccId);
-                                            iCmd.Parameters.AddWithValue("@amt", dp.AmountPiasters);
-                                            iCmd.Parameters.AddWithValue("@cust", (object)sale.CustomerId ?? DBNull.Value);
-                                            iCmd.Parameters.AddWithValue("@saleId", sale.Id);
-                                            iCmd.Parameters.AddWithValue("@cashier", (object)sale.CashierName ?? DBNull.Value);
-                                            iCmd.Parameters.AddWithValue("@notes", string.Format("سداد فاتورة بيع كاشير #{0} عبر {1}", sale.InvoiceNumber, dType == "instapay" ? "إنستاباي" : "محفظة كاش"));
-                                            iCmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
-                                            iCmd.ExecuteNonQuery();
+                                            targetAccId = fRdr["id"].ToString();
                                         }
                                     }
                                 }
-                            }
-                            catch (Exception digEx)
-                            {
-                                Logger.Warn("تنبيه أثناء ربط الفاتورة بمحفظة الدفع: " + digEx.Message);
+
+                                if (string.IsNullOrEmpty(targetAccId))
+                                {
+                                    string arabicTypeName = (dType == "instapay") ? "إنستاباي (InstaPay)" : "محفظة إلكترونية (Vodafone Cash / Wallet)";
+                                    throw new InvalidOperationException(string.Format("لا يمكن إتمام عملية البيع: لا يوجد حساب {0} نشط ومفعل في النظام لاستقبال الدفعة ({1:N2} ج.م). يرجى تفعيل أو إضافة الحساب من شاشة المحافظ الرقمية أولاً.", arabicTypeName, dp.AmountPiasters / 100.0));
+                                }
+
+                                using (var uCmd = new SQLiteCommand("UPDATE digital_accounts SET balance_piasters = balance_piasters + @amt, updated_at = @now WHERE id = @id;", conn, trans))
+                                {
+                                    uCmd.Parameters.AddWithValue("@amt", dp.AmountPiasters);
+                                    uCmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
+                                    uCmd.Parameters.AddWithValue("@id", targetAccId);
+                                    uCmd.ExecuteNonQuery();
+                                }
+
+                                string insTx = @"
+                                    INSERT INTO digital_transactions (
+                                        id, account_id, tx_type, amount_piasters, profit_piasters, total_collected_piasters,
+                                        customer_name, sale_id, cashier_name, payment_destination, status, notes, created_at
+                                    ) VALUES (
+                                        @id, @accId, 'pos_sale', @amt, 0, @amt,
+                                        @cust, @saleId, @cashier, 'wallet', 'completed', @notes, @now
+                                    );";
+                                using (var iCmd = new SQLiteCommand(insTx, conn, trans))
+                                {
+                                    iCmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
+                                    iCmd.Parameters.AddWithValue("@accId", targetAccId);
+                                    iCmd.Parameters.AddWithValue("@amt", dp.AmountPiasters);
+                                    iCmd.Parameters.AddWithValue("@cust", (object)sale.CustomerId ?? DBNull.Value);
+                                    iCmd.Parameters.AddWithValue("@saleId", sale.Id);
+                                    iCmd.Parameters.AddWithValue("@cashier", (object)sale.CashierName ?? DBNull.Value);
+                                    iCmd.Parameters.AddWithValue("@notes", string.Format("سداد فاتورة بيع كاشير #{0} عبر {1}", sale.InvoiceNumber, dType == "instapay" ? "إنستاباي" : "محفظة كاش"));
+                                    iCmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
+                                    iCmd.ExecuteNonQuery();
+                                }
                             }
                         }
 
@@ -652,10 +662,9 @@ namespace RafiqPOS.Repositories
                                                 supervisorName = !string.IsNullOrEmpty(pinRes.SupervisorName) ? pinRes.SupervisorName : "مدير النظام";
                                             }
                                         }
-                                        else if (sale.SupervisorPin == "1234" || sale.SupervisorPin == "8963906" || sale.SupervisorPin == "SUPERVISOR_TEST_PIN")
+                                        else
                                         {
-                                            isAuthorized = true;
-                                            supervisorName = "مدير النظام";
+                                            throw new InvalidOperationException("نظام الأمان غير متاح. لا يمكن تجاوز الحد الائتماني بدون التحقق من صلاحية المشرف.");
                                         }
                                     }
 
@@ -929,6 +938,10 @@ namespace RafiqPOS.Repositories
                 {
                     sale.CashierName = reader[i] != DBNull.Value ? reader[i].ToString() : null;
                 }
+                else if (string.Equals(col, "idempotency_key", StringComparison.OrdinalIgnoreCase))
+                {
+                    sale.IdempotencyKey = reader[i] != DBNull.Value ? reader[i].ToString() : null;
+                }
             }
 
             if (string.IsNullOrEmpty(sale.CashierName))
@@ -1180,6 +1193,26 @@ namespace RafiqPOS.Repositories
                 sale.Payments = GetSalePayments(sale.Id);
             }
             return sale;
+        }
+
+        public Sale GetSaleByIdempotencyKey(string idempotencyKey)
+        {
+            if (string.IsNullOrWhiteSpace(idempotencyKey)) return null;
+            string saleId = null;
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("SELECT id FROM sales WHERE idempotency_key = @key LIMIT 1;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@key", idempotencyKey);
+                    object res = cmd.ExecuteScalar();
+                    if (res != null && res != DBNull.Value)
+                    {
+                        saleId = res.ToString();
+                    }
+                }
+            }
+            return !string.IsNullOrEmpty(saleId) ? GetSaleById(saleId) : null;
         }
 
         /// <summary>
@@ -1671,6 +1704,33 @@ namespace RafiqPOS.Repositories
                     }
                 }
             }
+        }
+
+        public long GetAllocatedDebtCashPiasters(string saleId)
+        {
+            if (string.IsNullOrEmpty(saleId)) return 0;
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = @"
+                    SELECT COALESCE(SUM(da.amount_piasters), 0)
+                    FROM debt_allocations da
+                    LEFT JOIN customer_ledger cl ON da.ledger_id = cl.id
+                    WHERE da.sale_id = @sid 
+                      AND da.type = 'payment'
+                      AND (cl.payment_method = 'cash' OR cl.payment_method IS NULL OR cl.payment_method = '');
+                ";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@sid", saleId);
+                    object val = cmd.ExecuteScalar();
+                    if (val != null && val != DBNull.Value)
+                    {
+                        return Convert.ToInt64(val);
+                    }
+                }
+            }
+            return 0;
         }
     }
 }

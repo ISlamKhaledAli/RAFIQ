@@ -668,7 +668,6 @@ namespace RafiqPOS.Repositories
                                 category_id = excluded.category_id,
                                 price_piasters = excluded.price_piasters,
                                 cost_piasters = excluded.cost_piasters,
-                                stock_quantity_milli = excluded.stock_quantity_milli,
                                 min_stock_quantity_milli = excluded.min_stock_quantity_milli,
                                 unit = excluded.unit,
                                 tax_rate_percent = excluded.tax_rate_percent,
@@ -931,6 +930,21 @@ namespace RafiqPOS.Repositories
                                             uBaseCmd.Parameters.AddWithValue("@barcode", string.IsNullOrWhiteSpace(product.Barcode) ? (object)DBNull.Value : product.Barcode.Trim());
                                             uBaseCmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
                                             uBaseCmd.ExecuteNonQuery();
+                                        }
+
+                                        // F-30: Synchronize non-base unit cost with product cost
+                                        string updateNonBaseUnitsSql = @"
+                                            UPDATE product_units
+                                            SET cost_price_piasters = CAST(ROUND(@costPrice * conversion_factor) AS INTEGER),
+                                                updated_at = @updatedAt
+                                            WHERE product_id = @productId AND is_base_unit = 0;
+                                        ";
+                                        using (var uNonBaseCmd = new SQLiteCommand(updateNonBaseUnitsSql, conn, trans))
+                                        {
+                                            uNonBaseCmd.Parameters.AddWithValue("@productId", product.Id);
+                                            uNonBaseCmd.Parameters.AddWithValue("@costPrice", product.CostPiasters);
+                                            uNonBaseCmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
+                                            uNonBaseCmd.ExecuteNonQuery();
                                         }
                                     }
                                 }

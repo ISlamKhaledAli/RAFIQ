@@ -252,7 +252,6 @@ namespace RafiqPOS.Repositories
                                     account_number = @accountNumber,
                                     phone_number = @phone,
                                     identifier = @ident,
-                                    balance_piasters = @balance,
                                     low_balance_alert_piasters = @lowAlert,
                                     daily_limit_piasters = @dailyLimit,
                                     monthly_limit_piasters = @monthlyLimit,
@@ -269,7 +268,6 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@accountNumber", (object)account.AccountNumber ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@phone", (object)account.PhoneNumber ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@ident", (object)account.Identifier ?? DBNull.Value);
-                                cmd.Parameters.AddWithValue("@balance", account.BalancePiasters);
                                 cmd.Parameters.AddWithValue("@lowAlert", account.LowBalanceAlertPiasters > 0 ? account.LowBalanceAlertPiasters : 50000);
                                 cmd.Parameters.AddWithValue("@dailyLimit", dailyLimit);
                                 cmd.Parameters.AddWithValue("@monthlyLimit", monthlyLimit);
@@ -445,17 +443,15 @@ namespace RafiqPOS.Repositories
                     {
                         if (string.Equals(fundingSource, "cash_drawer", StringComparison.OrdinalIgnoreCase))
                         {
-                            using (var clCmd = new SQLiteCommand("SELECT 1 FROM daily_closings WHERE business_date = date('now', 'localtime') LIMIT 1;", conn, trans))
+                            var currentBDate = Services.BusinessDayHelper.GetCurrentBusinessDate(conn, trans);
+                            if (Services.BusinessDayHelper.IsBusinessDayClosed(conn, trans, currentBDate))
                             {
-                                if (clCmd.ExecuteScalar() != null)
-                                {
-                                    throw new InvalidOperationException("لا يمكن تغذية الحساب من درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
-                                }
+                                throw new InvalidOperationException("لا يمكن تغذية الحساب من درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
                             }
 
                             if (DatabaseService.DailyClosing != null)
                             {
-                                var liveBal = DatabaseService.DailyClosing.GetLiveDrawerBalance();
+                                var liveBal = DatabaseService.DailyClosing.GetLiveDrawerBalance(currentBDate.ToString("yyyy-MM-dd"));
                                 if (liveBal != null && liveBal.AvailableCashPiasters < amountPiasters)
                                 {
                                     throw new InvalidOperationException(string.Format("رصيد نقدية درج الكاشير المتاح حالياً ({0:N2} ج.م) غير كافٍ لتغذية المحفظة بمبلغ ({1:N2} ج.م). يرجى تغذية الدرج أولاً أو اختيار مصدر تمويل آخر (مثل: كاش خارجي / صاحب المحل).", liveBal.AvailableCashPiasters / 100.0, amountPiasters / 100.0));
@@ -616,12 +612,10 @@ namespace RafiqPOS.Repositories
                         // Closed day protection if affecting cash drawer
                         if (string.Equals(tx.PaymentDestination, "cash_drawer", StringComparison.OrdinalIgnoreCase))
                         {
-                            using (var clCmd = new SQLiteCommand("SELECT 1 FROM daily_closings WHERE business_date = date('now', 'localtime') LIMIT 1;", conn, trans))
+                            var currentBDate = Services.BusinessDayHelper.GetCurrentBusinessDate(conn, trans);
+                            if (Services.BusinessDayHelper.IsBusinessDayClosed(conn, trans, currentBDate))
                             {
-                                if (clCmd.ExecuteScalar() != null)
-                                {
-                                    throw new InvalidOperationException("لا يمكن تنفيذ معاملة نقدية تؤثر على درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
-                                }
+                                throw new InvalidOperationException("لا يمكن تنفيذ معاملة نقدية تؤثر على درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
                             }
                         }
 
@@ -631,11 +625,16 @@ namespace RafiqPOS.Repositories
                             // Enforce daily transfer limit (الحد الأقصى للتحويلات اليومية)
                             if (dailyLimit > 0)
                             {
+                                DateTime bDate = Services.BusinessDayHelper.GetCurrentBusinessDate(conn, trans);
+                                DateTime winStart, winEnd;
+                                Services.BusinessDayHelper.GetBusinessDayWindow(conn, trans, bDate, out winStart, out winEnd);
                                 long todayCashOut = 0;
-                                string todaySql = @"SELECT COALESCE(SUM(amount_piasters), 0) FROM digital_transactions WHERE account_id = @id AND tx_type = 'cash_out' AND status = 'completed' AND date(datetime(created_at, 'localtime')) = date('now', 'localtime');";
+                                string todaySql = string.Format(@"SELECT COALESCE(SUM(amount_piasters), 0) FROM digital_transactions WHERE account_id = @id AND tx_type = 'cash_out' AND status = 'completed' AND {0};",
+                                    Services.BusinessDayHelper.GetSqlDateClause("created_at", "w"));
                                 using (var dCmd = new SQLiteCommand(todaySql, conn, trans))
                                 {
                                     dCmd.Parameters.AddWithValue("@id", tx.AccountId);
+                                    Services.BusinessDayHelper.AddDateParams(dCmd, "w", winStart, winEnd);
                                     object dRes = dCmd.ExecuteScalar();
                                     if (dRes != null && dRes != DBNull.Value) todayCashOut = Convert.ToInt64(dRes);
                                 }
@@ -687,6 +686,23 @@ namespace RafiqPOS.Repositories
                             if (tx.TotalCollectedPiasters <= 0)
                             {
                                 tx.TotalCollectedPiasters = tx.ProfitPiasters;
+                            }
+
+                            // F-19: cash_in pays cash out of drawer to customer (Amount - Profit)
+                            if (string.Equals(tx.PaymentDestination, "cash_drawer", StringComparison.OrdinalIgnoreCase))
+                            {
+                                long netDrawerOutflow = tx.AmountPiasters - tx.ProfitPiasters;
+                                if (netDrawerOutflow > 0 && RafiqPOS.Services.DatabaseService.DailyClosing != null)
+                                {
+                                    DateTime currentBDate = RafiqPOS.Services.BusinessDayHelper.GetCurrentBusinessDate(conn, trans);
+                                    var liveBal = RafiqPOS.Services.DatabaseService.DailyClosing.GetLiveDrawerBalance(currentBDate.ToString("yyyy-MM-dd"));
+                                    if (liveBal != null && liveBal.AvailableCashPiasters < netDrawerOutflow)
+                                    {
+                                        throw new InvalidOperationException(string.Format(
+                                            "رصيد النقدية المتاح بالدرج ({0:N2} ج.م) غير كافٍ لتسليم العميل نقدية الإيداع ({1:N2} ج.م). يرجى تغذية الدرج بالسيولة أولاً.",
+                                            liveBal.AvailableCashPiasters / 100.0, netDrawerOutflow / 100.0));
+                                    }
+                                }
                             }
                         }
                         else
@@ -1095,6 +1111,251 @@ namespace RafiqPOS.Repositories
                 CreatedBy = r["created_by"] != DBNull.Value ? r["created_by"].ToString() : null,
                 CreatedAt = r["created_at"].ToString()
             };
+        }
+
+        public DigitalAccount AdjustBalance(string accountId, long newBalancePiasters, string reason, string userId)
+        {
+            if (string.IsNullOrWhiteSpace(accountId)) throw new ArgumentException("معرف الحساب مطلوب");
+            if (string.IsNullOrWhiteSpace(reason)) throw new ArgumentException("سبب تسوية الرصيد مطلوب");
+
+            string now = DateTime.UtcNow.ToString("o");
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var trans = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        long existingBal = 0;
+                        using (var cmd = new SQLiteCommand("SELECT balance_piasters FROM digital_accounts WHERE id = @id LIMIT 1;", conn, trans))
+                        {
+                            cmd.Parameters.AddWithValue("@id", accountId);
+                            using (var reader = cmd.ExecuteReader())
+                            {
+                                if (!reader.Read()) throw new InvalidOperationException("الحساب الرقمي / المحفظة غير موجودة");
+                                existingBal = Convert.ToInt64(reader["balance_piasters"]);
+                            }
+                        }
+
+                        long diff = newBalancePiasters - existingBal;
+                        using (var cmd = new SQLiteCommand("UPDATE digital_accounts SET balance_piasters = @bal, updated_at = @now WHERE id = @id;", conn, trans))
+                        {
+                            cmd.Parameters.AddWithValue("@bal", newBalancePiasters);
+                            cmd.Parameters.AddWithValue("@now", now);
+                            cmd.Parameters.AddWithValue("@id", accountId);
+                            cmd.ExecuteNonQuery();
+                        }
+
+                        string fundingId = Guid.NewGuid().ToString();
+                        string insertFundingSql = @"
+                            INSERT INTO digital_account_fundings (
+                                id, account_id, amount_piasters, funding_source, previous_balance_piasters,
+                                new_balance_piasters, notes, created_by, created_at
+                            ) VALUES (
+                                @id, @accId, @amt, 'manual_adjustment', @prevBal, @newBal, @notes, @by, @now
+                            );";
+                        using (var fundCmd = new SQLiteCommand(insertFundingSql, conn, trans))
+                        {
+                            fundCmd.Parameters.AddWithValue("@id", fundingId);
+                            fundCmd.Parameters.AddWithValue("@accId", accountId);
+                            fundCmd.Parameters.AddWithValue("@amt", diff);
+                            fundCmd.Parameters.AddWithValue("@prevBal", existingBal);
+                            fundCmd.Parameters.AddWithValue("@newBal", newBalancePiasters);
+                            fundCmd.Parameters.AddWithValue("@notes", "تسوية رصيد يدوية: " + reason);
+                            fundCmd.Parameters.AddWithValue("@by", !string.IsNullOrEmpty(userId) ? userId : "admin");
+                            fundCmd.Parameters.AddWithValue("@now", now);
+                            fundCmd.ExecuteNonQuery();
+                        }
+
+                        string insertTxSql = @"
+                            INSERT INTO digital_transactions (
+                                id, account_id, tx_type, amount_piasters, profit_piasters, total_collected_piasters,
+                                cashier_name, payment_destination, status, notes, created_at
+                            ) VALUES (
+                                @id, @accId, 'adjustment', @amount, 0, 0, @cashier, 'manual_adjustment', 'completed', @notes, @now
+                            );";
+                        using (var txCmd = new SQLiteCommand(insertTxSql, conn, trans))
+                        {
+                            txCmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
+                            txCmd.Parameters.AddWithValue("@accId", accountId);
+                            txCmd.Parameters.AddWithValue("@amount", diff);
+                            txCmd.Parameters.AddWithValue("@cashier", !string.IsNullOrEmpty(userId) ? userId : "admin");
+                            txCmd.Parameters.AddWithValue("@notes", "تسوية رصيد يدوية: " + reason);
+                            txCmd.Parameters.AddWithValue("@now", now);
+                            txCmd.ExecuteNonQuery();
+                        }
+
+                        if (_auditRepo != null)
+                        {
+                            _auditRepo.Log(conn, trans, new AuditLog
+                            {
+                                Id = "aud_" + Guid.NewGuid().ToString("N"),
+                                UserId = !string.IsNullOrEmpty(userId) ? userId : "admin",
+                                Action = "wallet_balance_adjust",
+                                EntityType = "digital_account",
+                                EntityId = accountId,
+                                DetailsJson = string.Format("{{\"previousBalance\":{0},\"newBalance\":{1},\"diff\":{2},\"reason\":\"{3}\"}}", existingBal, newBalancePiasters, diff, reason),
+                                CreatedAt = now
+                            });
+                        }
+
+                        trans.Commit();
+                        return GetAccountById(accountId);
+                    }
+                    catch
+                    {
+                        trans.Rollback();
+                        throw;
+                    }
+                }
+            }
+        }
+
+        public DigitalTransaction CancelTransaction(string transactionId, string reason, string cancelledBy)
+        {
+            if (string.IsNullOrWhiteSpace(transactionId))
+                throw new ArgumentException("معرف المعاملة مطلوب لإلغائها");
+
+            string now = DateTime.UtcNow.ToString("o");
+
+            lock (SaleService.FinancialWriteLock)
+            {
+                using (var conn = new SQLiteConnection(_connectionString))
+                {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction())
+                    {
+                        try
+                        {
+                            DateTime currentBDate = RafiqPOS.Services.BusinessDayHelper.GetCurrentBusinessDate(conn, trans);
+                            if (RafiqPOS.Services.BusinessDayHelper.IsBusinessDayClosed(conn, trans, currentBDate))
+                            {
+                                throw new InvalidOperationException("لا يمكن إلغاء معاملة في يوم مالي مغلق ومقفل نهائياً.");
+                            }
+
+                            DigitalTransaction tx = null;
+                            string getTxSql = @"
+                                SELECT t.*, a.name AS account_name, a.type AS account_type
+                                FROM digital_transactions t
+                                LEFT JOIN digital_accounts a ON t.account_id = a.id
+                                WHERE t.id = @id LIMIT 1;";
+                            using (var cmd = new SQLiteCommand(getTxSql, conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@id", transactionId);
+                                using (var reader = cmd.ExecuteReader())
+                                {
+                                    if (!reader.Read())
+                                    {
+                                        throw new InvalidOperationException("معاملة المحفظة غير موجودة");
+                                    }
+                                    tx = MapTransaction(reader);
+                                }
+                            }
+
+                            if (string.Equals(tx.Status, "cancelled", StringComparison.OrdinalIgnoreCase))
+                            {
+                                throw new InvalidOperationException("هذه العملية ملغاة بالفعل مسبقاً");
+                            }
+                            if (string.Equals(tx.TxType, "pos_sale", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(tx.TxType, "pos_return", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(tx.TxType, "sale_credit", StringComparison.OrdinalIgnoreCase))
+                            {
+                                throw new InvalidOperationException("معاملات نقاط البيع المرتبطة بفواتير الكاشير يتم إلغاؤها من خلال استرجاع أو إلغاء الفاتورة الأصلية");
+                            }
+
+                            long accBal = 0;
+                            string getAccSql = "SELECT name, balance_piasters FROM digital_accounts WHERE id = @accId LIMIT 1;";
+                            using (var cmd = new SQLiteCommand(getAccSql, conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@accId", tx.AccountId);
+                                using (var reader = cmd.ExecuteReader())
+                                {
+                                    if (!reader.Read())
+                                    {
+                                        throw new InvalidOperationException("حساب المحفظة الخاص بهذه العملية غير موجود");
+                                    }
+                                    accBal = Convert.ToInt64(reader["balance_piasters"]);
+                                }
+                            }
+
+                            // Reverse balance:
+                            // cash_out (transfer/withdrawal): originally subtracted tx.AmountPiasters -> Reversal adds tx.AmountPiasters
+                            // cash_in (deposit): originally added tx.AmountPiasters -> Reversal subtracts tx.AmountPiasters
+                            long reversalDelta = 0;
+                            if (string.Equals(tx.TxType, "cash_out", StringComparison.OrdinalIgnoreCase))
+                            {
+                                reversalDelta = tx.AmountPiasters;
+                            }
+                            else if (string.Equals(tx.TxType, "cash_in", StringComparison.OrdinalIgnoreCase))
+                            {
+                                reversalDelta = -tx.AmountPiasters;
+                                if (accBal + reversalDelta < 0)
+                                {
+                                    throw new InvalidOperationException(string.Format("لا يمكن إلغاء عملية الإيداع لأن رصيد المحفظة الحالي ({0:N2} ج.م) أقل من المبلغ المطلوب خصمه ({1:N2} ج.م)",
+                                        accBal / 100.0, tx.AmountPiasters / 100.0));
+                                }
+                            }
+                            else
+                            {
+                                throw new InvalidOperationException("نوع العملية لا يقبل الإلغاء المباشر");
+                            }
+
+                            string updateBalSql = @"
+                                UPDATE digital_accounts 
+                                SET balance_piasters = balance_piasters + @delta,
+                                    updated_at = @now
+                                WHERE id = @id;";
+                            using (var cmd = new SQLiteCommand(updateBalSql, conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@delta", reversalDelta);
+                                cmd.Parameters.AddWithValue("@now", now);
+                                cmd.Parameters.AddWithValue("@id", tx.AccountId);
+                                cmd.ExecuteNonQuery();
+                            }
+
+                            string cancelNote = string.Format("[ملغاة في {0} بواسطة {1}: {2}]", DateTime.Now.ToString("yyyy-MM-dd HH:mm"), cancelledBy ?? "كاشير المحل", reason ?? "بدون سبب");
+                            string updatedNotes = string.IsNullOrWhiteSpace(tx.Notes) ? cancelNote : tx.Notes + " " + cancelNote;
+
+                            string updateTxSql = @"
+                                UPDATE digital_transactions
+                                SET status = 'cancelled',
+                                    notes = @notes
+                                WHERE id = @id;";
+                            using (var cmd = new SQLiteCommand(updateTxSql, conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@notes", updatedNotes);
+                                cmd.Parameters.AddWithValue("@id", tx.Id);
+                                cmd.ExecuteNonQuery();
+                            }
+
+                            if (_auditRepo != null)
+                            {
+                                _auditRepo.Log(conn, trans, new AuditLog
+                                {
+                                    Id = "aud_" + Guid.NewGuid().ToString("N"),
+                                    UserId = !string.IsNullOrEmpty(cancelledBy) ? cancelledBy : "admin",
+                                    Action = "wallet_transaction_cancel",
+                                    EntityType = "digital_transaction",
+                                    EntityId = tx.Id,
+                                    DetailsJson = string.Format("{{\"txId\":\"{0}\",\"accountId\":\"{1}\",\"amount\":{2},\"reason\":\"{3}\"}}",
+                                        tx.Id, tx.AccountId, tx.AmountPiasters, (reason ?? "").Replace("\"", "\\\"")),
+                                    CreatedAt = now
+                                });
+                            }
+
+                            trans.Commit();
+                            tx.Status = "cancelled";
+                            tx.Notes = updatedNotes;
+                            return tx;
+                        }
+                        catch
+                        {
+                            trans.Rollback();
+                            throw;
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -3,6 +3,7 @@ import { Printer, X, CheckCircle, AlertTriangle, Loader2, RotateCcw } from 'luci
 import type { Sale } from '../types/models';
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { formatArabicCurrency } from '../utils/money';
 
 interface ReceiptModalProps {
   isOpen: boolean;
@@ -267,9 +268,9 @@ export function ReceiptModal({
                         ? `${item.quantityMilli % 1000 !== 0 ? (item.quantityMilli / 1000).toFixed(3) : item.quantityMilli / 1000} ${item.unitName}`
                         : (item.unit === 'kg' || item.quantityMilli % 1000 !== 0
                           ? `${(item.quantityMilli / 1000).toFixed(3)} كجم`
-                          : `${item.quantityMilli / 1000} ق`)} × {(item.unitPricePiasters / 100).toFixed(2)}
+                          : `${item.quantityMilli / 1000} ق`)} × {formatArabicCurrency(item.unitPricePiasters, false)}
                     </span>
-                    <span className="font-bold text-black">{(item.totalPiasters / 100).toFixed(2)} ج.م</span>
+                    <span className="font-bold text-black">{formatArabicCurrency(item.totalPiasters)}</span>
                   </div>
                 </div>
               ))}
@@ -282,24 +283,24 @@ export function ReceiptModal({
             <div className="space-y-1 font-sans">
               <div className="flex justify-between">
                 <span>المجموع:</span>
-                <span className="font-mono">{(sale.subtotalPiasters / 100).toFixed(2)} ج.م</span>
+                <span className="font-mono">{formatArabicCurrency(sale.subtotalPiasters)}</span>
               </div>
               {sale.discountPiasters > 0 && (
                 <div className="flex justify-between text-red-700">
                   <span>الخصم:</span>
-                  <span className="font-mono">-{(sale.discountPiasters / 100).toFixed(2)} ج.م</span>
+                  <span className="font-mono">-{formatArabicCurrency(sale.discountPiasters)}</span>
                 </div>
               )}
               {sale.taxPiasters > 0 && (
                 <div className="flex justify-between">
                   <span>ضريبة القيمة المضافة:</span>
-                  <span className="font-mono">{(sale.taxPiasters / 100).toFixed(2)} ج.م</span>
+                  <span className="font-mono">{formatArabicCurrency(sale.taxPiasters)}</span>
                 </div>
               )}
 
               <div className={`border-t-2 border-black my-1.5 pt-1 flex justify-between font-bold ${is57mm ? 'text-[12.5px]' : 'text-[14px]'}`}>
                 <span>الصافي المستحق:</span>
-                <span className="font-mono font-bold">{(sale.totalPiasters / 100).toFixed(2)} ج.م</span>
+                <span className="font-mono font-bold">{formatArabicCurrency(sale.totalPiasters)}</span>
               </div>
 
               <div className="flex justify-between pt-0.5">
@@ -312,7 +313,7 @@ export function ReceiptModal({
                     ? 'محفظة كاش'
                     : 'نقداً'
                 }):</span>
-                <span className="font-mono font-bold">{(sale.paidPiasters / 100).toFixed(2)} ج.م</span>
+                <span className="font-mono font-bold">{formatArabicCurrency(sale.paidPiasters)}</span>
               </div>
 
               {sale.notes && (
@@ -324,14 +325,14 @@ export function ReceiptModal({
               {changePiasters > 0 && (
                 <div className="flex justify-between font-bold text-emerald-800">
                   <span>الباقي للعميل:</span>
-                  <span className="font-mono font-bold">{(changePiasters / 100).toFixed(2)} ج.م</span>
+                  <span className="font-mono font-bold">{formatArabicCurrency(changePiasters)}</span>
                 </div>
               )}
 
               {remainingPiasters > 0 && (
                 <div className="flex justify-between font-bold text-red-700">
                   <span>المتبقي (آجل):</span>
-                  <span className="font-mono font-bold">{(remainingPiasters / 100).toFixed(2)} ج.م</span>
+                  <span className="font-mono font-bold">{formatArabicCurrency(remainingPiasters)}</span>
                 </div>
               )}
             </div>

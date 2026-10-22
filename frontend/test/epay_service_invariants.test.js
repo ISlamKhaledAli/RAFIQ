@@ -87,11 +87,11 @@ describe('Milestone 12 — Feature #176 & #177: E-Payment & Payment Terminals In
       const customerFee = 250;   // 2.50 EGP
       const providerCommission = 100; // 1.00 EGP
 
-      const totalReceived = billPiasters + customerFee;
-      const netProfit = customerFee + providerCommission;
+      const totalReceived = billPiasters + providerCommission + customerFee;
+      const netProfit = customerFee;
 
-      assert.equal(totalReceived, 5250, 'Total received must be bill + customer fee');
-      assert.equal(netProfit, 350, 'Net profit must be customer fee + provider commission');
+      assert.equal(totalReceived, 5350, 'Total received must be bill + provider commission + customer fee');
+      assert.equal(netProfit, 250, 'Net profit must be customer fee (shop markup)');
       assert.equal(Number.isInteger(totalReceived), true);
       assert.equal(Number.isInteger(netProfit), true);
     });
