@@ -18,6 +18,7 @@ import { extractProducts } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { useAuth } from '../context/useAuth';
 
 interface ReturnModalProps {
   isOpen: boolean;
@@ -44,6 +45,9 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
   initialSale,
   onReturnCompleted
 }) => {
+  const { hasPermission, isAdmin, isRoot } = useAuth();
+  const canReturnWithoutInvoice = isRoot || isAdmin || hasPermission('returns.without_invoice');
+
   const [mode, setMode] = useState<'withInvoice' | 'withoutInvoice'>('withInvoice');
   const [invoiceQuery, setInvoiceQuery] = useState<string>(() => (initialSale?.invoiceNumber ? String(initialSale.invoiceNumber) : ''));
   const [loadedSale, setLoadedSale] = useState<Sale | null>(() => initialSale || null);
@@ -463,10 +467,22 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setMode('withoutInvoice')}
+                  disabled={!canReturnWithoutInvoice}
+                  onClick={() => {
+                    if (!canReturnWithoutInvoice) {
+                      setSubmitError('ليس لديك صلاحية تسجيل مرتجع بدون فاتورة (returns.without_invoice)');
+                      return;
+                    }
+                    setMode('withoutInvoice');
+                  }}
                   className={`h-8 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                    mode === 'withoutInvoice' ? 'bg-white dark:bg-surface-dark text-slate-900 dark:text-ink-dark shadow-xs' : 'text-slate-500 dark:text-ink-dark-muted hover:text-slate-800 dark:hover:text-ink-dark'
+                    !canReturnWithoutInvoice
+                      ? 'opacity-40 cursor-not-allowed text-slate-400'
+                      : mode === 'withoutInvoice'
+                        ? 'bg-white dark:bg-surface-dark text-slate-900 dark:text-ink-dark shadow-xs'
+                        : 'text-slate-500 dark:text-ink-dark-muted hover:text-slate-800 dark:hover:text-ink-dark'
                   }`}
+                  title={!canReturnWithoutInvoice ? 'يتطلب صلاحية المرتجع بدون فاتورة' : undefined}
                 >
                   <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-warn" />
                   <span>مرتجع حر بدون فاتورة (مشرف)</span>

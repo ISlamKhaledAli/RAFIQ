@@ -1,9 +1,10 @@
 import React from 'react';
-import { X, AlertTriangle } from 'lucide-react';
+import { X, AlertTriangle, Lock } from 'lucide-react';
 import type { Customer } from '../../types/models';
 import { MoneyInput } from '../../components/MoneyInput';
 import { normalizeArabicNumerals } from '../../utils/money';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
+import { useAuth } from '../../context/useAuth';
 
 export interface CustomerFormModalProps {
   isOpen: boolean;
@@ -42,6 +43,10 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
   onSave,
   onOpenStatementForDuplicate,
 }) => {
+  const { isRoot, isAdmin, hasPermission } = useAuth();
+  const canSetCreditLimit = isRoot || isAdmin || hasPermission('customers.credit_limit');
+  const canSetOpeningBalance = isRoot || isAdmin || hasPermission('customers.opening_balance');
+
   const isDirty = Boolean(name.trim() || phone.trim() || initialBalancePiasters !== 0);
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
@@ -135,21 +140,49 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-ink dark:text-ink-dark font-semibold mb-1">سقف الشكك المسموح (أقصى مبلغ شكك)</label>
-            <MoneyInput 
-              valuePiasters={creditLimitPiasters}
-              onChangePiasters={setCreditLimitPiasters}
-            />
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-ink dark:text-ink-dark font-semibold">سقف الشكك المسموح (أقصى مبلغ شكك)</label>
+              {!canSetCreditLimit && (
+                <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark flex items-center gap-1">
+                  <Lock className="w-3 h-3" /> يتطلب صلاحية المشرف
+                </span>
+              )}
+            </div>
+            {canSetCreditLimit ? (
+              <MoneyInput 
+                valuePiasters={creditLimitPiasters}
+                onChangePiasters={setCreditLimitPiasters}
+              />
+            ) : (
+              <div className="h-8 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded flex items-center text-ink-muted dark:text-ink-muted-dark font-mono text-xs">
+                {(creditLimitPiasters / 100).toFixed(2)} ج.م (للقراءة فقط)
+              </div>
+            )}
           </div>
 
           {!editingCustomer && (
             <div>
-              <label className="block text-ink dark:text-ink-dark font-semibold mb-1">حساب قديم عليه قبل ما تسجله (إن وجد)</label>
-              <MoneyInput 
-                valuePiasters={initialBalancePiasters}
-                onChangePiasters={setInitialBalancePiasters}
-              />
-              <p className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1">سيبه صفر لو زبون جديد ومفيش عليه أي حساب قديم.</p>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-ink dark:text-ink-dark font-semibold">حساب قديم عليه قبل ما تسجله (إن وجد)</label>
+                {!canSetOpeningBalance && (
+                  <span className="text-[10px] text-ink-muted dark:text-ink-muted-dark flex items-center gap-1">
+                    <Lock className="w-3 h-3" /> يتطلب صلاحية المشرف
+                  </span>
+                )}
+              </div>
+              {canSetOpeningBalance ? (
+                <>
+                  <MoneyInput 
+                    valuePiasters={initialBalancePiasters}
+                    onChangePiasters={setInitialBalancePiasters}
+                  />
+                  <p className="text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1">سيبه صفر لو زبون جديد ومفيش عليه أي حساب قديم.</p>
+                </>
+              ) : (
+                <div className="h-8 px-3 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded flex items-center text-ink-muted dark:text-ink-muted-dark text-xs">
+                  0.00 ج.م (بدون رصيد افتتاحي - غير مصرح)
+                </div>
+              )}
             </div>
           )}
 

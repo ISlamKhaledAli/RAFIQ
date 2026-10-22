@@ -237,6 +237,9 @@ export interface CustomerLedgerEntry {
   amountPiasters: number;
   balanceAfterPiasters: number;
   notes: string;
+  shiftId?: string | null;
+  paymentMethod?: string | null;
+  digitalAccountId?: string | null;
   createdAt: string;
   amountFormatted?: string;
   balanceAfterFormatted?: string;
@@ -524,6 +527,10 @@ export interface PurchaseItem {
   expiryDate?: string | null;
   productionDate?: string | null;
   batchId?: string | null;
+  unitId?: string | null;
+  unitName?: string | null;
+  conversionFactor?: number;
+  packageCostPiasters?: number;
   createdAt: string;
 }
 
@@ -1417,7 +1424,18 @@ export interface EpayAnalyticsSummary {
 
 export type DigitalAccountType = 'wallet' | 'instapay';
 export type DigitalAccountProvider = 'vodafone_cash' | 'orange_cash' | 'etisalat_cash' | 'we_pay' | 'instapay' | 'bank_wallet' | 'other';
-export type DigitalTxType = 'cash_out' | 'cash_in' | 'sale_credit' | 'funding' | 'adjustment';
+export type DigitalTxType =
+  | 'cash_out'
+  | 'cash_in'
+  | 'sale_credit'
+  | 'pos_sale'
+  | 'pos_return'
+  | 'customer_debt_payment'
+  | 'payment_cancellation'
+  | 'funding'
+  | 'adjustment'
+  | 'balance_adjustment'
+  | (string & {});
 
 export interface DigitalAccount {
   id: string;
@@ -1458,6 +1476,8 @@ export interface DigitalTransaction {
   createdBy?: string;
   createdByName?: string;
   createdAt: string;
+  status?: string;
+  cancelReason?: string;
   amountFormatted?: string;
   profitFormatted?: string;
   balanceAfterFormatted?: string;
@@ -1484,6 +1504,7 @@ export interface DigitalAnalyticsSummary {
   totalBalancePiasters: number;
   todayProfitPiasters: number;
   monthProfitPiasters: number;
+  totalProfitPiasters?: number;
   todayTransactionsCount: number;
   todayVolumePiasters: number;
   activeAccountsCount: number;
@@ -1492,6 +1513,7 @@ export interface DigitalAnalyticsSummary {
   totalBalanceFormatted?: string;
   todayProfitFormatted?: string;
   monthProfitFormatted?: string;
+  totalProfitFormatted?: string;
   todayVolumeFormatted?: string;
 }
 

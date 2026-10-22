@@ -44,6 +44,7 @@ import type {
 export type WalletsSubTab = 'transact' | 'accounts' | 'history' | 'analytics';
 
 export interface WalletsViewProps {
+  isActive?: boolean;
   activeSubTab?: WalletsSubTab;
   onSubTabChange?: (tab: WalletsSubTab) => void;
 }
@@ -262,6 +263,7 @@ const getAccountDisplayInfo = (acc?: DigitalAccount | null) => {
 };
 
 export const WalletsView: React.FC<WalletsViewProps> = ({
+  isActive = true,
   activeSubTab = 'transact',
   onSubTabChange: _onSubTabChange,
 }) => {
@@ -273,6 +275,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   const canManageAccounts = isRoot || isAdmin || hasPermission('wallets.accounts_manage');
   const canViewAnalytics = isRoot || isAdmin || hasPermission('wallets.analytics');
   const canViewHistory = isRoot || isAdmin || hasPermission('wallets.history');
+  const canCancelTx = isRoot || isAdmin || hasPermission('wallets.cancel');
 
   // Synchronize active tab from props
   const [internalTab, setInternalTab] = useState<WalletsSubTab>(activeSubTab);
@@ -335,6 +338,11 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   const [fundingSource, setFundingSource] = useState<'cash_drawer' | 'bank_transfer' | 'external_cash'>('cash_drawer');
   const [fundingNotes, setFundingNotes] = useState('');
   const [liveDrawerCashPiasters, setLiveDrawerCashPiasters] = useState<number | null>(null);
+
+  // Cancel Transaction Modal
+  const [cancellingTx, setCancellingTx] = useState<DigitalTransaction | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
 
   const fetchLiveDrawerCash = useCallback(async () => {
     try {
@@ -439,8 +447,29 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
   }, [selectedAccountId]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (isActive) {
+      void loadData();
+    }
+  }, [isActive, loadData]);
+
+  // Direct calculation of balances from accounts array for 100% synchronization
+  const calculatedWalletsBalancePiasters = useMemo(() => {
+    return accounts
+      .filter((a) => a.accountType === 'wallet' && a.isActive !== false)
+      .reduce((sum, a) => sum + (a.balancePiasters || 0), 0);
+  }, [accounts]);
+
+  const calculatedInstapayBalancePiasters = useMemo(() => {
+    return accounts
+      .filter((a) => a.accountType === 'instapay' && a.isActive !== false)
+      .reduce((sum, a) => sum + (a.balancePiasters || 0), 0);
+  }, [accounts]);
+
+  const calculatedTotalBalancePiasters = useMemo(() => {
+    return accounts
+      .filter((a) => a.isActive !== false)
+      .reduce((sum, a) => sum + (a.balancePiasters || 0), 0);
+  }, [accounts]);
 
   // Event bus subscription for live updates
   useDataSubscription(['wallets', 'all'], () => {
@@ -712,6 +741,35 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
       setFeedbackMsg({ type: 'error', text: err?.message || 'تعذر حذف المحفظة لوجود حركات مسجلة عليها.' });
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  // Cancel / Reverse Transaction
+  const handleCancelTransaction = async () => {
+    if (!cancellingTx) return;
+    if (!cancelReason.trim()) return;
+    try {
+      setIsSubmittingCancel(true);
+      await invoke('wallets:cancelTransaction', {
+        transactionId: cancellingTx.id,
+        reason: cancelReason.trim(),
+      });
+      setCancellingTx(null);
+      setCancelReason('');
+      setFeedbackMsg({ type: 'success', text: 'تم إلغاء العملية وتصحيح رصيد المحفظة والدرج بنجاح.' });
+      await loadData();
+      emitDataChanged('wallets');
+    } catch (err: unknown) {
+      console.error('Failed to cancel wallet transaction:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      await rafiqConfirm({
+        title: 'تعذر إلغاء العملية',
+        message: msg || 'فشل إلغاء العملية، يرجى مراجعة الرصيد وحالة اليومية المالية.',
+        confirmText: 'حسناً',
+        variant: 'danger',
+      });
+    } finally {
+      setIsSubmittingCancel(false);
     }
   };
 
@@ -1289,7 +1347,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                     إجمالي رصيد محافظ الكاش
                   </span>
                   <span className="text-lg font-black font-mono text-paid dark:text-paid-bright">
-                    {analytics?.walletsBalanceFormatted || '0.00 ج.م'}
+                    {analytics?.walletsBalanceFormatted || formatArabicCurrency(calculatedWalletsBalancePiasters)}
                   </span>
                 </div>
                 <div className="w-8 h-8 rounded-lg bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright flex items-center justify-center">
@@ -1303,7 +1361,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                     إجمالي رصيد إنستاباي (البنوك)
                   </span>
                   <span className="text-lg font-black font-mono text-violet-700 dark:text-violet-300">
-                    {analytics?.instapayBalanceFormatted || '0.00 ج.م'}
+                    {analytics?.instapayBalanceFormatted || formatArabicCurrency(calculatedInstapayBalancePiasters)}
                   </span>
                 </div>
                 <div className="w-8 h-8 rounded-lg bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 flex items-center justify-center">
@@ -1317,7 +1375,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                     إجمالي السيولة النقدية المتاحة
                   </span>
                   <span className="text-lg font-black font-mono text-brand dark:text-brand-bright">
-                    {analytics?.totalBalanceFormatted || '0.00 ج.م'}
+                    {analytics?.totalBalanceFormatted || formatArabicCurrency(calculatedTotalBalancePiasters)}
                   </span>
                 </div>
                 <div className="w-8 h-8 rounded-lg bg-brand-soft dark:bg-brand-dark-soft text-brand dark:text-brand-bright flex items-center justify-center">
@@ -1468,38 +1526,62 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                       <th className="px-4">بيانات العميل</th>
                       <th className="px-4">التاريخ والوقت</th>
                       <th className="px-4">المستخدم</th>
+                      <th className="px-4 text-center">الإجراء</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line dark:divide-line-dark">
                     {paginatedHistory.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="py-12 text-center text-ink-muted dark:text-ink-dark-muted font-medium">
+                        <td colSpan={10} className="py-12 text-center text-ink-muted dark:text-ink-dark-muted font-medium">
                           لا توجد عمليات مسجلة مطابقة للبحث
                         </td>
                       </tr>
                     ) : (
                       paginatedHistory.map((t) => {
                         const isCashOutTx = t.txType === 'cash_out';
-                        const isSaleTx = t.txType === 'sale_credit';
+                        const isSaleTx = t.txType === 'sale_credit' || t.txType === 'pos_sale';
+                        const isCustomerDebtTx = t.txType === 'customer_debt_payment';
+                        const isReturnTx = t.txType === 'pos_return';
+                        const isCancelTx = t.txType === 'payment_cancellation';
                         const isFundingTx = t.txType === 'funding';
+                        const isCancelled = t.status === 'cancelled';
+                        const isDeduction = isCashOutTx || isReturnTx || isCancelTx;
+
+                        const badgeLabel =
+                          t.txTypeArabic ||
+                          (isCashOutTx
+                            ? 'سحب كاش'
+                            : isSaleTx
+                              ? 'مبيعات كاشير'
+                              : isCustomerDebtTx
+                                ? 'سداد آجل عميل'
+                                : isReturnTx
+                                  ? 'مرتجع مبيعات'
+                                  : isCancelTx
+                                    ? 'إلغاء سداد'
+                                    : isFundingTx
+                                      ? 'شحن وتغذية'
+                                      : 'إيداع');
 
                         return (
-                          <tr key={t.id} className="hover:bg-surface-2/50 dark:hover:bg-surface-dark-2/50 transition-colors h-11">
+                          <tr key={t.id} className={`hover:bg-surface-2/50 dark:hover:bg-surface-dark-2/50 transition-colors h-11 ${isCancelled ? 'opacity-65 bg-danger/5' : ''}`}>
                             <td className="px-4 font-mono font-bold text-brand-dark dark:text-brand-bright">
-                              {t.transactionNumber}
+                              {t.transactionNumber || (t.id ? t.id.replace(/-/g, '').slice(-8).toUpperCase() : '—')}
                             </td>
                             <td className="px-4">
                               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                                isCashOutTx
+                                isDeduction
                                   ? 'bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300'
                                   : isSaleTx
                                     ? 'bg-purple-50 text-purple-700 dark:bg-purple-950/30 dark:text-purple-300'
-                                    : isFundingTx
-                                      ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300'
-                                      : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'
+                                    : isCustomerDebtTx
+                                      ? 'bg-paid-soft text-paid dark:bg-paid-dark-soft dark:text-paid-bright'
+                                      : isFundingTx
+                                        ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300'
+                                        : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'
                               }`}>
-                                {isCashOutTx ? <ArrowDownLeft className="w-3 h-3" /> : <ArrowUpRight className="w-3 h-3" />}
-                                <span>{t.txTypeArabic || (isCashOutTx ? 'سحب كاش' : 'إيداع')}</span>
+                                {isDeduction ? <ArrowDownLeft className="w-3 h-3" /> : <ArrowUpRight className="w-3 h-3" />}
+                                <span>{badgeLabel}</span>
                               </span>
                             </td>
                             <td className="px-4 font-bold text-ink dark:text-white">
@@ -1522,6 +1604,28 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                             </td>
                             <td className="px-4 text-ink-muted dark:text-ink-dark-muted">
                               {t.createdByName || t.createdBy || 'كاشير'}
+                            </td>
+                            <td className="px-4 text-center">
+                              {isCancelled ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-danger/10 text-danger dark:bg-danger/20 dark:text-danger-bright">
+                                  ملغاة
+                                </span>
+                              ) : canCancelTx && t.txType !== 'sale_credit' && (t.txType as string) !== 'pos_sale' && (t.txType as string) !== 'pos_return' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCancellingTx(t);
+                                    setCancelReason('');
+                                  }}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-danger hover:bg-danger/10 transition-colors cursor-pointer"
+                                  title="إلغاء المعاملة وتصحيح الرصيد"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5" />
+                                  <span>إلغاء</span>
+                                </button>
+                              ) : (
+                                <span className="text-ink-muted/40">—</span>
+                              )}
                             </td>
                           </tr>
                         );
@@ -1569,7 +1673,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                     إجمالي السيولة في المحافظ
                   </span>
                   <span className="text-xl font-black font-mono text-brand-dark dark:text-brand-bright">
-                    {analytics?.totalBalanceFormatted || '0.00 ج.م'}
+                    {analytics?.totalBalanceFormatted || formatArabicCurrency(calculatedTotalBalancePiasters)}
                   </span>
                   <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-1 block">
                     مجموع الأرصدة المتاحة للتحويل
@@ -1586,7 +1690,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                     أرباح المحل اليوم (الصافية)
                   </span>
                   <span className="text-xl font-black font-mono text-paid dark:text-brand-bright">
-                    {analytics?.todayProfitFormatted || '0.00 ج.م'}
+                    {analytics?.todayProfitFormatted || (analytics ? formatArabicCurrency(analytics.todayProfitPiasters || 0) : '0.00 ج.م')}
                   </span>
                   <span className="text-[11px] text-paid dark:text-brand-bright mt-1 block font-bold">
                     من {analytics?.todayTransactionsCount || 0} عملية اليوم
@@ -1603,7 +1707,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                     أرباح المحل الإجمالية
                   </span>
                   <span className="text-xl font-black font-mono text-emerald-600 dark:text-emerald-400">
-                    {analytics?.monthProfitFormatted || '0.00 ج.م'}
+                    {analytics?.monthProfitFormatted || (analytics ? formatArabicCurrency(analytics.monthProfitPiasters ?? analytics.totalProfitPiasters ?? 0) : '0.00 ج.م')}
                   </span>
                   <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-1 block">
                     أرباح العمليات المسجلة بالنظام
@@ -1620,7 +1724,7 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                     حجم التحويلات المنفذة اليوم
                   </span>
                   <span className="text-xl font-black font-mono text-blue-600 dark:text-blue-400">
-                    {analytics?.todayVolumeFormatted || '0.00 ج.م'}
+                    {analytics?.todayVolumeFormatted || (analytics ? formatArabicCurrency(analytics.todayVolumePiasters || 0) : '0.00 ج.م')}
                   </span>
                   <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-1 block">
                     إجمالي قيمة المبالغ المحولة
@@ -2044,6 +2148,87 @@ export const WalletsView: React.FC<WalletsViewProps> = ({
                   className="h-9 px-5 rounded-xl bg-brand text-white text-xs font-black hover:bg-brand-dark shadow-xs cursor-pointer transition-all"
                 >
                   {actionLoading ? 'جاري الحفظ...' : 'حفظ بيانات الحساب'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CANCEL / REVERSE WALLET TRANSACTION */}
+      {cancellingTx && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="bg-surface dark:bg-surface-dark rounded-2xl max-w-md w-full p-6 shadow-2xl border border-line dark:border-line-dark" dir="rtl">
+            <div className="flex items-center justify-between mb-4 border-b border-line dark:border-line-dark pb-3">
+              <h3 className="text-base font-black text-danger flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-danger" />
+                <span>إلغاء معاملة محفظة / إنستاباي</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setCancellingTx(null)}
+                className="text-ink-muted hover:text-ink cursor-pointer p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark text-xs flex flex-col gap-1.5">
+                <div className="flex justify-between font-bold">
+                  <span className="text-ink-muted">رقم العملية:</span>
+                  <span className="font-mono text-ink">{cancellingTx.transactionNumber}</span>
+                </div>
+                <div className="flex justify-between font-bold">
+                  <span className="text-ink-muted">الحساب:</span>
+                  <span className="text-ink">{cancellingTx.accountName || 'محفظة'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-ink-muted">نوع العملية:</span>
+                  <span className="font-bold text-ink">{cancellingTx.txTypeArabic || (cancellingTx.txType === 'cash_out' ? 'سحب كاش' : 'إيداع')}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-ink-muted">المبلغ:</span>
+                  <span className="font-mono font-bold text-ink">{cancellingTx.amountFormatted || formatArabicCurrency(cancellingTx.amountPiasters)}</span>
+                </div>
+                {cancellingTx.profitPiasters > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-ink-muted">الربح المحتسب:</span>
+                    <span className="font-mono font-bold text-paid">{cancellingTx.profitFormatted || formatArabicCurrency(cancellingTx.profitPiasters)}</span>
+                  </div>
+                )}
+                <div className="text-[11px] text-danger font-medium mt-1 pt-1 border-t border-line dark:border-line-dark">
+                  سيتم التراجع عن حركة الرصيد في المحفظة والدرج، ولا يمكن التراجع بعد الإلغاء.
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-ink-muted block mb-1">سبب الإلغاء (إلزامي):</label>
+                <input
+                  type="text"
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="مثال: خطأ في إدخال الرقم / بناءً على طلب العميل"
+                  className="w-full px-3 py-2 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink placeholder:text-ink-muted/50 focus:bg-surface focus:border-brand focus:outline-none transition-all"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-line dark:border-line-dark mt-1">
+                <button
+                  type="button"
+                  onClick={() => setCancellingTx(null)}
+                  className="px-4 py-2 bg-surface-2 hover:bg-surface border border-line text-ink rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                >
+                  تراجع
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmittingCancel || !cancelReason.trim()}
+                  onClick={handleCancelTransaction}
+                  className="px-4 py-2 bg-danger hover:bg-danger/90 text-white rounded-xl text-xs font-bold transition-colors shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>{isSubmittingCancel ? 'جاري الإلغاء...' : 'تأكيد إلغاء العملية'}</span>
                 </button>
               </div>
             </div>

@@ -84,6 +84,7 @@ import { LicenseExpiredLockScreen } from './components/LicenseExpiredLockScreen'
 import type { LicenseExpiryDetails } from './components/LicenseExpiredLockScreen';
 import { LicenseModal } from './components/LicenseModal';
 import { HelpCenterModal } from './components/HelpCenterModal';
+import { RecoveryCodeModal } from './components/RecoveryCodeModal';
 import { useFeatures } from './context/useFeatures';
 import { useAuth } from './context/useAuth';
 import { LoginScreen } from './views/LoginScreen';
@@ -238,6 +239,10 @@ export default function App() {
 
   // Feature #147: Offline Help Center & Support (Story 102)
   const [isHelpCenterOpen, setIsHelpCenterOpen] = useState(false);
+
+  // Step 0b / F-42: Dual-Wrap Recovery Code Prompt
+  const [recoveryCodeStatus, setRecoveryCodeStatus] = useState<{ isConfirmed: boolean; recoveryCode: string } | null>(null);
+  const [isRecoveryCodeModalOpen, setIsRecoveryCodeModalOpen] = useState(false);
   const [helpCenterSection, setHelpCenterSection] = useState<string>('pos');
 
   const openHelpCenterModal = useCallback((sec?: string) => {
@@ -464,6 +469,21 @@ export default function App() {
       }
     };
     void checkBackup();
+
+    const checkRecoveryCode = async () => {
+      try {
+        const res = await invoke<{ isConfirmed: boolean; recoveryCode: string }>('backup:getRecoveryStatus');
+        if (res && isMounted) {
+          setRecoveryCodeStatus(res);
+          if (!res.isConfirmed && res.recoveryCode) {
+            setIsRecoveryCodeModalOpen(true);
+          }
+        }
+      } catch {
+        // Ignore in dev
+      }
+    };
+    void checkRecoveryCode();
 
     const checkIntegrity = async () => {
       try {
@@ -1678,6 +1698,7 @@ export default function App() {
           {canAccessWallets && visitedTabs.has('wallets') && (
             <div className={`h-full w-full ${effectiveActiveTab === 'wallets' ? '' : 'hidden'}`}>
               <WalletsView 
+                isActive={effectiveActiveTab === 'wallets'}
                 activeSubTab={walletsSubTab}
                 onSubTabChange={(tab) => setWalletsSubTab(tab)}
               />
@@ -1952,6 +1973,18 @@ export default function App() {
         onClose={() => setIsHelpCenterOpen(false)}
         initialSection={helpCenterSection}
       />
+
+      {/* Step 0b / F-42: Dual-Wrap Backup Recovery Code Display Modal */}
+      {isRecoveryCodeModalOpen && recoveryCodeStatus?.recoveryCode && (
+        <RecoveryCodeModal
+          isOpen={isRecoveryCodeModalOpen}
+          recoveryCode={recoveryCodeStatus.recoveryCode}
+          onConfirmed={() => {
+            setIsRecoveryCodeModalOpen(false);
+            setRecoveryCodeStatus((prev) => (prev ? { ...prev, isConfirmed: true } : null));
+          }}
+        />
+      )}
 
       {/* Global Rafiq Custom Dialog Modal System */}
       <RafiqDialogContainer />

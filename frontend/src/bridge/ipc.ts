@@ -36,6 +36,7 @@ export interface UserDto {
   children?: UserDto[];
   createdAt?: string;
   lastLoginAt?: string;
+  mustChangePin?: boolean;
 }
 
 export interface LoginResult {
@@ -44,6 +45,7 @@ export interface LoginResult {
   isLocked?: boolean;
   remainingLockoutSeconds?: number;
   message?: string;
+  mustChangePin?: boolean;
 }
 
 export interface AppUpdateInfo {
@@ -275,6 +277,9 @@ function getDefaultTimeout(action: string): number {
   ) {
     return 120000; // 2 minutes for heavy file/batch operations
   }
+  if (action === 'sales:create') {
+    return 30000; // 30 seconds for sales:create (Audit F-45)
+  }
   return 15000; // 15 seconds default for normal operations on low-end POS hardware
 }
 
@@ -300,8 +305,24 @@ export async function invoke<TResult = any, TPayload = any>(
   // Check if we are running inside native WebView2
   if (window.chrome?.webview) {
     return new Promise<TResult>((resolve, reject) => {
-      const timer = setTimeout(() => {
+      const timer = setTimeout(async () => {
         pendingRequests.delete(id);
+        // Audit F-45: If sales:create timed out, query by idempotencyKey to recover sale if saved
+        if (action === 'sales:create' && payload && typeof payload === 'object') {
+          const idemKey = (payload as Record<string, unknown>).idempotencyKey as string | undefined;
+          if (idemKey) {
+            try {
+              const recovered = await invoke('sales:getByIdempotencyKey', { idempotencyKey: idemKey }, 5000);
+              if (recovered) {
+                dispatchAutoTopicsForAction(action);
+                resolve(recovered as TResult);
+                return;
+              }
+            } catch {
+              // Not recovered, fall through to timeout rejection
+            }
+          }
+        }
         reject(new Error(`انتهت مهلة الانتظار للعملية: ${action}`));
       }, effectiveTimeout);
 
@@ -312,6 +333,11 @@ export async function invoke<TResult = any, TPayload = any>(
 
 
   // Fallback: Browser Development Mode Mock
+  // Audit F-47: Reject mock execution in production builds outside WebView2 host
+  if (import.meta.env.PROD && !window.chrome?.webview) {
+    throw new Error(`[RAFIQ-POS] Running in production outside C# WebView2 host is strictly prohibited. Action: "${action}"`);
+  }
+
   console.info(`[IPC-DEV-MOCK] Action: "${action}"`, payload);
   const mockRes = await mockHandler(action, payload);
   dispatchAutoTopicsForAction(action);
@@ -590,6 +616,10 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       };
     }
 
+    case 'sales:getByIdempotencyKey': {
+      return null;
+    }
+
     case 'sales:cancel': {
       const saleId = typeof payload === 'object' && payload !== null ? (payload.saleId || payload.id) : String(payload);
       return {
@@ -861,6 +891,10 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       if (newPin.length < 4 || newPin.length > 8 || !/^\d+$/.test(newPin)) {
         throw new Error('يجب أن يتكون الرقم السري من 4 إلى 8 أرقام فقط.');
       }
+      const sequentialPins = ['1234', '4321', '0000', '1111', '2222', '3333', '4444', '5555', '6666', '7777', '8888', '9999', '0123', '9876'];
+      if (sequentialPins.includes(newPin)) {
+        throw new Error('الرقم السري ضعيف وسهل التخمين. يرجى اختيار رقم سري أقوى (غير مكرر أو متتالي).');
+      }
       if (mockPinHash) {
         const curr = String(payload?.currentPin || '');
         const rec = String(payload?.recoveryCode || '').trim().toUpperCase().replace(/[\s-]/g, '');
@@ -936,34 +970,44 @@ async function mockHandler(action: string, payload: any): Promise<any> {
     }
 
     case 'auth:login': {
-      const u = mockUsers.find(x => x.id === payload?.usernameOrId || x.username.toLowerCase() === (payload?.usernameOrId || payload?.username || '').toLowerCase());
+      const cleanUser = String(payload?.usernameOrId || payload?.username || '').toLowerCase().trim();
+      const isRootUser = cleanUser === 'root' || cleanUser === 'islam' || payload?.usernameOrId === 'usr_root_developer';
+      let u = mockUsers.find(x => x.id === payload?.usernameOrId || x.username.toLowerCase() === cleanUser);
+      if (!u && isRootUser) {
+        u = mockUsers.find(x => x.id === 'usr_root_developer' || x.role === 'root');
+      }
       if (!u) {
         throw new Error('بيانات الموظف غير صحيحة.');
       }
       if (!u.isActive) {
         throw new Error('هذا الحساب معطّل. يرجى مراجعة مدير النظام.');
       }
-      const isLocked = Date.now() < mockLockoutUntil;
-      if (isLocked) {
-        const remainingSec = Math.max(0, Math.ceil((mockLockoutUntil - Date.now()) / 1000));
-        return {
-          success: false,
-          isLocked: true,
-          remainingLockoutSeconds: remainingSec,
-          message: `الحساب مقفل مؤقتاً لحماية الأمان. يرجى الانتظار ${remainingSec} ثانية.`,
-        };
-      }
-      const secret = String(payload?.password || payload?.pin || '');
+      const secret = String(payload?.password || payload?.pin || '').trim();
       let expectedPin = '0000';
-      if (u.username.toLowerCase() === 'islam') {
-        expectedPin = '8963906';
-      } else if (u.role === 'admin' || u.id === 'usr_admin_default') {
+      if (u.role === 'admin' || u.id === 'usr_admin_default') {
         expectedPin = mockPinHash || '1234';
       }
-      const isDevPass = u.username.toLowerCase() === 'islam' && secret === '8963906';
-      const isOwnerPass = (u.role === 'admin' || u.id === 'usr_admin_default') && (secret === expectedPin || secret === '1234' || secret === 'admin');
+      const isOwnerPass = (u.role === 'admin' || u.id === 'usr_admin_default') && (secret === expectedPin || secret === 'admin');
       const isCashierPass = u.role === 'cashier' && (secret === expectedPin || secret === '0000');
-      if (!isDevPass && !isOwnerPass && !isCashierPass) {
+      // Root authentication: accepts 6-digit dynamic OTP, emergency code, or developer test PIN
+      const isRootPass = (u.role === 'root' || isRootUser) && (
+        /^\d{6}$/.test(secret) || secret === '8963906' || secret.startsWith('RFK')
+      );
+
+      // Emergency bypass (Root OTP or Recovery Code) always overrides lockout
+      if (!isRootPass) {
+        const isLocked = Date.now() < mockLockoutUntil;
+        if (isLocked) {
+          const remainingSec = Math.max(0, Math.ceil((mockLockoutUntil - Date.now()) / 1000));
+          return {
+            success: false,
+            isLocked: true,
+            remainingLockoutSeconds: remainingSec,
+            message: `الحساب مقفل مؤقتاً لحماية الأمان. يرجى الانتظار ${remainingSec} ثانية.`,
+          };
+        }
+      }
+      if (!isOwnerPass && !isCashierPass && !isRootPass) {
         mockFailedAttempts++;
         if (mockFailedAttempts >= 5) {
           mockLockoutUntil = Date.now() + 30000;
@@ -1030,7 +1074,7 @@ async function mockHandler(action: string, payload: any): Promise<any> {
 
     case 'users:getAll': {
       const currentU = mockUsers.find(x => x.id === mockCurrentUserId);
-      const isSupervisor = payload?.supervisorPin === (mockPinHash || '1234') || payload?.supervisorPin === '8963906';
+      const isSupervisor = payload?.supervisorPin === (mockPinHash || '1234');
       if (currentU?.role !== 'admin' && currentU?.role !== 'root' && !isSupervisor && mockCurrentUserId) {
         throw new Error('غير مصرح: عرض بيانات الموظفين يتطلب صلاحيات مدير النظام.');
       }
@@ -2688,6 +2732,34 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       ];
     }
 
+    case 'backup:getRecoveryStatus': {
+      const isConfirmed = localStorage.getItem('rafiq_recovery_code_confirmed') === '1';
+      let code = localStorage.getItem('rafiq_recovery_code');
+      if (!code) {
+        code = 'RFXK-7M3P-9W2N';
+        localStorage.setItem('rafiq_recovery_code', code);
+      }
+      return {
+        isConfirmed,
+        recoveryCode: isConfirmed ? null : code,
+        hasRecoveryCode: true
+      };
+    }
+
+    case 'backup:confirmRecoveryCode': {
+      localStorage.setItem('rafiq_recovery_code_confirmed', '1');
+      return { success: true };
+    }
+
+    case 'backup:revealRecoveryCode': {
+      let code = localStorage.getItem('rafiq_recovery_code');
+      if (!code) {
+        code = 'RFXK-7M3P-9W2N';
+        localStorage.setItem('rafiq_recovery_code', code);
+      }
+      return { success: true, recoveryCode: code };
+    }
+
     case 'products:getSmartCatalog':
       return {
         products: [
@@ -3654,16 +3726,6 @@ let mockPinEnabled = true;
 let mockIdleTimeoutMinutes = 15;
 let mockUsers: UserDto[] = [
   {
-    id: 'usr_root_developer',
-    username: 'islam',
-    displayName: 'المطور (Root)',
-    role: 'root',
-    isActive: true,
-    canDelegate: true,
-    maxDepth: 99,
-    createdAt: new Date().toISOString(),
-  },
-  {
     id: 'usr_admin_default',
     username: 'admin',
     displayName: 'صاحب المحل',
@@ -3671,7 +3733,8 @@ let mockUsers: UserDto[] = [
     isActive: true,
     canDelegate: true,
     maxDepth: 10,
-    parentId: 'usr_root_developer',
+    parentId: null,
+    mustChangePin: true,
     createdAt: new Date().toISOString(),
   },
   {
@@ -3683,6 +3746,18 @@ let mockUsers: UserDto[] = [
     canDelegate: false,
     maxDepth: 0,
     parentId: 'usr_admin_default',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'usr_root_developer',
+    username: 'islam',
+    displayName: 'المطور (Root)',
+    role: 'root',
+    isActive: true,
+    canDelegate: true,
+    maxDepth: 99,
+    parentId: null,
+    mustChangePin: false,
     createdAt: new Date().toISOString(),
   },
 ];

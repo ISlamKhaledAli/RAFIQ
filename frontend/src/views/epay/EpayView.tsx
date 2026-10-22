@@ -313,8 +313,8 @@ export const EpayView: React.FC<EpayViewProps> = ({
   }, [serviceType, billAmountPiasters, machineCommissionPiasters]);
 
   const netProfitPiasters = useMemo(() => {
-    return shopProfitPiasters + machineCommissionPiasters;
-  }, [shopProfitPiasters, machineCommissionPiasters]);
+    return shopProfitPiasters;
+  }, [shopProfitPiasters]);
 
   const isBalanceInsufficient = useMemo(() => {
     if (!currentTerminal) return false;

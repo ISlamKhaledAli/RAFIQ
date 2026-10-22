@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { CreditCard, Sparkles, X, Coins, ArrowLeftRight, Check, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { CreditCard, Sparkles, X, Coins, ArrowLeftRight, Check, AlertCircle, Smartphone, Building2 } from 'lucide-react';
 import type { Customer } from '../../types/models';
 import { MoneyInput } from '../../components/MoneyInput';
+import { CustomSelect } from '../../components/CustomSelect';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
+import { formatArabicCurrency } from '../../utils/money';
+import { invoke } from '../../bridge/ipc';
 
 export interface CustomerPaymentModalProps {
   isOpen: boolean;
@@ -12,7 +15,13 @@ export interface CustomerPaymentModalProps {
   setPaymentAmountPiasters: (v: number) => void;
   paymentNotes: string;
   setPaymentNotes: (v: string) => void;
-  onRecordPayment: (e: React.FormEvent, effectiveAmountPiasters?: number, notes?: string) => void;
+  onRecordPayment: (
+    e: React.FormEvent,
+    effectiveAmountPiasters?: number,
+    notes?: string,
+    paymentMethod?: string,
+    digitalAccountId?: string
+  ) => void;
 }
 
 export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
@@ -28,12 +37,35 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
   // 'return_change' = سداد المديونية فقط وإرجاع الباقي كاش في يد العميل
   // 'credit_account' = استلام المبلغ كاملاً وتسجيل الزيادة رصيد دائن تحت الحساب
   const [excessAction, setExcessAction] = useState<'return_change' | 'credit_account'>('return_change');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'instapay' | 'wallet' | 'card'>('cash');
+  const [digitalAccountId, setDigitalAccountId] = useState<string>('');
+  const [digitalAccounts, setDigitalAccounts] = useState<{ id: string; name: string; type: string; isActive?: boolean }[]>([]);
 
   useEffect(() => {
     if (isOpen) {
       setExcessAction('return_change');
+      setPaymentMethod('cash');
+      setDigitalAccountId('');
+      void (async () => {
+        try {
+          const res = await invoke<{ id: string; name: string; type: string; isActive?: boolean }[]>('wallets:getAccounts');
+          if (Array.isArray(res)) {
+            setDigitalAccounts(res.filter(a => a.isActive !== false));
+          }
+        } catch {
+          // Fallback if not available
+        }
+      })();
     }
   }, [isOpen, selectedCustomer]);
+
+  const availableDigitalAccounts = useMemo(() => {
+    if (paymentMethod === 'cash') return [];
+    if (paymentMethod === 'card') {
+      return digitalAccounts.filter(a => a.type === 'instapay' || a.type === 'bank' || a.type === 'card');
+    }
+    return digitalAccounts.filter(a => a.type === paymentMethod);
+  }, [digitalAccounts, paymentMethod]);
 
   const isDirty = paymentAmountPiasters > 0 || Boolean(paymentNotes.trim());
 
@@ -63,24 +95,33 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
     e.preventDefault();
     if (effectiveAmountPiasters <= 0) return;
 
+    const methodLabel =
+      paymentMethod === 'instapay'
+        ? 'إنستاباي'
+        : paymentMethod === 'wallet'
+        ? 'محفظة كاش'
+        : paymentMethod === 'card'
+        ? 'تحويل بنكي / فيزا'
+        : 'نقداً';
+
     let autoNotes = paymentNotes.trim();
     if (!autoNotes) {
       if (hasExcess) {
         if (excessAction === 'return_change') {
-          autoNotes = `سداد كامل المديونية (${(currentBal / 100).toFixed(2)} ج.م) وتم إرجاع الباقي (${(excessPiasters / 100).toFixed(2)} ج.م) كاش للعميل`;
+          autoNotes = `سداد كامل المديونية (${formatArabicCurrency(currentBal)}) عبر ${methodLabel} وتم إرجاع الباقي (${formatArabicCurrency(excessPiasters)}) كاش للعميل`;
         } else {
-          autoNotes = `سداد مديونية (${(currentBal / 100).toFixed(2)} ج.م) + تسجيل زيادة (${(excessPiasters / 100).toFixed(2)} ج.م) رصيد دائن تحت الحساب`;
+          autoNotes = `سداد مديونية (${formatArabicCurrency(currentBal)}) عبر ${methodLabel} + تسجيل زيادة (${formatArabicCurrency(excessPiasters)}) رصيد دائن تحت الحساب`;
         }
       } else if (currentBal <= 0) {
-        autoNotes = `استلام دفعة مقدمة تحت الحساب (${(paymentAmountPiasters / 100).toFixed(2)} ج.م)`;
+        autoNotes = `استلام دفعة مقدمة تحت الحساب (${formatArabicCurrency(paymentAmountPiasters)}) عبر ${methodLabel}`;
       } else if (effectiveAmountPiasters === currentBal) {
-        autoNotes = `سداد كامل المديونية (${(currentBal / 100).toFixed(2)} ج.م)`;
+        autoNotes = `سداد كامل المديونية (${formatArabicCurrency(currentBal)}) عبر ${methodLabel}`;
       } else {
-        autoNotes = `سداد جزء من المديونية (${(effectiveAmountPiasters / 100).toFixed(2)} ج.م)`;
+        autoNotes = `سداد جزء من المديونية (${formatArabicCurrency(effectiveAmountPiasters)}) عبر ${methodLabel}`;
       }
     }
 
-    onRecordPayment(e, effectiveAmountPiasters, autoNotes);
+    onRecordPayment(e, effectiveAmountPiasters, autoNotes, paymentMethod, digitalAccountId || undefined);
   };
 
   return (
@@ -137,17 +178,61 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
                 }`}
               >
                 {currentBal !== 0
-                  ? `${(Math.abs(currentBal) / 100).toFixed(2)} ج.م`
+                  ? formatArabicCurrency(Math.abs(currentBal))
                   : 'خالص تماماً (0.00 ج.م)'}
               </span>
             </div>
           </div>
 
+          {/* Payment Method Selector */}
+          <div>
+            <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1.5">
+              طريقة استلام وسداد الدفعة <span className="text-danger dark:text-danger-bright">*</span>
+            </label>
+            <CustomSelect
+              value={paymentMethod}
+              onChange={(val) => {
+                setPaymentMethod(val as 'cash' | 'instapay' | 'wallet' | 'card');
+                setDigitalAccountId('');
+              }}
+              options={[
+                { value: 'cash', label: 'نقداً (كاش بالدرج)', icon: <Coins className="w-4 h-4 text-paid" /> },
+                { value: 'instapay', label: 'إنستاباي (InstaPay)', icon: <Smartphone className="w-4 h-4 text-brand" /> },
+                { value: 'wallet', label: 'محفظة كاش (فودافون / أورنج / اتصالات)', icon: <Smartphone className="w-4 h-4 text-brand" /> },
+                { value: 'card', label: 'تحويل بنكي / فيزا', icon: <Building2 className="w-4 h-4 text-brand" /> },
+              ]}
+              className="w-full"
+            />
+          </div>
+
+          {availableDigitalAccounts.length > 0 && (
+            <div className="animate-in fade-in duration-150">
+              <label className="text-xs font-bold text-ink dark:text-ink-dark block mb-1">
+                توجيه الرصيد إلى الحساب / المحفظة
+              </label>
+              <CustomSelect
+                value={digitalAccountId}
+                onChange={setDigitalAccountId}
+                options={[
+                  { value: '', label: 'الحساب الافتراضي للنظام' },
+                  ...availableDigitalAccounts.map((acc) => ({
+                    value: acc.id,
+                    label: acc.name,
+                  })),
+                ]}
+                className="w-full"
+              />
+            </div>
+          )}
+
           {/* Amount Input */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-bold text-ink dark:text-ink-dark block">
-                المبلغ المستلم كاش من يد العميل <span className="text-danger dark:text-danger-bright">*</span>
+                {paymentMethod === 'cash'
+                  ? 'المبلغ المستلم كاش من يد العميل'
+                  : 'المبلغ المحول إلكترونياً من العميل'}{' '}
+                <span className="text-danger dark:text-danger-bright">*</span>
               </label>
               {isDebt && (
                 <button
@@ -156,7 +241,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
                   className="text-[11px] font-bold text-brand dark:text-brand-bright hover:underline cursor-pointer flex items-center gap-1"
                 >
                   <Coins className="w-3 h-3" />
-                  <span>دفع كامل الدين بالظبط ({(currentBal / 100).toFixed(2)} ج.م)</span>
+                  <span>دفع كامل الدين بالظبط ({formatArabicCurrency(currentBal)})</span>
                 </button>
               )}
             </div>
@@ -178,7 +263,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
                   <span>زيادة عن الدين المطلوب:</span>
                 </div>
                 <span className="font-mono font-black text-warn dark:text-warn-bright text-xs">
-                  {(excessPiasters / 100).toFixed(2)} ج.م
+                  {formatArabicCurrency(excessPiasters)}
                 </span>
               </div>
 
@@ -207,7 +292,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
                     </span>
                   </div>
                   <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-0.5 leading-normal">
-                    سداد الدين كامل، وترد له <b>{(excessPiasters / 100).toFixed(2)} ج.م</b> فكة في إيده.
+                    سداد الدين كامل، وترد له <b>{formatArabicCurrency(excessPiasters)}</b> فكة في إيده.
                   </p>
                 </div>
               </button>
@@ -237,7 +322,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
                     </span>
                   </div>
                   <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-0.5 leading-normal">
-                    تسجيل <b>{(excessPiasters / 100).toFixed(2)} ج.م</b> رصيد له تتخصم من فواتيره الجاية.
+                    تسجيل <b>{formatArabicCurrency(excessPiasters)}</b> رصيد له تتخصم من فواتيره الجاية.
                   </p>
                 </div>
               </button>
@@ -251,7 +336,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
               <div>
                 <span className="font-bold block">دفعة مقدّمة تحت الحساب:</span>
                 <span className="text-[11px] block mt-0.5">
-                  الزبون معلهوش دين حالياً — المبلغ (<b className="font-mono font-bold">{(paymentAmountPiasters / 100).toFixed(2)} ج.م</b>) هيتسجل رصيد في حسابه يتخصم من مشترياته الجاية.
+                  الزبون معلهوش دين حالياً — المبلغ (<b className="font-mono font-bold">{formatArabicCurrency(paymentAmountPiasters)}</b>) هيتسجل رصيد في حسابه يتخصم من مشترياته الجاية.
                 </span>
               </div>
             </div>
@@ -271,9 +356,9 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
               </div>
               <span className="font-mono font-bold text-xs">
                 {balanceAfter > 0
-                  ? `متبقي عليه: ${(balanceAfter / 100).toFixed(2)} ج.م`
+                  ? `متبقي عليه: ${formatArabicCurrency(balanceAfter)}`
                   : balanceAfter < 0
-                  ? `له في المحل: ${(Math.abs(balanceAfter) / 100).toFixed(2)} ج.م (دائن)`
+                  ? `له في المحل: ${formatArabicCurrency(Math.abs(balanceAfter))} (دائن)`
                   : 'خالص تماماً (0.00 ج.م)'}
               </span>
             </div>

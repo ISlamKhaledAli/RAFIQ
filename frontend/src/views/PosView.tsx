@@ -6,8 +6,7 @@ import { extractProducts, type Product, type Sale, type Customer, type QuickItem
 import { 
   formatArabicCurrency, 
   calculateLineTotal, 
-  calculateTaxPiasters, 
-  distributeInvoiceDiscount
+  calculateTaxPiasters 
 } from '../utils/money';
 import { ReceiptModal } from '../components/ReceiptModal';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -450,7 +449,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   }, [allowNegativeStock, showStatus]);
 
   // Task 24-2: Apply discount on specific item
-  const handleApplyItemDiscount = useCallback((index: number, itemDiscountPiasters: number, supervisorApproved = false) => {
+  const handleApplyItemDiscount = useCallback((index: number, itemDiscountPiasters: number, _supervisorApproved = false) => {
     setCart((prev) => {
       const updated = [...prev];
       const it = updated[index];
@@ -465,80 +464,21 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       return updated;
     });
 
-    if (supervisorApproved) {
-      void invoke('auditLogs:create', {
-        action: 'DISCOUNT_SUPERVISOR_OVERRIDE',
-        entityType: 'sale_item',
-        entityId: cart[index]?.productId || '',
-        detailsJson: JSON.stringify({
-          item: cart[index]?.productName,
-          discountPiasters: itemDiscountPiasters,
-          approvedBySupervisor: true,
-        }),
-      }).catch(() => {});
-    }
-
     showStatus(
       itemDiscountPiasters > 0
-        ? `تم تطبيق خصم ${(itemDiscountPiasters / 100).toFixed(2)} ج.م على الصنف`
+        ? `تم تطبيق خصم ${formatArabicCurrency(itemDiscountPiasters)} على الصنف`
         : 'تم إلغاء خصم الصنف',
       'success'
     );
-  }, [cart, showStatus]);
+  }, [showStatus]);
 
-  // Task 24-2: Apply invoice discount proportionally to all items
-  const handleApplyInvoiceDiscount = useCallback((totalPiastersToDiscount: number, supervisorApproved = false) => {
-    setCart((prev) => {
-      if (prev.length === 0) return prev;
-
-      // Preserve existing item discounts and distribute invoice discount proportionally on the remaining net
-      const existingItemDiscountsSum = prev.reduce((sum, it) => sum + (it.discountPiasters || 0), 0);
-      let extraInvoiceDiscount = totalPiastersToDiscount;
-
-      // If caller passed total discount including item discounts:
-      if (totalPiastersToDiscount > existingItemDiscountsSum) {
-        extraInvoiceDiscount = totalPiastersToDiscount - existingItemDiscountsSum;
-      }
-
-      const itemNetList = prev.map((it) => {
-        const gross = Math.round((it.unitPricePiasters * it.quantityMilli) / 1000);
-        return {
-          grossPiasters: Math.max(0, gross - (it.discountPiasters || 0)),
-        };
-      });
-
-      const distributedExtra = distributeInvoiceDiscount(itemNetList, extraInvoiceDiscount);
-
-      return prev.map((it, idx) => {
-        const lineTotalDiscount = (it.discountPiasters || 0) + (distributedExtra[idx] || 0);
-        const totalP = calculateLineTotal(it.unitPricePiasters, it.quantityMilli, lineTotalDiscount);
-        const taxP = calculateTaxPiasters(totalP, it.taxRatePercent || 0, true);
-        return {
-          ...it,
-          discountPiasters: lineTotalDiscount,
-          totalPiasters: totalP,
-          taxPiasters: taxP,
-        };
-      });
-    });
-
+  // Task 24-2: Apply invoice discount (F-01 & C3: No item mutation, clean single source of truth)
+  const handleApplyInvoiceDiscount = useCallback((totalPiastersToDiscount: number, _supervisorApproved = false) => {
     setDiscountPiasters(totalPiastersToDiscount);
-
-    if (supervisorApproved) {
-      void invoke('auditLogs:create', {
-        action: 'INVOICE_DISCOUNT_SUPERVISOR_OVERRIDE',
-        entityType: 'sale',
-        entityId: '',
-        detailsJson: JSON.stringify({
-          discountPiasters: totalPiastersToDiscount,
-          approvedBySupervisor: true,
-        }),
-      }).catch(() => {});
-    }
 
     showStatus(
       totalPiastersToDiscount > 0
-        ? `تم تطبيق خصم بقيمة ${(totalPiastersToDiscount / 100).toFixed(2)} ج.م وتوزيعه بالتناسب على الأصناف`
+        ? `تم تطبيق خصم على الفاتورة بقيمة ${formatArabicCurrency(totalPiastersToDiscount)}`
         : 'تم إلغاء خصم الفاتورة',
       'success'
     );
@@ -550,9 +490,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     0
   );
   const totalItemDiscountsPiasters = cart.reduce((sum, item) => sum + (item.discountPiasters || 0), 0);
-  const effectiveDiscountPiasters = Math.max(discountPiasters, totalItemDiscountsPiasters);
+  const totalDiscountPiasters = totalItemDiscountsPiasters + discountPiasters;
   const subtotalPiasters = grossSubtotalPiasters;
-  const netTotalPiasters = Math.max(0, grossSubtotalPiasters - effectiveDiscountPiasters);
+  const netTotalPiasters = Math.max(0, grossSubtotalPiasters - totalDiscountPiasters);
   const totalItemCount = cart.reduce((count, item) => count + (item.quantityMilli / 1000), 0);
   const totalTaxPiasters = cart.reduce((sum, item) => sum + item.taxPiasters, 0);
 

@@ -11,6 +11,10 @@ import {
   Delete,
   Clock,
   RotateCcw,
+  KeyRound,
+  ShieldAlert,
+  CheckCircle2,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import { invoke, type UserDto } from '../bridge/ipc';
@@ -28,6 +32,15 @@ export const LoginScreen: React.FC = () => {
   const [isNumericMode, setIsNumericMode] = useState<boolean>(false);
   const [storeName, setStoreName] = useState<string>('متجر رفيق');
   const [userPickerMode, setUserPickerMode] = useState<'auto' | 'dropdown' | 'buttons'>('auto');
+
+  // Emergency Support / Recovery Code State
+  const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState<boolean>(false);
+  const [recoveryCodeInput, setRecoveryCodeInput] = useState<string>('');
+  const [recoveryNewPin, setRecoveryNewPin] = useState<string>('');
+  const [recoveryConfirmPin, setRecoveryConfirmPin] = useState<string>('');
+  const [recoveryError, setRecoveryError] = useState<string>('');
+  const [recoverySuccess, setRecoverySuccess] = useState<string>('');
+  const [recoveryLoading, setRecoveryLoading] = useState<boolean>(false);
 
   const passwordInputRef = useRef<HTMLInputElement>(null);
 
@@ -135,6 +148,54 @@ export const LoginScreen: React.FC = () => {
 
   const handleKeypadClear = () => {
     setPassword('');
+  };
+
+  const handleResetWithRecovery = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanCode = recoveryCodeInput.trim().toUpperCase();
+    if (!cleanCode) {
+      setRecoveryError('يرجى إدخال كود الدعم الفني أو رمز الاسترجاع.');
+      return;
+    }
+    if (!recoveryNewPin) {
+      setRecoveryError('يرجى إدخال الرقم السري الجديد.');
+      return;
+    }
+    if (recoveryNewPin.length < 4 || recoveryNewPin.length > 8) {
+      setRecoveryError('يجب أن يتكون الرقم السري من 4 إلى 8 أرقام.');
+      return;
+    }
+    if (recoveryNewPin !== recoveryConfirmPin) {
+      setRecoveryError('تأكيد الرقم السري الجديد غير متطابق.');
+      return;
+    }
+
+    setRecoveryLoading(true);
+    setRecoveryError('');
+    setRecoverySuccess('');
+
+    try {
+      const res = await invoke<{ success: boolean; message?: string }>('security:resetWithRecovery', {
+        recoveryCode: cleanCode,
+        newPin: recoveryNewPin,
+      });
+
+      if (!res.success) {
+        setRecoveryError(res.message || 'كود الدعم الفني غير صحيح.');
+      } else {
+        setRecoverySuccess('تم استرجاع الحساب وتحديث الرقم السري بنجاح. جاري الدخول...');
+        setTimeout(async () => {
+          setIsRecoveryModalOpen(false);
+          setUsername('admin');
+          setPassword(recoveryNewPin);
+          await login('admin', recoveryNewPin);
+        }, 1200);
+      }
+    } catch (err: any) {
+      setRecoveryError(err?.message || 'حدث خطأ أثناء الاتصال بالنظام.');
+    } finally {
+      setRecoveryLoading(false);
+    }
   };
 
   return (
@@ -347,16 +408,33 @@ export const LoginScreen: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-ink dark:text-ink-dark mb-1.5">
-                  كلمة المرور أو الرقم السري
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-ink dark:text-ink-dark">
+                    كلمة المرور أو الرقم السري
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsRecoveryModalOpen(true);
+                      setRecoveryError('');
+                      setRecoverySuccess('');
+                      setRecoveryCodeInput('');
+                      setRecoveryNewPin('');
+                      setRecoveryConfirmPin('');
+                    }}
+                    className="text-[11px] font-bold text-brand dark:text-brand-bright hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <KeyRound className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
+                    <span>نسيت الرمز؟ (كود الدعم الفني)</span>
+                  </button>
+                </div>
                 <div className="relative">
                   <input
                     ref={passwordInputRef}
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="ادخل كلمة المرور أو PIN..."
+                    placeholder="ادخل كلمة المرور أو PIN أو كود الدعم (RFK-...)"
                     disabled={lockoutSeconds > 0 || isSubmitting}
                     className="w-full h-11 pr-10 pl-11 rounded-xl border border-line dark:border-line-dark focus:border-brand dark:focus:border-brand-bright focus:ring-2 focus:ring-brand-soft dark:focus:ring-brand-soft/20 bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark text-sm transition-all"
                     autoFocus
@@ -437,6 +515,130 @@ export const LoginScreen: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Emergency Support / Recovery Modal */}
+      {isRecoveryModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="bg-brand-soft dark:bg-brand-dark/40 px-6 py-4 border-b border-line dark:border-line-dark flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-brand/10 border border-brand/20 flex items-center justify-center text-brand dark:text-brand-bright shrink-0">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-ink dark:text-ink-dark">
+                    استرجاع الدخول ورمز الطوارئ والدعم الفني
+                  </h3>
+                  <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted">
+                    أدخل كود الدعم لتعيين رقم سري جديد لصاحب المتجر
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRecoveryModalOpen(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:text-ink dark:text-ink-dark-muted dark:hover:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <form onSubmit={handleResetWithRecovery} className="p-6 space-y-4">
+              {recoveryError && (
+                <div className="p-3 rounded-xl bg-danger-soft/30 border border-danger/30 text-danger flex items-start gap-2 text-xs">
+                  <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{recoveryError}</span>
+                </div>
+              )}
+
+              {recoverySuccess && (
+                <div className="p-3 rounded-xl bg-paid-soft/40 border border-paid/30 text-paid flex items-start gap-2 text-xs">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{recoverySuccess}</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-ink dark:text-ink-dark mb-1">
+                  كود الدعم الفني / رمز الاسترجاع
+                </label>
+                <input
+                  type="text"
+                  value={recoveryCodeInput}
+                  onChange={(e) => setRecoveryCodeInput(e.target.value)}
+                  placeholder="RFK-XXXX-XXXX"
+                  dir="ltr"
+                  disabled={recoveryLoading}
+                  className="w-full h-11 px-3.5 rounded-xl border border-line dark:border-line-dark focus:border-brand focus:ring-2 focus:ring-brand-soft dark:focus:ring-brand-soft/20 bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark font-mono text-center tracking-wider text-sm font-bold"
+                  autoFocus
+                />
+                <p className="text-[11px] text-ink-muted dark:text-ink-dark-muted mt-1">
+                  كود الأمان المطبوع أو المُستلم من مسؤول الدعم الفني للمنصة
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-ink dark:text-ink-dark mb-1">
+                  الرقم السري (PIN) الجديد للمدير
+                </label>
+                <input
+                  type="password"
+                  value={recoveryNewPin}
+                  onChange={(e) => setRecoveryNewPin(e.target.value.replace(/\D/g, ''))}
+                  placeholder="4 إلى 8 أرقام"
+                  maxLength={8}
+                  dir="ltr"
+                  disabled={recoveryLoading}
+                  className="w-full h-11 px-3.5 rounded-xl border border-line dark:border-line-dark focus:border-brand focus:ring-2 focus:ring-brand-soft dark:focus:ring-brand-soft/20 bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark text-center tracking-widest text-base font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-ink dark:text-ink-dark mb-1">
+                  تأكيد الرقم السري الجديد
+                </label>
+                <input
+                  type="password"
+                  value={recoveryConfirmPin}
+                  onChange={(e) => setRecoveryConfirmPin(e.target.value.replace(/\D/g, ''))}
+                  placeholder="أعد إدخال الرقم السري"
+                  maxLength={8}
+                  dir="ltr"
+                  disabled={recoveryLoading}
+                  className="w-full h-11 px-3.5 rounded-xl border border-line dark:border-line-dark focus:border-brand focus:ring-2 focus:ring-brand-soft dark:focus:ring-brand-soft/20 bg-surface dark:bg-surface-dark-2 text-ink dark:text-ink-dark text-center tracking-widest text-base font-bold"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsRecoveryModalOpen(false)}
+                  disabled={recoveryLoading}
+                  className="flex-1 h-11 rounded-xl bg-surface-2 dark:bg-surface-dark-2 hover:bg-line dark:hover:bg-surface-dark-3 text-ink-muted dark:text-ink-dark font-medium text-xs border border-line dark:border-line-dark transition-colors cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={recoveryLoading}
+                  className="flex-1 h-11 rounded-xl bg-brand hover:bg-brand-dark text-white font-semibold text-xs transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {recoveryLoading ? (
+                    <span>جاري التحقق...</span>
+                  ) : (
+                    <>
+                      <KeyRound className="w-4 h-4" />
+                      <span>تأكيد وتعيين الرمز والدخول</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

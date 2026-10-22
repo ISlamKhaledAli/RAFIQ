@@ -322,19 +322,29 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
     }
 
     try {
-      const itemsPayload: Partial<PurchaseItem>[] = lineItems.map((item) => ({
-        productId: item.productId,
-        productName: item.productName,
-        barcode: item.barcode,
-        quantityMilli: Math.round(item.quantityUnits * 1000),
-        unitCostPiasters: item.unitCostPiasters,
-        totalCostPiasters: calculateLineTotal(item.unitCostPiasters, Math.round(item.quantityUnits * 1000)),
-        previousCostPiasters: item.currentCostPiasters,
-        newSellingPricePiasters: item.newSellingPricePiasters > 0 ? item.newSellingPricePiasters : undefined,
-        batchNumber: item.batchNumber?.trim() || undefined,
-        expiryDate: item.expiryDate?.trim() || undefined,
-        productionDate: item.productionDate?.trim() || undefined,
-      }));
+      const itemsPayload: Partial<PurchaseItem>[] = lineItems.map((item) => {
+        const packSize = parseInt(item.packSizeInput || '', 10) || (item.packSize || 1);
+        const cartons = parseInt(item.cartonsInput || '', 10) || (item.cartonsCount || 0);
+        const hasCartonData = cartons > 0 && packSize > 1;
+
+        return {
+          productId: item.productId,
+          productName: item.productName,
+          barcode: item.barcode,
+          quantityMilli: Math.round(item.quantityUnits * 1000),
+          unitCostPiasters: item.unitCostPiasters,
+          totalCostPiasters: calculateLineTotal(item.unitCostPiasters, Math.round(item.quantityUnits * 1000)),
+          previousCostPiasters: item.currentCostPiasters,
+          newSellingPricePiasters: item.newSellingPricePiasters > 0 ? item.newSellingPricePiasters : undefined,
+          batchNumber: item.batchNumber?.trim() || undefined,
+          expiryDate: item.expiryDate?.trim() || undefined,
+          productionDate: item.productionDate?.trim() || undefined,
+          unitId: item.unit,
+          unitName: item.unit,
+          conversionFactor: hasCartonData ? packSize : 1,
+          packageCostPiasters: hasCartonData ? Math.round(item.unitCostPiasters * packSize) : item.unitCostPiasters,
+        };
+      });
 
       const payload = {
         purchase: {

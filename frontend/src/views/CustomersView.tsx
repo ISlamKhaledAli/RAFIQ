@@ -364,7 +364,13 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
     setIsPaymentOpen(true);
   };
 
-  const handleRecordPayment = async (e: React.FormEvent, effectiveAmount?: number, customNotes?: string) => {
+  const handleRecordPayment = async (
+    e: React.FormEvent,
+    effectiveAmount?: number,
+    customNotes?: string,
+    paymentMethod = 'cash',
+    digitalAccountId?: string
+  ) => {
     e.preventDefault();
     if (!selectedCustomer) return;
     const finalAmount = effectiveAmount !== undefined ? effectiveAmount : paymentAmountPiasters;
@@ -374,7 +380,9 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
       await invoke<Customer>('customers:recordPayment', {
         customerId: selectedCustomer.id,
         amountPiasters: finalAmount,
-        notes: customNotes || paymentNotes.trim() || 'سداد نقدي للدين',
+        notes: customNotes || paymentNotes.trim() || (paymentMethod === 'cash' ? 'سداد نقدي للدين' : `سداد دين عبر ${paymentMethod}`),
+        paymentMethod,
+        digitalAccountId,
       });
 
       setIsPaymentOpen(false);
@@ -382,7 +390,7 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
     } catch (err: unknown) {
       void rafiqAlert({
         title: 'فشل تسجيل الدفعة',
-        message: err instanceof Error ? err.message : 'تعذر تسجيل الدفعة النقدية',
+        message: err instanceof Error ? err.message : 'تعذر تسجيل الدفعة',
         variant: 'error',
       });
     }
