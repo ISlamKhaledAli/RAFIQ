@@ -48,6 +48,21 @@ namespace RafiqPOS.Services
                 var supplierRepo = new SupplierRepository(tempConnStr, auditRepo);
                 var purchaseRepo = new PurchaseRepository(tempConnStr, counterRepo, supplierRepo, priceHistoryRepo, auditRepo, batchRepo);
                 var batchService = new ProductBatchService(batchRepo, settingsRepo);
+                var userRepo = new UserRepository(tempConnStr);
+                var securityService = new SecurityService(settingsRepo, auditRepo, userRepo);
+                DatabaseService.Security = securityService;
+                var adminUser = new User
+                {
+                    Id = "usr_admin_batch",
+                    Username = "admin",
+                    DisplayName = "مدير النظام",
+                    Role = "admin",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow.ToString("o"),
+                    UpdatedAt = DateTime.UtcNow.ToString("o")
+                };
+                userRepo.Insert(adminUser);
+                securityService.ChangeUserPin(adminUser.Id, "1234");
 
                 // TEST 1: Create a product
                 var supplier = supplierRepo.Save(new Supplier
@@ -346,6 +361,7 @@ namespace RafiqPOS.Services
                     Id = "sale_allowed_expired_bypass",
                     InvoiceNumber = 3,
                     CashierId = "cashier_1",
+                    SupervisorPin = "1234",
                     SubtotalPiasters = 3500,
                     TotalPiasters = 3500,
                     PaidPiasters = 3500,
@@ -364,8 +380,7 @@ namespace RafiqPOS.Services
                             UnitCostPiasters = 2000,
                             BatchId = expiredBatchOnly.Id,
                             BatchNumber = expiredBatchOnly.BatchNumber,
-                            ExpiryDate = expiredBatchOnly.ExpiryDate,
-                            IsExpiredBypass = true // Authorized bypass
+                            ExpiryDate = expiredBatchOnly.ExpiryDate
                         }
                     }
                 };

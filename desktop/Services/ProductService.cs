@@ -206,6 +206,17 @@ namespace RafiqPOS.Services
                 product.Id = Guid.NewGuid().ToString();
             }
 
+            if (existing != null)
+            {
+                // F-29: Product metadata edits MUST NOT overwrite live inventory
+                if (existing.StockQuantityMilli != product.StockQuantityMilli)
+                {
+                    Logger.Warn(string.Format("تم تجاهل تعديل المخزون للصنف '{0}' من شاشة تعديل الصنف (الرصيد الحي: {1:0.###}). استخدم شاشة الجرد لتسوية المخزون.",
+                        product.Name, existing.StockQuantityMilli / 1000.0));
+                    product.StockQuantityMilli = existing.StockQuantityMilli;
+                }
+            }
+
             if (string.IsNullOrWhiteSpace(product.CreatedAt))
             {
                 product.CreatedAt = DateTime.UtcNow.ToString("o");
@@ -246,17 +257,6 @@ namespace RafiqPOS.Services
                                 DetailsJson = string.Format("{{\"productName\":\"{0}\",\"oldCost\":{1},\"newCost\":{2}}}", product.Name, existing.CostPiasters, product.CostPiasters)
                             });
                         }
-                        if (existing.StockQuantityMilli != product.StockQuantityMilli)
-                        {
-                            _auditRepo.Log(new AuditLog
-                            {
-                                UserId = actorId,
-                                Action = "stock_adjust",
-                                EntityType = "product",
-                                EntityId = product.Id,
-                                DetailsJson = string.Format("{{\"productName\":\"{0}\",\"oldStock\":{1},\"newStock\":{2}}}", product.Name, existing.StockQuantityMilli, product.StockQuantityMilli)
-                            });
-                        }
                     }
                     else
                     {
@@ -293,24 +293,6 @@ namespace RafiqPOS.Services
                             ReferenceType = "INITIAL_CREATION",
                             UnitCostPiasters = product.CostPiasters,
                             Note = "رصيد افتتاحي عند تعريف الصنف",
-                            CreatedAt = DateTime.UtcNow.ToString("o")
-                        });
-                    }
-                    else if (existing != null && existing.StockQuantityMilli != product.StockQuantityMilli)
-                    {
-                        long delta = product.StockQuantityMilli - existing.StockQuantityMilli;
-                        _movementRepo.Add(new StockMovement
-                        {
-                            Id = Guid.NewGuid().ToString(),
-                            ProductId = product.Id,
-                            MovementType = "ADJUSTMENT",
-                            QuantityMilli = delta,
-                            ReferenceId = product.Id,
-                            ReferenceType = "MANUAL_ADJUSTMENT",
-                            UnitCostPiasters = product.CostPiasters,
-                            Note = string.Format("تعديل رصيد من شاشة الصنف: من {0} إلى {1}",
-                                (existing.StockQuantityMilli / 1000.0).ToString("0.###"),
-                                (product.StockQuantityMilli / 1000.0).ToString("0.###")),
                             CreatedAt = DateTime.UtcNow.ToString("o")
                         });
                     }

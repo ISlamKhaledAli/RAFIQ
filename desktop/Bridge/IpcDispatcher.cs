@@ -46,12 +46,15 @@ namespace RafiqPOS.Bridge
                 request.Action == "epay:createTransaction" ||
                 request.Action == "epay:fundTerminal" ||
                 request.Action == "epay:saveTerminal" ||
+                request.Action == "epay:adjustBalance" ||
                 request.Action == "wallets:processTransaction" ||
                 request.Action == "wallets:fundAccount" ||
                 request.Action == "wallets:saveAccount" ||
                 request.Action == "wallets:createAccount" ||
                 request.Action == "wallets:updateAccount" ||
                 request.Action == "wallets:deleteAccount" ||
+                request.Action == "wallets:adjustBalance" ||
+                request.Action == "wallets:cancelTransaction" ||
                 request.Action == "closing:save" ||
                 request.Action == "system:factoryReset" ||
                 request.Action == "settings:save" ||
@@ -179,13 +182,62 @@ namespace RafiqPOS.Bridge
             new System.Threading.ReaderWriterLockSlim(System.Threading.LockRecursionPolicy.SupportsRecursion);
 
         private const string REQUIRE_ADMIN = "__admin__";
+        private const string REQUIRE_SESSION = "__session_required__";
         // Store, printer and barcode-scanner screens all persist through the generic settings actions
         private const string REQUIRE_ANY_SETTINGS = "__any_settings__";
 
+        private static readonly HashSet<string> PUBLIC_ACTIONS = new HashSet<string>(StringComparer.Ordinal)
+        {
+            // Login & session verification
+            "auth:login",
+            "auth:logout",
+            "auth:getCurrentUser",
+            "auth:checkSession",
+            "security:resetWithRecovery",
+
+            // System UI & basic status
+            "system:appReady",
+            "system:setTheme",
+            "system:getInfo",
+            "system:getEnv",
+            "system:ping",
+            "system:checkClock",
+            "window:minimize",
+            "window:maximize",
+            "window:close",
+            "window:setTitle",
+            "window:getSize",
+            "window:toggleFullscreen",
+            "window:isFullscreen",
+            "health:getStatus",
+
+            // Licensing
+            "license:verify",
+            "license:checkExpiry",
+            "license:getStatus",
+            "license:getInfo",
+
+            // First-run & initial store profile
+            "settings:getStoreProfile",
+            "features:getAll",
+            "support:getSystemInfo",
+            "templates:getAll",
+            "templates:isFirstRunNeeded",
+
+            // Login Screen employee quick selection
+            "auth:getActiveUsers"
+        };
+
         // Sensitive actions -> required permission key (server-side RBAC, Audit F-01).
-        // Read-only and pre-login actions (login, first-run wizard, license screen) are intentionally not listed.
         private static readonly Dictionary<string, string> ACTION_PERMISSIONS = new Dictionary<string, string>
         {
+            // Auth & Supervisor verification (F-36)
+            { "auth:verifySupervisor", REQUIRE_SESSION },
+            { "security:verifyPin", REQUIRE_SESSION },
+            { "auth:hasPermission", REQUIRE_SESSION },
+            { "security:getStatus", REQUIRE_SESSION },
+            { "products:runBulkPriceAdjustmentTests", REQUIRE_ADMIN },
+
             // POS & Sales
             { "sales:create", "pos.sell" },
             { "sales:hold", "pos.hold_invoice" },
@@ -360,6 +412,7 @@ namespace RafiqPOS.Bridge
             { "epay:fundTerminal", "epay.fund" },
             { "epay:saveTerminal", "epay.terminals_manage" },
             { "epay:deleteTerminal", "epay.terminals_manage" },
+            { "epay:adjustBalance", "epay.balance_adjust" },
             { "epay:getTransactions", "epay.history" },
             { "epay:getFundings", "epay.history" },
             { "epay:getAnalytics", "epay.analytics" },
@@ -372,6 +425,8 @@ namespace RafiqPOS.Bridge
             { "wallets:createAccount", "wallets.accounts_manage" },
             { "wallets:updateAccount", "wallets.accounts_manage" },
             { "wallets:deleteAccount", "wallets.accounts_manage" },
+            { "wallets:adjustBalance", "wallets.balance_adjust" },
+            { "wallets:cancelTransaction", "wallets.cancel" },
             { "wallets:getTransactions", "wallets.history" },
             { "wallets:getFundings", "wallets.history" },
             { "wallets:getAnalytics", "wallets.analytics" },
@@ -424,6 +479,9 @@ namespace RafiqPOS.Bridge
             { "backup:getDrives", "settings.backup" },
             { "backup:configure", "settings.backup" },
             { "backup:verify", "settings.backup" },
+            { "backup:getRecoveryStatus", REQUIRE_SESSION },
+            { "backup:confirmRecoveryCode", REQUIRE_ADMIN },
+            { "backup:revealRecoveryCode", REQUIRE_ADMIN },
             { "database:checkIntegrity", "settings.backup" },
             { "database:restore", "settings.restore" },
             { "migration:getMetrics", "settings.backup" },
@@ -443,7 +501,6 @@ namespace RafiqPOS.Bridge
 
             // Security & Users
             { "security:setPin", REQUIRE_ADMIN },
-            { "security:resetWithRecovery", REQUIRE_ADMIN },
             { "security:disablePin", REQUIRE_ADMIN },
             { "security:enablePin", REQUIRE_ADMIN },
             { "security:saveProtectedActions", REQUIRE_ADMIN },
@@ -511,8 +568,8 @@ namespace RafiqPOS.Bridge
             if (action == "customers:save" || action == "customers:recordPayment" || action == "customers:cancelPayment" ||
                 action == "customers:archive" || action == "customers:recalculateBalance" ||
                 action == "suppliers:save" || action == "suppliers:recordPayment" || action == "suppliers:archive" || action == "suppliers:delete" ||
-                action == "epay:createTransaction" || action == "epay:fundTerminal" || action == "epay:saveTerminal" ||
-                action == "wallets:processTransaction" || action == "wallets:fundAccount" || action == "wallets:saveAccount" ||
+                action == "epay:createTransaction" || action == "epay:fundTerminal" || action == "epay:saveTerminal" || action == "epay:adjustBalance" ||
+                action == "wallets:processTransaction" || action == "wallets:fundAccount" || action == "wallets:saveAccount" || action == "wallets:adjustBalance" || action == "wallets:cancelTransaction" ||
                 action == "closing:save" || action == "shifts:open" || action == "shifts:close" ||
                 action == "shifts:cashIn" || action == "shifts:cashOut" || action == "drawer:cashIn" || action == "drawer:cashOut")
                 return true;
@@ -531,33 +588,49 @@ namespace RafiqPOS.Bridge
 
         private static BridgeResponse AuthorizeRequest(BridgeRequest request)
         {
-            string requiredPermission;
-            if (!ACTION_PERMISSIONS.TryGetValue(request.Action, out requiredPermission))
+            // 1. Public actions: pre-login, window controls, and basic status checks
+            if (PUBLIC_ACTIONS.Contains(request.Action))
             {
                 return null;
             }
 
-            // Guided recovery: when the database is corrupt nobody can log in, so restoring a backup must remain possible.
-            if (DatabaseService.IsCorrupted && (request.Action == "database:restore" || request.Action == "migration:restore"))
+            // 2. Guided recovery: when database is corrupt nobody can log in, so restoring a backup must remain possible
+            if (DatabaseService.IsCorrupted && (request.Action == "database:restore" || request.Action == "migration:restore" || request.Action == "migration:inspect" || request.Action == "migration:browseFile"))
             {
                 return null;
             }
 
-            // Initial onboarding: when setting up the store before login, applying store template and saving initial settings is allowed.
-            if (request.Action == "templates:apply" ||
-                (DatabaseService.Templates != null && DatabaseService.Templates.IsFirstRunNeeded() && request.Action == "settings:save"))
+            // 3. Initial onboarding: when setting up the store before login, applying store template and saving initial settings is allowed ONLY when first run is needed
+            if (DatabaseService.Templates != null && DatabaseService.Templates.IsFirstRunNeeded())
             {
-                return null;
+                if (request.Action == "templates:apply" || request.Action == "settings:save")
+                {
+                    return null;
+                }
             }
 
+            // 4. Session authentication: all other actions strictly require an active user session
             UserDto sessionUser = SecurityService.CurrentUser;
             if (sessionUser == null || DatabaseService.Security == null)
             {
                 return BridgeResponse.Fail(request.Id, "AUTH_REQUIRED", "يجب تسجيل الدخول أولاً لتنفيذ هذه العملية.");
             }
 
-            bool allowed;
-            if (requiredPermission == REQUIRE_ADMIN)
+            // 5. Permission lookup (Default-Deny)
+            string requiredPermission;
+            if (!ACTION_PERMISSIONS.TryGetValue(request.Action, out requiredPermission))
+            {
+                Logger.Warn("SECURITY: Unknown or unmapped action blocked by default-deny: " + request.Action);
+                return BridgeResponse.Fail(request.Id, "FORBIDDEN", "هذا الإجراء غير مصرح به أو غير مسجل في النظام.");
+            }
+
+            // 6. Action-specific RBAC evaluation
+            bool allowed = false;
+            if (requiredPermission == REQUIRE_SESSION)
+            {
+                allowed = true;
+            }
+            else if (requiredPermission == REQUIRE_ADMIN)
             {
                 allowed = DatabaseService.Security.IsCurrentSessionAdmin();
             }

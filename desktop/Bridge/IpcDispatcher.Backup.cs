@@ -56,6 +56,52 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, new { success = true });
                     return true;
 
+                case "backup:getRecoveryStatus":
+                    string curCode = DatabaseService.Backup != null ? DatabaseService.Backup.GetOrCreateRecoveryCode() : "";
+                    bool isConfirmed = DatabaseService.Settings != null && DatabaseService.Settings.Get("owner_recovery_code_confirmed", "0") == "1";
+                    response = BridgeResponse.Ok(request.Id, new
+                    {
+                        isConfirmed = isConfirmed,
+                        recoveryCode = isConfirmed ? null : curCode,
+                        hasRecoveryCode = !string.IsNullOrEmpty(curCode)
+                    });
+                    return true;
+
+                case "backup:confirmRecoveryCode":
+                    if (DatabaseService.Settings != null)
+                    {
+                        DatabaseService.Settings.Set("owner_recovery_code_confirmed", "1");
+                    }
+                    response = BridgeResponse.Ok(request.Id, new { success = true });
+                    return true;
+
+                case "backup:revealRecoveryCode":
+                    string adminPin = null;
+                    if (request.Payload != null)
+                    {
+                        JObject revObj = request.Payload as JObject;
+                        if (revObj != null && revObj["pin"] != null) adminPin = revObj["pin"].ToString();
+                    }
+                    if (string.IsNullOrEmpty(adminPin))
+                    {
+                        response = BridgeResponse.Fail(request.Id, "PIN_REQUIRED", "يرجى إدخال PIN المالك لعرض كود الاسترجاع.");
+                        return true;
+                    }
+                    if (DatabaseService.Security == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "SECURITY_UNAVAILABLE", "خدمة الأمان غير مهيأة.");
+                        return true;
+                    }
+                    var supRes = DatabaseService.Security.VerifySupervisorPin(adminPin, "REVEAL_RECOVERY_CODE");
+                    if (!supRes.Success)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PIN", supRes.Message ?? "PIN المالك غير صحيح.");
+                        return true;
+                    }
+                    string revealedCode = DatabaseService.Backup != null ? DatabaseService.Backup.GetOrCreateRecoveryCode() : "";
+                    response = BridgeResponse.Ok(request.Id, new { success = true, recoveryCode = revealedCode });
+                    return true;
+
                 case "database:checkIntegrity":
                     var dbIntegrity = DatabaseService.CheckDatabaseIntegrity();
                     response = BridgeResponse.Ok(request.Id, dbIntegrity);
@@ -73,7 +119,11 @@ namespace RafiqPOS.Bridge
                             {
                                 restoreFilePath = rObj["backupFilePath"].ToString();
                             }
-                            if (rObj["masterKey"] != null)
+                            if (rObj["recoveryCode"] != null)
+                            {
+                                restoreMasterKey = rObj["recoveryCode"].ToString();
+                            }
+                            else if (rObj["masterKey"] != null)
                             {
                                 restoreMasterKey = rObj["masterKey"].ToString();
                             }
@@ -231,12 +281,15 @@ namespace RafiqPOS.Bridge
 
                 case "migration:inspect":
                     string inspectPath = null;
+                    string inspectRecoveryCode = null;
                     if (request.Payload != null)
                     {
                         JObject insObj = request.Payload as JObject;
-                        if (insObj != null && insObj["packagePath"] != null)
+                        if (insObj != null)
                         {
-                            inspectPath = insObj["packagePath"].ToString();
+                            if (insObj["packagePath"] != null) inspectPath = insObj["packagePath"].ToString();
+                            if (insObj["recoveryCode"] != null) inspectRecoveryCode = insObj["recoveryCode"].ToString();
+                            else if (insObj["password"] != null) inspectRecoveryCode = insObj["password"].ToString();
                         }
                         else
                         {
@@ -244,19 +297,22 @@ namespace RafiqPOS.Bridge
                         }
                     }
                     var insResult = DatabaseService.Migration != null
-                        ? DatabaseService.Migration.InspectPackage(inspectPath)
+                        ? DatabaseService.Migration.InspectPackage(inspectPath, inspectRecoveryCode)
                         : new MigrationPackageInspectResult { Success = false, Message = "خدمة النقل غير متوفرة." };
                     response = BridgeResponse.Ok(request.Id, insResult);
                     return true;
 
                 case "migration:restore":
                     string restorePkgPath = null;
+                    string restoreRecoveryCode = null;
                     if (request.Payload != null)
                     {
                         JObject resObj = request.Payload as JObject;
-                        if (resObj != null && resObj["packagePath"] != null)
+                        if (resObj != null)
                         {
-                            restorePkgPath = resObj["packagePath"].ToString();
+                            if (resObj["packagePath"] != null) restorePkgPath = resObj["packagePath"].ToString();
+                            if (resObj["recoveryCode"] != null) restoreRecoveryCode = resObj["recoveryCode"].ToString();
+                            else if (resObj["password"] != null) restoreRecoveryCode = resObj["password"].ToString();
                         }
                         else
                         {
@@ -264,7 +320,7 @@ namespace RafiqPOS.Bridge
                         }
                     }
                     var restResult = DatabaseService.Migration != null
-                        ? DatabaseService.Migration.RestorePackage(restorePkgPath)
+                        ? DatabaseService.Migration.RestorePackage(restorePkgPath, restoreRecoveryCode)
                         : new MigrationRestoreResult { Success = false, Message = "خدمة النقل غير متوفرة." };
                     response = BridgeResponse.Ok(request.Id, restResult);
                     return true;

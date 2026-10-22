@@ -107,6 +107,31 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, singleSale);
                     return true;
 
+                case "sales:getByIdempotencyKey":
+                    string idemKey = "";
+                    var idemObj = request.Payload as Newtonsoft.Json.Linq.JObject;
+                    if (idemObj != null && idemObj["idempotencyKey"] != null)
+                    {
+                        idemKey = idemObj["idempotencyKey"].ToString();
+                    }
+                    else if (request.Payload != null)
+                    {
+                        idemKey = request.Payload.ToString().Trim('"', ' ');
+                    }
+                    if (string.IsNullOrWhiteSpace(idemKey))
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_IDEMPOTENCY_KEY", "مفتاح العملية غير محدد");
+                        return true;
+                    }
+                    var saleByIdem = DatabaseService.Sales.GetSaleByIdempotencyKey(idemKey);
+                    if (saleByIdem == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "SALE_NOT_FOUND", "لم يتم العثور على فاتورة بهذا المفتاح");
+                        return true;
+                    }
+                    response = BridgeResponse.Ok(request.Id, saleByIdem);
+                    return true;
+
                 case "sales:cancel":
                     string cancelSaleId = "";
                     string cancelReason = "إلغاء بناء على طلب الكاشير";

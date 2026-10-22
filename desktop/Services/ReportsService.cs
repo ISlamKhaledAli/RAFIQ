@@ -21,11 +21,18 @@ namespace RafiqPOS.Services
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
+                DateTime todayBDate = BusinessDayHelper.GetCurrentBusinessDate(conn, null);
+                string bDate = todayBDate.ToString("yyyy-MM-dd");
+                string dateClause = string.Format("(date(created_at, 'localtime') = '{0}' OR date(created_at) = '{0}')", bDate);
+                string sDateClause = string.Format("(date(s.created_at, 'localtime') = '{0}' OR date(s.created_at) = '{0}')", bDate);
+                string smDateClause = string.Format("(date(sm.created_at, 'localtime') = '{0}' OR date(sm.created_at) = '{0}')", bDate);
+                string rDateClause = string.Format("(date(r.created_at, 'localtime') = '{0}' OR date(r.created_at) = '{0}')", bDate);
+                string expDateClause = string.Format("(date(created_at, 'localtime') = '{0}' OR business_date = '{0}' OR date(created_at) = '{0}')", bDate);
 
                 // 1. Sales totals & counts (Excluding demo sales for real reporting - strictly isolating cash, card, credit)
                 string salesSql = @"
                     SELECT 
-                        COALESCE(SUM(CASE WHEN (s.paid_piasters - s.service_fee_piasters) > s.total_piasters THEN (s.paid_piasters - s.service_fee_piasters) ELSE s.total_piasters END), 0) AS total_sales,
+                        COALESCE(SUM(s.total_piasters), 0) AS total_sales,
                         COALESCE(SUM(
                             CASE 
                                 WHEN s.payment_method = 'cash' THEN MAX(0, (s.paid_piasters - s.service_fee_piasters) - COALESCE(s.change_piasters, 0))
@@ -76,7 +83,7 @@ namespace RafiqPOS.Services
                         COALESCE(SUM(s.discount_piasters), 0) AS total_discount,
                         COUNT(*) AS inv_count
                     FROM sales s
-                    WHERE (date(s.created_at, 'localtime') = date('now', 'localtime') OR date(s.created_at) = date('now')) 
+                    WHERE " + sDateClause + @" 
                       AND s.status != 'cancelled'
                       AND s.id NOT LIKE 'demo_%'
                       AND s.id NOT LIKE 'stress_%';
@@ -108,7 +115,7 @@ namespace RafiqPOS.Services
                         COALESCE(SUM(total_piasters), 0) AS total_cancelled,
                         COUNT(*) AS cancelled_count
                     FROM sales 
-                    WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now')) 
+                    WHERE " + dateClause + @" 
                       AND status = 'cancelled'
                       AND id NOT LIKE 'demo_%'
                       AND id NOT LIKE 'stress_%';
@@ -134,7 +141,7 @@ namespace RafiqPOS.Services
                                 COALESCE(SUM(CASE WHEN refund_method = 'cash' THEN total_piasters ELSE 0 END), 0) AS cash_returns,
                                 COUNT(*) AS return_count
                             FROM returns 
-                            WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'));
+                            WHERE " + dateClause + @";
                         ";
                         using (var retCmd = new SQLiteCommand(returnsSql, conn))
                         using (var reader = retCmd.ExecuteReader())
@@ -143,9 +150,6 @@ namespace RafiqPOS.Services
                             {
                                 summary.TodayReturnsPiasters = Convert.ToInt64(reader["total_returns"]);
                                 summary.TodayReturnsCount = Convert.ToInt32(reader["return_count"]);
-                                long cashReturns = Convert.ToInt64(reader["cash_returns"]);
-                                summary.CashDrawerPiasters -= cashReturns;
-                                if (summary.CashDrawerPiasters < 0) summary.CashDrawerPiasters = 0;
                             }
                         }
                     }
@@ -165,7 +169,7 @@ namespace RafiqPOS.Services
                     ), 0) AS total_debt_payments
                     FROM customer_ledger
                     WHERE ((type = 'payment' AND sale_id IS NULL) OR type = 'payment_cancel')
-                      AND (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'))
+                      AND " + dateClause + @"
                       AND customer_id NOT LIKE 'demo_%';
                 ";
                 using (var cmd = new SQLiteCommand(debtPaymentSql, conn))
@@ -175,7 +179,6 @@ namespace RafiqPOS.Services
                     {
                         summary.TodayDebtPaymentsPiasters = Convert.ToInt64(res);
                         if (summary.TodayDebtPaymentsPiasters < 0) summary.TodayDebtPaymentsPiasters = 0;
-                        summary.CashDrawerPiasters += summary.TodayDebtPaymentsPiasters;
                     }
                 }
 
@@ -187,7 +190,7 @@ namespace RafiqPOS.Services
                             COALESCE(SUM(amount_piasters), 0) AS total_expenses,
                             COALESCE(SUM(CASE WHEN (source = 'drawer' OR source IS NULL OR source = '') THEN amount_piasters ELSE 0 END), 0) AS drawer_expenses
                         FROM expenses
-                        WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR business_date = date('now', 'localtime') OR date(created_at) = date('now'))
+                        WHERE " + expDateClause + @"
                           AND (is_cancelled = 0 OR is_cancelled IS NULL);
                     ";
                     using (var cmd = new SQLiteCommand(expenseSql, conn))
@@ -197,9 +200,6 @@ namespace RafiqPOS.Services
                             if (reader.Read())
                             {
                                 summary.TodayExpensesPiasters = Convert.ToInt64(reader["total_expenses"]);
-                                long drawerExp = Convert.ToInt64(reader["drawer_expenses"]);
-                                summary.CashDrawerPiasters -= drawerExp;
-                                if (summary.CashDrawerPiasters < 0) summary.CashDrawerPiasters = 0;
                             }
                         }
                     }
@@ -220,7 +220,7 @@ namespace RafiqPOS.Services
                                     COALESCE(SUM(CASE WHEN payment_channel = 'cash_drawer' THEN (CASE WHEN service_type = 'cash_out' THEN (customer_fee_piasters - bill_amount_piasters) ELSE total_received_piasters END) ELSE 0 END), 0) AS drawer_cash,
                                     COALESCE(SUM(net_profit_piasters), 0) AS net_profit
                                 FROM epay_transactions
-                                WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'))
+                                WHERE " + dateClause + @"
                                   AND status = 'completed';
                             ";
                             using (var epayCmd = new SQLiteCommand(epaySql, conn))
@@ -231,27 +231,6 @@ namespace RafiqPOS.Services
                                     summary.TodayEpayTerminalsBalancePiasters = Convert.ToInt64(epayReader["terminals_balance"]);
                                     summary.TodayEpayTillCashPiasters = Convert.ToInt64(epayReader["till_cash"]);
                                     summary.TodayEpayNetProfitPiasters = Convert.ToInt64(epayReader["net_profit"]);
-                                    long drawerEpayCash = Convert.ToInt64(epayReader["drawer_cash"]);
-                                    summary.CashDrawerPiasters = Math.Max(0, summary.CashDrawerPiasters + drawerEpayCash);
-                                }
-                            }
-
-                            string fundingSql = @"
-                                SELECT COALESCE(SUM(amount_piasters), 0)
-                                FROM epay_terminal_fundings
-                                WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'))
-                                  AND funding_source = 'cash_drawer';
-                            ";
-                            using (var fundCmd = new SQLiteCommand(fundingSql, conn))
-                            {
-                                object fundRes = fundCmd.ExecuteScalar();
-                                if (fundRes != null && fundRes != DBNull.Value)
-                                {
-                                    long drawerFunded = Convert.ToInt64(fundRes);
-                                    if (drawerFunded > 0)
-                                    {
-                                        summary.CashDrawerPiasters = Math.Max(0, summary.CashDrawerPiasters - drawerFunded);
-                                    }
                                 }
                             }
                         }
@@ -266,45 +245,7 @@ namespace RafiqPOS.Services
                     {
                         if (checkDigCmd.ExecuteScalar() != null)
                         {
-                            string digSql = @"
-                                SELECT 
-                                    COALESCE(SUM(CASE WHEN payment_destination = 'cash_drawer' THEN 
-                                        (CASE WHEN tx_type = 'cash_out' THEN total_collected_piasters 
-                                              WHEN tx_type = 'cash_in' THEN (profit_piasters - amount_piasters) 
-                                              ELSE 0 END) 
-                                        ELSE 0 END), 0) AS drawer_cash
-                                FROM digital_transactions
-                                WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'))
-                                  AND status = 'completed';
-                            ";
-                            using (var digCmd = new SQLiteCommand(digSql, conn))
-                            {
-                                object digRes = digCmd.ExecuteScalar();
-                                if (digRes != null && digRes != DBNull.Value)
-                                {
-                                    long walletsDrawerCash = Convert.ToInt64(digRes);
-                                    summary.CashDrawerPiasters = Math.Max(0, summary.CashDrawerPiasters + walletsDrawerCash);
-                                }
-                            }
-
-                            string digFundSql = @"
-                                SELECT COALESCE(SUM(amount_piasters), 0)
-                                FROM digital_account_fundings
-                                WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'))
-                                  AND funding_source = 'cash_drawer';
-                            ";
-                            using (var fundCmd = new SQLiteCommand(digFundSql, conn))
-                            {
-                                object fundRes = fundCmd.ExecuteScalar();
-                                if (fundRes != null && fundRes != DBNull.Value)
-                                {
-                                    long walletsDrawerFunded = Convert.ToInt64(fundRes);
-                                    if (walletsDrawerFunded > 0)
-                                    {
-                                        summary.CashDrawerPiasters = Math.Max(0, summary.CashDrawerPiasters - walletsDrawerFunded);
-                                    }
-                                }
-                            }
+                            // Process digital wallets if table exists
                         }
                     }
                 }
@@ -317,43 +258,7 @@ namespace RafiqPOS.Services
                     {
                         if (checkPurCmd.ExecuteScalar() != null)
                         {
-                            bool hasPurSourceCol = false;
-                            using (var pragmaCmd = new SQLiteCommand("PRAGMA table_info(purchases);", conn))
-                            using (var reader = pragmaCmd.ExecuteReader())
-                            {
-                                while (reader.Read())
-                                {
-                                    if (string.Equals(reader["name"].ToString(), "payment_source", StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        hasPurSourceCol = true;
-                                        break;
-                                    }
-                                }
-                            }
-
-                            string purSql = hasPurSourceCol
-                                ? @"SELECT COALESCE(SUM(paid_amount_piasters), 0)
-                                    FROM purchases
-                                    WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'))
-                                      AND status != 'cancelled'
-                                      AND (payment_source = 'cash_drawer' OR payment_source IS NULL OR payment_source = '');"
-                                : @"SELECT COALESCE(SUM(paid_amount_piasters), 0)
-                                    FROM purchases
-                                    WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'))
-                                      AND status != 'cancelled';";
-
-                            using (var purCmd = new SQLiteCommand(purSql, conn))
-                            {
-                                object purRes = purCmd.ExecuteScalar();
-                                if (purRes != null && purRes != DBNull.Value)
-                                {
-                                    long purchasesDrawerCash = Convert.ToInt64(purRes);
-                                    if (purchasesDrawerCash > 0)
-                                    {
-                                        summary.CashDrawerPiasters = Math.Max(0, summary.CashDrawerPiasters - purchasesDrawerCash);
-                                    }
-                                }
-                            }
+                            // Purchases handled
                         }
                     }
                 }
@@ -366,43 +271,7 @@ namespace RafiqPOS.Services
                     {
                         if (checkSuppCmd.ExecuteScalar() != null)
                         {
-                            bool hasSuppSourceCol = false;
-                            using (var pragmaCmd = new SQLiteCommand("PRAGMA table_info(supplier_transactions);", conn))
-                            using (var reader = pragmaCmd.ExecuteReader())
-                            {
-                                while (reader.Read())
-                                {
-                                    if (string.Equals(reader["name"].ToString(), "payment_source", StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        hasSuppSourceCol = true;
-                                        break;
-                                    }
-                                }
-                            }
-
-                            string suppSql = hasSuppSourceCol
-                                ? @"SELECT COALESCE(SUM(ABS(amount_piasters)), 0)
-                                    FROM supplier_transactions
-                                    WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'))
-                                      AND transaction_type = 'PAYMENT'
-                                      AND (payment_source = 'cash_drawer' OR payment_source IS NULL OR payment_source = '');"
-                                : @"SELECT COALESCE(SUM(ABS(amount_piasters)), 0)
-                                    FROM supplier_transactions
-                                    WHERE (date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'))
-                                      AND transaction_type = 'PAYMENT';";
-
-                            using (var suppCmd = new SQLiteCommand(suppSql, conn))
-                            {
-                                object suppRes = suppCmd.ExecuteScalar();
-                                if (suppRes != null && suppRes != DBNull.Value)
-                                {
-                                    long suppDrawerCash = Convert.ToInt64(suppRes);
-                                    if (suppDrawerCash > 0)
-                                    {
-                                        summary.CashDrawerPiasters = Math.Max(0, summary.CashDrawerPiasters - suppDrawerCash);
-                                    }
-                                }
-                            }
+                            // Supplier payments handled
                         }
                     }
                 }
@@ -414,7 +283,7 @@ namespace RafiqPOS.Services
                         COALESCE(SUM((si.total_piasters - COALESCE(si.tax_piasters, 0)) - (si.quantity_milli * si.unit_cost_piasters / 1000)), 0) AS total_profit
                     FROM sale_items si
                     INNER JOIN sales s ON si.sale_id = s.id
-                    WHERE (date(s.created_at, 'localtime') = date('now', 'localtime') OR date(s.created_at) = date('now')) 
+                    WHERE " + sDateClause + @" 
                       AND s.status != 'cancelled'
                       AND s.id NOT LIKE 'demo_%'
                       AND s.id NOT LIKE 'stress_%';
@@ -445,7 +314,7 @@ namespace RafiqPOS.Services
                             JOIN returns r ON ri.return_id = r.id
                             LEFT JOIN sale_items si ON ri.sale_item_id = si.id
                             LEFT JOIN products p ON ri.product_id = p.id
-                            WHERE (date(r.created_at, 'localtime') = date('now', 'localtime') OR date(r.created_at) = date('now'));
+                            WHERE " + rDateClause + @";
                         ";
                         using (var retProfCmd = new SQLiteCommand(retProfitSql, conn))
                         {
@@ -469,7 +338,7 @@ namespace RafiqPOS.Services
                     FROM stock_movements sm
                     LEFT JOIN products p ON sm.product_id = p.id
                     WHERE sm.movement_type = 'ADJUSTMENT'
-                      AND (date(sm.created_at, 'localtime') = date('now', 'localtime') OR date(sm.created_at) = date('now'));
+                      AND " + smDateClause + @";
                 ";
                 using (var cmd = new SQLiteCommand(adjSql, conn))
                 {
@@ -502,7 +371,7 @@ namespace RafiqPOS.Services
                     FROM stock_movements sm
                     LEFT JOIN products p ON sm.product_id = p.id
                     WHERE sm.movement_type = 'ADJUSTMENT'
-                      AND (date(sm.created_at, 'localtime') = date('now', 'localtime') OR date(sm.created_at) = date('now'))
+                      AND " + smDateClause + @"
                     ORDER BY sm.created_at DESC
                     LIMIT 10;
                 ";
@@ -548,7 +417,7 @@ namespace RafiqPOS.Services
                         SUM(si.total_piasters) AS total
                     FROM sale_items si
                     INNER JOIN sales s ON si.sale_id = s.id
-                    WHERE (date(s.created_at, 'localtime') = date('now', 'localtime') OR date(s.created_at) = date('now')) 
+                    WHERE " + sDateClause + @" 
                       AND s.status != 'cancelled'
                       AND s.id NOT LIKE 'demo_%'
                       AND s.id NOT LIKE 'stress_%'
@@ -657,17 +526,23 @@ namespace RafiqPOS.Services
                 }
 
                 // 10. Check if today's shift is officially closed
-                string checkClosingSql = "SELECT closing_number, closed_at FROM daily_closings WHERE (business_date = date('now', 'localtime') OR business_date = date('now')) LIMIT 1;";
+                string checkClosingSql = "SELECT closing_number, closed_at FROM daily_closings WHERE business_date = @bdate LIMIT 1;";
                 using (var cmd = new SQLiteCommand(checkClosingSql, conn))
-                using (var reader = cmd.ExecuteReader())
                 {
-                    if (reader.Read())
+                    cmd.Parameters.AddWithValue("@bdate", bDate);
+                    using (var reader = cmd.ExecuteReader())
                     {
-                        summary.IsDayClosed = true;
-                        summary.ClosingNumber = Convert.ToInt32(reader["closing_number"]);
-                        summary.ClosedAt = reader["closed_at"].ToString();
+                        if (reader.Read())
+                        {
+                            summary.IsDayClosed = true;
+                            summary.ClosingNumber = Convert.ToInt32(reader["closing_number"]);
+                            summary.ClosedAt = reader["closed_at"].ToString();
+                        }
                     }
                 }
+
+                // Unified Senior Drawer Cash Reconciliation (F-02, F-22, F-24, F-08)
+                summary.CashDrawerPiasters = DrawerCashCalculator.CalculateForBusinessDate(conn, todayBDate).ExpectedCashPiasters;
             }
 
             return summary;
@@ -712,9 +587,10 @@ namespace RafiqPOS.Services
             else
             {
                 // Default today
-                dateFilterClause = "(date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'))";
-                report.StartDate = DateTime.Now.ToString("yyyy-MM-dd");
-                report.EndDate = report.StartDate;
+                string bDateStr = BusinessDayHelper.GetCurrentBusinessDate(_connectionString).ToString("yyyy-MM-dd");
+                dateFilterClause = string.Format("(date(created_at, 'localtime') = '{0}' OR date(created_at) = '{0}')", bDateStr);
+                report.StartDate = bDateStr;
+                report.EndDate = bDateStr;
             }
 
             using (var conn = new SQLiteConnection(_connectionString))
@@ -724,7 +600,7 @@ namespace RafiqPOS.Services
                 // 1. Sales totals & payments breakdown (isolating cash, card, credit)
                 string salesSql = string.Format(@"
                     SELECT 
-                        COALESCE(SUM(CASE WHEN (s.paid_piasters - s.service_fee_piasters) > s.total_piasters THEN (s.paid_piasters - s.service_fee_piasters) ELSE s.total_piasters END), 0) AS total_sales,
+                        COALESCE(SUM(s.total_piasters), 0) AS total_sales,
                         COALESCE(SUM(
                             CASE 
                                 WHEN s.payment_method = 'cash' THEN MAX(0, (s.paid_piasters - s.service_fee_piasters) - COALESCE(s.change_piasters, 0))
@@ -1966,13 +1842,15 @@ namespace RafiqPOS.Services
                                 result.ReassignedOrphanProductsCount = cmd.ExecuteNonQuery();
                             }
 
-                            // 3. Reconcile customer debt balances with immutable ledger
+                            // 3. Reconcile customer debt balances with immutable ledger (F-39)
                             string findDiscrepanciesSql = @"
                                 SELECT c.id,
                                        COALESCE(SUM(
                                            CASE 
-                                               WHEN cl.type IN ('sale', 'opening_balance', 'debit_adjustment') THEN cl.amount_piasters
-                                               WHEN cl.type IN ('payment', 'refund', 'credit_adjustment') THEN -cl.amount_piasters
+                                               WHEN cl.type = 'opening_balance' THEN (CASE WHEN cl.balance_after_piasters < 0 THEN -ABS(cl.amount_piasters) ELSE ABS(cl.amount_piasters) END)
+                                               WHEN cl.type IN ('sale', 'debt_increase', 'payment_cancel', 'debit_adjustment') THEN ABS(cl.amount_piasters)
+                                               WHEN cl.type IN ('payment', 'refund', 'debt_decrease', 'deposit', 'credit_adjustment') THEN -ABS(cl.amount_piasters)
+                                               WHEN cl.type = 'cancellation' THEN cl.amount_piasters
                                                ELSE 0
                                            END
                                        ), 0) AS calculated_balance
@@ -2036,31 +1914,33 @@ namespace RafiqPOS.Services
 
         private string GetDateClause(string period, string customFrom, string customTo, string column)
         {
+            string bDate = BusinessDayHelper.GetCurrentBusinessDate(_connectionString).ToString("yyyy-MM-dd");
             if (period == "yesterday")
             {
-                return string.Format("date({0}, 'localtime') = date('now', 'localtime', '-1 day')", column);
+                string yDate = BusinessDayHelper.GetCurrentBusinessDate(_connectionString).AddDays(-1).ToString("yyyy-MM-dd");
+                return string.Format("(date({0}, 'localtime') = '{1}' OR date({0}) = '{1}')", column, yDate);
             }
             if (period == "week")
             {
-                return string.Format("date({0}, 'localtime') >= date('now', 'localtime', '-7 days')", column);
+                return string.Format("date({0}, 'localtime') >= date('{1}', '-7 days')", column, bDate);
             }
             if (period == "month")
             {
-                return string.Format("date({0}, 'localtime') >= date('now', 'localtime', '-30 days')", column);
+                return string.Format("date({0}, 'localtime') >= date('{1}', '-30 days')", column, bDate);
             }
             if (period == "3months")
             {
-                return string.Format("date({0}, 'localtime') >= date('now', 'localtime', '-90 days')", column);
+                return string.Format("date({0}, 'localtime') >= date('{1}', '-90 days')", column, bDate);
             }
             if (period == "year")
             {
-                return string.Format("date({0}, 'localtime') >= date('now', 'localtime', '-365 days')", column);
+                return string.Format("date({0}, 'localtime') >= date('{1}', '-365 days')", column, bDate);
             }
             if (period == "custom" && !string.IsNullOrEmpty(customFrom) && !string.IsNullOrEmpty(customTo))
             {
                 return string.Format("date({0}, 'localtime') >= date(@from) AND date({0}, 'localtime') <= date(@to)", column);
             }
-            return string.Format("(date({0}, 'localtime') = date('now', 'localtime') OR date({0}) = date('now'))", column);
+            return string.Format("(date({0}, 'localtime') = '{1}' OR date({0}) = '{1}')", column, bDate);
         }
 
         private void BindCustomDates(SQLiteCommand cmd, string period, string customFrom, string customTo)
@@ -2491,15 +2371,19 @@ namespace RafiqPOS.Services
             {
                 curName = "اليوم";
                 prevName = "أمس";
-                curClause = "date(created_at, 'localtime') = date('now', 'localtime')";
-                prevClause = "date(created_at, 'localtime') = date('now', 'localtime', '-1 day')";
+                string bDate = BusinessDayHelper.GetCurrentBusinessDate(_connectionString).ToString("yyyy-MM-dd");
+                string prevBDate = BusinessDayHelper.GetCurrentBusinessDate(_connectionString).AddDays(-1).ToString("yyyy-MM-dd");
+                curClause = string.Format("date(created_at, 'localtime') = '{0}'", bDate);
+                prevClause = string.Format("date(created_at, 'localtime') = '{0}'", prevBDate);
             }
             else if (period == "yesterday")
             {
                 curName = "أمس";
                 prevName = "أول أمس";
-                curClause = "date(created_at, 'localtime') = date('now', 'localtime', '-1 day')";
-                prevClause = "date(created_at, 'localtime') = date('now', 'localtime', '-2 days')";
+                string yDate = BusinessDayHelper.GetCurrentBusinessDate(_connectionString).AddDays(-1).ToString("yyyy-MM-dd");
+                string prevYDate = BusinessDayHelper.GetCurrentBusinessDate(_connectionString).AddDays(-2).ToString("yyyy-MM-dd");
+                curClause = string.Format("date(created_at, 'localtime') = '{0}'", yDate);
+                prevClause = string.Format("date(created_at, 'localtime') = '{0}'", prevYDate);
             }
             else
             {
@@ -3389,7 +3273,8 @@ namespace RafiqPOS.Services
             }
             else
             {
-                dateFilterClause = "(date(created_at, 'localtime') = date('now', 'localtime') OR date(created_at) = date('now'))";
+                string bDateStr = BusinessDayHelper.GetCurrentBusinessDate(_connectionString).ToString("yyyy-MM-dd");
+                dateFilterClause = string.Format("(date(created_at, 'localtime') = '{0}' OR date(created_at) = '{0}')", bDateStr);
             }
 
             using (var conn = new SQLiteConnection(_connectionString))
@@ -3604,7 +3489,8 @@ namespace RafiqPOS.Services
             }
             else
             {
-                dateFilterClause = "(date(s.created_at, 'localtime') = date('now', 'localtime') OR date(s.created_at) = date('now'))";
+                string bDateStr = BusinessDayHelper.GetCurrentBusinessDate(_connectionString).ToString("yyyy-MM-dd");
+                dateFilterClause = string.Format("(date(s.created_at, 'localtime') = '{0}' OR date(s.created_at) = '{0}')", bDateStr);
             }
 
             using (var conn = new SQLiteConnection(_connectionString))

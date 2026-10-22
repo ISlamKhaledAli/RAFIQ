@@ -202,6 +202,37 @@ namespace RafiqPOS.Services
             }
         }
 
+        public string GetOrCreateRecoveryCode()
+        {
+            if (_settingsRepo == null) return EncryptionService.GenerateRecoveryCode();
+
+            string encCode = _settingsRepo.Get("owner_recovery_code_encrypted", "");
+            if (!string.IsNullOrEmpty(encCode))
+            {
+                try
+                {
+                    string dec = _encryptionService.DecryptString(encCode);
+                    if (!string.IsNullOrEmpty(dec)) return dec;
+                }
+                catch { }
+            }
+
+            // Generate new recovery code
+            string newCode = EncryptionService.GenerateRecoveryCode();
+            string newEnc = _encryptionService.EncryptString(newCode);
+            string newHash = EncryptionService.HashRecoveryCode(newCode);
+            _settingsRepo.Set("owner_recovery_code_encrypted", newEnc);
+            _settingsRepo.Set("owner_recovery_code_hash", newHash);
+            _settingsRepo.Set("owner_recovery_code_confirmed", "0");
+            return newCode;
+        }
+
+        public string GetConfirmedRecoveryCodeStatus()
+        {
+            if (_settingsRepo == null) return "0";
+            return _settingsRepo.Get("owner_recovery_code_confirmed", "0");
+        }
+
         public string GetDefaultBackupFolder()
         {
             string baseFolder;
@@ -296,10 +327,11 @@ namespace RafiqPOS.Services
                     sourceConn.BackupDatabase(destConn, "main", "main", -1, null, 0);
                 }
 
-                // Feature #168: Encrypt the backup snapshot using device-bound AES-256-CBC + HMAC-SHA256
+                // Feature #168 & F-42: Encrypt the backup snapshot using dual-wrap envelope encryption (RFBK v2)
                 string rawSnapshotPath = backupFilePath + ".raw";
                 File.Move(backupFilePath, rawSnapshotPath);
-                _encryptionService.EncryptFile(rawSnapshotPath, backupFilePath);
+                string recoveryCode = GetOrCreateRecoveryCode();
+                _encryptionService.EncryptFileDualWrap(rawSnapshotPath, backupFilePath, recoveryCode);
                 try { File.Delete(rawSnapshotPath); } catch { }
 
                 // Verify the backup file immediately (Feature #125 / Task 125-1)

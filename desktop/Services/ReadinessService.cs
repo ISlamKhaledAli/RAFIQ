@@ -134,10 +134,8 @@ namespace RafiqPOS.Services
             {
                 if (DatabaseService.UserRepo != null)
                 {
-                    var rootUser = DatabaseService.UserRepo.GetByUsername("islam");
-                    var adminUser = DatabaseService.UserRepo.GetByUsername("admin");
-                    rootPassed = (rootUser != null && rootUser.IsActive && rootUser.Role == "root") &&
-                                 (adminUser != null && adminUser.IsActive);
+                    var adminUser = DatabaseService.UserRepo.GetByUsername("admin") ?? DatabaseService.UserRepo.GetById("usr_admin_default");
+                    rootPassed = (adminUser != null && adminUser.IsActive && (adminUser.Role == "admin" || adminUser.Role == "root"));
                 }
             }
             catch

@@ -42,6 +42,34 @@ namespace RafiqPOS.Bridge
                         return true;
                     }
                     var customerToSave = JsonConvert.DeserializeObject<Customer>(request.Payload.ToString());
+                    if (customerToSave == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات العميل غير صالحة");
+                        return true;
+                    }
+
+                    var sessionUser = SecurityService.CurrentUser;
+                    if (sessionUser != null)
+                    {
+                        bool isNew = string.IsNullOrWhiteSpace(customerToSave.Id) || DatabaseService.Customers.GetById(customerToSave.Id) == null;
+                        if (isNew)
+                        {
+                            if (!DatabaseService.Security.HasPermission(sessionUser.Id, "customers.create"))
+                            {
+                                response = BridgeResponse.Fail(request.Id, "FORBIDDEN", "ليس لديك صلاحية إضافة عميل جديد");
+                                return true;
+                            }
+                        }
+                        else
+                        {
+                            if (!DatabaseService.Security.HasPermission(sessionUser.Id, "customers.edit"))
+                            {
+                                response = BridgeResponse.Fail(request.Id, "FORBIDDEN", "ليس لديك صلاحية تعديل بيانات العميل");
+                                return true;
+                            }
+                        }
+                    }
+
                     var savedCustomer = DatabaseService.Customers.SaveCustomer(customerToSave);
                     response = BridgeResponse.Ok(request.Id, savedCustomer);
                     return true;
@@ -61,7 +89,10 @@ namespace RafiqPOS.Bridge
                     string payCustId = payObj["customerId"].ToString();
                     long payAmount = payObj["amountPiasters"].Value<long>();
                     string payNotes = payObj["notes"] != null ? payObj["notes"].ToString() : "";
-                    var updatedCustomerAfterPay = DatabaseService.Customers.RecordPayment(payCustId, payAmount, payNotes);
+                    string payShiftId = payObj["shiftId"] != null ? payObj["shiftId"].ToString() : null;
+                    string payMethod = payObj["paymentMethod"] != null ? payObj["paymentMethod"].ToString() : "cash";
+                    string payDigitalAccId = payObj["digitalAccountId"] != null ? payObj["digitalAccountId"].ToString() : null;
+                    var updatedCustomerAfterPay = DatabaseService.Customers.RecordPayment(payCustId, payAmount, payNotes, payShiftId, payMethod, payDigitalAccId);
                     response = BridgeResponse.Ok(request.Id, updatedCustomerAfterPay);
                     return true;
 
