@@ -31,6 +31,35 @@ namespace RafiqPOS.Services
                     DatabaseService.License.ActivateWithSupportCode(supCode, "متجر الفحص المعمق");
                 }
 
+                var existingAdmin = DatabaseService.UserRepo != null ? (DatabaseService.UserRepo.GetById("usr_admin_default") ?? DatabaseService.UserRepo.GetById("usr_root_developer")) : null;
+                UserDto adminUser = null;
+                if (existingAdmin != null)
+                {
+                    adminUser = SecurityService.MapToDto(existingAdmin);
+                }
+                else if (DatabaseService.UserRepo != null)
+                {
+                    var allUsers = DatabaseService.UserRepo.GetAll();
+                    if (allUsers != null && allUsers.Count > 0)
+                    {
+                        adminUser = SecurityService.MapToDto(allUsers[0]);
+                    }
+                }
+
+                if (adminUser != null)
+                {
+                    SecurityService.SetCurrentUserForTesting(adminUser);
+                    if (DatabaseService.Shifts != null)
+                    {
+                        DatabaseService.Shifts.OpenShift(new OpenShiftRequest
+                        {
+                            CashierId = adminUser.Id,
+                            CashierName = adminUser.DisplayName ?? adminUser.Username,
+                            OpeningFloatPiasters = 100000
+                        });
+                    }
+                }
+
                 summary.Results.Add(RunTest1_SplitPaymentsDailyClosingAndReports());
                 summary.Results.Add(RunTest2_VariantPurchaseStockSync());
                 summary.Results.Add(RunTest3_StockRecalculationParentRollupAndVariants());

@@ -58,7 +58,7 @@ namespace RafiqPOS.Services
             using (var cmd = conn.CreateCommand())
             {
                 cmd.Transaction = trans;
-                cmd.CommandText = "SELECT COUNT(*) FROM daily_closings WHERE business_date = @d AND (status = 'closed' OR status = 'sealed');";
+                cmd.CommandText = "SELECT COUNT(*) FROM daily_closings WHERE business_date = @d;";
                 cmd.Parameters.AddWithValue("@d", businessDate.ToString("yyyy-MM-dd"));
                 object countObj = cmd.ExecuteScalar();
                 long count = countObj != null && countObj != DBNull.Value ? Convert.ToInt64(countObj) : 0;
