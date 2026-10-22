@@ -48,11 +48,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ISlamKhaledAli/RAFIQ/raw/main/frontend/public/videos/video1_first_sale.mp4" target="_blank">
+  <a href="https://github.com/ISlamKhaledAli/RAFIQ/raw/main/frontend/public/videos/pos_cashier_synced.mp4" target="_blank">
     <img src="docs/assets/badges/btn_watch_video1.png" width="410" alt="تشغيل فيديو دورة البيع والكاشير 1080p" />
   </a>
   <br/>
-  <sub><a href="https://github.com/ISlamKhaledAli/RAFIQ/raw/main/frontend/public/videos/video1_first_sale.mp4" target="_blank">اضغط هنا لتشغيل الفيديو فورياً في المتصفح بدقة 1080p والصوت البشري</a></sub>
+  <sub><a href="https://github.com/ISlamKhaledAli/RAFIQ/raw/main/frontend/public/videos/pos_cashier_synced.mp4" target="_blank">اضغط هنا لتشغيل الفيديو فورياً في المتصفح بدقة 1080p والصوت البشري</a></sub>
 </p>
 
 <details>
@@ -68,51 +68,54 @@
 
 ---
 
-### 2. إقفال الوردية ومطابقة الخزينة بالمليم (Shift Closing & Z-Report)
+### 2. إدارة حسابات العملاء والبيع الآجل والديون (Customer Accounts & Credit Debt Management)
 
 <p align="center">
-  <img src="docs/assets/demos/demo2_z_report.gif" alt="إقفال اليومية ومطابقة الخزينة Z-Report" width="850" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);" />
+  <img src="docs/assets/demos/demo2_customer_credit.gif" alt="إدارة حسابات العملاء والبيع الآجل والديون" width="850" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);" />
 </p>
 
 <p align="center">
-  <a href="https://github.com/ISlamKhaledAli/RAFIQ/raw/main/frontend/public/videos/video2_z_report.mp4" target="_blank">
-    <img src="docs/assets/badges/btn_watch_video2.png" width="410" alt="تشغيل فيديو إقفال اليومية Z-Report 1080p" />
+  <a href="https://github.com/ISlamKhaledAli/RAFIQ/raw/main/frontend/public/videos/customer_credit_synced.mp4" target="_blank">
+    <img src="docs/assets/badges/btn_watch_video2.png" width="410" alt="تشغيل فيديو حسابات العملاء والآجل 1080p" />
   </a>
   <br/>
-  <sub><a href="https://github.com/ISlamKhaledAli/RAFIQ/raw/main/frontend/public/videos/video2_z_report.mp4" target="_blank">اضغط هنا لتشغيل الفيديو فورياً في المتصفح بدقة 1080p والصوت البشري</a></sub>
+  <sub><a href="https://github.com/ISlamKhaledAli/RAFIQ/raw/main/frontend/public/videos/customer_credit_synced.mp4" target="_blank">اضغط هنا لتشغيل الفيديو فورياً في المتصفح بدقة 1080p والصوت البشري</a></sub>
 </p>
 
 <details>
-<summary><b>تفاصيل سيناريو قفل الوردية والـ Z-Report (اضغط للتفاصيل)</b></summary>
+<summary><b>تفاصيل سيناريو إدارة حسابات العملاء والبيع الآجل (اضغط للتفاصيل)</b></summary>
 
-* **الحساب التلقائي للعهد:** حساب إجمالي مبيعات الكاش، ومبيعات الآجل، والمرتجعات، والمصروفات، والمبلغ الفعلي المفترض وجوده في الخزينة.
-* **مطابقة النقد المعدود:** إدخال النقد الفعلي؛ وفي حال وجود أي عجز أو زيادة يقوم النظام بتوضيح الفارق بالمليم، وعند المطابقة التامة تظهر شارة الاعتماد الخضراء (100% تطابق تام).
-* **تجميد السجلات في SQLite WAL:** ترحيل الوردية آلياً مع حظر تعديل أي فاتورة تابعة لتلك الفترة نهائياً لحماية أصحاب المحال من التلاعب.
-* **طباعة شريط الـ Z-Report:** إخراج إيصال إقفال مالي حراري تفصيلي وموجز للتسليم والاستلام.
+* **تسجيل وإدارة حسابات العملاء:** إنشاء ملف العميل برقم الهاتف، العنوان، وتحديد سقف المديونية (حد الائتمان المسموح به).
+* **البيع الآجل (الشكك):** تحويل الفاتورة لحساب العميل بضغطة زر مع فحص لحظي لحد الائتمان وحظر التجاوز إلا بصلاحية المشرف.
+* **مؤشرات الحساب الفورية:** بطاقات إحصائية ملونة توضح (إجمالي الفلوس اللي برة، عدد الزبائن المديونين، وسقف الديون المسموح).
+* **سندات سداد الديون:** تسجيل دفعات السداد الجزئي أو الكلي (نقداً أو عبر المحافظ الإلكترونية) مع تحديث فوري لرصيد العميل وطباعة إيصال قبض.
+* **كشف حساب العميل التراكمي:** استعراض كافة حركات المشتريات والسدادات مع إمكانية التصدير والاستيراد من إكسيل.
 </details>
 
 ---
 
-### 3. النسخ الاحتياطي وحزمة نقل المحل المستقلة (.rafiqpkg Migration)
+### 3. إضافة وتكويد صنف جديد وإدارة الأسعار والمخزون (Add New Product & Stock Catalog Tutorial)
 
 <p align="center">
-  <img src="docs/assets/demos/demo3_backup_restore.gif" alt="النسخ الاحتياطي ونقل المحل" width="850" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);" />
+  <img src="docs/assets/demos/demo3_add_product.gif" alt="إضافة وتكويد صنف جديد وإدارة الأسعار والمخزون" width="850" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);" />
 </p>
 
 <p align="center">
-  <a href="https://github.com/ISlamKhaledAli/RAFIQ/raw/main/frontend/public/videos/video3_backup_migration.mp4" target="_blank">
-    <img src="docs/assets/badges/btn_watch_video3.png" width="410" alt="تشغيل فيديو النسخ الاحتياطي ونقل المحل 1080p" />
+  <a href="https://github.com/ISlamKhaledAli/RAFIQ/raw/main/frontend/public/videos/add_new_product_tutorial_synced.mp4" target="_blank">
+    <img src="docs/assets/badges/btn_watch_video3.png" width="410" alt="تشغيل فيديو إضافة وتعريف الأصناف 1080p" />
   </a>
   <br/>
-  <sub><a href="https://github.com/ISlamKhaledAli/RAFIQ/raw/main/frontend/public/videos/video3_backup_migration.mp4" target="_blank">اضغط هنا لتشغيل الفيديو فورياً في المتصفح بدقة 1080p والصوت البشري</a></sub>
+  <sub><a href="https://github.com/ISlamKhaledAli/RAFIQ/raw/main/frontend/public/videos/add_new_product_tutorial_synced.mp4" target="_blank">اضغط هنا لتشغيل الفيديو فورياً في المتصفح بدقة 1080p والصوت البشري</a></sub>
 </p>
 
 <details>
-<summary><b>تفاصيل سيناريو النسخ الاحتياطي والترحيل الشامل (اضغط للتفاصيل)</b></summary>
+<summary><b>تفاصيل سيناريو إضافة صنف جديد وتكويد المخزون (اضغط للتفاصيل)</b></summary>
 
-* **النسخ الحي بضغطة زر (Zero-Downtime Backup):** أخذ نسخة احتياطية فورية دون إيقاف البيع باستخدام تقنية SQLite Backup API مع التحقق الآلي من سلامة الجداول عبر `PRAGMA integrity_check`.
-* **الحفظ المباشر على فلاشات USB الخارجية:** كشف تلقائي لأقراص التخزين الخارجية وحفظ النسخ بأسماء مؤرخة تلقائياً.
-* **حزمة نقل المحل (.rafiqpkg):** تصدير كامل بيانات المتجر (المنتجات، الحسابات، الأرصدة، الفواتير، الإعدادات) في حزمة مضغوطة ومشفرة ببصمة SHA256 لنقل المحل لجهاز جديد في أقل من 30 ثانية بدون الاستعانة بأي مبرمج أو خبير شبكات.
+* **إضافة وتكويد الصنف السريع:** إدخال اسم الصنف، قراءة الباركود بالقارئ أو توليد باركود تلقائي فريد للصنف.
+* **التسعير الذكي وهامش الربح:** إدخال سعر التكلفة وسعر البيع مع احتساب نسبة هامش الربح المئوية آلياً.
+* **التصنيف والأقسام:** ربط الصنف بالأقسام المناسبة (سوبرماركت، إلكترونيات، خضار، ملابس...) لسهولة الوصول من شاشة البيع.
+* **إدارة النواقص والكميات:** تحديد الرصيد الافتتاحي وتعيين حد أدنى للنواقص لإرسال تنبيهات إعادة الطلب قبل نفاد الكمية.
+* **النزول الفوري في البيع:** حفظ الصنف في قاعدة بيانات SQLite WAL ليظهر فورياً في شاشة الكاشير والبحث بدون إعادة تشغيل البرنامج.
 </details>
 
 ---
