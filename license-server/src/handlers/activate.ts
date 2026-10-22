@@ -112,11 +112,20 @@ export async function handleActivate(request: Request, env: Env): Promise<Respon
   }
 
   // 6. Handle Device Binding
+  const legacyFingerprint = (body.legacy_fingerprint || '').trim();
   let isReactivation = false;
   if (license.status === 'active') {
-    if (license.machine_fingerprint === machineFingerprint) {
-      // Same device requesting reactivation / reinstall
+    const isSameDevice = license.machine_fingerprint === machineFingerprint || 
+                         (legacyFingerprint && license.machine_fingerprint === legacyFingerprint);
+    if (isSameDevice) {
+      // Same device requesting reactivation / reinstall / salt migration
       isReactivation = true;
+      if (legacyFingerprint && license.machine_fingerprint === legacyFingerprint && license.machine_fingerprint !== machineFingerprint) {
+        await env.DB.prepare('UPDATE licenses SET machine_fingerprint = ?, updated_at = datetime(\'now\') WHERE id = ?')
+          .bind(machineFingerprint, license.id)
+          .run();
+        license.machine_fingerprint = machineFingerprint;
+      }
     } else {
       // Bound to a different device!
       await logAudit('activate', 'failed', 'DEVICE_MISMATCH');

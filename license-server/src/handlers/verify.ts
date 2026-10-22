@@ -10,7 +10,7 @@ export async function handleVerify(request: Request, env: Env): Promise<Response
     );
   }
 
-  let body: { token?: string; license_key?: string; machine_fingerprint?: string };
+  let body: { token?: string; license_key?: string; machine_fingerprint?: string; legacy_fingerprint?: string };
   try {
     body = await request.json();
   } catch {
@@ -23,6 +23,7 @@ export async function handleVerify(request: Request, env: Env): Promise<Response
   const token = (body.token || '').trim();
   const rawKey = (body.license_key || '').trim().toUpperCase();
   const machineFingerprint = (body.machine_fingerprint || '').trim();
+  const legacyFingerprint = (body.legacy_fingerprint || '').trim();
 
   let licenseKey = rawKey;
   let tokenFingerprint = '';
@@ -46,7 +47,10 @@ export async function handleVerify(request: Request, env: Env): Promise<Response
     tokenFingerprint = verification.payload.fp;
 
     // Validate machine fingerprint binding against token payload if provided
-    if (machineFingerprint && tokenFingerprint && tokenFingerprint !== machineFingerprint) {
+    const tokenFpMatches = !machineFingerprint || !tokenFingerprint ||
+                           tokenFingerprint === machineFingerprint ||
+                           (legacyFingerprint && tokenFingerprint === legacyFingerprint);
+    if (!tokenFpMatches) {
       return new Response(
         JSON.stringify({
           success: false,
@@ -84,7 +88,10 @@ export async function handleVerify(request: Request, env: Env): Promise<Response
   }
 
   // Validate device binding against database
-  if (machineFingerprint && license.machine_fingerprint && license.machine_fingerprint !== machineFingerprint) {
+  const dbFpMatches = !machineFingerprint || !license.machine_fingerprint ||
+                      license.machine_fingerprint === machineFingerprint ||
+                      (legacyFingerprint && license.machine_fingerprint === legacyFingerprint);
+  if (!dbFpMatches) {
     return new Response(
       JSON.stringify({
         success: false,
@@ -94,6 +101,15 @@ export async function handleVerify(request: Request, env: Env): Promise<Response
       }),
       { status: 403, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
     );
+  }
+
+  // Seamlessly migrate legacy machine fingerprint in D1
+  if (machineFingerprint && license.machine_fingerprint && legacyFingerprint &&
+      license.machine_fingerprint === legacyFingerprint && license.machine_fingerprint !== machineFingerprint) {
+    await env.DB.prepare("UPDATE licenses SET machine_fingerprint = ?, updated_at = datetime('now') WHERE id = ?")
+      .bind(machineFingerprint, license.id)
+      .run();
+    license.machine_fingerprint = machineFingerprint;
   }
 
   if (license.status === 'disabled') {
