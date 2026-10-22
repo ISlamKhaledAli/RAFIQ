@@ -97,6 +97,15 @@ namespace RafiqPOS.Repositories
                             {
                                 throw new ArgumentException(string.Format("كمية البونص المجانية للصنف '{0}' لا يمكن أن تكون سالبة", item.ProductName ?? item.ProductId));
                             }
+                            if (item.PackageCostPiasters > 0 && item.ConversionFactor > 0 && item.UnitCostPiasters <= 0)
+                            {
+                                item.UnitCostPiasters = (long)Math.Round((decimal)item.PackageCostPiasters / (decimal)item.ConversionFactor, MidpointRounding.AwayFromZero);
+                            }
+                            if (item.ConversionFactor <= 0)
+                            {
+                                item.ConversionFactor = 1.0;
+                            }
+
                             if (item.UnitCostPiasters < 0)
                             {
                                 throw new ArgumentException(string.Format("تكلفة شراء الصنف '{0}' لا يمكن أن تكون سالبة", item.ProductName ?? item.ProductId));
@@ -154,17 +163,15 @@ namespace RafiqPOS.Repositories
                         string paySource = !string.IsNullOrWhiteSpace(purchase.PaymentSource) ? purchase.PaymentSource : "cash_drawer";
                         if (purchase.PaidAmountPiasters > 0 && string.Equals(paySource, "cash_drawer", StringComparison.OrdinalIgnoreCase))
                         {
-                            using (var clCmd = new SQLiteCommand("SELECT 1 FROM daily_closings WHERE business_date = date('now', 'localtime') LIMIT 1;", conn, trans))
+                            var currentBDate = Services.BusinessDayHelper.GetCurrentBusinessDate(conn, trans);
+                            if (Services.BusinessDayHelper.IsBusinessDayClosed(conn, trans, currentBDate))
                             {
-                                if (clCmd.ExecuteScalar() != null)
-                                {
-                                    throw new InvalidOperationException("لا يمكن سداد فاتورة شراء من درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
-                                }
+                                throw new InvalidOperationException("لا يمكن سداد فاتورة شراء من درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
                             }
 
                             if (DatabaseService.DailyClosing != null)
                             {
-                                var liveBal = DatabaseService.DailyClosing.GetLiveDrawerBalance(DateTime.Now.ToString("yyyy-MM-dd"));
+                                var liveBal = DatabaseService.DailyClosing.GetLiveDrawerBalance(currentBDate.ToString("yyyy-MM-dd"));
                                 if (liveBal != null && liveBal.AvailableCashPiasters < purchase.PaidAmountPiasters)
                                 {
                                     throw new InvalidOperationException(string.Format("رصيد نقدية الدرج المتاح حالياً ({0:N2} ج.م) غير كافٍ لسداد فاتورة الشراء نقداً ({1:N2} ج.م). يرجى اختيار السداد من «كاش خارجي من صاحب المحل» أو توريد عهدة للدرج أولاً.", liveBal.AvailableCashPiasters / 100.0, purchase.PaidAmountPiasters / 100.0));
@@ -328,18 +335,22 @@ namespace RafiqPOS.Repositories
                                 item.BatchNumber = batchRecord.BatchNumber;
                             }
 
-                            // Insert into purchase_items
+                            // Insert into purchase_items (including F-34 packaging columns)
                             string insertItemSql = @"
                                 INSERT INTO purchase_items (
                                     id, purchase_id, product_id, product_name, barcode,
                                     quantity_milli, bonus_quantity_milli, unit_cost_piasters, discount_piasters, total_cost_piasters,
                                     previous_cost_piasters, new_selling_price_piasters,
-                                    batch_number, expiry_date, production_date, created_at
+                                    batch_number, expiry_date, production_date,
+                                    unit_id, unit_name, conversion_factor, package_cost_piasters,
+                                    created_at
                                 ) VALUES (
                                     @id, @purId, @prodId, @prodName, @barcode,
                                     @qty, @bonusQty, @unitCost, @discount, @totalCost,
                                     @prevCost, @newPrice,
-                                    @bnum, @exp, @prodDate, @createdAt
+                                    @bnum, @exp, @prodDate,
+                                    @unitId, @unitName, @convFactor, @pkgCost,
+                                    @createdAt
                                 );
                             ";
                             using (var cmd = new SQLiteCommand(insertItemSql, conn, trans))
@@ -359,13 +370,25 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@bnum", (object)item.BatchNumber ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@exp", (object)item.ExpiryDate ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@prodDate", (object)item.ProductionDate ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@unitId", (object)item.UnitId ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@unitName", (object)item.UnitName ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@convFactor", item.ConversionFactor > 0 ? item.ConversionFactor : 1.0);
+                                cmd.Parameters.AddWithValue("@pkgCost", item.PackageCostPiasters);
                                 cmd.Parameters.AddWithValue("@createdAt", item.CreatedAt);
                                 cmd.ExecuteNonQuery();
                             }
 
                             // Calculate new cost
-                            long newCost = effectiveUnitCost;
-                            if (string.Equals(costingMethod, "WEIGHTED_AVERAGE", StringComparison.OrdinalIgnoreCase))
+                            long newCost = currentCost;
+                            if (string.Equals(costingMethod, "LATEST", StringComparison.OrdinalIgnoreCase))
+                            {
+                                newCost = effectiveUnitCost;
+                            }
+                            else if (string.Equals(costingMethod, "KEEP", StringComparison.OrdinalIgnoreCase))
+                            {
+                                newCost = currentCost;
+                            }
+                            else // Default or WEIGHTED_AVERAGE
                             {
                                 long validCurrentStock = Math.Max(0, currentStock);
                                 long totalQty = validCurrentStock + totalReceivedMilli;
@@ -374,6 +397,10 @@ namespace RafiqPOS.Repositories
                                     // Weighted average cost with Half-Up AwayFromZero financial rounding
                                     decimal totalValue = ((decimal)validCurrentStock * currentCost) + ((decimal)totalReceivedMilli * effectiveUnitCost);
                                     newCost = (long)Math.Round(totalValue / (decimal)totalQty, 0, MidpointRounding.AwayFromZero);
+                                }
+                                else
+                                {
+                                    newCost = effectiveUnitCost;
                                 }
                             }
 
@@ -419,6 +446,21 @@ namespace RafiqPOS.Repositories
                                 cmdBaseUnit.Parameters.AddWithValue("@now", now);
                                 cmdBaseUnit.Parameters.AddWithValue("@pid", item.ProductId);
                                 cmdBaseUnit.ExecuteNonQuery();
+                            }
+
+                            // F-30: Synchronize non-base units in product_units (e.g. cartons) so unit cost doesn't stay stale
+                            string syncNonBaseUnitsSql = @"
+                                UPDATE product_units
+                                SET cost_price_piasters = CAST(ROUND(@newCost * conversion_factor) AS INTEGER),
+                                    updated_at = @now
+                                WHERE product_id = @pid AND is_base_unit = 0;
+                            ";
+                            using (var cmdNonBase = new SQLiteCommand(syncNonBaseUnitsSql, conn, trans))
+                            {
+                                cmdNonBase.Parameters.AddWithValue("@newCost", newCost);
+                                cmdNonBase.Parameters.AddWithValue("@now", now);
+                                cmdNonBase.Parameters.AddWithValue("@pid", item.ProductId);
+                                cmdNonBase.ExecuteNonQuery();
                             }
 
                             // If this product is a variant, also sync product_variants normalization table and parent product's total stock
@@ -720,7 +762,27 @@ namespace RafiqPOS.Repositories
                             returnDoc.ReturnDate = string.IsNullOrWhiteSpace(returnDoc.ReturnDate) ? DateTime.Now.ToString("yyyy-MM-dd") : returnDoc.ReturnDate;
                             returnDoc.CreatedByUserId = userId;
 
-                            // 2. Validate items and compute totals
+                            // 1b. Validate original purchase if specified
+                            if (!string.IsNullOrWhiteSpace(returnDoc.PurchaseId))
+                            {
+                                string origSupplierId = null;
+                                using (var checkPurCmd = new SQLiteCommand("SELECT supplier_id FROM purchases WHERE id = @purId LIMIT 1;", conn, trans))
+                                {
+                                    checkPurCmd.Parameters.AddWithValue("@purId", returnDoc.PurchaseId);
+                                    object o = checkPurCmd.ExecuteScalar();
+                                    if (o == null || o == DBNull.Value)
+                                    {
+                                        throw new InvalidOperationException("فاتورة الشراء الأصلية المحددة غير موجودة.");
+                                    }
+                                    origSupplierId = o.ToString();
+                                }
+                                if (!string.Equals(origSupplierId, returnDoc.SupplierId, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    throw new InvalidOperationException("فاتورة الشراء المحددة تابعة لمورد آخر غير المورد المحدد للمرتجع.");
+                                }
+                            }
+
+                            // 2. Validate items, stock, purchase line quantities, and enforce server cost
                             long totalCost = 0;
                             for (int i = 0; i < returnDoc.Items.Count; i++)
                             {
@@ -729,8 +791,152 @@ namespace RafiqPOS.Repositories
                                     throw new ArgumentException(string.Format("الصنف رقم {0} غير صالح في المرتجع", i + 1));
                                 if (item.QuantityMilli <= 0)
                                     throw new ArgumentException(string.Format("كمية المرتجع للصنف '{0}' يجب أن تكون أكبر من الصفر", item.ProductName ?? item.ProductId));
-                                if (item.UnitCostPiasters < 0)
-                                    throw new ArgumentException(string.Format("تكلفة مرتجع الصنف '{0}' لا يمكن أن تكون سالبة", item.ProductName ?? item.ProductId));
+
+                                // Fetch current product state
+                                long currentStock = 0;
+                                long catalogCost = 0;
+                                string prodName = item.ProductName;
+                                string barcode = item.Barcode;
+
+                                using (var pCmd = new SQLiteCommand("SELECT name, barcode, stock_quantity_milli, cost_piasters, is_active FROM products WHERE id = @pid LIMIT 1;", conn, trans))
+                                {
+                                    pCmd.Parameters.AddWithValue("@pid", item.ProductId);
+                                    using (var reader = pCmd.ExecuteReader())
+                                    {
+                                        if (reader.Read())
+                                        {
+                                            prodName = reader["name"].ToString();
+                                            barcode = reader["barcode"] != DBNull.Value ? reader["barcode"].ToString() : null;
+                                            currentStock = Convert.ToInt64(reader["stock_quantity_milli"]);
+                                            catalogCost = Convert.ToInt64(reader["cost_piasters"]);
+                                            bool isAct = true;
+                                            try { isAct = Convert.ToInt32(reader["is_active"]) == 1; } catch { }
+                                            if (!isAct)
+                                            {
+                                                throw new InvalidOperationException(string.Format("الصنف '{0}' مؤرشف أو محذوف.", prodName));
+                                            }
+                                        }
+                                        else
+                                        {
+                                            throw new InvalidOperationException("المنتج غير موجود: " + item.ProductId);
+                                        }
+                                    }
+                                }
+
+                                if (currentStock < item.QuantityMilli)
+                                {
+                                    throw new InvalidOperationException(string.Format("رصيد المخزن للصنف '{0}' ({1:N2}) غير كافٍ لإرجاع كمية ({2:N2}) للمورد.",
+                                        prodName, currentStock / 1000.0, item.QuantityMilli / 1000.0));
+                                }
+
+                                item.ProductName = prodName;
+                                item.Barcode = barcode;
+
+                                // Resolve and validate purchase invoice line
+                                if (!string.IsNullOrWhiteSpace(returnDoc.PurchaseId))
+                                {
+                                    long purQty = 0;
+                                    long purTotalCost = 0;
+                                    long itemUnitCost = 0;
+                                    bool foundPurItem = false;
+
+                                    using (var piCmd = new SQLiteCommand("SELECT quantity_milli, bonus_quantity_milli, unit_cost_piasters, total_cost_piasters FROM purchase_items WHERE purchase_id = @purId AND product_id = @pid LIMIT 1;", conn, trans))
+                                    {
+                                        piCmd.Parameters.AddWithValue("@purId", returnDoc.PurchaseId);
+                                        piCmd.Parameters.AddWithValue("@pid", item.ProductId);
+                                        using (var piReader = piCmd.ExecuteReader())
+                                        {
+                                            if (piReader.Read())
+                                            {
+                                                foundPurItem = true;
+                                                purQty = Convert.ToInt64(piReader["quantity_milli"]) + Convert.ToInt64(piReader["bonus_quantity_milli"]);
+                                                purTotalCost = Convert.ToInt64(piReader["total_cost_piasters"]);
+                                                itemUnitCost = Convert.ToInt64(piReader["unit_cost_piasters"]);
+                                            }
+                                        }
+                                    }
+
+                                    if (!foundPurItem)
+                                    {
+                                        throw new InvalidOperationException(string.Format("الصنف '{0}' غير موجود في فاتورة الشراء الأصلية.", prodName));
+                                    }
+
+                                    long effectiveUnitCost = purQty > 0 ? (purTotalCost * 1000 / purQty) : itemUnitCost;
+                                    item.UnitCostPiasters = effectiveUnitCost;
+
+                                    long alreadyReturned = 0;
+                                    using (var retSumCmd = new SQLiteCommand(@"
+                                        SELECT COALESCE(SUM(pri.quantity_milli), 0)
+                                        FROM purchase_return_items pri
+                                        JOIN purchase_returns pr ON pri.return_id = pr.id
+                                        WHERE pr.purchase_id = @purId AND pri.product_id = @pid;", conn, trans))
+                                    {
+                                        retSumCmd.Parameters.AddWithValue("@purId", returnDoc.PurchaseId);
+                                        retSumCmd.Parameters.AddWithValue("@pid", item.ProductId);
+                                        object sumObj = retSumCmd.ExecuteScalar();
+                                        if (sumObj != null && sumObj != DBNull.Value) alreadyReturned = Convert.ToInt64(sumObj);
+                                    }
+
+                                    long remainingReturnable = purQty - alreadyReturned;
+                                    if (item.QuantityMilli > remainingReturnable)
+                                    {
+                                        throw new InvalidOperationException(string.Format("كمية المرتجع للصنف '{0}' ({1:N2}) تتجاوز الكمية المتبقية المتاحة للإرجاع ({2:N2}) من فاتورة الشراء الأصلية.",
+                                            prodName, item.QuantityMilli / 1000.0, remainingReturnable / 1000.0));
+                                    }
+                                }
+                                else
+                                {
+                                    // If no purchaseId, fallback to latest purchase from supplier or catalog cost
+                                    long foundPurCost = 0;
+                                    bool foundLastPur = false;
+                                    using (var lastPurCmd = new SQLiteCommand(@"
+                                        SELECT pi.quantity_milli, pi.bonus_quantity_milli, pi.total_cost_piasters, pi.unit_cost_piasters
+                                        FROM purchases p
+                                        JOIN purchase_items pi ON p.id = pi.purchase_id
+                                        WHERE p.supplier_id = @supId AND pi.product_id = @pid
+                                        ORDER BY p.purchase_date DESC, p.created_at DESC LIMIT 1;", conn, trans))
+                                    {
+                                        lastPurCmd.Parameters.AddWithValue("@supId", returnDoc.SupplierId);
+                                        lastPurCmd.Parameters.AddWithValue("@pid", item.ProductId);
+                                        using (var r = lastPurCmd.ExecuteReader())
+                                        {
+                                            if (r.Read())
+                                            {
+                                                foundLastPur = true;
+                                                long lQty = Convert.ToInt64(r["quantity_milli"]) + Convert.ToInt64(r["bonus_quantity_milli"]);
+                                                long lTotal = Convert.ToInt64(r["total_cost_piasters"]);
+                                                foundPurCost = lQty > 0 ? (lTotal * 1000 / lQty) : Convert.ToInt64(r["unit_cost_piasters"]);
+                                            }
+                                        }
+                                    }
+
+                                    if (foundLastPur)
+                                    {
+                                        item.UnitCostPiasters = foundPurCost;
+                                    }
+                                    else if (item.UnitCostPiasters <= 0 || item.UnitCostPiasters > catalogCost)
+                                    {
+                                        item.UnitCostPiasters = catalogCost;
+                                    }
+                                }
+
+                                // Validate batch availability
+                                if (!string.IsNullOrEmpty(item.BatchNumber))
+                                {
+                                    long batchStock = 0;
+                                    using (var bCmd = new SQLiteCommand("SELECT quantity_milli FROM product_batches WHERE product_id = @pid AND batch_number = @bnum LIMIT 1;", conn, trans))
+                                    {
+                                        bCmd.Parameters.AddWithValue("@pid", item.ProductId);
+                                        bCmd.Parameters.AddWithValue("@bnum", item.BatchNumber);
+                                        object bObj = bCmd.ExecuteScalar();
+                                        if (bObj != null && bObj != DBNull.Value) batchStock = Convert.ToInt64(bObj);
+                                    }
+                                    if (batchStock < item.QuantityMilli)
+                                    {
+                                        throw new InvalidOperationException(string.Format("رصيد التشغيلة '{0}' للصنف '{1}' ({2:N2}) غير كافٍ لإرجاع كمية ({3:N2}) للمورد.",
+                                            item.BatchNumber, prodName, batchStock / 1000.0, item.QuantityMilli / 1000.0));
+                                    }
+                                }
 
                                 item.TotalCostPiasters = Money.FromPiasters(item.UnitCostPiasters).MultiplyByMilliUnits(item.QuantityMilli).Piasters;
                                 totalCost += item.TotalCostPiasters;
@@ -770,44 +976,6 @@ namespace RafiqPOS.Repositories
                                 item.Id = string.IsNullOrWhiteSpace(item.Id) ? "pri_" + Guid.NewGuid().ToString("N") : item.Id;
                                 item.ReturnId = returnDoc.Id;
                                 item.CreatedAt = now;
-
-                                // Fetch current product state
-                                long currentStock = 0;
-                                string prodName = item.ProductName;
-                                string barcode = item.Barcode;
-
-                                using (var pCmd = new SQLiteCommand("SELECT name, barcode, stock_quantity_milli, is_active FROM products WHERE id = @pid LIMIT 1;", conn, trans))
-                                {
-                                    pCmd.Parameters.AddWithValue("@pid", item.ProductId);
-                                    using (var reader = pCmd.ExecuteReader())
-                                    {
-                                        if (reader.Read())
-                                        {
-                                            prodName = reader["name"].ToString();
-                                            barcode = reader["barcode"] != DBNull.Value ? reader["barcode"].ToString() : null;
-                                            currentStock = Convert.ToInt64(reader["stock_quantity_milli"]);
-                                            bool isAct = true;
-                                            try { isAct = Convert.ToInt32(reader["is_active"]) == 1; } catch { }
-                                            if (!isAct)
-                                            {
-                                                throw new InvalidOperationException(string.Format("الصنف '{0}' مؤرشف أو محذوف.", prodName));
-                                            }
-                                        }
-                                        else
-                                        {
-                                            throw new InvalidOperationException("المنتج غير موجود: " + item.ProductId);
-                                        }
-                                    }
-                                }
-
-                                if (currentStock < item.QuantityMilli)
-                                {
-                                    throw new InvalidOperationException(string.Format("رصيد المخزن للصنف '{0}' ({1:N2}) غير كافٍ لإرجاع كمية ({2:N2}) للمورد.",
-                                        prodName, currentStock / 1000.0, item.QuantityMilli / 1000.0));
-                                }
-
-                                item.ProductName = prodName;
-                                item.Barcode = barcode;
 
                                 // Insert purchase_return_items
                                 string insertItemSql = @"
@@ -882,7 +1050,7 @@ namespace RafiqPOS.Repositories
                                 {
                                     string batchDeductSql = @"
                                         UPDATE product_batches
-                                        SET quantity_milli = MAX(0, quantity_milli - @qty),
+                                        SET quantity_milli = quantity_milli - @qty,
                                             updated_at = @now
                                         WHERE product_id = @pid AND batch_number = @bnum;
                                     ";
@@ -1096,6 +1264,15 @@ namespace RafiqPOS.Repositories
                 lineDiscount = Convert.ToInt64(reader["discount_piasters"]);
             }
 
+            string uId = null;
+            string uName = null;
+            double convFactor = 1.0;
+            long pkgCost = 0;
+            if (HasColumn(reader, "unit_id") && reader["unit_id"] != DBNull.Value) uId = reader["unit_id"].ToString();
+            if (HasColumn(reader, "unit_name") && reader["unit_name"] != DBNull.Value) uName = reader["unit_name"].ToString();
+            if (HasColumn(reader, "conversion_factor") && reader["conversion_factor"] != DBNull.Value) convFactor = Convert.ToDouble(reader["conversion_factor"]);
+            if (HasColumn(reader, "package_cost_piasters") && reader["package_cost_piasters"] != DBNull.Value) pkgCost = Convert.ToInt64(reader["package_cost_piasters"]);
+
             return new PurchaseItem
             {
                 Id = reader["id"].ToString(),
@@ -1113,6 +1290,10 @@ namespace RafiqPOS.Repositories
                 BatchNumber = bNum,
                 ExpiryDate = exp,
                 ProductionDate = prodDate,
+                UnitId = uId,
+                UnitName = uName,
+                ConversionFactor = convFactor,
+                PackageCostPiasters = pkgCost,
                 CreatedAt = reader["created_at"].ToString()
             };
         }

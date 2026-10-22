@@ -146,14 +146,11 @@ namespace RafiqPOS.Repositories
                         }
                         else
                         {
-                            bool balanceChanged = (terminal.BalancePiasters != existingBal);
-
                             string updateSql = @"
                                 UPDATE epay_terminals SET
                                     name = @name,
                                     provider = @provider,
                                     terminal_code = @terminalCode,
-                                    balance_piasters = @balance,
                                     low_balance_alert_piasters = @lowAlert,
                                     is_active = @isActive,
                                     customer_fee_type = @feeType,
@@ -174,7 +171,6 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@name", terminal.Name ?? "ماكينة دفع");
                                 cmd.Parameters.AddWithValue("@provider", terminal.Provider ?? "super_pay");
                                 cmd.Parameters.AddWithValue("@terminalCode", (object)terminal.TerminalCode ?? DBNull.Value);
-                                cmd.Parameters.AddWithValue("@balance", terminal.BalancePiasters);
                                 cmd.Parameters.AddWithValue("@lowAlert", terminal.LowBalanceAlertPiasters > 0 ? terminal.LowBalanceAlertPiasters : 50000);
                                 cmd.Parameters.AddWithValue("@isActive", terminal.IsActive ? 1 : 0);
                                 cmd.Parameters.AddWithValue("@feeType", !string.IsNullOrWhiteSpace(terminal.CustomerFeeType) ? terminal.CustomerFeeType : "fixed");
@@ -189,43 +185,7 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@now", now);
                                 cmd.ExecuteNonQuery();
                             }
-
-                            if (balanceChanged)
-                            {
-                                long diff = terminal.BalancePiasters - existingBal;
-                                string fundingId = Guid.NewGuid().ToString();
-                                string insertFundingSql = @"
-                                    INSERT INTO epay_terminal_fundings (
-                                        id, terminal_id, amount_piasters, funding_source, previous_balance_piasters, new_balance_piasters, notes, created_by, created_at
-                                    ) VALUES (
-                                        @id, @termId, @amt, 'manual_adjustment', @prevBal, @newBal, 'تسوية رصيد يدوية من إعدادات الماكينة', 'admin', @now
-                                    );
-                                ";
-                                using (var fundCmd = new SQLiteCommand(insertFundingSql, conn, trans))
-                                {
-                                    fundCmd.Parameters.AddWithValue("@id", fundingId);
-                                    fundCmd.Parameters.AddWithValue("@termId", terminal.Id);
-                                    fundCmd.Parameters.AddWithValue("@amt", diff);
-                                    fundCmd.Parameters.AddWithValue("@prevBal", existingBal);
-                                    fundCmd.Parameters.AddWithValue("@newBal", terminal.BalancePiasters);
-                                    fundCmd.Parameters.AddWithValue("@now", now);
-                                    fundCmd.ExecuteNonQuery();
-                                }
-
-                                if (_auditRepo != null)
-                                {
-                                    _auditRepo.Log(conn, trans, new AuditLog
-                                    {
-                                        Id = "aud_" + Guid.NewGuid().ToString("N"),
-                                        UserId = "admin",
-                                        Action = "epay_terminal_balance_adjust",
-                                        EntityType = "epay_terminal",
-                                        EntityId = terminal.Id,
-                                        DetailsJson = string.Format("{{\"previousBalance\":{0},\"newBalance\":{1},\"diff\":{2}}}", existingBal, terminal.BalancePiasters, diff),
-                                        CreatedAt = now
-                                    });
-                                }
-                            }
+                            terminal.BalancePiasters = existingBal;
                         }
 
                         trans.Commit();
@@ -378,17 +338,15 @@ namespace RafiqPOS.Repositories
                     {
                         if (string.Equals(fundingSource, "cash_drawer", StringComparison.OrdinalIgnoreCase))
                         {
-                            using (var clCmd = new SQLiteCommand("SELECT 1 FROM daily_closings WHERE business_date = date('now', 'localtime') LIMIT 1;", conn, trans))
+                            var currentBDate = Services.BusinessDayHelper.GetCurrentBusinessDate(conn, trans);
+                            if (Services.BusinessDayHelper.IsBusinessDayClosed(conn, trans, currentBDate))
                             {
-                                if (clCmd.ExecuteScalar() != null)
-                                {
-                                    throw new InvalidOperationException("لا يمكن تغذية رصيد الماكينة من درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
-                                }
+                                throw new InvalidOperationException("لا يمكن تغذية رصيد الماكينة من درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
                             }
 
                             if (DatabaseService.DailyClosing != null)
                             {
-                                var liveBal = DatabaseService.DailyClosing.GetLiveDrawerBalance();
+                                var liveBal = DatabaseService.DailyClosing.GetLiveDrawerBalance(currentBDate.ToString("yyyy-MM-dd"));
                                 if (liveBal != null && liveBal.AvailableCashPiasters < amountPiasters)
                                 {
                                     throw new InvalidOperationException(string.Format("رصيد نقدية درج الكاشير المتاح حالياً ({0:N2} ج.م) غير كافٍ لتغذية ماكينة الدفع بمبلغ ({1:N2} ج.م). يرجى تغذية الدرج أولاً أو اختيار مصدر تمويل آخر (مثل: كاش خارجي / صاحب المحل).", liveBal.AvailableCashPiasters / 100.0, amountPiasters / 100.0));
@@ -495,14 +453,14 @@ namespace RafiqPOS.Repositories
 
             if (type == "percent")
             {
-                // ruleValue is basis points: e.g. 100 bps = 1.00%, 150 bps = 1.50%
+                // F-21: Integer basis points arithmetic: e.g. 100 bps = 1.00%, 150 bps = 1.50%
                 long bps = ruleValue > 0 ? ruleValue : 100;
-                result = (long)Math.Round((double)(billPiasters * bps) / 10000.0, MidpointRounding.AwayFromZero);
+                result = (billPiasters * bps + 5000) / 10000;
             }
             else if (type == "per_thousand")
             {
-                // Each 1000 EGP (100,000 piasters) or fraction thereof
-                long thousands = (long)Math.Max(1, Math.Ceiling((double)billPiasters / 100000.0));
+                // F-21: Pure integer ceiling: each 1000 EGP (100,000 piasters) or fraction thereof
+                long thousands = Math.Max(1, (billPiasters + 99999) / 100000);
                 long ratePerThousand = ruleValue > 0 ? ruleValue : 1000;
                 result = thousands * ratePerThousand;
             }
@@ -622,10 +580,6 @@ namespace RafiqPOS.Repositories
             {
                 throw new ArgumentException("عمولة الشركة لا يمكن أن تكون سالبة");
             }
-            if (tx.MachineDeductedPiasters < 0)
-            {
-                throw new ArgumentException("المبلغ المخصوم من رصيد الماكينة لا يمكن أن يكون سالباً");
-            }
 
             lock (SaleService.FinancialWriteLock)
             {
@@ -638,31 +592,18 @@ namespace RafiqPOS.Repositories
                 tx.CreatedAt = now;
                 tx.Status = string.IsNullOrWhiteSpace(tx.Status) ? "completed" : tx.Status;
 
-                // Financial Calculations:
-                // Total from customer = bill amount + machine commission + shop profit
-                // Machine deducted = bill amount + machine commission (profit is NOT deducted from machine)
-                // Net profit for the shop = customer fee + machine commission discount (if deducted < bill)
-                tx.TotalReceivedPiasters = tx.BillAmountPiasters + tx.ProviderCommissionPiasters + tx.CustomerFeePiasters;
-                if (tx.NetProfitPiasters <= 0)
-                {
-                    if (tx.MachineDeductedPiasters > 0 && tx.MachineDeductedPiasters < tx.BillAmountPiasters)
-                    {
-                        tx.NetProfitPiasters = tx.CustomerFeePiasters + (tx.BillAmountPiasters - tx.MachineDeductedPiasters);
-                    }
-                    else
-                    {
-                        tx.NetProfitPiasters = tx.CustomerFeePiasters;
-                    }
-                }
-
-                // Machine deducted amount: for cash_out it's 0; for debit operations default to billAmount + providerCommission
+                // Financial Calculations (F-16 server-side closed formula):
                 if (tx.ServiceType == "cash_out")
                 {
                     tx.MachineDeductedPiasters = 0;
+                    tx.TotalReceivedPiasters = tx.CustomerFeePiasters;
+                    tx.NetProfitPiasters = tx.CustomerFeePiasters;
                 }
-                else if (tx.MachineDeductedPiasters <= 0)
+                else
                 {
                     tx.MachineDeductedPiasters = tx.BillAmountPiasters + tx.ProviderCommissionPiasters;
+                    tx.TotalReceivedPiasters = tx.BillAmountPiasters + tx.ProviderCommissionPiasters + tx.CustomerFeePiasters;
+                    tx.NetProfitPiasters = tx.CustomerFeePiasters;
                 }
 
                 using (var conn = new SQLiteConnection(_connectionString))
@@ -699,12 +640,10 @@ namespace RafiqPOS.Repositories
                         // Closed day protection if affecting cash drawer
                         if (string.Equals(tx.PaymentChannel, "cash_drawer", StringComparison.OrdinalIgnoreCase))
                         {
-                            using (var clCmd = new SQLiteCommand("SELECT 1 FROM daily_closings WHERE business_date = date('now', 'localtime') LIMIT 1;", conn, trans))
+                            var currentBDate = Services.BusinessDayHelper.GetCurrentBusinessDate(conn, trans);
+                            if (Services.BusinessDayHelper.IsBusinessDayClosed(conn, trans, currentBDate))
                             {
-                                if (clCmd.ExecuteScalar() != null)
-                                {
-                                    throw new InvalidOperationException("لا يمكن تنفيذ معاملة نقدية تؤثر على درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
-                                }
+                                throw new InvalidOperationException("لا يمكن تنفيذ معاملة نقدية تؤثر على درج الكاشير لتاريخ عمل تم إقفاله وتشميعه مسبقاً.");
                             }
 
                             if (string.Equals(tx.ServiceType, "cash_out", StringComparison.OrdinalIgnoreCase))
@@ -712,7 +651,7 @@ namespace RafiqPOS.Repositories
                                 long netDrawerOutflow = tx.BillAmountPiasters - tx.CustomerFeePiasters;
                                 if (netDrawerOutflow > 0 && RafiqPOS.Services.DatabaseService.DailyClosing != null)
                                 {
-                                    var liveBal = RafiqPOS.Services.DatabaseService.DailyClosing.GetLiveDrawerBalance();
+                                    var liveBal = RafiqPOS.Services.DatabaseService.DailyClosing.GetLiveDrawerBalance(currentBDate.ToString("yyyy-MM-dd"));
                                     if (liveBal != null && liveBal.AvailableCashPiasters < netDrawerOutflow)
                                     {
                                         throw new InvalidOperationException(string.Format(
@@ -1255,6 +1194,90 @@ namespace RafiqPOS.Repositories
                 Notes = reader["notes"] != DBNull.Value ? reader["notes"].ToString() : null,
                 CreatedAt = reader["created_at"].ToString()
             };
+        }
+
+        public EpayTerminal AdjustBalance(string terminalId, long newBalancePiasters, string reason, string userId)
+        {
+            if (string.IsNullOrWhiteSpace(terminalId)) throw new ArgumentException("معرف الماكينة مطلوب");
+            if (newBalancePiasters < 0) throw new ArgumentException("رصيد الماكينة لا يمكن أن يكون سالباً");
+            if (string.IsNullOrWhiteSpace(reason)) throw new ArgumentException("سبب تعديل الرصيد إلزامي لحماية أمان السجلات المالية");
+
+            lock (SaleService.FinancialWriteLock)
+            {
+                string now = DateTime.UtcNow.ToString("o");
+                using (var conn = new SQLiteConnection(_connectionString))
+                {
+                    conn.Open();
+                    using (var trans = conn.BeginTransaction())
+                    {
+                        try
+                        {
+                            long existingBal = 0;
+                            using (var cmd = new SQLiteCommand("SELECT balance_piasters FROM epay_terminals WHERE id = @id LIMIT 1;", conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@id", terminalId);
+                                using (var reader = cmd.ExecuteReader())
+                                {
+                                    if (!reader.Read()) throw new InvalidOperationException("ماكينة الدفع غير موجودة");
+                                    existingBal = Convert.ToInt64(reader["balance_piasters"]);
+                                }
+                            }
+
+                            long diff = newBalancePiasters - existingBal;
+                            using (var cmd = new SQLiteCommand("UPDATE epay_terminals SET balance_piasters = @bal, updated_at = @now WHERE id = @id;", conn, trans))
+                            {
+                                cmd.Parameters.AddWithValue("@bal", newBalancePiasters);
+                                cmd.Parameters.AddWithValue("@now", now);
+                                cmd.Parameters.AddWithValue("@id", terminalId);
+                                cmd.ExecuteNonQuery();
+                            }
+
+                            string fundingId = Guid.NewGuid().ToString();
+                            string insertFundingSql = @"
+                                INSERT INTO epay_terminal_fundings (
+                                    id, terminal_id, amount_piasters, funding_source, previous_balance_piasters, new_balance_piasters, notes, created_by, created_at
+                                ) VALUES (
+                                    @id, @termId, @amt, 'manual_adjustment', @prevBal, @newBal, @notes, @by, @now
+                                );
+                            ";
+                            using (var fundCmd = new SQLiteCommand(insertFundingSql, conn, trans))
+                            {
+                                fundCmd.Parameters.AddWithValue("@id", fundingId);
+                                fundCmd.Parameters.AddWithValue("@termId", terminalId);
+                                fundCmd.Parameters.AddWithValue("@amt", diff);
+                                fundCmd.Parameters.AddWithValue("@prevBal", existingBal);
+                                fundCmd.Parameters.AddWithValue("@newBal", newBalancePiasters);
+                                fundCmd.Parameters.AddWithValue("@notes", "تسوية رصيد يدوية: " + reason);
+                                fundCmd.Parameters.AddWithValue("@by", !string.IsNullOrEmpty(userId) ? userId : "admin");
+                                fundCmd.Parameters.AddWithValue("@now", now);
+                                fundCmd.ExecuteNonQuery();
+                            }
+
+                            if (_auditRepo != null)
+                            {
+                                _auditRepo.Log(conn, trans, new AuditLog
+                                {
+                                    Id = "aud_" + Guid.NewGuid().ToString("N"),
+                                    UserId = !string.IsNullOrEmpty(userId) ? userId : "admin",
+                                    Action = "epay_terminal_balance_adjust",
+                                    EntityType = "epay_terminal",
+                                    EntityId = terminalId,
+                                    DetailsJson = string.Format("{{\"previousBalance\":{0},\"newBalance\":{1},\"diff\":{2},\"reason\":\"{3}\"}}", existingBal, newBalancePiasters, diff, reason),
+                                    CreatedAt = now
+                                });
+                            }
+
+                            trans.Commit();
+                            return GetTerminalById(terminalId);
+                        }
+                        catch
+                        {
+                            trans.Rollback();
+                            throw;
+                        }
+                    }
+                }
+            }
         }
     }
 }

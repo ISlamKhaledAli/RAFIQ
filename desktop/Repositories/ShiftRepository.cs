@@ -387,10 +387,11 @@ namespace RafiqPOS.Repositories
                         string retSql = @"
                             SELECT COALESCE(SUM(CASE WHEN refund_method = 'cash' THEN total_piasters ELSE 0 END), 0)
                             FROM returns
-                            WHERE created_at >= @openedAt AND (@closedAt IS NULL OR created_at <= @closedAt);
+                            WHERE (shift_id = @shiftId OR (shift_id IS NULL AND created_at >= @openedAt AND (@closedAt IS NULL OR created_at <= @closedAt)));
                         ";
                         using (var cmd = new SQLiteCommand(retSql, conn))
                         {
+                            cmd.Parameters.AddWithValue("@shiftId", shift.Id);
                             cmd.Parameters.AddWithValue("@openedAt", shift.OpenedAt);
                             cmd.Parameters.AddWithValue("@closedAt", (object)shift.ClosedAt ?? DBNull.Value);
                             object retRes = cmd.ExecuteScalar();
@@ -413,11 +414,13 @@ namespace RafiqPOS.Repositories
                     ), 0)
                     FROM customer_ledger
                     WHERE ((type = 'payment' AND sale_id IS NULL) OR type = 'payment_cancel')
-                      AND created_at >= @openedAt AND (@closedAt IS NULL OR created_at <= @closedAt)
+                      AND (payment_method = 'cash' OR payment_method IS NULL OR payment_method = '')
+                      AND (shift_id = @shiftId OR (shift_id IS NULL AND created_at >= @openedAt AND (@closedAt IS NULL OR created_at <= @closedAt)))
                       AND customer_id NOT LIKE 'demo_%';
                 ";
                 using (var cmd = new SQLiteCommand(debtSql, conn))
                 {
+                    cmd.Parameters.AddWithValue("@shiftId", shift.Id);
                     cmd.Parameters.AddWithValue("@openedAt", shift.OpenedAt);
                     cmd.Parameters.AddWithValue("@closedAt", (object)shift.ClosedAt ?? DBNull.Value);
                     object debtRes = cmd.ExecuteScalar();
@@ -472,17 +475,30 @@ namespace RafiqPOS.Repositories
                 summary.RecentMovements = GetDrawerTransactions(shift.Id);
             }
 
-            // Expected Cash Formula:
-            // Opening Float + Cash Sales - Returns Cash + Debt Payments Cash - Expenses Cash + Cash In - Cash Out
-            summary.ExpectedCashPiasters = summary.OpeningFloatPiasters 
-                + summary.CashSalesPiasters 
-                - summary.ReturnsCashPiasters 
-                + summary.DebtPaymentsCashPiasters 
-                - summary.ExpensesCashPiasters 
-                + summary.CashInPiasters 
-                - summary.CashOutPiasters;
+            // F-02, F-22, F-24: Unified Senior Cash Calculation via DrawerCashCalculator
+            DateTime pStart = DateTime.MinValue;
+            DateTime.TryParse(shift.OpenedAt, out pStart);
+            DateTime pEnd = DateTime.UtcNow;
+            if (!string.IsNullOrEmpty(shift.ClosedAt))
+            {
+                DateTime.TryParse(shift.ClosedAt, out pEnd);
+            }
+            if (pStart == DateTime.MinValue) pStart = DateTime.Today.AddDays(-1);
 
-            summary.AvailableCashInDrawerPiasters = Math.Max(0, summary.ExpectedCashPiasters);
+            var calc = Services.DrawerCashCalculator.Calculate(_connectionString, pStart, pEnd, shift.Id);
+            summary.OpeningFloatPiasters = calc.OpeningFloatPiasters;
+            summary.CashSalesPiasters = calc.CashSalesPiasters;
+            summary.ReturnsCashPiasters = calc.CashReturnsPiasters;
+            summary.DebtPaymentsCashPiasters = calc.DebtPaymentsCashPiasters;
+            summary.ExpensesCashPiasters = calc.ExpensesPiasters;
+            summary.CashInPiasters = calc.ManualCashInPiasters;
+            summary.CashOutPiasters = calc.ManualCashOutPiasters;
+            summary.EpayCashPiasters = calc.EpayNetCashPiasters - calc.TerminalFundingPiasters;
+            summary.WalletsCashPiasters = calc.WalletsNetCashPiasters - calc.WalletFundingPiasters;
+            summary.PurchasesCashPiasters = calc.PurchasesCashPiasters;
+            summary.SupplierPaymentsCashPiasters = calc.SupplierPaymentsPiasters;
+            summary.ExpectedCashPiasters = calc.ExpectedCashPiasters;
+            summary.AvailableCashInDrawerPiasters = calc.ExpectedCashPiasters; // F-08: No Math.Max(0, ...)
 
             return summary;
         }
