@@ -77,6 +77,7 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'pos.void_line', label: 'حذف سطر من الفاتورة', description: 'حذف منتج تم إدخاله في الفاتورة الحالية' },
       { key: 'pos.quick_add', label: 'إضافة صنف سريع', description: 'إضافة بند مباشر بدون كود مسبق' },
       { key: 'pos.reprint', label: 'إعادة طباعة الفاتورة', description: 'إعادة طباعة إيصالات العمليات السابقة' },
+      { key: 'pos.change_unit', label: 'تبديل وحدة البيع بالكاشير', description: 'السماح بالتبديل السريع بين العلبة والشريط والقرص أثناء البيع (مفتاح /)' },
     ],
   },
   {
@@ -137,6 +138,8 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'products.view', label: 'عرض الأصناف', description: 'استعراض قائمة المنتجات وأسعار البيع' },
       { key: 'products.create', label: 'إضافة صنف جديد', description: 'إدخال منتج جديد وتعيين باركود وسعر' },
       { key: 'products.edit', label: 'تعديل بيانات الأصناف', description: 'تعديل الاسم والباركود والوحدات' },
+      { key: 'products.packaging.edit', label: 'تعديل منظومة التعبئة والتجزئة', description: 'السماح بتعريف وإدارة مستويات العبوات والبيع المفكوك' },
+      { key: 'products.unit_rebase', label: 'إعادة التأسيس الذري للوحدات', description: 'السماح بتحويل الوحدة الأساسية للصنف ومضاعفة الرصيد والتشغيلات' },
       { key: 'products.edit_price', label: 'تعديل سعر البيع', description: 'تعديل سعر البيع القطاعي والجملة' },
       { key: 'products.edit_cost', label: 'الاطلاع وتعديل التكلفة', description: 'رؤية سعر الشراء الحقيقي وتعديله' },
       { key: 'products.archive', label: 'أرشفة / حذف صنف', description: 'تعطيل أو حذف صنف من المنظومة' },

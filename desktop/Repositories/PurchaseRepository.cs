@@ -97,13 +97,19 @@ namespace RafiqPOS.Repositories
                             {
                                 throw new ArgumentException(string.Format("كمية البونص المجانية للصنف '{0}' لا يمكن أن تكون سالبة", item.ProductName ?? item.ProductId));
                             }
+                            // Conversion Factor Validation Guard (Task 182-3 / F3 Security)
+                            if (item.ConversionFactor == 0)
+                            {
+                                item.ConversionFactor = 1.0;
+                            }
+                            if (item.ConversionFactor < 1.0 || Math.Abs(item.ConversionFactor - Math.Round(item.ConversionFactor)) > 0.000001)
+                            {
+                                throw new ArgumentException(string.Format("معامل تحويل العبوة للصنف '{0}' يجب أن يكون رقماً صحيحاً موجباً", item.ProductName ?? item.ProductId));
+                            }
+
                             if (item.PackageCostPiasters > 0 && item.ConversionFactor > 0 && item.UnitCostPiasters <= 0)
                             {
                                 item.UnitCostPiasters = (long)Math.Round((decimal)item.PackageCostPiasters / (decimal)item.ConversionFactor, MidpointRounding.AwayFromZero);
-                            }
-                            if (item.ConversionFactor <= 0)
-                            {
-                                item.ConversionFactor = 1.0;
                             }
 
                             if (item.UnitCostPiasters < 0)

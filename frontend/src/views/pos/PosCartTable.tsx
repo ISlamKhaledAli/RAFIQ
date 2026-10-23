@@ -9,11 +9,11 @@ import {
   Scale, 
   Tag,
   Calendar,
-  AlertTriangle
+  AlertTriangle,
+  ArrowLeftRight
 } from 'lucide-react';
 import type { CartItem } from './types';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
-import { CustomSelect } from '../../components/CustomSelect';
 
 interface PosCartTableProps {
   cart: CartItem[];
@@ -27,7 +27,7 @@ interface PosCartTableProps {
   onRestoreDraft: () => void;
   onDiscardDraft: () => void;
   statusMessage: { text: string; type: 'success' | 'error' | 'warning' } | null;
-  changeCartItemUnit: (index: number, newUnitId: string) => void;
+  cycleCartItemUnit?: (index: number) => void;
   updateQuantity: (index: number, deltaPieces: number) => void;
   setDirectQuantity: (index: number, newQtyPieces: number) => void;
   openWeightEditorForCartItem: (index: number) => void;
@@ -42,7 +42,7 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
   onRestoreDraft,
   onDiscardDraft,
   statusMessage,
-  changeCartItemUnit,
+  cycleCartItemUnit,
   updateQuantity,
   setDirectQuantity,
   openWeightEditorForCartItem,
@@ -155,18 +155,17 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                         <span>وزن</span>
                       </span>
                     )}
-                    {/* Unit Selector Dropdown if multiple units exist */}
+                    {/* Unit Switch Button if multiple units exist */}
                     {item.productUnits && item.productUnits.length > 1 && (
-                      <CustomSelect
-                        value={item.unitId || ''}
-                        onChange={(val) => changeCartItemUnit(index, val)}
-                        options={item.productUnits.map((u) => ({
-                          value: u.id || '',
-                          label: `${u.unitName} (×${u.conversionFactor})`
-                        }))}
-                        size="sm"
-                        className="w-20 sm:w-24 shrink-0 text-[10px]"
-                      />
+                      <button
+                        type="button"
+                        onClick={() => cycleCartItemUnit?.(index)}
+                        className="h-6 px-2 rounded-md bg-surface-2 dark:bg-surface-dark-3 hover:bg-brand-soft hover:text-brand border border-line dark:border-line-dark flex items-center gap-1 text-[10px] font-bold text-ink-muted cursor-pointer transition-colors shadow-2xs shrink-0"
+                        title="تبديل وحدة البيع للوحدة التالية (أو اضغط مفتاح / بالكيبورد)"
+                      >
+                        <ArrowLeftRight className="w-3 h-3 text-brand shrink-0" />
+                        <span>تبديل</span>
+                      </button>
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 text-[10px] text-ink-muted dark:text-ink-dark-muted truncate">
@@ -179,9 +178,9 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                         خصم: {formatArabicCurrency(item.discountPiasters)}
                       </span>
                     )}
-                    {item.unitName && item.conversionFactor && item.conversionFactor > 1 && (
-                      <span className="text-paid dark:text-paid-bright font-bold bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 px-1 rounded shrink-0">
-                        {item.unitName} = {item.conversionFactor} قطعة
+                    {item.unitName && (
+                      <span className="text-paid dark:text-paid-bright font-bold bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 px-1.5 py-0.2 rounded shrink-0">
+                        {item.unitName}{item.conversionFactor && item.conversionFactor > 1 ? ` = ${item.conversionFactor} قطعة` : ''}
                       </span>
                     )}
                     {item.isExpiredBypass && (
@@ -207,7 +206,7 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
 
                 {/* Unit Price (Read-only from inventory) */}
                 <div className="w-14 sm:w-16 lg:w-20 shrink-0 text-center tabular-nums font-mono text-ink dark:text-ink-dark text-xs sm:text-[13px] font-bold">
-                  <span>{(item.unitPricePiasters / 100).toFixed(2)}</span>
+                  <span>{formatArabicCurrency(item.unitPricePiasters, false)}</span>
                   <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted hidden sm:inline mr-0.5 font-normal">ج.م</span>
                 </div>
 
@@ -288,10 +287,10 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
 
                 {/* Line Total */}
                 <div className="w-14 sm:w-16 lg:w-20 shrink-0 text-left tabular-nums font-mono font-bold text-paid dark:text-brand-bright text-xs flex flex-col items-end justify-center">
-                  <span className="font-extrabold">{(item.totalPiasters / 100).toFixed(2)}</span>
+                  <span className="font-extrabold">{formatArabicCurrency(item.totalPiasters, false)}</span>
                   {item.discountPiasters > 0 && (
                     <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted line-through font-normal">
-                      {((Math.round((item.unitPricePiasters * item.quantityMilli) / 1000)) / 100).toFixed(2)}
+                      {formatArabicCurrency(Math.round((item.unitPricePiasters * item.quantityMilli) / 1000), false)}
                     </span>
                   )}
                 </div>

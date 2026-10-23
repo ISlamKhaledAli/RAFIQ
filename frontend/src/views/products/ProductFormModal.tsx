@@ -13,15 +13,13 @@ import {
   Percent,
   Check,
   Boxes,
-  RotateCcw,
-  Plus,
   Coins,
   Layers,
   Calendar,
   Calculator,
   Receipt,
 } from 'lucide-react';
-import type { Category, ProductUnit } from '../../types/models';
+import type { Category, Product, ProductUnit } from '../../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
 import { MoneyInput } from '../../components/MoneyInput';
 import { CustomSelect } from '../../components/CustomSelect';
@@ -90,6 +88,13 @@ export interface ProductFormModalProps {
   setInitialExpiryDate?: (v: string) => void;
   initialBatchNumber?: string;
   setInitialBatchNumber?: (v: string) => void;
+  isLooseSellable?: boolean;
+  setIsLooseSellable?: (v: boolean) => void;
+  defaultSaleUnitId?: string | null;
+  setDefaultSaleUnitId?: (v: string | null) => void;
+  defaultPurchaseUnitId?: string | null;
+  setDefaultPurchaseUnitId?: (v: string | null) => void;
+  editingProduct?: Product | null;
 }
 
 export const ProductFormModal: React.FC<ProductFormModalProps> = ({
@@ -107,6 +112,13 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   setInitialExpiryDate,
   initialBatchNumber = '',
   setInitialBatchNumber,
+  isLooseSellable,
+  setIsLooseSellable,
+  defaultSaleUnitId,
+  setDefaultSaleUnitId,
+  defaultPurchaseUnitId: _defaultPurchaseUnitId,
+  setDefaultPurchaseUnitId,
+  editingProduct,
   barcode,
   setBarcode,
   additionalBarcodes,
@@ -205,17 +217,6 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     setStockInput(String(newTotal));
   };
 
-  // When user edits pack size:
-  const handlePackSizeChange = (val: string) => {
-    const digitsOnly = normalizeArabicNumerals(val).replace(/[^\d]/g, '');
-    const clean = digitsOnly.length > 1 ? digitsOnly.replace(/^0+/, '') || '0' : digitsOnly;
-    setPackSizeInput(clean);
-    const p = parseInt(clean, 10);
-    const pVal = isNaN(p) ? 0 : p;
-    const newTotal = (cartonsNum * pVal) + looseNum;
-    setStockInput(String(newTotal));
-  };
-
   // When user edits loose pieces:
   const handleLoosePiecesChange = (val: string) => {
     const digitsOnly = normalizeArabicNumerals(val).replace(/[^\d]/g, '');
@@ -242,29 +243,6 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       setCartonsInput('0');
       setLooseInput(clean || '0');
     }
-  };
-
-  // Quick increment function
-  const handleQuickAddStock = (amount: number) => {
-    const current = parseFloat(stockInput) || 0;
-    const nextVal = Math.max(0, current + amount);
-    setStockInput(String(nextVal));
-    if (packSizeNum > 0) {
-      const c = Math.floor(nextVal / packSizeNum);
-      const rem = Math.round(nextVal % packSizeNum);
-      setCartonsInput(c > 0 ? String(c) : '0');
-      setLooseInput(rem > 0 ? String(rem) : '0');
-    } else {
-      setCartonsInput('0');
-      setLooseInput(String(nextVal));
-    }
-  };
-
-  // Reset stock function
-  const handleResetStock = () => {
-    setStockInput('0');
-    setCartonsInput('0');
-    setLooseInput('0');
   };
 
   // Smart Supplier Cost Calculator state
@@ -633,387 +611,6 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               </div>
             )}
 
-            {/* Expiry Date & Batch for Initial Stock (Feature #60) */}
-            {isEnabled('feature_expiry_dates') && (
-              <div className="p-3 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-lg flex flex-col gap-2.5 shadow-2xs">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-warn dark:text-warn-bright font-bold text-[12px]">
-                    <Calendar className="w-4 h-4 text-warn dark:text-warn-bright" />
-                    <span>تاريخ الصلاحية ورقم الشحنة (اختياري)</span>
-                  </div>
-                  <span className="text-[10px] text-warn dark:text-warn-bright font-medium">تسجيل تلقائي لرصيد أول المدة بالمخزن</span>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">تاريخ انتهاء الصلاحية</label>
-                    <CustomDatePicker
-                      value={initialExpiryDate || ''}
-                      onChange={(val) => setInitialExpiryDate?.(val)}
-                      placeholder="اختر تاريخ الصلاحية"
-                      size="md"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
-                      رقم الشحنة أو إذن الاستلام (اختياري)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="مثلاً: شحنة 1 أو رقم الفاتورة (هيتعمل تلقائي لو سبته فاضي)"
-                      value={initialBatchNumber}
-                      onChange={(e) => setInitialBatchNumber?.(e.target.value)}
-                      className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[34px] px-3 text-[12px] font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright shadow-2xs"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Integrated Dynamic Packaging & Stock Quantity Engine */}
-            <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 border-2 border-brand/30 dark:border-brand/40 rounded-lg flex flex-col gap-3 shadow-2xs">
-              {/* Header */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <Boxes className="w-4 h-4 text-brand dark:text-brand-bright" />
-                  <span className="text-[13px] font-bold text-ink dark:text-ink-dark">رصيد المخزن وجرد الكراتين *</span>
-                  <span className="px-1.5 py-0.5 bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright border border-brand/20 rounded text-[10px] font-bold">
-                    حساب فوري ولحظي
-                  </span>
-                </div>
-                {unit === 'piece' && (
-                  packSizeNum > 0 ? (
-                    <div className="flex items-center gap-1 text-[11px] font-bold text-brand dark:text-brand-bright bg-white dark:bg-surface-dark px-2 py-0.5 rounded-md border border-brand/20 shadow-2xs">
-                      <Package className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-                      <span>العبوة: {packName} ({packSizeNum} قطعة)</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1 text-[11px] font-semibold text-ink-muted dark:text-ink-dark-muted bg-white dark:bg-surface-dark px-2 py-0.5 rounded-md border border-line dark:border-line-dark shadow-2xs">
-                      <Package className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
-                      <span>قطع فرط فرداني (من غير كراتين)</span>
-                    </div>
-                  )
-                )}
-              </div>
-
-              {/* Dynamic Equation Inputs for Pieces or Weight */}
-              {unit === 'piece' ? (
-                <>
-                  {/* Dynamic 4-Box Mathematical Calculation Row */}
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-center bg-white dark:bg-surface-dark p-2.5 rounded-lg border border-line dark:border-line-dark shadow-2xs">
-                    {/* Cartons */}
-                    <div className="flex-1">
-                      <label className="block text-[11px] font-bold text-ink dark:text-ink-dark mb-1">
-                        عدد الكراتين ({packName}):
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={cartonsInput}
-                        onChange={(e) => handleCartonsChange(e.target.value)}
-                        onFocus={(e) => e.target.select()}
-                        placeholder="0"
-                        className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-[36px] px-2 text-[13px] font-mono text-center font-bold text-brand dark:text-brand-bright focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-                      />
-                    </div>
-
-                    {/* Pack Size */}
-                    <div className="flex-1 relative">
-                      <label className="block text-[11px] font-bold text-ink dark:text-ink-dark mb-1">
-                        سعة الـ {packName} (فيها كام قطعة):
-                      </label>
-                      <div className="relative flex items-center">
-                        <span className="absolute right-2 text-ink-muted dark:text-ink-dark-muted text-xs font-bold pointer-events-none select-none">×</span>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={packSizeInput}
-                          onChange={(e) => handlePackSizeChange(e.target.value)}
-                          onFocus={(e) => e.target.select()}
-                          placeholder="0"
-                          className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-[36px] pr-5 pl-2 text-[13px] font-mono text-center font-bold text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Loose Pieces */}
-                    <div className="flex-1 relative">
-                      <label className="block text-[11px] font-bold text-ink dark:text-ink-dark mb-1">
-                        قطع فرط (فرداني):
-                      </label>
-                      <div className="relative flex items-center">
-                        <span className="absolute right-2 text-ink-muted dark:text-ink-dark-muted text-xs font-bold pointer-events-none select-none">+</span>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={looseInput}
-                          onChange={(e) => handleLoosePiecesChange(e.target.value)}
-                          onFocus={(e) => e.target.select()}
-                          placeholder="0"
-                          className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-[36px] pr-5 pl-2 text-[13px] font-mono text-center font-bold text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Total Stock Pieces */}
-                    <div className="flex-1 relative">
-                      <label className="block text-[11px] font-bold text-brand dark:text-brand-bright mb-1">
-                        إجمالي الرصيد (بالقطعة) *
-                      </label>
-                      <div className="relative flex items-center">
-                        <span className="absolute right-2 text-brand dark:text-brand-bright text-xs font-bold pointer-events-none select-none">=</span>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={stockInput}
-                          onChange={(e) => handleDirectStockChange(e.target.value)}
-                          onFocus={(e) => e.target.select()}
-                          placeholder="0"
-                          className="w-full bg-brand-soft dark:bg-brand-soft/20 border-2 border-brand dark:border-brand-bright rounded h-[36px] pr-5 pl-2 text-[13px] font-mono text-center font-extrabold text-brand dark:text-brand-bright focus:outline-none"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Min Stock Reorder Alert Input */}
-                  <div className="flex items-center gap-2 bg-white dark:bg-surface-dark px-3 py-2 rounded-lg border border-line dark:border-line-dark shadow-2xs">
-                    <label className="text-[11.5px] font-semibold text-ink dark:text-ink-dark shrink-0">
-                      حد تنبيه النواقص (قطعة):
-                    </label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={minStockInput}
-                      onChange={(e) => {
-                        const clean = normalizeArabicNumerals(e.target.value).replace(/[^\d]/g, '');
-                        setMinStockInput(clean.length > 1 ? clean.replace(/^0+/, '') || '0' : clean);
-                      }}
-                      onFocus={(e) => e.target.select()}
-                      placeholder="0"
-                      className="w-32 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-[30px] px-2 text-[12px] font-mono text-center text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
-                    />
-                    <span className="text-[10.5px] text-ink-muted dark:text-ink-dark-muted">النظام هينبهك تلقائياً أول ما الرصيد يقل عن كده عشان تطلب بضاعة من الموردين</span>
-                  </div>
-
-                  {/* Dynamic Equation Live Breakdown Banner */}
-                  <div className="p-2.5 bg-brand-soft dark:bg-brand-soft/20 border border-brand/20 dark:border-brand/30 rounded-md text-brand dark:text-brand-bright text-[11.5px] font-bold flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Boxes className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
-                      <span>
-                        {packSizeNum > 0 && cartonsNum > 0 ? (
-                          <>
-                            الناتج المحسوب: {cartonsNum} {packName} × {packSizeNum} قطعة
-                            {looseNum > 0 ? ` + ${looseNum} فرط` : ''}
-                            {' = '}
-                            {totalStockNum} قطعة رصيد فعلي في المحل
-                          </>
-                        ) : totalStockNum > 0 ? (
-                          <>
-                            الناتج المحسوب: {totalStockNum} قطعة رصيد فعلي في المحل (بيع بالقطعة الفردية)
-                          </>
-                        ) : (
-                          <>الرصيد الفعلي في المحل: 0 قطعة</>
-                        )}
-                      </span>
-                    </div>
-                    <span className="font-mono text-[11px] bg-white dark:bg-surface-dark text-brand dark:text-brand-bright px-2 py-0.5 rounded border border-brand/20 dark:border-brand/30">
-                      {totalStockNum} قطعة
-                    </span>
-                  </div>
-
-                  {/* Quick Increment Buttons in RTL Order */}
-                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                    <span className="text-[11px] font-semibold text-ink-muted dark:text-ink-dark-muted ml-1 flex items-center gap-1">
-                      <Layers className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
-                      <span>تزويد سريع:</span>
-                    </span>
-                    {packSizeNum > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => handleQuickAddStock(packSizeNum)}
-                        className="px-2.5 py-1 bg-white dark:bg-surface-dark hover:bg-brand-soft dark:hover:bg-brand-soft/20 border border-brand/20 dark:border-brand/30 text-brand dark:text-brand-bright rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                        title={`إضافة ${packName} كاملة (+${packSizeNum} قطعة)`}
-                      >
-                        <Plus className="w-3 h-3" />
-                        <span>1 {packName} ({packSizeNum})</span>
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => handleQuickAddStock(12)}
-                      className="px-2 py-1 bg-white dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                    >
-                      <Plus className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
-                      <span>12 (دستة)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleQuickAddStock(24)}
-                      className="px-2 py-1 bg-white dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                    >
-                      <Plus className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
-                      <span>24 (كرتونة)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleQuickAddStock(50)}
-                      className="px-2 py-1 bg-white dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                    >
-                      <Plus className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
-                      <span>50</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleQuickAddStock(100)}
-                      className="px-2 py-1 bg-white dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                    >
-                      <Plus className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
-                      <span>100</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleQuickAddStock(500)}
-                      className="px-2 py-1 bg-white dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                    >
-                      <Plus className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
-                      <span>500</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleQuickAddStock(1000)}
-                      className="px-2 py-1 bg-white dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                    >
-                      <Plus className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
-                      <span>1000</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleResetStock}
-                      className="px-2.5 py-1 bg-white dark:bg-surface-dark hover:bg-danger-soft dark:hover:bg-danger-dark-soft border border-line dark:border-line-dark text-danger dark:text-danger-bright hover:border-danger-border rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs mr-auto"
-                      title="تصفير الرصيد (0)"
-                    >
-                      <RotateCcw className="w-3 h-3 text-danger dark:text-danger-bright" />
-                      <span>تصفير (0)</span>
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  {/* Weight Mode (kg) */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-ink dark:text-ink-dark font-semibold mb-1 text-[12px]">
-                        الرصيد الفعلي المتوفر (كجم) *
-                      </label>
-                      <input
-                        type="text"
-                        value={stockInput}
-                        onChange={(e) => setStockInput(normalizeArabicNumerals(e.target.value))}
-                        placeholder="مثلاً: 12.5 كجم"
-                        className="w-full bg-white dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[38px] px-3 text-[13px] text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright font-mono font-bold"
-                      />
-                      <p className="text-[10.5px] text-ink-muted dark:text-ink-dark-muted mt-1 leading-tight">الوزن الإجمالي المتوفر حالياً على الرف أو في المحل</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-ink dark:text-ink-dark font-semibold mb-1 text-[12px]">
-                        حد تنبيه النواقص (كجم)
-                      </label>
-                      <input
-                        type="text"
-                        value={minStockInput}
-                        onChange={(e) => setMinStockInput(normalizeArabicNumerals(e.target.value))}
-                        placeholder="تنبيه عند: 5 كجم"
-                        className="w-full bg-white dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[38px] px-3 text-[13px] text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright font-mono"
-                      />
-                      <p className="text-[10.5px] text-ink-muted dark:text-ink-dark-muted mt-1 leading-tight">النظام هينبهك تلقائياً أول ما الوزن يقل عن كده عشان تشتري بضاعة</p>
-                    </div>
-                  </div>
-
-                  {/* Quick Weight Buttons */}
-                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                    <span className="text-[11px] font-semibold text-ink-muted dark:text-ink-dark-muted ml-1 flex items-center gap-1">
-                      <Layers className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
-                      <span>تزويد سريع:</span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleQuickAddStock(1)}
-                      className="px-2 py-1 bg-white dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                    >
-                      <Plus className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
-                      <span>1 كجم</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleQuickAddStock(5)}
-                      className="px-2 py-1 bg-white dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                    >
-                      <Plus className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
-                      <span>5 كجم</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleQuickAddStock(10)}
-                      className="px-2 py-1 bg-white dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                    >
-                      <Plus className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
-                      <span>10 كجم</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleQuickAddStock(25)}
-                      className="px-2 py-1 bg-white dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink dark:text-ink-dark rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                    >
-                      <Plus className="w-3 h-3 text-ink-muted dark:text-ink-dark-muted" />
-                      <span>25 كجم</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleResetStock}
-                      className="px-2.5 py-1 bg-white dark:bg-surface-dark hover:bg-danger-soft dark:hover:bg-danger-dark-soft border border-line dark:border-line-dark text-danger dark:text-danger-bright hover:border-danger-border rounded text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs mr-auto"
-                      title="تصفير الرصيد (0)"
-                    >
-                      <RotateCcw className="w-3 h-3 text-danger dark:text-danger-bright" />
-                      <span>تصفير (0)</span>
-                    </button>
-                  </div>
-                </>
-              )}
-
-              {/* Live Inventory Valuation (Capital invested in this item) */}
-              {parseFloat(stockInput) > 0 && costPiasters > 0 && (
-                <div className="px-2.5 py-1.5 bg-white dark:bg-surface-dark border border-brand/20 dark:border-brand/30 rounded text-[11px] text-ink-muted dark:text-ink-dark-muted flex items-center justify-between shadow-2xs">
-                  <div className="flex items-center gap-1.5">
-                    <Coins className="w-4 h-4 text-brand dark:text-brand-bright" />
-                    <span>إجمالي فلوس البضاعة المركونة في المخزن (بسعر التكلفة):</span>
-                  </div>
-                  <span className="font-mono font-bold text-brand dark:text-brand-bright text-[12px]">
-                    {formatArabicCurrency(Math.round(parseFloat(stockInput) * costPiasters))}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Multi-Units Management (Feature #161 / Tasks 161-1 to 161-4 & 161-13 to 161-15) */}
-            <div className="shrink-0 w-full">
-              <ProductUnitsEditor
-                units={productUnits}
-                onChange={(newUnits) => {
-                  setProductUnits(newUnits);
-                  const base = newUnits.find(u => u.isBaseUnit);
-                  if (base) {
-                    if (base.sellPricePiasters !== pricePiasters) setPricePiasters(base.sellPricePiasters);
-                    if (base.costPricePiasters !== costPiasters) setCostPiasters(base.costPricePiasters);
-                  }
-                }}
-                basePricePiasters={pricePiasters}
-                baseCostPiasters={costPiasters}
-                baseUnitName={unit === 'kg' ? 'كيلو' : 'قطعة'}
-                isWeightItem={unit === 'kg'}
-                primaryBarcode={barcode}
-              />
-            </div>
-
             {/* Selling Price & Cost in Piasters */}
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -1273,6 +870,258 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               </div>
             )}
 
+            {/* Multi-Units Management (Feature #161 / Tasks 161-1 to 161-4 & 161-13 to 161-15 & Feature #183) */}
+            <div className="shrink-0 w-full">
+              <ProductUnitsEditor
+                units={productUnits}
+                product={editingProduct}
+                isLooseSellable={isLooseSellable}
+                defaultSaleUnitId={defaultSaleUnitId}
+                onChange={(newUnits) => {
+                  setProductUnits(newUnits);
+                  if (newUnits.length <= 1) {
+                    const base = newUnits.find(u => u.isBaseUnit);
+                    if (base) {
+                      if (base.sellPricePiasters !== pricePiasters) setPricePiasters(base.sellPricePiasters);
+                      if (base.costPricePiasters !== costPiasters) setCostPiasters(base.costPricePiasters);
+                    }
+                  }
+                }}
+                onPackagingConfigChange={(cfg) => {
+                  setIsLooseSellable?.(cfg.isLooseSellable);
+                  setDefaultSaleUnitId?.(cfg.defaultSaleUnitId);
+                  setDefaultPurchaseUnitId?.(cfg.defaultPurchaseUnitId);
+                  if (editingProduct) {
+                    editingProduct.isLooseSellable = cfg.isLooseSellable;
+                    editingProduct.defaultSaleUnitId = cfg.defaultSaleUnitId;
+                    editingProduct.defaultPurchaseUnitId = cfg.defaultPurchaseUnitId;
+                  }
+                }}
+                basePricePiasters={pricePiasters}
+                baseCostPiasters={costPiasters}
+                baseUnitName={unit === 'kg' ? 'كيلو' : 'قطعة'}
+                isWeightItem={unit === 'kg'}
+                primaryBarcode={barcode}
+              />
+            </div>
+
+            {/* Integrated Dynamic Packaging & Stock Quantity Engine */}
+            <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 border-2 border-brand/30 dark:border-brand/40 rounded-lg flex flex-col gap-3 shadow-2xs">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Boxes className="w-4 h-4 text-brand dark:text-brand-bright" />
+                  <span className="text-[13px] font-bold text-ink dark:text-ink-dark">رصيد المخزن وجرد الكراتين *</span>
+                  <span className="px-1.5 py-0.5 bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright border border-brand/20 rounded text-[10px] font-bold">
+                    حساب فوري ولحظي
+                  </span>
+                </div>
+                {unit === 'piece' && (
+                  packSizeNum > 0 ? (
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-brand dark:text-brand-bright bg-white dark:bg-surface-dark px-2 py-0.5 rounded-md border border-brand/20 shadow-2xs">
+                      <Package className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
+                      <span>العبوة: {packName} ({packSizeNum} قطعة)</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1 text-[11px] font-semibold text-ink-muted dark:text-ink-dark-muted bg-white dark:bg-surface-dark px-2 py-0.5 rounded-md border border-line dark:border-line-dark shadow-2xs">
+                      <Package className="w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted" />
+                      <span>قطع فرط فرداني (من غير كراتين)</span>
+                    </div>
+                  )
+                )}
+              </div>
+
+              {/* Dynamic Equation Inputs for Pieces or Weight */}
+              {unit === 'piece' ? (
+                <>
+                  {/* Dynamic 4-Box Mathematical Calculation Row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-center bg-white dark:bg-surface-dark p-2.5 rounded-lg border border-line dark:border-line-dark shadow-2xs">
+                    {/* Cartons */}
+                    <div className="flex-1">
+                      <label className="block text-[11px] font-bold text-ink dark:text-ink-dark mb-1">
+                        عدد الكراتين ({packName}):
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={cartonsInput}
+                        onChange={(e) => handleCartonsChange(e.target.value)}
+                        onFocus={(e) => e.target.select()}
+                        placeholder="0"
+                        className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-[36px] px-2 text-[13px] font-mono text-center font-bold text-brand dark:text-brand-bright focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+                      />
+                    </div>
+
+                    {/* Loose pieces */}
+                    <div className="flex-1">
+                      <label className="block text-[11px] font-bold text-ink dark:text-ink-dark mb-1">
+                        قطع فرط فردانية:
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={looseInput}
+                        onChange={(e) => handleLoosePiecesChange(e.target.value)}
+                        onFocus={(e) => e.target.select()}
+                        placeholder="0"
+                        className="w-full bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-[36px] px-2 text-[13px] font-mono text-center font-bold text-brand dark:text-brand-bright focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+                      />
+                    </div>
+
+                    {/* Equals sign symbol */}
+                    <div className="hidden sm:flex items-center justify-center font-extrabold text-ink-muted text-lg pt-4">
+                      =
+                    </div>
+
+                    {/* Calculated Total Stock Result Field */}
+                    <div className="flex-1">
+                      <label className="block text-[11px] font-extrabold text-brand dark:text-brand-bright mb-1">
+                        إجمالي الرصيد (بالقطعة):
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={stockInput}
+                          onChange={(e) => handleDirectStockChange(e.target.value)}
+                          onFocus={(e) => e.target.select()}
+                          placeholder="0"
+                          className="w-full bg-brand-soft dark:bg-brand-soft/20 border-2 border-brand dark:border-brand-bright rounded h-[36px] pr-5 pl-2 text-[13px] font-mono text-center font-extrabold text-brand dark:text-brand-bright focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Min Stock Reorder Alert Input */}
+                  <div className="flex items-center gap-2 bg-white dark:bg-surface-dark px-3 py-2 rounded-lg border border-line dark:border-line-dark shadow-2xs">
+                    <label className="text-[11.5px] font-semibold text-ink dark:text-ink-dark shrink-0">
+                      حد تنبيه النواقص (قطعة):
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={minStockInput}
+                      onChange={(e) => {
+                        const clean = normalizeArabicNumerals(e.target.value).replace(/[^\d]/g, '');
+                        setMinStockInput(clean.length > 1 ? clean.replace(/^0+/, '') || '0' : clean);
+                      }}
+                      onFocus={(e) => e.target.select()}
+                      placeholder="0"
+                      className="w-32 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded h-[30px] px-2 text-[12px] font-mono text-center text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright"
+                    />
+                    <span className="text-[10.5px] text-ink-muted dark:text-ink-dark-muted">النظام هينبهك تلقائياً أول ما الرصيد يقل عن كده عشان تطلب بضاعة من الموردين</span>
+                  </div>
+
+                  {/* Dynamic Equation Live Breakdown Banner */}
+                  <div className="p-2.5 bg-brand-soft dark:bg-brand-soft/20 border border-brand/20 dark:border-brand/30 rounded-md text-brand dark:text-brand-bright text-[11.5px] font-bold flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Boxes className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
+                      <span>
+                        {packSizeNum > 0 && cartonsNum > 0 ? (
+                          <>
+                            الناتج المحسوب: {cartonsNum} {packName} × {packSizeNum} قطعة
+                            {looseNum > 0 ? ` + ${looseNum} فرط` : ''}
+                            {' = '}
+                            {totalStockNum} قطعة رصيد فعلي في المحل
+                          </>
+                        ) : totalStockNum > 0 ? (
+                          <>
+                            الناتج المحسوب: {totalStockNum} قطعة رصيد فعلي في المحل (بيع بالقطعة الفردية)
+                          </>
+                        ) : (
+                          <>الرصيد الفعلي في المحل: 0 قطعة</>
+                        )}
+                      </span>
+                    </div>
+                    <span className="font-mono text-[11px] bg-white dark:bg-surface-dark text-brand dark:text-brand-bright px-2 py-0.5 rounded border border-brand/20 dark:border-brand/30">
+                      {totalStockNum} قطعة
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Weight Mode (kg) */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-ink dark:text-ink-dark font-semibold mb-1 text-[12px]">
+                        الرصيد الفعلي المتوفر (كجم) *
+                      </label>
+                      <input
+                        type="text"
+                        value={stockInput}
+                        onChange={(e) => setStockInput(normalizeArabicNumerals(e.target.value))}
+                        placeholder="مثلاً: 12.5 كجم"
+                        className="w-full bg-white dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[38px] px-3 text-[13px] text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright font-mono font-bold"
+                      />
+                      <p className="text-[10.5px] text-ink-muted dark:text-ink-dark-muted mt-1 leading-tight">الوزن الإجمالي المتوفر حالياً على الرف أو في المحل</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-ink dark:text-ink-dark font-semibold mb-1 text-[12px]">
+                        حد تنبيه النواقص (كجم)
+                      </label>
+                      <input
+                        type="text"
+                        value={minStockInput}
+                        onChange={(e) => setMinStockInput(normalizeArabicNumerals(e.target.value))}
+                        placeholder="تنبيه عند: 5 كجم"
+                        className="w-full bg-white dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[38px] px-3 text-[13px] text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright font-mono"
+                      />
+                      <p className="text-[10.5px] text-ink-muted dark:text-ink-dark-muted mt-1 leading-tight">النظام هينبهك تلقائياً أول ما الوزن يقل عن كده عشان تشتري بضاعة</p>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Live Inventory Valuation (Capital invested in this item) */}
+              {parseFloat(stockInput) > 0 && costPiasters > 0 && (
+                <div className="px-2.5 py-1.5 bg-white dark:bg-surface-dark border border-brand/20 dark:border-brand/30 rounded text-[11px] text-ink-muted dark:text-ink-dark-muted flex items-center justify-between shadow-2xs">
+                  <div className="flex items-center gap-1.5">
+                    <Coins className="w-4 h-4 text-brand dark:text-brand-bright" />
+                    <span>إجمالي فلوس البضاعة المركونة في المخزن (بسعر التكلفة):</span>
+                  </div>
+                  <span className="font-mono font-bold text-brand dark:text-brand-bright text-[12px]">
+                    {formatArabicCurrency(Math.round(parseFloat(stockInput) * costPiasters))}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Expiry Date & Batch for Initial Stock (Feature #60) */}
+            {isEnabled('feature_expiry_dates') && (
+              <div className="p-3 bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 rounded-lg flex flex-col gap-2.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-warn dark:text-warn-bright font-bold text-[12px]">
+                    <Calendar className="w-4 h-4 text-warn dark:text-warn-bright" />
+                    <span>تاريخ الصلاحية ورقم الشحنة (اختياري)</span>
+                  </div>
+                  <span className="text-[10px] text-warn dark:text-warn-bright font-medium">تسجيل تلقائي لرصيد أول المدة بالمخزن</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">تاريخ انتهاء الصلاحية</label>
+                    <CustomDatePicker
+                      value={initialExpiryDate || ''}
+                      onChange={(val) => setInitialExpiryDate?.(val)}
+                      placeholder="اختر تاريخ الصلاحية"
+                      size="md"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-ink-muted dark:text-ink-dark-muted mb-1">
+                      رقم الشحنة أو إذن الاستلام (اختياري)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="مثلاً: شحنة 1 أو رقم الفاتورة (هيتعمل تلقائي لو سبته فاضي)"
+                      value={initialBatchNumber}
+                      onChange={(e) => setInitialBatchNumber?.(e.target.value)}
+                      className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[34px] px-3 text-[12px] font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright shadow-2xs"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Tax & ETA E-Invoicing Readiness (Feature #6) */}
             <div className="grid grid-cols-3 gap-3 bg-canvas/60 dark:bg-canvas-dark/60 p-2.5 rounded border border-line dark:border-line-dark">

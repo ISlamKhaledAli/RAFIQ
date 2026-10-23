@@ -29,6 +29,8 @@ export interface NewPurchaseLineItem {
   isCartonModeOpen?: boolean;
 }
 
-export const formatMoney = (piasters: number): string => {
-  return `${(piasters / 100).toFixed(2)} ج.م`;
+import { formatArabicCurrency } from '../../utils/money';
+
+export const formatMoney = (piasters: number | null | undefined): string => {
+  return formatArabicCurrency(piasters, true);
 };

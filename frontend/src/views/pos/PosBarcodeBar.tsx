@@ -135,41 +135,82 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
               const wholePacks = packUnit && packUnit.conversionFactor > 0 ? Math.floor(stock / packUnit.conversionFactor) : null;
               const remPieces = packUnit && packUnit.conversionFactor > 0 ? stock % packUnit.conversionFactor : null;
 
+              // Find default sale unit price if units exist
+              const defaultUnit = prod.units && prod.units.length > 0
+                ? (prod.units.find(u => u.isBaseUnit) || prod.units[0])
+                : null;
+              const effectiveDisplayPrice = defaultUnit && defaultUnit.sellPricePiasters > 0
+                ? defaultUnit.sellPricePiasters
+                : prod.pricePiasters;
+
               return (
                 <div
                   key={prod.id}
                   onClick={() => onSelectProduct(prod)}
                   onMouseEnter={() => setSelectedDropdownIndex(idx)}
-                  className={`px-3.5 py-2.5 flex items-center justify-between cursor-pointer transition-colors ${
-                    isSelected ? 'bg-paid-soft dark:bg-surface-dark-3 border-r-4 border-r-paid dark:border-r-brand-bright pl-2' : 'hover:bg-surface-2 dark:hover:bg-surface-dark-2'
+                  className={`px-3.5 py-2.5 flex flex-col gap-1.5 cursor-pointer transition-colors ${
+                    isSelected ? 'bg-paid-soft/80 dark:bg-surface-dark-3 border-r-4 border-r-paid dark:border-r-brand-bright pl-2' : 'hover:bg-surface-2 dark:hover:bg-surface-dark-2'
                   }`}
                 >
-                  {/* Right: Product Info & Package Buttons */}
-                  <div className="flex flex-col items-start gap-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-[13px] text-ink dark:text-ink-dark">{prod.name}</span>
+                  {/* Top Row: Info on Right, Stock & Price on Left */}
+                  <div className="flex items-center justify-between gap-3 w-full">
+                    {/* Right: Product Info */}
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-bold text-[13px] text-ink dark:text-ink-dark truncate">{prod.name}</span>
                       {prod.unit === 'kg' && (
-                        <span className="px-1.5 py-0.2 text-[10px] font-bold bg-sky-50 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300 rounded border border-sky-200 dark:border-sky-800/50">
+                        <span className="px-1.5 py-0.2 text-[10px] font-bold bg-sky-50 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300 rounded border border-sky-200 dark:border-sky-800/50 shrink-0">
                           بالوزن (كجم)
                         </span>
                       )}
-                    </div>
-                    <div className="flex items-center gap-2 text-[11px] text-ink-muted dark:text-ink-dark-muted font-mono">
                       {prod.barcode && (
-                        <span className="flex items-center gap-1 bg-surface-2 dark:bg-surface-dark-3 px-1.5 py-0.5 rounded border border-line/60 dark:border-line-dark">
-                          <Barcode className="w-3 h-3" />
+                        <span className="flex items-center gap-1 bg-surface-2 dark:bg-surface-dark-3 px-1.5 py-0.5 rounded border border-line/60 dark:border-line-dark text-[10px] text-ink-muted dark:text-ink-dark-muted font-mono shrink-0">
+                          <Barcode className="w-3 h-3 text-ink-muted" />
                           {prod.barcode}
                         </span>
                       )}
                       {prod.internalCode && (
-                        <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted">كود: {prod.internalCode}</span>
+                        <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted font-mono shrink-0">كود: {prod.internalCode}</span>
                       )}
                     </div>
 
-                    {/* Quick Package Action Buttons for Cashiers without Barcode Scanner */}
-                    {prod.units && prod.units.length > 1 && (
-                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                        {prod.units.map((u) => (
+                    {/* Left: Stock Status & Price */}
+                    <div className="flex items-center gap-3 shrink-0">
+                      {/* Stock status badge with dynamic carton breakdown */}
+                      <div className="shrink-0 whitespace-nowrap">
+                        {isOutOfStock ? (
+                          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-danger-soft dark:bg-danger-dark-soft border border-danger/30 dark:border-danger-bright/30 text-danger dark:text-danger-bright">
+                            نفد من المخزن (0)
+                          </span>
+                        ) : isLowStock ? (
+                          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright">
+                            مخزون منخفض ({stock.toLocaleString('en-US')} {prod.unit === 'kg' ? 'كجم' : 'قطعة'}
+                            {packUnit && wholePacks !== null && wholePacks > 0 ? ` = ${wholePacks} ${packUnit.unitName}` : ''})
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 dark:border-paid/30 text-paid dark:text-paid-bright">
+                            متاح: {stock.toLocaleString('en-US')} {prod.unit === 'kg' ? 'كجم' : 'قطعة'}
+                            {packUnit && wholePacks !== null && wholePacks > 0 ? ` (${wholePacks} ${packUnit.unitName}${remPieces && remPieces > 0 ? ` و ${remPieces} ق` : ''})` : ''}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Price formatted */}
+                      <div className="text-[14px] font-mono font-bold text-paid dark:text-brand-bright min-w-[70px] text-left shrink-0">
+                        {formatArabicCurrency(effectiveDisplayPrice)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bottom Row: Quick Package Action Buttons (Units Shelf) */}
+                  {prod.units && prod.units.length > 1 && (
+                    <div className="flex items-center gap-1.5 pt-1.5 border-t border-line/40 dark:border-line-dark/40 flex-wrap">
+                      <span className="text-[10px] font-bold text-ink-muted dark:text-ink-dark-muted flex items-center gap-1 shrink-0 ml-1">
+                        <Package className="w-3 h-3 text-brand" />
+                        <span>الوحدات:</span>
+                      </span>
+                      {prod.units.map((u) => {
+                        const uPrice = u.sellPricePiasters || (prod.pricePiasters * u.conversionFactor);
+                        return (
                           <button
                             key={u.id || u.unitName}
                             type="button"
@@ -177,46 +218,21 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
                               e.stopPropagation();
                               onSelectProduct(prod, u);
                             }}
-                            className="px-2 py-0.5 text-[11px] font-bold rounded-lg bg-paid-soft dark:bg-surface-dark-3 hover:bg-paid dark:hover:bg-brand text-paid dark:text-brand-bright hover:text-white border border-paid/20 dark:border-line-dark hover:border-paid transition-all flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95"
-                            title={`إضافة ${u.unitName} (${u.conversionFactor} قطعة) - ${formatArabicCurrency(u.sellPricePiasters || (prod.pricePiasters * u.conversionFactor))}`}
+                            className="px-2 py-0.5 text-[11px] font-bold rounded-lg bg-surface-2 dark:bg-surface-dark-3 hover:bg-paid dark:hover:bg-brand text-ink dark:text-ink-dark hover:text-white border border-line dark:border-line-dark hover:border-paid transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95 group"
+                            title={`إضافة ${u.unitName} (${u.conversionFactor} قطعة) - ${formatArabicCurrency(uPrice)}`}
                           >
-                            <Package className="w-3 h-3" />
-                            <span>{u.unitName} ({u.conversionFactor})</span>
-                            <span className="font-mono text-[10px] opacity-80">
-                              {formatArabicCurrency(u.sellPricePiasters || (prod.pricePiasters * u.conversionFactor))}
+                            <span>{u.unitName}</span>
+                            <span className="text-[10px] text-ink-muted group-hover:text-white/80 font-mono">
+                              (×{u.conversionFactor})
+                            </span>
+                            <span className="font-mono text-[10px] text-paid group-hover:text-white font-bold mr-0.5">
+                              {formatArabicCurrency(uPrice)}
                             </span>
                           </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Left: Stock Status & Price */}
-                  <div className="flex items-center gap-4 text-left">
-                    {/* Stock status badge with dynamic carton breakdown */}
-                    <div className="text-right">
-                      {isOutOfStock ? (
-                        <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-danger-soft dark:bg-danger-dark-soft border border-danger/30 dark:border-danger-bright/30 text-danger dark:text-danger-bright">
-                          نفد من المخزن (0)
-                        </span>
-                      ) : isLowStock ? (
-                        <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright">
-                          مخزون منخفض ({stock.toLocaleString('en-US')} {prod.unit === 'kg' ? 'كجم' : 'قطعة'}
-                          {packUnit && wholePacks !== null && wholePacks > 0 ? ` = ${wholePacks} ${packUnit.unitName}` : ''})
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 dark:border-paid/30 text-paid dark:text-paid-bright">
-                          متاح: {stock.toLocaleString('en-US')} {prod.unit === 'kg' ? 'كجم' : 'قطعة'}
-                          {packUnit && wholePacks !== null ? ` (${wholePacks} ${packUnit.unitName}${remPieces && remPieces > 0 ? ` و ${remPieces} ق` : ''})` : ''}
-                        </span>
-                      )}
+                        );
+                      })}
                     </div>
-
-                    {/* Price formatted */}
-                    <div className="text-[15px] font-mono font-bold text-paid dark:text-brand-bright min-w-[70px] text-left">
-                      {formatArabicCurrency(prod.pricePiasters)}
-                    </div>
-                  </div>
+                  )}
                 </div>
               );
             })}

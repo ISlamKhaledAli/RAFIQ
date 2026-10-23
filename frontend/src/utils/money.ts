@@ -54,11 +54,168 @@ export function piastersToPounds(piasters: number): number {
 }
 
 /**
- * تنسيق المبلغ بالقروش للعرض بالعربية مع رمز العملة
+ * تنسيق نص رقمي أو قيمة بفواصل الآلاف الرياضية القياسية (,)
+ * يحافظ تماماً على الفاصلة العشرية والأرقام غير المكتملة أثناء الكتابة الفورية
+ * مثال:
+ * "1234567" -> "1,234,567"
+ * "1234567." -> "1,234,567."
+ * "1234567.5" -> "1,234,567.5"
+ */
+export function formatThousands(val: string | number | null | undefined): string {
+  if (val === null || val === undefined || val === '') return '';
+  const str = typeof val === 'number' ? val.toString() : normalizeNumericInput(val);
+  let clean = str.replace(/,/g, '');
+  if (!clean) return '';
+
+  const isNegative = clean.startsWith('-');
+  if (isNegative) clean = clean.substring(1);
+
+  if (clean === '.') {
+    return (isNegative ? '-' : '') + '0.';
+  }
+
+  const parts = clean.split('.');
+  let integerPart = parts[0] || '0';
+  const decimalPart = parts[1];
+
+  // إزالة الأصفار الزائدة من البداية باستثناء الصفر المنفرد
+  if (integerPart.length > 1 && integerPart.startsWith('0')) {
+    integerPart = integerPart.replace(/^0+/, '') || '0';
+  }
+
+  // إضافة فواصل الآلاف
+  const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+  let result = (isNegative ? '-' : '') + formattedInteger;
+  if (parts.length > 1) {
+    result += '.' + decimalPart.slice(0, 2);
+  } else if (clean.endsWith('.')) {
+    result += '.';
+  }
+  return result;
+}
+
+/**
+ * تفقيط المبالغ المالية بالقروش إلى كلمات باللغة العربية (بالجنيه والقرش)
+ * يفيد الكاشير والمحاسب في التأكد الفوري من صحة الأرقام الكبيرة ومنع خطأ زيادة أو نقصان الأصفار
+ * مثال: 155050 -> "فقط ألف وخمسمائة وخمسون جنيهاً مصرياً وخمسون قرشاً لا غير"
+ */
+export function tafqeetCurrency(piasters: number | null | undefined): string {
+  if (piasters === null || piasters === undefined || isNaN(piasters)) return '';
+  const absPiasters = Math.abs(Math.round(piasters));
+  if (absPiasters === 0) return 'صفر جنيه';
+
+  const pounds = Math.floor(absPiasters / 100);
+  const remPiasters = absPiasters % 100;
+
+  const ones = ['', 'واحد', 'اثنان', 'ثلاثة', 'أربعة', 'خمسة', 'ستة', 'سبعة', 'ثمانية', 'تسعة', 'عشرة', 'أحد عشر', 'اثنا عشر', 'ثلاثة عشر', 'أربعة عشر', 'خمسة عشر', 'ستة عشر', 'سبعة عشر', 'ثمانية عشر', 'تسعة عشر'];
+  const tens = ['', '', 'عشرون', 'ثلاثون', 'أربعون', 'خمسون', 'ستون', 'سبعون', 'ثمانون', 'تسعون'];
+  const hundreds = ['', 'مائة', 'مائتان', 'ثلاثمائة', 'أربعمائة', 'خمسمائة', 'ستمائة', 'سبعمائة', 'ثمانمائة', 'تسعمائة'];
+
+  function convertGroup(n: number): string {
+    if (n === 0) return '';
+    let result = '';
+    const h = Math.floor(n / 100);
+    const rem = n % 100;
+
+    if (h > 0) {
+      result += hundreds[h];
+    }
+
+    if (rem > 0) {
+      if (result) result += ' و';
+      if (rem < 20) {
+        result += ones[rem];
+      } else {
+        const o = rem % 10;
+        const t = Math.floor(rem / 10);
+        if (o > 0) {
+          result += ones[o] + ' و' + tens[t];
+        } else {
+          result += tens[t];
+        }
+      }
+    }
+    return result;
+  }
+
+  function convertPounds(p: number): string {
+    if (p === 0) return '';
+    if (p === 1) return 'جنيه واحد';
+    if (p === 2) return 'جنيهان';
+
+    const billions = Math.floor(p / 1000000000);
+    const millions = Math.floor((p % 1000000000) / 1000000);
+    const thousands = Math.floor((p % 1000000) / 1000);
+    const rem = p % 1000;
+
+    const parts: string[] = [];
+
+    if (billions > 0) {
+      if (billions === 1) parts.push('مليار');
+      else if (billions === 2) parts.push('ملياران');
+      else if (billions >= 3 && billions <= 10) parts.push(convertGroup(billions) + ' مليارات');
+      else parts.push(convertGroup(billions) + ' ملياراً');
+    }
+
+    if (millions > 0) {
+      if (millions === 1) parts.push('مليون');
+      else if (millions === 2) parts.push('مليونان');
+      else if (millions >= 3 && millions <= 10) parts.push(convertGroup(millions) + ' ملايين');
+      else parts.push(convertGroup(millions) + ' مليوناً');
+    }
+
+    if (thousands > 0) {
+      if (thousands === 1) parts.push('ألف');
+      else if (thousands === 2) parts.push('ألفان');
+      else if (thousands >= 3 && thousands <= 10) parts.push(convertGroup(thousands) + ' آلاف');
+      else parts.push(convertGroup(thousands) + ' ألفاً');
+    }
+
+    if (rem > 0) {
+      parts.push(convertGroup(rem));
+    }
+
+    let poundsText = parts.join(' و');
+    if (p >= 3 && p <= 10) {
+      poundsText += ' جنيهات';
+    } else {
+      poundsText += ' جنيهاً مصرياً';
+    }
+    return poundsText;
+  }
+
+  function convertPiasters(c: number): string {
+    if (c === 0) return '';
+    if (c === 1) return 'قرش واحد';
+    if (c === 2) return 'قرشان';
+    const text = convertGroup(c);
+    if (c >= 3 && c <= 10) return `${text} قروش`;
+    return `${text} قرشاً`;
+  }
+
+  let finalPhrase = '';
+  if (pounds > 0) {
+    finalPhrase += convertPounds(pounds);
+  }
+  if (remPiasters > 0) {
+    if (finalPhrase) finalPhrase += ' و';
+    finalPhrase += convertPiasters(remPiasters);
+  }
+
+  const prefix = piasters < 0 ? 'سالب ' : '';
+  return `فقط ${prefix}${finalPhrase} لا غير`;
+}
+
+/**
+ * تنسيق المبلغ بالقروش للعرض بالعربية مع رمز العملة وفواصل الآلاف
  * @param piasters المبلغ بالقروش
  * @param includeSymbol إضافة "ج.م"
  */
-export function formatArabicCurrency(piasters: number, includeSymbol = true): string {
+export function formatArabicCurrency(piasters: number | null | undefined, includeSymbol = true): string {
+  if (piasters === null || piasters === undefined || isNaN(piasters)) {
+    return includeSymbol ? '0.00 ج.م' : '0.00';
+  }
   const pounds = piastersToPounds(piasters);
   const formatted = pounds.toLocaleString('en-US', {
     minimumFractionDigits: 2,

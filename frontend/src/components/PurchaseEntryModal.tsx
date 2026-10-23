@@ -33,7 +33,8 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
   const unitsList: ProductUnit[] = product?.units || [];
   const isKg = product?.unit === 'kg';
 
-  const defaultUnit = unitsList.find(u => !u.isBaseUnit && u.conversionFactor > 1) ||
+  const defaultUnit = (product?.defaultPurchaseUnitId ? unitsList.find(u => u.id === product.defaultPurchaseUnitId) : null) ||
+    unitsList.find(u => !u.isBaseUnit && u.conversionFactor > 1) ||
     unitsList.find(u => u.isBaseUnit) ||
     (unitsList.length > 0 ? unitsList[0] : null);
 

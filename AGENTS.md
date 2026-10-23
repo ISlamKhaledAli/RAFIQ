@@ -134,7 +134,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **RAFIQ** (12519 symbols, 36475 relationships, 1097 execution flows).
+This project is indexed by GitNexus as **RAFIQ** (12648 symbols, 36941 relationships, 1108 execution flows).
 
 > Index stale? Run `node .gitnexus/run.cjs analyze --index-only` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? Bootstrap with `npx`, `bunx`, or `pnpm dlx` — e.g. `bunx gitnexus@latest analyze` (npm 11 npx crash; #1939).
 

@@ -22,6 +22,8 @@ import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { AppUpdateModal } from '../../components/AppUpdateModal';
 import { FullStoreExportModal } from '../../components/FullStoreExportModal';
 import { FactoryResetModal } from '../../components/FactoryResetModal';
+import { useFeatures } from '../../context/useFeatures';
+import { rafiqAlert } from '../../utils/dialogService';
 import type { SystemInfo } from '../../App';
 
 interface SystemDiagnosticsTabProps {
@@ -64,6 +66,7 @@ export const SystemDiagnosticsTab = ({
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const { registry } = useFeatures();
 
   return (
     <div className="flex flex-col gap-5 text-xs text-ink dark:text-ink-dark">
@@ -101,60 +104,18 @@ export const SystemDiagnosticsTab = ({
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-          {[
-            {
-              key: 'feature_matrix_variants',
-              title: 'المقاسات والألوان ومصفوفة الملابس',
-              description: 'إدارة الصنف الواحد بأكتر من مقاس ولون مع باركود خاص لكل مقاس لمحلات الملابس والأحذية.',
-            },
-            {
-              key: 'feature_scale_weight',
-              title: 'ميزان الباركود والأصناف الموزونة',
-              description: 'قراءة باركود ميزان الجبن واللحوم والخضار وحساب الوزن والسعر تلقائياً.',
-            },
-            {
-              key: 'feature_multi_units',
-              title: 'تعدد وحدات البيع (كرتونة / دستة / قطعة)',
-              description: 'بيع وشراء الصنف بالكرتونة أو الدستة أو القطعة مع تحويل رصيد المخزن تلقائياً وبدقة.',
-            },
-            {
-              key: 'feature_expiry_dates',
-              title: 'تواريخ الصلاحية وتشغيلات البضاعة',
-              description: 'متابعة تواريخ انتهاء الصلاحية والتنبيه قبل ما البضاعة تخلص صلاحيتها وصرف الأقدم أولاً.',
-            },
-            {
-              key: 'feature_fast_buttons',
-              title: 'أزرار الأصناف السريعة (بدون باركود)',
-              description: 'عرض زراير للأصناف اللي ملهاش باركود زي (العيش، الخضار، السجائر الفرط) على شاشة البيع بضغطة زر واحدة.',
-            },
-            {
-              key: 'feature_credit_debts',
-              title: 'حساب الشكك ودفتر ديون الزبائن',
-              description: 'بيع بالآجل على الحساب ومتابعة كشف الحساب والحد الأقصى للشكك لكل زبون.',
-            },
-            {
-              key: 'feature_epay_services',
-              title: 'خدمات وماكينات الدفع والشحن الإلكتروني',
-              description: 'إدارة ماكينات الدفع وشحن الرصيد وفواتير الكهرباء وتغذية الأرصدة والعمولات المستقلة.',
-            },
-            {
-              key: 'feature_digital_wallets',
-              title: 'مدفوعات المحافظ الإلكترونية وإنستاباي',
-              description: 'إتاحة خيارات السداد السريع عبر إنستاباي والمحافظ النقدية (فودافون كاش وغيرها) في الكاشير.',
-            },
-            {
-              key: 'feature_taxes',
-              title: 'منظومة الضرائب والرمز الضريبي',
-              description: 'حساب ضريبة القيمة المضافة وإظهار أكواد GS1/EGS للأصناف في الفاتورة.',
-            },
-          ].map((feat) => {
-            const isEnabled = flags[feat.key] ?? false;
+          {registry.map((feat) => {
+            const isEnabled = flags[feat.key] ?? feat.defaultValue ?? false;
             return (
               <div
                 key={feat.key}
-                onClick={() => {
+                onClick={async () => {
                   if (!canManageFeatures) return;
-                  void toggleFlag(feat.key, !isEnabled);
+                  try {
+                    await toggleFlag(feat.key, !isEnabled);
+                  } catch (err: any) {
+                    await rafiqAlert(err.message || 'تعذر تعديل حالة الميزة');
+                  }
                 }}
                 className={`p-3.5 rounded-lg border transition-all ${
                   canManageFeatures ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'
@@ -165,10 +126,10 @@ export const SystemDiagnosticsTab = ({
                 }`}
               >
                 <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-ink dark:text-ink-dark text-xs">{feat.title}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-ink dark:text-ink-dark text-xs">{feat.nameAr}</span>
                     <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded border shrink-0 ${
                         isEnabled
                           ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-line dark:border-line-dark'
                           : 'bg-surface dark:bg-surface-dark text-ink-muted dark:text-ink-muted-dark border-line dark:border-line-dark'
@@ -178,17 +139,31 @@ export const SystemDiagnosticsTab = ({
                     </span>
                   </div>
                   <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark leading-relaxed m-0 font-sans">
-                    {feat.description}
+                    {feat.descriptionAr}
                   </p>
+                  {feat.requires && feat.requires.length > 0 && (
+                    <div className="text-[10px] text-ink-muted dark:text-ink-muted-dark flex items-center gap-1 mt-0.5">
+                      <span className="font-bold">يتطلب:</span>
+                      <span>
+                        {feat.requires
+                          .map((r) => registry.find((x) => x.key === r)?.nameAr || r)
+                          .join('، ')}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-end pt-1 border-t border-line/50 dark:border-line-dark/50">
                   <ToggleSwitch
                     checked={isEnabled}
                     disabled={!canManageFeatures}
-                    onChange={(next) => {
+                    onChange={async (next) => {
                       if (!canManageFeatures) return;
-                      void toggleFlag(feat.key, next);
+                      try {
+                        await toggleFlag(feat.key, next);
+                      } catch (err: any) {
+                        await rafiqAlert(err.message || 'تعذر تعديل حالة الميزة');
+                      }
                     }}
                   />
                 </div>

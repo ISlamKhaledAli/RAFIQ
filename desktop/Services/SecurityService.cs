@@ -1674,9 +1674,10 @@ namespace RafiqPOS.Services
         public static readonly string[] ALL_PERMISSIONS = new string[]
         {
             "pos.access", "pos.sell", "pos.discount_line", "pos.discount_invoice", "pos.discount_unlimited",
-            "pos.hold_invoice", "pos.price_override", "pos.void_line", "pos.quick_add", "pos.reprint",
+            "pos.hold_invoice", "pos.price_override", "pos.void_line", "pos.quick_add", "pos.reprint", "pos.change_unit",
             "invoices.view", "invoices.cancel", "returns.create", "returns.without_invoice",
             "products.view", "products.create", "products.edit", "products.edit_price", "products.edit_cost",
+            "products.packaging.edit", "products.unit_rebase",
             "products.archive", "products.import", "products.export", "categories.manage",
             "stock.view", "stock.adjust", "stock.movement_log",
             "purchases.view", "purchases.create", "suppliers.manage",
@@ -1838,6 +1839,7 @@ namespace RafiqPOS.Services
             p["pos.void_line"] = true;
             p["pos.reprint"] = true;
             p["pos.quick_add"] = true;
+            p["pos.change_unit"] = true;
             p["pos.discount_line"] = true;
             p["pos.discount_invoice"] = isAdmin;
             p["pos.discount_unlimited"] = isAdmin;
@@ -1855,6 +1857,8 @@ namespace RafiqPOS.Services
             p["products.edit"] = isAdmin;
             p["products.edit_price"] = isAdmin;
             p["products.edit_cost"] = isAdmin;
+            p["products.packaging.edit"] = isAdmin;
+            p["products.unit_rebase"] = isAdmin;
             p["products.archive"] = isAdmin;
             p["products.import"] = isAdmin;
             p["products.export"] = isAdmin;

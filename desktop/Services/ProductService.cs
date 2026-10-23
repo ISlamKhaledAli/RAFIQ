@@ -626,5 +626,25 @@ namespace RafiqPOS.Services
         }
 
         #endregion
+
+        #region Feature #183 / Story 126: Multi-Pack Loose Selling & Packaging Wizard
+
+        public RebaseResult RebaseProductBaseUnit(string productId, string newBaseUnitName, int rebaseFactor, string userId = "usr_admin_default", string userName = "مدير النظام")
+        {
+            lock (SaleService.FinancialWriteLock)
+            {
+                return _repo.RebaseProductBaseUnit(productId, newBaseUnitName, rebaseFactor, userId, userName);
+            }
+        }
+
+        public Product SavePackagingLevels(string productId, List<ProductUnit> units, string defaultSaleUnitId, string defaultPurchaseUnitId, string displayUnitId, bool isLooseSellable)
+        {
+            lock (SaleService.FinancialWriteLock)
+            {
+                return _repo.SavePackagingLevels(productId, units, defaultSaleUnitId, defaultPurchaseUnitId, displayUnitId, isLooseSellable);
+            }
+        }
+
+        #endregion
     }
 }

@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using RafiqPOS.Common;
 using RafiqPOS.Repositories;
 
 namespace RafiqPOS.Services
@@ -130,28 +132,41 @@ namespace RafiqPOS.Services
         }
 
         /// <summary>
-        /// استرجاع مفاتيح الميزات وملف تعريف المحل (Feature #105)
+        /// استرجاع مفاتيح الميزات وملف تعريف المحل من السجل المركزي (Feature #182 / Task 182-1)
         /// </summary>
         public Dictionary<string, bool> GetFeatureFlags()
         {
             var flags = new Dictionary<string, bool>();
             var settings = _repo.GetAll();
 
-            flags["feature_scale_weight"] = GetBool(settings, "feature_scale_weight", false);
-            flags["feature_credit_debts"] = GetBool(settings, "feature_credit_debts", true);
-            flags["feature_fast_buttons"] = GetBool(settings, "feature_fast_buttons", true);
-            flags["feature_taxes"] = GetBool(settings, "feature_taxes", false);
-            flags["feature_expiry_dates"] = GetBool(settings, "feature_expiry_dates", false);
-            flags["feature_multi_units"] = GetBool(settings, "feature_multi_units", false);
-            flags["feature_matrix_variants"] = GetBool(settings, "feature_matrix_variants", false);
-            flags["feature_epay_services"] = GetBool(settings, "feature_epay_services", true);
-            flags["feature_digital_wallets"] = GetBool(settings, "feature_digital_wallets", true);
+            var definitions = FeatureRegistry.GetAllDefinitions();
+            for (int i = 0; i < definitions.Count; i++)
+            {
+                var def = definitions[i];
+                flags[def.Key] = GetBool(settings, def.Key, def.DefaultValue);
+            }
 
             return flags;
         }
 
+        public bool IsFeatureEnabled(string key)
+        {
+            if (string.IsNullOrEmpty(key)) return false;
+            var def = FeatureRegistry.GetDefinition(key);
+            bool defVal = def != null ? def.DefaultValue : false;
+            var settings = _repo.GetAll();
+            return GetBool(settings, key, defVal);
+        }
+
         public void SetFeatureFlag(string key, bool enabled)
         {
+            var currentFlags = GetFeatureFlags();
+            string errorMsg;
+            if (!FeatureRegistry.ValidateDependencies(key, enabled, currentFlags, out errorMsg))
+            {
+                throw new InvalidOperationException(errorMsg);
+            }
+
             _repo.Set(key, enabled ? "1" : "0");
         }
 

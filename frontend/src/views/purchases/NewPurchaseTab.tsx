@@ -453,9 +453,9 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                         label: s.name,
                         badge:
                           s.balancePiasters > 0
-                            ? `مديونية علينا: ${(s.balancePiasters / 100).toFixed(2)} ج.م`
+                            ? `مديونية علينا: ${formatMoney(s.balancePiasters)}`
                             : s.balancePiasters < 0
-                            ? `لنا رصيد: ${Math.abs(s.balancePiasters / 100).toFixed(2)} ج.م`
+                            ? `لنا رصيد: ${formatMoney(Math.abs(s.balancePiasters))}`
                             : undefined,
                       })),
                   ]}
@@ -671,7 +671,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                           </span>
                           <span className="text-line dark:text-line-dark">•</span>
                           <span className="text-xs font-mono text-ink-muted dark:text-ink-dark-muted">
-                            السابق: <b className="text-ink dark:text-ink-dark font-sans">{(item.currentCostPiasters / 100).toFixed(2)} ج.م</b>
+                            السابق: <b className="text-ink dark:text-ink-dark font-sans">{formatMoney(item.currentCostPiasters)}</b>
                           </span>
                         </div>
                         {/* Compact Stock Info */}
@@ -767,7 +767,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
 
                       {/* 3. Unit Cost (col-span-2) */}
                       <div className="col-span-4 sm:col-span-2 flex flex-col items-center justify-center gap-1">
-                        <div className="flex items-center gap-1">
+                        <div className="w-24 sm:w-28">
                           <MoneyInput
                             valuePiasters={item.unitCostPiasters}
                             onChangePiasters={(p) => {
@@ -775,10 +775,8 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               updated[idx].unitCostPiasters = p;
                               setLineItems(updated);
                             }}
-                            hideCurrency
-                            className="!w-20 !h-7 !px-1.5 !py-0 !text-center !text-xs !font-bold !bg-surface-2 dark:!bg-surface-dark-2 !border-line dark:!border-line-dark !rounded-lg text-ink dark:text-ink-dark"
+                            className="!h-8 !px-2 !py-0 !text-center !text-xs !font-bold !bg-surface-2 dark:!bg-surface-dark-2 !border-line dark:!border-line-dark !rounded-lg text-ink dark:text-ink-dark"
                           />
-                          <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">ج.م</span>
                         </div>
 
                         {/* Price Change Indicator */}
@@ -789,7 +787,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               title="ارتفاع في سعر الشراء"
                             >
                               <TrendingUp className="w-3 h-3 shrink-0" />
-                              <span>ارتفع +{(costDiffPiasters / 100).toFixed(2)} (+{costDiffPercent}%)</span>
+                              <span>ارتفع +{formatArabicCurrency(costDiffPiasters, true)} (+{costDiffPercent}%)</span>
                             </div>
                           ) : costDiffPiasters < 0 ? (
                             <div
@@ -797,7 +795,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               title="انخفاض في سعر الشراء (وفر)"
                             >
                               <TrendingDown className="w-3 h-3 shrink-0" />
-                              <span>وفر -{(Math.abs(costDiffPiasters) / 100).toFixed(2)} ({costDiffPercent}%)</span>
+                              <span>وفر -{formatArabicCurrency(Math.abs(costDiffPiasters), true)} ({costDiffPercent}%)</span>
                             </div>
                           ) : (
                             <div className="flex items-center gap-0.5 text-[10.5px] text-ink-muted dark:text-ink-dark-muted bg-surface-2 dark:bg-surface-dark-2 px-1.5 py-0.5 rounded border border-line dark:border-line-dark">
@@ -812,7 +810,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
 
                       {/* 4. New Selling Price & Profit Margin (col-span-2) */}
                       <div className="col-span-4 sm:col-span-2 flex flex-col items-center justify-center gap-1">
-                        <div className="flex items-center gap-1">
+                        <div className="w-24 sm:w-28">
                           <MoneyInput
                             valuePiasters={item.newSellingPricePiasters}
                             onChangePiasters={(p) => {
@@ -820,17 +818,15 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               updated[idx].newSellingPricePiasters = p;
                               setLineItems(updated);
                             }}
-                            hideCurrency
-                            className="!w-20 !h-7 !px-1.5 !py-0 !text-center !text-xs !font-bold !bg-surface-2 dark:!bg-surface-dark-2 !border-line dark:!border-line-dark !rounded-lg text-ink dark:text-ink-dark"
+                            className="!h-8 !px-2 !py-0 !text-center !text-xs !font-bold !bg-surface-2 dark:!bg-surface-dark-2 !border-line dark:!border-line-dark !rounded-lg text-ink dark:text-ink-dark"
                           />
-                          <span className="text-xs text-ink-muted dark:text-ink-dark-muted font-bold">ج.م</span>
                         </div>
 
                         {/* Profit margin badge */}
                         {profitPiasters < 0 ? (
                           <div className="flex items-center gap-1 text-[10.5px] text-danger dark:text-danger-bright font-extrabold bg-danger-soft dark:bg-danger-dark-soft px-1.5 py-0.5 rounded border border-danger/20 dark:border-danger-bright/30">
                             <AlertCircle className="w-3 h-3 shrink-0" />
-                            <span>خسارة: {(profitPiasters / 100).toFixed(2)}</span>
+                            <span>خسارة: {formatArabicCurrency(profitPiasters, true)}</span>
                           </div>
                         ) : profitPiasters === 0 ? (
                           <div className="text-[10.5px] text-warn dark:text-warn-bright font-extrabold bg-warn-soft dark:bg-warn-dark-soft px-1.5 py-0.5 rounded border border-warn-border dark:border-warn-bright/30">
@@ -841,7 +837,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                             className="flex items-center gap-1 text-[10.5px] text-paid dark:text-paid-bright font-extrabold bg-paid-soft dark:bg-paid-dark-soft px-1.5 py-0.5 rounded border border-paid/20 dark:border-emerald-800/40"
                             title={`هامش مجمل الربح: ${marginPercent}%`}
                           >
-                            <span>الربح: +{(profitPiasters / 100).toFixed(2)}</span>
+                            <span>الربح: +{formatArabicCurrency(profitPiasters, true)}</span>
                             <span className="text-[10px] opacity-80">({marginPercent}%)</span>
                           </div>
                         )}
@@ -856,7 +852,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               title="تعديل سعر البيع لاعتماد متوسط التكلفة"
                             >
                               <Sparkles className="w-2.5 h-2.5 text-brand dark:text-brand-bright shrink-0" />
-                              <span>مقترح: {(weightedSuggestedPricePiasters / 100).toFixed(2)}</span>
+                              <span>مقترح: {formatArabicCurrency(weightedSuggestedPricePiasters, true)}</span>
                             </button>
                           )}
                       </div>
@@ -867,7 +863,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                           {formatMoney(lineTotal)}
                         </div>
                         <span className="text-[11px] font-mono text-ink-muted dark:text-ink-dark-muted block mt-0.5">
-                          {item.quantityUnits} × {(item.unitCostPiasters / 100).toFixed(2)} ج.م
+                          {item.quantityUnits} × {formatArabicCurrency(item.unitCostPiasters, true)}
                         </span>
                       </div>
 
@@ -973,7 +969,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                 <span>متوسط التكلفة الجديد:</span>
                               </span>
                               <span className="font-mono font-extrabold text-brand dark:text-brand-bright bg-brand-soft dark:bg-brand-soft/20 px-2 py-0.5 rounded border border-brand/20 dark:border-brand-bright/30 text-xs">
-                                {(projectedCostPiasters / 100).toFixed(2)} ج.م
+                                {formatArabicCurrency(projectedCostPiasters, true)}
                               </span>
                             </div>
                             <p className="text-ink-muted dark:text-ink-dark-muted text-[11px] leading-relaxed m-0">
@@ -992,7 +988,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                               </span>
                               {weightedSuggestedPricePiasters ? (
                                 <span className="font-mono font-extrabold text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft px-2 py-0.5 rounded border border-paid/20 dark:border-emerald-800/40 text-xs">
-                                  {(weightedSuggestedPricePiasters / 100).toFixed(2)} ج.م
+                                  {formatArabicCurrency(weightedSuggestedPricePiasters, true)}
                                 </span>
                               ) : (
                                 <span className="text-ink-muted dark:text-ink-dark-muted text-xs font-mono">—</span>
@@ -1011,7 +1007,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                   className="w-full py-1 px-2.5 bg-paid dark:bg-emerald-600 text-white hover:bg-paid/90 rounded-md text-[11px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-2xs"
                                 >
                                   <Sparkles className="w-3 h-3 shrink-0" />
-                                  <span>تطبيق متوسط البيع ({(weightedSuggestedPricePiasters / 100).toFixed(2)} ج.م)</span>
+                                  <span>تطبيق متوسط البيع ({formatArabicCurrency(weightedSuggestedPricePiasters, true)})</span>
                                 </button>
                               )}
                               {latestSuggestedPricePiasters && latestSuggestedPricePiasters !== weightedSuggestedPricePiasters && (
@@ -1020,7 +1016,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                   onClick={() => handleApplySuggestedPrice(idx, latestSuggestedPricePiasters)}
                                   className="w-full py-0.5 px-2 bg-brand-soft dark:bg-brand-soft/20 text-brand dark:text-brand-bright hover:bg-brand/20 dark:hover:bg-brand-bright/20 rounded-md text-[10.5px] font-bold border border-brand/20 dark:border-brand-bright/30 flex items-center justify-center gap-1 transition-colors cursor-pointer"
                                 >
-                                  <span>بسعر اليوم فقط: {(latestSuggestedPricePiasters / 100).toFixed(2)} ج.م</span>
+                                  <span>بسعر اليوم فقط: {formatArabicCurrency(latestSuggestedPricePiasters, true)}</span>
                                 </button>
                               )}
                             </div>
@@ -1043,12 +1039,12 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                                 }`}
                               >
                                 {totalBatchProfitPiasters > 0 ? '+' : ''}
-                                {(totalBatchProfitPiasters / 100).toFixed(2)} ج.م
+                                {formatArabicCurrency(totalBatchProfitPiasters, true)}
                               </span>
                             </div>
                             <p className="text-ink-muted dark:text-ink-dark-muted text-[11px] leading-relaxed m-0">
                               {incomingUnits > 0
-                                ? `مكسب ${incomingUnits.toFixed(0)} قطعة (ربح القطعة: ${(profitPiasters / 100).toFixed(2)} ج.م | هامش الربح: ${marginPercent}%).`
+                                ? `مكسب ${incomingUnits.toFixed(0)} قطعة (ربح القطعة: ${formatArabicCurrency(profitPiasters, true)} | هامش الربح: ${marginPercent}%).`
                                 : 'حدد الكمية لحساب إجمالي المكسب.'}
                             </p>
                           </div>
@@ -1137,16 +1133,14 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
               </span>
             </div>
 
-            <div className="flex items-center justify-between text-ink-muted dark:text-ink-dark-muted">
-              <span className="text-[11.5px]">خصم المورد:</span>
-              <div className="flex items-center gap-1">
+            <div className="flex items-center justify-between py-1 text-ink-muted dark:text-ink-dark-muted">
+              <span className="text-xs font-bold text-ink dark:text-ink-dark">خصم المورد:</span>
+              <div className="w-28 sm:w-32">
                 <MoneyInput
                   valuePiasters={discountPiasters}
                   onChangePiasters={setDiscountPiasters}
-                  hideCurrency
-                  className="!w-16 !h-6 !px-1.5 !py-0 !text-center !text-xs !bg-surface-2 dark:!bg-surface-dark-2 !border-line dark:!border-line-dark !rounded-lg text-ink dark:text-ink-dark"
+                  className="!h-8 !px-2 !py-0 !text-center !text-xs font-bold !bg-surface dark:!bg-surface-dark !border-line dark:!border-line-dark !rounded-lg text-ink dark:text-ink-dark shadow-2xs focus:border-brand"
                 />
-                <span className="text-[10.5px]">ج.م</span>
               </div>
             </div>
 
@@ -1297,16 +1291,14 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
             {/* Cash Payment Section */}
             {paymentMode === 'PAID' && (
               <div className="p-2.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl space-y-2 mt-1 text-[11px]">
-                <div className="flex justify-between items-center">
-                  <span className="text-ink-muted dark:text-ink-dark-muted font-bold text-xs">المبلغ اللي دفعته كاش:</span>
-                  <div className="flex items-center gap-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-ink-muted dark:text-ink-dark-muted font-bold text-xs shrink-0">المبلغ اللي دفعته كاش:</span>
+                  <div className="w-36 sm:w-40">
                     <MoneyInput
                       valuePiasters={customPaidAmountPiasters !== null ? customPaidAmountPiasters : netCostPiasters}
                       onChangePiasters={(val) => setCustomPaidAmountPiasters(val)}
-                      hideCurrency
-                      className="!w-28 !h-7 !px-2 !py-0 !text-center !text-xs !bg-surface dark:!bg-surface-dark !border-line dark:!border-line-dark !rounded font-mono font-bold text-ink dark:text-ink-dark"
+                      className="!h-8.5 !px-2 !py-0 !text-center !text-xs font-mono font-bold !bg-surface dark:!bg-surface-dark !border-line dark:!border-line-dark !rounded-lg text-ink dark:text-ink-dark shadow-2xs focus:border-paid"
                     />
-                    <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted">ج.م</span>
                   </div>
                 </div>
 

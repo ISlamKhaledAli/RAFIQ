@@ -6,7 +6,7 @@ import {
   X, 
   Star, 
   Scale, 
-  Package, 
+  Package,
   Layers,
   Calendar,
   AlertTriangle,
@@ -253,39 +253,72 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
                   ) : null}
                 </div>
 
-                {/* Multi-unit package pills for direct carton/box sales */}
-                {item.units && item.units.length > 1 && (
-                  <div className="flex items-center gap-1 mt-1 flex-wrap">
-                    {item.units.filter((u) => !u.isBaseUnit && u.conversionFactor > 1).map((u) => (
-                      <span
-                        key={u.id || u.unitName}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSmartItemClick(item, u);
-                        }}
-                        className="px-1.5 py-0.2 text-[10px] font-bold rounded bg-paid-soft dark:bg-surface-dark-3 hover:bg-paid dark:hover:bg-brand text-paid dark:text-paid-bright hover:text-white border border-paid-border dark:border-line-dark transition-colors flex items-center gap-0.5 cursor-pointer shadow-2xs active:scale-95"
-                        title={`إضافة ${u.unitName} (${u.conversionFactor} قطعة) بسعر ${(u.sellPricePiasters / 100).toFixed(2)} ج.م`}
-                      >
-                        <Package className="w-2.5 h-2.5" />
-                        <span>{u.unitName} ({u.conversionFactor})</span>
-                      </span>
-                    ))}
-                  </div>
-                )}
+                {/* Multi-unit secondary package pills (excluding default sale unit which is already the card action) */}
+                {(() => {
+                  if (!item.units || item.units.length <= 1) return null;
+                  const defaultUnit = (item.defaultSaleUnitId ? item.units.find((u) => u.id === item.defaultSaleUnitId) : null)
+                    || (item.isLooseSellable === false && item.units.length > 1
+                        ? [...item.units].filter((u) => !u.isBaseUnit).sort((a, b) => b.conversionFactor - a.conversionFactor)[0]
+                        : null)
+                    || item.units.find((u) => u.isBaseUnit)
+                    || item.units[0];
+
+                  const secondaryUnits = item.units.filter((u) => {
+                    if (defaultUnit && u.id === defaultUnit.id) return false;
+                    if (u.isBaseUnit && item.isLooseSellable === false) return false;
+                    return true;
+                  });
+
+                  if (secondaryUnits.length === 0) return null;
+
+                  return (
+                    <div className="flex items-center gap-1 mt-1 flex-wrap">
+                      {secondaryUnits.map((u) => (
+                        <span
+                          key={u.id || u.unitName}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSmartItemClick(item, u);
+                          }}
+                          className="px-1.5 py-0.2 text-[10px] font-bold rounded bg-paid-soft dark:bg-surface-dark-3 hover:bg-paid dark:hover:bg-brand text-paid dark:text-paid-bright hover:text-white border border-paid-border dark:border-line-dark transition-colors flex items-center gap-0.5 cursor-pointer shadow-2xs active:scale-95"
+                          title={`إضافة ${u.unitName} (${u.conversionFactor} قطعة) بسعر ${(u.sellPricePiasters / 100).toFixed(2)} ج.م`}
+                        >
+                          <Package className="w-2.5 h-2.5" />
+                          <span>{u.unitName} ({u.conversionFactor})</span>
+                        </span>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Bottom section: Price & Action Hint */}
               <div className="flex items-center justify-between w-full mt-auto pt-1.5 border-t border-line/60 dark:border-line-dark/60 shrink-0">
-                <div className="flex items-baseline gap-1 px-2 py-0.5 rounded-lg bg-paid-soft dark:bg-surface-dark-3 border border-paid-border dark:border-line-dark group-hover:bg-paid dark:group-hover:bg-brand group-hover:border-paid transition-all duration-150">
-                  <span className="text-xs sm:text-[13px] font-bold font-mono text-paid dark:text-paid-bright group-hover:text-white tabular-nums tracking-tight transition-colors">
-                    {item.isOpenPrice ? 'سعر حر' : (item.pricePiasters / 100).toFixed(2)}
-                  </span>
-                  {!item.isOpenPrice && (
-                    <span className="text-[10px] font-bold text-paid/80 dark:text-paid-bright/80 group-hover:text-white/90 transition-colors">
-                      ج.م
-                    </span>
-                  )}
-                </div>
+                {(() => {
+                  const defaultUnit = (item.units && item.units.length > 0)
+                    ? (item.defaultSaleUnitId ? item.units.find((u) => u.id === item.defaultSaleUnitId) : null)
+                      || (item.isLooseSellable === false && item.units.length > 1
+                          ? [...item.units].filter((u) => !u.isBaseUnit).sort((a, b) => b.conversionFactor - a.conversionFactor)[0]
+                          : null)
+                      || item.units.find((u) => u.isBaseUnit)
+                      || item.units[0]
+                    : null;
+                  const effPrice = (defaultUnit && defaultUnit.sellPricePiasters > 0) ? defaultUnit.sellPricePiasters : item.pricePiasters;
+                  const unitSuffix = (defaultUnit && !defaultUnit.isBaseUnit) ? ` / ${defaultUnit.unitName}` : '';
+
+                  return (
+                    <div className="flex items-baseline gap-1 px-2 py-0.5 rounded-lg bg-paid-soft dark:bg-surface-dark-3 border border-paid-border dark:border-line-dark group-hover:bg-paid dark:group-hover:bg-brand group-hover:border-paid transition-all duration-150">
+                      <span className="text-xs sm:text-[13px] font-bold font-mono text-paid dark:text-paid-bright group-hover:text-white tabular-nums tracking-tight transition-colors">
+                        {item.isOpenPrice ? 'سعر حر' : (effPrice / 100).toFixed(2)}
+                      </span>
+                      {!item.isOpenPrice && (
+                        <span className="text-[10px] font-bold text-paid/80 dark:text-paid-bright/80 group-hover:text-white/90 transition-colors">
+                          ج.م{unitSuffix}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {item.hasVariants ? (
                   <span className="text-[10px] font-bold text-purple-700 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/50 px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-2xs group-hover:bg-purple-600 group-hover:text-white transition-all">
