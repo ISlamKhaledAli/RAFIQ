@@ -18,6 +18,7 @@ import type { Customer, CustomerLedgerEntry, CustomerBalanceVerification } from 
 import { CustomSelect } from '../../components/CustomSelect';
 import { CustomDateRangePicker } from '../../components/CustomDatePicker';
 import { CustomerReceiptVoucherModal } from './CustomerReceiptVoucherModal';
+import { formatArabicCurrency } from '../../utils/money';
 
 export interface CustomerStatementModalProps {
   isOpen: boolean;
@@ -132,9 +133,9 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                   : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border-line dark:border-line-dark'
               }`}>
                 {selectedCustomer.balancePiasters > 0
-                  ? `عليه فلوس: ${(selectedCustomer.balancePiasters / 100).toFixed(2)} ج.م`
+                  ? `عليه فلوس: ${formatArabicCurrency(selectedCustomer.balancePiasters, true)}`
                   : selectedCustomer.balancePiasters < 0
-                  ? `سايب فلوس في المحل: ${(Math.abs(selectedCustomer.balancePiasters) / 100).toFixed(2)} ج.م`
+                  ? `سايب فلوس في المحل: ${formatArabicCurrency(Math.abs(selectedCustomer.balancePiasters), true)}`
                   : 'حسابه خالص تماماً (0.00 ج.م)'}
               </span>
               <button
@@ -165,7 +166,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                 <span>
                   {balanceVerification.isBalanced
                     ? `الرصيد سليم ومطابق 100% لسجل القيود (${balanceVerification.totalEntriesCount} حركة مسجلة بالدفتر).`
-                    : `تنبيه عدم تطابق: الرصيد المسجل (${(balanceVerification.storedBalancePiasters / 100).toFixed(2)} ج.م) يختلف عن مجموع الحركات (${(balanceVerification.calculatedBalancePiasters / 100).toFixed(2)} ج.م). الفارق: ${(Math.abs(balanceVerification.discrepancyPiasters) / 100).toFixed(2)} ج.م.`
+                    : `تنبيه عدم تطابق: الرصيد المسجل (${formatArabicCurrency(balanceVerification.storedBalancePiasters, true)}) يختلف عن مجموع الحركات (${formatArabicCurrency(balanceVerification.calculatedBalancePiasters, true)}). الفارق: ${formatArabicCurrency(Math.abs(balanceVerification.discrepancyPiasters), true)}.`
                   }
                 </span>
               </div>
@@ -294,7 +295,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                   </span>
                 </div>
                 <div className="text-lg font-black font-mono tracking-tight mt-0.5">
-                  {(Math.abs(statementPeriodSummary.closingBalancePiasters) / 100).toFixed(2)} ج.م
+                  {formatArabicCurrency(Math.abs(statementPeriodSummary.closingBalancePiasters), true)}
                 </div>
               </div>
             </div>
@@ -305,7 +306,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               <div className="px-3 py-1.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-right min-w-[130px]">
                 <span className="block text-[10px] text-ink-muted dark:text-ink-dark-muted font-bold">أخد بضاعة (على الحساب)</span>
                 <span className="font-mono text-xs font-bold text-danger dark:text-danger-bright">
-                  {(statementPeriodSummary.periodDebitsPiasters / 100).toFixed(2)} ج.م
+                  {formatArabicCurrency(statementPeriodSummary.periodDebitsPiasters, true)}
                 </span>
               </div>
 
@@ -313,7 +314,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               <div className="px-3 py-1.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-right min-w-[130px]">
                 <span className="block text-[10px] text-ink-muted dark:text-ink-dark-muted font-bold">سدد فلوس (دفع كاش)</span>
                 <span className="font-mono text-xs font-bold text-paid dark:text-paid-bright">
-                  {(statementPeriodSummary.periodCreditsPiasters / 100).toFixed(2)} ج.م
+                  {formatArabicCurrency(statementPeriodSummary.periodCreditsPiasters, true)}
                 </span>
               </div>
 
@@ -322,7 +323,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                 <div className="px-3 py-1.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-right min-w-[130px]">
                   <span className="block text-[10px] text-ink-muted dark:text-ink-dark-muted font-bold">مرتجع بضاعة (خصم)</span>
                   <span className="font-mono text-xs font-bold text-paid dark:text-paid-bright">
-                    -{(statementPeriodSummary.periodRefundsPiasters! / 100).toFixed(2)} ج.م
+                    -{formatArabicCurrency(statementPeriodSummary.periodRefundsPiasters!, true)}
                   </span>
                 </div>
               )}
@@ -331,7 +332,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               <div className="px-3 py-1.5 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-right min-w-[135px]">
                 <span className="block text-[10px] text-ink-muted dark:text-ink-dark-muted font-bold">حسابه القديم (اللي فات)</span>
                 <span className="font-mono text-xs font-bold text-ink dark:text-ink-dark">
-                  {(Math.abs(statementPeriodSummary.openingBalancePiasters) / 100).toFixed(2)} ج.م
+                  {formatArabicCurrency(Math.abs(statementPeriodSummary.openingBalancePiasters), true)}
                   {statementPeriodSummary.openingBalancePiasters > 0 && (
                     <span className="text-[9px] text-danger dark:text-danger-bright mr-1 font-sans font-medium">(كان عليه)</span>
                   )}
@@ -431,11 +432,11 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                             (isPayment || isDeposit || isRefund) ? 'text-paid dark:text-paid-bright' :
                             isCancel ? 'text-warn dark:text-warn-bright' : 'text-danger dark:text-danger-bright'
                           }`}>
-                            {(isPayment || isDeposit || isRefund) ? '-' : '+'}{(Math.abs(entry.amountPiasters) / 100).toFixed(2)} ج.م
+                            {(isPayment || isDeposit || isRefund) ? '-' : '+'}{formatArabicCurrency(Math.abs(entry.amountPiasters), true)}
                           </td>
 
                           <td className="px-3 font-mono font-semibold text-ink dark:text-ink-dark">
-                            {(entry.balanceAfterPiasters / 100).toFixed(2)} ج.م
+                            {formatArabicCurrency(entry.balanceAfterPiasters, true)}
                           </td>
 
                           <td className="px-3 text-ink-muted dark:text-ink-dark-muted text-[11px]">
@@ -527,7 +528,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                 <div className="flex justify-between text-ink dark:text-ink-dark">
                   <span className="text-ink-muted dark:text-ink-dark-muted font-medium">المبلغ اللي هيتلغى:</span>
                   <span className="font-bold font-mono text-danger dark:text-danger-bright text-[13px]">
-                    {(cancellingEntry.amountPiasters / 100).toFixed(2)} ج.م
+                    {formatArabicCurrency(cancellingEntry.amountPiasters, true)}
                   </span>
                 </div>
                 <div className="flex justify-between text-ink dark:text-ink-dark">
@@ -544,7 +545,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                 <div className="text-[11px] leading-relaxed">
                   <strong className="text-warn dark:text-warn-bright">ملاحظة أمان:</strong> السيستم مش هيمسح الحركة من الدفاتر، بس هيسجل قيد عكسي عشان يرجع الفلوس على حساب الزبون فوراً زي ما كانت بالظبط (
                   <span className="font-bold font-mono text-danger dark:text-danger-bright">
-                    {((selectedCustomer.balancePiasters + cancellingEntry.amountPiasters) / 100).toFixed(2)} ج.م
+                    {formatArabicCurrency(selectedCustomer.balancePiasters + cancellingEntry.amountPiasters, true)}
                   </span>
                   ).
                 </div>

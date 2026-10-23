@@ -14,9 +14,11 @@ import {
   Clock,
   MoreHorizontal,
   ChevronDown,
+  Box,
 } from 'lucide-react';
 import type { Product } from '../../types/models';
 import { formatArabicCurrency } from '../../utils/money';
+import { formatCompoundStock, hasOpenPackage } from '../../utils/packaging';
 import { RafiqTableLoading } from '../../components/RafiqLoadingState';
 import { useSmoothLoading } from '../../utils/useSmoothLoading';
 
@@ -223,6 +225,10 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
                 const isSelected = selectedProductIds.includes(prod.id);
 
+                const isCompound = (prod.isLooseSellable || (prod.units && prod.units.length > 1)) && !isKg;
+                const compoundStock = isCompound ? formatCompoundStock(prod.stockQuantityMilli, prod.units, prod.unit || 'قطعة') : null;
+                const openPackage = isCompound && hasOpenPackage(prod.stockQuantityMilli, prod.units);
+
                 const stockPcs = Math.floor(stockQuantityCurrent);
                 const largerUnits = (prod.units || []).filter((u) => !u.isBaseUnit && u.conversionFactor > 1);
                 let unitBreakdown: string | null = null;
@@ -318,6 +324,24 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                             {prod.variantColor} | {prod.variantSize}
                           </span>
                         )}
+                        {prod.isLooseSellable && (
+                          <span
+                            className="shrink-0 px-2 py-0.5 bg-brand-soft dark:bg-brand-soft/20 text-brand-dark dark:text-brand-bright text-[10px] font-bold rounded-full border border-brand/20 flex items-center gap-1"
+                            title="صنف مفكوك يباع بالتجزئة"
+                          >
+                            <Boxes className="w-2.5 h-2.5" />
+                            <span>تجزئة</span>
+                          </span>
+                        )}
+                        {openPackage && (
+                          <span
+                            className="shrink-0 px-2 py-0.5 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 text-[10px] font-bold rounded-full border border-amber-200 dark:border-amber-800/50 flex items-center gap-1"
+                            title="يوجد عبوة مفتوحة بالمخزن"
+                          >
+                            <Box className="w-2.5 h-2.5" />
+                            <span>علبة مفتوحة</span>
+                          </span>
+                        )}
                       </div>
                     </td>
 
@@ -362,7 +386,14 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                         <span className="font-bold text-ink dark:text-ink-dark text-xs group-hover:text-paid dark:group-hover:text-brand-bright underline decoration-dotted underline-offset-2">
                           {stockDisplay}
                         </span>
-                        {unitBreakdown ? (
+                        {compoundStock ? (
+                          <span
+                            className="text-[9px] text-paid dark:text-paid-bright font-bold truncate max-w-[130px]"
+                            title={`المخزون المركب: ${compoundStock}`}
+                          >
+                            {compoundStock}
+                          </span>
+                        ) : unitBreakdown ? (
                           <span
                             className="text-[9px] text-paid dark:text-paid-bright font-bold truncate max-w-[110px]"
                             title={`المكافئ بالوحدة الكبيرة: ${unitBreakdown}`}

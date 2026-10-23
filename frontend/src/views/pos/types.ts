@@ -32,4 +32,6 @@ export interface SmartCatalogItem {
   nearestExpiryDate?: string | null;
   suggestedBatchNumber?: string | null;
   isExpired?: boolean;
+  defaultSaleUnitId?: string | null;
+  isLooseSellable?: boolean;
 }

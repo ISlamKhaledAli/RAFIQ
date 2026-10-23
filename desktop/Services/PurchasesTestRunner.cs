@@ -261,6 +261,50 @@ namespace RafiqPOS.Services
                 }
                 assert(threwNegativeQty, "رفض كمية شراء سالبة");
 
+                // Test Conversion Factor Guard (Task 182-3 / Feature #182)
+                bool threwFractionalFactor = false;
+                try
+                {
+                    DatabaseService.Purchases.CreatePurchase(new Purchase
+                    {
+                        SupplierId = sup1.Id,
+                        Items = new List<PurchaseItem>
+                        {
+                            new PurchaseItem
+                            {
+                                ProductId = prod1.Id,
+                                QuantityMilli = 5000,
+                                UnitCostPiasters = 1000,
+                                ConversionFactor = 12.5
+                            }
+                        }
+                    });
+                }
+                catch (ArgumentException)
+                {
+                    threwFractionalFactor = true;
+                }
+                assert(threwFractionalFactor, "رفض معامل تحويل عبوة كسري (12.5) ورمي ArgumentException");
+
+                // Valid integer conversion factor (12)
+                var validFactorPurchase = DatabaseService.Purchases.CreatePurchase(new Purchase
+                {
+                    SupplierId = sup1.Id,
+                    SupplierInvoiceNumber = "INV-CONV-12",
+                    PaidAmountPiasters = 5000,
+                    Items = new List<PurchaseItem>
+                    {
+                        new PurchaseItem
+                        {
+                            ProductId = prod1.Id,
+                            QuantityMilli = 5000,
+                            UnitCostPiasters = 1000,
+                            ConversionFactor = 12.0
+                        }
+                    }
+                });
+                assert(validFactorPurchase != null && validFactorPurchase.InvoiceNumber > 0, "قبول معامل تحويل عبوة صحيح (12) بنجاح");
+
                 // ==========================================
                 // 3. Scenario 1: ACID Atomic Transaction Rollback Test
                 // ==========================================

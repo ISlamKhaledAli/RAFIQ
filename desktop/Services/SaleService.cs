@@ -377,6 +377,19 @@ namespace RafiqPOS.Services
                     }
                 }
 
+                // 4.5 Fallback to default sale unit if specified
+                if (matchedUnit == null && product != null && !string.IsNullOrWhiteSpace(product.DefaultSaleUnitId) && product.Units != null)
+                {
+                    foreach (var u in product.Units)
+                    {
+                        if (string.Equals(u.Id, product.DefaultSaleUnitId, StringComparison.OrdinalIgnoreCase))
+                        {
+                            matchedUnit = u;
+                            break;
+                        }
+                    }
+                }
+
                 // 5. Fallback to base unit if available
                 if (matchedUnit == null && product != null && product.Units != null)
                 {
@@ -411,7 +424,7 @@ namespace RafiqPOS.Services
                         );
                     }
 
-                    // Accurately assign carton unit cost (TEST-10)
+                    // Task 183-3: Loose Unit COGS Engine (Integer arithmetic without floats)
                     if (matchedUnit.CostPricePiasters > 0)
                     {
                         item.UnitCostPiasters = matchedUnit.CostPricePiasters;
@@ -419,6 +432,27 @@ namespace RafiqPOS.Services
                     else if (product != null && product.CostPiasters > 0)
                     {
                         item.UnitCostPiasters = product.CostPiasters * item.ConversionFactor;
+                    }
+                    else if (product != null && product.Units != null)
+                    {
+                        // Check if any package/parent unit has a known cost price to derive COGS without floats
+                        long derivedCost = 0;
+                        for (int uIdx = 0; uIdx < product.Units.Count; uIdx++)
+                        {
+                            var pu = product.Units[uIdx];
+                            if (pu.CostPricePiasters > 0 && pu.ConversionFactor > 0)
+                            {
+                                long pkgCost = pu.CostPricePiasters;
+                                long pkgFactor = pu.ConversionFactor;
+                                long itemFactor = item.ConversionFactor > 0 ? item.ConversionFactor : 1;
+                                derivedCost = (pkgCost * itemFactor + (pkgFactor / 2)) / pkgFactor;
+                                break;
+                            }
+                        }
+                        if (derivedCost > 0)
+                        {
+                            item.UnitCostPiasters = derivedCost;
+                        }
                     }
                 }
                 else

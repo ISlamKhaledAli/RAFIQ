@@ -7,7 +7,7 @@ namespace RafiqPOS.Database
 {
     public static class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 41;
+        public const int LATEST_SUPPORTED_VERSION = 42;
 
         public static void ApplyMigrations(string connectionString, string dbPath)
         {
@@ -366,6 +366,13 @@ namespace RafiqPOS.Database
                     ApplyMigration41(conn);
                 }
 
+                // 45. Apply Migration 42: Multi-Pack Loose Selling & Packaging Columns (Story 126 / Feature #183)
+                if (currentVersion < 42)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration42(conn);
+                }
+
                 // 45. Self-Healing Schema Guard: Automatically repair missing columns or indexes
                 EnsureSchemaHealth(conn);
             }
@@ -550,6 +557,42 @@ namespace RafiqPOS.Database
                                 using (var alter = new SQLiteCommand("ALTER TABLE products ADD COLUMN normalized_name TEXT DEFAULT '';", conn, trans))
                                 {
                                     alter.ExecuteNonQuery();
+                                }
+                            }
+
+                            if (!existingCols.Contains("default_sale_unit_id"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE products ADD COLUMN default_sale_unit_id TEXT DEFAULT NULL;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+
+                            if (!existingCols.Contains("default_purchase_unit_id"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE products ADD COLUMN default_purchase_unit_id TEXT DEFAULT NULL;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+
+                            if (!existingCols.Contains("display_unit_id"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE products ADD COLUMN display_unit_id TEXT DEFAULT NULL;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                            }
+
+                            if (!existingCols.Contains("is_loose_sellable"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE products ADD COLUMN is_loose_sellable INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                                using (var idx = new SQLiteCommand("CREATE INDEX IF NOT EXISTS idx_products_loose_sellable ON products(is_loose_sellable);", conn, trans))
+                                {
+                                    idx.ExecuteNonQuery();
                                 }
                             }
 
@@ -5220,6 +5263,71 @@ namespace RafiqPOS.Database
 
                         INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
                         VALUES (41, 'Non-Cash Debt Settlement and Ledger Optimization (F-07)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Migration 42: Multi-Pack Loose Selling & Packaging Columns (Story 126 / Feature #183)
+        // -------------------------------------------------------------
+        private static void ApplyMigration42(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand("ALTER TABLE products ADD COLUMN default_sale_unit_id TEXT DEFAULT NULL;", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand("ALTER TABLE products ADD COLUMN default_purchase_unit_id TEXT DEFAULT NULL;", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand("ALTER TABLE products ADD COLUMN display_unit_id TEXT DEFAULT NULL;", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand("ALTER TABLE products ADD COLUMN is_loose_sellable INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE INDEX IF NOT EXISTS idx_products_loose_sellable ON products(is_loose_sellable);
+
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (42, 'Multi-Pack Loose Selling & Packaging Columns (Story 126 / Feature #183)', datetime('now'));
                     ", conn, trans))
                     {
                         cmd.ExecuteNonQuery();

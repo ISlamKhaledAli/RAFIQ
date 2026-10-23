@@ -218,6 +218,13 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, flags);
                     return true;
 
+                case "system.getFeatureRegistry":
+                case "system:getFeatureRegistry":
+                case "features:getRegistry":
+                    var registryList = FeatureRegistry.GetAllDefinitions();
+                    response = BridgeResponse.Ok(request.Id, registryList);
+                    return true;
+
                 case "features:set":
                     if (request.Payload == null)
                     {
@@ -229,9 +236,17 @@ namespace RafiqPOS.Bridge
                     {
                         string fKey = featObj["key"].ToString();
                         bool fEnabled = featObj["enabled"].Value<bool>();
-                        DatabaseService.Settings.SetFeatureFlag(fKey, fEnabled);
-                        response = BridgeResponse.Ok(request.Id, new { key = fKey, enabled = fEnabled });
-                        return true;
+                        try
+                        {
+                            DatabaseService.Settings.SetFeatureFlag(fKey, fEnabled);
+                            response = BridgeResponse.Ok(request.Id, new { key = fKey, enabled = fEnabled });
+                            return true;
+                        }
+                        catch (InvalidOperationException ex)
+                        {
+                            response = BridgeResponse.Fail(request.Id, "DEPENDENCY_ERROR", ex.Message);
+                            return true;
+                        }
                     }
                     response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "الحقول المطلوبة (key, enabled) ناقصة");
                     return true;

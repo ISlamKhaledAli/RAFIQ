@@ -274,6 +274,28 @@ namespace RafiqPOS
                         }
                         return;
                     }
+                    if (args[i] == "--run-baseline-tests")
+                    {
+                        try
+                        {
+                            int pCount = 20000;
+                            if (i + 1 < args.Length && int.TryParse(args[i + 1], out pCount))
+                            {
+                                // custom count
+                            }
+                            var res = Services.BaselineBenchmarkRunner.RunBaseline(pCount);
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "baseline_benchmark_output.json"), json);
+                            Environment.Exit(res.Success ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Baseline test error: " + ex.ToString());
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
                     if (args[i] == "--run-shift-audit-tests")
                     {
                         try

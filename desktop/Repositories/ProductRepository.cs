@@ -654,11 +654,11 @@ namespace RafiqPOS.Repositories
                             INSERT INTO products (
                                 id, barcode, internal_code, name, normalized_name, category_id, price_piasters, cost_piasters, 
                                 stock_quantity_milli, min_stock_quantity_milli, unit, tax_rate_percent, tax_category_code, is_active, needs_review, created_at, updated_at,
-                                has_variants, parent_id
+                                has_variants, parent_id, default_sale_unit_id, default_purchase_unit_id, display_unit_id, is_loose_sellable
                             ) VALUES (
                                 @id, @barcode, @internalCode, @name, @normName, @categoryId, @price, @cost, 
                                 @stock, @minStock, @unit, @tax, @taxCategoryCode, @isActive, @needsReview, @createdAt, @updatedAt,
-                                @hasVariants, @parentId
+                                @hasVariants, @parentId, @defaultSaleUnitId, @defaultPurchaseUnitId, @displayUnitId, @isLooseSellable
                             )
                             ON CONFLICT(id) DO UPDATE SET
                                 barcode = excluded.barcode,
@@ -676,7 +676,11 @@ namespace RafiqPOS.Repositories
                                 needs_review = excluded.needs_review,
                                 updated_at = excluded.updated_at,
                                 has_variants = excluded.has_variants,
-                                parent_id = excluded.parent_id;
+                                parent_id = excluded.parent_id,
+                                default_sale_unit_id = excluded.default_sale_unit_id,
+                                default_purchase_unit_id = excluded.default_purchase_unit_id,
+                                display_unit_id = excluded.display_unit_id,
+                                is_loose_sellable = excluded.is_loose_sellable;
                         ";
                         using (var cmd = new SQLiteCommand(sql, conn, trans))
                         {
@@ -699,6 +703,10 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("o"));
                             cmd.Parameters.AddWithValue("@hasVariants", product.HasVariants ? 1 : 0);
                             cmd.Parameters.AddWithValue("@parentId", string.IsNullOrWhiteSpace(product.ParentId) ? (object)DBNull.Value : product.ParentId);
+                            cmd.Parameters.AddWithValue("@defaultSaleUnitId", string.IsNullOrWhiteSpace(product.DefaultSaleUnitId) ? (object)DBNull.Value : product.DefaultSaleUnitId);
+                            cmd.Parameters.AddWithValue("@defaultPurchaseUnitId", string.IsNullOrWhiteSpace(product.DefaultPurchaseUnitId) ? (object)DBNull.Value : product.DefaultPurchaseUnitId);
+                            cmd.Parameters.AddWithValue("@displayUnitId", string.IsNullOrWhiteSpace(product.DisplayUnitId) ? (object)DBNull.Value : product.DisplayUnitId);
+                            cmd.Parameters.AddWithValue("@isLooseSellable", product.IsLooseSellable ? 1 : 0);
                             cmd.ExecuteNonQuery();
                         }
 
@@ -1215,6 +1223,18 @@ namespace RafiqPOS.Repositories
             string suggestedBatchNumber = null;
             try { if (reader["suggested_batch_number"] != DBNull.Value) suggestedBatchNumber = reader["suggested_batch_number"].ToString(); } catch { }
 
+            string defaultSaleUnitId = null;
+            try { if (reader["default_sale_unit_id"] != DBNull.Value) defaultSaleUnitId = reader["default_sale_unit_id"].ToString(); } catch { }
+
+            string defaultPurchaseUnitId = null;
+            try { if (reader["default_purchase_unit_id"] != DBNull.Value) defaultPurchaseUnitId = reader["default_purchase_unit_id"].ToString(); } catch { }
+
+            string displayUnitId = null;
+            try { if (reader["display_unit_id"] != DBNull.Value) displayUnitId = reader["display_unit_id"].ToString(); } catch { }
+
+            bool isLooseSellable = false;
+            try { if (reader["is_loose_sellable"] != DBNull.Value) isLooseSellable = Convert.ToInt32(reader["is_loose_sellable"]) == 1; } catch { }
+
             return new Product
             {
                 Id = reader["id"].ToString(),
@@ -1248,7 +1268,11 @@ namespace RafiqPOS.Repositories
                 HasBatches = hasBatches,
                 NearestExpiryDate = nearestExpiryDate,
                 SuggestedBatchNumber = suggestedBatchNumber,
-                IsExpired = isExpired
+                IsExpired = isExpired,
+                DefaultSaleUnitId = defaultSaleUnitId,
+                DefaultPurchaseUnitId = defaultPurchaseUnitId,
+                DisplayUnitId = displayUnitId,
+                IsLooseSellable = isLooseSellable
             };
         }
     }

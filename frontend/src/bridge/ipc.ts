@@ -104,6 +104,7 @@ declare global {
 }
 
 import { emitDataChanged } from '../utils/eventBus.ts';
+import { DEFAULT_REGISTRY } from '../context/featureTypes.ts';
 
 const pendingRequests = new Map<string, {
   action: string;
@@ -149,6 +150,8 @@ function dispatchAutoTopicsForAction(action: string) {
     action.startsWith('productUnits:save') ||
     action.startsWith('productUnits:delete') ||
     action.startsWith('productUnits:setBase') ||
+    action.startsWith('products:rebaseUnit') ||
+    action.startsWith('packaging:saveLevels') ||
     action.startsWith('excel:importProducts')
   ) {
     emitDataChanged(['products', 'dashboard']);
@@ -532,6 +535,28 @@ async function mockHandler(action: string, payload: any): Promise<any> {
 
     case 'products:getLowStockCount':
       return { count: 1 };
+
+    case 'products:rebaseUnit':
+      return {
+        success: true,
+        message: 'تمت إعادة التأسيس بنجاح (محاكاة)',
+        productId: payload?.productId,
+        oldBaseUnit: 'علبة',
+        newBaseUnit: payload?.newBaseUnitName || 'قرص',
+        rebaseFactor: payload?.rebaseFactor || 30,
+        oldStockMilli: 10000,
+        newStockMilli: 10000 * (payload?.rebaseFactor || 30),
+      };
+
+    case 'packaging:saveLevels':
+      return {
+        id: payload?.productId || 'p_mock',
+        name: 'صنف تجريبي',
+        units: payload?.units || [],
+        defaultSaleUnitId: payload?.defaultSaleUnitId,
+        defaultPurchaseUnitId: payload?.defaultPurchaseUnitId,
+        isLooseSellable: payload?.isLooseSellable ?? false,
+      };
 
     case 'search:runBenchmark':
       return {
@@ -2682,6 +2707,11 @@ async function mockHandler(action: string, payload: any): Promise<any> {
 
     case 'features:getAll':
       return getMockFeatureFlags();
+
+    case 'system.getFeatureRegistry':
+    case 'system:getFeatureRegistry':
+    case 'features:getRegistry':
+      return DEFAULT_REGISTRY;
 
     case 'features:set': {
       if (payload?.key) {

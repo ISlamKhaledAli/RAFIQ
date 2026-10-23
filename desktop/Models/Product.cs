@@ -110,6 +110,18 @@ namespace RafiqPOS.Models
         [JsonProperty("isExpired")]
         public bool IsExpired { get; set; }
 
+        [JsonProperty("defaultSaleUnitId")]
+        public string DefaultSaleUnitId { get; set; }
+
+        [JsonProperty("defaultPurchaseUnitId")]
+        public string DefaultPurchaseUnitId { get; set; }
+
+        [JsonProperty("displayUnitId")]
+        public string DisplayUnitId { get; set; }
+
+        [JsonProperty("isLooseSellable")]
+        public bool IsLooseSellable { get; set; }
+
         // Presentation helpers (Never used in internal DB math)
         [JsonProperty("priceFormatted")]
         public string PriceFormatted
@@ -128,5 +140,24 @@ namespace RafiqPOS.Models
         {
             get { return (MinStockQuantityMilli / 1000.0).ToString("0.###"); }
         }
+
+        [JsonProperty("compoundStockFormatted")]
+        public string CompoundStockFormatted
+        {
+            get
+            {
+                return Common.CompoundStockHelper.FormatCompoundStock(StockQuantityMilli, Units, Unit);
+            }
+        }
+
+        [JsonProperty("isOpenPackage")]
+        public bool IsOpenPackage
+        {
+            get
+            {
+                return Common.CompoundStockHelper.IsOpenPackage(StockQuantityMilli, Units);
+            }
+        }
     }
 }
+

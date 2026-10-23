@@ -615,6 +615,75 @@ namespace RafiqPOS.Bridge
 
                 #endregion
 
+                #region Feature #183 / Story 126: Multi-Pack Loose Selling & Packaging Wizard
+
+                case "products:rebaseUnit":
+                    JObject rebaseObj = request.Payload as JObject;
+                    if (rebaseObj == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات إعادة التأسيس غير صالحة.");
+                        return true;
+                    }
+                    string rebasePid = rebaseObj["productId"] != null ? rebaseObj["productId"].ToString() : null;
+                    string newBaseUnit = rebaseObj["newBaseUnitName"] != null ? rebaseObj["newBaseUnitName"].ToString() : null;
+                    int rebaseFactor = rebaseObj["rebaseFactor"] != null ? rebaseObj["rebaseFactor"].Value<int>() : 0;
+                    string rUserId = rebaseObj["userId"] != null ? rebaseObj["userId"].ToString() : "usr_admin_default";
+                    string rUserName = rebaseObj["userName"] != null ? rebaseObj["userName"].ToString() : "مدير النظام";
+
+                    if (string.IsNullOrWhiteSpace(rebasePid) || string.IsNullOrWhiteSpace(newBaseUnit) || rebaseFactor < 2)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_ARGS", "بيانات إعادة التأسيس غير مكتملة (الصنف، الوحدة، المعامل >= 2).");
+                        return true;
+                    }
+
+                    try
+                    {
+                        var rebaseRes = DatabaseService.Products.RebaseProductBaseUnit(rebasePid, newBaseUnit, rebaseFactor, rUserId, rUserName);
+                        response = BridgeResponse.Ok(request.Id, rebaseRes);
+                    }
+                    catch (Exception ex)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "REBASE_FAILED", ex.Message);
+                    }
+                    return true;
+
+                case "packaging:saveLevels":
+                    JObject pkgObj = request.Payload as JObject;
+                    if (pkgObj == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات منظومة التعبئة غير صالحة.");
+                        return true;
+                    }
+                    string pkgPid = pkgObj["productId"] != null ? pkgObj["productId"].ToString() : null;
+                    if (string.IsNullOrWhiteSpace(pkgPid))
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PRODUCT_ID", "معرف الصنف مطلوب لحفظ منظومة التعبئة.");
+                        return true;
+                    }
+
+                    List<ProductUnit> pkgUnits = new List<ProductUnit>();
+                    if (pkgObj["units"] != null)
+                    {
+                        pkgUnits = pkgObj["units"].ToObject<List<ProductUnit>>() ?? new List<ProductUnit>();
+                    }
+                    string defSale = pkgObj["defaultSaleUnitId"] != null ? pkgObj["defaultSaleUnitId"].ToString() : null;
+                    string defPur = pkgObj["defaultPurchaseUnitId"] != null ? pkgObj["defaultPurchaseUnitId"].ToString() : null;
+                    string dispUnit = pkgObj["displayUnitId"] != null ? pkgObj["displayUnitId"].ToString() : null;
+                    bool isLoose = pkgObj["isLooseSellable"] != null && pkgObj["isLooseSellable"].Value<bool>();
+
+                    try
+                    {
+                        var updatedProduct = DatabaseService.Products.SavePackagingLevels(pkgPid, pkgUnits, defSale, defPur, dispUnit, isLoose);
+                        response = BridgeResponse.Ok(request.Id, updatedProduct);
+                    }
+                    catch (Exception ex)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "SAVE_PACKAGING_FAILED", ex.Message);
+                    }
+                    return true;
+
+                #endregion
+
                 default:
                     return false;
             }

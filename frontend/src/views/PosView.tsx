@@ -259,7 +259,16 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
 
     let unitToUse = specificUnit;
     if (!unitToUse && prod.units && prod.units.length > 0) {
-      unitToUse = prod.units.find(u => u.isBaseUnit) || prod.units[0];
+      if (prod.defaultSaleUnitId) {
+        unitToUse = prod.units.find(u => u.id === prod.defaultSaleUnitId);
+      }
+      if (!unitToUse && prod.isLooseSellable === false && prod.units.length > 1) {
+        const nonBase = prod.units.filter(u => !u.isBaseUnit);
+        unitToUse = nonBase.sort((a, b) => b.conversionFactor - a.conversionFactor)[0];
+      }
+      if (!unitToUse) {
+        unitToUse = prod.units.find(u => u.isBaseUnit) || prod.units[0];
+      }
     }
 
     if (prod.unit === 'kg' && customWeightMilli === undefined && (!unitToUse || unitToUse.conversionFactor === 1)) {
@@ -447,6 +456,31 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       return updated;
     });
   }, [allowNegativeStock, showStatus]);
+
+  // Feature #183 / Task 183-5: Cycle unit of cart line with shortcut '/'
+  const cycleCartItemUnit = useCallback((targetIndex?: number) => {
+    if (cart.length === 0) return;
+    const idx = targetIndex !== undefined ? targetIndex : cart.length - 1;
+    const item = cart[idx];
+    if (!item || !item.productUnits || item.productUnits.length <= 1) {
+      showStatus('الصنف الحالي لا يحتوي على وحدات تعبئة أخرى', 'warning');
+      return;
+    }
+
+    if (hasPermission && !hasPermission('pos.change_unit') && !isAdmin) {
+      showStatus('ليس لديك صلاحية لتبديل وحدة البيع في الكاشير', 'warning');
+      return;
+    }
+
+    const units = item.productUnits;
+    const currentIdx = units.findIndex(u => (u.id && u.id === item.unitId) || (u.unitName === item.unitName));
+    const nextIdx = currentIdx >= 0 ? (currentIdx + 1) % units.length : 0;
+    const nextUnit = units[nextIdx];
+    if (nextUnit && nextUnit.id) {
+      changeCartItemUnit(idx, nextUnit.id);
+      showStatus(`تم تبديل الوحدة إلى: ${nextUnit.unitName} (${(nextUnit.sellPricePiasters / 100).toFixed(2)} ج.م)`, 'success');
+    }
+  }, [cart, changeCartItemUnit, showStatus, hasPermission, isAdmin]);
 
   // Task 24-2: Apply discount on specific item
   const handleApplyItemDiscount = useCallback((index: number, itemDiscountPiasters: number, _supervisorApproved = false) => {
@@ -1564,6 +1598,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     setPaymentMethod,
     setIsReturnModalOpen,
     showStatus,
+    cycleCartItemUnit,
     hasPermission,
     isAdmin,
   });
@@ -1635,7 +1670,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
               setDraftPrompt(null);
             }}
             statusMessage={statusMessage}
-            changeCartItemUnit={changeCartItemUnit}
+            cycleCartItemUnit={cycleCartItemUnit}
             updateQuantity={updateQuantity}
             setDirectQuantity={setDirectQuantity}
             openWeightEditorForCartItem={openWeightEditorForCartItem}

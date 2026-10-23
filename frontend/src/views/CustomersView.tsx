@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
-import { normalizeArabicNumerals } from '../utils/money';
+import { normalizeArabicNumerals, formatArabicCurrency } from '../utils/money';
 import { rafiqConfirm, rafiqAlert } from '../utils/dialogService';
 import { exportCustomersToExcel } from '../utils/excelImport';
 import type { Customer, CustomerLedgerEntry, CustomerImportPreviewResult, CustomerImportResult, CustomerBalanceVerification } from '../types/models';
@@ -623,7 +623,7 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
             <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold block mb-0.5 truncate">إجمالي الفلوس اللي برة (عند الزباين)</span>
             <div className="flex items-baseline gap-1">
               <span className="text-xl sm:text-2xl font-black font-mono text-danger dark:text-danger-bright tabular-nums tracking-tight">
-                {(totalDebtsPiasters / 100).toFixed(2)}
+                {formatArabicCurrency(totalDebtsPiasters, false)}
               </span>
               <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">ج.م</span>
             </div>
@@ -657,7 +657,7 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
             <span className="text-[11px] text-ink-muted dark:text-ink-dark-muted font-bold block mb-0.5 truncate">أعلى حد للشكك مسموح بيه</span>
             <div className="flex items-baseline gap-1">
               <span className="text-xl sm:text-2xl font-black font-mono text-ink dark:text-ink-dark tabular-nums tracking-tight">
-                {(totalCreditLimitPiasters / 100).toFixed(2)}
+                {formatArabicCurrency(totalCreditLimitPiasters, false)}
               </span>
               <span className="text-xs font-bold text-ink-muted dark:text-ink-dark-muted">ج.م</span>
             </div>
@@ -835,7 +835,7 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
                             ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border border-paid-border dark:border-paid-dark-border'
                             : 'bg-surface-2 dark:bg-surface-dark-2 text-ink-muted dark:text-ink-dark-muted border border-line dark:border-line-dark'
                         }`}>
-                          {(Math.abs(cust.balancePiasters) / 100).toFixed(2)} ج.م
+                          {formatArabicCurrency(Math.abs(cust.balancePiasters), true)}
                           {cust.balancePiasters > 0 ? (
                             <span className="mr-1 text-[10px] font-sans font-bold text-danger dark:text-danger-bright">(عليه فلوس)</span>
                           ) : cust.balancePiasters < 0 ? (
@@ -849,11 +849,11 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
                       {/* Credit Limit */}
                       <td className="px-3">
                         <div className="flex items-center gap-1.5 font-mono text-xs tabular-nums">
-                          <span className="text-ink dark:text-ink-dark font-bold">{(cust.creditLimitPiasters / 100).toFixed(2)} ج.م</span>
+                          <span className="text-ink dark:text-ink-dark font-bold">{formatArabicCurrency(cust.creditLimitPiasters, true)}</span>
                           {cust.creditLimitPiasters > 0 && cust.balancePiasters > cust.creditLimitPiasters && (
                             <span 
                               className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-sans font-bold bg-warn-soft dark:bg-warn-dark-soft text-warn dark:text-warn-bright border border-warn-border dark:border-warn-bright/30"
-                              title={`عدى الحد المسموح بيه بـ ${((cust.balancePiasters - cust.creditLimitPiasters) / 100).toFixed(2)} ج.م`}
+                              title={`عدى الحد المسموح بيه بـ ${formatArabicCurrency(cust.balancePiasters - cust.creditLimitPiasters, true)}`}
                             >
                               <AlertTriangle className="w-3 h-3 text-warn dark:text-warn-bright" />
                               <span>عدى الحد</span>

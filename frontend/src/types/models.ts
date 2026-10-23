@@ -36,6 +36,24 @@ export interface Product {
   nearestExpiryDate?: string | null;
   suggestedBatchNumber?: string | null;
   isExpired?: boolean;
+  defaultSaleUnitId?: string | null;
+  defaultPurchaseUnitId?: string | null;
+  displayUnitId?: string | null;
+  isLooseSellable?: boolean;
+  compoundStockFormatted?: string;
+  isOpenPackage?: boolean;
+}
+
+export interface RebaseResult {
+  success: boolean;
+  message: string;
+  productId: string;
+  oldBaseUnit: string;
+  newBaseUnit: string;
+  rebaseFactor: number;
+  oldStockMilli: number;
+  newStockMilli: number;
+  product?: Product;
 }
 
 export interface ProductVariant {

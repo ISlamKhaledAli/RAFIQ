@@ -713,7 +713,7 @@ export function DashboardView({
                           {p.totalQuantity}
                         </td>
                         <td className="py-2 px-3 font-mono font-bold text-paid dark:text-paid-bright text-left pl-5 text-sm tabular-nums">
-                          {(p.totalSalesPiasters / 100).toFixed(2)} <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted font-normal">ج.م</span>
+                          {formatArabicCurrency(p.totalSalesPiasters, false)} <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted font-normal">ج.م</span>
                         </td>
                       </tr>
                     ))}
@@ -781,11 +781,11 @@ export function DashboardView({
                             </span>
                           </td>
                           <td className="py-2 px-3 text-center font-mono text-ink-muted dark:text-ink-dark-muted tabular-nums">
-                            {(adj.unitCostPiasters / 100).toFixed(2)} ج.م
+                            {formatArabicCurrency(adj.unitCostPiasters, true)}
                           </td>
                           <td className="py-2 px-3 text-left pl-5 font-mono font-bold text-sm tabular-nums">
                             <span className={isNegative ? 'text-danger dark:text-danger-bright' : isPositive ? 'text-paid dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark-muted'}>
-                              {isNegative ? '-' : isPositive ? '+' : ''}{(Math.abs(adj.financialImpactPiasters) / 100).toFixed(2)}
+                              {isNegative ? '-' : isPositive ? '+' : ''}{formatArabicCurrency(Math.abs(adj.financialImpactPiasters), false)}
                             </span>
                             <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted font-normal mr-1">ج.م</span>
                           </td>
@@ -907,7 +907,7 @@ export function DashboardView({
                       )}
                     </div>
                     <span className="font-mono font-bold text-danger dark:text-danger-bright text-xs tabular-nums">
-                      {(d.balancePiasters / 100).toFixed(2)} ج.م
+                      {formatArabicCurrency(d.balancePiasters, true)}
                     </span>
                   </div>
                 ))

@@ -149,6 +149,12 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   // Data Quality Health Audit Modal State (Story 107 - Feature #117)
   const [showDataQualityModal, setShowDataQualityModal] = useState(false);
 
+  // Packaging & Loose Selling State (Feature #183)
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isLooseSellable, setIsLooseSellable] = useState<boolean>(false);
+  const [defaultSaleUnitId, setDefaultSaleUnitId] = useState<string | null>(null);
+  const [defaultPurchaseUnitId, setDefaultPurchaseUnitId] = useState<string | null>(null);
+
   // F8 Global Shortcut to open Barcode Label Modal
   useEffect(() => {
     if (!isActive) return;
@@ -487,6 +493,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setVariantColor('');
     setInitialExpiryDate('');
     setInitialBatchNumber('');
+    setEditingProduct(null);
+    setIsLooseSellable(false);
+    setDefaultSaleUnitId(null);
+    setDefaultPurchaseUnitId(null);
     setFormError('');
     setSimilarWarning(null);
     setBelowCostWarning(null);
@@ -495,6 +505,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
   const openEditModal = (prod: Product) => {
     setEditingId(prod.id);
+    setEditingProduct(prod);
+    setIsLooseSellable(prod.isLooseSellable ?? false);
+    setDefaultSaleUnitId(prod.defaultSaleUnitId ?? null);
+    setDefaultPurchaseUnitId(prod.defaultPurchaseUnitId ?? null);
     setName(prod.name);
     setBarcode(prod.barcode || '');
     const extraCodes = (prod.barcodes || []).filter(b => b && b !== prod.barcode);
@@ -513,10 +527,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setUnit(u);
 
     // Load or initialize units for this product
-    if (prod.units && prod.units.length > 0) {
+    if (prod.units && prod.units.length > 1) {
       setProductUnits(prod.units);
     } else {
-      setProductUnits([{
+      setProductUnits(prod.units && prod.units.length === 1 ? prod.units : [{
         unitName: u === 'kg' ? 'كيلو' : 'قطعة',
         conversionFactor: 1,
         isBaseUnit: true,
@@ -529,6 +543,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       void invoke<ProductUnit[]>('productUnits:getByProduct', { productId: prod.id }).then((units) => {
         if (units && units.length > 0) {
           setProductUnits(units);
+          setEditingProduct(prev => prev ? { ...prev, units } : prev);
         }
       }).catch(() => {
         // keep default
@@ -729,10 +744,11 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
       const synchronizedUnits = productUnits.map(u => {
         if (u.isBaseUnit) {
+          const keepExistingPrice = productUnits.length > 1 && u.sellPricePiasters > 0;
           return {
             ...u,
-            sellPricePiasters: pricePiasters,
-            costPricePiasters: costPiasters,
+            sellPricePiasters: keepExistingPrice ? u.sellPricePiasters : pricePiasters,
+            costPricePiasters: keepExistingPrice ? u.costPricePiasters : costPiasters,
             barcode: primaryBarcode,
             unitName: u.unitName.trim() || (unit === 'kg' ? 'كيلو' : 'قطعة'),
             isDivisible: unit === 'kg' || u.isDivisible
@@ -758,6 +774,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         isActive: true,
         variantSize: variantSize.trim() || undefined,
         variantColor: variantColor.trim() || undefined,
+        isLooseSellable,
+        defaultSaleUnitId: defaultSaleUnitId || null,
+        defaultPurchaseUnitId: defaultPurchaseUnitId || null,
         confirmSimilarName: forceConfirmSimilar,
         confirmBelowCost: forceConfirmCost,
       };
@@ -776,6 +795,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           costPricePiasters: costPiasters,
           status: 'ACTIVE'
         }).catch(() => null);
+      }
+      if (saved) {
+        setProducts(prev => prev.map(p => p.id === saved.id ? { ...p, ...saved } : p));
       }
       setSimilarWarning(null);
       setBelowCostWarning(null);
@@ -1350,6 +1372,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         setVariantSize={setVariantSize}
         variantColor={variantColor}
         setVariantColor={setVariantColor}
+        isLooseSellable={isLooseSellable}
+        setIsLooseSellable={setIsLooseSellable}
+        defaultSaleUnitId={defaultSaleUnitId}
+        setDefaultSaleUnitId={setDefaultSaleUnitId}
+        defaultPurchaseUnitId={defaultPurchaseUnitId}
+        setDefaultPurchaseUnitId={setDefaultPurchaseUnitId}
+        editingProduct={editingProduct}
         initialExpiryDate={initialExpiryDate}
         setInitialExpiryDate={setInitialExpiryDate}
         initialBatchNumber={initialBatchNumber}

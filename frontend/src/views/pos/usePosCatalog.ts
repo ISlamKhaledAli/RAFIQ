@@ -32,7 +32,6 @@ export const usePosCatalog = ({
   barcodeInputRef,
   setInitialWeightMilli,
   setWeightModalProduct,
-  setUnitPickerProduct,
 }: UsePosCatalogProps) => {
   const [catalogSearchQuery, setCatalogSearchQuery] = useState('');
   const [activeCatalogTab, setActiveCatalogTab] = useState<string>('__ALL__');
@@ -81,11 +80,23 @@ export const usePosCatalog = ({
         resolvedCategoryId = categoryNameToId.get(resolvedCategoryName.toLowerCase()) || null;
       }
 
+      const defaultUnit = (p.units && p.units.length > 0)
+        ? (p.defaultSaleUnitId ? p.units.find(u => u.id === p.defaultSaleUnitId) : null)
+          || (p.isLooseSellable === false && p.units.length > 1
+              ? [...p.units].filter(u => !u.isBaseUnit).sort((a, b) => b.conversionFactor - a.conversionFactor)[0]
+              : null)
+          || p.units.find(u => u.isBaseUnit)
+          || p.units[0]
+        : null;
+      const baseOrProductPrice = (defaultUnit && defaultUnit.sellPricePiasters > 0)
+        ? defaultUnit.sellPricePiasters
+        : p.pricePiasters;
+
       list.push({
         id: p.id,
         productId: p.id,
         name: matchedQuick?.name || p.name,
-        pricePiasters: (matchedQuick && matchedQuick.pricePiasters > 0) ? matchedQuick.pricePiasters : p.pricePiasters,
+        pricePiasters: (matchedQuick && matchedQuick.pricePiasters > 0) ? matchedQuick.pricePiasters : baseOrProductPrice,
         isOpenPrice: matchedQuick?.isOpenPrice || Boolean(p.isOpenPrice),
         unit: p.unit || 'piece',
         categoryId: resolvedCategoryId,
@@ -105,6 +116,8 @@ export const usePosCatalog = ({
         hasBatches: p.hasBatches,
         nearestExpiryDate: p.nearestExpiryDate,
         isExpired: p.isExpired,
+        defaultSaleUnitId: p.defaultSaleUnitId,
+        isLooseSellable: p.isLooseSellable,
       });
       seenProductIds.add(p.id);
     }
@@ -305,18 +318,23 @@ export const usePosCatalog = ({
     }
 
     if (item.productRef) {
-      const customPrice = item.pricePiasters !== item.productRef.pricePiasters;
-      const productToAdd = customPrice ? { ...item.productRef, pricePiasters: item.pricePiasters } : item.productRef;
+      const defaultUnit = (item.productRef.units && item.productRef.units.length > 0)
+        ? (item.productRef.defaultSaleUnitId ? item.productRef.units.find(u => u.id === item.productRef!.defaultSaleUnitId) : null)
+          || (item.productRef.isLooseSellable === false && item.productRef.units.length > 1
+              ? [...item.productRef.units].filter(u => !u.isBaseUnit).sort((a, b) => b.conversionFactor - a.conversionFactor)[0]
+              : null)
+          || item.productRef.units.find(u => u.isBaseUnit)
+          || item.productRef.units[0]
+        : null;
+      const targetUnit = specificUnit || defaultUnit || undefined;
+      const effectivePrice = (targetUnit && targetUnit.sellPricePiasters > 0)
+        ? targetUnit.sellPricePiasters
+        : item.pricePiasters;
+      const productToAdd = { ...item.productRef, pricePiasters: effectivePrice };
 
-      // If item has multiple units and no specific unit was chosen, prompt Unit Picker Modal
-      if (!specificUnit && productToAdd.units && productToAdd.units.length > 1 && setUnitPickerProduct) {
-        setUnitPickerProduct(productToAdd);
-        return;
-      }
-
-      const added = addProductToCart(productToAdd, undefined, specificUnit);
+      const added = addProductToCart(productToAdd, undefined, targetUnit);
       if (added && !productToAdd.hasVariants && productToAdd.unit !== 'kg') {
-        const unitSuffix = specificUnit ? ` (${specificUnit.unitName})` : '';
+        const unitSuffix = targetUnit ? ` (${targetUnit.unitName})` : '';
         showStatus(`تمت إضافة: ${item.name}${unitSuffix}`, 'success');
       }
       barcodeInputRef.current?.focus();
@@ -375,22 +393,31 @@ export const usePosCatalog = ({
       variantSize: item.variantSize,
       variantsCount: item.variantsCount,
       units: item.units,
+      defaultSaleUnitId: item.defaultSaleUnitId,
+      isLooseSellable: item.isLooseSellable,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
 
-    if (!specificUnit && dummyProduct.units && dummyProduct.units.length > 1 && setUnitPickerProduct) {
-      setUnitPickerProduct(dummyProduct);
-      return;
-    }
-
-    const added = addProductToCart(dummyProduct, undefined, specificUnit);
+    const defaultDummyUnit = (dummyProduct.units && dummyProduct.units.length > 0)
+      ? (dummyProduct.defaultSaleUnitId ? dummyProduct.units.find(u => u.id === dummyProduct.defaultSaleUnitId) : null)
+        || (dummyProduct.isLooseSellable === false && dummyProduct.units.length > 1
+            ? [...dummyProduct.units].filter(u => !u.isBaseUnit).sort((a, b) => b.conversionFactor - a.conversionFactor)[0]
+            : null)
+        || dummyProduct.units.find(u => u.isBaseUnit)
+        || dummyProduct.units[0]
+      : null;
+    const targetUnit = specificUnit || defaultDummyUnit || undefined;
+    const effectiveDummyPrice = (targetUnit && targetUnit.sellPricePiasters > 0)
+      ? targetUnit.sellPricePiasters
+      : dummyProduct.pricePiasters;
+    const added = addProductToCart({ ...dummyProduct, pricePiasters: effectiveDummyPrice }, undefined, targetUnit);
     if (added && !dummyProduct.hasVariants && dummyProduct.unit !== 'kg') {
-      const unitSuffix = specificUnit ? ` (${specificUnit.unitName})` : '';
+      const unitSuffix = targetUnit ? ` (${targetUnit.unitName})` : '';
       showStatus(`تمت إضافة: ${item.name}${unitSuffix}`, 'success');
     }
     barcodeInputRef.current?.focus();
-  }, [addProductToCart, showStatus, barcodeInputRef, setInitialWeightMilli, setWeightModalProduct, setUnitPickerProduct, quickItems, catalogProducts]);
+  }, [addProductToCart, showStatus, barcodeInputRef, setInitialWeightMilli, setWeightModalProduct, quickItems, catalogProducts]);
 
   const handleConfirmOpenPrice = (e: FormEvent) => {
     e.preventDefault();

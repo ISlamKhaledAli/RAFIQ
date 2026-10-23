@@ -33,6 +33,13 @@ namespace RafiqPOS.Bridge
                 return authFailure;
             }
 
+            // Central server-side feature gate: block mutations for disabled features (Feature #182 / Task 182-2)
+            BridgeResponse featureGateFailure = CheckFeatureGate(request);
+            if (featureGateFailure != null)
+            {
+                return featureGateFailure;
+            }
+
             // Lock write operations immediately if database is corrupt (Task 124-1)
             if (DatabaseService.IsCorrupted && (
                 request.Action == "returns:create" ||
@@ -63,6 +70,8 @@ namespace RafiqPOS.Bridge
                 request.Action == "productUnits:save" ||
                 request.Action == "productUnits:delete" ||
                 request.Action == "productUnits:setBase" ||
+                request.Action == "products:rebaseUnit" ||
+                request.Action == "packaging:saveLevels" ||
                 request.Action == "excel:importCustomers" ||
                 request.Action == "templates:apply" ||
                 request.Action == "templates:seedProducts" ||
@@ -220,6 +229,9 @@ namespace RafiqPOS.Bridge
             // First-run & initial store profile
             "settings:getStoreProfile",
             "features:getAll",
+            "system.getFeatureRegistry",
+            "system:getFeatureRegistry",
+            "features:getRegistry",
             "support:getSystemInfo",
             "templates:getAll",
             "templates:isFirstRunNeeded",
@@ -278,6 +290,8 @@ namespace RafiqPOS.Bridge
             { "products:generateInternalBarcode", "products.edit" },
             { "products:assignInternalBarcode", "products.edit" },
             { "products:bulkGenerateInternalBarcodes", "products.edit" },
+            { "products:rebaseUnit", "products.unit_rebase" },
+            { "packaging:saveLevels", "products.packaging.edit" },
             { "productUnits:getByProduct", "products.view" },
             { "productUnits:calculateProfit", "products.edit_cost" },
             { "productUnits:save", "products.edit" },
@@ -650,6 +664,38 @@ namespace RafiqPOS.Bridge
                 Logger.Warn(string.Format("رفض تنفيذ إجراء غير مصرح: {0} للمستخدم {1}", request.Action, sessionUser.Username));
                 return BridgeResponse.Fail(request.Id, "FORBIDDEN", "ليس لديك صلاحية لتنفيذ هذه العملية. يرجى التواصل مع مدير المحل.");
             }
+            return null;
+        }
+
+        private static BridgeResponse CheckFeatureGate(BridgeRequest request)
+        {
+            if (request == null || string.IsNullOrEmpty(request.Action)) return null;
+
+            string featureKey = FeatureRegistry.GetFeatureForCommand(request.Action);
+            if (string.IsNullOrEmpty(featureKey))
+            {
+                return null;
+            }
+
+            // Historical and read-only reporting commands are exempted from feature gate
+            if (FeatureRegistry.IsHistoricalOrReadCommand(request.Action))
+            {
+                return null;
+            }
+
+            bool isEnabled = DatabaseService.Settings != null && DatabaseService.Settings.IsFeatureEnabled(featureKey);
+            if (!isEnabled)
+            {
+                FeatureDefinition def = FeatureRegistry.GetDefinition(featureKey);
+                string featName = def != null ? def.NameAr : featureKey;
+                Logger.Warn(string.Format("FEATURE_GATE: تم حظر الإجراء '{0}' لأن الميزة '{1}' غير مفعّلة في هذا المحل.", request.Action, featName));
+                return BridgeResponse.Fail(
+                    request.Id,
+                    "FEATURE_DISABLED",
+                    string.Format("ميزة «{0}» غير مفعّلة في هذا المحل.", featName)
+                );
+            }
+
             return null;
         }
     }

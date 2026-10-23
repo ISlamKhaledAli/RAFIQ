@@ -32,6 +32,7 @@ interface UsePosShortcutsProps {
   setPaymentMethod: React.Dispatch<React.SetStateAction<'cash' | 'credit'>>;
   setIsReturnModalOpen: (val: boolean) => void;
   showStatus: (text: string, type?: 'success' | 'error' | 'warning') => void;
+  cycleCartItemUnit?: () => void;
   hasPermission?: (key: string) => boolean;
   isAdmin?: boolean;
 }
@@ -61,6 +62,7 @@ export const usePosShortcuts = ({
   setPaymentMethod,
   setIsReturnModalOpen,
   showStatus,
+  cycleCartItemUnit,
   hasPermission,
   isAdmin,
 }: UsePosShortcutsProps) => {
@@ -244,6 +246,18 @@ export const usePosShortcuts = ({
         return;
       }
 
+      // Key '/' or NumpadDivide: Cycle Packaging Unit of cart item (Feature #183 / Task 183-5)
+      if (e.key === '/' || e.code === 'Slash' || e.code === 'NumpadDivide') {
+        const isSearchInput = activeEl === barcodeInputRef.current;
+        if (!isInputFocused || (isSearchInput && (!barcodeInputRef.current?.value || barcodeInputRef.current.value.trim() === ''))) {
+          e.preventDefault();
+          if (cycleCartItemUnit) {
+            cycleCartItemUnit();
+          }
+          return;
+        }
+      }
+
       // 2. Hardware Barcode Scanner & Typing Discrimination (Requirement 1 & 3):
       // Ignore OS shortcut modifiers
       if (e.altKey || e.ctrlKey || e.metaKey) return;
@@ -357,6 +371,7 @@ export const usePosShortcuts = ({
     setPaymentMethod,
     setIsReturnModalOpen,
     showStatus,
+    cycleCartItemUnit,
     isActive,
     isAnyModalOpen,
     hasPermission,
