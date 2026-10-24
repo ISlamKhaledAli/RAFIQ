@@ -62,6 +62,12 @@ namespace RafiqPOS.Models
         [JsonProperty("packageCostPiasters")]
         public long PackageCostPiasters { get; set; }
 
+        [JsonProperty("publicPricePiasters")]
+        public long? PublicPricePiasters { get; set; }
+
+        [JsonProperty("distributorDiscountBps")]
+        public int? DistributorDiscountBps { get; set; }
+
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
     }

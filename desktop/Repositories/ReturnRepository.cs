@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data.SQLite;
 using RafiqPOS.Common;
 using RafiqPOS.Models;
+using RafiqPOS.Services;
 
 namespace RafiqPOS.Repositories
 {
@@ -380,25 +381,54 @@ namespace RafiqPOS.Repositories
                                     if (!string.IsNullOrEmpty(returnObj.SaleId))
                                     {
                                         var saleBatches = new List<Tuple<string, string, long>>();
-                                        string sBatchesSql = @"
-                                            SELECT sm.batch_id, pb.batch_number, ABS(sm.quantity_milli) AS deducted_qty
-                                            FROM stock_movements sm
-                                            JOIN product_batches pb ON sm.batch_id = pb.id
-                                            WHERE sm.reference_id = @sid AND sm.movement_type = 'SALE' AND sm.product_id = @prodId AND sm.batch_id IS NOT NULL
-                                            ORDER BY sm.created_at DESC, sm.rowid DESC;
+                                        // Priority 1: Check sale_item_batch_allocations for exact batch allocations
+                                        string sAllocSql = @"
+                                            SELECT a.batch_id, pb.batch_number, a.quantity_milli AS deducted_qty
+                                            FROM sale_item_batch_allocations a
+                                            JOIN sale_items si ON a.sale_item_id = si.id
+                                            JOIN product_batches pb ON a.batch_id = pb.id
+                                            WHERE si.sale_id = @sid AND si.product_id = @prodId
+                                            ORDER BY a.created_at DESC;
                                         ";
-                                        using (var sbCmd = new SQLiteCommand(sBatchesSql, conn, trans))
+                                        using (var saCmd = new SQLiteCommand(sAllocSql, conn, trans))
                                         {
-                                            sbCmd.Parameters.AddWithValue("@sid", returnObj.SaleId);
-                                            sbCmd.Parameters.AddWithValue("@prodId", item.ProductId);
-                                            using (var sbReader = sbCmd.ExecuteReader())
+                                            saCmd.Parameters.AddWithValue("@sid", returnObj.SaleId);
+                                            saCmd.Parameters.AddWithValue("@prodId", item.ProductId);
+                                            using (var saReader = saCmd.ExecuteReader())
                                             {
-                                                while (sbReader.Read())
+                                                while (saReader.Read())
                                                 {
-                                                    string bId = sbReader["batch_id"].ToString();
-                                                    string bNum = sbReader["batch_number"].ToString();
-                                                    long dQty = Convert.ToInt64(sbReader["deducted_qty"]);
+                                                    string bId = saReader["batch_id"].ToString();
+                                                    string bNum = saReader["batch_number"].ToString();
+                                                    long dQty = Convert.ToInt64(saReader["deducted_qty"]);
                                                     saleBatches.Add(new Tuple<string, string, long>(bId, bNum, dQty));
+                                                }
+                                            }
+                                        }
+
+                                        // Fallback: If no allocations found (e.g. historical sales before migration 43), query stock_movements
+                                        if (saleBatches.Count == 0)
+                                        {
+                                            string sBatchesSql = @"
+                                                SELECT sm.batch_id, pb.batch_number, ABS(sm.quantity_milli) AS deducted_qty
+                                                FROM stock_movements sm
+                                                JOIN product_batches pb ON sm.batch_id = pb.id
+                                                WHERE sm.reference_id = @sid AND sm.movement_type = 'SALE' AND sm.product_id = @prodId AND sm.batch_id IS NOT NULL
+                                                ORDER BY sm.created_at DESC, sm.rowid DESC;
+                                            ";
+                                            using (var sbCmd = new SQLiteCommand(sBatchesSql, conn, trans))
+                                            {
+                                                sbCmd.Parameters.AddWithValue("@sid", returnObj.SaleId);
+                                                sbCmd.Parameters.AddWithValue("@prodId", item.ProductId);
+                                                using (var sbReader = sbCmd.ExecuteReader())
+                                                {
+                                                    while (sbReader.Read())
+                                                    {
+                                                        string bId = sbReader["batch_id"].ToString();
+                                                        string bNum = sbReader["batch_number"].ToString();
+                                                        long dQty = Convert.ToInt64(sbReader["deducted_qty"]);
+                                                        saleBatches.Add(new Tuple<string, string, long>(bId, bNum, dQty));
+                                                    }
                                                 }
                                             }
                                         }
@@ -586,6 +616,32 @@ namespace RafiqPOS.Repositories
                                     cmd.ExecuteNonQuery();
                                 }
                             }
+                            }
+
+                            // Story 131 / Task 188-5: Controlled Drug Contra-Entry in Inspection Ledger
+                            if (DatabaseService.ControlledDrugRepo != null && DatabaseService.ControlledDrugRepo.IsProductControlled(item.ProductId, conn, trans))
+                            {
+                                var contra = new ControlledDrugDispense
+                                {
+                                    Id = Guid.NewGuid().ToString(),
+                                    SaleId = returnObj.SaleId,
+                                    SaleItemId = item.SaleItemId,
+                                    ProductId = item.ProductId,
+                                    ProductName = item.ProductName ?? catalogProdName,
+                                    BatchId = item.BatchId,
+                                    BatchNumber = item.BatchNumber,
+                                    QuantityMilli = baseQtyMilli,
+                                    PatientName = !string.IsNullOrEmpty(returnObj.CustomerName) ? returnObj.CustomerName : "مرتجع عميل",
+                                    DoctorName = "إشعار مرتجع صيدلي",
+                                    PrescriptionDate = DateTime.UtcNow.ToString("yyyy-MM-dd"),
+                                    EntryType = "return",
+                                    Reason = !string.IsNullOrEmpty(returnObj.Reason) ? returnObj.Reason : "مرتجع صيدلي رسمي",
+                                    DispensedBy = returnObj.CashierId ?? "system",
+                                    ApprovedBy = "مدير الصيدلية / المشرف المعتمد",
+                                    Notes = string.Format("قيد معاكس رسمي لمرتجع #{0}", returnObj.ReturnNumber),
+                                    CreatedAt = nowIso
+                                };
+                                DatabaseService.ControlledDrugRepo.InsertDispense(contra, conn, trans);
                             }
                         }
 

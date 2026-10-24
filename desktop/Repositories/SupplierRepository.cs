@@ -115,10 +115,10 @@ namespace RafiqPOS.Repositories
                             string insertSql = @"
                                 INSERT INTO suppliers (
                                     id, name, phone, company_name, address, balance_piasters,
-                                    notes, is_active, created_at, updated_at
+                                    notes, is_active, expiry_return_window_days, expiry_return_credit_bps, created_at, updated_at
                                 ) VALUES (
                                     @id, @name, @phone, @companyName, @address, @balancePiasters,
-                                    @notes, @isActive, @createdAt, @updatedAt
+                                    @notes, @isActive, @expiryReturnWindowDays, @expiryReturnCreditBps, @createdAt, @updatedAt
                                 );
                             ";
                             using (var cmd = new SQLiteCommand(insertSql, conn, trans))
@@ -131,6 +131,8 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@balancePiasters", supplier.BalancePiasters);
                                 cmd.Parameters.AddWithValue("@notes", (object)supplier.Notes ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@isActive", supplier.IsActive ? 1 : 0);
+                                cmd.Parameters.AddWithValue("@expiryReturnWindowDays", (object)supplier.ExpiryReturnWindowDays ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@expiryReturnCreditBps", (object)supplier.ExpiryReturnCreditBps ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@createdAt", supplier.CreatedAt);
                                 cmd.Parameters.AddWithValue("@updatedAt", supplier.UpdatedAt);
                                 cmd.ExecuteNonQuery();
@@ -177,6 +179,8 @@ namespace RafiqPOS.Repositories
                                     company_name = @companyName,
                                     address = @address,
                                     notes = @notes,
+                                    expiry_return_window_days = @expiryReturnWindowDays,
+                                    expiry_return_credit_bps = @expiryReturnCreditBps,
                                     updated_at = @updatedAt
                                 WHERE id = @id;
                             ";
@@ -187,6 +191,8 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@companyName", (object)supplier.CompanyName ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@address", (object)supplier.Address ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@notes", (object)supplier.Notes ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@expiryReturnWindowDays", (object)supplier.ExpiryReturnWindowDays ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@expiryReturnCreditBps", (object)supplier.ExpiryReturnCreditBps ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@updatedAt", supplier.UpdatedAt);
                                 cmd.Parameters.AddWithValue("@id", supplier.Id);
                                 cmd.ExecuteNonQuery();
@@ -795,7 +801,7 @@ namespace RafiqPOS.Repositories
 
         private static Supplier MapReaderToSupplier(SQLiteDataReader reader)
         {
-            return new Supplier
+            var s = new Supplier
             {
                 Id = reader["id"].ToString(),
                 Name = reader["name"].ToString(),
@@ -808,6 +814,17 @@ namespace RafiqPOS.Repositories
                 CreatedAt = reader["created_at"].ToString(),
                 UpdatedAt = reader["updated_at"].ToString()
             };
+
+            if (HasColumn(reader, "expiry_return_window_days") && reader["expiry_return_window_days"] != DBNull.Value)
+            {
+                s.ExpiryReturnWindowDays = Convert.ToInt32(reader["expiry_return_window_days"]);
+            }
+            if (HasColumn(reader, "expiry_return_credit_bps") && reader["expiry_return_credit_bps"] != DBNull.Value)
+            {
+                s.ExpiryReturnCreditBps = Convert.ToInt32(reader["expiry_return_credit_bps"]);
+            }
+
+            return s;
         }
 
         private static bool HasColumn(SQLiteDataReader reader, string columnName)

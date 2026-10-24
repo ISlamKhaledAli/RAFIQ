@@ -17,6 +17,23 @@ namespace RafiqPOS.Services
         public HeldSale HoldSale(HeldSale heldSale)
         {
             if (heldSale == null) throw new ArgumentNullException("heldSale");
+
+            // Story 131 / Task 188-2: Prevent holding controlled drugs
+            if (!string.IsNullOrEmpty(heldSale.CartJson) && DatabaseService.ControlledDrugRepo != null)
+            {
+                var controlledIds = DatabaseService.ControlledDrugRepo.GetControlledProductIds();
+                if (controlledIds != null && controlledIds.Count > 0)
+                {
+                    foreach (var cId in controlledIds)
+                    {
+                        if (heldSale.CartJson.IndexOf(cId, StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            throw new InvalidOperationException("لا يمكن تعليق فاتورة تحتوي على أدوية جدول أو مهدئات خاضعة للرقابة.");
+                        }
+                    }
+                }
+            }
+
             if (string.IsNullOrEmpty(heldSale.HoldLabel))
             {
                 heldSale.HoldLabel = "معلقة " + DateTime.Now.ToString("HH:mm");

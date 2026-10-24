@@ -41,6 +41,9 @@ namespace RafiqPOS.Models
         [JsonProperty("creditSalesPiasters")]
         public long CreditSalesPiasters { get; set; }
 
+        [JsonProperty("insuranceSalesPiasters")]
+        public long InsuranceSalesPiasters { get; set; }
+
         [JsonProperty("epayTerminalsBalancePiasters")]
         public long EpayTerminalsBalancePiasters { get; set; }
 
@@ -196,6 +199,9 @@ namespace RafiqPOS.Models
 
         [JsonProperty("creditSalesPiasters")]
         public long CreditSalesPiasters { get; set; }
+
+        [JsonProperty("insuranceSalesPiasters")]
+        public long InsuranceSalesPiasters { get; set; }
 
         [JsonProperty("epayTerminalsBalancePiasters")]
         public long EpayTerminalsBalancePiasters { get; set; }

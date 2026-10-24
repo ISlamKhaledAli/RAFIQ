@@ -112,6 +112,25 @@ namespace RafiqPOS.Repositories
                                 item.UnitCostPiasters = (long)Math.Round((decimal)item.PackageCostPiasters / (decimal)item.ConversionFactor, MidpointRounding.AwayFromZero);
                             }
 
+                            // Pharmacy Distributor Pricing (P10 / Story 136): Calculate unit cost from public price minus distributor discount bps
+                            if (item.PublicPricePiasters.HasValue && item.PublicPricePiasters.Value > 0)
+                            {
+                                long pubPrice = item.PublicPricePiasters.Value;
+                                int distBps = item.DistributorDiscountBps.HasValue ? item.DistributorDiscountBps.Value : 0;
+                                if (distBps < 0) distBps = 0;
+                                if (distBps > 10000) distBps = 10000;
+
+                                if (item.UnitCostPiasters <= 0)
+                                {
+                                    item.UnitCostPiasters = (long)Math.Round((decimal)pubPrice * (10000 - distBps) / 10000m, MidpointRounding.AwayFromZero);
+                                }
+
+                                if (!item.NewSellingPricePiasters.HasValue || item.NewSellingPricePiasters.Value <= 0)
+                                {
+                                    item.NewSellingPricePiasters = pubPrice;
+                                }
+                            }
+
                             if (item.UnitCostPiasters < 0)
                             {
                                 throw new ArgumentException(string.Format("تكلفة شراء الصنف '{0}' لا يمكن أن تكون سالبة", item.ProductName ?? item.ProductId));
@@ -332,6 +351,10 @@ namespace RafiqPOS.Repositories
                                     ProductionDate = item.ProductionDate,
                                     QuantityMilli = totalReceivedMilli,
                                     CostPricePiasters = effectiveUnitCost,
+                                    SellPricePiasters = item.NewSellingPricePiasters.HasValue && item.NewSellingPricePiasters.Value > 0
+                                        ? item.NewSellingPricePiasters
+                                        : item.PublicPricePiasters,
+                                    PublicPricePiasters = item.PublicPricePiasters,
                                     SupplierId = purchase.SupplierId,
                                     PurchaseId = purchase.Id,
                                     Notes = "فاتورة شراء #" + purchase.InvoiceNumber
@@ -349,6 +372,7 @@ namespace RafiqPOS.Repositories
                                     previous_cost_piasters, new_selling_price_piasters,
                                     batch_number, expiry_date, production_date,
                                     unit_id, unit_name, conversion_factor, package_cost_piasters,
+                                    public_price_piasters, distributor_discount_bps,
                                     created_at
                                 ) VALUES (
                                     @id, @purId, @prodId, @prodName, @barcode,
@@ -356,6 +380,7 @@ namespace RafiqPOS.Repositories
                                     @prevCost, @newPrice,
                                     @bnum, @exp, @prodDate,
                                     @unitId, @unitName, @convFactor, @pkgCost,
+                                    @pubPrice, @distBps,
                                     @createdAt
                                 );
                             ";
@@ -380,6 +405,8 @@ namespace RafiqPOS.Repositories
                                 cmd.Parameters.AddWithValue("@unitName", (object)item.UnitName ?? DBNull.Value);
                                 cmd.Parameters.AddWithValue("@convFactor", item.ConversionFactor > 0 ? item.ConversionFactor : 1.0);
                                 cmd.Parameters.AddWithValue("@pkgCost", item.PackageCostPiasters);
+                                cmd.Parameters.AddWithValue("@pubPrice", item.PublicPricePiasters.HasValue ? (object)item.PublicPricePiasters.Value : DBNull.Value);
+                                cmd.Parameters.AddWithValue("@distBps", item.DistributorDiscountBps.HasValue ? (object)item.DistributorDiscountBps.Value : DBNull.Value);
                                 cmd.Parameters.AddWithValue("@createdAt", item.CreatedAt);
                                 cmd.ExecuteNonQuery();
                             }
@@ -1274,10 +1301,14 @@ namespace RafiqPOS.Repositories
             string uName = null;
             double convFactor = 1.0;
             long pkgCost = 0;
+            long? pubPrice = null;
+            int? distBps = null;
             if (HasColumn(reader, "unit_id") && reader["unit_id"] != DBNull.Value) uId = reader["unit_id"].ToString();
             if (HasColumn(reader, "unit_name") && reader["unit_name"] != DBNull.Value) uName = reader["unit_name"].ToString();
             if (HasColumn(reader, "conversion_factor") && reader["conversion_factor"] != DBNull.Value) convFactor = Convert.ToDouble(reader["conversion_factor"]);
             if (HasColumn(reader, "package_cost_piasters") && reader["package_cost_piasters"] != DBNull.Value) pkgCost = Convert.ToInt64(reader["package_cost_piasters"]);
+            if (HasColumn(reader, "public_price_piasters") && reader["public_price_piasters"] != DBNull.Value) pubPrice = Convert.ToInt64(reader["public_price_piasters"]);
+            if (HasColumn(reader, "distributor_discount_bps") && reader["distributor_discount_bps"] != DBNull.Value) distBps = Convert.ToInt32(reader["distributor_discount_bps"]);
 
             return new PurchaseItem
             {
@@ -1300,6 +1331,8 @@ namespace RafiqPOS.Repositories
                 UnitName = uName,
                 ConversionFactor = convFactor,
                 PackageCostPiasters = pkgCost,
+                PublicPricePiasters = pubPrice,
+                DistributorDiscountBps = distBps,
                 CreatedAt = reader["created_at"].ToString()
             };
         }

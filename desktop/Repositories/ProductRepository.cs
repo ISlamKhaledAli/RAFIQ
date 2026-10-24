@@ -25,9 +25,19 @@ namespace RafiqPOS.Repositories
             {
                 conn.Open();
                 string sql = @"
-                    SELECT p.*, COALESCE(c.name, 'عام') AS category_name 
+                    SELECT p.*, COALESCE(c.name, 'عام') AS category_name,
+                           COALESCE(sl.name, '') AS location_name,
+                           COALESCE(sl.code, '') AS location_code,
+                           COALESCE(sl.type, '') AS location_type,
+                           COALESCE(pi.scientific_name, '') AS scientific_name,
+                           COALESCE(df.name_ar, '') AS dosage_form_name,
+                           COALESCE(pi.rx_status, 'otc') AS rx_status,
+                           COALESCE(pi.controlled_schedule, 'none') AS controlled_schedule
                     FROM products p 
                     LEFT JOIN categories c ON p.category_id = c.id 
+                    LEFT JOIN storage_locations sl ON p.location_id = sl.id
+                    LEFT JOIN product_pharma_info pi ON p.id = pi.product_id
+                    LEFT JOIN pharma_dosage_forms df ON pi.dosage_form_id = df.id
                     WHERE p.id = @id LIMIT 1;
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn))
@@ -56,10 +66,21 @@ namespace RafiqPOS.Repositories
             {
                 conn.Open();
                 string sql = @"
-                    SELECT DISTINCT p.*, COALESCE(c.name, 'عام') AS category_name FROM products p
+                    SELECT DISTINCT p.*, COALESCE(c.name, 'عام') AS category_name,
+                           COALESCE(sl.name, '') AS location_name,
+                           COALESCE(sl.code, '') AS location_code,
+                           COALESCE(sl.type, '') AS location_type,
+                           COALESCE(pi.scientific_name, '') AS scientific_name,
+                           COALESCE(df.name_ar, '') AS dosage_form_name,
+                           COALESCE(pi.rx_status, 'otc') AS rx_status,
+                           COALESCE(pi.controlled_schedule, 'none') AS controlled_schedule
+                    FROM products p
                     LEFT JOIN categories c ON p.category_id = c.id
+                    LEFT JOIN storage_locations sl ON p.location_id = sl.id
                     LEFT JOIN product_barcodes pb ON p.id = pb.product_id
                     LEFT JOIN product_units pu ON p.id = pu.product_id
+                    LEFT JOIN product_pharma_info pi ON p.id = pi.product_id
+                    LEFT JOIN pharma_dosage_forms df ON pi.dosage_form_id = df.id
                     WHERE p.is_active = 1 AND (p.barcode = @barcode OR pb.barcode = @barcode OR pu.barcode = @barcode)
                     LIMIT 1;
                 ";
@@ -89,8 +110,13 @@ namespace RafiqPOS.Repositories
             {
                 conn.Open();
                 string sql = @"
-                    SELECT DISTINCT p.*, COALESCE(c.name, 'عام') AS category_name FROM products p
+                    SELECT DISTINCT p.*, COALESCE(c.name, 'عام') AS category_name,
+                           COALESCE(sl.name, '') AS location_name,
+                           COALESCE(sl.code, '') AS location_code,
+                           COALESCE(sl.type, '') AS location_type
+                    FROM products p
                     LEFT JOIN categories c ON p.category_id = c.id
+                    LEFT JOIN storage_locations sl ON p.location_id = sl.id
                     LEFT JOIN product_barcodes pb ON p.id = pb.product_id
                     LEFT JOIN product_units pu ON p.id = pu.product_id
                     WHERE p.barcode = @barcode OR pb.barcode = @barcode OR pu.barcode = @barcode
@@ -218,40 +244,63 @@ namespace RafiqPOS.Repositories
                     filterSql += " AND (p.category_id = @categoryId OR (p.category_id IS NULL AND @categoryId = 'cat_general'))";
                 }
 
-                string sql = @"
-                    SELECT DISTINCT p.*, COALESCE(c.name, 'عام') AS category_name,
-                        CASE 
-                            WHEN p.has_variants = 1 THEN 1
-                            WHEN EXISTS(SELECT 1 FROM product_variants pv WHERE pv.parent_product_id = p.id) THEN 1
-                            ELSE 0 
-                        END AS has_variants_computed,
-                        (SELECT COUNT(*) FROM product_variants pv WHERE pv.parent_product_id = p.id) AS variants_count
-                    FROM products p
-                    LEFT JOIN categories c ON p.category_id = c.id
-                    LEFT JOIN product_barcodes pb ON p.id = pb.product_id
-                    LEFT JOIN product_units pu ON p.id = pu.product_id
-                    WHERE p.is_active = 1 " + filterSql + @"
-                      AND (
-                           p.barcode = @exact 
-                        OR pb.barcode = @exact 
-                        OR pu.barcode = @exact
-                        OR p.internal_code = @exact 
-                        OR p.normalized_name = @normExactText
-                        OR p.normalized_name LIKE @normPrefix
-                        OR p.normalized_name LIKE @normLike
-                        OR p.name LIKE @like
-                      )
-                    ORDER BY 
-                      CASE 
-                        WHEN p.barcode = @exact OR pb.barcode = @exact OR pu.barcode = @exact OR p.internal_code = @exact THEN 1
-                        WHEN p.normalized_name = @normExactText THEN 2
-                        WHEN p.normalized_name LIKE @normPrefix THEN 3
-                        WHEN p.normalized_name LIKE @normLike THEN 4
-                        ELSE 5
-                      END,
-                      p.name ASC 
-                    LIMIT @limit OFFSET @offset;
-                ";
+            bool isPharmaActive = false;
+            try
+            {
+                isPharmaActive = (RafiqPOS.Services.DatabaseService.Settings != null && RafiqPOS.Services.DatabaseService.Settings.IsFeatureEnabled("feature_pharmacy"));
+            }
+            catch { }
+
+            string pharmaSelect = isPharmaActive ? "COALESCE(pi.scientific_name, '') AS scientific_name, COALESCE(df.name_ar, '') AS dosage_form_name, COALESCE(pi.rx_status, 'otc') AS rx_status, COALESCE(pi.controlled_schedule, 'none') AS controlled_schedule," : "";
+            string pharmaJoin = isPharmaActive ? "LEFT JOIN product_pharma_info pi ON p.id = pi.product_id LEFT JOIN pharma_dosage_forms df ON pi.dosage_form_id = df.id " : "";
+            string pharmaWhere = isPharmaActive ? @"
+                        OR pi.normalized_scientific_name LIKE @normLike 
+                        OR EXISTS (
+                            SELECT 1 FROM product_ingredients ping 
+                            JOIN active_ingredients ai ON ping.ingredient_id = ai.id 
+                            WHERE ping.product_id = p.id AND (ai.normalized_name LIKE @normLike OR ai.name_en LIKE @like)
+                        )" : "";
+
+            string sql = @"
+                SELECT DISTINCT p.*, " + pharmaSelect + @" COALESCE(c.name, 'عام') AS category_name,
+                    COALESCE(sl.name, '') AS location_name,
+                    COALESCE(sl.code, '') AS location_code,
+                    COALESCE(sl.type, '') AS location_type,
+                    CASE 
+                        WHEN p.has_variants = 1 THEN 1
+                        WHEN EXISTS(SELECT 1 FROM product_variants pv WHERE pv.parent_product_id = p.id) THEN 1
+                        ELSE 0 
+                    END AS has_variants_computed,
+                    (SELECT COUNT(*) FROM product_variants pv WHERE pv.parent_product_id = p.id) AS variants_count
+                FROM products p
+                LEFT JOIN categories c ON p.category_id = c.id
+                LEFT JOIN storage_locations sl ON p.location_id = sl.id
+                LEFT JOIN product_barcodes pb ON p.id = pb.product_id
+                LEFT JOIN product_units pu ON p.id = pu.product_id
+                " + pharmaJoin + @"
+                WHERE p.is_active = 1 " + filterSql + @"
+                  AND (
+                       p.barcode = @exact 
+                    OR pb.barcode = @exact 
+                    OR pu.barcode = @exact
+                    OR p.internal_code = @exact 
+                    OR p.normalized_name = @normExactText
+                    OR p.normalized_name LIKE @normPrefix
+                    OR p.normalized_name LIKE @normLike
+                    OR p.name LIKE @like
+                    " + pharmaWhere + @"
+                  )
+                ORDER BY 
+                  CASE 
+                    WHEN p.barcode = @exact OR pb.barcode = @exact OR pu.barcode = @exact OR p.internal_code = @exact THEN 1
+                    WHEN p.normalized_name = @normExactText THEN 2
+                    WHEN p.normalized_name LIKE @normPrefix THEN 3
+                    WHEN p.normalized_name LIKE @normLike THEN 4
+                    ELSE 5
+                  END,
+                  p.name ASC 
+                LIMIT @limit OFFSET @offset;
+            ";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@exact", cleanQuery);
@@ -304,6 +353,13 @@ namespace RafiqPOS.Repositories
 
                 string sql = @"
                     SELECT p.*, COALESCE(c.name, 'عام') AS category_name,
+                        COALESCE(sl.name, '') AS location_name,
+                        COALESCE(sl.code, '') AS location_code,
+                        COALESCE(sl.type, '') AS location_type,
+                        COALESCE(pi.scientific_name, '') AS scientific_name,
+                        COALESCE(df.name_ar, '') AS dosage_form_name,
+                        COALESCE(pi.rx_status, 'otc') AS rx_status,
+                        COALESCE(pi.controlled_schedule, 'none') AS controlled_schedule,
                         CASE 
                             WHEN p.has_variants = 1 THEN 1
                             WHEN EXISTS(SELECT 1 FROM product_variants pv WHERE pv.parent_product_id = p.id) THEN 1
@@ -326,6 +382,9 @@ namespace RafiqPOS.Repositories
                         CASE WHEN EXISTS(SELECT 1 FROM product_batches pb WHERE pb.product_id = p.id) THEN 1 ELSE 0 END AS has_batches
                     FROM products p
                     LEFT JOIN categories c ON p.category_id = c.id
+                    LEFT JOIN storage_locations sl ON p.location_id = sl.id
+                    LEFT JOIN product_pharma_info pi ON p.id = pi.product_id
+                    LEFT JOIN pharma_dosage_forms df ON pi.dosage_form_id = df.id
                     WHERE p.is_active = 1" + filterSql + @"
                     ORDER BY p.created_at DESC
                     LIMIT @limit OFFSET @offset;
@@ -585,9 +644,13 @@ namespace RafiqPOS.Repositories
                             (SELECT pb.batch_number FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' AND (pb.expiry_date IS NULL OR pb.expiry_date = '' OR date(pb.expiry_date) >= date('now')) ORDER BY CASE WHEN pb.expiry_date IS NULL OR pb.expiry_date = '' THEN 1 ELSE 0 END ASC, pb.expiry_date ASC, pb.created_at ASC LIMIT 1),
                             (SELECT pb.batch_number FROM product_batches pb WHERE pb.product_id = p.id AND pb.quantity_milli > 0 AND pb.status = 'ACTIVE' ORDER BY pb.created_at DESC LIMIT 1)
                         ) AS suggested_batch_number,
+                        COALESCE(sl.name, '') AS location_name,
+                        COALESCE(sl.code, '') AS location_code,
+                        COALESCE(sl.type, '') AS location_type,
                         CASE WHEN EXISTS(SELECT 1 FROM product_batches pb WHERE pb.product_id = p.id) THEN 1 ELSE 0 END AS has_batches
                     FROM products p
                     LEFT JOIN categories c ON p.category_id = c.id
+                    LEFT JOIN storage_locations sl ON p.location_id = sl.id
                     LEFT JOIN (
                         SELECT product_id, COUNT(*) AS sale_count
                         FROM sale_items
@@ -654,11 +717,13 @@ namespace RafiqPOS.Repositories
                             INSERT INTO products (
                                 id, barcode, internal_code, name, normalized_name, category_id, price_piasters, cost_piasters, 
                                 stock_quantity_milli, min_stock_quantity_milli, unit, tax_rate_percent, tax_category_code, is_active, needs_review, created_at, updated_at,
-                                has_variants, parent_id, default_sale_unit_id, default_purchase_unit_id, display_unit_id, is_loose_sellable
+                                has_variants, parent_id, default_sale_unit_id, default_purchase_unit_id, display_unit_id, is_loose_sellable,
+                                location_id, is_cold_chain, preferred_supplier_id
                             ) VALUES (
                                 @id, @barcode, @internalCode, @name, @normName, @categoryId, @price, @cost, 
                                 @stock, @minStock, @unit, @tax, @taxCategoryCode, @isActive, @needsReview, @createdAt, @updatedAt,
-                                @hasVariants, @parentId, @defaultSaleUnitId, @defaultPurchaseUnitId, @displayUnitId, @isLooseSellable
+                                @hasVariants, @parentId, @defaultSaleUnitId, @defaultPurchaseUnitId, @displayUnitId, @isLooseSellable,
+                                @locationId, @isColdChain, @preferredSupplierId
                             )
                             ON CONFLICT(id) DO UPDATE SET
                                 barcode = excluded.barcode,
@@ -680,7 +745,10 @@ namespace RafiqPOS.Repositories
                                 default_sale_unit_id = excluded.default_sale_unit_id,
                                 default_purchase_unit_id = excluded.default_purchase_unit_id,
                                 display_unit_id = excluded.display_unit_id,
-                                is_loose_sellable = excluded.is_loose_sellable;
+                                is_loose_sellable = excluded.is_loose_sellable,
+                                location_id = excluded.location_id,
+                                is_cold_chain = excluded.is_cold_chain,
+                                preferred_supplier_id = excluded.preferred_supplier_id;
                         ";
                         using (var cmd = new SQLiteCommand(sql, conn, trans))
                         {
@@ -707,6 +775,9 @@ namespace RafiqPOS.Repositories
                             cmd.Parameters.AddWithValue("@defaultPurchaseUnitId", string.IsNullOrWhiteSpace(product.DefaultPurchaseUnitId) ? (object)DBNull.Value : product.DefaultPurchaseUnitId);
                             cmd.Parameters.AddWithValue("@displayUnitId", string.IsNullOrWhiteSpace(product.DisplayUnitId) ? (object)DBNull.Value : product.DisplayUnitId);
                             cmd.Parameters.AddWithValue("@isLooseSellable", product.IsLooseSellable ? 1 : 0);
+                            cmd.Parameters.AddWithValue("@locationId", string.IsNullOrWhiteSpace(product.LocationId) ? (object)DBNull.Value : product.LocationId);
+                            cmd.Parameters.AddWithValue("@isColdChain", product.IsColdChain ? 1 : 0);
+                            cmd.Parameters.AddWithValue("@preferredSupplierId", string.IsNullOrWhiteSpace(product.PreferredSupplierId) ? (object)DBNull.Value : product.PreferredSupplierId);
                             cmd.ExecuteNonQuery();
                         }
 
@@ -1235,6 +1306,38 @@ namespace RafiqPOS.Repositories
             bool isLooseSellable = false;
             try { if (reader["is_loose_sellable"] != DBNull.Value) isLooseSellable = Convert.ToInt32(reader["is_loose_sellable"]) == 1; } catch { }
 
+            string locationId = null;
+            try { if (reader["location_id"] != DBNull.Value) locationId = reader["location_id"].ToString(); } catch { }
+
+            string locationName = null;
+            try { if (reader["location_name"] != DBNull.Value) locationName = reader["location_name"].ToString(); } catch { }
+
+            string locationCode = null;
+            try { if (reader["location_code"] != DBNull.Value) locationCode = reader["location_code"].ToString(); } catch { }
+
+            string locationType = null;
+            try { if (reader["location_type"] != DBNull.Value) locationType = reader["location_type"].ToString(); } catch { }
+
+            bool isColdChain = false;
+            try { if (reader["is_cold_chain"] != DBNull.Value) isColdChain = Convert.ToInt32(reader["is_cold_chain"]) == 1; } catch { }
+
+            string preferredSupplierId = null;
+            try { if (reader["preferred_supplier_id"] != DBNull.Value) preferredSupplierId = reader["preferred_supplier_id"].ToString(); } catch { }
+
+            string scientificName = null;
+            try { if (reader["scientific_name"] != DBNull.Value) scientificName = reader["scientific_name"].ToString(); } catch { }
+
+            string dosageFormName = null;
+            try { if (reader["dosage_form_name"] != DBNull.Value) dosageFormName = reader["dosage_form_name"].ToString(); } catch { }
+
+            string rxStatus = "otc";
+            try { if (reader["rx_status"] != DBNull.Value) rxStatus = reader["rx_status"].ToString(); } catch { }
+
+            string controlledSchedule = "none";
+            try { if (reader["controlled_schedule"] != DBNull.Value) controlledSchedule = reader["controlled_schedule"].ToString(); } catch { }
+
+            bool isControlled = (!string.IsNullOrEmpty(controlledSchedule) && controlledSchedule != "none") || rxStatus == "controlled";
+
             return new Product
             {
                 Id = reader["id"].ToString(),
@@ -1272,7 +1375,18 @@ namespace RafiqPOS.Repositories
                 DefaultSaleUnitId = defaultSaleUnitId,
                 DefaultPurchaseUnitId = defaultPurchaseUnitId,
                 DisplayUnitId = displayUnitId,
-                IsLooseSellable = isLooseSellable
+                IsLooseSellable = isLooseSellable,
+                LocationId = locationId,
+                LocationName = locationName,
+                LocationCode = locationCode,
+                LocationType = locationType,
+                IsColdChain = isColdChain,
+                PreferredSupplierId = preferredSupplierId,
+                ScientificName = scientificName,
+                DosageFormName = dosageFormName,
+                RxStatus = rxStatus,
+                ControlledSchedule = controlledSchedule,
+                IsControlled = isControlled
             };
         }
     }

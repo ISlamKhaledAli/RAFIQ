@@ -22,7 +22,8 @@ namespace RafiqPOS.Repositories
 
             string sql = @"
                 SELECT b.id, b.product_id, b.batch_number, b.expiry_date, b.production_date,
-                       b.quantity_milli, b.cost_price_piasters, b.supplier_id, b.purchase_id,
+                       b.quantity_milli, b.cost_price_piasters, b.sell_price_piasters, b.public_price_piasters,
+                       b.supplier_id, b.purchase_id,
                        b.status, b.notes, b.created_at, b.updated_at,
                        p.name AS product_name, p.barcode AS product_barcode, p.unit,
                        s.name AS supplier_name
@@ -73,7 +74,8 @@ namespace RafiqPOS.Repositories
 
             string sql = @"
                 SELECT b.id, b.product_id, b.batch_number, b.expiry_date, b.production_date,
-                       b.quantity_milli, b.cost_price_piasters, b.supplier_id, b.purchase_id,
+                       b.quantity_milli, b.cost_price_piasters, b.sell_price_piasters, b.public_price_piasters,
+                       b.supplier_id, b.purchase_id,
                        b.status, b.notes, b.created_at, b.updated_at,
                        p.name AS product_name, p.barcode AS product_barcode, p.unit,
                        s.name AS supplier_name
@@ -111,7 +113,8 @@ namespace RafiqPOS.Repositories
 
             string sql = @"
                 SELECT b.id, b.product_id, b.batch_number, b.expiry_date, b.production_date,
-                       b.quantity_milli, b.cost_price_piasters, b.supplier_id, b.purchase_id,
+                       b.quantity_milli, b.cost_price_piasters, b.sell_price_piasters, b.public_price_piasters,
+                       b.supplier_id, b.purchase_id,
                        b.status, b.notes, b.created_at, b.updated_at,
                        p.name AS product_name, p.barcode AS product_barcode, p.unit,
                        s.name AS supplier_name
@@ -150,7 +153,8 @@ namespace RafiqPOS.Repositories
 
             string sql = @"
                 SELECT b.id, b.product_id, b.batch_number, b.expiry_date, b.production_date,
-                       b.quantity_milli, b.cost_price_piasters, b.supplier_id, b.purchase_id,
+                       b.quantity_milli, b.cost_price_piasters, b.sell_price_piasters, b.public_price_piasters,
+                       b.supplier_id, b.purchase_id,
                        b.status, b.notes, b.created_at, b.updated_at,
                        p.name AS product_name, p.barcode AS product_barcode, p.unit,
                        s.name AS supplier_name
@@ -321,6 +325,8 @@ namespace RafiqPOS.Repositories
                             production_date = COALESCE(@prodDate, production_date),
                             quantity_milli = @qty,
                             cost_price_piasters = CASE WHEN @cost > 0 THEN @cost ELSE cost_price_piasters END,
+                            sell_price_piasters = @sellPrice,
+                            public_price_piasters = @publicPrice,
                             supplier_id = COALESCE(@suppId, supplier_id),
                             purchase_id = COALESCE(@purId, purchase_id),
                             status = CASE WHEN @qty > 0 THEN 'ACTIVE' ELSE 'DEPLETED' END,
@@ -334,6 +340,8 @@ namespace RafiqPOS.Repositories
                         cmd.Parameters.AddWithValue("@prodDate", (object)batch.ProductionDate ?? DBNull.Value);
                         cmd.Parameters.AddWithValue("@qty", batch.QuantityMilli);
                         cmd.Parameters.AddWithValue("@cost", batch.CostPricePiasters);
+                        cmd.Parameters.AddWithValue("@sellPrice", batch.SellPricePiasters.HasValue ? (object)batch.SellPricePiasters.Value : DBNull.Value);
+                        cmd.Parameters.AddWithValue("@publicPrice", batch.PublicPricePiasters.HasValue ? (object)batch.PublicPricePiasters.Value : DBNull.Value);
                         cmd.Parameters.AddWithValue("@suppId", (object)batch.SupplierId ?? DBNull.Value);
                         cmd.Parameters.AddWithValue("@purId", (object)batch.PurchaseId ?? DBNull.Value);
                         cmd.Parameters.AddWithValue("@notes", (object)batch.Notes ?? DBNull.Value);
@@ -352,11 +360,13 @@ namespace RafiqPOS.Repositories
                     string insertSql = @"
                         INSERT INTO product_batches (
                             id, product_id, batch_number, expiry_date, production_date,
-                            quantity_milli, cost_price_piasters, supplier_id, purchase_id,
+                            quantity_milli, cost_price_piasters, sell_price_piasters, public_price_piasters,
+                            supplier_id, purchase_id,
                             status, notes, created_at, updated_at
                         ) VALUES (
                             @id, @pid, @bnum, @exp, @prodDate,
-                            @qty, @cost, @suppId, @purId,
+                            @qty, @cost, @sellPrice, @publicPrice,
+                            @suppId, @purId,
                             @status, @notes, @createdAt, @updatedAt
                         );
                     ";
@@ -369,6 +379,8 @@ namespace RafiqPOS.Repositories
                         cmd.Parameters.AddWithValue("@prodDate", (object)batch.ProductionDate ?? DBNull.Value);
                         cmd.Parameters.AddWithValue("@qty", batch.QuantityMilli);
                         cmd.Parameters.AddWithValue("@cost", batch.CostPricePiasters);
+                        cmd.Parameters.AddWithValue("@sellPrice", batch.SellPricePiasters.HasValue ? (object)batch.SellPricePiasters.Value : DBNull.Value);
+                        cmd.Parameters.AddWithValue("@publicPrice", batch.PublicPricePiasters.HasValue ? (object)batch.PublicPricePiasters.Value : DBNull.Value);
                         cmd.Parameters.AddWithValue("@suppId", (object)batch.SupplierId ?? DBNull.Value);
                         cmd.Parameters.AddWithValue("@purId", (object)batch.PurchaseId ?? DBNull.Value);
                         cmd.Parameters.AddWithValue("@status", batch.Status);
@@ -417,7 +429,7 @@ namespace RafiqPOS.Repositories
             if (!string.IsNullOrEmpty(specificBatchId))
             {
                 string specSql = @"
-                    SELECT id, batch_number, expiry_date, quantity_milli, cost_price_piasters
+                    SELECT id, batch_number, expiry_date, quantity_milli, cost_price_piasters, sell_price_piasters, public_price_piasters
                     FROM product_batches
                     WHERE id = @bid AND status = 'ACTIVE' AND quantity_milli > 0;
                 ";
@@ -428,14 +440,17 @@ namespace RafiqPOS.Repositories
                     {
                         if (reader.Read())
                         {
-                            batches.Add(new ProductBatch
+                            var pb = new ProductBatch
                             {
                                 Id = reader["id"].ToString(),
                                 BatchNumber = reader["batch_number"].ToString(),
                                 ExpiryDate = reader["expiry_date"] != DBNull.Value ? reader["expiry_date"].ToString() : null,
                                 QuantityMilli = Convert.ToInt64(reader["quantity_milli"]),
                                 CostPricePiasters = Convert.ToInt64(reader["cost_price_piasters"])
-                            });
+                            };
+                            if (reader["sell_price_piasters"] != DBNull.Value) pb.SellPricePiasters = Convert.ToInt64(reader["sell_price_piasters"]);
+                            if (reader["public_price_piasters"] != DBNull.Value) pb.PublicPricePiasters = Convert.ToInt64(reader["public_price_piasters"]);
+                            batches.Add(pb);
                         }
                     }
                 }
@@ -448,7 +463,7 @@ namespace RafiqPOS.Repositories
                 : " AND (expiry_date IS NULL OR expiry_date = '' OR date(expiry_date) >= date('now'))";
 
             string sql = @"
-                SELECT id, batch_number, expiry_date, quantity_milli, cost_price_piasters
+                SELECT id, batch_number, expiry_date, quantity_milli, cost_price_piasters, sell_price_piasters, public_price_piasters
                 FROM product_batches
                 WHERE product_id = @pid AND status = 'ACTIVE' AND quantity_milli > 0"
                 + filterExpired
@@ -470,14 +485,17 @@ namespace RafiqPOS.Repositories
                 {
                     while (reader.Read())
                     {
-                        batches.Add(new ProductBatch
+                        var pb = new ProductBatch
                         {
                             Id = reader["id"].ToString(),
                             BatchNumber = reader["batch_number"].ToString(),
                             ExpiryDate = reader["expiry_date"] != DBNull.Value ? reader["expiry_date"].ToString() : null,
                             QuantityMilli = Convert.ToInt64(reader["quantity_milli"]),
                             CostPricePiasters = Convert.ToInt64(reader["cost_price_piasters"])
-                        });
+                        };
+                        if (reader["sell_price_piasters"] != DBNull.Value) pb.SellPricePiasters = Convert.ToInt64(reader["sell_price_piasters"]);
+                        if (reader["public_price_piasters"] != DBNull.Value) pb.PublicPricePiasters = Convert.ToInt64(reader["public_price_piasters"]);
+                        batches.Add(pb);
                     }
                 }
             }
@@ -522,7 +540,9 @@ namespace RafiqPOS.Repositories
                     ExpiryDate = b.ExpiryDate,
                     DeductedQuantityMilli = deductFromThisBatch,
                     RemainingQuantityMilli = newQty,
-                    CostPricePiasters = b.CostPricePiasters
+                    CostPricePiasters = b.CostPricePiasters,
+                    SellPricePiasters = b.SellPricePiasters,
+                    PublicPricePiasters = b.PublicPricePiasters
                 });
 
                 remainingToDeduct -= deductFromThisBatch;
@@ -538,7 +558,8 @@ namespace RafiqPOS.Repositories
             // 1. Try to find the earliest expiring VALID batch (FEFO)
             string sqlValid = @"
                 SELECT b.id, b.product_id, b.batch_number, b.expiry_date, b.production_date,
-                       b.quantity_milli, b.cost_price_piasters, b.supplier_id, b.purchase_id,
+                       b.quantity_milli, b.cost_price_piasters, b.sell_price_piasters, b.public_price_piasters,
+                       b.supplier_id, b.purchase_id,
                        b.status, b.notes, b.created_at, b.updated_at,
                        p.name AS product_name, p.barcode AS product_barcode, p.unit,
                        s.name AS supplier_name
@@ -592,7 +613,8 @@ namespace RafiqPOS.Repositories
             // 2. If no valid batch, check if an expired active batch exists (for supervisor bypass identification)
             string sqlExpired = @"
                 SELECT b.id, b.product_id, b.batch_number, b.expiry_date, b.production_date,
-                       b.quantity_milli, b.cost_price_piasters, b.supplier_id, b.purchase_id,
+                       b.quantity_milli, b.cost_price_piasters, b.sell_price_piasters, b.public_price_piasters,
+                       b.supplier_id, b.purchase_id,
                        b.status, b.notes, b.created_at, b.updated_at,
                        p.name AS product_name, p.barcode AS product_barcode, p.unit,
                        s.name AS supplier_name
@@ -951,9 +973,21 @@ namespace RafiqPOS.Repositories
             }
         }
 
+        private static bool HasColumn(SQLiteDataReader reader, string columnName)
+        {
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                if (string.Equals(reader.GetName(i), columnName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         private static ProductBatch MapBatch(SQLiteDataReader reader)
         {
-            return new ProductBatch
+            var batch = new ProductBatch
             {
                 Id = reader["id"].ToString(),
                 ProductId = reader["product_id"].ToString(),
@@ -973,6 +1007,156 @@ namespace RafiqPOS.Repositories
                 CreatedAt = reader["created_at"].ToString(),
                 UpdatedAt = reader["updated_at"].ToString()
             };
+
+            if (HasColumn(reader, "sell_price_piasters") && reader["sell_price_piasters"] != DBNull.Value)
+            {
+                batch.SellPricePiasters = Convert.ToInt64(reader["sell_price_piasters"]);
+            }
+            if (HasColumn(reader, "public_price_piasters") && reader["public_price_piasters"] != DBNull.Value)
+            {
+                batch.PublicPricePiasters = Convert.ToInt64(reader["public_price_piasters"]);
+            }
+
+            return batch;
+        }
+
+        public void SaveSaleItemBatchAllocation(SaleItemBatchAllocation allocation, SQLiteConnection conn, SQLiteTransaction trans)
+        {
+            if (allocation == null) return;
+            if (string.IsNullOrEmpty(allocation.Id))
+            {
+                allocation.Id = Guid.NewGuid().ToString();
+            }
+            if (string.IsNullOrEmpty(allocation.CreatedAt))
+            {
+                allocation.CreatedAt = DateTime.UtcNow.ToString("o");
+            }
+
+            string sql = @"
+                INSERT INTO sale_item_batch_allocations (
+                    id, sale_item_id, batch_id, quantity_milli, unit_price_piasters, unit_cost_piasters, created_at
+                ) VALUES (
+                    @id, @saleItemId, @batchId, @qty, @price, @cost, @createdAt
+                );
+            ";
+
+            using (var cmd = new SQLiteCommand(sql, conn, trans))
+            {
+                cmd.Parameters.AddWithValue("@id", allocation.Id);
+                cmd.Parameters.AddWithValue("@saleItemId", allocation.SaleItemId);
+                cmd.Parameters.AddWithValue("@batchId", allocation.BatchId);
+                cmd.Parameters.AddWithValue("@qty", allocation.QuantityMilli);
+                cmd.Parameters.AddWithValue("@price", allocation.UnitPricePiasters);
+                cmd.Parameters.AddWithValue("@cost", allocation.UnitCostPiasters);
+                cmd.Parameters.AddWithValue("@createdAt", allocation.CreatedAt);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        public List<SaleItemBatchAllocation> GetAllocationsBySaleItemId(string saleItemId, SQLiteConnection conn = null, SQLiteTransaction trans = null)
+        {
+            var list = new List<SaleItemBatchAllocation>();
+            if (string.IsNullOrEmpty(saleItemId)) return list;
+
+            string sql = @"
+                SELECT a.id, a.sale_item_id, a.batch_id, a.quantity_milli, a.unit_price_piasters, a.unit_cost_piasters, a.created_at,
+                       b.batch_number, b.expiry_date
+                FROM sale_item_batch_allocations a
+                JOIN product_batches b ON a.batch_id = b.id
+                WHERE a.sale_item_id = @sid
+                ORDER BY a.created_at ASC;
+            ";
+
+            Action<SQLiteDataReader> readAction = delegate(SQLiteDataReader reader)
+            {
+                while (reader.Read())
+                {
+                    list.Add(new SaleItemBatchAllocation
+                    {
+                        Id = reader["id"].ToString(),
+                        SaleItemId = reader["sale_item_id"].ToString(),
+                        BatchId = reader["batch_id"].ToString(),
+                        BatchNumber = reader["batch_number"] != DBNull.Value ? reader["batch_number"].ToString() : null,
+                        ExpiryDate = reader["expiry_date"] != DBNull.Value ? reader["expiry_date"].ToString() : null,
+                        QuantityMilli = Convert.ToInt64(reader["quantity_milli"]),
+                        UnitPricePiasters = Convert.ToInt64(reader["unit_price_piasters"]),
+                        UnitCostPiasters = Convert.ToInt64(reader["unit_cost_piasters"]),
+                        CreatedAt = reader["created_at"].ToString()
+                    });
+                }
+            };
+
+            if (conn != null && trans != null)
+            {
+                using (var cmd = new SQLiteCommand(sql, conn, trans))
+                {
+                    cmd.Parameters.AddWithValue("@sid", saleItemId);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        readAction(reader);
+                    }
+                }
+            }
+            else
+            {
+                using (var localConn = new SQLiteConnection(_connectionString))
+                {
+                    localConn.Open();
+                    using (var cmd = new SQLiteCommand(sql, localConn))
+                    {
+                        cmd.Parameters.AddWithValue("@sid", saleItemId);
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            readAction(reader);
+                        }
+                    }
+                }
+            }
+            return list;
+        }
+
+        public List<SaleItemBatchAllocation> GetAllocationsBySaleId(string saleId)
+        {
+            var list = new List<SaleItemBatchAllocation>();
+            if (string.IsNullOrEmpty(saleId)) return list;
+
+            string sql = @"
+                SELECT a.id, a.sale_item_id, a.batch_id, a.quantity_milli, a.unit_price_piasters, a.unit_cost_piasters, a.created_at,
+                       b.batch_number, b.expiry_date
+                FROM sale_item_batch_allocations a
+                JOIN sale_items si ON a.sale_item_id = si.id
+                JOIN product_batches b ON a.batch_id = b.id
+                WHERE si.sale_id = @sid
+                ORDER BY a.created_at ASC;
+            ";
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@sid", saleId);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            list.Add(new SaleItemBatchAllocation
+                            {
+                                Id = reader["id"].ToString(),
+                                SaleItemId = reader["sale_item_id"].ToString(),
+                                BatchId = reader["batch_id"].ToString(),
+                                BatchNumber = reader["batch_number"] != DBNull.Value ? reader["batch_number"].ToString() : null,
+                                ExpiryDate = reader["expiry_date"] != DBNull.Value ? reader["expiry_date"].ToString() : null,
+                                QuantityMilli = Convert.ToInt64(reader["quantity_milli"]),
+                                UnitPricePiasters = Convert.ToInt64(reader["unit_price_piasters"]),
+                                UnitCostPiasters = Convert.ToInt64(reader["unit_cost_piasters"]),
+                                CreatedAt = reader["created_at"].ToString()
+                            });
+                        }
+                    }
+                }
+            }
+            return list;
         }
     }
 }

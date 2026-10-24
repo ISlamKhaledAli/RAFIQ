@@ -316,6 +316,18 @@ namespace RafiqPOS.Services
                 string manifestJson = JsonConvert.SerializeObject(manifest, Formatting.Indented);
                 File.WriteAllText(Path.Combine(stagingDir, "manifest.json"), manifestJson, Encoding.UTF8);
 
+                // Feature F-193: Include prescriptions directory if exists
+                string baseDataDir = Path.GetDirectoryName(_dbPath);
+                if (!string.IsNullOrEmpty(baseDataDir))
+                {
+                    string liveRxDir = Path.Combine(baseDataDir, "prescriptions");
+                    if (Directory.Exists(liveRxDir))
+                    {
+                        string stagedRxDir = Path.Combine(stagingDir, "prescriptions");
+                        CopyDirectoryRecursive(liveRxDir, stagedRxDir);
+                    }
+                }
+
                 // 7. Determine target folder
                 string resolvedFolder = targetFolder;
                 if (string.IsNullOrWhiteSpace(resolvedFolder) || !Directory.Exists(resolvedFolder))
@@ -604,6 +616,21 @@ namespace RafiqPOS.Services
                     }
 
                     dbEntry.ExtractToFile(extractedDbPath, true);
+
+                    // Feature F-193: Extract prescriptions directory if present
+                    foreach (var entry in archive.Entries)
+                    {
+                        if (entry.FullName.StartsWith("prescriptions/", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(entry.Name))
+                        {
+                            string destFile = Path.Combine(tempExtractDir, entry.FullName.Replace('/', Path.DirectorySeparatorChar));
+                            string destParent = Path.GetDirectoryName(destFile);
+                            if (!Directory.Exists(destParent))
+                            {
+                                Directory.CreateDirectory(destParent);
+                            }
+                            entry.ExtractToFile(destFile, true);
+                        }
+                    }
                 }
 
                 // Quick integrity check on extracted DB
@@ -652,6 +679,18 @@ namespace RafiqPOS.Services
 
                 // Overwrite live DB with extracted DB
                 File.Copy(extractedDbPath, _dbPath, true);
+
+                // Feature F-193: Restore prescriptions directory to base data folder if present
+                string extractedRxDir = Path.Combine(tempExtractDir, "prescriptions");
+                if (Directory.Exists(extractedRxDir))
+                {
+                    string baseDataDir = Path.GetDirectoryName(_dbPath);
+                    if (!string.IsNullOrEmpty(baseDataDir))
+                    {
+                        string targetRxDir = Path.Combine(baseDataDir, "prescriptions");
+                        CopyDirectoryRecursive(extractedRxDir, targetRxDir);
+                    }
+                }
 
                 // Clear pools again
                 SQLiteConnection.ClearAllPools();
@@ -817,6 +856,31 @@ namespace RafiqPOS.Services
             }
 
             return result;
+        }
+
+        private static void CopyDirectoryRecursive(string sourceDir, string destinationDir)
+        {
+            if (!Directory.Exists(sourceDir)) return;
+            if (!Directory.Exists(destinationDir))
+            {
+                Directory.CreateDirectory(destinationDir);
+            }
+
+            string[] files = Directory.GetFiles(sourceDir);
+            for (int i = 0; i < files.Length; i++)
+            {
+                string fileName = Path.GetFileName(files[i]);
+                string destFile = Path.Combine(destinationDir, fileName);
+                File.Copy(files[i], destFile, true);
+            }
+
+            string[] subDirs = Directory.GetDirectories(sourceDir);
+            for (int i = 0; i < subDirs.Length; i++)
+            {
+                string dirName = Path.GetFileName(subDirs[i]);
+                string destSubDir = Path.Combine(destinationDir, dirName);
+                CopyDirectoryRecursive(subDirs[i], destSubDir);
+            }
         }
     }
 }

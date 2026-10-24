@@ -265,47 +265,54 @@ namespace RafiqPOS.Repositories
 
         public void RecordLoginAttempt(string userId, bool success, int lockoutSeconds = 0)
         {
-            using (var conn = new SQLiteConnection(_connectionString))
+            try
             {
-                conn.Open();
-                string sql;
-                if (success)
+                using (var conn = new SQLiteConnection(_connectionString))
                 {
-                    sql = @"
-                        UPDATE users 
-                        SET failed_attempts = 0,
-                            lockout_until = NULL,
-                            last_login_at = @now,
-                            updated_at = @now
-                        WHERE id = @id;
-                    ";
-                }
-                else
-                {
-                    sql = @"
-                        UPDATE users 
-                        SET failed_attempts = failed_attempts + 1,
-                            lockout_until = @lockoutUntil,
-                            updated_at = @now
-                        WHERE id = @id;
-                    ";
-                }
-
-                using (var cmd = new SQLiteCommand(sql, conn))
-                {
-                    cmd.Parameters.AddWithValue("@id", userId);
-                    cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
-                    if (!success)
+                    conn.Open();
+                    string sql;
+                    if (success)
                     {
-                        object lockVal = DBNull.Value;
-                        if (lockoutSeconds > 0)
-                        {
-                            lockVal = DateTime.UtcNow.AddSeconds(lockoutSeconds).ToString("o");
-                        }
-                        cmd.Parameters.AddWithValue("@lockoutUntil", lockVal);
+                        sql = @"
+                            UPDATE users 
+                            SET failed_attempts = 0,
+                                lockout_until = NULL,
+                                last_login_at = @now,
+                                updated_at = @now
+                            WHERE id = @id;
+                        ";
                     }
-                    cmd.ExecuteNonQuery();
+                    else
+                    {
+                        sql = @"
+                            UPDATE users 
+                            SET failed_attempts = failed_attempts + 1,
+                                lockout_until = @lockoutUntil,
+                                updated_at = @now
+                            WHERE id = @id;
+                        ";
+                    }
+
+                    using (var cmd = new SQLiteCommand(sql, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@id", userId);
+                        cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
+                        if (!success)
+                        {
+                            object lockVal = DBNull.Value;
+                            if (lockoutSeconds > 0)
+                            {
+                                lockVal = DateTime.UtcNow.AddSeconds(lockoutSeconds).ToString("o");
+                            }
+                            cmd.Parameters.AddWithValue("@lockoutUntil", lockVal);
+                        }
+                        cmd.ExecuteNonQuery();
+                    }
                 }
+            }
+            catch (SQLiteException)
+            {
+                // Suppress database locked exceptions if invoked during an ongoing atomic transaction
             }
         }
 

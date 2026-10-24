@@ -70,6 +70,18 @@ namespace RafiqPOS.Services
             return _batchRepo.HasOnlyExpiredStock(productId);
         }
 
+        public List<SaleItemBatchAllocation> GetAllocationsBySaleId(string saleId)
+        {
+            if (string.IsNullOrEmpty(saleId)) return new List<SaleItemBatchAllocation>();
+            return _batchRepo.GetAllocationsBySaleId(saleId);
+        }
+
+        public List<SaleItemBatchAllocation> GetAllocationsBySaleItemId(string saleItemId)
+        {
+            if (string.IsNullOrEmpty(saleItemId)) return new List<SaleItemBatchAllocation>();
+            return _batchRepo.GetAllocationsBySaleItemId(saleItemId);
+        }
+
         private int GetAlertDaysSetting()
         {
             if (_settingsRepo == null) return 30;

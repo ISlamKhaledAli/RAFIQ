@@ -543,6 +543,77 @@ namespace RafiqPOS.Services
                 }
             }
 
+            // Story 131 / Task 188-2: Controlled Drugs Validation Guard
+            if (DatabaseService.ControlledDrugRepo != null)
+            {
+                var controlledIds = DatabaseService.ControlledDrugRepo.GetControlledProductIds();
+                if (controlledIds != null && controlledIds.Count > 0)
+                {
+                    var controlledLines = new List<SaleItem>();
+                    for (int i = 0; i < sale.Items.Count; i++)
+                    {
+                        var it = sale.Items[i];
+                        if (it != null && !string.IsNullOrEmpty(it.ProductId) && controlledIds.Contains(it.ProductId))
+                        {
+                            controlledLines.Add(it);
+                        }
+                    }
+
+                    if (controlledLines.Count > 0)
+                    {
+                        if (sale.ControlledDispenses == null || sale.ControlledDispenses.Count == 0)
+                        {
+                            string firstProdName = controlledLines[0].ProductName ?? controlledLines[0].ProductId;
+                            throw new InvalidOperationException(string.Format("الصنف '{0}' خاضع لجدول الرقابة الدوائية والمهدئات، ويلزم تسجيل بيانات المريض والطبيب والروشتة قبل إتمام البيع.", firstProdName));
+                        }
+
+                        // Check cashier authorization
+                        bool requiresApproval = false;
+                        if (DatabaseService.Security != null && !string.IsNullOrEmpty(sale.CashierId))
+                        {
+                            requiresApproval = !DatabaseService.Security.HasPermission(sale.CashierId, "pharma.controlled.dispense");
+                        }
+
+                        // Validate each controlled line has a matching dispense entry
+                        for (int clIdx = 0; clIdx < controlledLines.Count; clIdx++)
+                        {
+                            var cLine = controlledLines[clIdx];
+                            ControlledDrugDispense matchingDispense = null;
+
+                            for (int cdIdx = 0; cdIdx < sale.ControlledDispenses.Count; cdIdx++)
+                            {
+                                var d = sale.ControlledDispenses[cdIdx];
+                                if (d != null && string.Equals(d.ProductId, cLine.ProductId, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    matchingDispense = d;
+                                    break;
+                                }
+                            }
+
+                            if (matchingDispense == null)
+                            {
+                                throw new InvalidOperationException(string.Format("لم يتم تسجيل بيانات صرف دواء الجدول للصنف '{0}'.", cLine.ProductName ?? cLine.ProductId));
+                            }
+
+                            matchingDispense.ProductId = cLine.ProductId;
+                            matchingDispense.ProductName = cLine.ProductName;
+                            matchingDispense.QuantityMilli = cLine.QuantityMilli;
+                            matchingDispense.BatchId = cLine.BatchId;
+                            matchingDispense.BatchNumber = cLine.BatchNumber;
+
+                            if (DatabaseService.ControlledDrugs != null)
+                            {
+                                DatabaseService.ControlledDrugs.ValidateAndPrepareDispense(
+                                    matchingDispense,
+                                    sale.CashierId,
+                                    requiresApproval,
+                                    sale.SupervisorPin);
+                            }
+                        }
+                    }
+                }
+            }
+
             // Task 24-2: Proportional Invoice Discount Distribution (F-01 & C3)
             long existingItemDiscountsSum = 0;
             long[] grossPiasters = new long[sale.Items.Count];
@@ -684,6 +755,91 @@ namespace RafiqPOS.Services
                 {
                     sale.Payments[0].AmountPiasters = sale.PaidPiasters;
                 }
+            }
+
+            // Insurance Claim Processing (Story 132 / Feature #189)
+            if (sale.InsuranceClaim != null)
+            {
+                if (SecurityService.CurrentUser != null && DatabaseService.Security != null &&
+                    !DatabaseService.Security.HasPermission(SecurityService.CurrentUser.Id, "insurance.sell"))
+                {
+                    throw new InvalidOperationException("المستخدم الحالي لا يملك صلاحية بيع روشتات التأمين الطبي (insurance.sell).");
+                }
+
+                if (DatabaseService.Insurance == null)
+                {
+                    throw new InvalidOperationException("نظام التأمين الطبي غير مفعل في قاعدة البيانات.");
+                }
+
+                var split = DatabaseService.Insurance.CalculateSplit(sale.InsuranceClaim.ContractId, sale.Items);
+                sale.InsuranceClaim.SaleId = sale.Id;
+                sale.InsuranceClaim.TotalInvoicePiasters = sale.TotalPiasters;
+                sale.InsuranceClaim.CoveredPiasters = split.CoveredPiasters;
+                sale.InsuranceClaim.PatientPiasters = split.PatientPiasters;
+                sale.InsuranceClaim.CompanyPiasters = split.CompanyPiasters;
+                if (string.IsNullOrEmpty(sale.InsuranceClaim.Status))
+                {
+                    sale.InsuranceClaim.Status = "pending";
+                }
+
+                // Ensure company share is represented in Payments under method "insurance"
+                if (sale.Payments == null)
+                {
+                    sale.Payments = new List<SalePayment>();
+                }
+
+                bool hasInsurancePayment = false;
+                for (int pi = 0; pi < sale.Payments.Count; pi++)
+                {
+                    if (string.Equals(sale.Payments[pi].Method, "insurance", StringComparison.OrdinalIgnoreCase))
+                    {
+                        sale.Payments[pi].AmountPiasters = split.CompanyPiasters;
+                        hasInsurancePayment = true;
+                        break;
+                    }
+                }
+
+                if (!hasInsurancePayment && split.CompanyPiasters > 0)
+                {
+                    sale.Payments.Add(new SalePayment
+                    {
+                        Method = "insurance",
+                        AmountPiasters = split.CompanyPiasters
+                    });
+                }
+
+                // If no other payment was specified, default patient co-pay to sale.PaymentMethod or cash
+                long nonInsuranceInPayments = 0;
+                for (int pi = 0; pi < sale.Payments.Count; pi++)
+                {
+                    if (!string.Equals(sale.Payments[pi].Method, "insurance", StringComparison.OrdinalIgnoreCase))
+                    {
+                        nonInsuranceInPayments += sale.Payments[pi].AmountPiasters;
+                    }
+                }
+
+                if (nonInsuranceInPayments == 0 && split.PatientPiasters > 0)
+                {
+                    string patientMethod = string.IsNullOrEmpty(sale.PaymentMethod) || string.Equals(sale.PaymentMethod, "insurance", StringComparison.OrdinalIgnoreCase)
+                        ? "cash"
+                        : sale.PaymentMethod;
+                    sale.Payments.Add(new SalePayment
+                    {
+                        Method = patientMethod,
+                        AmountPiasters = split.PatientPiasters
+                    });
+                }
+
+                // Total paid across non-credit payments is full invoice (or patient payment + company claim)
+                long totalNonCreditInPayments = 0;
+                for (int pi = 0; pi < sale.Payments.Count; pi++)
+                {
+                    if (!string.Equals(sale.Payments[pi].Method, "credit", StringComparison.OrdinalIgnoreCase))
+                    {
+                        totalNonCreditInPayments += sale.Payments[pi].AmountPiasters;
+                    }
+                }
+                sale.PaidPiasters = totalNonCreditInPayments;
             }
 
             if (sale.PaidPiasters <= 0 && !string.Equals(sale.PaymentMethod, "credit", StringComparison.OrdinalIgnoreCase))
@@ -871,6 +1027,45 @@ namespace RafiqPOS.Services
                     }
                 }
             }
+
+            // Task 184-2: Batch-level pricing (feature_batch_pricing)
+            // If the product has batches with custom selling prices, match either the item's specific batch or any active batch
+            if (DatabaseService.ProductBatchRepo != null && !string.IsNullOrEmpty(product.Id))
+            {
+                try
+                {
+                    if (!string.IsNullOrEmpty(item.BatchId))
+                    {
+                        var b = DatabaseService.ProductBatchRepo.GetById(item.BatchId);
+                        if (b != null && b.SellPricePiasters.HasValue && b.SellPricePiasters.Value > 0)
+                        {
+                            long batchPrice = b.SellPricePiasters.Value;
+                            if (price == batchPrice || price == batchPrice * factor) return true;
+                        }
+                    }
+                    else
+                    {
+                        var batches = DatabaseService.ProductBatchRepo.GetByProductId(product.Id);
+                        if (batches != null)
+                        {
+                            for (int bi = 0; bi < batches.Count; bi++)
+                            {
+                                var b = batches[bi];
+                                if (b != null && b.SellPricePiasters.HasValue && b.SellPricePiasters.Value > 0)
+                                {
+                                    long batchPrice = b.SellPricePiasters.Value;
+                                    if (price == batchPrice || price == batchPrice * factor) return true;
+                                }
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // Fail gracefully and fallback
+                }
+            }
+
             return false;
         }
 
