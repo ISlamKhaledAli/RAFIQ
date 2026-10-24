@@ -33,6 +33,8 @@ interface UsePosShortcutsProps {
   setIsReturnModalOpen: (val: boolean) => void;
   showStatus: (text: string, type?: 'success' | 'error' | 'warning') => void;
   cycleCartItemUnit?: () => void;
+  onOpenAlternatives?: () => void;
+  onOpenQuickShortage?: () => void;
   hasPermission?: (key: string) => boolean;
   isAdmin?: boolean;
 }
@@ -63,6 +65,8 @@ export const usePosShortcuts = ({
   setIsReturnModalOpen,
   showStatus,
   cycleCartItemUnit,
+  onOpenAlternatives,
+  onOpenQuickShortage,
   hasPermission,
   isAdmin,
 }: UsePosShortcutsProps) => {
@@ -164,14 +168,25 @@ export const usePosShortcuts = ({
         return;
       }
 
-      // F8: Scanner Settings
+      // F8: Drug Alternatives Engine (Story 130) or Barcode Scanner Settings
       if (e.key === 'F8') {
         e.preventDefault();
+        if (onOpenAlternatives && !e.ctrlKey) {
+          onOpenAlternatives();
+          return;
+        }
         if (hasPermission && !hasPermission('settings.barcode') && !isAdmin) {
           showStatus('ليس لديك صلاحية لتعديل إعدادات قارئ الباركود', 'warning');
           return;
         }
         setIsScannerModalOpen(true);
+        return;
+      }
+
+      // F11 / Ctrl+Q: Quick Shortage Recording (Story 129)
+      if (e.key === 'F11' || (e.ctrlKey && e.key.toLowerCase() === 'q')) {
+        e.preventDefault();
+        onOpenQuickShortage?.();
         return;
       }
 
@@ -372,6 +387,8 @@ export const usePosShortcuts = ({
     setIsReturnModalOpen,
     showStatus,
     cycleCartItemUnit,
+    onOpenAlternatives,
+    onOpenQuickShortage,
     isActive,
     isAnyModalOpen,
     hasPermission,

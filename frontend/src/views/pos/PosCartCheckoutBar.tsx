@@ -9,9 +9,14 @@ import {
   Smartphone,
   Wallet,
   Link2,
+  Building2,
+  ShieldCheck,
+  HeartPulse,
+  X,
 } from 'lucide-react';
 import type { Customer } from '../../types/models';
 import type { CartItem } from './types';
+import type { InsuranceClaimLine } from '../../types/insurance';
 import { formatArabicCurrency } from '../../utils/money';
 import { useFeatures } from '../../context/useFeatures';
 
@@ -38,6 +43,10 @@ interface PosCartCheckoutBarProps {
   onOpenHeldSales: () => void;
   onOpenReturnModal: () => void;
   onOpenExpenseModal?: () => void;
+  onOpenInsuranceModal?: () => void;
+  onOpenChronicDispense?: () => void;
+  activeInsuranceClaim?: InsuranceClaimLine | null;
+  onRemoveInsuranceClaim?: () => void;
   hasInstapayAccount?: boolean;
   hasWalletAccount?: boolean;
   onNavigateToWallets?: (subTab?: 'accounts' | 'transact') => void;
@@ -66,6 +75,10 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
   onOpenHeldSales,
   onOpenReturnModal,
   onOpenExpenseModal,
+  onOpenInsuranceModal,
+  onOpenChronicDispense,
+  activeInsuranceClaim,
+  onRemoveInsuranceClaim,
   hasInstapayAccount = true,
   hasWalletAccount = true,
   onNavigateToWallets,
@@ -100,8 +113,39 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
           )}
         </div>
 
-        {/* Support Action Buttons (مصروف, تفريغ, تعليق, معلقة, مرتجع) */}
+        {/* Support Action Buttons (تأمين, علاج شهري, مصروف, تفريغ, تعليق, معلقة, مرتجع) */}
         <div className="flex items-center gap-1 shrink-0">
+          {/* روشتة تأمين */}
+          {onOpenInsuranceModal && isEnabled('feature_insurance') && (
+            <button
+              type="button"
+              onClick={onOpenInsuranceModal}
+              disabled={cart.length === 0}
+              className={`h-6.5 sm:h-7 px-1.5 sm:px-2 border text-[10px] sm:text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50 whitespace-nowrap ${
+                activeInsuranceClaim
+                  ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/30 hover:bg-paid-soft/80'
+                  : 'bg-surface dark:bg-surface-dark-2 hover:bg-brand-soft text-brand dark:text-brand-bright border-line dark:border-line-dark hover:border-brand/30'
+              }`}
+              title={activeInsuranceClaim ? "تعديل روشتة التأمين المطبقة" : "تطبيق روشتة تأمين طبي للشركات والتعاقدات"}
+            >
+              <Building2 className="w-3 h-3 shrink-0" />
+              <span>{activeInsuranceClaim ? 'تأمين (مُفعّل)' : 'تأمين'}</span>
+            </button>
+          )}
+
+          {/* صرف علاج شهري للأمراض المزمنة */}
+          {onOpenChronicDispense && isEnabled('feature_patient_profiles') && (
+            <button
+              type="button"
+              onClick={onOpenChronicDispense}
+              className="h-6.5 sm:h-7 px-1.5 sm:px-2 bg-paid-soft dark:bg-paid-dark-soft hover:bg-paid-soft/80 text-paid dark:text-paid-bright border border-paid/30 text-[10px] sm:text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap"
+              title="صرف أدوية الأمراض المزمنة للمرضى المسجلين بنقرة واحدة"
+            >
+              <HeartPulse className="w-3 h-3 shrink-0 text-paid dark:text-paid-bright" />
+              <span>علاج شهري</span>
+            </button>
+          )}
+
           {/* مصروف درج */}
           {onOpenExpenseModal && (
             <button
@@ -167,6 +211,33 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
 
         </div>
       </div>
+
+      {/* 1.5 Active Insurance Prescription Banner */}
+      {activeInsuranceClaim && (
+        <div className="flex items-center justify-between bg-paid-soft/80 dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 px-2 py-1 rounded-lg text-xs font-semibold text-paid dark:text-paid-bright">
+          <div className="flex items-center gap-1.5 truncate">
+            <ShieldCheck className="w-3.5 h-3.5 shrink-0 text-paid dark:text-paid-bright" />
+            <span className="truncate">
+              تأمين: {activeInsuranceClaim.companyName} ({activeInsuranceClaim.contractName}) - المشترك: {activeInsuranceClaim.patientName}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 font-mono text-[11px]">
+            <span className="font-bold">تحمل: {formatArabicCurrency(activeInsuranceClaim.patientPiasters)}</span>
+            <span className="opacity-40">|</span>
+            <span className="font-bold">مطالبة: {formatArabicCurrency(activeInsuranceClaim.companyPiasters)}</span>
+            {onRemoveInsuranceClaim && (
+              <button
+                type="button"
+                onClick={onRemoveInsuranceClaim}
+                className="text-danger dark:text-danger-bright hover:opacity-80 p-0.5 cursor-pointer"
+                title="إلغاء التأمين من الفاتورة"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 2. Main Hero Section: Grand Total Card + Primary Payment Buttons */}
       <div className="flex flex-row items-stretch gap-1.5 sm:gap-2 h-[52px]">

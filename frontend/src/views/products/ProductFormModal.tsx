@@ -18,11 +18,27 @@ import {
   Calendar,
   Calculator,
   Receipt,
+  Snowflake,
+  Pill,
+  Plus,
+  Trash2,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
+  ShieldAlert,
 } from 'lucide-react';
-import type { Category, Product, ProductUnit } from '../../types/models';
+import { invoke } from '../../bridge/ipc';
+import type { Category, Product, ProductUnit, StorageLocation } from '../../types/models';
+import type {
+  ProductPharmaInfo,
+  PharmaDosageForm,
+  PharmaManufacturer,
+  TherapeuticClass,
+  ActiveIngredient,
+} from '../../types/pharma';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
 import { MoneyInput } from '../../components/MoneyInput';
-import { CustomSelect } from '../../components/CustomSelect';
+import { CustomSelect, type SelectOption } from '../../components/CustomSelect';
 import { CustomDatePicker } from '../../components/CustomDatePicker';
 import { ProductUnitsEditor } from '../../components/ProductUnitsEditor';
 import { useFeatures } from '../../context/useFeatures';
@@ -95,6 +111,14 @@ export interface ProductFormModalProps {
   defaultPurchaseUnitId?: string | null;
   setDefaultPurchaseUnitId?: (v: string | null) => void;
   editingProduct?: Product | null;
+  locationId?: string;
+  setLocationId?: (v: string) => void;
+  isColdChain?: boolean;
+  setIsColdChain?: (v: boolean) => void;
+  storageLocations?: StorageLocation[];
+  onOpenStorageLocationsModal?: () => void;
+  pharmaInfo?: ProductPharmaInfo;
+  setPharmaInfo?: React.Dispatch<React.SetStateAction<ProductPharmaInfo>>;
 }
 
 export const ProductFormModal: React.FC<ProductFormModalProps> = ({
@@ -104,6 +128,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   name,
   setName,
   onOpenVariantMatrix,
+  pharmaInfo,
+  setPharmaInfo,
   variantSize = '',
   setVariantSize,
   variantColor = '',
@@ -157,6 +183,12 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   onGenerateInternalBarcode,
   onAddBarcode,
   onRemoveBarcode,
+  locationId = '',
+  setLocationId,
+  isColdChain = false,
+  setIsColdChain,
+  storageLocations = [],
+  onOpenStorageLocationsModal,
 }) => {
   // Detected package if defined in product units
   const detectedPackage = productUnits.find(u => !u.isBaseUnit && u.conversionFactor > 1);
@@ -262,6 +294,116 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
   const activeCalculatedCost = costCalcMode === 'carton' ? calculatedFromCarton : calculatedFromInvoice;
   const { isEnabled } = useFeatures();
+
+  // Story 130: Pharmacy Module State
+  const [dosageForms, setDosageForms] = useState<PharmaDosageForm[]>([]);
+  const [manufacturers, setManufacturers] = useState<PharmaManufacturer[]>([]);
+  const [therapeuticClasses, setTherapeuticClasses] = useState<TherapeuticClass[]>([]);
+  const [_activeIngredientsList, setActiveIngredientsList] = useState<ActiveIngredient[]>([]);
+  const [isPharmaSectionOpen, setIsPharmaSectionOpen] = useState(true);
+  const [newIngredientName, setNewIngredientName] = useState('');
+  const [newIngredientStrength, setNewIngredientStrength] = useState('500');
+  const [newIngredientUnit, setNewIngredientUnit] = useState('mg');
+  const [newIngredientIsPrimary, setNewIngredientIsPrimary] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && isEnabled('feature_pharmacy')) {
+      void invoke<PharmaDosageForm[]>('pharma:getDosageForms').then((res) => setDosageForms(res || []));
+      void invoke<PharmaManufacturer[]>('pharma:getManufacturers').then((res) => setManufacturers(res || []));
+      void invoke<TherapeuticClass[]>('pharma:getTherapeuticClasses').then((res) => setTherapeuticClasses(res || []));
+      void invoke<ActiveIngredient[]>('pharma:getActiveIngredients').then((res) => setActiveIngredientsList(res || []));
+    }
+  }, [isOpen, isEnabled]);
+
+  const handleAddIngredient = () => {
+    if (!newIngredientName.trim() || !setPharmaInfo) return;
+    const strNum = parseFloat(newIngredientStrength) || 0;
+    const newIng = {
+      ingredientId: `ing_${Date.now()}`,
+      ingredientName: newIngredientName.trim(),
+      strengthMilli: Math.round(strNum * 1000),
+      strengthUnit: newIngredientUnit,
+      isPrimary: newIngredientIsPrimary || (pharmaInfo?.ingredients?.length === 0),
+    };
+    setPharmaInfo((prev) => ({
+      ...prev,
+      ingredients: [...(prev.ingredients || []), newIng],
+    }));
+    setNewIngredientName('');
+    setNewIngredientStrength('500');
+    setNewIngredientIsPrimary(false);
+  };
+
+  const handleRemoveIngredient = (idx: number) => {
+    if (!setPharmaInfo) return;
+    setPharmaInfo((prev) => ({
+      ...prev,
+      ingredients: (prev.ingredients || []).filter((_, i) => i !== idx),
+    }));
+  };
+
+  const dosageOptions: SelectOption[] = useMemo(() => {
+    return [
+      { value: '', label: 'اختر الشكل الدوائي...' },
+      ...dosageForms.map((d) => ({ value: d.id, label: d.nameAr })),
+    ];
+  }, [dosageForms]);
+
+  const manufacturerOptions: SelectOption[] = useMemo(() => {
+    return [
+      { value: '', label: 'اختر الشركة المصنعة...' },
+      ...manufacturers.map((m) => ({ value: m.id, label: m.nameAr })),
+    ];
+  }, [manufacturers]);
+
+  const therapeuticOptions: SelectOption[] = useMemo(() => {
+    return [
+      { value: '', label: 'اختر المجموعة العلاجية...' },
+      ...therapeuticClasses.map((t) => ({ value: t.id, label: `${t.nameAr}${t.code ? ` (${t.code})` : ''}` })),
+    ];
+  }, [therapeuticClasses]);
+
+  const routeOptions: SelectOption[] = [
+    { value: 'oral', label: 'فموي (Oral)' },
+    { value: 'topical', label: 'موضعي (Topical)' },
+    { value: 'parenteral', label: 'حقن عضل / وريد (Parenteral)' },
+    { value: 'ophthalmic', label: 'قطرة عين / أذن (Drops)' },
+    { value: 'inhalation', label: 'استنشاق (Inhalation)' },
+    { value: 'rectal', label: 'لبوس / شرجي (Rectal)' },
+  ];
+
+  const pregnancyOptions: SelectOption[] = [
+    { value: '', label: 'غير محدد' },
+    { value: 'A', label: 'فئة A (آمن تماماً)' },
+    { value: 'B', label: 'فئة B (آمن إلى حد كبير)' },
+    { value: 'C', label: 'فئة C (بحذر وإشراف طبي)' },
+    { value: 'D', label: 'فئة D (مخاطر محتملة للضرورة)' },
+    { value: 'X', label: 'فئة X (محظور وممنوع للحامل)' },
+  ];
+
+  const strengthUnitOptions: SelectOption[] = [
+    { value: 'mg', label: 'ملجم (mg)' },
+    { value: 'mcg', label: 'ميكروجرام (mcg)' },
+    { value: 'g', label: 'جرام (g)' },
+    { value: 'ml', label: 'مل (ml)' },
+    { value: 'IU', label: 'وحدة دولية (IU)' },
+    { value: '%', label: 'نسبة مئوية (%)' },
+  ];
+
+  const rxStatusOptions: SelectOption[] = [
+    { value: 'otc', label: 'دواء متاح بدون وصفة (OTC)' },
+    { value: 'rx', label: 'يتطلب وصفة طبية (Rx)' },
+    { value: 'controlled', label: 'دواء جدول ورقابة مشددة (Controlled)' },
+  ];
+
+  const controlledScheduleOptions: SelectOption[] = [
+    { value: 'none', label: 'عادي (غير خاضع للجدول)' },
+    { value: 'schedule_1', label: 'جدول أول (مواد مخدرة وتأثير عقلي شديد)' },
+    { value: 'schedule_2', label: 'جدول ثانٍ (مهدئات وأدوية نفسية خاضعة للرقابة)' },
+    { value: 'schedule_3', label: 'جدول ثالث (أدوية مؤثرة على الحالة النفسية)' },
+    { value: 'narcotic', label: 'تخدير ورقابة مشددة' },
+    { value: 'sedative', label: 'مهدئات خاضعة للتسجيل' },
+  ];
 
   const isDirty = useMemo(() => {
     if (editingId) {
@@ -506,6 +648,76 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 searchable
               />
             </div>
+
+            {/* Storage Location & Cold Chain (Feature #185 / Tasks 185-3) */}
+            {(isEnabled('feature_shelf_locations') || Boolean(locationId || isColdChain)) && (
+              <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 rounded-lg border border-line dark:border-line-dark space-y-3">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-1.5 text-ink dark:text-ink-dark font-semibold text-[13px]">
+                    <Layers className="w-4 h-4 text-brand dark:text-brand-bright" />
+                    <span>موقع التخزين والرف وسلسلة التبريد</span>
+                  </div>
+                  {onOpenStorageLocationsModal && (
+                    <button
+                      type="button"
+                      onClick={onOpenStorageLocationsModal}
+                      className="text-[11px] text-brand dark:text-brand-bright hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Boxes className="w-3.5 h-3.5" />
+                      <span>إدارة الرفوف والمواقع</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-ink-muted dark:text-ink-dark-muted text-[11.5px] font-medium mb-1">
+                      الرف / الدرج / الموقع
+                    </label>
+                    <CustomSelect
+                      value={locationId || ''}
+                      onChange={(val) => {
+                        if (setLocationId) setLocationId(val);
+                        // If selecting a fridge location, auto-suggest cold chain
+                        const selectedLoc = storageLocations?.find(l => l.id === val);
+                        if (selectedLoc && selectedLoc.type === 'fridge' && setIsColdChain) {
+                          setIsColdChain(true);
+                        }
+                      }}
+                      options={[
+                        { value: '', label: 'بدون موقع محدد' },
+                        ...(storageLocations || []).map((loc) => ({
+                          value: loc.id,
+                          label: `${loc.code} - ${loc.name} (${
+                            loc.type === 'shelf' ? 'رف' :
+                            loc.type === 'rack' ? 'استاند' :
+                            loc.type === 'drawer' ? 'درج' :
+                            loc.type === 'fridge' ? 'ثلاجة' : 'مستودع'
+                          })`
+                        }))
+                      ]}
+                      size="md"
+                      searchable
+                    />
+                  </div>
+
+                  <div className="flex flex-col justify-end">
+                    <label className="flex items-center gap-2.5 p-2 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded cursor-pointer select-none hover:border-brand transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(isColdChain)}
+                        onChange={(e) => setIsColdChain && setIsColdChain(e.target.checked)}
+                        className="rounded border-line text-brand focus:ring-brand w-4 h-4"
+                      />
+                      <div className="flex items-center gap-1.5 text-[12px] font-bold text-ink dark:text-ink-dark">
+                        <Snowflake className={`w-4 h-4 ${isColdChain ? 'text-cyan-600 dark:text-cyan-400' : 'text-ink-muted'}`} />
+                        <span>يتطلب سلسلة تبريد (ثلاجة 2-8 مئوية)</span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Unit Selection: Piece vs Weight (Feature #19 / Tasks 19-1 & 19-2) */}
             {(isEnabled('feature_scale_weight') || unit === 'kg') && (
@@ -1120,6 +1332,332 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     />
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Story 130 / Task 187-2: Pharmacy Extension Card */}
+            {isEnabled('feature_pharmacy') && (
+              <div className="p-3.5 bg-brand-soft/20 dark:bg-brand-soft/10 border border-brand/30 dark:border-brand-bright/30 rounded-xl flex flex-col gap-3 shadow-2xs">
+                <div
+                  className="flex items-center justify-between cursor-pointer select-none"
+                  onClick={() => setIsPharmaSectionOpen((v) => !v)}
+                >
+                  <div className="flex items-center gap-2 text-brand dark:text-brand-bright font-bold text-xs">
+                    <Pill className="w-4 h-4 text-brand dark:text-brand-bright" />
+                    <span>البيانات الدوائية والمواد الفعالة (صيدليات)</span>
+                    {pharmaInfo?.scientificName && (
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-brand/10 font-mono">
+                        {pharmaInfo.scientificName}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="p-1 text-ink-muted hover:text-ink dark:hover:text-ink-dark"
+                  >
+                    {isPharmaSectionOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                {isPharmaSectionOpen && (
+                  <div className="flex flex-col gap-3 pt-2 border-t border-brand/20 animate-in fade-in duration-150">
+                    {/* Scientific Name */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-ink dark:text-ink-dark mb-1">
+                        الاسم العلمي / المادة الأساسية (Generic Name)
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={pharmaInfo?.scientificName || ''}
+                          onChange={(e) => setPharmaInfo?.((prev) => ({ ...prev, scientificName: e.target.value }))}
+                          placeholder="مثلاً: Paracetamol, Amoxicillin, Ibuprofen..."
+                          className="w-full bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded h-[34px] px-3 pr-8 text-[12px] font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand shadow-2xs"
+                        />
+                        <Sparkles className="w-3.5 h-3.5 text-brand absolute right-2.5 top-2.5 pointer-events-none" />
+                      </div>
+                    </div>
+
+                    {/* Dosage Form & Manufacturer */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-ink dark:text-ink-dark mb-1">
+                          الشكل الدوائي (Dosage Form)
+                        </label>
+                        <CustomSelect
+                          options={dosageOptions}
+                          value={pharmaInfo?.dosageFormId || ''}
+                          onChange={(val) => {
+                            const found = dosageForms.find((d) => d.id === val);
+                            setPharmaInfo?.((prev) => ({
+                              ...prev,
+                              dosageFormId: val || null,
+                              dosageFormName: found ? found.nameAr : null,
+                            }));
+                          }}
+                          size="sm"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-ink dark:text-ink-dark mb-1">
+                          الشركة المصنعة (Manufacturer)
+                        </label>
+                        <CustomSelect
+                          options={manufacturerOptions}
+                          value={pharmaInfo?.manufacturerId || ''}
+                          onChange={(val) => {
+                            const found = manufacturers.find((m) => m.id === val);
+                            setPharmaInfo?.((prev) => ({
+                              ...prev,
+                              manufacturerId: val || null,
+                              manufacturerName: found ? found.nameAr : null,
+                            }));
+                          }}
+                          size="sm"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Therapeutic Class & Route */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-ink dark:text-ink-dark mb-1">
+                          المجموعة / التصنيف العلاجي (Therapeutic Class)
+                        </label>
+                        <CustomSelect
+                          options={therapeuticOptions}
+                          value={pharmaInfo?.therapeuticClassId || ''}
+                          onChange={(val) => {
+                            const found = therapeuticClasses.find((t) => t.id === val);
+                            setPharmaInfo?.((prev) => ({
+                              ...prev,
+                              therapeuticClassId: val || null,
+                              therapeuticClassName: found ? found.nameAr : null,
+                            }));
+                          }}
+                          size="sm"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-ink dark:text-ink-dark mb-1">
+                          طريقة الاستخدام (Route)
+                        </label>
+                        <CustomSelect
+                          options={routeOptions}
+                          value={pharmaInfo?.routeOfAdministration || 'oral'}
+                          onChange={(val) => setPharmaInfo?.((prev) => ({ ...prev, routeOfAdministration: val }))}
+                          size="sm"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Toggles: Rx, Antibiotic, Cold Chain, Pregnancy */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                      <label className="flex items-center gap-1.5 p-2 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(pharmaInfo?.isPrescriptionOnly)}
+                          onChange={(e) => setPharmaInfo?.((prev) => ({ ...prev, isPrescriptionOnly: e.target.checked }))}
+                          className="rounded text-brand focus:ring-brand"
+                        />
+                        <span className="text-[11px] font-semibold text-ink dark:text-ink-dark">روشتة فقط (Rx)</span>
+                      </label>
+
+                      <label className="flex items-center gap-1.5 p-2 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(pharmaInfo?.isAntibiotic)}
+                          onChange={(e) => setPharmaInfo?.((prev) => ({ ...prev, isAntibiotic: e.target.checked }))}
+                          className="rounded text-brand focus:ring-brand"
+                        />
+                        <span className="text-[11px] font-semibold text-ink dark:text-ink-dark">مضاد حيوي</span>
+                      </label>
+
+                      <label className="flex items-center gap-1.5 p-2 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(pharmaInfo?.isRefrigerated)}
+                          onChange={(e) => setPharmaInfo?.((prev) => ({ ...prev, isRefrigerated: e.target.checked }))}
+                          className="rounded text-brand focus:ring-brand"
+                        />
+                        <span className="text-[11px] font-semibold text-ink dark:text-ink-dark">يحفظ في الثلاجة</span>
+                      </label>
+
+                      <div>
+                        <CustomSelect
+                          options={pregnancyOptions}
+                          value={pharmaInfo?.pregnancyCategory || ''}
+                          onChange={(val) => setPharmaInfo?.((prev) => ({ ...prev, pregnancyCategory: val }))}
+                          size="sm"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Story 131: Controlled Drug & Prescription Classification */}
+                    <div className="p-3 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl flex flex-col gap-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-ink dark:text-ink-dark">
+                          <ShieldAlert className="w-3.5 h-3.5 text-warn" />
+                          <span>تصنيف الصرف والرقابة والجدول (Controlled Drugs & Rx)</span>
+                        </div>
+                        {((pharmaInfo?.controlledSchedule && pharmaInfo.controlledSchedule !== 'none') || pharmaInfo?.rxStatus === 'controlled') && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-warn/15 text-warn border border-warn/30 animate-pulse">
+                            خاضع للرقابة والتفتيش
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-ink dark:text-ink-dark mb-1">
+                            نوع الوصفة / الصرف (Rx Status)
+                          </label>
+                          <CustomSelect
+                            options={rxStatusOptions}
+                            value={pharmaInfo?.rxStatus || (pharmaInfo?.isPrescriptionOnly ? 'rx' : 'otc')}
+                            onChange={(val) => {
+                              setPharmaInfo?.((prev) => ({
+                                ...prev,
+                                rxStatus: val,
+                                isPrescriptionOnly: val === 'rx' || val === 'controlled',
+                              }));
+                            }}
+                            size="sm"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-ink dark:text-ink-dark mb-1">
+                            جدول المواد المخدرة والمهدئات (Controlled Schedule)
+                          </label>
+                          <CustomSelect
+                            options={controlledScheduleOptions}
+                            value={pharmaInfo?.controlledSchedule || 'none'}
+                            onChange={(val) => {
+                              setPharmaInfo?.((prev) => ({
+                                ...prev,
+                                controlledSchedule: val,
+                                rxStatus: val !== 'none' ? 'controlled' : prev?.rxStatus || 'otc',
+                                isPrescriptionOnly: val !== 'none' ? true : prev?.isPrescriptionOnly || false,
+                              }));
+                            }}
+                            size="sm"
+                          />
+                        </div>
+                      </div>
+
+                      {((pharmaInfo?.controlledSchedule && pharmaInfo.controlledSchedule !== 'none') || pharmaInfo?.rxStatus === 'controlled') && (
+                        <div className="p-2 rounded-lg bg-warn/10 border border-warn/25 text-[11px] text-warn-dark dark:text-warn flex items-start gap-1.5 leading-relaxed">
+                          <AlertTriangle className="w-4 h-4 shrink-0 text-warn mt-0.5" />
+                          <span>
+                            تنبيه رقابي: عند بيع هذا الصنف في الكاشير، سيتم تسجيل وتوثيق بيانات المريض والطبيب والروشتة إجبارياً في «دفتر أدوية الجدول والتفتيش الصيدلي»، ولن يُسمح بتعليق الفاتورة.
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Active Ingredients Sub-Table */}
+                    <div className="p-3 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl flex flex-col gap-2">
+                      <div className="text-[11px] font-bold text-ink dark:text-ink-dark flex items-center justify-between">
+                        <span>المواد الفعالة وتركيزاتها (Active Ingredients):</span>
+                        <span className="text-[10px] text-ink-muted font-mono font-normal">
+                          {pharmaInfo?.ingredients?.length || 0} مادة فعالة
+                        </span>
+                      </div>
+
+                      {/* Add Ingredient Form */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <input
+                          type="text"
+                          value={newIngredientName}
+                          onChange={(e) => setNewIngredientName(e.target.value)}
+                          placeholder="اسم المادة الفعالة..."
+                          className="flex-1 min-w-[120px] h-8 px-2 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
+                        />
+                        <input
+                          type="number"
+                          value={newIngredientStrength}
+                          onChange={(e) => setNewIngredientStrength(e.target.value)}
+                          placeholder="التركيز"
+                          className="w-20 h-8 px-2 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-xs font-mono text-center text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
+                        />
+                        <div className="w-24">
+                          <CustomSelect
+                            options={strengthUnitOptions}
+                            value={newIngredientUnit}
+                            onChange={(val) => setNewIngredientUnit(val)}
+                            size="sm"
+                          />
+                        </div>
+                        <label className="flex items-center gap-1 text-[10px] text-ink-muted cursor-pointer shrink-0">
+                          <input
+                            type="checkbox"
+                            checked={newIngredientIsPrimary}
+                            onChange={(e) => setNewIngredientIsPrimary(e.target.checked)}
+                            className="rounded text-brand"
+                          />
+                          <span>رئيسية</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleAddIngredient}
+                          className="h-8 px-2.5 rounded-lg bg-brand hover:bg-brand-hover text-white text-xs font-bold flex items-center gap-1 transition-colors shrink-0 cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>إضافة</span>
+                        </button>
+                      </div>
+
+                      {/* Ingredients List */}
+                      {pharmaInfo?.ingredients && pharmaInfo.ingredients.length > 0 && (
+                        <div className="border border-line/60 dark:border-line-dark/60 rounded-lg overflow-hidden mt-1">
+                          <table className="w-full text-right text-xs">
+                            <thead className="bg-surface-2 dark:bg-surface-dark-2 text-ink-muted text-[10.5px]">
+                              <tr>
+                                <th className="px-2.5 py-1.5">المادة الفعالة</th>
+                                <th className="px-2.5 py-1.5 text-center">التركيز</th>
+                                <th className="px-2.5 py-1.5 text-center">النوع</th>
+                                <th className="px-2.5 py-1.5 text-center w-8"></th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-line/40 dark:divide-line-dark/40">
+                              {pharmaInfo.ingredients.map((ing, idx) => (
+                                <tr key={ing.ingredientId || idx}>
+                                  <td className="px-2.5 py-1.5 font-bold text-ink dark:text-ink-dark font-mono text-[11px]">
+                                    {ing.ingredientName}
+                                  </td>
+                                  <td className="px-2.5 py-1.5 text-center font-mono font-bold text-brand">
+                                    {ing.strengthMilli / 1000} {ing.strengthUnit}
+                                  </td>
+                                  <td className="px-2.5 py-1.5 text-center text-[10px]">
+                                    {ing.isPrimary ? (
+                                      <span className="px-1.5 py-0.2 rounded bg-brand/10 text-brand font-bold">
+                                        رئيسية
+                                      </span>
+                                    ) : (
+                                      <span className="text-ink-muted">إضافية</span>
+                                    )}
+                                  </td>
+                                  <td className="px-2.5 py-1.5 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveIngredient(idx)}
+                                      className="p-0.5 text-ink-muted hover:text-danger rounded"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

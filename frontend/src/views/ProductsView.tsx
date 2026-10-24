@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { FormEvent } from 'react';
 import { 
   Package, 
@@ -20,12 +20,19 @@ import {
   Barcode,
   ChevronDown,
   Undo2,
+  ShieldAlert,
+  BookOpen,
+  RotateCcw,
+  ClipboardCheck,
+  BarChart3,
+  Printer,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
 import { openHelpCenter } from '../utils/helpService';
 import { rafiqAlert } from '../utils/dialogService';
-import type { Product, Category, StockMovement, StockDiscrepancy, ProductUnit, BulkGenerateBarcodesResult, BulkPriceRevertResult } from '../types/models';
+import type { Product, Category, StockMovement, StockDiscrepancy, ProductUnit, BulkGenerateBarcodesResult, BulkPriceRevertResult, StorageLocation } from '../types/models';
+import type { ProductPharmaInfo } from '../types/pharma';
 import { normalizeArabicNumerals } from '../utils/money';
 import { exportProductsToExcel } from '../utils/excelImport';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -40,13 +47,21 @@ import { ProductVariantMatrixModal } from '../components/ProductVariantMatrixMod
 import { ProductVariantsListModal } from '../components/ProductVariantsListModal';
 import { BarcodeLabelModal } from '../components/BarcodeLabelModal';
 import { DataQualityAuditModal } from '../components/DataQualityAuditModal';
+import { ControlledDrugsRegisterModal } from '../components/ControlledDrugsRegisterModal';
+import { DrugReferenceImportModal } from '../components/DrugReferenceImportModal';
+import { ExpiryReturnsModal } from '../components/ExpiryReturnsModal';
+import { PharmacyStocktakingModal } from '../components/PharmacyStocktakingModal';
+import { SpecializedPharmacyReportsModal } from '../components/SpecializedPharmacyReportsModal';
+import { DosageLabelModal } from '../components/DosageLabelModal';
 import { useFeatures } from '../context/useFeatures';
+import { useAuth } from '../context/useAuth';
 import { ProductFormModal } from './products/ProductFormModal';
 import { BulkMinStockModal } from './products/BulkMinStockModal';
 import { StockMovementsTab } from './products/StockMovementsTab';
 import { BatchesTab } from './products/BatchesTab';
 import { ProductsTable } from './products/ProductsTable';
 import { BulkPriceAdjustmentModal } from './products/BulkPriceAdjustmentModal';
+import { StorageLocationsModal } from './products/StorageLocationsModal';
 
 export interface ProductsViewProps {
   isActive?: boolean;
@@ -138,10 +153,17 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [selectedParentForVariants, setSelectedParentForVariants] = useState<Product | null>(null);
   const [batchesInitialSearch, setBatchesInitialSearch] = useState<string>('');
   const { isEnabled } = useFeatures();
+  const { hasPermission } = useAuth();
 
   // Barcode Label Printing Modal State (Feature #57 / Tasks 57-1 to 57-4)
   const [showBarcodeLabelModal, setShowBarcodeLabelModal] = useState(false);
   const [labelModalProduct, setLabelModalProduct] = useState<Product | null>(null);
+  const [showControlledRegisterModal, setShowControlledRegisterModal] = useState(false);
+  const [showDrugReferenceModal, setShowDrugReferenceModal] = useState(false);
+  const [showExpiryReturnsModal, setShowExpiryReturnsModal] = useState(false);
+  const [showPharmaStocktakingModal, setShowPharmaStocktakingModal] = useState(false);
+  const [showPharmaReportsModal, setShowPharmaReportsModal] = useState(false);
+  const [showDosageLabelModal, setShowDosageLabelModal] = useState(false);
 
   // Bulk Price Adjustment Modal State (Story 106 - Feature #116)
   const [showBulkPriceModal, setShowBulkPriceModal] = useState(false);
@@ -154,6 +176,33 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [isLooseSellable, setIsLooseSellable] = useState<boolean>(false);
   const [defaultSaleUnitId, setDefaultSaleUnitId] = useState<string | null>(null);
   const [defaultPurchaseUnitId, setDefaultPurchaseUnitId] = useState<string | null>(null);
+
+  // Storage Locations & Cold Chain State (Feature #185 / Story 128)
+  const [locationId, setLocationId] = useState<string>('');
+  const [isColdChain, setIsColdChain] = useState<boolean>(false);
+  const [storageLocations, setStorageLocations] = useState<StorageLocation[]>([]);
+  const [showStorageLocationsModal, setShowStorageLocationsModal] = useState<boolean>(false);
+
+  // Pharmacy Module State (Feature #187 / Story 130)
+  const initialPharmaInfo: ProductPharmaInfo = useMemo(() => ({
+    productId: '',
+    scientificName: '',
+    dosageFormId: null,
+    dosageFormName: null,
+    manufacturerId: null,
+    manufacturerName: null,
+    therapeuticClassId: null,
+    therapeuticClassName: null,
+    routeOfAdministration: 'oral',
+    isPrescriptionOnly: false,
+    isAntibiotic: false,
+    isRefrigerated: false,
+    pregnancyCategory: '',
+    storageConditions: '',
+    dosageInstructions: '',
+    ingredients: [],
+  }), []);
+  const [pharmaInfo, setPharmaInfo] = useState<ProductPharmaInfo>(initialPharmaInfo);
 
   // F8 Global Shortcut to open Barcode Label Modal
   useEffect(() => {
@@ -403,6 +452,17 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     }
   }, []);
 
+  const fetchStorageLocations = useCallback(async () => {
+    try {
+      const res = await invoke<StorageLocation[]>('locations:list', { onlyActive: false });
+      if (Array.isArray(res)) {
+        setStorageLocations(res);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
   useDataSubscription(['products', 'all'], () => {
     void loadProducts();
   });
@@ -411,12 +471,17 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     void fetchCategoriesList();
   });
 
+  useDataSubscription(['products', 'all'], () => {
+    void fetchStorageLocations();
+  });
+
   useEffect(() => {
     if (isActive !== false) {
       void loadProducts();
       void fetchCategoriesList();
+      void fetchStorageLocations();
     }
-  }, [isActive, loadProducts, fetchCategoriesList]);
+  }, [isActive, loadProducts, fetchCategoriesList, fetchStorageLocations]);
 
   useEffect(() => {
     let active = true;
@@ -497,6 +562,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setIsLooseSellable(false);
     setDefaultSaleUnitId(null);
     setDefaultPurchaseUnitId(null);
+    setLocationId('');
+    setIsColdChain(false);
+    setPharmaInfo(initialPharmaInfo);
     setFormError('');
     setSimilarWarning(null);
     setBelowCostWarning(null);
@@ -509,6 +577,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setIsLooseSellable(prod.isLooseSellable ?? false);
     setDefaultSaleUnitId(prod.defaultSaleUnitId ?? null);
     setDefaultPurchaseUnitId(prod.defaultPurchaseUnitId ?? null);
+    setLocationId(prod.locationId || '');
+    setIsColdChain(Boolean(prod.isColdChain));
+    setPharmaInfo(initialPharmaInfo);
+    if (isEnabled('feature_pharmacy')) {
+      void invoke<ProductPharmaInfo>('pharma:getInfo', { productId: prod.id }).then((pInfo) => {
+        if (pInfo && pInfo.productId) {
+          setPharmaInfo(pInfo);
+        }
+      }).catch(() => null);
+    }
     setName(prod.name);
     setBarcode(prod.barcode || '');
     const extraCodes = (prod.barcodes || []).filter(b => b && b !== prod.barcode);
@@ -777,6 +855,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         isLooseSellable,
         defaultSaleUnitId: defaultSaleUnitId || null,
         defaultPurchaseUnitId: defaultPurchaseUnitId || null,
+        locationId: locationId || null,
+        isColdChain: Boolean(isColdChain),
         confirmSimilarName: forceConfirmSimilar,
         confirmBelowCost: forceConfirmCost,
       };
@@ -794,6 +874,12 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           quantityMilli: stockQuantityMilli,
           costPricePiasters: costPiasters,
           status: 'ACTIVE'
+        }).catch(() => null);
+      }
+      if (saved && isEnabled('feature_pharmacy')) {
+        await invoke('pharma:saveInfo', {
+          ...pharmaInfo,
+          productId: saved.id,
         }).catch(() => null);
       }
       if (saved) {
@@ -953,6 +1039,20 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                         <span>استيراد بضاعة من شيت إكسل</span>
                       </button>
 
+                      {isEnabled('feature_drug_reference') && hasPermission('pharma.drug_reference.import') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsToolsDropdownOpen(false);
+                            setShowDrugReferenceModal(true);
+                          }}
+                          className="w-full px-3 py-2 text-right text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer text-emerald-800 dark:text-emerald-300"
+                        >
+                          <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                          <span>دليل الأدوية المرجعي الخارجي</span>
+                        </button>
+                      )}
+
                       <button
                         type="button"
                         onClick={() => {
@@ -1018,6 +1118,90 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                         <span>جدول المقاسات والألوان (الأصناف المتفرعة)</span>
                       </button>
 
+                      {isEnabled('feature_shelf_locations') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsToolsDropdownOpen(false);
+                            setShowStorageLocationsModal(true);
+                          }}
+                          className="w-full px-3 py-2 text-right text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <Layers className="w-4 h-4 text-brand dark:text-brand-bright" />
+                          <span>إدارة مواقع التخزين والرفوف والأدراج</span>
+                        </button>
+                      )}
+
+                      {isEnabled('feature_pharmacy') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsToolsDropdownOpen(false);
+                            setShowControlledRegisterModal(true);
+                          }}
+                          className="w-full px-3 py-2 text-right text-xs font-bold text-warn hover:bg-warn-soft/20 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <ShieldAlert className="w-4 h-4 text-warn" />
+                          <span>دفتر أدوية الجدول والتفتيش الصيدلي</span>
+                        </button>
+                      )}
+
+                      {isEnabled('feature_expiry_returns') && hasPermission('pharma.expiry_returns.manage') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsToolsDropdownOpen(false);
+                            setShowExpiryReturnsModal(true);
+                          }}
+                          className="w-full px-3 py-2 text-right text-xs font-bold text-amber-800 dark:text-amber-300 hover:bg-amber-500/10 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <RotateCcw className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                          <span>مرتجعات الصلاحية ومحاضر الإعدام</span>
+                        </button>
+                      )}
+
+                      {isEnabled('feature_pharmacy') && hasPermission('pharma.stocktaking.manage') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsToolsDropdownOpen(false);
+                            setShowPharmaStocktakingModal(true);
+                          }}
+                          className="w-full px-3 py-2 text-right text-xs font-bold text-emerald-800 dark:text-emerald-300 hover:bg-emerald-500/10 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <ClipboardCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                          <span>الجرد الصيدلي المتقدم وحصر الفروقات</span>
+                        </button>
+                      )}
+
+                      {isEnabled('feature_pharmacy') && hasPermission('reports.pharma.view') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsToolsDropdownOpen(false);
+                            setShowPharmaReportsModal(true);
+                          }}
+                          className="w-full px-3 py-2 text-right text-xs font-bold text-brand dark:text-brand-bright hover:bg-brand-soft/30 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <BarChart3 className="w-4 h-4 text-brand dark:text-brand-bright" />
+                          <span>خريطة الصلاحيات والتقارير الصيدلية</span>
+                        </button>
+                      )}
+
+                      {isEnabled('feature_pharmacy') && hasPermission('pharma.dosage_labels.print') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsToolsDropdownOpen(false);
+                            setShowDosageLabelModal(true);
+                          }}
+                          className="w-full px-3 py-2 text-right text-xs font-bold text-teal-800 dark:text-teal-300 hover:bg-teal-500/10 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <Printer className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                          <span>طباعة ملصق جرعة حراري (استيكر صيدلي)</span>
+                        </button>
+                      )}
+
                       <div className="h-px bg-line dark:bg-line-dark my-1" />
 
                       <button
@@ -1054,6 +1238,18 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 >
                   <Layers className="w-4 h-4 text-brand dark:text-brand-bright" />
                   <span>مقاسات وألوان</span>
+                </button>
+              )}
+
+              {isEnabled('feature_shelf_locations') && (
+                <button
+                  type="button"
+                  onClick={() => setShowStorageLocationsModal(true)}
+                  className="h-9 px-3 bg-surface dark:bg-surface-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted hover:text-ink dark:hover:text-ink-dark rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-[0.98] shrink-0"
+                  title="إدارة مواقع التخزين والرفوف والأدراج وسلسلة التبريد"
+                >
+                  <Layers className="w-4 h-4 text-brand dark:text-brand-bright" />
+                  <span>الرفوف والمواقع</span>
                 </button>
               )}
 
@@ -1383,6 +1579,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         setInitialExpiryDate={setInitialExpiryDate}
         initialBatchNumber={initialBatchNumber}
         setInitialBatchNumber={setInitialBatchNumber}
+        locationId={locationId}
+        setLocationId={setLocationId}
+        isColdChain={isColdChain}
+        setIsColdChain={setIsColdChain}
+        storageLocations={storageLocations}
+        onOpenStorageLocationsModal={() => setShowStorageLocationsModal(true)}
+        pharmaInfo={pharmaInfo}
+        setPharmaInfo={setPharmaInfo}
       />
 
       {/* Confirm Product Delete Modal (Feature #112 / Task 112-2) */}
@@ -1594,6 +1798,57 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         isDanger={false}
         onConfirm={() => void handleConfirmBulkBarcodeGeneration()}
         onCancel={() => setShowBulkBarcodeConfirm(false)}
+      />
+
+      {/* Storage Locations & Cold Chain Management Modal (Feature #185 / Story 128) */}
+      <StorageLocationsModal
+        isOpen={showStorageLocationsModal}
+        onClose={() => setShowStorageLocationsModal(false)}
+        onLocationUpdated={() => {
+          void fetchStorageLocations();
+          void loadProducts(searchQuery, currentPage, pageSize, stockStatusFilter, selectedCategoryFilter);
+        }}
+      />
+
+      {/* Official Controlled Drugs Register Modal (Story 131 / Feature #188) */}
+      <ControlledDrugsRegisterModal
+        isOpen={showControlledRegisterModal}
+        onClose={() => setShowControlledRegisterModal(false)}
+      />
+
+      {/* Drug Reference Directory Modal (Feature #191 / Story 134) */}
+      <DrugReferenceImportModal
+        isOpen={showDrugReferenceModal}
+        onClose={() => setShowDrugReferenceModal(false)}
+        onSuccess={(msg) => setImportSuccessAlert(msg)}
+      />
+
+      {/* Expiry Returns & Write-offs Modal (Feature #191 / Story 134) */}
+      <ExpiryReturnsModal
+        isOpen={showExpiryReturnsModal}
+        onClose={() => setShowExpiryReturnsModal(false)}
+        onSuccess={(msg) => setImportSuccessAlert(msg)}
+      />
+
+      {/* Specialized Pharmacy Stocktaking Modal (Feature #192 / Story 135) */}
+      <PharmacyStocktakingModal
+        isOpen={showPharmaStocktakingModal}
+        onClose={() => setShowPharmaStocktakingModal(false)}
+        onStocktakingCompleted={() => {
+          void loadProducts(searchQuery, currentPage, pageSize, stockStatusFilter, selectedCategoryFilter);
+        }}
+      />
+
+      {/* Specialized Pharmacy Reports & Expiry Heatmap Modal (Feature #192 / Story 135) */}
+      <SpecializedPharmacyReportsModal
+        isOpen={showPharmaReportsModal}
+        onClose={() => setShowPharmaReportsModal(false)}
+      />
+
+      {/* Thermal Dosage Label Modal (Feature #192 / Story 135) */}
+      <DosageLabelModal
+        isOpen={showDosageLabelModal}
+        onClose={() => setShowDosageLabelModal(false)}
       />
     </div>
   );

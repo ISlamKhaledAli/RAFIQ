@@ -340,6 +340,13 @@ export function ReceiptModal({
             {/* Dotted Divider */}
             <div className="border-t border-dotted border-black my-2.5"></div>
 
+            {/* Cold Chain Medical Alert (Task 185-4) */}
+            {(sale.hasColdChainItems || sale.items?.some((it) => it.isColdChain)) && (
+              <div className="border-t-2 border-b-2 border-black py-1 my-2 text-center font-bold text-[11px] text-black font-sans">
+                * تنبيه طبي: يحفظ في الثلاجة (2-8 مئوية) *
+              </div>
+            )}
+
             {/* Footer and Code 128 Barcode Simulation */}
             <div className="text-center space-y-1.5">
               <div className="text-[10px] text-gray-700 font-sans">{activeFooter}</div>

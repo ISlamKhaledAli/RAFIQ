@@ -118,6 +118,8 @@ export const usePosCatalog = ({
         isExpired: p.isExpired,
         defaultSaleUnitId: p.defaultSaleUnitId,
         isLooseSellable: p.isLooseSellable,
+        isControlled: p.isControlled || Boolean((p.controlledSchedule && p.controlledSchedule !== 'none') || p.rxStatus === 'controlled'),
+        controlledSchedule: p.controlledSchedule,
       });
       seenProductIds.add(p.id);
     }

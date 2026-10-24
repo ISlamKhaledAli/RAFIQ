@@ -12,6 +12,7 @@ import {
   Download,
   Trash2,
   Loader2,
+  HeartPulse,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
@@ -24,6 +25,9 @@ import { CustomerPaymentModal } from './customers/CustomerPaymentModal';
 import { CustomerStatementModal } from './customers/CustomerStatementModal';
 import { CustomerPrintStatementModal } from './customers/CustomerPrintStatementModal';
 import { CustomerImportExcelModal } from './customers/CustomerImportExcelModal';
+import { PatientProfileModal } from './customers/PatientProfileModal';
+import { useFeatures } from '../context/useFeatures';
+import { useAuth } from '../context/useAuth';
 import { PaginationBar } from '../components/PaginationBar';
 import { useClientPagination } from '../utils/usePagination';
 import { RafiqTableLoading } from '../components/RafiqLoadingState';
@@ -34,12 +38,15 @@ export interface CustomersViewProps {
 }
 
 export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
+  const { isEnabled } = useFeatures();
+  const { hasPermission } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'debtors' | 'settled'>('all');
   const [isLoading, setIsLoading] = useState(false);
   const showLoading = useSmoothLoading(isLoading, 300);
   const [archivingCustomerId, setArchivingCustomerId] = useState<string | null>(null);
+  const [patientModalCustomer, setPatientModalCustomer] = useState<Customer | null>(null);
 
   // Modals state
   const [isAddEditOpen, setIsAddEditOpen] = useState(false);
@@ -890,6 +897,18 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
                             <span>كشف حساب</span>
                           </button>
 
+                          {/* Patient Profile Button (Story 133 / Feature #190) */}
+                          {isEnabled('feature_patient_profiles') && hasPermission('patients.view') && (
+                            <button
+                              onClick={() => setPatientModalCustomer(cust)}
+                              title="الملف الطبي والأمراض المزمنة للمريض"
+                              className="flex items-center gap-1 h-7.5 px-2.5 rounded-xl bg-brand-soft dark:bg-brand-dark-soft border border-brand/20 dark:border-brand-bright/30 text-brand dark:text-brand-bright hover:bg-brand hover:text-white dark:hover:bg-brand-bright dark:hover:text-surface-dark text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                            >
+                              <HeartPulse className="w-3.5 h-3.5" />
+                              <span>الملف الطبي</span>
+                            </button>
+                          )}
+
                           {/* Edit Button */}
                           <button
                             onClick={() => openEditModal(cust)}
@@ -1033,6 +1052,18 @@ export function CustomersView({ isActive = true }: CustomersViewProps = {}) {
         importPreview={importPreview}
         onExecuteImport={() => void handleExecuteImport()}
       />
+
+      {/* Modal 6: Patient Medical Profile Modal (Story 133 / Feature #190) */}
+      {patientModalCustomer && (
+        <PatientProfileModal
+          isOpen={patientModalCustomer !== null}
+          onClose={() => setPatientModalCustomer(null)}
+          customerId={patientModalCustomer.id}
+          customerName={patientModalCustomer.name}
+          customerPhone={patientModalCustomer.phone}
+          onProfileUpdated={() => void loadCustomers()}
+        />
+      )}
     </div>
   );
 }

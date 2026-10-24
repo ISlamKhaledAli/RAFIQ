@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { FormEvent } from 'react';
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
-import { extractProducts, type Product, type Sale, type Customer, type QuickItem, type SalePayment, type ProductUnit, type HeldSale, type Category, type DigitalAccount, type Shift } from '../types/models';
+import { extractProducts, type Product, type ProductBatch, type Sale, type Customer, type QuickItem, type SalePayment, type ProductUnit, type HeldSale, type Category, type DigitalAccount, type Shift } from '../types/models';
 import { 
   formatArabicCurrency, 
   calculateLineTotal, 
@@ -47,8 +47,20 @@ import { PosCategoriesPanel } from './pos/PosCategoriesPanel';
 import { OpenPriceModal } from './pos/OpenPriceModal';
 import { PosQuantityModal } from './pos/PosQuantityModal';
 import { PosInvoiceDiscountModal } from './pos/PosInvoiceDiscountModal';
+import { BatchSelectionModal } from './pos/BatchSelectionModal';
 import { usePosCatalog } from './pos/usePosCatalog';
 import { usePosShortcuts } from './pos/usePosShortcuts';
+import { QuickShortageModal } from '../components/QuickShortageModal';
+import { DrugAlternativesDrawer } from './pos/DrugAlternativesDrawer';
+import { ControlledDrugDispenseModal } from './pos/ControlledDrugDispenseModal';
+import type { ControlledDrugDispense, DrugReferenceItem } from '../types/pharma';
+import { InsurancePrescriptionModal } from './pos/InsurancePrescriptionModal';
+import type { InsuranceClaimLine } from '../types/insurance';
+import { ShieldAlert } from 'lucide-react';
+import { PosChronicDispenseModal } from './pos/PosChronicDispenseModal';
+import { ClinicalAllergyAlertModal } from './pos/ClinicalAllergyAlertModal';
+import type { AllergyCheckResult } from '../types/patient';
+import { DosageLabelModal } from '../components/DosageLabelModal';
 
 export interface PosViewProps {
   isActive?: boolean;
@@ -97,6 +109,15 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const [requireOpenShiftToSell, setRequireOpenShiftToSell] = useState<boolean>(true);
   const [unregisteredBarcode, setUnregisteredBarcode] = useState('');
+  const [quickAddInitialName, setQuickAddInitialName] = useState('');
+  const [quickAddInitialPrice, setQuickAddInitialPrice] = useState('');
+  const [isQuickAddFromDrugRef, setIsQuickAddFromDrugRef] = useState(false);
+  const [isQuickShortageOpen, setIsQuickShortageOpen] = useState(false);
+  const [shortageInitialName, setShortageInitialName] = useState('');
+  const [shortageInitialProductId, setShortageInitialProductId] = useState('');
+  const [isAlternativesDrawerOpen, setIsAlternativesDrawerOpen] = useState(false);
+  const [alternativesProductId, setAlternativesProductId] = useState<string>('');
+  const [alternativesProductName, setAlternativesProductName] = useState<string>('');
   const [scannerSettings, setScannerSettings] = useState<BarcodeScannerSettings>(DEFAULT_SCANNER_SETTINGS);
   const [draftPrompt, setDraftPrompt] = useState<{
     items: CartItem[];
@@ -127,6 +148,28 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     editingCartIndex?: number;
   } | null>(null);
   const [initialWeightMilli, setInitialWeightMilli] = useState<number>(1000);
+  const [batchPickerState, setBatchPickerState] = useState<{
+    cartIndex: number;
+    productId: string;
+    productName: string;
+    currentBatchId?: string;
+  } | null>(null);
+  const [controlledDispenseModalItem, setControlledDispenseModalItem] = useState<{
+    item: CartItem;
+    index: number;
+  } | null>(null);
+  const [activeInsuranceClaim, setActiveInsuranceClaim] = useState<InsuranceClaimLine | null>(null);
+  const [isInsuranceModalOpen, setIsInsuranceModalOpen] = useState(false);
+  const [isChronicDispenseOpen, setIsChronicDispenseOpen] = useState(false);
+  const [allergyCheckResult, setAllergyCheckResult] = useState<AllergyCheckResult | null>(null);
+  const [isAllergyModalOpen, setIsAllergyModalOpen] = useState(false);
+  const [dosageLabelTarget, setDosageLabelTarget] = useState<{
+    drugName: string;
+    patientName?: string;
+    doctorName?: string;
+    instructions?: string;
+    storage?: string;
+  } | null>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
@@ -219,6 +262,9 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     setCart([]);
     setDiscountPiasters(0);
     setSelectedCustomerId('');
+    setActiveInsuranceClaim(null);
+    setAllergyCheckResult(null);
+    setIsAllergyModalOpen(false);
     try {
       localStorage.removeItem('rafiq_pos_cart_draft');
     } catch {
@@ -285,9 +331,12 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
 
     const qtyMilli = customWeightMilli !== undefined ? customWeightMilli : 1000;
     const factor = unitToUse && unitToUse.conversionFactor > 0 ? unitToUse.conversionFactor : 1;
-    const unitPrice = unitToUse 
-      ? (unitToUse.sellPricePiasters > 0 ? unitToUse.sellPricePiasters : prod.pricePiasters * factor)
+    const baseSellingPrice = (isEnabled('feature_batch_pricing') && prod.suggestedBatchSellPricePiasters && prod.suggestedBatchSellPricePiasters > 0)
+      ? prod.suggestedBatchSellPricePiasters
       : prod.pricePiasters;
+    const unitPrice = unitToUse 
+      ? (unitToUse.sellPricePiasters > 0 ? unitToUse.sellPricePiasters : baseSellingPrice * factor)
+      : baseSellingPrice;
     const unitCost = unitToUse 
       ? (unitToUse.costPricePiasters > 0 ? unitToUse.costPricePiasters : prod.costPiasters * factor)
       : prod.costPiasters;
@@ -365,6 +414,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
 
       const totalPiasters = calculateLineTotal(unitPrice, qtyMilli, 0);
       const taxRate = prod.taxRatePercent || 0;
+      const isControlled = Boolean(prod.isControlled || (prod.controlledSchedule && prod.controlledSchedule !== 'none') || prod.rxStatus === 'controlled');
       const newItem: CartItem = {
         productId: prod.id,
         productName: prod.name,
@@ -383,10 +433,22 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         conversionFactor: factor,
         productUnits: prod.units,
         isDivisible: isDivisible,
+        batchId: prod.suggestedBatchId || undefined,
         batchNumber: prod.suggestedBatchNumber || undefined,
         expiryDate: prod.nearestExpiryDate || undefined,
         isExpiredBypass: !!isExpiredBypassed,
+        isColdChain: Boolean(prod.isColdChain),
+        locationCode: prod.locationCode || null,
+        isControlled,
+        controlledSchedule: prod.controlledSchedule || undefined,
       };
+
+      if (isControlled) {
+        setTimeout(() => {
+          setControlledDispenseModalItem({ item: newItem, index: 0 });
+        }, 80);
+      }
+
       return [newItem, ...prev];
     });
 
@@ -526,7 +588,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const totalItemDiscountsPiasters = cart.reduce((sum, item) => sum + (item.discountPiasters || 0), 0);
   const totalDiscountPiasters = totalItemDiscountsPiasters + discountPiasters;
   const subtotalPiasters = grossSubtotalPiasters;
-  const netTotalPiasters = Math.max(0, grossSubtotalPiasters - totalDiscountPiasters);
+  const standardNetTotalPiasters = Math.max(0, grossSubtotalPiasters - totalDiscountPiasters);
+  const netTotalPiasters = activeInsuranceClaim ? activeInsuranceClaim.patientPiasters : standardNetTotalPiasters;
   const totalItemCount = cart.reduce((count, item) => count + (item.quantityMilli / 1000), 0);
   const totalTaxPiasters = cart.reduce((sum, item) => sum + item.taxPiasters, 0);
 
@@ -542,6 +605,11 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
   const handleHoldCurrentSale = useCallback(async () => {
     if (cart.length === 0) {
       showStatus('لا توجد أصناف في السلة لتعليقها', 'warning');
+      return;
+    }
+    // Story 131: Disallow holding sales with controlled drugs
+    if (cart.some(i => i.isControlled)) {
+      showStatus('غير مسموح بتعليق فواتير تحتوي على أدوية جدول أو رقابة صيدلية طبقاً للقانون واللوائح', 'error');
       return;
     }
     try {
@@ -864,6 +932,14 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       showStatus('سلة البيع فارغة! يرجى إضافة أصناف أولاً.', 'error');
       return;
     }
+    // Story 131: Validate that all controlled drug items have documented dispenses
+    const unDocumentedItem = cart.find(i => i.isControlled && !i.controlledDispense);
+    if (unDocumentedItem) {
+      showStatus(`الصنف "${unDocumentedItem.productName}" خاضع لجدول الرقابة والتفتيش. يلزم تسجيل بيانات المريض والروشتة أولاً!`, 'error');
+      const idx = cart.indexOf(unDocumentedItem);
+      setControlledDispenseModalItem({ item: unDocumentedItem, index: idx });
+      return;
+    }
     if (requireOpenShiftToSell && !currentShift) {
       showStatus('لا يمكن إتمام البيع قبل فتح وردية رسمية للكاشير واستلام عهدة الدرج. يرجى فتح وردية جديدة أولاً.', 'error');
       setIsShiftModalOpen(true);
@@ -880,10 +956,10 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       setPaymentMethod('cash');
     }
     setIsPaymentModalOpen(true);
-  }, [cart.length, currentShift, requireOpenShiftToSell, showStatus]);
+  }, [cart, currentShift, requireOpenShiftToSell, showStatus]);
 
   const handleConfirmPayment = useCallback(async (paymentData: {
-    paymentMethod: 'cash' | 'credit' | 'card' | 'multi' | 'instapay' | 'vodafone_cash';
+    paymentMethod: 'cash' | 'credit' | 'card' | 'multi' | 'instapay' | 'vodafone_cash' | 'insurance';
     paidPiasters: number;
     payments: SalePayment[];
     changeDuePiasters: number;
@@ -903,13 +979,17 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     setLoading(true);
     try {
       const shiftId = currentShift ? (currentShift.id || (currentShift as unknown as { Id?: string }).Id) : undefined;
-      const salePayload: Partial<Sale> & { idempotencyKey?: string; supervisorPin?: string } = {
+      const controlledDispenses = cart
+        .filter(i => i.isControlled && i.controlledDispense)
+        .map(i => i.controlledDispense);
+
+      const salePayload: Partial<Sale> & { idempotencyKey?: string; supervisorPin?: string; controlledDispenses?: ControlledDrugDispense[]; insuranceClaim?: InsuranceClaimLine } = {
         subtotalPiasters,
         discountPiasters,
         taxPiasters: totalTaxPiasters,
-        totalPiasters: paymentData.totalPiastersOverride ?? netTotalPiasters,
+        totalPiasters: activeInsuranceClaim ? subtotalPiasters : (paymentData.totalPiastersOverride ?? netTotalPiasters),
         paidPiasters: paymentData.paidPiasters,
-        paymentMethod: paymentData.paymentMethod,
+        paymentMethod: activeInsuranceClaim ? 'insurance' : paymentData.paymentMethod,
         customerId: paymentData.customerId || selectedCustomerId || undefined,
         shiftId: shiftId || undefined,
         status: 'completed',
@@ -918,7 +998,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
         notes: paymentData.serviceFeeNote,
         changePiasters: paymentData.changeDuePiasters,
         idempotencyKey: cartSessionIdRef.current,
-        supervisorPin: paymentData.supervisorPin || supervisorPinRef.current || undefined,
+        controlledDispenses: controlledDispenses.length > 0 ? (controlledDispenses as ControlledDrugDispense[]) : undefined,
+        insuranceClaim: activeInsuranceClaim || undefined,
       };
 
       const completedSale = await invoke<Sale>('sales:create', salePayload);
@@ -945,10 +1026,26 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       } else {
         showStatus(`تم حفظ الفاتورة #${completedSale.invoiceNumber || ''} بنجاح!`, 'success');
       }
+
+      if (isEnabled('feature_patient_profiles') && selectedCustomerId) {
+        const soldProductIds = cart.map((item) => item.productId).filter(Boolean);
+        if (soldProductIds.length > 0) {
+          void invoke('patients:recordDispense', {
+            customerId: selectedCustomerId,
+            productIds: soldProductIds,
+          }).catch(() => {
+            // Non-blocking
+          });
+        }
+      }
+
       setCart([]);
       setDiscountPiasters(0);
       setSelectedCustomerId('');
       setPaymentMethod('cash');
+      setActiveInsuranceClaim(null);
+      setAllergyCheckResult(null);
+      setIsAllergyModalOpen(false);
       resetCartSession();
       void loadSmartCatalog();
       void loadHeldSalesCount();
@@ -981,12 +1078,14 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     netTotalPiasters, 
     cart, 
     selectedCustomerId, 
+    activeInsuranceClaim,
     showStatus,
     loadSmartCatalog,
     loadHeldSalesCount,
     resetCartSession,
     currentShift,
     requireOpenShiftToSell,
+    isEnabled,
   ]);
 
   const setDirectQuantity = useCallback((index: number, newQtyPieces: number) => {
@@ -1311,9 +1410,32 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           showStatus(`تمت إضافة: ${selected.name}`, 'success');
         }
       } else {
-        setUnregisteredBarcode(query);
-        setIsQuickAddModalOpen(true);
-        showStatus(`المنتج غير مسجل: "${query}" - يمكنك إضافته سريعاً الآن`, 'warning');
+        let matchedDrugRef: DrugReferenceItem | null = null;
+        if (isEnabled('feature_drug_reference')) {
+          try {
+            matchedDrugRef = await invoke<DrugReferenceItem | null>('pharma:checkDrugReference', { barcode: query });
+          } catch {
+            matchedDrugRef = null;
+          }
+        }
+
+        if (matchedDrugRef) {
+          const formattedName = matchedDrugRef.tradeName + (matchedDrugRef.form ? ` ${matchedDrugRef.form}` : '') + (matchedDrugRef.strength ? ` ${matchedDrugRef.strength}` : '');
+          const priceEgp = matchedDrugRef.publicPricePiasters ? (matchedDrugRef.publicPricePiasters / 100.0).toFixed(2) : '';
+          setQuickAddInitialName(formattedName);
+          setQuickAddInitialPrice(priceEgp);
+          setIsQuickAddFromDrugRef(true);
+          setUnregisteredBarcode(query);
+          setIsQuickAddModalOpen(true);
+          showStatus(`تم العثور على الصنف في دليل الأدوية: "${matchedDrugRef.tradeName}"`, 'success');
+        } else {
+          setQuickAddInitialName('');
+          setQuickAddInitialPrice('');
+          setIsQuickAddFromDrugRef(false);
+          setUnregisteredBarcode(query);
+          setIsQuickAddModalOpen(true);
+          showStatus(`المنتج غير مسجل: "${query}" - يمكنك إضافته سريعاً الآن`, 'warning');
+        }
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -1514,6 +1636,147 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     setUndoItem(null);
   }, [undoItem, showStatus]);
 
+  const handleSelectBatchForCartItem = useCallback((selectedBatch: ProductBatch) => {
+    if (!batchPickerState) return;
+    const { cartIndex } = batchPickerState;
+    setCart((prev) => {
+      const updated = [...prev];
+      const item = updated[cartIndex];
+      if (!item) return prev;
+
+      const factor = item.conversionFactor && item.conversionFactor > 0 ? item.conversionFactor : 1;
+      let newUnitPrice = item.unitPricePiasters;
+      if (selectedBatch.sellPricePiasters && selectedBatch.sellPricePiasters > 0) {
+        newUnitPrice = selectedBatch.sellPricePiasters * factor;
+      }
+
+      item.batchId = selectedBatch.id;
+      item.batchNumber = selectedBatch.batchNumber;
+      item.expiryDate = selectedBatch.expiryDate || undefined;
+      item.unitPricePiasters = newUnitPrice;
+      item.totalPiasters = calculateLineTotal(newUnitPrice, item.quantityMilli, item.discountPiasters);
+      item.taxPiasters = calculateTaxPiasters(item.totalPiasters, item.taxRatePercent || 0, true);
+      return updated;
+    });
+
+    showStatus(
+      `تم تحديد التشغيلة #${selectedBatch.batchNumber} للصنف بنجاح.`,
+      'success'
+    );
+    setBatchPickerState(null);
+  }, [batchPickerState, showStatus]);
+
+  // Story 133 / Feature #190: 1-Click Chronic Medication Dispense
+  const handleLoadChronicMedsToCart = useCallback(
+    (customer: Customer, medsToLoad: { product: Product; quantityMilli: number }[]) => {
+      setSelectedCustomerId(customer.id);
+      setCart((prevCart) => {
+        const newCart = [...prevCart];
+        medsToLoad.forEach(({ product, quantityMilli }) => {
+          const existingIndex = newCart.findIndex((item) => item.productId === product.id);
+          if (existingIndex >= 0) {
+            const existing = newCart[existingIndex];
+            const updatedQty = existing.quantityMilli + quantityMilli;
+            newCart[existingIndex] = {
+              ...existing,
+              quantityMilli: updatedQty,
+              totalPiasters: calculateLineTotal(existing.unitPricePiasters, updatedQty, existing.discountPiasters),
+              taxPiasters: calculateTaxPiasters(
+                calculateLineTotal(existing.unitPricePiasters, updatedQty, existing.discountPiasters),
+                existing.taxRatePercent || 0,
+                true
+              ),
+            };
+          } else {
+            const unitPrice = product.pricePiasters;
+            const taxRate = product.taxRatePercent || 0;
+            const lineTotal = calculateLineTotal(unitPrice, quantityMilli, 0);
+            newCart.push({
+              productId: product.id,
+              productName: product.name,
+              barcode: product.barcode,
+              unitPricePiasters: unitPrice,
+              unitCostPiasters: product.costPiasters || 0,
+              quantityMilli,
+              unit: product.unit || 'piece',
+              discountPiasters: 0,
+              totalPiasters: lineTotal,
+              taxRatePercent: taxRate,
+              taxPiasters: calculateTaxPiasters(lineTotal, taxRate, true),
+              isControlled: product.isControlled,
+            });
+          }
+        });
+        return newCart;
+      });
+      showStatus(`تم تحميل ${medsToLoad.length} صنف علاج شهري للمريض: ${customer.name}`, 'success');
+      setIsChronicDispenseOpen(false);
+      barcodeInputRef.current?.focus();
+    },
+    [showStatus]
+  );
+
+  // Story 133 / Feature #190: Clinical Allergy Checking
+  useEffect(() => {
+    if (!isEnabled('feature_patient_profiles') || !selectedCustomerId || cart.length === 0) {
+      setAllergyCheckResult(null);
+      return;
+    }
+
+    const productIds = cart.map((i) => i.productId).filter(Boolean);
+    if (productIds.length === 0) {
+      setAllergyCheckResult(null);
+      return;
+    }
+
+    let isCurrent = true;
+    invoke<AllergyCheckResult>('patients:checkAllergies', {
+      customerId: selectedCustomerId,
+      productIds,
+    })
+      .then((result) => {
+        if (isCurrent && result && result.hasConflict && result.conflicts.length > 0) {
+          setAllergyCheckResult(result);
+          setIsAllergyModalOpen(true);
+        } else if (isCurrent) {
+          setAllergyCheckResult(null);
+        }
+      })
+      .catch(() => {
+        if (isCurrent) setAllergyCheckResult(null);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [isEnabled, selectedCustomerId, cart]);
+
+  const handleRemoveAllergyConflictItem = useCallback((productId: string) => {
+    setCart((prev) => prev.filter((item) => item.productId !== productId));
+    setAllergyCheckResult((prev) => {
+      if (!prev) return null;
+      const remainingConflicts = prev.conflicts.filter((c) => c.productId !== productId);
+      if (remainingConflicts.length === 0) {
+        setIsAllergyModalOpen(false);
+        return null;
+      }
+      return {
+        ...prev,
+        conflicts: remainingConflicts,
+      };
+    });
+    showStatus('تمت إزالة الصنف المتعارض من السلة بنجاح', 'success');
+  }, [showStatus]);
+
+  const handleRemoveAllAllergyConflicts = useCallback(() => {
+    if (!allergyCheckResult) return;
+    const conflictIds = new Set(allergyCheckResult.conflicts.map((c) => c.productId));
+    setCart((prev) => prev.filter((item) => !conflictIds.has(item.productId)));
+    setAllergyCheckResult(null);
+    setIsAllergyModalOpen(false);
+    showStatus('تمت إزالة جميع الأصناف المتعارضة مع الحساسية من السلة', 'success');
+  }, [allergyCheckResult, showStatus]);
+
   // Fast cash checkout (F12)
   const handleFastCashCheckout = useCallback(async () => {
     if (isCheckingOutRef.current || loading) return;
@@ -1531,15 +1794,15 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       return;
     }
     await handleConfirmPayment({
-      paymentMethod,
-      paidPiasters: paymentMethod === 'cash' ? netTotalPiasters : 0,
-      payments: paymentMethod === 'cash' 
+      paymentMethod: activeInsuranceClaim ? 'insurance' : paymentMethod,
+      paidPiasters: paymentMethod === 'cash' || activeInsuranceClaim ? netTotalPiasters : 0,
+      payments: paymentMethod === 'cash' || activeInsuranceClaim
         ? [{ method: 'cash', amountPiasters: netTotalPiasters }] 
         : [{ method: 'credit', amountPiasters: 0 }],
       changeDuePiasters: 0,
       customerId: selectedCustomerId || undefined
     });
-  }, [loading, cart.length, paymentMethod, selectedCustomerId, netTotalPiasters, handleConfirmPayment, showStatus, currentShift]);
+  }, [loading, cart.length, paymentMethod, selectedCustomerId, netTotalPiasters, activeInsuranceClaim, handleConfirmPayment, showStatus, currentShift]);
 
   // Fast direct digital checkouts (InstaPay & Vodafone Cash)
   const handleInstapayCheckout = useCallback(async () => {
@@ -1550,6 +1813,49 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     handleOpenCheckout('vodafone_cash');
   }, [handleOpenCheckout]);
 
+  const handleOpenAlternatives = useCallback((prodId?: string, prodName?: string) => {
+    let targetId = prodId;
+    let targetName = prodName;
+    if (!targetId && cart.length > 0) {
+      const lastItem = cart[cart.length - 1];
+      targetId = lastItem.productId;
+      targetName = lastItem.productName;
+    }
+    if (targetId) {
+      setAlternativesProductId(targetId);
+      setAlternativesProductName(targetName || '');
+      setIsAlternativesDrawerOpen(true);
+    } else {
+      showStatus('يرجى تحديد صنف أو إضافة صنف للسلة أولاً لعرض بدائله (F8)', 'warning');
+    }
+  }, [cart, showStatus]);
+
+  const handleSubstituteCartItem = useCallback((originalProductId: string, replacementProduct: Product) => {
+    setCart((prev) => {
+      const idx = prev.findIndex((it) => it.productId === originalProductId);
+      if (idx === -1) return prev;
+      const original = prev[idx];
+      const updated = [...prev];
+      const unitPrice = replacementProduct.pricePiasters;
+      const total = calculateLineTotal(unitPrice, original.quantityMilli, 0);
+      const tax = calculateTaxPiasters(total, replacementProduct.taxRatePercent || 0, true);
+      updated[idx] = {
+        ...original,
+        productId: replacementProduct.id,
+        productName: replacementProduct.name,
+        barcode: replacementProduct.barcode || undefined,
+        unitPricePiasters: unitPrice,
+        unitCostPiasters: replacementProduct.costPiasters,
+        totalPiasters: total,
+        taxPiasters: tax,
+        taxRatePercent: replacementProduct.taxRatePercent || 0,
+        unitName: replacementProduct.unit || 'قطعة',
+      };
+      return updated;
+    });
+    showStatus(`تم استبدال الصنف بالبديل: ${replacementProduct.name}`, 'success');
+  }, [showStatus]);
+
   const isAnyModalOpen = Boolean(
     isPaymentModalOpen ||
     isDigitalPaymentModalOpen ||
@@ -1557,6 +1863,8 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     isClearConfirmOpen ||
     isScannerModalOpen ||
     isQuickAddModalOpen ||
+    isQuickShortageOpen ||
+    isAlternativesDrawerOpen ||
     isQuickItemsManagerOpen ||
     isQuickFastItemModalOpen ||
     isHelpModalOpen ||
@@ -1569,6 +1877,7 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     weightModalProduct !== null ||
     variantPickerParentProduct !== null ||
     unitPickerProduct !== null ||
+    batchPickerState !== null ||
     supervisorPrompt.isOpen
   );
 
@@ -1599,6 +1908,12 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
     setIsReturnModalOpen,
     showStatus,
     cycleCartItemUnit,
+    onOpenAlternatives: (isEnabled('feature_pharmacy') && (hasPermission ? hasPermission('pharma.alternatives.view') : false)) ? () => handleOpenAlternatives() : undefined,
+    onOpenQuickShortage: () => {
+      setShortageInitialName(barcodeQuery);
+      setShortageInitialProductId('');
+      setIsQuickShortageOpen(true);
+    },
     hasPermission,
     isAdmin,
   });
@@ -1652,6 +1967,26 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             onNavigateToEpay={onNavigateToEpay}
           />
 
+          {/* Story 133: Clinical Allergy Conflict Warning Banner */}
+          {allergyCheckResult && allergyCheckResult.hasConflict && allergyCheckResult.conflicts.length > 0 && (
+            <div
+              onClick={() => setIsAllergyModalOpen(true)}
+              className="mx-2 mb-1 p-2 bg-danger-soft dark:bg-danger-dark-soft border border-danger/40 rounded-xl flex items-center justify-between gap-2 text-xs cursor-pointer hover:bg-danger-soft/80 transition-colors animate-pulse"
+              role="alert"
+              title="انقر لعرض تفاصيل تعارض الحساسية الدوائية"
+            >
+              <div className="flex items-center gap-2 text-danger dark:text-danger-bright font-bold">
+                <ShieldAlert className="w-4 h-4 shrink-0" />
+                <span>
+                  تحذير سريري خطير: المريض ({allergyCheckResult.patientName || allergyCheckResult.customerName || 'المريض'}) لديه تعارض حساسية مع {allergyCheckResult.conflicts.length} دواء بالسلة!
+                </span>
+              </div>
+              <span className="text-[11px] font-bold underline text-danger dark:text-danger-bright shrink-0">
+                مراجعة التعارض
+              </span>
+            </div>
+          )}
+
           <PosCartTable
             cart={cart}
             lastInvoiceNumber={lastInvoiceNumber}
@@ -1679,6 +2014,47 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
               setIsItemDiscountModalOpen(true);
             }}
             removeItem={removeItem}
+            canSelectBatch={isEnabled('feature_batch_pricing') && (isAdmin || (hasPermission ? hasPermission('pos.select_batch') : false))}
+            onOpenBatchSelection={(index) => {
+              const it = cart[index];
+              if (!it) return;
+              setBatchPickerState({
+                cartIndex: index,
+                productId: it.productId,
+                productName: it.productName,
+                currentBatchId: it.batchId,
+              });
+            }}
+            onOpenAlternatives={
+              (isEnabled('feature_pharmacy') && (hasPermission ? hasPermission('pharma.alternatives.view') : false))
+                ? (index) => {
+                    const it = cart[index];
+                    if (it) handleOpenAlternatives(it.productId, it.productName);
+                  }
+                : undefined
+            }
+            onOpenControlledDispense={(index) => {
+              const it = cart[index];
+              if (it) {
+                setControlledDispenseModalItem({ item: it, index });
+              }
+            }}
+            onPrintDosageLabel={
+              isEnabled('feature_pharmacy') && hasPermission('pharma.dosage_labels.print')
+                ? (index) => {
+                    const it = cart[index];
+                    if (it) {
+                      setDosageLabelTarget({
+                        drugName: it.productName,
+                        patientName: it.controlledDispense?.patientName || activeInsuranceClaim?.patientName || '',
+                        doctorName: it.controlledDispense?.doctorName || '',
+                        instructions: '',
+                        storage: it.isColdChain ? 'يحفظ في الثلاجة (2 - 8 مئوية)' : 'يحفظ في مكان جاف وبارد',
+                      });
+                    }
+                  }
+                : undefined
+            }
           />
 
           {/* Bottom Grand Total Card & Fast Checkout Action Controls */}
@@ -1705,6 +2081,14 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             onOpenHeldSales={() => setIsHeldSalesModalOpen(true)}
             onOpenReturnModal={() => setIsReturnModalOpen(true)}
             onOpenExpenseModal={() => setIsExpenseModalOpen(true)}
+            onOpenInsuranceModal={(isEnabled('feature_insurance') && (hasPermission ? hasPermission('insurance.sell') : false)) ? () => setIsInsuranceModalOpen(true) : undefined}
+            onOpenChronicDispense={
+              isEnabled('feature_patient_profiles') && (isAdmin || hasPermission('patients.view'))
+                ? () => setIsChronicDispenseOpen(true)
+                : undefined
+            }
+            activeInsuranceClaim={activeInsuranceClaim}
+            onRemoveInsuranceClaim={() => setActiveInsuranceClaim(null)}
             hasInstapayAccount={digitalAccounts.some((a) => a.accountType === 'instapay' && a.isActive)}
             hasWalletAccount={digitalAccounts.some((a) => a.accountType === 'wallet' && a.isActive)}
             onNavigateToWallets={onNavigateToWallets}
@@ -1896,9 +2280,15 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
       <QuickAddProductModal
         isOpen={isQuickAddModalOpen}
         barcode={unregisteredBarcode}
+        initialName={quickAddInitialName}
+        initialPriceEgp={quickAddInitialPrice}
+        isFromDrugReference={isQuickAddFromDrugRef}
         onClose={() => {
           setIsQuickAddModalOpen(false);
           setUnregisteredBarcode('');
+          setQuickAddInitialName('');
+          setQuickAddInitialPrice('');
+          setIsQuickAddFromDrugRef(false);
           barcodeInputRef.current?.focus();
         }}
         onProductCreated={handleQuickProductCreated}
@@ -2079,6 +2469,153 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           showStatus('تم تسجيل المصروف وخصمه من الدرج بنجاح', 'success');
         }}
       />
+
+      {/* 20. BATCH SELECTION MODAL (Feature #184 / Task 184-4) */}
+      {batchPickerState && (
+        <BatchSelectionModal
+          isOpen={batchPickerState !== null}
+          onClose={() => {
+            setBatchPickerState(null);
+            barcodeInputRef.current?.focus();
+          }}
+          productId={batchPickerState.productId}
+          productName={batchPickerState.productName}
+          currentBatchId={batchPickerState.currentBatchId}
+          onSelectBatch={handleSelectBatchForCartItem}
+        />
+      )}
+
+      {/* 21. QUICK SHORTAGE MODAL (Feature #186 / Story 129 / Task 186-2) */}
+      <QuickShortageModal
+        isOpen={isQuickShortageOpen}
+        onClose={() => {
+          setIsQuickShortageOpen(false);
+          barcodeInputRef.current?.focus();
+        }}
+        initialProductName={shortageInitialName}
+        initialProductId={shortageInitialProductId}
+        onSuccess={(entry) => {
+          showStatus(`تم تسجيل "${entry.productName}" في دفتر النواقص بنجاح`, 'success');
+          barcodeInputRef.current?.focus();
+        }}
+      />
+
+      {/* 22. DRUG ALTERNATIVES DRAWER (Feature #187 / Story 130 / Task 187-5) */}
+      <DrugAlternativesDrawer
+        isOpen={isAlternativesDrawerOpen}
+        onClose={() => {
+          setIsAlternativesDrawerOpen(false);
+          barcodeInputRef.current?.focus();
+        }}
+        productId={alternativesProductId}
+        productName={alternativesProductName}
+        onSubstitute={handleSubstituteCartItem}
+        onAddToCart={(prod) => {
+          const added = addProductToCart(prod);
+          if (added) {
+            showStatus(`تمت إضافة البديل: ${prod.name}`, 'success');
+          }
+        }}
+      />
+
+      {/* 23. CONTROLLED DRUG DISPENSE MODAL (Story 131 / Feature #188) */}
+      {controlledDispenseModalItem && (
+        <ControlledDrugDispenseModal
+          isOpen={controlledDispenseModalItem !== null}
+          item={controlledDispenseModalItem.item}
+          onClose={() => {
+            setControlledDispenseModalItem(null);
+            barcodeInputRef.current?.focus();
+          }}
+          onSave={(dispense) => {
+            setCart((prev) => {
+              const updated = [...prev];
+              const idx = controlledDispenseModalItem.index;
+              if (updated[idx]) {
+                updated[idx] = {
+                  ...updated[idx],
+                  controlledDispense: dispense,
+                };
+              }
+              return updated;
+            });
+            showStatus(`تم توثيق صرف أدوية الجدول للمريض: ${dispense.patientName}`, 'success');
+            setControlledDispenseModalItem(null);
+            barcodeInputRef.current?.focus();
+          }}
+          onRemoveItem={() => {
+            removeItem(controlledDispenseModalItem.index);
+            setControlledDispenseModalItem(null);
+            barcodeInputRef.current?.focus();
+          }}
+        />
+      )}
+
+      {/* 24. INSURANCE PRESCRIPTION MODAL (Story 132 / Feature #189) */}
+      {isInsuranceModalOpen && (
+        <InsurancePrescriptionModal
+          isOpen={isInsuranceModalOpen}
+          onClose={() => {
+            setIsInsuranceModalOpen(false);
+            barcodeInputRef.current?.focus();
+          }}
+          cart={cart}
+          currentClaim={activeInsuranceClaim}
+          onApplyClaim={(claim) => {
+            setActiveInsuranceClaim(claim);
+            showStatus(`تم تطبيق روشتة التأمين: ${claim.companyName} (${claim.contractName}) - حصة المريض: ${formatArabicCurrency(claim.patientPiasters)}`, 'success');
+            setIsInsuranceModalOpen(false);
+            barcodeInputRef.current?.focus();
+          }}
+          onRemoveClaim={() => {
+            setActiveInsuranceClaim(null);
+            showStatus('تم إلغاء روشتة التأمين من الفاتورة', 'success');
+            setIsInsuranceModalOpen(false);
+            barcodeInputRef.current?.focus();
+          }}
+        />
+      )}
+
+      {/* 25. CHRONIC MEDICATION DISPENSE MODAL (Story 133 / Feature #190) */}
+      {isChronicDispenseOpen && (
+        <PosChronicDispenseModal
+          isOpen={isChronicDispenseOpen}
+          onClose={() => {
+            setIsChronicDispenseOpen(false);
+            barcodeInputRef.current?.focus();
+          }}
+          customers={customers}
+          selectedCustomerId={selectedCustomerId}
+          onLoadMedsToCart={handleLoadChronicMedsToCart}
+        />
+      )}
+
+      {/* 26. CLINICAL ALLERGY ALERT MODAL (Story 133 / Feature #190) */}
+      {isAllergyModalOpen && allergyCheckResult && (
+        <ClinicalAllergyAlertModal
+          isOpen={isAllergyModalOpen}
+          onClose={() => setIsAllergyModalOpen(false)}
+          alertResult={allergyCheckResult}
+          onRemoveItem={handleRemoveAllergyConflictItem}
+          onRemoveAllConflicts={handleRemoveAllAllergyConflicts}
+        />
+      )}
+
+      {/* 27. THERMAL DOSAGE LABEL MODAL (Story 135 / Feature #192) */}
+      {dosageLabelTarget && (
+        <DosageLabelModal
+          isOpen={dosageLabelTarget !== null}
+          onClose={() => {
+            setDosageLabelTarget(null);
+            barcodeInputRef.current?.focus();
+          }}
+          initialDrugName={dosageLabelTarget.drugName}
+          initialPatientName={dosageLabelTarget.patientName}
+          initialDoctorName={dosageLabelTarget.doctorName}
+          initialInstructions={dosageLabelTarget.instructions}
+          initialStorage={dosageLabelTarget.storage}
+        />
+      )}
     </div>
   );
 };

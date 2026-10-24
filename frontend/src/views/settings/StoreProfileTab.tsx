@@ -1,8 +1,11 @@
-import { useState, type FormEvent, type ChangeEvent } from 'react';
-import { Store, Save, Sparkles, CheckCircle2, Sun, Moon, Monitor, Palette, Image as ImageIcon, Upload, RotateCcw, ShieldCheck, Info, Wand2 } from 'lucide-react';
+import { useState, useEffect, type FormEvent, type ChangeEvent } from 'react';
+import { Store, Save, Sparkles, CheckCircle2, Sun, Moon, Monitor, Palette, Image as ImageIcon, Upload, RotateCcw, ShieldCheck, Info, Wand2, ShieldAlert } from 'lucide-react';
 import { ToggleSwitch } from '../../components/ToggleSwitch';
 import { useTheme } from '../../context/useTheme';
 import { optimizeImageForThermal } from '../../utils/thermalImageOptimizer';
+import { invoke } from '../../bridge/ipc';
+import { useFeatures } from '../../context/useFeatures';
+import type { ControlledMandatoryFields } from '../../types/pharma';
 
 interface StoreProfileTabProps {
   storeName: string;
@@ -76,7 +79,35 @@ export const StoreProfileTab = ({
   onOpenWizard,
 }: StoreProfileTabProps) => {
   const { theme, setTheme, resolvedTheme } = useTheme();
+  const { isEnabled } = useFeatures();
   const [isOptimizing, setIsOptimizing] = useState(false);
+
+  const [mandatoryFields, setMandatoryFields] = useState<ControlledMandatoryFields>({
+    requirePatientNationalId: true,
+    requireDoctorLicense: false,
+    requireDoctorName: true,
+    requirePrescriptionNo: false,
+    requirePrescriptionDate: true,
+    requirePatientPhone: false,
+  });
+
+  useEffect(() => {
+    if (isEnabled('feature_pharmacy')) {
+      void invoke<ControlledMandatoryFields>('pharma:getControlledMandatoryFields').then((res) => {
+        if (res) setMandatoryFields(res);
+      }).catch(() => null);
+    }
+  }, [isEnabled]);
+
+  const handleToggleMandatoryField = async (field: keyof ControlledMandatoryFields, val: boolean) => {
+    const updated = { ...mandatoryFields, [field]: val };
+    setMandatoryFields(updated);
+    try {
+      await invoke('pharma:saveControlledMandatoryFields', updated);
+    } catch {
+      // ignore
+    }
+  };
 
   const handleLogoUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -459,6 +490,100 @@ export const StoreProfileTab = ({
           </div>
 
 
+
+          {/* Pharmacy Controlled Drugs Mandatory Fields (Story 131 / Task 188-3) */}
+          {isEnabled('feature_pharmacy') && (
+            <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-warn" />
+                  <span className="font-bold text-ink dark:text-ink-dark text-xs">
+                    ضوابط الرقابة والتسجيل الإلزامي لأدوية الجدول والمهدئات (صيدليات)
+                  </span>
+                </div>
+                <span className="text-[10px] text-warn bg-warn/15 border border-warn/30 px-2 py-0.5 rounded font-bold">
+                  تفتيش صيدلي
+                </span>
+              </div>
+              <p className="text-[11px] text-ink-muted dark:text-ink-muted-dark m-0 leading-relaxed">
+                حدد البيانات التي يُلزم الكاشير بإدخالها وتوثيقها رسمياً في شاشة البيع ودفتر التفتيش قبل السماح بصرف أي صنف خاضع للجدول.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="flex items-center justify-between p-2.5 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
+                  <div>
+                    <div className="text-xs font-bold text-ink dark:text-ink-dark">الرقم القومي للمريض (14 رقماً)</div>
+                    <div className="text-[10px] text-ink-muted">إلزام إدخال بطاقة الرقم القومي للمريض المستلم</div>
+                  </div>
+                  <ToggleSwitch
+                    checked={mandatoryFields.requirePatientNationalId}
+                    onChange={(checked) => void handleToggleMandatoryField('requirePatientNationalId', checked)}
+                    size="sm"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-2.5 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
+                  <div>
+                    <div className="text-xs font-bold text-ink dark:text-ink-dark">اسم الطبيب المعالج</div>
+                    <div className="text-[10px] text-ink-muted">إلزام إدخال اسم الطبيب محرر الوصفة الطبية</div>
+                  </div>
+                  <ToggleSwitch
+                    checked={mandatoryFields.requireDoctorName}
+                    onChange={(checked) => void handleToggleMandatoryField('requireDoctorName', checked)}
+                    size="sm"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-2.5 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
+                  <div>
+                    <div className="text-xs font-bold text-ink dark:text-ink-dark">رقم قيد / ترخيص الطبيب</div>
+                    <div className="text-[10px] text-ink-muted">إلزام إدخال رقم القيد بالنقابة أو ترخيص العيادة</div>
+                  </div>
+                  <ToggleSwitch
+                    checked={mandatoryFields.requireDoctorLicense}
+                    onChange={(checked) => void handleToggleMandatoryField('requireDoctorLicense', checked)}
+                    size="sm"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-2.5 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
+                  <div>
+                    <div className="text-xs font-bold text-ink dark:text-ink-dark">رقم الروشتة الطبية</div>
+                    <div className="text-[10px] text-ink-muted">إلزام إدخال رقم إذن الصرف أو الروشتة</div>
+                  </div>
+                  <ToggleSwitch
+                    checked={mandatoryFields.requirePrescriptionNo}
+                    onChange={(checked) => void handleToggleMandatoryField('requirePrescriptionNo', checked)}
+                    size="sm"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-2.5 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
+                  <div>
+                    <div className="text-xs font-bold text-ink dark:text-ink-dark">تاريخ تحرير الروشتة</div>
+                    <div className="text-[10px] text-ink-muted">إلزام إدخال تاريخ توقيع الكشف الطبي</div>
+                  </div>
+                  <ToggleSwitch
+                    checked={mandatoryFields.requirePrescriptionDate}
+                    onChange={(checked) => void handleToggleMandatoryField('requirePrescriptionDate', checked)}
+                    size="sm"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-2.5 bg-surface dark:bg-surface-dark rounded-lg border border-line dark:border-line-dark">
+                  <div>
+                    <div className="text-xs font-bold text-ink dark:text-ink-dark">هاتف المريض / المستلم</div>
+                    <div className="text-[10px] text-ink-muted">إلزام تسجيل رقم الهاتف للتواصل والمتابعة</div>
+                  </div>
+                  <ToggleSwitch
+                    checked={mandatoryFields.requirePatientPhone}
+                    onChange={(checked) => void handleToggleMandatoryField('requirePatientPhone', checked)}
+                    size="sm"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Feature: Theme Mode (Light / Dark / System) */}
           <div className="bg-surface-2 dark:bg-surface-dark-2 p-3.5 rounded-lg border border-line dark:border-line-dark flex flex-col gap-3">

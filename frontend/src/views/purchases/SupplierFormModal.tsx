@@ -1,7 +1,8 @@
 import React from 'react';
-import { Building2, X } from 'lucide-react';
+import { Building2, X, Calendar, Percent } from 'lucide-react';
 import { normalizeArabicNumerals } from '../../utils/money';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
+import { useFeatures } from '../../context/useFeatures';
 
 export interface SupplierFormData {
   id?: string;
@@ -11,6 +12,8 @@ export interface SupplierFormData {
   address: string;
   balanceEGP: string;
   notes: string;
+  expiryReturnWindowDays?: string;
+  expiryReturnCreditPercent?: string;
 }
 
 interface SupplierFormModalProps {
@@ -28,6 +31,7 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
   setForm,
   onSave,
 }) => {
+  const { isEnabled } = useFeatures();
   const isDirty = Boolean(
     form.name.trim() ||
     form.companyName.trim() ||
@@ -159,6 +163,47 @@ export const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
               className="w-full p-2.5 bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-xl text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand dark:focus:border-brand-bright focus:bg-surface dark:focus:bg-surface-dark resize-none transition-colors"
             />
           </div>
+
+          {isEnabled('feature_expiry_returns') && (
+            <div className="p-3 bg-brand-soft/30 dark:bg-brand-soft/10 border border-brand/20 rounded-xl space-y-2.5">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-brand dark:text-brand-bright">
+                <Calendar className="w-3.5 h-3.5" />
+                <span>سياسة مرتجع الصلاحية للمورد (صيدلية)</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-medium text-ink-muted dark:text-ink-dark-muted block mb-1">
+                    نافذة القبول (أيام قبل الانتهاء)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="30"
+                    value={form.expiryReturnWindowDays || ''}
+                    onChange={(e) => setForm({ ...form, expiryReturnWindowDays: e.target.value })}
+                    className="w-full h-9 px-2.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-ink-muted dark:text-ink-dark-muted block mb-1">
+                    نسبة التعويض المالي (%)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      placeholder="100"
+                      value={form.expiryReturnCreditPercent || ''}
+                      onChange={(e) => setForm({ ...form, expiryReturnCreditPercent: e.target.value })}
+                      className="w-full h-9 pl-7 pr-2.5 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-lg text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
+                    />
+                    <Percent className="w-3.5 h-3.5 text-ink-muted absolute left-2 top-2.5 pointer-events-none" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center gap-2 pt-3 border-t border-line dark:border-line-dark">
             <button

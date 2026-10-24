@@ -1,6 +1,6 @@
 import React from 'react';
 import type { FormEvent } from 'react';
-import { Barcode, Search, Loader2, Package } from 'lucide-react';
+import { Barcode, Search, Loader2, Package, Snowflake } from 'lucide-react';
 import type { Product, ProductUnit } from '../../types/models';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
 
@@ -170,6 +170,27 @@ export const PosBarcodeBar: React.FC<PosBarcodeBarProps> = ({
                       )}
                       {prod.internalCode && (
                         <span className="text-[10px] text-ink-muted dark:text-ink-dark-muted font-mono shrink-0">كود: {prod.internalCode}</span>
+                      )}
+                      {prod.locationCode && (
+                        <span className="px-1.5 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-3 border border-line/60 dark:border-line-dark text-[10px] text-ink dark:text-ink-dark font-mono font-bold shrink-0" title={`مكان الصنف: ${prod.locationCode}`}>
+                          [{prod.locationCode}]
+                        </span>
+                      )}
+                      {prod.isColdChain && (
+                        <span className="flex items-center gap-0.5 bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 px-1.5 py-0.5 rounded border border-cyan-200 dark:border-cyan-800 text-[10px] font-bold shrink-0" title="سلسلة تبريد (يحفظ في الثلاجة 2-8 مئوية)">
+                          <Snowflake className="w-3 h-3 text-cyan-600 dark:text-cyan-400" />
+                          <span>ثلاجة</span>
+                        </span>
+                      )}
+                      {prod.scientificName && (
+                        <span className="px-1.5 py-0.2 bg-brand-soft/50 dark:bg-brand-soft/20 text-brand dark:text-brand-bright rounded border border-brand/20 text-[10.5px] font-mono shrink-0" title={`الاسم العلمي: ${prod.scientificName}`}>
+                          {prod.scientificName}
+                        </span>
+                      )}
+                      {prod.dosageFormName && (
+                        <span className="px-1.5 py-0.2 bg-surface-2 dark:bg-surface-dark-3 text-ink-muted text-[10px] rounded shrink-0">
+                          {prod.dosageFormName}
+                        </span>
                       )}
                     </div>
 
