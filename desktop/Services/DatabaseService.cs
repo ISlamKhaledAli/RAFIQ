@@ -651,24 +651,86 @@ namespace RafiqPOS.Services
                         result.DeletedCustomersCount = (int)CountRowsIfTableExists(conn, trans, "customers");
                         result.DeletedProductsCount = (int)CountRowsIfTableExists(conn, trans, "products");
 
+                        // Temporarily drop delete prevention triggers to allow complete factory reset
+                        using (var dropTrgCmd = new System.Data.SQLite.SQLiteCommand(@"
+                            DROP TRIGGER IF EXISTS trg_prevent_daily_closing_delete;
+                            DROP TRIGGER IF EXISTS trg_prevent_shift_delete;
+                            DROP TRIGGER IF EXISTS trg_prevent_drawer_tx_delete;
+                        ", conn, trans))
+                        {
+                            dropTrgCmd.ExecuteNonQuery();
+                        }
+
                         // 1-3. Delete business data child-first so foreign keys (PRAGMA foreign_keys = ON) never block the reset
                         string[] tablesInDeleteOrder = new string[]
                         {
+                            // 1. Sales child allocations, insurance claims, and prescriptions linked to sales
+                            "sale_item_batch_allocations", "debt_allocations", "sale_prescriptions",
+                            "controlled_dispenses", "insurance_claim_lines", "insurance_claim_batches",
+                            "insurance_exclusions", "insurance_members", "insurance_contracts", "insurance_companies",
+
+                            // 2. Patient profiles, chronic medications, prescriptions
+                            "chronic_medications", "customer_patient_info", "prescriptions",
+
+                            // 3. Purchases & returns
                             "purchase_return_items", "purchase_returns",
+
+                            // 4. Drawer & shifts (triggers dropped beforehand)
                             "cash_drawer_transactions", "shifts",
+
+                            // 5. Digital & epay accounts
                             "digital_account_fundings", "digital_transactions", "digital_accounts",
                             "epay_terminal_fundings", "epay_transactions", "epay_terminals",
+
+                            // 6. Expenses & categories
                             "expense_categories", "expenses",
+
+                            // 7. Sales, items, payments, returns, customer ledger
                             "payments", "return_items", "returns", "held_sales", "sale_items", "sales",
                             "customer_ledger", "customers",
+
+                            // 8. Purchases, items, supplier ledger
                             "purchase_items", "purchases", "supplier_transactions", "suppliers",
-                            "product_batches", "product_variants", "stock_movements", "product_price_history",
-                            "product_barcodes", "product_units", "quick_items", "products", "categories",
+
+                            // 9. Shortage & expired write-offs
+                            "shortage_entries", "expired_write_offs",
+
+                            // 10. Product batches, variants, pharma info, ingredients, movements
+                            "product_pharma_info", "product_ingredients", "product_batches",
+                            "product_variants", "stock_movements", "product_price_history",
+                            "product_barcodes", "product_units", "quick_items", "products",
+                            "categories", "storage_locations", "drug_reference",
+
+                            // 11. Daily closings
                             "daily_closings"
                         };
                         for (int tIdx = 0; tIdx < tablesInDeleteOrder.Length; tIdx++)
                         {
                             DeleteAllIfTableExists(conn, trans, tablesInDeleteOrder[tIdx]);
+                        }
+
+                        // Recreate immutability triggers for daily closings, shifts, and cash drawer
+                        using (var recTrgCmd = new System.Data.SQLite.SQLiteCommand(@"
+                            CREATE TRIGGER IF NOT EXISTS trg_prevent_daily_closing_delete
+                            BEFORE DELETE ON daily_closings
+                            BEGIN
+                                SELECT RAISE(ABORT, 'لا يمكن حذف سجل قفل اليومية بعد اعتماده');
+                            END;
+
+                            CREATE TRIGGER IF NOT EXISTS trg_prevent_shift_delete
+                            BEFORE DELETE ON shifts
+                            BEGIN
+                                SELECT RAISE(ABORT, 'لا يمكن حذف سجلات الورديات نهائياً');
+                            END;
+
+                            CREATE TRIGGER IF NOT EXISTS trg_prevent_drawer_tx_delete
+                            BEFORE DELETE ON cash_drawer_transactions
+                            BEGIN
+                                SELECT RAISE(ABORT, 'لا يمكن حذف حركة نقدية من الدرج');
+                            END;
+                        ", conn, trans))
+                        {
+                            recTrgCmd.ExecuteNonQuery();
                         }
 
                         // 4. Reset sequence counters and first run flag
