@@ -72,7 +72,10 @@ always_on: true
 
 ---
 
-## 3. التحقق قبل أي تسليم
+## 3. التحقق قبل أي تسليم (Release & Debug Build)
 - الواجهة: `npm run lint` و `npm run build` تعطي 0 أخطاء و 0 تحذيرات.
-- الخلفية: بناء C# ينجح بدون أي خطأ ترجمة عبر MSBuild.
+- الخلفية: بناء C# ينجح بدون أي خطأ في وضعي **Release** و **Debug**:
+  - `MSBuild desktop\RafiqPOS.csproj /p:Configuration=Release /p:Platform=x86 /v:m`
+  - `MSBuild desktop\RafiqPOS.csproj /p:Configuration=Debug /p:Platform=x86 /v:m`
+- **نشر الأصول:** نسخ محتويات `frontend\dist` إلى `desktop\bin\Release\dist` و `desktop\bin\Debug\dist` لضمان أن `تشغيل_رفيق.bat` يفتح أحدث كود دائماً.
 - تحديث خانات الإنجاز `[x]` في [`PROJECT_BACKLOG.md`](file:///c:/Users/khale/OneDrive/Desktop/RAFIQ/PROJECT_BACKLOG.md).

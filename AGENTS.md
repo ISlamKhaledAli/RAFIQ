@@ -125,16 +125,22 @@
 ## 4. إرشادات العمل وتطوير الميزات (Workflow for Agents)
 
 1. **الرجوع الدائم لخريطة الطريق والترتيب الصارم:** راجع ملف [`PROJECT_BACKLOG.md`](./PROJECT_BACKLOG.md) وابدأ دائماً من أول مهمة غير مكتملة `[ ]` في الترتيب، واعرف رقم المحطة والقصة التي تعمل عليها بدقة دون أي تخطٍّ.
-2. **فحص البيئة واختبار البناء:** قبل إنهاء أي مهمة، تأكد من تشغيل:
-   - `npm run lint` و `npm run build` في مجلد `frontend` للتأكد من خلو الواجهة من أي أخطاء أو تحذيرات (0 warnings, 0 errors).
-   - التحقق من بناء C# دون أي أخطاء ترجمة (`MSBuild desktop\RafiqPOS.csproj`).
+2. **فحص البيئة واختبار البناء المزدوج ونشر الأصول (Mandatory Release & Debug Build):**
+   - ملف التشغيل المعتمد للمستخدم (`تشغيل_رفيق.bat`) يستهدف أولاً مسار الإنتاج: `desktop\bin\Release\RafiqPOS.exe`.
+   - لذلك، **يُمنع منعاً باتاً الاكتفاء ببناء وضع Debug فقط**.
+   - قبل إنهاء أي مهمة أو تسليم كود، يجب إلزامياً تنفيذ الخطوات التالية بالترتيب:
+     1. تشغيل `npm run lint` ثم `npm run build` في مجلد `frontend` للتأكد من خلو الواجهة من أي أخطاء أو تحذيرات (0 warnings, 0 errors).
+     2. بناء C# في وضعي **Release** و **Debug**:
+        - `MSBuild desktop\RafiqPOS.csproj /p:Configuration=Release /p:Platform=x86 /v:m`
+        - `MSBuild desktop\RafiqPOS.csproj /p:Configuration=Debug /p:Platform=x86 /v:m`
+     3. نسخ ملفات `frontend\dist` المحدثة إلى كل من `desktop\bin\Release\dist` و `desktop\bin\Debug\dist`.
 3. **لا تفترض، بل تحقق:** إذا كان هناك خيار معماري غامض، ارجع لمواصفات المتاجر ونقاط البيع الواقعية (السرعة، قراءة الباركود، الكيبورد السريع، شاشات 1024x768، انقطاع الكهرباء).
 4. **التوثيق وتحديث الباك لوج:** بعد إتمام أي تاسك بنجاح، قم بتحديث خانة الاختيار `[x]` الخاصة بها في [`PROJECT_BACKLOG.md`](./PROJECT_BACKLOG.md).
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **RAFIQ** (14986 symbols, 42903 relationships, 1222 execution flows).
+This project is indexed by GitNexus as **RAFIQ** (15022 symbols, 42994 relationships, 1222 execution flows).
 
 > Index stale? Run `node .gitnexus/run.cjs analyze --index-only` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? Bootstrap with `npx`, `bunx`, or `pnpm dlx` — e.g. `bunx gitnexus@latest analyze` (npm 11 npx crash; #1939).
 
