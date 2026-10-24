@@ -135,6 +135,23 @@ namespace RafiqPOS
                         }
                         return;
                     }
+                    if (args[i] == "--run-batch-tests")
+                    {
+                        try
+                        {
+                            var res = Services.BatchTestRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "batch_test_output.json"), json);
+                            Environment.Exit(res.Success ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Batch test error: " + ex.Message);
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
                     if (args[i] == "--run-shift-tests")
                     {
                         try
@@ -236,6 +253,23 @@ namespace RafiqPOS
                         catch (Exception ex)
                         {
                             Console.WriteLine("Test error: " + ex.Message);
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
+                    if (args[i] == "--run-controlled-drug-tests")
+                    {
+                        try
+                        {
+                            var res = Services.ControlledDrugTestRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "controlled_drug_test_output.json"), json);
+                            Environment.Exit(res.Success ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Controlled drug test error: " + ex.Message);
                             Environment.Exit(2);
                         }
                         return;
@@ -343,6 +377,57 @@ namespace RafiqPOS
                         catch (Exception ex)
                         {
                             Console.WriteLine("Batch test error: " + ex.ToString());
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
+                    if (args[i] == "--run-location-tests")
+                    {
+                        try
+                        {
+                            var res = Services.StorageLocationTestRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "storage_location_test_output.json"), json);
+                            Environment.Exit(res.Success ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Storage location test error: " + ex.ToString());
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
+                    if (args[i] == "--run-pharma-tests")
+                    {
+                        try
+                        {
+                            var res = Services.ShortageAndPharmaTestRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "pharma_test_output.json"), json);
+                            Environment.Exit(res.Success ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Pharma and shortage test error: " + ex.ToString());
+                            Environment.Exit(2);
+                        }
+                        return;
+                    }
+                    if (args[i] == "--run-insurance-tests")
+                    {
+                        try
+                        {
+                            var res = Services.InsuranceTestRunner.RunAllTests();
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(res, Newtonsoft.Json.Formatting.Indented);
+                            Console.WriteLine(json);
+                            System.IO.File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "insurance_test_output.json"), json);
+                            Environment.Exit(res.Success ? 0 : 1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Insurance test error: " + ex.ToString());
                             Environment.Exit(2);
                         }
                         return;

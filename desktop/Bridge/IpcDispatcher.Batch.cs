@@ -147,6 +147,41 @@ namespace RafiqPOS.Bridge
                     }
                     return true;
 
+                case "batch:getAllocations":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "معرف الفاتورة أو البند مفقود");
+                        return true;
+                    }
+                    string allocSaleId = null;
+                    string allocSaleItemId = null;
+                    JObject allocObj = request.Payload as JObject;
+                    if (allocObj != null)
+                    {
+                        if (allocObj["saleId"] != null) allocSaleId = allocObj["saleId"].ToString();
+                        if (allocObj["saleItemId"] != null) allocSaleItemId = allocObj["saleItemId"].ToString();
+                    }
+                    else
+                    {
+                        allocSaleId = request.Payload.ToString();
+                    }
+
+                    if (!string.IsNullOrEmpty(allocSaleItemId))
+                    {
+                        var allocations = DatabaseService.ProductBatches.GetAllocationsBySaleItemId(allocSaleItemId);
+                        response = BridgeResponse.Ok(request.Id, allocations);
+                    }
+                    else if (!string.IsNullOrEmpty(allocSaleId))
+                    {
+                        var allocations = DatabaseService.ProductBatches.GetAllocationsBySaleId(allocSaleId);
+                        response = BridgeResponse.Ok(request.Id, allocations);
+                    }
+                    else
+                    {
+                        response = BridgeResponse.Ok(request.Id, new System.Collections.Generic.List<SaleItemBatchAllocation>());
+                    }
+                    return true;
+
                 default:
                     return false;
             }

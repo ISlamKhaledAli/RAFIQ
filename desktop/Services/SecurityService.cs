@@ -1674,12 +1674,12 @@ namespace RafiqPOS.Services
         public static readonly string[] ALL_PERMISSIONS = new string[]
         {
             "pos.access", "pos.sell", "pos.discount_line", "pos.discount_invoice", "pos.discount_unlimited",
-            "pos.hold_invoice", "pos.price_override", "pos.void_line", "pos.quick_add", "pos.reprint", "pos.change_unit",
+            "pos.hold_invoice", "pos.price_override", "pos.void_line", "pos.quick_add", "pos.reprint", "pos.change_unit", "pos.select_batch",
             "invoices.view", "invoices.cancel", "returns.create", "returns.without_invoice",
             "products.view", "products.create", "products.edit", "products.edit_price", "products.edit_cost",
             "products.packaging.edit", "products.unit_rebase",
             "products.archive", "products.import", "products.export", "categories.manage",
-            "stock.view", "stock.adjust", "stock.movement_log",
+            "stock.view", "stock.adjust", "stock.movement_log", "inventory.locations.manage",
             "purchases.view", "purchases.create", "suppliers.manage",
             "customers.view", "customers.create", "customers.edit", "customers.ledger",
             "customers.payment", "customers.payment_cancel", "customers.credit_sale", "customers.credit_limit_override",
@@ -1691,6 +1691,14 @@ namespace RafiqPOS.Services
             "epay.access", "epay.transact", "epay.fund", "epay.terminals_manage", "epay.history", "epay.analytics", "epay.cancel", "epay.balance_adjust",
             "wallets.access", "wallets.transact", "wallets.fund", "wallets.accounts_manage", "wallets.history", "wallets.analytics", "wallets.cancel", "wallets.balance_adjust",
             "shifts.view", "shifts.open", "shifts.close", "shifts.cash_in", "shifts.cash_out",
+            "shortage.view", "shortage.manage", "shortage.convert_to_purchase",
+            "pharma.drug_info.edit", "pharma.alternatives.view",
+            "pharma.controlled.dispense", "pharma.controlled.approve", "pharma.controlled.register_view", "pharma.controlled.view_full",
+            "prescriptions.manage",
+            "insurance.manage_contracts", "insurance.sell", "insurance.claims.manage", "insurance.claims.settle",
+            "patients.view", "patients.edit",
+            "pharma.expiry_returns.manage", "pharma.drug_reference.import",
+            "pharma.stocktaking.manage", "pharma.dosage_labels.print", "reports.pharma.view",
             // Legacy aliases
             "pos", "customers", "products", "inventory", "reports", "settings", "users", "epay", "wallets",
             "discounts", "price_edit", "stock_adjust", "db_recovery", "refunds", "cancel_sale"
@@ -1782,6 +1790,9 @@ namespace RafiqPOS.Services
 
             if (p.ContainsKey("expenses.delete")) p["expenses.cancel"] = p["expenses.delete"];
             else if (p.ContainsKey("expenses.cancel")) p["expenses.delete"] = p["expenses.cancel"];
+
+            if (p.ContainsKey("reports.pharma.view")) p["reports.pharma"] = p["reports.pharma.view"];
+            else if (p.ContainsKey("reports.pharma")) p["reports.pharma.view"] = p["reports.pharma"];
         }
 
         public static UserDto MapToDto(User u)
@@ -1844,6 +1855,7 @@ namespace RafiqPOS.Services
             p["pos.discount_invoice"] = isAdmin;
             p["pos.discount_unlimited"] = isAdmin;
             p["pos.price_override"] = isAdmin;
+            p["pos.select_batch"] = isAdmin;
 
             // Invoices & Returns
             p["invoices.view"] = isAdmin;
@@ -1868,6 +1880,7 @@ namespace RafiqPOS.Services
             p["stock.view"] = isAdmin;
             p["stock.adjust"] = isAdmin;
             p["stock.movement_log"] = isAdmin;
+            p["inventory.locations.manage"] = isAdmin;
 
             // Purchases & Suppliers
             p["purchases.view"] = isAdmin;
@@ -1945,6 +1958,41 @@ namespace RafiqPOS.Services
             p["shifts.close"] = true;
             p["shifts.cash_in"] = true;
             p["shifts.cash_out"] = true;
+
+            // Shortages (Story 129 / Feature #186)
+            p["shortage.view"] = true;
+            p["shortage.manage"] = true;
+            p["shortage.convert_to_purchase"] = isAdmin;
+
+            // Pharmacy (Story 130 / Feature #187)
+            p["pharma.drug_info.edit"] = isAdmin;
+            p["pharma.alternatives.view"] = true;
+
+            // Controlled Drugs & Prescriptions (Story 131 / Feature #188)
+            p["pharma.controlled.dispense"] = isAdmin;
+            p["pharma.controlled.approve"] = isAdmin;
+            p["pharma.controlled.register_view"] = isAdmin;
+            p["pharma.controlled.view_full"] = isRoot;
+            p["prescriptions.manage"] = true;
+
+            // Insurance & Corporate Billing (Story 132 / Feature #189)
+            p["insurance.manage_contracts"] = isAdmin;
+            p["insurance.sell"] = true;
+            p["insurance.claims.manage"] = isAdmin;
+            p["insurance.claims.settle"] = isAdmin;
+
+            // Patient Profiles & Chronic Diseases (Story 133 / Feature #190)
+            p["patients.view"] = true;
+            p["patients.edit"] = isAdmin;
+
+            // Expiry Returns & External Drug Reference (Story 134 / Feature #191)
+            p["pharma.expiry_returns.manage"] = isAdmin;
+            p["pharma.drug_reference.import"] = isAdmin;
+
+            // Specialized Pharmacy Reports & Stocktaking (Story 135 / Feature #192)
+            p["pharma.stocktaking.manage"] = isAdmin;
+            p["pharma.dosage_labels.print"] = true;
+            p["reports.pharma.view"] = isAdmin;
 
             SyncPermissionAliases(p);
 

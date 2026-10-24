@@ -317,11 +317,20 @@ namespace RafiqPOS.Common
                 },
                 OwnedCommands = new List<string>
                 {
-                    "pharma:saveDrugInfo"
+                    "pharma:saveDrugInfo",
+                    "pharma:getStocktakingSheet",
+                    "pharma:applyStocktaking",
+                    "printer:printDosageLabel",
+                    "reports:getPharmaExpiryHeatmap",
+                    "reports:getPharmaStagnant",
+                    "reports:getPharmaProfitability"
                 },
                 OwnedPermissions = new List<string>
                 {
-                    "pharma.drug_info.edit"
+                    "pharma.drug_info.edit",
+                    "pharma.stocktaking.manage",
+                    "pharma.dosage_labels.print",
+                    "reports.pharma.view"
                 }
             });
 
@@ -434,7 +443,8 @@ namespace RafiqPOS.Common
                 Requires = new List<string> { "feature_expiry_dates" },
                 OwnedCommands = new List<string>
                 {
-                    "pharma:createExpiryReturn"
+                    "pharma:createExpiryReturn",
+                    "pharma:writeOffExpiredBatches"
                 },
                 OwnedPermissions = new List<string>
                 {
@@ -452,7 +462,7 @@ namespace RafiqPOS.Common
                 Requires = new List<string> { "feature_pharmacy" },
                 OwnedCommands = new List<string>
                 {
-                    "pharma:importDrugReference",
+                    "pharma:confirmDrugReferenceImport",
                     "pharma:clearDrugReference"
                 },
                 OwnedPermissions = new List<string>
