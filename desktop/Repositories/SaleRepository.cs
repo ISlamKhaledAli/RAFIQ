@@ -22,6 +22,11 @@ namespace RafiqPOS.Repositories
             _batchRepo = batchRepo ?? new ProductBatchRepository(connectionString, _auditRepo);
         }
 
+        public ProductBatchRepository BatchRepo
+        {
+            get { return _batchRepo; }
+        }
+
         public Sale CreateSaleAtomic(Sale sale)
         {
             using (var conn = new SQLiteConnection(_connectionString))
@@ -148,7 +153,7 @@ namespace RafiqPOS.Repositories
                             bool hasVariants = false;
                             bool isProductArchived = false;
                             string dbProdName = null;
-                            using (var chkCmd = new SQLiteCommand("SELECT name, has_variants, is_active FROM products WHERE id = @chkId LIMIT 1;", conn, trans))
+                            using (var chkCmd = new SQLiteCommand("SELECT p.name, p.has_variants, p.is_active, p.is_cold_chain, loc.type AS loc_type FROM products p LEFT JOIN storage_locations loc ON p.location_id = loc.id WHERE p.id = @chkId LIMIT 1;", conn, trans))
                             {
                                 chkCmd.Parameters.AddWithValue("@chkId", item.ProductId);
                                 using (var chkReader = chkCmd.ExecuteReader())
@@ -162,6 +167,22 @@ namespace RafiqPOS.Repositories
                                         }
                                         try { hasVariants = Convert.ToInt32(chkReader["has_variants"]) == 1; } catch { }
                                         try { isProductArchived = Convert.ToInt32(chkReader["is_active"]) == 0; } catch { }
+                                        try
+                                        {
+                                            if (chkReader["is_cold_chain"] != DBNull.Value && Convert.ToInt32(chkReader["is_cold_chain"]) == 1)
+                                            {
+                                                item.IsColdChain = true;
+                                            }
+                                            if (chkReader["loc_type"] != DBNull.Value && string.Equals(chkReader["loc_type"].ToString(), "fridge", StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                item.IsColdChain = true;
+                                            }
+                                        }
+                                        catch { }
+                                        if (item.IsColdChain)
+                                        {
+                                            sale.HasColdChainItems = true;
+                                        }
                                         if (isProductArchived)
                                         {
                                             throw new InvalidOperationException(string.Format("لا يمكن إتمام البيع: الصنف '{0}' صنف مؤرشف أو محذوف من النظام.", item.ProductName ?? dbProdName ?? item.ProductId));
@@ -368,14 +389,15 @@ namespace RafiqPOS.Repositories
                                                 @mUnitCost, @mNote, @mBatchNum, @mBatchId, @mExpDate, @mNow
                                             );
                                         ";
+                                        // Batch Independence: Use the specific batch's cost price if present, otherwise item cost
+                                        long movementCost = bDed.CostPricePiasters > 0 ? bDed.CostPricePiasters : item.UnitCostPiasters;
+
                                         using (var cmd = new SQLiteCommand(insertMovementSql, conn, trans))
                                         {
                                             cmd.Parameters.AddWithValue("@mId", Guid.NewGuid().ToString());
                                             cmd.Parameters.AddWithValue("@mProdId", item.ProductId);
                                             cmd.Parameters.AddWithValue("@mQty", -bDed.DeductedQuantityMilli);
                                             cmd.Parameters.AddWithValue("@mRefId", sale.Id);
-                                            // Batch Independence: Use the specific batch's cost price if present, otherwise item cost
-                                            long movementCost = bDed.CostPricePiasters > 0 ? bDed.CostPricePiasters : item.UnitCostPiasters;
                                             cmd.Parameters.AddWithValue("@mUnitCost", movementCost);
                                             string movementNote = "مبيعات كاشير [دفعة " + bDed.BatchNumber + "] - فاتورة #" + (sale.InvoiceNumber > 0 ? sale.InvoiceNumber.ToString() : sale.Id);
                                             if (!string.IsNullOrWhiteSpace(item.UnitName))
@@ -388,6 +410,37 @@ namespace RafiqPOS.Repositories
                                             cmd.Parameters.AddWithValue("@mExpDate", (object)bDed.ExpiryDate ?? DBNull.Value);
                                             cmd.Parameters.AddWithValue("@mNow", DateTime.UtcNow.ToString("o"));
                                             cmd.ExecuteNonQuery();
+                                        }
+
+                                        // Record sale item batch allocation for traceability and returns
+                                        if (_batchRepo != null && !string.IsNullOrEmpty(item.Id) && !string.IsNullOrEmpty(bDed.BatchId))
+                                        {
+                                            var alloc = new SaleItemBatchAllocation();
+                                            alloc.SaleItemId = item.Id;
+                                            alloc.BatchId = bDed.BatchId;
+                                            alloc.QuantityMilli = bDed.DeductedQuantityMilli;
+                                            alloc.UnitPricePiasters = (bDed.SellPricePiasters.HasValue && bDed.SellPricePiasters.Value > 0) ? bDed.SellPricePiasters.Value : item.UnitPricePiasters;
+                                            alloc.UnitCostPiasters = movementCost;
+                                            _batchRepo.SaveSaleItemBatchAllocation(alloc, conn, trans);
+                                        }
+                                    }
+
+                                    // If the item did not have a batch assigned initially, link the first deducted batch to the sale_items record
+                                    if (string.IsNullOrEmpty(item.BatchId) && batchDeductions.Count > 0 && !string.IsNullOrEmpty(item.Id))
+                                    {
+                                        var firstDed = batchDeductions[0];
+                                        string updateItemBatchSql = @"
+                                            UPDATE sale_items 
+                                            SET batch_id = @bId, batch_number = @bNum, expiry_date = @bExp
+                                            WHERE id = @sItemId;
+                                        ";
+                                        using (var uCmd = new SQLiteCommand(updateItemBatchSql, conn, trans))
+                                        {
+                                            uCmd.Parameters.AddWithValue("@bId", firstDed.BatchId);
+                                            uCmd.Parameters.AddWithValue("@bNum", (object)firstDed.BatchNumber ?? DBNull.Value);
+                                            uCmd.Parameters.AddWithValue("@bExp", (object)firstDed.ExpiryDate ?? DBNull.Value);
+                                            uCmd.Parameters.AddWithValue("@sItemId", item.Id);
+                                            uCmd.ExecuteNonQuery();
                                         }
                                     }
 
@@ -863,6 +916,72 @@ namespace RafiqPOS.Repositories
                             });
                         }
 
+                        // 7. Atomic Controlled Drugs Dispense Ledger & Prescriptions (Story 131 / Feature #188)
+                        if (sale.ControlledDispenses != null && sale.ControlledDispenses.Count > 0 && DatabaseService.ControlledDrugRepo != null)
+                        {
+                            string rxIdToLink = null;
+                            if (sale.Prescription != null && DatabaseService.PrescriptionRepo != null)
+                            {
+                                if (string.IsNullOrEmpty(sale.Prescription.Id))
+                                {
+                                    sale.Prescription.Id = Guid.NewGuid().ToString();
+                                }
+                                sale.Prescription.CustomerId = sale.CustomerId;
+                                DatabaseService.PrescriptionRepo.Insert(sale.Prescription, conn, trans);
+                                rxIdToLink = sale.Prescription.Id;
+                            }
+
+                            for (int cdIdx = 0; cdIdx < sale.ControlledDispenses.Count; cdIdx++)
+                            {
+                                var cd = sale.ControlledDispenses[cdIdx];
+                                if (cd != null)
+                                {
+                                    cd.SaleId = sale.Id;
+                                    if (string.IsNullOrEmpty(cd.DispensedBy))
+                                    {
+                                        cd.DispensedBy = sale.CashierId ?? "usr_system";
+                                    }
+                                    if (string.IsNullOrEmpty(cd.PrescriptionId) && !string.IsNullOrEmpty(rxIdToLink))
+                                    {
+                                        cd.PrescriptionId = rxIdToLink;
+                                    }
+                                    DatabaseService.ControlledDrugRepo.InsertDispense(cd, conn, trans);
+                                }
+                            }
+
+                            if (!string.IsNullOrEmpty(rxIdToLink) && DatabaseService.PrescriptionRepo != null)
+                            {
+                                DatabaseService.PrescriptionRepo.LinkSalePrescription(sale.Id, rxIdToLink, conn, trans);
+                            }
+                        }
+
+                        // 8. Atomic Insurance Claim Line (Story 132 / Feature #189)
+                        if (sale.InsuranceClaim != null)
+                        {
+                            sale.InsuranceClaim.SaleId = sale.Id;
+                            if (string.IsNullOrEmpty(sale.InsuranceClaim.Id))
+                            {
+                                sale.InsuranceClaim.Id = "clm_" + Guid.NewGuid().ToString("N");
+                            }
+                            if (string.IsNullOrEmpty(sale.InsuranceClaim.CreatedAt))
+                            {
+                                sale.InsuranceClaim.CreatedAt = sale.CreatedAt ?? DateTime.UtcNow.ToString("o");
+                            }
+                            if (sale.InsuranceClaim.TotalInvoicePiasters <= 0)
+                            {
+                                sale.InsuranceClaim.TotalInvoicePiasters = sale.TotalPiasters;
+                            }
+
+                            if (DatabaseService.InsuranceRepo != null)
+                            {
+                                DatabaseService.InsuranceRepo.InsertClaimLine(sale.InsuranceClaim, conn, trans);
+                            }
+                            else
+                            {
+                                new InsuranceRepository(_connectionString).InsertClaimLine(sale.InsuranceClaim, conn, trans);
+                            }
+                        }
+
                         // Commit entire atomic transaction
                         trans.Commit();
                         return sale;
@@ -1122,9 +1241,12 @@ namespace RafiqPOS.Repositories
             {
                 conn.Open();
                 string sql = @"
-                    SELECT si.*, COALESCE(p.unit, 'piece') AS unit
+                    SELECT si.*, COALESCE(p.unit, 'piece') AS unit,
+                           COALESCE(p.is_cold_chain, 0) AS is_cold_chain,
+                           loc.type AS loc_type
                     FROM sale_items si
                     LEFT JOIN products p ON si.product_id = p.id
+                    LEFT JOIN storage_locations loc ON p.location_id = loc.id
                     WHERE si.sale_id = @saleId;
                 ";
                 using (var cmd = new SQLiteCommand(sql, conn))
@@ -1134,6 +1256,14 @@ namespace RafiqPOS.Repositories
                     {
                         while (reader.Read())
                         {
+                            bool itemCold = false;
+                            try
+                            {
+                                if (reader["is_cold_chain"] != DBNull.Value && Convert.ToInt32(reader["is_cold_chain"]) == 1) itemCold = true;
+                                if (reader["loc_type"] != DBNull.Value && string.Equals(reader["loc_type"].ToString(), "fridge", StringComparison.OrdinalIgnoreCase)) itemCold = true;
+                            }
+                            catch { }
+
                             items.Add(new SaleItem
                             {
                                 Id = reader["id"].ToString(),
@@ -1151,7 +1281,8 @@ namespace RafiqPOS.Repositories
                                 Unit = reader["unit"] != DBNull.Value ? reader["unit"].ToString() : "piece",
                                 UnitId = reader["unit_id"] != DBNull.Value ? reader["unit_id"].ToString() : null,
                                 UnitName = reader["unit_name"] != DBNull.Value ? reader["unit_name"].ToString() : null,
-                                ConversionFactor = reader["conversion_factor"] != DBNull.Value ? Convert.ToInt32(reader["conversion_factor"]) : 1
+                                ConversionFactor = reader["conversion_factor"] != DBNull.Value ? Convert.ToInt32(reader["conversion_factor"]) : 1,
+                                IsColdChain = itemCold
                             });
                         }
                     }
@@ -1191,6 +1322,17 @@ namespace RafiqPOS.Repositories
             {
                 sale.Items = GetSaleItems(sale.Id);
                 sale.Payments = GetSalePayments(sale.Id);
+                if (sale.Items != null)
+                {
+                    for (int i = 0; i < sale.Items.Count; i++)
+                    {
+                        if (sale.Items[i].IsColdChain)
+                        {
+                            sale.HasColdChainItems = true;
+                            break;
+                        }
+                    }
+                }
             }
             return sale;
         }

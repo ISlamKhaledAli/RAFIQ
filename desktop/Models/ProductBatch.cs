@@ -35,6 +35,12 @@ namespace RafiqPOS.Models
         [JsonProperty("costPricePiasters")]
         public long CostPricePiasters { get; set; }
 
+        [JsonProperty("sellPricePiasters")]
+        public long? SellPricePiasters { get; set; }
+
+        [JsonProperty("publicPricePiasters")]
+        public long? PublicPricePiasters { get; set; }
+
         [JsonProperty("supplierId")]
         public string SupplierId { get; set; }
 
@@ -143,5 +149,7 @@ namespace RafiqPOS.Models
         public long DeductedQuantityMilli { get; set; }
         public long RemainingQuantityMilli { get; set; }
         public long CostPricePiasters { get; set; }
+        public long? SellPricePiasters { get; set; }
+        public long? PublicPricePiasters { get; set; }
     }
 }

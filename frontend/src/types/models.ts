@@ -35,6 +35,8 @@ export interface Product {
   hasBatches?: boolean;
   nearestExpiryDate?: string | null;
   suggestedBatchNumber?: string | null;
+  suggestedBatchId?: string | null;
+  suggestedBatchSellPricePiasters?: number | null;
   isExpired?: boolean;
   defaultSaleUnitId?: string | null;
   defaultPurchaseUnitId?: string | null;
@@ -42,6 +44,51 @@ export interface Product {
   isLooseSellable?: boolean;
   compoundStockFormatted?: string;
   isOpenPackage?: boolean;
+  locationId?: string | null;
+  locationCode?: string | null;
+  locationName?: string | null;
+  locationType?: 'shelf' | 'rack' | 'drawer' | 'fridge' | 'warehouse' | string | null;
+  isColdChain?: boolean;
+  preferredSupplierId?: string | null;
+  scientificName?: string | null;
+  dosageFormName?: string | null;
+  rxStatus?: string | null;
+  controlledSchedule?: string | null;
+  isControlled?: boolean;
+}
+
+export interface StorageLocation {
+  id: string;
+  code: string;
+  name: string;
+  type: 'shelf' | 'rack' | 'drawer' | 'fridge' | 'warehouse';
+  description?: string | null;
+  isActive: boolean;
+  productsCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface LocationInventoryDraftItem {
+  productId: string;
+  barcode: string;
+  productName: string;
+  unitName: string;
+  bookStockQuantityMilli: number;
+  actualStockQuantityMilli: number | null;
+  differenceMilli: number;
+  pricePiasters: number;
+  costPiasters: number;
+  isColdChain: boolean;
+}
+
+export interface LocationInventoryDraft {
+  locationId: string;
+  locationCode: string;
+  locationName: string;
+  locationType: string;
+  generatedAt: string;
+  items: LocationInventoryDraftItem[];
 }
 
 export interface RebaseResult {
@@ -199,6 +246,8 @@ export interface SaleItem {
   batchNumber?: string;
   expiryDate?: string;
   isExpiredBypass?: boolean;
+  isColdChain?: boolean;
+  locationCode?: string | null;
 }
 
 export interface Sale {
@@ -224,6 +273,8 @@ export interface Sale {
   payments?: SalePayment[];
   negativeStockWarnings?: string[];
   shiftId?: string | null;
+  hasColdChainItems?: boolean;
+  insuranceClaim?: import('./insurance').InsuranceClaimLine | null;
 }
 
 export interface SalePayment {
@@ -523,6 +574,8 @@ export interface Supplier {
   address?: string | null;
   balancePiasters: number;
   notes?: string | null;
+  expiryReturnWindowDays?: number;
+  expiryReturnCreditBps?: number;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -549,6 +602,8 @@ export interface PurchaseItem {
   unitName?: string | null;
   conversionFactor?: number;
   packageCostPiasters?: number;
+  publicPricePiasters?: number | null;
+  distributorDiscountBps?: number | null;
   createdAt: string;
 }
 
@@ -562,6 +617,8 @@ export interface ProductBatch {
   initialQuantityMilli: number;
   costPricePiasters: number;
   sellingPricePiasters?: number | null;
+  sellPricePiasters?: number | null;
+  publicPricePiasters?: number | null;
   status: 'ACTIVE' | 'DEPLETED' | 'EXPIRED' | string;
   supplierId?: string | null;
   purchaseInvoiceId?: string | null;
@@ -574,6 +631,18 @@ export interface ProductBatch {
   daysUntilExpiry?: number;
   isExpired?: boolean;
   isExpiringSoon?: boolean;
+}
+
+export interface SaleItemBatchAllocation {
+  id: string;
+  saleItemId: string;
+  batchId: string;
+  quantityMilli: number;
+  unitPricePiasters: number;
+  unitCostPiasters: number;
+  createdAt: string;
+  batchNumber?: string;
+  expiryDate?: string | null;
 }
 
 export interface BatchSummary {
@@ -1632,3 +1701,5 @@ export interface CashMovementRequest {
   performedById?: string;
   performedByName?: string;
 }
+
+export * from './patient';

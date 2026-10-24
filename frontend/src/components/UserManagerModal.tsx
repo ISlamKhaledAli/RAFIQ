@@ -31,10 +31,15 @@ import {
   Smartphone,
   Wallet,
   Clock,
+  ClipboardList,
+  Pill,
+  Building2,
+  HeartPulse,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import type { UserDto } from '../bridge/ipc';
 import { useAuth } from '../context/useAuth';
+import { useFeatures } from '../context/useFeatures';
 import { CustomSelect } from './CustomSelect';
 import type { SelectOption } from './CustomSelect';
 import { ToggleSwitch } from './ToggleSwitch';
@@ -78,6 +83,7 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'pos.quick_add', label: 'إضافة صنف سريع', description: 'إضافة بند مباشر بدون كود مسبق' },
       { key: 'pos.reprint', label: 'إعادة طباعة الفاتورة', description: 'إعادة طباعة إيصالات العمليات السابقة' },
       { key: 'pos.change_unit', label: 'تبديل وحدة البيع بالكاشير', description: 'السماح بالتبديل السريع بين العلبة والشريط والقرص أثناء البيع (مفتاح /)' },
+      { key: 'pos.select_batch', label: 'اختيار تشغيلة/دفعة الصنف يدوياً', description: 'السماح للكاشير باختيار تشغيلة معينة بدلاً من صرف الأقرب للصلاحية تلقائياً' },
     ],
   },
   {
@@ -149,6 +155,7 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'stock.view', label: 'عرض كميات المخزون', description: 'الاطلاع على الجرد والأرصدة الحالية' },
       { key: 'stock.adjust', label: 'تسوية الجرد والمخزن', description: 'تعديل الكميات يدوياً بعد الجرد الفعلي' },
       { key: 'stock.movement_log', label: 'سجل حركة المخزون', description: 'متابعة كارت الصنف وتقرير حركاته' },
+      { key: 'inventory.locations.manage', label: 'إدارة مواقع التخزين والرفوف والأدراج', description: 'إضافة وتعديل وحذف أماكن التخزين وطباعة باركود الرفوف وتوليد مسودات الجرد' },
     ],
   },
   {
@@ -159,6 +166,55 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'purchases.view', label: 'عرض المشتريات', description: 'استعراض فواتير التوريد من الموردين' },
       { key: 'purchases.create', label: 'تسجيل فاتورة شراء', description: 'إضافة وارد بضاعة وتحديث التكلفة والأرصدة' },
       { key: 'suppliers.manage', label: 'إدارة الموردين', description: 'إضافة الموردين ومتابعة كشوف حساباتهم وسدادهم' },
+    ],
+  },
+  {
+    id: 'shortages',
+    name: 'دفتر النواقص وطلبيات الموردين',
+    icon: <ClipboardList className="w-4 h-4 text-brand" />,
+    items: [
+      { key: 'shortage.view', label: 'الاطلاع على دفتر النواقص', description: 'السماح باستعراض النواقص ومقترحات الطلبيات وتقارير المبيعات المفقودة' },
+      { key: 'shortage.manage', label: 'تسجيل وإدارة النواقص', description: 'السماح بتسجيل نواقص جديدة يدوياً وتعديل حالتها وحذفها' },
+      { key: 'shortage.convert_to_purchase', label: 'تحويل النواقص لطلبيات شراء', description: 'السماح بتجميع النواقص وتحويلها لأوامر شراء مقترحة ومسودات فواتير توريد' },
+    ],
+  },
+  {
+    id: 'pharma',
+    name: 'المنظومة الدوائية والبدائل',
+    icon: <Pill className="w-4 h-4 text-brand" />,
+    items: [
+      { key: 'pharma.drug_info.edit', label: 'تعديل البيانات الدوائية والمواد الفعالة', description: 'السماح بتعديل الاسم العلمي والأشكال الدوائية والجرعات والمواد الفعالة للصنف' },
+      { key: 'pharma.alternatives.view', label: 'استعراض البدائل والمثائل الدوائية', description: 'السماح بفتح محرك البدائل في شاشة البيع واقتراح المثائل والبدائل للعميل (F8)' },
+      { key: 'pharma.controlled.dispense', label: 'صرف أدوية الجدول والرقابة', description: 'السماح بصرف أدوية الجدول والمهدئات وتوثيق بيانات المريض والطبيب والروشتة' },
+      { key: 'pharma.controlled.approve', label: 'اعتماد وموافقة صرف الجدول (صيدلي مشرف)', description: 'صلاحية الصيدلي المشرف لاعتماد صرف أدوية الجدول وإدخال رمز PIN' },
+      { key: 'pharma.controlled.register_view', label: 'استعراض دفتر التفتيش الصيدلي', description: 'الاطلاع على دفتر أدوية الجدول والرقابة والرصيد التراكمي وطباعته A4' },
+      { key: 'pharma.controlled.view_full', label: 'عرض الأرقام القومية للمرضى كاملة', description: 'إلغاء تقنيع الأرقام القومية في السجل ودفتر التفتيش لأغراض الرقابة الرسمية' },
+      { key: 'prescriptions.manage', label: 'إدارة وأرشفة الروشتات الطبية', description: 'أرشفة الروشتات وإرفاق الصور الطبية والبحث في السجل الطبي للمرضى' },
+      { key: 'pharma.expiry_returns.manage', label: 'إدارة مرتجعات الصلاحية ومحاضر الإعدام', description: 'السماح بفحص نوافذ إرجاع الأدوية للموردين وتحويلها لمرتجع واعتماد محاضر إعدام البضاعة المنتهية' },
+      { key: 'pharma.drug_reference.import', label: 'استيراد وتحديث دليل الأدوية المرجعي', description: 'السماح باستيراد ومطابقة ملفات إكسل الدليل المرجعي الخارجي وتحديث الأسعار الرسمية' },
+      { key: 'pharma.stocktaking.manage', label: 'الجرد الصيدلي المتقدم والتسويات', description: 'السماح بجرد الصيدلية حسب الرف والتشغيلة وإدخال الكميات المركبة واعتماد فروق الجرد' },
+      { key: 'pharma.dosage_labels.print', label: 'طباعة ملصقات الجرعات الطبية', description: 'السماح بطباعة ملصقات تعليمات الجرعة والاستخدام الحرارية لعبوات المرضى' },
+      { key: 'reports.pharma.view', label: 'تقارير الصيدلية وخريطة الصلاحيات', description: 'الاطلاع على خريطة الصلاحيات الشهرية بالأدوية الراكدة وأرباح الشركات والمواد الفعالة' },
+    ],
+  },
+  {
+    id: 'insurance',
+    name: 'التأمين الطبي والتعاقدات ومطالبات الشركات',
+    icon: <Building2 className="w-4 h-4 text-brand" />,
+    items: [
+      { key: 'insurance.manage_contracts', label: 'إدارة شركات وعقود التأمين', description: 'إضافة وتعديل وحذف شركات التأمين الطبي وبنود العقود ونسب التحمل وقوائم المستثنيات' },
+      { key: 'insurance.sell', label: 'صرف روشتات التأمين للكاشير', description: 'السماح بصرف فواتير روشتات التأمين واحتساب نسبة تحمل المريض وحصة الشركة' },
+      { key: 'insurance.claims.manage', label: 'إدارة ومطالبات التأمين الشهرية', description: 'تجميع الفواتير المعلقة في مطالبات شهرية رسمية وتصديرها إكسل للشركات' },
+      { key: 'insurance.claims.settle', label: 'تسوية مطالبات التأمين والرفوضات', description: 'تسوية مبالغ المطالبات المعتمدة وتسجيل الرفوضات وترحيلها التلقائي للمصروفات' },
+    ],
+  },
+  {
+    id: 'patients',
+    name: 'ملفات المرضى والأمراض المزمنة وتنبيهات الاستحقاق',
+    icon: <HeartPulse className="w-4 h-4 text-brand" />,
+    items: [
+      { key: 'patients.view', label: 'استعراض الملف الطبي وتنبيهات الاستحقاق', description: 'الاطلاع على الملف الطبي للمريض والحساسية وتنبيهات مواعيد صرف العلاج الشهري' },
+      { key: 'patients.edit', label: 'تعديل الملف الطبي وتسجيل الأدوية المزمنة', description: 'تعديل بيانات الحساسية والأمراض المزمنة وإضافة وحذف الأدوية الدورية للمريض' },
     ],
   },
   {
@@ -283,6 +339,20 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
   const [formMode, setFormMode] = useState<'none' | 'add' | 'edit' | 'permissions' | 'credentials' | 'switchLogin'>('none');
   const [selectedUser, setSelectedUser] = useState<UserDto | null>(null);
   const [credMethod, setCredMethod] = useState<'pin' | 'password'>('pin');
+
+  const { isEnabled } = useFeatures();
+
+  // Filter permission groups based on active store features (zero pharmacy leakage in non-pharmacies)
+  const visiblePermissionGroups = useMemo(() => {
+    return PERMISSION_GROUPS.filter((group) => {
+      if (group.id === 'pharma' && !isEnabled('feature_pharmacy')) return false;
+      if (group.id === 'insurance' && !isEnabled('feature_insurance')) return false;
+      if (group.id === 'patients' && !isEnabled('feature_patient_profiles')) return false;
+      if (group.id === 'epay' && !isEnabled('feature_epay')) return false;
+      if (group.id === 'wallets' && !isEnabled('feature_digital_wallets')) return false;
+      return true;
+    });
+  }, [isEnabled]);
 
   // Search filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -863,7 +933,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
   const handleToggleAllPermissions = (enableAll: boolean) => {
     setPermissionsState((prev) => {
       const next = { ...prev };
-      PERMISSION_GROUPS.forEach((g) => {
+      visiblePermissionGroups.forEach((g) => {
         g.items.forEach((item) => {
           if (parentHoldsPermission(item.key)) {
             next[item.key] = enableAll;
@@ -1490,7 +1560,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
                 </div>
 
                 <div className="space-y-3">
-                  {PERMISSION_GROUPS.map((group) => {
+                  {visiblePermissionGroups.map((group) => {
                     const availableItems = group.items.filter((item) => parentHoldsPermission(item.key));
                     const allChecked = availableItems.length > 0 && availableItems.every((item) => !!permissionsState[item.key]);
 
@@ -1758,7 +1828,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
               </div>
 
               <div className="space-y-3">
-                {PERMISSION_GROUPS.map((group) => {
+                {visiblePermissionGroups.map((group) => {
                   const availableItems = group.items.filter((item) => parentHoldsPermission(item.key));
                   const allChecked = availableItems.length > 0 && availableItems.every((item) => !!permissionsState[item.key]);
 

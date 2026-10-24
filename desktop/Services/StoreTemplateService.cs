@@ -112,7 +112,8 @@ namespace RafiqPOS.Services
                     if (list[i].Id == "cafe_restaurant") hasCafe = true;
                     if (list[i].FeatureFlags == null || 
                         !list[i].FeatureFlags.ContainsKey("feature_epay_services") ||
-                        !list[i].FeatureFlags.ContainsKey("feature_digital_wallets"))
+                        !list[i].FeatureFlags.ContainsKey("feature_digital_wallets") ||
+                        !list[i].FeatureFlags.ContainsKey("feature_pharmacy"))
                     {
                         needsRefresh = true;
                         break;
@@ -768,6 +769,19 @@ namespace RafiqPOS.Services
             tPharm.FeatureFlags["feature_matrix_variants"] = false;
             tPharm.FeatureFlags["feature_epay_services"] = false;
             tPharm.FeatureFlags["feature_digital_wallets"] = true;
+            // Complete Pharmacy Module Suite (Story 136 / Feature #193)
+            tPharm.FeatureFlags["feature_loose_selling"] = true;
+            tPharm.FeatureFlags["feature_batch_pricing"] = true;
+            tPharm.FeatureFlags["feature_shelf_locations"] = true;
+            tPharm.FeatureFlags["feature_shortage_book"] = true;
+            tPharm.FeatureFlags["feature_pharmacy"] = true;
+            tPharm.FeatureFlags["feature_pharma_alternatives"] = true;
+            tPharm.FeatureFlags["feature_controlled_drugs"] = true;
+            tPharm.FeatureFlags["feature_prescriptions"] = true;
+            tPharm.FeatureFlags["feature_patient_profiles"] = true;
+            tPharm.FeatureFlags["feature_insurance"] = true;
+            tPharm.FeatureFlags["feature_expiry_returns"] = true;
+            tPharm.FeatureFlags["feature_drug_reference"] = true;
             tPharm.Categories = new List<string>();
             tPharm.QuickItems = new List<TemplateQuickItem>();
             tPharm.DefaultSettings["receipt_header"] = "صيدلية رفيق للرعاية الدوائية";

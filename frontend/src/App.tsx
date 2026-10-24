@@ -42,6 +42,9 @@ import {
   BarChart3,
   Sun,
   Moon,
+  ClipboardList,
+  FileSpreadsheet,
+  Percent,
 } from 'lucide-react';
 import { 
   NotificationBellButton, 
@@ -55,6 +58,7 @@ import { useDataSubscription, emitDataChanged } from './utils/eventBus';
 import { PosView } from './views/PosView';
 import { EpayView, type EpaySubTab } from './views/epay/EpayView';
 import { WalletsView, type WalletsSubTab } from './views/wallets/WalletsView';
+import { InsuranceContractsView, type InsuranceSubTab } from './views/insurance/InsuranceContractsView';
 import { DashboardView } from './views/DashboardView';
 import { RevenueAnalyticsView } from './views/analytics/RevenueAnalyticsView';
 import { InventoryAnalyticsView } from './views/analytics/InventoryAnalyticsView';
@@ -97,7 +101,7 @@ export interface SystemInfo {
   dbStatus: string;
 }
 
-export type TabType = 'pos' | 'epay' | 'wallets' | 'dashboard' | 'customers' | 'products' | 'purchases' | 'sales' | 'audit' | 'settings';
+export type TabType = 'pos' | 'epay' | 'wallets' | 'insurance' | 'dashboard' | 'customers' | 'products' | 'purchases' | 'sales' | 'audit' | 'settings';
 
 const HeaderClock: FC = memo(() => {
   const [time, setTime] = useState('');
@@ -153,6 +157,8 @@ export default function App() {
   const [isEpayMenuExpanded, setIsEpayMenuExpanded] = useState(false);
   const [walletsSubTab, setWalletsSubTab] = useState<WalletsSubTab>('transact');
   const [isWalletsMenuExpanded, setIsWalletsMenuExpanded] = useState(false);
+  const [insuranceSubTab, setInsuranceSubTab] = useState<InsuranceSubTab>('companies');
+  const [isInsuranceMenuExpanded, setIsInsuranceMenuExpanded] = useState(false);
   const [dashboardSubTab, setDashboardSubTab] = useState<DashboardSubTab>('today');
   const [isDashboardMenuExpanded, setIsDashboardMenuExpanded] = useState(false);
   const [purchasesSubView, setPurchasesSubView] = useState<PurchasesSubView>('new_invoice');
@@ -855,6 +861,7 @@ export default function App() {
     { id: 'pos' as TabType, label: 'الكاشير وشاشة البيع', icon: ShoppingCart, shortcut: 'F1 / Alt+1' },
     { id: 'epay' as TabType, label: 'خدمات وماكينات الدفع', icon: CreditCard, shortcut: 'Alt+2' },
     { id: 'wallets' as TabType, label: 'المحافظ وإنستاباي', icon: Wallet, shortcut: 'Alt+3' },
+    { id: 'insurance' as TabType, label: 'التأمين الطبي والتعاقدات', icon: Building2, shortcut: '' },
     { id: 'dashboard' as TabType, label: 'لوحة اليوم والوردية', icon: LayoutDashboard, shortcut: 'Alt+4' },
     { id: 'customers' as TabType, label: 'العملاء وحسابات الشكك', icon: Users, shortcut: 'Alt+5' },
     { id: 'products' as TabType, label: 'الأصناف والمخزن', icon: Package, shortcut: 'Alt+6' },
@@ -866,7 +873,8 @@ export default function App() {
 
   const canAccessPos = isRoot || hasPermission('pos.access') || hasPermission('pos');
   const canAccessEpay = (isRoot || hasPermission('epay.access') || hasPermission('epay')) && isEnabled('feature_epay_services');
-  const canAccessWallets = isRoot || hasPermission('wallets.access') || hasPermission('wallets');
+  const canAccessWallets = (isRoot || hasPermission('wallets.access') || hasPermission('wallets')) && isEnabled('feature_digital_wallets');
+  const canAccessInsurance = (isRoot || isAdmin || hasPermission('insurance.manage_contracts') || hasPermission('insurance.claims.manage')) && isEnabled('feature_insurance');
   const canAccessDashboard = isRoot || hasPermission('reports.sales') || hasPermission('reports');
   const canAccessCustomers = isRoot || hasPermission('customers.view') || hasPermission('customers');
   const canAccessProducts = isRoot || hasPermission('products.view') || hasPermission('products');
@@ -883,6 +891,28 @@ export default function App() {
   const canAccessWalletsAccounts = isRoot || isAdmin || hasPermission('wallets.accounts_manage') || hasPermission('wallets.fund');
   const canAccessWalletsHistory = isRoot || isAdmin || hasPermission('wallets.history');
   const canAccessWalletsAnalytics = isRoot || isAdmin || hasPermission('wallets.analytics');
+
+  const canAccessInsuranceContracts = isRoot || isAdmin || hasPermission('insurance.manage_contracts');
+  const canAccessInsuranceMembers = isRoot || isAdmin || hasPermission('insurance.manage_contracts') || hasPermission('insurance.sell');
+  const canAccessInsuranceClaims = isRoot || isAdmin || hasPermission('insurance.claims.manage');
+  const canAccessInsuranceSettlement = isRoot || isAdmin || hasPermission('insurance.claims.settle');
+
+  const insuranceTreeItems = useMemo(() => {
+    const items = [];
+    if (canAccessInsuranceContracts) {
+      items.push({ id: 'companies' as InsuranceSubTab, label: 'الشركات والعقود', icon: Building2 });
+    }
+    if (canAccessInsuranceMembers) {
+      items.push({ id: 'members' as InsuranceSubTab, label: 'دليل المشتركين', icon: Users });
+    }
+    if (canAccessInsuranceClaims) {
+      items.push({ id: 'batches' as InsuranceSubTab, label: 'المطالبات الشهرية المجمعة', icon: FileSpreadsheet });
+    }
+    if (canAccessInsuranceSettlement) {
+      items.push({ id: 'settlement' as InsuranceSubTab, label: 'تسوية الرفوضات الطبية', icon: Percent });
+    }
+    return items;
+  }, [canAccessInsuranceContracts, canAccessInsuranceMembers, canAccessInsuranceClaims, canAccessInsuranceSettlement]);
 
   const walletsTreeItems = useMemo(() => {
     const items = [];
@@ -932,6 +962,7 @@ export default function App() {
       case 'pos': return canAccessPos;
       case 'epay': return canAccessEpay;
       case 'wallets': return canAccessWallets;
+      case 'insurance': return canAccessInsurance;
       case 'dashboard': return canAccessDashboard;
       case 'customers': return canAccessCustomers;
       case 'products': return canAccessProducts;
@@ -1237,6 +1268,7 @@ export default function App() {
               const isActive = effectiveActiveTab === item.id;
               const isEpayItem = item.id === 'epay';
               const isWalletsItem = item.id === 'wallets';
+              const isInsuranceItem = item.id === 'insurance';
               const isDashboardItem = item.id === 'dashboard';
               const isProductsItem = item.id === 'products';
               const isPurchasesItem = item.id === 'purchases';
@@ -1251,6 +1283,7 @@ export default function App() {
                       handleNavClick(item.id, () => {
                         if (isEpayItem) setEpaySubTab('pos');
                         if (isWalletsItem) setWalletsSubTab('transact');
+                        if (isInsuranceItem) setInsuranceSubTab('companies');
                         if (isDashboardItem) setDashboardSubTab('today');
                         if (isProductsItem) setProductsSubView('catalog');
                         if (isPurchasesItem) setPurchasesSubView('invoices');
@@ -1296,6 +1329,12 @@ export default function App() {
                           handleNavClick('wallets', () => setIsWalletsMenuExpanded(true));
                         } else {
                           setIsWalletsMenuExpanded(!isWalletsMenuExpanded);
+                        }
+                      } else if (isInsuranceItem) {
+                        if (effectiveActiveTab !== 'insurance') {
+                          handleNavClick('insurance', () => setIsInsuranceMenuExpanded(true));
+                        } else {
+                          setIsInsuranceMenuExpanded(!isInsuranceMenuExpanded);
                         }
                       } else if (isDashboardItem) {
                         if (effectiveActiveTab !== 'dashboard') {
@@ -1345,9 +1384,9 @@ export default function App() {
                       )}
                     </div>
 
-                    {(isEpayItem || isWalletsItem || isDashboardItem || isProductsItem || isPurchasesItem || isSettingsItem) && (
+                    {(isEpayItem || isWalletsItem || isInsuranceItem || isDashboardItem || isProductsItem || isPurchasesItem || isSettingsItem) && (
                       <span className={`shrink-0 ${isActive ? 'text-white/80 dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/70'}`}>
-                        {(isEpayItem ? isEpayMenuExpanded : isWalletsItem ? isWalletsMenuExpanded : isDashboardItem ? isDashboardMenuExpanded : isProductsItem ? isProductsMenuExpanded : isPurchasesItem ? isPurchasesMenuExpanded : isSettingsMenuExpanded) ? (
+                        {(isEpayItem ? isEpayMenuExpanded : isWalletsItem ? isWalletsMenuExpanded : isInsuranceItem ? isInsuranceMenuExpanded : isDashboardItem ? isDashboardMenuExpanded : isProductsItem ? isProductsMenuExpanded : isPurchasesItem ? isPurchasesMenuExpanded : isSettingsMenuExpanded) ? (
                           <ChevronDown className="w-3.5 h-3.5" />
                         ) : (
                           <ChevronLeft className="w-3.5 h-3.5" />
@@ -1401,6 +1440,37 @@ export default function App() {
                             onClick={() => {
                               setActiveTab('wallets');
                               setWalletsSubTab(sub.id);
+                            }}
+                            className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
+                              isSubActive
+                                ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
+                                : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-white dark:text-paid-bright' : 'text-ink-muted dark:text-ink-dark/75'}`} />
+                              <span className="truncate whitespace-nowrap">{sub.label}</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Sub-tree for Health Insurance & Corporate Contracts */}
+                  {isInsuranceItem && isInsuranceMenuExpanded && (
+                    <div className="mr-2.5 pr-2 my-1 flex flex-col gap-1 border-r-2 border-brand-dark/25 dark:border-paid-bright/40 animate-in slide-in-from-top-1 duration-150">
+                      {insuranceTreeItems.map((sub) => {
+                        const SubIcon = sub.icon;
+                        const isSubActive = effectiveActiveTab === 'insurance' && insuranceSubTab === sub.id;
+                        return (
+                          <button
+                            key={sub.id}
+                            type="button"
+                            title={sub.label}
+                            onClick={() => {
+                              setActiveTab('insurance');
+                              setInsuranceSubTab(sub.id);
                             }}
                             className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
                               isSubActive
@@ -1573,6 +1643,25 @@ export default function App() {
                           <span className="truncate whitespace-nowrap">دليل الموردين والشركات</span>
                         </div>
                       </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('purchases');
+                          setPurchasesSubView('shortages');
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 h-[34px] rounded-lg text-[12.5px] transition-all duration-150 cursor-pointer ${
+                          effectiveActiveTab === 'purchases' && purchasesSubView === 'shortages'
+                            ? 'bg-paid dark:bg-paid-dark-soft dark:border dark:border-paid-bright/40 text-white dark:text-paid-bright font-medium shadow-2xs'
+                            : 'text-ink-muted dark:text-ink-dark/85 hover:bg-surface-2 dark:hover:bg-surface-dark-2 hover:text-ink dark:hover:text-white font-normal'
+                        }`}
+                        title="دفتر النواقص وطلبيات الموردين"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <ClipboardList className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate whitespace-nowrap">دفتر النواقص والطلبيات</span>
+                        </div>
+                      </button>
                     </div>
                   )}
 
@@ -1701,6 +1790,17 @@ export default function App() {
                 isActive={effectiveActiveTab === 'wallets'}
                 activeSubTab={walletsSubTab}
                 onSubTabChange={(tab) => setWalletsSubTab(tab)}
+              />
+            </div>
+          )}
+
+          {/* Health Insurance & Corporate Claims View */}
+          {canAccessInsurance && visitedTabs.has('insurance') && (
+            <div className={`h-full w-full ${effectiveActiveTab === 'insurance' ? '' : 'hidden'}`}>
+              <InsuranceContractsView 
+                isActive={effectiveActiveTab === 'insurance'} 
+                activeSubTab={insuranceSubTab}
+                onSubTabChange={(tab) => setInsuranceSubTab(tab)}
               />
             </div>
           )}

@@ -15,6 +15,7 @@ import {
   MoreHorizontal,
   ChevronDown,
   Box,
+  Snowflake,
 } from 'lucide-react';
 import type { Product } from '../../types/models';
 import { formatArabicCurrency } from '../../utils/money';
@@ -340,6 +341,23 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                           >
                             <Box className="w-2.5 h-2.5" />
                             <span>علبة مفتوحة</span>
+                          </span>
+                        )}
+                        {prod.locationCode && (
+                          <span
+                            className="shrink-0 px-1.5 py-0.5 rounded bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-[10px] font-mono font-bold text-ink dark:text-ink-dark flex items-center gap-1"
+                            title={`موقع التخزين والرف: ${prod.locationCode}${prod.locationName ? ` (${prod.locationName})` : ''}`}
+                          >
+                            <span>[{prod.locationCode}]</span>
+                          </span>
+                        )}
+                        {prod.isColdChain && (
+                          <span
+                            className="shrink-0 px-2 py-0.5 bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 text-[10px] font-bold rounded-full border border-cyan-200 dark:border-cyan-800 flex items-center gap-1"
+                            title="سلسلة تبريد (يحفظ في الثلاجة 2-8 مئوية)"
+                          >
+                            <Snowflake className="w-2.5 h-2.5" />
+                            <span>ثلاجة</span>
                           </span>
                         )}
                       </div>

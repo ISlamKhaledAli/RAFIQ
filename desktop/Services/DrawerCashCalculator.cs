@@ -103,6 +103,12 @@ namespace RafiqPOS.Services
                 cmd.CommandText = @"
                     SELECT COALESCE(SUM(
                         CASE 
+                            -- Task 189-5: Corporate insurance claims are corporate receivables; only the patient's cash co-payment from payments table enters the drawer
+                            WHEN s.payment_method = 'insurance' THEN MAX(0, (
+                                SELECT COALESCE(SUM(p.amount_piasters), 0) 
+                                FROM payments p 
+                                WHERE p.sale_id = s.id AND p.method = 'cash'
+                            ) - COALESCE(s.change_piasters, 0))
                             WHEN s.payment_method = 'cash' THEN MAX(0, (s.paid_piasters - s.service_fee_piasters) - COALESCE(s.change_piasters, 0))
                             WHEN s.payment_method = 'credit' THEN MIN((s.paid_piasters - s.service_fee_piasters), s.total_piasters)
                             WHEN s.payment_method = 'multi' THEN MAX(0, (

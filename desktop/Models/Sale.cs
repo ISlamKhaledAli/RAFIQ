@@ -65,12 +65,18 @@ namespace RafiqPOS.Models
 
         [JsonProperty("isExpiredBypass")]
         public bool IsExpiredBypass { get; set; }
+
+        [JsonProperty("isColdChain")]
+        public bool IsColdChain { get; set; }
     }
 
     public class Sale
     {
         [JsonProperty("id")]
         public string Id { get; set; }
+
+        [JsonProperty("hasColdChainItems")]
+        public bool HasColdChainItems { get; set; }
 
         [JsonProperty("invoiceNumber")]
         public int InvoiceNumber { get; set; }
@@ -148,11 +154,21 @@ namespace RafiqPOS.Models
         [JsonProperty("creditLimitWarning")]
         public string CreditLimitWarning { get; set; }
 
+        [JsonProperty("controlledDispenses")]
+        public List<ControlledDrugDispense> ControlledDispenses { get; set; }
+
+        [JsonProperty("prescription")]
+        public Prescription Prescription { get; set; }
+
+        [JsonProperty("insuranceClaim")]
+        public InsuranceClaimLine InsuranceClaim { get; set; }
+
         public Sale()
         {
             Items = new List<SaleItem>();
             Payments = new List<SalePayment>();
             NegativeStockWarnings = new List<string>();
+            ControlledDispenses = new List<ControlledDrugDispense>();
         }
     }
 

@@ -4,6 +4,8 @@ import {
   Receipt,
   Building2,
   ArrowRight,
+  ClipboardList,
+  RotateCcw,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
@@ -12,12 +14,16 @@ import { extractProducts, type Supplier, type Purchase, type PurchaseItem, type 
 import { PurchasesInvoicesTab } from './purchases/PurchasesInvoicesTab';
 import { NewPurchaseTab } from './purchases/NewPurchaseTab';
 import { SuppliersTab } from './purchases/SuppliersTab';
+import { ShortagesTab } from './purchases/ShortagesTab';
 import { PurchaseDetailsModal } from './purchases/PurchaseDetailsModal';
 import { ProductVariantPickerModal } from '../components/ProductVariantPickerModal';
 import { SupplierFormModal, type SupplierFormData } from './purchases/SupplierFormModal';
 import { SupplierPaymentModal } from './purchases/SupplierPaymentModal';
 import { SupplierStatementModal } from './purchases/SupplierStatementModal';
 import { BarcodeLabelModal, type LabelQueueItem } from '../components/BarcodeLabelModal';
+import { ExpiryReturnsModal } from '../components/ExpiryReturnsModal';
+import { useFeatures } from '../context/useFeatures';
+import { useAuth } from '../context/useAuth';
 import { type PurchasesSubView, type NewPurchaseLineItem } from './purchases/types';
 import { calculateLineTotal, normalizeArabicNumerals } from '../utils/money';
 
@@ -30,6 +36,8 @@ interface PurchasesViewProps {
 }
 
 export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, subView, onSubViewChange }) => {
+  const { isEnabled } = useFeatures();
+  const { hasPermission } = useAuth();
   const [internalTab, setInternalTab] = useState<PurchasesSubView>('new_invoice');
   const activeTab = subView ?? internalTab;
   const setActiveTab = (view: PurchasesSubView) => {
@@ -48,6 +56,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState<boolean>(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState<boolean>(false);
   const [isStatementModalOpen, setIsStatementModalOpen] = useState<boolean>(false);
+  const [isExpiryReturnsModalOpen, setIsExpiryReturnsModalOpen] = useState<boolean>(false);
   const [supplierTransactions, setSupplierTransactions] = useState<SupplierTransaction[]>([]);
   const [paymentAmountPiasters, setPaymentAmountPiasters] = useState<number>(0);
   const [paymentNotes, setPaymentNotes] = useState<string>('');
@@ -326,16 +335,23 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
         const packSize = parseInt(item.packSizeInput || '', 10) || (item.packSize || 1);
         const cartons = parseInt(item.cartonsInput || '', 10) || (item.cartonsCount || 0);
         const hasCartonData = cartons > 0 && packSize > 1;
+        const bonusQty = Math.round((item.bonusQuantityUnits || 0) * 1000);
+        const distBps = typeof item.distributorDiscountPercent === 'number' && !isNaN(item.distributorDiscountPercent)
+          ? Math.round(item.distributorDiscountPercent * 100)
+          : undefined;
 
         return {
           productId: item.productId,
           productName: item.productName,
           barcode: item.barcode,
           quantityMilli: Math.round(item.quantityUnits * 1000),
+          bonusQuantityMilli: bonusQty > 0 ? bonusQty : 0,
           unitCostPiasters: item.unitCostPiasters,
           totalCostPiasters: calculateLineTotal(item.unitCostPiasters, Math.round(item.quantityUnits * 1000)),
           previousCostPiasters: item.currentCostPiasters,
           newSellingPricePiasters: item.newSellingPricePiasters > 0 ? item.newSellingPricePiasters : undefined,
+          publicPricePiasters: (item.publicPricePiasters && item.publicPricePiasters > 0) ? item.publicPricePiasters : undefined,
+          distributorDiscountBps: distBps,
           batchNumber: item.batchNumber?.trim() || undefined,
           expiryDate: item.expiryDate?.trim() || undefined,
           productionDate: item.productionDate?.trim() || undefined,
@@ -416,6 +432,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
       address: '',
       balanceEGP: '0',
       notes: '',
+      expiryReturnWindowDays: '30',
+      expiryReturnCreditPercent: '100',
     });
     setIsSupplierModalOpen(true);
   };
@@ -429,6 +447,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
       address: sup.address || '',
       balanceEGP: (sup.balancePiasters / 100).toFixed(2),
       notes: sup.notes || '',
+      expiryReturnWindowDays: (sup.expiryReturnWindowDays !== undefined && sup.expiryReturnWindowDays !== null) ? String(sup.expiryReturnWindowDays) : '30',
+      expiryReturnCreditPercent: (sup.expiryReturnCreditBps !== undefined && sup.expiryReturnCreditBps !== null) ? (sup.expiryReturnCreditBps / 100).toString() : '100',
     });
     setIsSupplierModalOpen(true);
   };
@@ -442,6 +462,10 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
 
     try {
       const balancePiasters = Math.round((parseFloat(normalizeArabicNumerals(supplierForm.balanceEGP)) || 0) * 100);
+      const windowDays = supplierForm.expiryReturnWindowDays ? parseInt(normalizeArabicNumerals(supplierForm.expiryReturnWindowDays), 10) : 30;
+      const creditPercent = supplierForm.expiryReturnCreditPercent ? parseFloat(normalizeArabicNumerals(supplierForm.expiryReturnCreditPercent)) : 100;
+      const expiryReturnCreditBps = Math.round(creditPercent * 100);
+
       const res = await invoke<Supplier>('suppliers:save', {
         id: supplierForm.id,
         name: supplierForm.name.trim(),
@@ -450,6 +474,8 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
         address: supplierForm.address.trim() || null,
         balancePiasters,
         notes: supplierForm.notes.trim() || null,
+        expiryReturnWindowDays: isNaN(windowDays) ? 30 : windowDays,
+        expiryReturnCreditBps: isNaN(expiryReturnCreditBps) ? 10000 : expiryReturnCreditBps,
       });
 
       if (res) {
@@ -679,12 +705,25 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
               {activeTab === 'invoices' && 'سجل واستعراض فواتير الشراء، متابعة التكاليف، وحالات السداد'}
               {activeTab === 'new_invoice' && 'تسجيل استلام بضائع وتحديث تكلفة الشراء والمخزون الفوري'}
               {activeTab === 'suppliers' && 'دليل الموردين، حسابات المديونية الآجلة، وكشوف الحساب'}
+              {activeTab === 'shortages' && 'دفتر النواقص، طلبات العملاء، ومقترحات طلبيات الموردين التلقائية'}
             </p>
           </div>
         </div>
 
         {/* Header Right Action / Badges */}
         <div className="flex items-center gap-2">
+          {isEnabled('feature_expiry_returns') && hasPermission('pharma.expiry_returns.manage') && (
+            <button
+              type="button"
+              onClick={() => setIsExpiryReturnsModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30 text-xs font-bold transition-colors cursor-pointer"
+              title="إدارة مرتجعات الصلاحية للموردين ومحاضر الإعدام"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>مرتجعات الصلاحية والإعدام</span>
+            </button>
+          )}
+
           {activeTab === 'new_invoice' ? (
             <button
               type="button"
@@ -707,6 +746,12 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
                 <>
                   <Building2 className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
                   <span>دليل الموردين</span>
+                </>
+              )}
+              {activeTab === 'shortages' && (
+                <>
+                  <ClipboardList className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
+                  <span>دفتر النواقص والطلبيات</span>
                 </>
               )}
             </div>
@@ -787,6 +832,30 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
             onRestoreSupplier={handleRestoreSupplier}
           />
         )}
+
+        {activeTab === 'shortages' && (
+          <ShortagesTab
+            onLoadProposalToNewPurchase={(proposal) => {
+              if (proposal.supplierId) {
+                setSelectedSupplierId(proposal.supplierId);
+              }
+              const newLines: NewPurchaseLineItem[] = proposal.items.map((pi) => ({
+                productId: pi.productId,
+                productName: pi.productName,
+                barcode: pi.barcode || '',
+                currentStockMilli: 0,
+                currentCostPiasters: pi.costPiasters,
+                currentPricePiasters: pi.costPiasters,
+                quantityUnits: Math.max(1, Math.round(pi.suggestedQuantityMilli / 1000)),
+                unitCostPiasters: pi.costPiasters,
+                newSellingPricePiasters: pi.costPiasters,
+                unit: pi.unit,
+              }));
+              setLineItems(newLines);
+              setActiveTab('new_invoice');
+            }}
+          />
+        )}
       </main>
 
       {/* Modals */}
@@ -854,6 +923,13 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
         }}
         initialQueueItems={barcodeQueueItems}
         sourceTitle={barcodeSourceTitle}
+      />
+
+      {/* Expiry Returns & Write-offs Modal */}
+      <ExpiryReturnsModal
+        isOpen={isExpiryReturnsModalOpen}
+        onClose={() => setIsExpiryReturnsModalOpen(false)}
+        onSuccess={(msg) => showToast(msg, 'success')}
       />
     </div>
   );

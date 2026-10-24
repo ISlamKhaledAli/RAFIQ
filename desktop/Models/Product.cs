@@ -107,6 +107,12 @@ namespace RafiqPOS.Models
         [JsonProperty("suggestedBatchNumber")]
         public string SuggestedBatchNumber { get; set; }
 
+        [JsonProperty("suggestedBatchId")]
+        public string SuggestedBatchId { get; set; }
+
+        [JsonProperty("suggestedBatchSellPricePiasters")]
+        public long? SuggestedBatchSellPricePiasters { get; set; }
+
         [JsonProperty("isExpired")]
         public bool IsExpired { get; set; }
 
@@ -121,6 +127,39 @@ namespace RafiqPOS.Models
 
         [JsonProperty("isLooseSellable")]
         public bool IsLooseSellable { get; set; }
+
+        [JsonProperty("locationId")]
+        public string LocationId { get; set; }
+
+        [JsonProperty("locationCode")]
+        public string LocationCode { get; set; }
+
+        [JsonProperty("locationName")]
+        public string LocationName { get; set; }
+
+        [JsonProperty("locationType")]
+        public string LocationType { get; set; }
+
+        [JsonProperty("isColdChain")]
+        public bool IsColdChain { get; set; }
+
+        [JsonProperty("preferredSupplierId")]
+        public string PreferredSupplierId { get; set; }
+
+        [JsonProperty("scientificName")]
+        public string ScientificName { get; set; }
+
+        [JsonProperty("dosageFormName")]
+        public string DosageFormName { get; set; }
+
+        [JsonProperty("rxStatus")]
+        public string RxStatus { get; set; }
+
+        [JsonProperty("controlledSchedule")]
+        public string ControlledSchedule { get; set; }
+
+        [JsonProperty("isControlled")]
+        public bool IsControlled { get; set; }
 
         // Presentation helpers (Never used in internal DB math)
         [JsonProperty("priceFormatted")]
@@ -157,6 +196,13 @@ namespace RafiqPOS.Models
             {
                 return Common.CompoundStockHelper.IsOpenPackage(StockQuantityMilli, Units);
             }
+        }
+
+        public Product()
+        {
+            IsActive = true;
+            Barcodes = new System.Collections.Generic.List<string>();
+            Units = new System.Collections.Generic.List<ProductUnit>();
         }
     }
 }

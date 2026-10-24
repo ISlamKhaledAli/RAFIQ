@@ -1,10 +1,14 @@
 import type { Product, SaleItem, ProductUnit } from '../../types/models';
+import type { ControlledDrugDispense } from '../../types/pharma';
 
 export interface CartItem extends SaleItem {
   taxRatePercent?: number;
   stockQuantityMilli?: number;
   productUnits?: ProductUnit[];
   isDivisible?: boolean;
+  isControlled?: boolean;
+  controlledSchedule?: string | null;
+  controlledDispense?: ControlledDrugDispense;
 }
 
 export interface SmartCatalogItem {
@@ -34,4 +38,7 @@ export interface SmartCatalogItem {
   isExpired?: boolean;
   defaultSaleUnitId?: string | null;
   isLooseSellable?: boolean;
+  isControlled?: boolean;
+  controlledSchedule?: string | null;
 }
+

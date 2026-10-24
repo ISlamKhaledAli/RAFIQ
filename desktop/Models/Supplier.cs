@@ -29,6 +29,12 @@ namespace RafiqPOS.Models
         [JsonProperty("isActive")]
         public bool IsActive { get; set; }
 
+        [JsonProperty("expiryReturnWindowDays")]
+        public int? ExpiryReturnWindowDays { get; set; }
+
+        [JsonProperty("expiryReturnCreditBps")]
+        public int? ExpiryReturnCreditBps { get; set; }
+
         [JsonProperty("createdAt")]
         public string CreatedAt { get; set; }
 

@@ -117,6 +117,23 @@ namespace RafiqPOS.Services
         public static ShiftRepository ShiftRepo { get; private set; }
         public static ShiftService Shifts { get; private set; }
         public static CashDrawerService CashDrawer { get; private set; }
+        public static StorageLocationRepository StorageLocationRepo { get; private set; }
+        public static StorageLocationService StorageLocations { get; private set; }
+        public static ShortageRepository ShortageRepo { get; private set; }
+        public static ShortageService Shortages { get; private set; }
+        public static PharmaRepository PharmaRepo { get; private set; }
+        public static DrugAlternativesService DrugAlternatives { get; private set; }
+        public static ControlledDrugRepository ControlledDrugRepo { get; set; }
+        public static PrescriptionRepository PrescriptionRepo { get; set; }
+        public static ControlledDrugService ControlledDrugs { get; set; }
+        public static PrescriptionService Prescriptions { get; set; }
+        public static InsuranceRepository InsuranceRepo { get; set; }
+        public static InsuranceService Insurance { get; set; }
+        public static PatientRepository PatientRepo { get; set; }
+        public static PatientService Patients { get; set; }
+        public static DrugReferenceRepository DrugReferenceRepo { get; set; }
+        public static DrugReferenceService DrugReference { get; set; }
+        public static PharmaStocktakingService PharmaStocktaking { get; private set; }
 
         public static void Initialize(string customBaseFolder = null)
         {
@@ -223,6 +240,25 @@ namespace RafiqPOS.Services
             ShiftRepo = new ShiftRepository(_connectionString);
             Shifts = new ShiftService(_connectionString, ShiftRepo, CounterRepo, AuditRepo, DailyClosing);
             CashDrawer = new CashDrawerService(_connectionString, ShiftRepo, Shifts, AuditRepo);
+
+            StorageLocationRepo = new StorageLocationRepository(_connectionString);
+            StorageLocations = new StorageLocationService(StorageLocationRepo);
+
+            ShortageRepo = new ShortageRepository(_connectionString);
+            Shortages = new ShortageService(ShortageRepo, _connectionString);
+            PharmaRepo = new PharmaRepository(_connectionString);
+            DrugAlternatives = new DrugAlternativesService(PharmaRepo, ProductRepo, _connectionString);
+            ControlledDrugRepo = new ControlledDrugRepository(_connectionString);
+            PrescriptionRepo = new PrescriptionRepository(_connectionString, Path.GetDirectoryName(_dbPath));
+            ControlledDrugs = new ControlledDrugService(ControlledDrugRepo, SettingsRepo, Encryption, Security);
+            Prescriptions = new PrescriptionService(PrescriptionRepo, Path.GetDirectoryName(_dbPath));
+            InsuranceRepo = new InsuranceRepository(_connectionString);
+            Insurance = new InsuranceService(InsuranceRepo, AuditRepo);
+            PatientRepo = new PatientRepository(_connectionString, AuditRepo);
+            Patients = new PatientService(PatientRepo, Security);
+            DrugReferenceRepo = new DrugReferenceRepository(_connectionString, AuditRepo);
+            DrugReference = new DrugReferenceService(DrugReferenceRepo, Excel, PurchaseRepo, ProductBatchRepo);
+            PharmaStocktaking = new PharmaStocktakingService(_connectionString, ProductBatchRepo, ProductRepo, AuditRepo);
 
             // Cleanup old held sales (> 7 days) on startup (Task 25-4)
             try

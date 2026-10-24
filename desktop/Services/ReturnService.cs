@@ -75,6 +75,46 @@ namespace RafiqPOS.Services
                 }
             }
 
+            // Story 131 / Task 188-5: Controlled Drug Return Guard & Approval
+            if (DatabaseService.ControlledDrugRepo != null)
+            {
+                var controlledIds = DatabaseService.ControlledDrugRepo.GetControlledProductIds();
+                bool hasControlledItem = false;
+                for (int ci = 0; ci < returnObj.Items.Count; ci++)
+                {
+                    if (returnObj.Items[ci] != null && controlledIds.Contains(returnObj.Items[ci].ProductId))
+                    {
+                        hasControlledItem = true;
+                        break;
+                    }
+                }
+
+                if (hasControlledItem)
+                {
+                    if (string.IsNullOrWhiteSpace(returnObj.Reason))
+                    {
+                        throw new InvalidOperationException("سبب الاسترجاع إلزامي لمرتجع أدوية الجدول والرقابة.");
+                    }
+
+                    if (string.IsNullOrEmpty(supervisorPin))
+                    {
+                        throw new UnauthorizedAccessException("استرجاع أدوية الجدول والمهدئات يتطلب موافقة واعتماد الصيدلي المسؤول بالرمز السري (PIN).");
+                    }
+
+                    if (DatabaseService.Security != null)
+                    {
+                        var pinCheck = DatabaseService.Security.VerifySupervisorPin(supervisorPin, "PHARMA_CONTROLLED_RETURN");
+                        if (pinCheck == null || !pinCheck.Success)
+                        {
+                            string msg = (pinCheck != null && !string.IsNullOrEmpty(pinCheck.Message))
+                                ? pinCheck.Message
+                                : "الرمز السري للصيدلي المسؤول غير صحيح أو غير مصرح له باعتماد مرتجع أدوية الجدول.";
+                            throw new UnauthorizedAccessException(msg);
+                        }
+                    }
+                }
+            }
+
             // 1. If return is without invoice, require permission and supervisor PIN (F-10)
             if (returnObj.IsWithoutInvoice || string.IsNullOrEmpty(returnObj.SaleId))
             {

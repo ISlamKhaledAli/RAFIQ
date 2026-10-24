@@ -1,4 +1,4 @@
-export type PurchasesSubView = 'invoices' | 'new_invoice' | 'suppliers';
+export type PurchasesSubView = 'invoices' | 'new_invoice' | 'suppliers' | 'shortages';
 
 export interface NewPurchaseLineItem {
   productId: string;
@@ -26,7 +26,14 @@ export interface NewPurchaseLineItem {
   cartonsCount?: number;
   packSize?: number;
   looseUnits?: number;
-  isCartonModeOpen?: boolean;
+  // Pharmacy Distributor Pricing (P10 / Story 136)
+  publicPricePiasters?: number;
+  publicPriceInput?: string;
+  distributorDiscountPercent?: number;
+  distributorDiscountInput?: string;
+  bonusQuantityUnits?: number;
+  bonusQuantityInput?: string;
+  isPharmaPricing?: boolean;
 }
 
 import { formatArabicCurrency } from '../../utils/money';

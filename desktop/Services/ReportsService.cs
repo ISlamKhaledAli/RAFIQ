@@ -3550,6 +3550,509 @@ namespace RafiqPOS.Services
 
             return list;
         }
+
+        /// <summary>
+        /// خريطة الصلاحيات الشهرية المتكاملة بالأدوية ورأس المال بالتكلفة وقيمة البيع (Story 135 / Task 192-1)
+        /// </summary>
+        public PharmaExpiryHeatmapReport GetPharmacyExpiryHeatmap(int monthsAhead = 12)
+        {
+            var report = new PharmaExpiryHeatmapReport();
+            report.GeneratedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+
+            var bucketsMap = new Dictionary<string, PharmaExpiryMonthBucket>(StringComparer.OrdinalIgnoreCase);
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+
+                // 1. Get total inventory cost
+                try
+                {
+                    string totalCostSql = @"
+                        SELECT COALESCE(SUM((stock_quantity_milli * cost_piasters) / 1000), 0) AS total_inv_cost
+                        FROM products
+                        WHERE is_archived = 0;";
+                    using (var cmd = new SQLiteCommand(totalCostSql, conn))
+                    {
+                        object obj = cmd.ExecuteScalar();
+                        if (obj != null && obj != DBNull.Value)
+                        {
+                            report.TotalInventoryCostPiasters = Convert.ToInt64(obj);
+                        }
+                    }
+                }
+                catch
+                {
+                    report.TotalInventoryCostPiasters = 0;
+                }
+
+                // 2. Fetch all active batches with product info
+                string batchSql = @"
+                    SELECT 
+                        pb.id AS batch_id,
+                        pb.product_id,
+                        p.name AS product_name,
+                        COALESCE(ppi.scientific_name, '') AS scientific_name,
+                        pb.batch_number,
+                        pb.expiry_date,
+                        pb.quantity_milli,
+                        pb.cost_price_piasters,
+                        COALESCE(pb.sell_price_piasters, p.price_piasters, 0) AS retail_price_piasters,
+                        COALESCE(sl.code, '') AS location_code,
+                        pb.status
+                    FROM product_batches pb
+                    INNER JOIN products p ON pb.product_id = p.id
+                    LEFT JOIN product_pharma_info ppi ON p.id = ppi.product_id
+                    LEFT JOIN storage_locations sl ON COALESCE(pb.location_id, p.location_id) = sl.id
+                    WHERE pb.status = 'ACTIVE' 
+                      AND pb.quantity_milli > 0 
+                      AND pb.expiry_date IS NOT NULL 
+                      AND p.is_archived = 0
+                    ORDER BY pb.expiry_date ASC;";
+
+                DateTime today = DateTime.UtcNow.Date;
+
+                using (var cmd = new SQLiteCommand(batchSql, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        string batchId = reader["batch_id"].ToString();
+                        string prodId = reader["product_id"].ToString();
+                        string prodName = reader["product_name"].ToString();
+                        string sciName = reader["scientific_name"].ToString();
+                        string batchNum = reader["batch_number"].ToString();
+                        string expDateStr = reader["expiry_date"].ToString();
+                        long qtyMilli = Convert.ToInt64(reader["quantity_milli"]);
+                        long unitCost = Convert.ToInt64(reader["cost_price_piasters"]);
+                        long unitRetail = Convert.ToInt64(reader["retail_price_piasters"]);
+                        string locCode = reader["location_code"].ToString();
+                        string status = reader["status"].ToString();
+
+                        long batchCost = (qtyMilli * unitCost) / 1000L;
+                        long batchRetail = (qtyMilli * unitRetail) / 1000L;
+
+                        DateTime expDate;
+                        int daysRemaining = 0;
+                        bool parsed = DateTime.TryParse(expDateStr, out expDate);
+                        if (parsed)
+                        {
+                            daysRemaining = (int)Math.Floor((expDate.Date - today).TotalDays);
+                        }
+
+                        bool isExpired = daysRemaining < 0;
+                        bool isUrgent = !isExpired && daysRemaining <= 30;
+
+                        report.TotalBatchesCount++;
+                        report.TotalCapitalAtRiskPiasters += batchCost;
+                        if (isExpired)
+                        {
+                            report.TotalExpiredBatchesCount++;
+                            report.TotalExpiredCapitalPiasters += batchCost;
+                        }
+                        else if (isUrgent)
+                        {
+                            report.TotalExpiringSoonBatchesCount++;
+                        }
+
+                        // Determine bucket key
+                        string bucketKey;
+                        string bucketLabel;
+                        if (isExpired)
+                        {
+                            bucketKey = "EXPIRED";
+                            bucketLabel = "منتهية الصلاحية";
+                        }
+                        else if (parsed)
+                        {
+                            bucketKey = expDate.ToString("yyyy-MM");
+                            bucketLabel = expDate.ToString("yyyy-MM") + " (" + GetArabicMonthName(expDate.Month) + " " + expDate.Year.ToString() + ")";
+                        }
+                        else
+                        {
+                            bucketKey = "UNKNOWN";
+                            bucketLabel = "صلاحية غير محددة";
+                        }
+
+                        PharmaExpiryMonthBucket bucket;
+                        if (!bucketsMap.TryGetValue(bucketKey, out bucket))
+                        {
+                            bucket = new PharmaExpiryMonthBucket();
+                            bucket.MonthKey = bucketKey;
+                            bucket.MonthLabel = bucketLabel;
+                            bucket.IsExpired = isExpired;
+                            bucket.IsUrgent = isUrgent;
+                            bucketsMap[bucketKey] = bucket;
+                        }
+
+                        bucket.BatchCount++;
+                        bucket.TotalQuantityMilli += qtyMilli;
+                        bucket.TotalCostPiasters += batchCost;
+                        bucket.TotalRetailPiasters += batchRetail;
+
+                        var detail = new PharmaExpiryBatchDetail();
+                        detail.BatchId = batchId;
+                        detail.ProductId = prodId;
+                        detail.ProductName = prodName;
+                        detail.ScientificName = sciName;
+                        detail.BatchNumber = batchNum;
+                        detail.ExpiryDate = expDateStr;
+                        detail.QuantityMilli = qtyMilli;
+                        detail.CostPricePiasters = unitCost;
+                        detail.TotalCostPiasters = batchCost;
+                        detail.RetailPricePiasters = unitRetail;
+                        detail.TotalRetailPiasters = batchRetail;
+                        detail.LocationCode = locCode;
+                        detail.DaysRemaining = daysRemaining;
+                        detail.Status = status;
+
+                        bucket.Batches.Add(detail);
+                    }
+                }
+            }
+
+            // Calculate distinct products count per bucket
+            foreach (var kvp in bucketsMap)
+            {
+                var bucket = kvp.Value;
+                var prodIds = new HashSet<string>();
+                for (int i = 0; i < bucket.Batches.Count; i++)
+                {
+                    prodIds.Add(bucket.Batches[i].ProductId);
+                }
+                bucket.ProductCount = prodIds.Count;
+                report.MonthBuckets.Add(bucket);
+            }
+
+            // Sort buckets: EXPIRED first, then chronologically by MonthKey
+            report.MonthBuckets.Sort(delegate(PharmaExpiryMonthBucket a, PharmaExpiryMonthBucket b)
+            {
+                if (a.MonthKey == "EXPIRED") return -1;
+                if (b.MonthKey == "EXPIRED") return 1;
+                return string.Compare(a.MonthKey, b.MonthKey, StringComparison.Ordinal);
+            });
+
+            return report;
+        }
+
+        private static string GetArabicMonthName(int month)
+        {
+            switch (month)
+            {
+                case 1: return "يناير";
+                case 2: return "فبراير";
+                case 3: return "مارس";
+                case 4: return "أبريل";
+                case 5: return "مايو";
+                case 6: return "يونيو";
+                case 7: return "يوليو";
+                case 8: return "أغسطس";
+                case 9: return "سبتمبر";
+                case 10: return "أكتوبر";
+                case 11: return "نوفمبر";
+                case 12: return "ديسمبر";
+                default: return "";
+            }
+        }
+
+        /// <summary>
+        /// تحليل الأدوية والأصناف الراكدة التي لم تشهد حركة بيع منذ N يوماً مع رأس المال المجمد (Story 135 / Task 192-1)
+        /// </summary>
+        public PharmaStagnantDrugsReport GetPharmaStagnantDrugs(int thresholdDays = 60, int limit = 100)
+        {
+            if (thresholdDays <= 0) thresholdDays = 60;
+            if (limit <= 0) limit = 100;
+
+            var report = new PharmaStagnantDrugsReport();
+            report.GeneratedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+            report.ThresholdDays = thresholdDays;
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+
+                string sql = string.Format(@"
+                    SELECT 
+                        p.id AS product_id,
+                        p.name AS product_name,
+                        COALESCE(p.barcode, '') AS barcode,
+                        COALESCE(ppi.scientific_name, '') AS scientific_name,
+                        COALESCE(df.name_ar, '') AS dosage_form,
+                        COALESCE(pm.name_ar, '') AS manufacturer_name,
+                        p.stock_quantity_milli,
+                        p.cost_piasters,
+                        p.price_piasters,
+                        p.created_at AS product_created_at,
+                        COALESCE(sl.code, '') AS location_code,
+                        (
+                            SELECT MAX(s.created_at)
+                            FROM sale_items si
+                            INNER JOIN sales s ON si.sale_id = s.id
+                            WHERE si.product_id = p.id AND s.status != 'cancelled'
+                        ) AS last_sale_at,
+                        (
+                            SELECT pb.expiry_date
+                            FROM product_batches pb
+                            WHERE pb.product_id = p.id AND pb.status = 'ACTIVE' AND pb.quantity_milli > 0 AND pb.expiry_date IS NOT NULL
+                            ORDER BY pb.expiry_date ASC
+                            LIMIT 1
+                        ) AS closest_expiry_date,
+                        (
+                            SELECT pb.batch_number
+                            FROM product_batches pb
+                            WHERE pb.product_id = p.id AND pb.status = 'ACTIVE' AND pb.quantity_milli > 0 AND pb.expiry_date IS NOT NULL
+                            ORDER BY pb.expiry_date ASC
+                            LIMIT 1
+                        ) AS closest_batch_number
+                    FROM products p
+                    LEFT JOIN product_pharma_info ppi ON p.id = ppi.product_id
+                    LEFT JOIN pharma_dosage_forms df ON ppi.dosage_form_id = df.id
+                    LEFT JOIN pharma_manufacturers pm ON ppi.manufacturer_id = pm.id
+                    LEFT JOIN storage_locations sl ON p.location_id = sl.id
+                    WHERE p.is_archived = 0 
+                      AND p.stock_quantity_milli > 0
+                      AND (
+                          last_sale_at IS NULL 
+                          OR julianday('now') - julianday(last_sale_at) >= {0}
+                      )
+                    ORDER BY ((p.stock_quantity_milli * p.cost_piasters) / 1000) DESC
+                    LIMIT {1};
+                ", thresholdDays, limit);
+
+                DateTime today = DateTime.UtcNow;
+
+                using (var cmd = new SQLiteCommand(sql, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        var item = new PharmaStagnantDrugItem();
+                        item.ProductId = reader["product_id"].ToString();
+                        item.ProductName = reader["product_name"].ToString();
+                        item.Barcode = reader["barcode"].ToString();
+                        item.ScientificName = reader["scientific_name"].ToString();
+                        item.DosageForm = reader["dosage_form"].ToString();
+                        item.ManufacturerName = reader["manufacturer_name"].ToString();
+                        item.StockQuantityMilli = Convert.ToInt64(reader["stock_quantity_milli"]);
+                        item.CostPricePiasters = Convert.ToInt64(reader["cost_piasters"]);
+                        item.SellPricePiasters = Convert.ToInt64(reader["price_piasters"]);
+                        item.TotalCostPiasters = (item.StockQuantityMilli * item.CostPricePiasters) / 1000L;
+                        item.LocationCode = reader["location_code"].ToString();
+                        item.ClosestExpiryDate = reader["closest_expiry_date"] != DBNull.Value ? reader["closest_expiry_date"].ToString() : "";
+                        item.ClosestBatchNumber = reader["closest_batch_number"] != DBNull.Value ? reader["closest_batch_number"].ToString() : "";
+
+                        // Last sale
+                        if (reader["last_sale_at"] != DBNull.Value && !string.IsNullOrEmpty(reader["last_sale_at"].ToString()))
+                        {
+                            item.LastSaleDate = reader["last_sale_at"].ToString();
+                            DateTime lastSaleDt;
+                            if (DateTime.TryParse(item.LastSaleDate, out lastSaleDt))
+                            {
+                                item.DaysWithoutSale = (int)Math.Max(0, (today - lastSaleDt).TotalDays);
+                            }
+                        }
+                        else
+                        {
+                            item.LastSaleDate = "";
+                            // Days since registration
+                            string createdAtStr = reader["product_created_at"].ToString();
+                            DateTime createdDt;
+                            if (DateTime.TryParse(createdAtStr, out createdDt))
+                            {
+                                item.DaysSinceRegistration = (int)Math.Max(0, (today - createdDt).TotalDays);
+                                item.DaysWithoutSale = item.DaysSinceRegistration;
+                            }
+                            else
+                            {
+                                item.DaysWithoutSale = 999;
+                            }
+                        }
+
+                        // Mixed stock representation (units)
+                        long wholeUnits = item.StockQuantityMilli / 1000L;
+                        long remMilli = item.StockQuantityMilli % 1000L;
+                        if (remMilli == 0)
+                        {
+                            item.MixedStockDisplay = wholeUnits.ToString() + " عبوة";
+                        }
+                        else
+                        {
+                            item.MixedStockDisplay = string.Format("{0}.{1:D3} عبوة", wholeUnits, remMilli);
+                        }
+
+                        report.TotalStagnantCount++;
+                        report.TotalTiedCapitalPiasters += item.TotalCostPiasters;
+                        report.Items.Add(item);
+                    }
+                }
+            }
+
+            return report;
+        }
+
+        /// <summary>
+        /// تقرير أرباح الصيدلية بحسب الشركات المصنعة والمواد الفعالة (Story 135 / Task 192-1)
+        /// </summary>
+        public PharmaProfitabilityReport GetPharmaProfitabilityReport(string period = "month", string customFromDate = null, string customToDate = null)
+        {
+            var report = new PharmaProfitabilityReport();
+            report.GeneratedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+            report.Period = period;
+            report.FromDate = customFromDate;
+            report.ToDate = customToDate;
+
+            string dateFilterClause;
+            if (period == "today")
+            {
+                string bDateStr = BusinessDayHelper.GetCurrentBusinessDate(_connectionString).ToString("yyyy-MM-dd");
+                dateFilterClause = string.Format("(date(s.created_at, 'localtime') = '{0}' OR date(s.created_at) = '{0}')", bDateStr);
+            }
+            else if (period == "yesterday")
+            {
+                dateFilterClause = "date(s.created_at, 'localtime') = date('now', 'localtime', '-1 day')";
+            }
+            else if (period == "week")
+            {
+                dateFilterClause = "date(s.created_at, 'localtime') >= date('now', 'localtime', '-7 days')";
+            }
+            else if (period == "month")
+            {
+                dateFilterClause = "date(s.created_at, 'localtime') >= date('now', 'localtime', '-30 days')";
+            }
+            else if (period == "custom" && !string.IsNullOrEmpty(customFromDate) && !string.IsNullOrEmpty(customToDate))
+            {
+                dateFilterClause = "date(s.created_at, 'localtime') >= date(@from) AND date(s.created_at, 'localtime') <= date(@to)";
+            }
+            else
+            {
+                dateFilterClause = "date(s.created_at, 'localtime') >= date('now', 'localtime', '-30 days')";
+            }
+
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+
+                // 1. Manufacturer Profitability
+                string mfgSql = string.Format(@"
+                    SELECT 
+                        COALESCE(pm.id, 'unknown_mfg') AS manufacturer_id,
+                        COALESCE(pm.name_ar, 'غير محدد / شركات عامة') AS manufacturer_name,
+                        COALESCE(pm.country, 'مصر') AS country,
+                        COUNT(DISTINCT si.product_id) AS products_count,
+                        COUNT(DISTINCT si.sale_id) AS invoices_count,
+                        COALESCE(SUM(si.quantity_milli), 0) AS total_qty_milli,
+                        COALESCE(SUM(si.total_piasters), 0) AS total_sales,
+                        COALESCE(SUM((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000), 0) AS total_cost
+                    FROM sale_items si
+                    INNER JOIN sales s ON si.sale_id = s.id
+                    INNER JOIN products p ON si.product_id = p.id
+                    LEFT JOIN product_pharma_info ppi ON p.id = ppi.product_id
+                    LEFT JOIN pharma_manufacturers pm ON ppi.manufacturer_id = pm.id
+                    WHERE s.status != 'cancelled'
+                      AND s.id NOT LIKE 'demo_%'
+                      AND s.id NOT LIKE 'stress_%'
+                      AND {0}
+                    GROUP BY pm.id
+                    HAVING total_sales > 0
+                    ORDER BY total_sales DESC;", dateFilterClause);
+
+                using (var cmd = new SQLiteCommand(mfgSql, conn))
+                {
+                    if (period == "custom")
+                    {
+                        cmd.Parameters.AddWithValue("@from", customFromDate);
+                        cmd.Parameters.AddWithValue("@to", customToDate);
+                    }
+
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            var mfg = new PharmaManufacturerProfitItem();
+                            mfg.ManufacturerId = reader["manufacturer_id"].ToString();
+                            mfg.ManufacturerName = reader["manufacturer_name"].ToString();
+                            mfg.Country = reader["country"].ToString();
+                            mfg.ProductsCount = Convert.ToInt32(reader["products_count"]);
+                            mfg.InvoicesCount = Convert.ToInt32(reader["invoices_count"]);
+                            mfg.QuantitySoldMilli = Convert.ToInt64(reader["total_qty_milli"]);
+                            mfg.TotalSalesPiasters = Convert.ToInt64(reader["total_sales"]);
+                            mfg.TotalCostPiasters = Convert.ToInt64(reader["total_cost"]);
+                            mfg.GrossProfitPiasters = mfg.TotalSalesPiasters - mfg.TotalCostPiasters;
+                            mfg.ProfitMarginBps = mfg.TotalSalesPiasters > 0
+                                ? (int)((mfg.GrossProfitPiasters * 10000L) / mfg.TotalSalesPiasters)
+                                : 0;
+
+                            report.Manufacturers.Add(mfg);
+                            report.TotalSalesPiasters += mfg.TotalSalesPiasters;
+                            report.TotalCostPiasters += mfg.TotalCostPiasters;
+                        }
+                    }
+                }
+
+                report.GrossProfitPiasters = report.TotalSalesPiasters - report.TotalCostPiasters;
+                report.OverallMarginBps = report.TotalSalesPiasters > 0
+                    ? (int)((report.GrossProfitPiasters * 10000L) / report.TotalSalesPiasters)
+                    : 0;
+
+                // 2. Active Ingredient Profitability
+                string ingSql = string.Format(@"
+                    SELECT 
+                        ai.id AS ingredient_id,
+                        ai.name_en AS ingredient_name_en,
+                        COALESCE(ai.name_ar, ai.name_en) AS ingredient_name_ar,
+                        COUNT(DISTINCT si.product_id) AS products_count,
+                        COUNT(DISTINCT si.sale_id) AS invoices_count,
+                        COALESCE(SUM(si.quantity_milli), 0) AS total_qty_milli,
+                        COALESCE(SUM(si.total_piasters), 0) AS total_sales,
+                        COALESCE(SUM((si.quantity_milli * COALESCE(NULLIF(si.unit_cost_piasters, 0), NULLIF(p.cost_piasters, 0), 0)) / 1000), 0) AS total_cost
+                    FROM sale_items si
+                    INNER JOIN sales s ON si.sale_id = s.id
+                    INNER JOIN products p ON si.product_id = p.id
+                    INNER JOIN product_ingredients pi ON p.id = pi.product_id
+                    INNER JOIN active_ingredients ai ON pi.ingredient_id = ai.id
+                    WHERE s.status != 'cancelled'
+                      AND s.id NOT LIKE 'demo_%'
+                      AND s.id NOT LIKE 'stress_%'
+                      AND {0}
+                    GROUP BY ai.id
+                    HAVING total_sales > 0
+                    ORDER BY total_sales DESC
+                    LIMIT 50;", dateFilterClause);
+
+                using (var cmd = new SQLiteCommand(ingSql, conn))
+                {
+                    if (period == "custom")
+                    {
+                        cmd.Parameters.AddWithValue("@from", customFromDate);
+                        cmd.Parameters.AddWithValue("@to", customToDate);
+                    }
+
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            var ing = new PharmaIngredientProfitItem();
+                            ing.IngredientId = reader["ingredient_id"].ToString();
+                            ing.IngredientNameEn = reader["ingredient_name_en"].ToString();
+                            ing.IngredientNameAr = reader["ingredient_name_ar"].ToString();
+                            ing.ProductsCount = Convert.ToInt32(reader["products_count"]);
+                            ing.InvoicesCount = Convert.ToInt32(reader["invoices_count"]);
+                            ing.QuantitySoldMilli = Convert.ToInt64(reader["total_qty_milli"]);
+                            ing.TotalSalesPiasters = Convert.ToInt64(reader["total_sales"]);
+                            ing.TotalCostPiasters = Convert.ToInt64(reader["total_cost"]);
+                            ing.GrossProfitPiasters = ing.TotalSalesPiasters - ing.TotalCostPiasters;
+                            ing.ProfitMarginBps = ing.TotalSalesPiasters > 0
+                                ? (int)((ing.GrossProfitPiasters * 10000L) / ing.TotalSalesPiasters)
+                                : 0;
+
+                            report.ActiveIngredients.Add(ing);
+                        }
+                    }
+                }
+            }
+
+            return report;
+        }
     }
 }
 

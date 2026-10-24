@@ -187,6 +187,17 @@ namespace RafiqPOS.Services
                             END
                         ), 0) AS card_sales,
                         COALESCE(SUM(CASE WHEN s.total_piasters > (s.paid_piasters - s.service_fee_piasters) THEN (s.total_piasters - (s.paid_piasters - s.service_fee_piasters)) ELSE 0 END), 0) AS credit_sales,
+                        COALESCE(SUM(
+                            CASE 
+                                WHEN s.payment_method = 'insurance' THEN (s.paid_piasters - s.service_fee_piasters)
+                                WHEN s.payment_method = 'multi' THEN (
+                                    SELECT COALESCE(SUM(p.amount_piasters), 0) 
+                                    FROM payments p 
+                                    WHERE p.sale_id = s.id AND p.method = 'insurance'
+                                )
+                                ELSE 0 
+                            END
+                        ), 0) AS insurance_sales,
                         COUNT(*) AS inv_count
                     FROM sales s
                     WHERE date(datetime(s.created_at, 'localtime', '-' || @cutoff || ' hours')) = @bdate
@@ -208,6 +219,7 @@ namespace RafiqPOS.Services
                             preview.VodafoneCashSalesPiasters = Convert.ToInt64(reader["vodafone_cash_sales"]);
                             preview.CardSalesPiasters = Convert.ToInt64(reader["card_sales"]);
                             preview.CreditSalesPiasters = Convert.ToInt64(reader["credit_sales"]);
+                            preview.InsuranceSalesPiasters = Convert.ToInt64(reader["insurance_sales"]);
                             preview.InvoicesCount = Convert.ToInt32(reader["inv_count"]);
                         }
                     }
@@ -659,6 +671,7 @@ namespace RafiqPOS.Services
                 InstapaySalesPiasters = preview.InstapaySalesPiasters,
                 VodafoneCashSalesPiasters = preview.VodafoneCashSalesPiasters,
                 CreditSalesPiasters = preview.CreditSalesPiasters,
+                InsuranceSalesPiasters = preview.InsuranceSalesPiasters,
                 ExpensesPiasters = preview.ExpensesPiasters,
                 ReturnsTotalPiasters = preview.ReturnsTotalPiasters,
                 ReturnsCashPiasters = preview.ReturnsCashPiasters,

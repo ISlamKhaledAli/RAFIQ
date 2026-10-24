@@ -518,6 +518,57 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, breakdown);
                     return true;
 
+                case "reports:getPharmaExpiryHeatmap":
+                case "reports.getPharmaExpiryHeatmap":
+                    int heatmapMonths = 12;
+                    if (request.Payload != null)
+                    {
+                        JObject hmObj = request.Payload as JObject;
+                        if (hmObj != null && hmObj["months"] != null)
+                        {
+                            heatmapMonths = hmObj["months"].Value<int>();
+                        }
+                    }
+                    var heatmap = DatabaseService.Reports.GetPharmacyExpiryHeatmap(heatmapMonths);
+                    response = BridgeResponse.Ok(request.Id, heatmap);
+                    return true;
+
+                case "reports:getPharmaStagnant":
+                case "reports.getPharmaStagnant":
+                    int stagThreshold = 60;
+                    int stagLimit = 100;
+                    if (request.Payload != null)
+                    {
+                        JObject stagObj = request.Payload as JObject;
+                        if (stagObj != null)
+                        {
+                            if (stagObj["thresholdDays"] != null) stagThreshold = stagObj["thresholdDays"].Value<int>();
+                            if (stagObj["limit"] != null) stagLimit = stagObj["limit"].Value<int>();
+                        }
+                    }
+                    var stagnantReport = DatabaseService.Reports.GetPharmaStagnantDrugs(stagThreshold, stagLimit);
+                    response = BridgeResponse.Ok(request.Id, stagnantReport);
+                    return true;
+
+                case "reports:getPharmaProfitability":
+                case "reports.getPharmaProfitability":
+                    string profPeriod = "month";
+                    string profFrom = null;
+                    string profTo = null;
+                    if (request.Payload != null)
+                    {
+                        JObject profObj = request.Payload as JObject;
+                        if (profObj != null)
+                        {
+                            if (profObj["period"] != null) profPeriod = profObj["period"].ToString();
+                            if (profObj["fromDate"] != null) profFrom = profObj["fromDate"].ToString();
+                            if (profObj["toDate"] != null) profTo = profObj["toDate"].ToString();
+                        }
+                    }
+                    var profReport = DatabaseService.Reports.GetPharmaProfitabilityReport(profPeriod, profFrom, profTo);
+                    response = BridgeResponse.Ok(request.Id, profReport);
+                    return true;
+
                 default:
                     return false;
             }

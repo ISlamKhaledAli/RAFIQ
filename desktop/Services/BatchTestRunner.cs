@@ -422,6 +422,129 @@ namespace RafiqPOS.Services
                 }
                 Assert(saleMovementCostVerified, "حركات المخزن تسجل تكلفة التشغيلة ورقمها وتاريخ انتهائها بشكل مستقل في حركة البيع", result);
 
+                // TEST: Batch Dual Pricing and Sale Item Batch Allocations (Feature #184)
+                var prodMultiBatch = new Product
+                {
+                    Id = "prod_panadol_multi",
+                    Name = "بنادول اكسترا أقراص",
+                    Barcode = "6229988776655",
+                    PricePiasters = 5000, // 50 EGP catalogue price
+                    CostPiasters = 3500,
+                    StockQuantityMilli = 5000,
+                    Unit = "علبة",
+                    IsActive = true
+                };
+                productService.SaveProduct(prodMultiBatch);
+
+                // Batch 1 (old price: 40 EGP sell price, cost 25 EGP, expires earlier)
+                var batchOld = new ProductBatch
+                {
+                    Id = "batch_panadol_old",
+                    ProductId = prodMultiBatch.Id,
+                    BatchNumber = "B-OLD-40",
+                    ExpiryDate = "2027-01-01",
+                    QuantityMilli = 2000, // 2 units
+                    CostPricePiasters = 2500,
+                    SellPricePiasters = 4000,
+                    Status = "ACTIVE"
+                };
+                batchRepo.CreateOrUpdateBatch(batchOld);
+
+                // Batch 2 (new price: 60 EGP sell price, cost 45 EGP, expires later)
+                var batchNew = new ProductBatch
+                {
+                    Id = "batch_panadol_new",
+                    ProductId = prodMultiBatch.Id,
+                    BatchNumber = "B-NEW-60",
+                    ExpiryDate = "2028-01-01",
+                    QuantityMilli = 3000, // 3 units
+                    CostPricePiasters = 4500,
+                    SellPricePiasters = 6000,
+                    Status = "ACTIVE"
+                };
+                batchRepo.CreateOrUpdateBatch(batchNew);
+
+                // Execute sale that spans both batches (FEFO should deduct 2 from batchOld and 1 from batchNew)
+                string testSaleItemId = "sitem_multi_1";
+                var multiSale = new Sale
+                {
+                    Id = "sale_multi_batch_1",
+                    InvoiceNumber = 101,
+                    SubtotalPiasters = 14000,
+                    TotalPiasters = 14000, // (2 * 4000) + (1 * 6000) = 14000
+                    PaidPiasters = 14000,
+                    PaymentMethod = "cash",
+                    CreatedAt = DateTime.UtcNow.ToString("o"),
+                    Items = new System.Collections.Generic.List<SaleItem>
+                    {
+                        new SaleItem
+                        {
+                            Id = testSaleItemId,
+                            ProductId = prodMultiBatch.Id,
+                            ProductName = prodMultiBatch.Name,
+                            QuantityMilli = 3000, // 3 units
+                            UnitPricePiasters = 4000, // old price line
+                            UnitCostPiasters = 2500,
+                            TotalPiasters = 12000
+                        }
+                    },
+                    Payments = new System.Collections.Generic.List<SalePayment>
+                    {
+                        new SalePayment
+                        {
+                            Id = "sp_multi_1",
+                            SaleId = "sale_multi_batch_1",
+                            AmountPiasters = 14000,
+                            Method = "cash"
+                        }
+                    }
+                };
+
+                var savedMultiSale = saleRepo.CreateSaleAtomic(multiSale);
+                Assert(savedMultiSale != null, "إتمام بيع بنجاح لصنف له تشغيلات متعددة الأسعار", result);
+
+                // Verify allocations saved in sale_item_batch_allocations
+                var allocs = batchRepo.GetAllocationsBySaleItemId(testSaleItemId);
+                Assert(allocs != null && allocs.Count == 2, "تسجيل وتوزيع كميات البيع على تشغيلتين مختلفتين في جدول sale_item_batch_allocations", result);
+                Assert(allocs[0].BatchId == batchOld.Id && allocs[0].QuantityMilli == 2000, "التشغيلة الأولى الأقرب انتهاء تم تخصيص 2 وحدة لها بالكامل", result);
+                Assert(allocs[1].BatchId == batchNew.Id && allocs[1].QuantityMilli == 1000, "التشغيلة الثانية تم استقطاع المتبقي (1 وحدة) منها", result);
+
+                // Verify remaining quantities in batches
+                var bOldAfter = batchRepo.GetById(batchOld.Id);
+                var bNewAfter = batchRepo.GetById(batchNew.Id);
+                Assert(bOldAfter.QuantityMilli == 0 && bOldAfter.Status == "DEPLETED", "استنفاد التشغيلة الأولى بالكامل وتحول حالتها إلى DEPLETED", result);
+                Assert(bNewAfter.QuantityMilli == 2000 && bNewAfter.Status == "ACTIVE", "خصم وحدة واحدة من التشغيلة الأحدث وبقاء وحدتين متاحتين", result);
+
+                // Verify Return Repository restores quantity using allocations
+                var returnRepo = new ReturnRepository(tempConnStr, counterRepo, auditRepo);
+                var testReturn = new Return
+                {
+                    Id = "ret_multi_1",
+                    ReturnNumber = 501,
+                    SaleId = multiSale.Id,
+                    InvoiceNumber = multiSale.InvoiceNumber,
+                    TotalPiasters = 4000,
+                    CreatedAt = DateTime.UtcNow.ToString("o"),
+                    Items = new System.Collections.Generic.List<ReturnItem>
+                    {
+                        new ReturnItem
+                        {
+                            Id = "ritem_1",
+                            ProductId = prodMultiBatch.Id,
+                            QuantityMilli = 1000, // 1 unit returned
+                            UnitPricePiasters = 4000,
+                            TotalPiasters = 4000
+                        }
+                    }
+                };
+
+                var savedReturn = returnRepo.CreateReturnAtomic(testReturn);
+                Assert(savedReturn != null, "إتمام مرتجع فاتورة بنجاح للصنف ذي التشغيلات الموزعة", result);
+
+                // Verify returned quantity restored to the batch (allocations order by created_at DESC -> batchNew)
+                var bNewAfterReturn = batchRepo.GetById(batchNew.Id);
+                Assert(bNewAfterReturn.QuantityMilli == 3000, "استرجاع رصيد المرتجع بدقة إلى التشغيلة المطابقة المستقطعة", result);
+
                 result.Message = string.Format("نجحت جميع اختبارات تواريخ الصلاحية والدفعات بنسبة 100% ({0}/{1} تأكيداً)",
                     result.PassedAssertions, result.TotalAssertions);
             }

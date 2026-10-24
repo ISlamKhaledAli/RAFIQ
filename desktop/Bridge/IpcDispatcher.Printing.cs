@@ -137,6 +137,32 @@ namespace RafiqPOS.Bridge
                     response = BridgeResponse.Ok(request.Id, cutRes);
                     return true;
 
+                case "printer:printDosageLabel":
+                case "pharma:printDosageLabel":
+                    if (request.Payload == null)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "INVALID_PAYLOAD", "بيانات ملصق الجرعة فارغة.");
+                        return true;
+                    }
+                    try
+                    {
+                        var dosageReq = JsonConvert.DeserializeObject<DosageLabelRequest>(request.Payload.ToString());
+                        var dosageRes = DatabaseService.Printer.PrintDosageLabel(dosageReq);
+                        if (dosageRes.Success)
+                        {
+                            response = BridgeResponse.Ok(request.Id, dosageRes);
+                        }
+                        else
+                        {
+                            response = BridgeResponse.Fail(request.Id, "PRINT_FAILED", dosageRes.Message);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        response = BridgeResponse.Fail(request.Id, "PRINT_FAILED", ex.Message);
+                    }
+                    return true;
+
                 default:
                     return false;
             }

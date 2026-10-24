@@ -7,7 +7,7 @@ namespace RafiqPOS.Database
 {
     public static class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 42;
+        public const int LATEST_SUPPORTED_VERSION = 50;
 
         public static void ApplyMigrations(string connectionString, string dbPath)
         {
@@ -373,7 +373,63 @@ namespace RafiqPOS.Database
                     ApplyMigration42(conn);
                 }
 
-                // 45. Self-Healing Schema Guard: Automatically repair missing columns or indexes
+                // 46. Apply Migration 43: Batch-Level Pricing & Sale Item Allocations (Story 127 / Feature #184)
+                if (currentVersion < 43)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration43(conn);
+                }
+
+                // 47. Apply Migration 44: Storage Locations, Racks & Shelves (Story 128 / Feature #185)
+                if (currentVersion < 44)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration44(conn);
+                }
+
+                // 48. Apply Migration 45: Shortage Book & Pharmacy Core Extension (Stories 129 & 130 / Features #186 & #187)
+                if (currentVersion < 45)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration45(conn);
+                }
+
+                // 49. Apply Migration 46: Controlled Drugs Register & Prescriptions (Story 131 / Feature #188)
+                if (currentVersion < 46)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration46(conn);
+                }
+
+                // 50. Apply Migration 47: Patient Profiles and Chronic Disease Tracking (Story 133 / Feature #190)
+                if (currentVersion < 47)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration47(conn);
+                }
+
+                // 51. Apply Migration 48: Health Insurance, Co-Payment Claims & Corporate Billing (Story 132 / Feature #189)
+                if (currentVersion < 48)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration48(conn);
+                }
+
+                // 52. Apply Migration 49: Supplier Expiry Returns & External Drug Reference (Story 134 / Feature #191)
+                if (currentVersion < 49)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration49(conn);
+                }
+
+                // 53. Apply Migration 50: Pharmacy Distributor Purchases & Public Price (Story 136 / Feature #193)
+                if (currentVersion < 50)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration50(conn);
+                }
+
+                // Self-Healing Schema Guard: Automatically repair missing columns or indexes
                 EnsureSchemaHealth(conn);
             }
         }
@@ -591,6 +647,42 @@ namespace RafiqPOS.Database
                                     alter.ExecuteNonQuery();
                                 }
                                 using (var idx = new SQLiteCommand("CREATE INDEX IF NOT EXISTS idx_products_loose_sellable ON products(is_loose_sellable);", conn, trans))
+                                {
+                                    idx.ExecuteNonQuery();
+                                }
+                            }
+
+                            if (!existingCols.Contains("location_id"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE products ADD COLUMN location_id TEXT DEFAULT NULL;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                                using (var idx = new SQLiteCommand("CREATE INDEX IF NOT EXISTS idx_products_location ON products(location_id);", conn, trans))
+                                {
+                                    idx.ExecuteNonQuery();
+                                }
+                            }
+
+                            if (!existingCols.Contains("is_cold_chain"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE products ADD COLUMN is_cold_chain INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                                using (var idx = new SQLiteCommand("CREATE INDEX IF NOT EXISTS idx_products_cold_chain ON products(is_cold_chain);", conn, trans))
+                                {
+                                    idx.ExecuteNonQuery();
+                                }
+                            }
+
+                            if (!existingCols.Contains("preferred_supplier_id"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE products ADD COLUMN preferred_supplier_id TEXT DEFAULT NULL;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                                using (var idx = new SQLiteCommand("CREATE INDEX IF NOT EXISTS idx_products_pref_supplier ON products(preferred_supplier_id);", conn, trans))
                                 {
                                     idx.ExecuteNonQuery();
                                 }
@@ -1777,6 +1869,51 @@ namespace RafiqPOS.Database
                     using (var idxCmd = new SQLiteCommand("CREATE INDEX IF NOT EXISTS idx_customer_ledger_customer_created ON customer_ledger(customer_id, created_at);", conn, trans))
                     {
                         idxCmd.ExecuteNonQuery();
+                    }
+
+                    // Ensure sell_price_piasters & public_price_piasters exist on product_batches (Story 127 / Feature #184)
+                    var pbHealthCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    using (var pragmaCmd = new SQLiteCommand("PRAGMA table_info(product_batches);", conn, trans))
+                    using (var reader = pragmaCmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            pbHealthCols.Add(reader["name"].ToString());
+                        }
+                    }
+                    if (pbHealthCols.Count > 0 && !pbHealthCols.Contains("sell_price_piasters"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE product_batches ADD COLUMN sell_price_piasters INTEGER DEFAULT NULL;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (pbHealthCols.Count > 0 && !pbHealthCols.Contains("public_price_piasters"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE product_batches ADD COLUMN public_price_piasters INTEGER DEFAULT NULL;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    // Ensure sale_item_batch_allocations table exists
+                    using (var allocCmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS sale_item_batch_allocations (
+                            id TEXT PRIMARY KEY,
+                            sale_item_id TEXT NOT NULL,
+                            batch_id TEXT NOT NULL,
+                            quantity_milli INTEGER NOT NULL,
+                            unit_price_piasters INTEGER NOT NULL,
+                            unit_cost_piasters INTEGER NOT NULL,
+                            created_at TEXT NOT NULL,
+                            FOREIGN KEY (sale_item_id) REFERENCES sale_items(id) ON DELETE CASCADE,
+                            FOREIGN KEY (batch_id) REFERENCES product_batches(id) ON DELETE RESTRICT
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_sale_item_batch_allocations_sale_item ON sale_item_batch_allocations(sale_item_id);
+                        CREATE INDEX IF NOT EXISTS idx_sale_item_batch_allocations_batch ON sale_item_batch_allocations(batch_id);
+                    ", conn, trans))
+                    {
+                        allocCmd.ExecuteNonQuery();
                     }
 
                     trans.Commit();
@@ -5328,6 +5465,752 @@ namespace RafiqPOS.Database
 
                         INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
                         VALUES (42, 'Multi-Pack Loose Selling & Packaging Columns (Story 126 / Feature #183)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Migration 43: Batch-Level Pricing & Sale Item Allocations (Story 127 / Feature #184)
+        // -------------------------------------------------------------
+        private static void ApplyMigration43(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand("ALTER TABLE product_batches ADD COLUMN sell_price_piasters INTEGER DEFAULT NULL;", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand("ALTER TABLE product_batches ADD COLUMN public_price_piasters INTEGER DEFAULT NULL;", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS sale_item_batch_allocations (
+                            id TEXT PRIMARY KEY,
+                            sale_item_id TEXT NOT NULL,
+                            batch_id TEXT NOT NULL,
+                            quantity_milli INTEGER NOT NULL,
+                            unit_price_piasters INTEGER NOT NULL,
+                            unit_cost_piasters INTEGER NOT NULL,
+                            created_at TEXT NOT NULL,
+                            FOREIGN KEY (sale_item_id) REFERENCES sale_items(id) ON DELETE CASCADE,
+                            FOREIGN KEY (batch_id) REFERENCES product_batches(id) ON DELETE RESTRICT
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_sale_item_batch_allocations_sale_item ON sale_item_batch_allocations(sale_item_id);
+                        CREATE INDEX IF NOT EXISTS idx_sale_item_batch_allocations_batch ON sale_item_batch_allocations(batch_id);
+
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (43, 'Batch-Level Pricing & Sale Item Allocations (Story 127 / Feature #184)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Migration 44: Storage Locations, Racks & Shelves (Story 128 / Feature #185)
+        // -------------------------------------------------------------
+        private static void ApplyMigration44(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS storage_locations (
+                            id TEXT PRIMARY KEY,
+                            code TEXT NOT NULL UNIQUE,
+                            name TEXT NOT NULL,
+                            type TEXT NOT NULL DEFAULT 'shelf',
+                            description TEXT,
+                            is_active INTEGER NOT NULL DEFAULT 1,
+                            created_at TEXT NOT NULL,
+                            updated_at TEXT
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_storage_locations_code ON storage_locations(code);
+                        CREATE INDEX IF NOT EXISTS idx_storage_locations_type ON storage_locations(type);
+                        CREATE INDEX IF NOT EXISTS idx_storage_locations_is_active ON storage_locations(is_active);
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand("ALTER TABLE products ADD COLUMN location_id TEXT DEFAULT NULL;", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand("ALTER TABLE products ADD COLUMN is_cold_chain INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    try
+                    {
+                        using (var cmd = new SQLiteCommand("ALTER TABLE products ADD COLUMN preferred_supplier_id TEXT DEFAULT NULL;", conn, trans))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    catch { }
+
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE INDEX IF NOT EXISTS idx_products_location ON products(location_id);
+                        CREATE INDEX IF NOT EXISTS idx_products_cold_chain ON products(is_cold_chain);
+                        CREATE INDEX IF NOT EXISTS idx_products_pref_supplier ON products(preferred_supplier_id);
+
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (44, 'Storage Locations, Racks & Cold Chain Management (Story 128 / Feature #185)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Migration 45: Shortage Book & Pharmacy Core Extension (Stories 129 & 130 / Features #186 & #187)
+        // -------------------------------------------------------------
+        private static void ApplyMigration45(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // 1. Shortage Entries table (Story 129 / Task 186-1)
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS shortage_entries (
+                            id TEXT PRIMARY KEY,
+                            product_id TEXT NULL REFERENCES products(id) ON DELETE SET NULL,
+                            free_text TEXT NOT NULL,
+                            requested_qty_milli INTEGER NOT NULL DEFAULT 1000,
+                            customer_id TEXT NULL REFERENCES customers(id) ON DELETE SET NULL,
+                            customer_name TEXT NULL,
+                            customer_phone TEXT NULL,
+                            source TEXT NOT NULL DEFAULT 'pos',
+                            status TEXT NOT NULL DEFAULT 'open',
+                            priority TEXT NOT NULL DEFAULT 'normal',
+                            purchase_id TEXT NULL,
+                            notes TEXT NULL,
+                            created_by TEXT NOT NULL,
+                            created_at TEXT NOT NULL,
+                            updated_at TEXT
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_shortage_status ON shortage_entries(status);
+                        CREATE INDEX IF NOT EXISTS idx_shortage_product ON shortage_entries(product_id);
+                        CREATE INDEX IF NOT EXISTS idx_shortage_created_at ON shortage_entries(created_at);
+                        CREATE INDEX IF NOT EXISTS idx_shortage_source ON shortage_entries(source);
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 2. Pharmacy Tables (Story 130 / Task 187-1)
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS pharma_dosage_forms (
+                            id TEXT PRIMARY KEY,
+                            name_ar TEXT NOT NULL,
+                            name_en TEXT,
+                            code TEXT,
+                            is_active INTEGER NOT NULL DEFAULT 1
+                        );
+
+                        CREATE TABLE IF NOT EXISTS pharma_manufacturers (
+                            id TEXT PRIMARY KEY,
+                            name_ar TEXT NOT NULL,
+                            name_en TEXT,
+                            country TEXT,
+                            is_active INTEGER NOT NULL DEFAULT 1
+                        );
+
+                        CREATE TABLE IF NOT EXISTS therapeutic_classes (
+                            id TEXT PRIMARY KEY,
+                            name_ar TEXT NOT NULL,
+                            name_en TEXT,
+                            code TEXT,
+                            description TEXT,
+                            is_active INTEGER NOT NULL DEFAULT 1
+                        );
+
+                        CREATE TABLE IF NOT EXISTS active_ingredients (
+                            id TEXT PRIMARY KEY,
+                            name_en TEXT NOT NULL,
+                            name_ar TEXT,
+                            normalized_name TEXT NOT NULL,
+                            is_active INTEGER NOT NULL DEFAULT 1
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_ingredients_normalized ON active_ingredients(normalized_name);
+
+                        CREATE TABLE IF NOT EXISTS product_pharma_info (
+                            product_id TEXT PRIMARY KEY REFERENCES products(id) ON DELETE CASCADE,
+                            scientific_name TEXT NOT NULL,
+                            normalized_scientific_name TEXT NOT NULL,
+                            dosage_form_id TEXT NULL REFERENCES pharma_dosage_forms(id),
+                            strength_text TEXT,
+                            route TEXT,
+                            manufacturer_id TEXT NULL REFERENCES pharma_manufacturers(id),
+                            registration_no TEXT,
+                            rx_status TEXT NOT NULL DEFAULT 'otc',
+                            controlled_schedule TEXT,
+                            storage_condition TEXT NOT NULL DEFAULT 'room',
+                            usage_notes TEXT,
+                            therapeutic_class_id TEXT NULL REFERENCES therapeutic_classes(id),
+                            created_at TEXT NOT NULL,
+                            updated_at TEXT
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_pharma_info_sci ON product_pharma_info(normalized_scientific_name);
+                        CREATE INDEX IF NOT EXISTS idx_pharma_info_form ON product_pharma_info(dosage_form_id);
+                        CREATE INDEX IF NOT EXISTS idx_pharma_info_thera ON product_pharma_info(therapeutic_class_id);
+
+                        CREATE TABLE IF NOT EXISTS product_ingredients (
+                            product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+                            ingredient_id TEXT NOT NULL REFERENCES active_ingredients(id) ON DELETE CASCADE,
+                            strength_value_micro INTEGER NOT NULL DEFAULT 0,
+                            strength_unit TEXT NOT NULL DEFAULT 'mg',
+                            PRIMARY KEY (product_id, ingredient_id)
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_prod_ing_ing ON product_ingredients(ingredient_id);
+
+                        -- Seed Standard Dosage Forms
+                        INSERT OR IGNORE INTO pharma_dosage_forms (id, name_ar, name_en, code, is_active) VALUES
+                        ('df_tablets', 'أقراص', 'Tablets', 'TAB', 1),
+                        ('df_capsules', 'كبسولات', 'Capsules', 'CAP', 1),
+                        ('df_syrup', 'شراب', 'Syrup', 'SYR', 1),
+                        ('df_suspension', 'معلق', 'Suspension', 'SUSP', 1),
+                        ('df_injection', 'حقن', 'Injection', 'INJ', 1),
+                        ('df_cream', 'كريم / مرهم', 'Cream / Ointment', 'CRM', 1),
+                        ('df_drops', 'نقط (فم / عين / أذن)', 'Drops', 'DRP', 1),
+                        ('df_inhaler', 'بخاخ / استنشاق', 'Inhaler / Spray', 'INH', 1),
+                        ('df_suppository', 'لبوس / تحاميل', 'Suppository', 'SUPP', 1),
+                        ('df_effervescent', 'فوار', 'Effervescent', 'EFF', 1),
+                        ('df_sachets', 'أكياس بودرة', 'Sachets', 'SACH', 1),
+                        ('df_gel', 'جل موضعي', 'Gel', 'GEL', 1),
+                        ('df_lotion', 'لوشن', 'Lotion', 'LOT', 1);
+
+                        -- Seed Standard Therapeutic Classes
+                        INSERT OR IGNORE INTO therapeutic_classes (id, name_ar, name_en, code, is_active) VALUES
+                        ('tc_analgesic', 'مسكنات وخافضات حرارة ومضادات التهاب', 'Analgesics & Antipyretics (NSAIDs)', 'ANALG', 1),
+                        ('tc_antibiotic', 'مضادات حيوية ومضادات بكتيرية', 'Antibiotics & Antibacterials', 'ANTI', 1),
+                        ('tc_antihypertensive', 'أدوية ضغط الدم والقلب', 'Antihypertensives & Cardiovascular', 'CARD', 1),
+                        ('tc_antidiabetic', 'أدوية السكري ومنظمات السكر', 'Antidiabetics', 'DIAB', 1),
+                        ('tc_antihistamine', 'مضادات الحساسية والهيستامين', 'Antihistamines & Allergy', 'HIST', 1),
+                        ('tc_antacid', 'أدوية المعدة والحموضة ومثبطات مضخة البروتون', 'Antacids & PPIs', 'GI', 1),
+                        ('tc_antifungal', 'مضادات الفطريات', 'Antifungals', 'FUNG', 1),
+                        ('tc_respiratory', 'أدوية الجهاز التنفسي وموسعات الشعب والسعال', 'Respiratory & Cough', 'RESP', 1),
+                        ('tc_vitamins', 'فيتامينات ومعادن ومكملات غذائية', 'Vitamins & Dietary Supplements', 'VIT', 1);
+
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (45, 'Shortage Book & Pharmacy Core Extension (Stories 129 & 130 / Features #186 & #187)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Migration 46: Controlled Drugs Register & Prescriptions (Story 131 / Feature #188)
+        // -------------------------------------------------------------
+        private static void ApplyMigration46(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // 1. Controlled Dispenses Ledger (Immutable Audit Ledger)
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS controlled_dispenses (
+                            id TEXT PRIMARY KEY,
+                            sale_id TEXT NULL REFERENCES sales(id) ON DELETE RESTRICT,
+                            sale_item_id TEXT NULL,
+                            product_id TEXT NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+                            batch_id TEXT NULL REFERENCES product_batches(id),
+                            batch_number TEXT NULL,
+                            quantity_milli INTEGER NOT NULL,
+                            patient_name TEXT NOT NULL,
+                            patient_national_id TEXT NULL,
+                            patient_national_id_masked TEXT NULL,
+                            patient_phone TEXT NULL,
+                            patient_address TEXT NULL,
+                            doctor_name TEXT NOT NULL,
+                            doctor_license_no TEXT NULL,
+                            prescription_no TEXT NULL,
+                            prescription_date TEXT NOT NULL,
+                            prescription_id TEXT NULL,
+                            entry_type TEXT NOT NULL DEFAULT 'dispense',
+                            original_dispense_id TEXT NULL,
+                            reason TEXT NULL,
+                            dispensed_by TEXT NOT NULL,
+                            approved_by TEXT NULL,
+                            notes TEXT NULL,
+                            created_at TEXT NOT NULL
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_controlled_product ON controlled_dispenses(product_id);
+                        CREATE INDEX IF NOT EXISTS idx_controlled_sale ON controlled_dispenses(sale_id);
+                        CREATE INDEX IF NOT EXISTS idx_controlled_created_at ON controlled_dispenses(created_at);
+                        CREATE INDEX IF NOT EXISTS idx_controlled_entry_type ON controlled_dispenses(entry_type);
+                        CREATE INDEX IF NOT EXISTS idx_controlled_rx_no ON controlled_dispenses(prescription_no);
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 2. Prescriptions Table
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS prescriptions (
+                            id TEXT PRIMARY KEY,
+                            customer_id TEXT NULL REFERENCES customers(id) ON DELETE SET NULL,
+                            patient_name TEXT NOT NULL,
+                            patient_phone TEXT NULL,
+                            patient_national_id TEXT NULL,
+                            doctor_name TEXT NOT NULL,
+                            clinic TEXT NULL,
+                            prescription_no TEXT NULL,
+                            prescription_date TEXT NOT NULL,
+                            notes TEXT NULL,
+                            image_path TEXT NULL,
+                            created_by TEXT NOT NULL,
+                            created_at TEXT NOT NULL,
+                            updated_at TEXT NULL
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_prescriptions_patient ON prescriptions(patient_name);
+                        CREATE INDEX IF NOT EXISTS idx_prescriptions_doctor ON prescriptions(doctor_name);
+                        CREATE INDEX IF NOT EXISTS idx_prescriptions_date ON prescriptions(prescription_date);
+                        CREATE INDEX IF NOT EXISTS idx_prescriptions_created_at ON prescriptions(created_at);
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 3. Sale Prescriptions Join Table
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS sale_prescriptions (
+                            sale_id TEXT NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
+                            prescription_id TEXT NOT NULL REFERENCES prescriptions(id) ON DELETE CASCADE,
+                            created_at TEXT NOT NULL,
+                            PRIMARY KEY (sale_id, prescription_id)
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_sale_prescriptions_rx ON sale_prescriptions(prescription_id);
+
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (46, 'Controlled Drugs Register & Prescriptions (Story 131 / Feature #188)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Migration 47: Patient Profiles and Chronic Disease Tracking (Story 133 / Feature #190)
+        // -------------------------------------------------------------
+        private static void ApplyMigration47(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS customer_patient_info (
+                            customer_id TEXT PRIMARY KEY REFERENCES customers(id) ON DELETE CASCADE,
+                            birth_year INTEGER NULL,
+                            gender TEXT NULL,
+                            allergies TEXT NULL,
+                            chronic_conditions TEXT NULL,
+                            notes TEXT NULL,
+                            created_at TEXT NOT NULL,
+                            updated_at TEXT NULL
+                        );
+
+                        CREATE TABLE IF NOT EXISTS chronic_medications (
+                            id TEXT PRIMARY KEY,
+                            customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+                            product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+                            daily_qty_milli INTEGER NOT NULL DEFAULT 1000,
+                            last_dispensed_at TEXT NULL,
+                            next_due_date TEXT NULL,
+                            notes TEXT NULL,
+                            created_at TEXT NOT NULL
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_chronic_med_customer ON chronic_medications(customer_id);
+                        CREATE INDEX IF NOT EXISTS idx_chronic_med_product ON chronic_medications(product_id);
+                        CREATE INDEX IF NOT EXISTS idx_chronic_med_due ON chronic_medications(next_due_date);
+
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (47, 'Patient Profiles and Chronic Disease Tracking (Story 133 / Feature #190)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Migration 48: Health Insurance, Co-Payment Claims & Corporate Billing (Story 132 / Feature #189)
+        // -------------------------------------------------------------
+        private static void ApplyMigration48(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // 1. Insurance Companies Table
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS insurance_companies (
+                            id TEXT PRIMARY KEY,
+                            name TEXT NOT NULL,
+                            phone TEXT NULL,
+                            email TEXT NULL,
+                            tax_number TEXT NULL,
+                            address TEXT NULL,
+                            notes TEXT NULL,
+                            is_active INTEGER NOT NULL DEFAULT 1,
+                            created_at TEXT NOT NULL,
+                            updated_at TEXT NULL
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_insurance_comp_name ON insurance_companies(name);
+                        CREATE INDEX IF NOT EXISTS idx_insurance_comp_active ON insurance_companies(is_active);
+
+                        -- 2. Insurance Contracts Table
+                        CREATE TABLE IF NOT EXISTS insurance_contracts (
+                            id TEXT PRIMARY KEY,
+                            company_id TEXT NOT NULL REFERENCES insurance_companies(id) ON DELETE CASCADE,
+                            name TEXT NOT NULL,
+                            patient_share_bps INTEGER NOT NULL DEFAULT 0,
+                            cap_per_invoice_piasters INTEGER NULL,
+                            cap_per_month_piasters INTEGER NULL,
+                            valid_from TEXT NULL,
+                            valid_to TEXT NULL,
+                            excludes_cosmetics INTEGER NOT NULL DEFAULT 0,
+                            notes TEXT NULL,
+                            is_active INTEGER NOT NULL DEFAULT 1,
+                            created_at TEXT NOT NULL,
+                            updated_at TEXT NULL
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_insurance_contract_comp ON insurance_contracts(company_id);
+                        CREATE INDEX IF NOT EXISTS idx_insurance_contract_active ON insurance_contracts(is_active);
+
+                        -- 3. Insurance Exclusions Table
+                        CREATE TABLE IF NOT EXISTS insurance_exclusions (
+                            id TEXT PRIMARY KEY,
+                            contract_id TEXT NOT NULL REFERENCES insurance_contracts(id) ON DELETE CASCADE,
+                            category_id TEXT NULL REFERENCES categories(id) ON DELETE CASCADE,
+                            product_id TEXT NULL REFERENCES products(id) ON DELETE CASCADE,
+                            created_at TEXT NOT NULL
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_insurance_excl_contract ON insurance_exclusions(contract_id);
+                        CREATE INDEX IF NOT EXISTS idx_insurance_excl_product ON insurance_exclusions(product_id);
+                        CREATE INDEX IF NOT EXISTS idx_insurance_excl_category ON insurance_exclusions(category_id);
+
+                        -- 4. Insurance Members Table
+                        CREATE TABLE IF NOT EXISTS insurance_members (
+                            id TEXT PRIMARY KEY,
+                            contract_id TEXT NOT NULL REFERENCES insurance_contracts(id) ON DELETE CASCADE,
+                            customer_id TEXT NULL REFERENCES customers(id) ON DELETE SET NULL,
+                            member_name TEXT NOT NULL,
+                            member_no TEXT NOT NULL,
+                            national_id TEXT NULL,
+                            phone TEXT NULL,
+                            valid_to TEXT NULL,
+                            is_active INTEGER NOT NULL DEFAULT 1,
+                            created_at TEXT NOT NULL,
+                            updated_at TEXT NULL
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_insurance_mem_contract ON insurance_members(contract_id);
+                        CREATE INDEX IF NOT EXISTS idx_insurance_mem_no ON insurance_members(member_no);
+                        CREATE INDEX IF NOT EXISTS idx_insurance_mem_cust ON insurance_members(customer_id);
+
+                        -- 5. Insurance Claim Batches Table
+                        CREATE TABLE IF NOT EXISTS insurance_claim_batches (
+                            id TEXT PRIMARY KEY,
+                            batch_number TEXT NOT NULL UNIQUE,
+                            company_id TEXT NOT NULL REFERENCES insurance_companies(id) ON DELETE RESTRICT,
+                            period TEXT NOT NULL,
+                            total_claims_count INTEGER NOT NULL DEFAULT 0,
+                            total_amount_piasters INTEGER NOT NULL DEFAULT 0,
+                            status TEXT NOT NULL DEFAULT 'open',
+                            submitted_at TEXT NULL,
+                            settled_at TEXT NULL,
+                            settled_amount_piasters INTEGER NOT NULL DEFAULT 0,
+                            rejected_amount_piasters INTEGER NOT NULL DEFAULT 0,
+                            rejection_reason TEXT NULL,
+                            settlement_notes TEXT NULL,
+                            settlement_deduction_target TEXT NULL,
+                            notes TEXT NULL,
+                            created_by TEXT NOT NULL,
+                            created_at TEXT NOT NULL,
+                            updated_at TEXT NULL
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_insurance_batch_comp ON insurance_claim_batches(company_id);
+                        CREATE INDEX IF NOT EXISTS idx_insurance_batch_period ON insurance_claim_batches(period);
+                        CREATE INDEX IF NOT EXISTS idx_insurance_batch_status ON insurance_claim_batches(status);
+
+                        -- 6. Insurance Claim Lines Table
+                        CREATE TABLE IF NOT EXISTS insurance_claim_lines (
+                            id TEXT PRIMARY KEY,
+                            sale_id TEXT NOT NULL REFERENCES sales(id) ON DELETE RESTRICT,
+                            contract_id TEXT NOT NULL REFERENCES insurance_contracts(id) ON DELETE RESTRICT,
+                            company_id TEXT NOT NULL REFERENCES insurance_companies(id) ON DELETE RESTRICT,
+                            member_id TEXT NULL REFERENCES insurance_members(id) ON DELETE SET NULL,
+                            member_no TEXT NOT NULL,
+                            patient_name TEXT NOT NULL,
+                            approval_no TEXT NULL,
+                            total_invoice_piasters INTEGER NOT NULL,
+                            covered_piasters INTEGER NOT NULL,
+                            patient_piasters INTEGER NOT NULL,
+                            company_piasters INTEGER NOT NULL,
+                            status TEXT NOT NULL DEFAULT 'pending',
+                            claim_batch_id TEXT NULL REFERENCES insurance_claim_batches(id) ON DELETE SET NULL,
+                            settled_at TEXT NULL,
+                            rejection_reason TEXT NULL,
+                            created_at TEXT NOT NULL,
+                            updated_at TEXT NULL
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_insurance_claim_sale ON insurance_claim_lines(sale_id);
+                        CREATE INDEX IF NOT EXISTS idx_insurance_claim_comp ON insurance_claim_lines(company_id);
+                        CREATE INDEX IF NOT EXISTS idx_insurance_claim_contract ON insurance_claim_lines(contract_id);
+                        CREATE INDEX IF NOT EXISTS idx_insurance_claim_batch ON insurance_claim_lines(claim_batch_id);
+                        CREATE INDEX IF NOT EXISTS idx_insurance_claim_status ON insurance_claim_lines(status);
+
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (48, 'Health Insurance, Co-Payment Claims & Corporate Billing (Story 132 / Feature #189)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Migration 49: Supplier Expiry Returns & External Drug Reference (Story 134 / Feature #191)
+        // -------------------------------------------------------------
+        private static void ApplyMigration49(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // 1. Add expiry return window and credit bps to suppliers table if missing
+                    var supplierCols = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    using (var infoCmd = new SQLiteCommand("PRAGMA table_info(suppliers);", conn, trans))
+                    using (var reader = infoCmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            supplierCols.Add(reader["name"].ToString());
+                        }
+                    }
+
+                    if (!supplierCols.Contains("expiry_return_window_days"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE suppliers ADD COLUMN expiry_return_window_days INTEGER NULL;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    if (!supplierCols.Contains("expiry_return_credit_bps"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE suppliers ADD COLUMN expiry_return_credit_bps INTEGER NULL;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    // 2. Create external drug_reference table
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE TABLE IF NOT EXISTS drug_reference (
+                            id TEXT PRIMARY KEY,
+                            barcode TEXT NOT NULL UNIQUE,
+                            trade_name TEXT NOT NULL,
+                            scientific_name TEXT NULL,
+                            form TEXT NULL,
+                            strength TEXT NULL,
+                            manufacturer TEXT NULL,
+                            pack_desc TEXT NULL,
+                            public_price_piasters INTEGER NULL,
+                            source TEXT NULL,
+                            imported_at TEXT NOT NULL,
+                            created_at TEXT NOT NULL,
+                            updated_at TEXT NULL
+                        );
+
+                        CREATE UNIQUE INDEX IF NOT EXISTS idx_drug_ref_barcode ON drug_reference(barcode);
+                        CREATE INDEX IF NOT EXISTS idx_drug_ref_trade ON drug_reference(trade_name);
+                        CREATE INDEX IF NOT EXISTS idx_drug_ref_scientific ON drug_reference(scientific_name);
+
+                        -- 3. Create expired_write_offs table (Task 191-3)
+                        CREATE TABLE IF NOT EXISTS expired_write_offs (
+                            id TEXT PRIMARY KEY,
+                            write_off_number TEXT NOT NULL UNIQUE,
+                            batch_id TEXT NULL,
+                            product_id TEXT NOT NULL,
+                            batch_number TEXT NULL,
+                            quantity_milli INTEGER NOT NULL,
+                            unit_cost_piasters INTEGER NOT NULL,
+                            total_cost_piasters INTEGER NOT NULL,
+                            reason TEXT NOT NULL,
+                            committee_members TEXT NULL,
+                            notes TEXT NULL,
+                            created_by TEXT NOT NULL,
+                            created_at TEXT NOT NULL
+                        );
+
+                        CREATE INDEX IF NOT EXISTS idx_expired_write_offs_prod ON expired_write_offs(product_id);
+                        CREATE INDEX IF NOT EXISTS idx_expired_write_offs_batch ON expired_write_offs(batch_id);
+                        CREATE INDEX IF NOT EXISTS idx_expired_write_offs_created ON expired_write_offs(created_at);
+
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (49, 'Supplier Expiry Returns & External Drug Reference (Story 134 / Feature #191)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        private static void ApplyMigration50(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    var piCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    using (var pragmaCmd = new SQLiteCommand("PRAGMA table_info(purchase_items);", conn, trans))
+                    using (var reader = pragmaCmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            piCols.Add(reader["name"].ToString());
+                        }
+                    }
+
+                    if (!piCols.Contains("public_price_piasters"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE purchase_items ADD COLUMN public_price_piasters INTEGER NULL;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    if (!piCols.Contains("distributor_discount_bps"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE purchase_items ADD COLUMN distributor_discount_bps INTEGER NULL;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    using (var cmd = new SQLiteCommand(@"
+                        CREATE INDEX IF NOT EXISTS idx_purchase_items_prod ON purchase_items(product_id);
+                        CREATE INDEX IF NOT EXISTS idx_purchase_items_pur ON purchase_items(purchase_id);
+
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (50, 'Pharmacy Distributor Purchases & Public Pricing (Story 136 / Feature #193)', datetime('now'));
                     ", conn, trans))
                     {
                         cmd.ExecuteNonQuery();

@@ -14,16 +14,20 @@ import {
   Lock,
   Scale,
   Boxes,
-  Receipt
+  Receipt,
+  HeartPulse,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
 import type { DashboardSummary, UnclosedDayAlert, BatchSummary, HourlyIntensityReport } from '../types/models';
+import type { PatientDueAlert } from '../types/patient';
 import { useFeatures } from '../context/useFeatures';
 import { DailyClosingModal } from '../components/DailyClosingModal';
 import { LowStockReportModal } from '../components/LowStockReportModal';
 import { DebtorsReportModal } from '../components/DebtorsReportModal';
 import { ExpenseModal } from '../components/ExpenseModal';
+import { DuePatientsModal } from '../components/DuePatientsModal';
+import { PatientProfileModal } from './customers/PatientProfileModal';
 import { formatArabicCurrency } from '../utils/money';
 import { RafiqLoadingState } from '../components/RafiqLoadingState';
 import { useSmoothLoading } from '../utils/useSmoothLoading';
@@ -63,21 +67,30 @@ export function DashboardView({
   const [isDebtorsModalOpen, setIsDebtorsModalOpen] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
 
+  // Story 133 / Feature #190: Chronic Patient Due Alerts State
+  const [duePatientAlerts, setDuePatientAlerts] = useState<PatientDueAlert[]>([]);
+  const [isDueModalOpen, setIsDueModalOpen] = useState(false);
+  const [selectedPatientForModal, setSelectedPatientForModal] = useState<{ id: string; name: string; phone?: string } | null>(null);
+
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [sumData, unclosedData, batchData, hrData] = await Promise.all([
+      const [sumData, unclosedData, batchData, hrData, dueData] = await Promise.all([
         invoke<DashboardSummary>('reports:getTodaySummary'),
         invoke<UnclosedDayAlert>('closing:checkPreviousDay'),
         isEnabled('feature_expiry_dates')
           ? invoke<BatchSummary>('batch:summary').catch(() => null)
           : Promise.resolve(null),
-        invoke<HourlyIntensityReport>('reports:getHourlyIntensity', { period: 'today' }).catch(() => null)
+        invoke<HourlyIntensityReport>('reports:getHourlyIntensity', { period: 'today' }).catch(() => null),
+        isEnabled('feature_patient_profiles')
+          ? invoke<PatientDueAlert[]>('patients:getDueAlerts', { daysAhead: 3 }).catch(() => [])
+          : Promise.resolve([])
       ]);
       if (sumData) setSummary(sumData);
       if (unclosedData) setUnclosedAlert(unclosedData);
       if (batchData) setBatchSummary(batchData);
       if (hrData) setHourlyData(hrData);
+      if (dueData) setDuePatientAlerts(dueData);
       const now = new Date();
       setLastRefreshed(now.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch {
@@ -348,6 +361,38 @@ export function DashboardView({
           >
             <Clock className="w-3.5 h-3.5" />
             <span>شوف البضاعة وتواريخ الصلاحية</span>
+          </button>
+        </div>
+      )}
+
+      {/* Chronic Medications Due Refill Alert Banner (Story 133 / Feature #190) */}
+      {isEnabled('feature_patient_profiles') && duePatientAlerts.length > 0 && (
+        <div className="bg-warn-soft dark:bg-warn-dark-soft border-2 border-warn/30 dark:border-warn-bright/40 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-ink dark:text-ink-dark shadow-xs shrink-0 animate-in fade-in duration-200">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-warn text-white flex items-center justify-center shrink-0 shadow-xs">
+              <HeartPulse className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="font-bold text-sm text-ink dark:text-ink-dark">
+                  تنبيه صرف العلاج الشهري: فيه {duePatientAlerts.length} مرضى مزمنين مستحقين لصرف أدويتهم الدورية!
+                </h4>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-warn text-white">
+                  استحقاق صرف
+                </span>
+              </div>
+              <p className="text-xs text-ink-muted dark:text-ink-dark-muted mt-0.5">
+                مرضى حان أو اقترب موعد نفاد أدويتهم المزمنة: {duePatientAlerts.slice(0, 3).map((a) => a.customerName).join('، ')}{duePatientAlerts.length > 3 ? ' وغيرهم...' : ''}. تواصل معهم لتجهيز الروشتة الشهرية.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsDueModalOpen(true)}
+            className="px-4 py-2 bg-warn hover:bg-warn-hover text-white rounded-lg text-xs font-bold transition shadow-xs shrink-0 cursor-pointer active:translate-y-0.5 flex items-center gap-1.5 justify-center"
+          >
+            <HeartPulse className="w-3.5 h-3.5" />
+            <span>عرض تفاصيل المرضى المستحقين ({duePatientAlerts.length})</span>
           </button>
         </div>
       )}
@@ -960,6 +1005,31 @@ export function DashboardView({
           void loadData();
         }}
       />
+
+      {/* Due Patients Modal (Story 133 / Feature #190) */}
+      <DuePatientsModal
+        isOpen={isDueModalOpen}
+        onClose={() => setIsDueModalOpen(false)}
+        alerts={duePatientAlerts}
+        onOpenCustomerProfile={(id, name, phone) => {
+          setSelectedPatientForModal({ id, name, phone });
+        }}
+      />
+
+      {/* Patient Profile Modal from Due Alerts */}
+      {selectedPatientForModal && (
+        <PatientProfileModal
+          isOpen={selectedPatientForModal !== null}
+          onClose={() => {
+            setSelectedPatientForModal(null);
+            void loadData();
+          }}
+          customerId={selectedPatientForModal.id}
+          customerName={selectedPatientForModal.name}
+          customerPhone={selectedPatientForModal.phone}
+          onProfileUpdated={() => void loadData()}
+        />
+      )}
 
     </div>
   );

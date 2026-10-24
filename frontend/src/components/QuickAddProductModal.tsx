@@ -12,6 +12,9 @@ import { useModalDismiss } from '../hooks/useModalDismiss';
 interface QuickAddProductModalProps {
   isOpen: boolean;
   barcode: string;
+  initialName?: string;
+  initialPriceEgp?: string;
+  isFromDrugReference?: boolean;
   onClose: () => void;
   onProductCreated: (product: Product) => void;
 }
@@ -19,6 +22,9 @@ interface QuickAddProductModalProps {
 export function QuickAddProductModal({
   isOpen,
   barcode,
+  initialName,
+  initialPriceEgp,
+  isFromDrugReference,
   onClose,
   onProductCreated,
 }: QuickAddProductModalProps) {
@@ -42,6 +48,11 @@ export function QuickAddProductModal({
   // Load categories and focus form on open
   useEffect(() => {
     if (!isOpen) return;
+
+    setName(initialName || '');
+    setPriceEgp(initialPriceEgp || '');
+    setCostEgp('');
+    setError(null);
 
     let active = true;
     void (async () => {
@@ -67,7 +78,7 @@ export function QuickAddProductModal({
       active = false;
       clearTimeout(timer);
     };
-  }, [isOpen]);
+  }, [isOpen, initialName, initialPriceEgp]);
 
   const handleSubmit = async (e?: FormEvent) => {
     if (e) e.preventDefault();
@@ -194,6 +205,14 @@ export function QuickAddProductModal({
               تلقائي
             </span>
           </div>
+
+          {/* Drug Reference Found Banner */}
+          {isFromDrugReference && (
+            <div className="p-2.5 rounded-lg bg-paid-soft border border-paid/30 flex items-center gap-2 text-paid text-xs font-bold">
+              <Check className="w-4 h-4 shrink-0 text-paid" />
+              <span>تم العثور على الصنف في دليل الأدوية المرجعي وتعبئة الاسم والسعر تلقائياً</span>
+            </div>
+          )}
 
           {/* Product Name Input */}
           <div>

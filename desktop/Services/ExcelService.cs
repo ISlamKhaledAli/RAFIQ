@@ -857,6 +857,290 @@ namespace RafiqPOS.Services
         }
 
         /// <summary>
+        /// توليد قالب إكسل فارغ جاهز لتحميل دليل الأدوية المرجعي (Story 134 / Feature #191 / Task 191-4)
+        /// </summary>
+        public string GenerateDrugReferenceTemplate()
+        {
+            using (var wb = new XLWorkbook())
+            {
+                var ws = wb.Worksheets.Add("دليل_الأدوية_المرجعي");
+                ws.RightToLeft = true;
+                ws.ShowGridLines = true;
+
+                // 1. Title Banner
+                ws.Range("A1:I1").Merge();
+                var titleCell = ws.Cell("A1");
+                titleCell.Value = "رفيق POS - نموذج استيراد دليل الأدوية والمستحضرات المرجعي الخارجي";
+                titleCell.Style.Font.Bold = true;
+                titleCell.Style.Font.FontSize = 13;
+                titleCell.Style.Font.FontColor = XLColor.White;
+                titleCell.Style.Fill.BackgroundColor = ForestDark;
+                titleCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                titleCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                ws.Row(1).Height = 40;
+
+                // 2. Subtitle / Guidance Banner
+                ws.Range("A2:I2").Merge();
+                var subCell = ws.Cell("A2");
+                subCell.Value = "إرشادات: الباركود والاسم التجاري إلزاميان (*) | سعر الجمهور بالجنيه المصري | الدليل المرجعي لا يؤثر على أسعار ورصيد المخزن الحالي إطلاقاً";
+                subCell.Style.Font.Bold = true;
+                subCell.Style.Font.FontSize = 9.5;
+                subCell.Style.Font.FontColor = XLColor.FromArgb(0, 77, 64);
+                subCell.Style.Fill.BackgroundColor = SoftMint;
+                subCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                subCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                ws.Row(2).Height = 26;
+
+                // 3. Table Headers
+                string[] headers = new string[]
+                {
+                    "باركود الدواء *",
+                    "الاسم التجاري *",
+                    "الاسم العلمي (المادة الفعالة)",
+                    "الشكل الدوائي",
+                    "التركيز",
+                    "الشركة المصنعة",
+                    "وصف العبوة",
+                    "سعر الجمهور الرسمي (ج.م) *",
+                    "مصدر التسعيرة / ملاحظات"
+                };
+
+                ws.Row(3).Height = 30;
+                for (int i = 0; i < headers.Length; i++)
+                {
+                    var cell = ws.Cell(3, i + 1);
+                    cell.Value = headers[i];
+                    cell.Style.Font.Bold = true;
+                    cell.Style.Font.FontSize = 10.5;
+                    cell.Style.Font.FontColor = XLColor.White;
+                    cell.Style.Fill.BackgroundColor = EmeraldGreen;
+                    cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                    cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                    cell.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                    cell.Style.Border.OutsideBorderColor = XLColor.FromArgb(0, 77, 64);
+                }
+
+                // 4. Sample Rows
+                object[][] sampleData = new object[][]
+                {
+                    new object[] { "6221001001011", "بانادول إكسترا أقراص", "Paracetamol + Caffeine", "أقراص", "500mg/65mg", "GlaxoSmithKline (GSK)", "علبة 2 شريط - 24 قرص", 48.00, "تسعيرة جبرية رسمية" },
+                    new object[] { "6222002002022", "كونجستال أقراص", "Paracetamol + Pseudoephedrine + Chlorpheniramine", "أقراص", "650mg/60mg/4mg", "SIGMA Pharmaceuticals", "علبة 2 شريط - 20 قرص", 39.00, "نشرة أسعار الموزع 2026" },
+                    new object[] { "6223003003033", "أوجمنتين 1 جم أقراص", "Amoxicillin + Clavulanic Acid", "أقراص مغلفة", "1000mg", "Medical Union Pharmaceuticals (MUP)", "علبة 2 شريط - 14 قرص", 131.00, "تسعيرة وزارة الصحة" },
+                    new object[] { "6224004004044", "ألفينترن أقراص", "Chymotrypsin + Trypsin", "أقراص معوية", "300 units", "Amoun Pharmaceutical Co.", "علبة 3 شريط - 30 قرص", 54.00, "قائمة الموردين" }
+                };
+
+                for (int r = 0; r < sampleData.Length; r++)
+                {
+                    int rowNum = r + 4;
+                    ws.Row(rowNum).Height = 22;
+                    bool isZebra = (r % 2 == 1);
+                    XLColor rowBg = isZebra ? ZebraLight : XLColor.White;
+
+                    for (int c = 0; c < sampleData[r].Length; c++)
+                    {
+                        var cell = ws.Cell(rowNum, c + 1);
+                        cell.Value = sampleData[r][c].ToString();
+                        cell.Style.Font.FontSize = 10;
+                        cell.Style.Fill.BackgroundColor = rowBg;
+                        cell.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                        cell.Style.Border.OutsideBorderColor = BorderGray;
+                        cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+
+                        if (c == 0) // Barcode
+                        {
+                            cell.Style.NumberFormat.Format = "@";
+                            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                        }
+                        else if (c == 7) // Price
+                        {
+                            cell.Value = (double)sampleData[r][c];
+                            cell.Style.NumberFormat.Format = "#,##0.00";
+                            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                        }
+                        else
+                        {
+                            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+                        }
+                    }
+                }
+
+                // 5. Freeze rows
+                ws.SheetView.FreezeRows(3);
+
+                // 6. Column widths
+                ws.Column(1).Width = 22; // Barcode
+                ws.Column(2).Width = 30; // Trade Name
+                ws.Column(3).Width = 32; // Scientific Name
+                ws.Column(4).Width = 18; // Form
+                ws.Column(5).Width = 18; // Strength
+                ws.Column(6).Width = 28; // Manufacturer
+                ws.Column(7).Width = 26; // Pack Desc
+                ws.Column(8).Width = 22; // Public Price
+                ws.Column(9).Width = 28; // Notes
+
+                using (var ms = new MemoryStream())
+                {
+                    wb.SaveAs(ms);
+                    return Convert.ToBase64String(ms.ToArray());
+                }
+            }
+        }
+
+        /// <summary>
+        /// قراءة ومعاينة ملف إكسل لاستيراد دليل الأدوية المرجعي والتحقق من صحة البيانات (Story 134 / Feature #191 / Task 191-4)
+        /// </summary>
+        public DrugReferenceImportPreviewResult ParseDrugReferenceImportBase64(string base64, DrugReferenceRepository drugRefRepo)
+        {
+            var result = new DrugReferenceImportPreviewResult();
+            if (string.IsNullOrWhiteSpace(base64)) return result;
+
+            byte[] bytes = Convert.FromBase64String(base64);
+            using (var ms = new MemoryStream(bytes))
+            using (var wb = new XLWorkbook(ms))
+            {
+                var ws = wb.Worksheets.Count > 0 ? wb.Worksheet(1) : null;
+                if (ws == null) return result;
+
+                // Find header row (default row 3 or search for "الاسم التجاري" or "باركود")
+                int headerRow = 3;
+                for (int r = 1; r <= 10; r++)
+                {
+                    string cellVal = ws.Cell(r, 1).GetString().Trim() + " " + ws.Cell(r, 2).GetString().Trim();
+                    if (cellVal.Contains("باركود") || cellVal.Contains("الاسم التجاري") || cellVal.Contains("اسم الدواء"))
+                    {
+                        headerRow = r;
+                        break;
+                    }
+                }
+
+                int lastRow = ws.LastRowUsed() != null ? ws.LastRowUsed().RowNumber() : 0;
+                var seenBarcodesInFile = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                for (int r = headerRow + 1; r <= lastRow; r++)
+                {
+                    string barcode = ws.Cell(r, 1).GetString().Trim();
+                    string tradeName = ws.Cell(r, 2).GetString().Trim();
+                    string scientificName = ws.Cell(r, 3).GetString().Trim();
+                    string form = ws.Cell(r, 4).GetString().Trim();
+                    string strength = ws.Cell(r, 5).GetString().Trim();
+                    string manufacturer = ws.Cell(r, 6).GetString().Trim();
+                    string packDesc = ws.Cell(r, 7).GetString().Trim();
+                    string priceRaw = ws.Cell(r, 8).GetString().Trim();
+                    string notes = ws.Cell(r, 9).GetString().Trim();
+
+                    // Skip completely empty rows
+                    if (string.IsNullOrWhiteSpace(barcode) && string.IsNullOrWhiteSpace(tradeName) && string.IsNullOrWhiteSpace(priceRaw))
+                    {
+                        continue;
+                    }
+
+                    var row = new DrugReferenceImportRow
+                    {
+                        RowNumber = r,
+                        Barcode = barcode,
+                        TradeName = tradeName,
+                        ScientificName = string.IsNullOrWhiteSpace(scientificName) ? null : scientificName,
+                        Form = string.IsNullOrWhiteSpace(form) ? null : form,
+                        Strength = string.IsNullOrWhiteSpace(strength) ? null : strength,
+                        Manufacturer = string.IsNullOrWhiteSpace(manufacturer) ? null : manufacturer,
+                        PackDesc = string.IsNullOrWhiteSpace(packDesc) ? null : packDesc,
+                        Reason = notes
+                    };
+
+                    result.TotalRows++;
+
+                    // Validation 1: Barcode is required
+                    if (string.IsNullOrWhiteSpace(barcode))
+                    {
+                        row.Status = "ERROR";
+                        row.Reason = "كود الباركود مطلوب ولا يمكن تركه فارغاً";
+                        result.ErrorRowsCount++;
+                        result.Rows.Add(row);
+                        continue;
+                    }
+
+                    // Validation 2: Trade Name is required
+                    if (string.IsNullOrWhiteSpace(tradeName))
+                    {
+                        row.Status = "ERROR";
+                        row.Reason = "الاسم التجاري للدواء مطلوب";
+                        result.ErrorRowsCount++;
+                        result.Rows.Add(row);
+                        continue;
+                    }
+
+                    // Validation 3: Duplicate barcode within same file
+                    if (seenBarcodesInFile.Contains(barcode))
+                    {
+                        row.Status = "ERROR";
+                        row.Reason = "كود الباركود مكرر داخل نفس ملف الإكسل (صف سابق)";
+                        result.ErrorRowsCount++;
+                        result.Rows.Add(row);
+                        continue;
+                    }
+                    seenBarcodesInFile.Add(barcode);
+
+                    // Validation 4: Price parsing (in EGP -> Piasters)
+                    long? pricePiasters = null;
+                    if (!string.IsNullOrWhiteSpace(priceRaw))
+                    {
+                        string cleanPrice = priceRaw.Replace("ج.م", "").Replace("EGP", "").Replace(",", "").Trim();
+                        decimal decVal;
+                        if (decimal.TryParse(cleanPrice, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out decVal))
+                        {
+                            if (decVal < 0)
+                            {
+                                row.Status = "ERROR";
+                                row.Reason = "سعر الجمهور لا يمكن أن يكون سالباً";
+                                result.ErrorRowsCount++;
+                                result.Rows.Add(row);
+                                continue;
+                            }
+                            pricePiasters = (long)Math.Round(decVal * 100m);
+                        }
+                        else
+                        {
+                            row.Status = "ERROR";
+                            row.Reason = "سعر الجمهور غير صحيح (يجب أن يكون رقماً بالجنيه)";
+                            result.ErrorRowsCount++;
+                            result.Rows.Add(row);
+                            continue;
+                        }
+                    }
+                    row.PublicPricePiasters = pricePiasters;
+
+                    // Validation 5: Check database existence
+                    bool existsInDb = false;
+                    if (drugRefRepo != null)
+                    {
+                        var existing = drugRefRepo.GetByBarcode(barcode);
+                        if (existing != null)
+                        {
+                            existsInDb = true;
+                        }
+                    }
+
+                    if (existsInDb)
+                    {
+                        row.Status = "UPDATE";
+                        row.Reason = "صنف مسجل مسبقاً بالدليل المرجعي وسيتم تحديث بياناته وسعره";
+                        result.UpdateRowsCount++;
+                    }
+                    else
+                    {
+                        row.Status = "NEW";
+                        row.Reason = "صنف دوائي جديد سيتم إضافته للدليل المرجعي";
+                        result.NewRowsCount++;
+                    }
+
+                    result.Rows.Add(row);
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
         /// قراءة ومعاينة ملف إكسل لاستيراد العملاء والتحقق من صحة البيانات ومنع التكرار (Story 71 / Task 109-2)
         /// </summary>
         public CustomerImportPreviewResult ParseCustomerImportBase64(string base64, CustomerRepository customerRepo)

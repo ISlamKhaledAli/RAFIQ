@@ -763,6 +763,24 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                             <span>حاسبة الكراتين</span>
                           </button>
                         )}
+
+                        {/* Pharmacy Pricing Shortcut / Indicator (Story 136 / P10) */}
+                        {isEnabled('feature_pharmacy') && (
+                          ((item.distributorDiscountPercent !== undefined && item.distributorDiscountPercent > 0) || (item.bonusQuantityUnits !== undefined && item.bonusQuantityUnits > 0)) ? (
+                            <span className="text-[10px] font-mono text-paid dark:text-paid-bright font-bold bg-paid-soft dark:bg-paid-dark-soft px-1.5 py-0.5 rounded border border-paid/20 dark:border-emerald-800/40">
+                              خصم موزع: {item.distributorDiscountPercent || 0}% {item.bonusQuantityUnits ? `+ ${item.bonusQuantityUnits} بونص` : ''}
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => toggleItemExpand(item.productId)}
+                              className="text-[10px] text-brand dark:text-brand-bright hover:underline font-bold flex items-center gap-0.5 cursor-pointer transition-colors"
+                            >
+                              <Sparkles className="w-2.5 h-2.5" />
+                              <span>خصم موزع وبونص</span>
+                            </button>
+                          )
+                        )}
                       </div>
 
                       {/* 3. Unit Cost (col-span-2) */}
@@ -954,6 +972,85 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                             </div>
                           </div>
                         </div>
+
+                        {/* 1.5 Pharmacy Distributor Pricing Strip (Story 136 / P10) */}
+                        {isEnabled('feature_pharmacy') && (
+                          <div className="bg-surface dark:bg-surface-dark rounded-lg p-2.5 border border-line dark:border-line-dark flex items-center justify-between gap-3 flex-wrap">
+                            <div className="flex items-center gap-2 text-xs font-bold text-ink dark:text-ink-dark shrink-0">
+                              <Sparkles className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
+                              <span>تسعير الصيدلية (سعر الجمهور وخصم الموزع والبونص):</span>
+                            </div>
+                            <div className="flex items-center gap-3 flex-wrap text-xs">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">سعر الجمهور:</span>
+                                <div className="w-24">
+                                  <MoneyInput
+                                    valuePiasters={item.publicPricePiasters ?? (item.newSellingPricePiasters || item.currentPricePiasters || 0)}
+                                    onChangePiasters={(p) => {
+                                      const updated = [...lineItems];
+                                      updated[idx].publicPricePiasters = p;
+                                      updated[idx].newSellingPricePiasters = p;
+                                      const disc = updated[idx].distributorDiscountPercent || 0;
+                                      if (disc > 0 && p > 0) {
+                                        updated[idx].unitCostPiasters = Math.round(p * (1 - disc / 100));
+                                      }
+                                      setLineItems(updated);
+                                    }}
+                                    className="!h-7 !px-2 !py-0 !text-center !text-xs !font-bold !bg-surface-2 dark:!bg-surface-dark-2 !border-line dark:!border-line-dark !rounded-md text-ink dark:text-ink-dark"
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">خصم الموزع %:</span>
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={item.distributorDiscountInput ?? (item.distributorDiscountPercent !== undefined ? String(item.distributorDiscountPercent) : '')}
+                                  onChange={(e) => {
+                                    const raw = normalizeArabicNumerals(e.target.value);
+                                    const val = parseFloat(raw);
+                                    const updated = [...lineItems];
+                                    updated[idx].distributorDiscountInput = raw;
+                                    updated[idx].distributorDiscountPercent = isNaN(val) ? 0 : Math.min(100, Math.max(0, val));
+                                    const pub = updated[idx].publicPricePiasters || updated[idx].newSellingPricePiasters || updated[idx].currentPricePiasters || 0;
+                                    if (pub > 0 && !isNaN(val)) {
+                                      updated[idx].unitCostPiasters = Math.round(pub * (1 - Math.min(100, Math.max(0, val)) / 100));
+                                    }
+                                    setLineItems(updated);
+                                  }}
+                                  onFocus={(e) => e.target.select()}
+                                  placeholder="0%"
+                                  className="w-16 h-7 text-center font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-md text-xs text-brand dark:text-brand-bright focus:border-brand dark:focus:border-brand-bright focus:outline-none"
+                                />
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-ink-muted dark:text-ink-dark-muted font-medium text-[11px]">بونص مجاني:</span>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={item.bonusQuantityInput ?? (item.bonusQuantityUnits !== undefined ? String(item.bonusQuantityUnits) : '')}
+                                  onChange={(e) => {
+                                    const raw = normalizeArabicNumerals(e.target.value);
+                                    const val = parseFloat(raw);
+                                    const updated = [...lineItems];
+                                    updated[idx].bonusQuantityInput = raw;
+                                    updated[idx].bonusQuantityUnits = isNaN(val) ? 0 : Math.max(0, val);
+                                    setLineItems(updated);
+                                  }}
+                                  onFocus={(e) => e.target.select()}
+                                  placeholder="0"
+                                  className="w-14 h-7 text-center font-mono font-bold bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark rounded-md text-xs text-paid dark:text-paid-bright focus:border-paid dark:focus:border-paid focus:outline-none"
+                                />
+                                <span className="text-ink-muted dark:text-ink-dark-muted text-[11px]">علبة مجاناً</span>
+                              </div>
+                              {(item.bonusQuantityUnits || 0) > 0 && (item.quantityUnits || 0) > 0 && (
+                                <div className="px-2 py-0.5 bg-paid-soft dark:bg-paid-dark-soft border border-paid/20 dark:border-emerald-800/40 text-paid dark:text-paid-bright font-mono font-bold rounded text-[11px]">
+                                  صافي التكلفة بعد البونص: {formatArabicCurrency(Math.round(((item.quantityUnits * item.unitCostPiasters) / (item.quantityUnits + (item.bonusQuantityUnits || 0)))), true)}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
 
                         {/* 2. Smart Cost & Selling Price Analysis Cards */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 text-xs">

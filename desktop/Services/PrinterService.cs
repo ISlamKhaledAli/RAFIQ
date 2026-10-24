@@ -920,6 +920,31 @@ namespace RafiqPOS.Services
                     y += 18;
                 }
 
+                // تنبيه سلسلة التبريد والأدوية المحفوظة بالثلاجة (Task 185-4)
+                bool hasColdChain = sale.HasColdChainItems;
+                if (!hasColdChain && sale.Items != null)
+                {
+                    for (int cIdx = 0; cIdx < sale.Items.Count; cIdx++)
+                    {
+                        if (sale.Items[cIdx] != null && sale.Items[cIdx].IsColdChain)
+                        {
+                            hasColdChain = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (hasColdChain)
+                {
+                    y += 4;
+                    g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
+                    y += 4;
+                    g.DrawString("* تنبيه طبي: يحفظ في الثلاجة (2-8 مئوية) *", fontBold, Brushes.Black, new RectangleF(5, y, contentWidth - 10, isCompact ? 16 : 18), centerFormat);
+                    y += isCompact ? 17 : 19;
+                    g.DrawLine(penSolid, 5, y, contentWidth - 5, y);
+                    y += 4;
+                }
+
                 // 7. خاتمة الإيصال
                 if (!string.IsNullOrWhiteSpace(footer))
                 {
@@ -1694,6 +1719,315 @@ namespace RafiqPOS.Services
                 return _settings.Get("printer_auto_cut", "1") != "0";
             }
             return true;
+        }
+
+        /// <summary>
+        /// طباعة ملصق الجرعة الحراري للعبوات الصيدلانية (Story 135 / Task 192-2)
+        /// خالي تماماً من أي إيموجي ومصمم باللغة العربية الواضحة لتنبيه المريض بالجرعة وتاريخ الصرف
+        /// </summary>
+        public PrintResult PrintDosageLabel(DosageLabelRequest request, string printerName = null, string paperWidth = null)
+        {
+            if (request == null)
+            {
+                return new PrintResult { Success = false, Message = "بيانات ملصق الجرعة فارغة." };
+            }
+
+            if (string.IsNullOrWhiteSpace(request.DrugName) && string.IsNullOrWhiteSpace(request.DosageInstructions))
+            {
+                return new PrintResult { Success = false, Message = "اسم الدواء وتعليمات الجرعة مطلوبة لطباعة الملصق." };
+            }
+
+            string targetPrinter = ResolvePrinterName(printerName ?? request.PrinterName);
+            string targetWidth = paperWidth ?? request.PaperWidth ?? GetConfiguredPaperWidth();
+            int printWidth = GetContentWidthPoints(targetWidth);
+
+            int copies = request.Copies > 0 ? Math.Min(request.Copies, 10) : 1;
+            string storeName = _settings != null ? _settings.Get("store_name", "صيدلية رفيق") : "صيدلية رفيق";
+            string phone = _settings != null ? _settings.Get("store_phone", "") : "";
+
+            if (string.IsNullOrWhiteSpace(request.DispenseDate))
+            {
+                request.DispenseDate = DateTime.Now.ToString("yyyy/MM/dd");
+            }
+
+            // توجيه الطباعة إلى طابعة الشبكة (TCP Port 9100) عبر ESC/POS
+            if (RawPrinterHelper.IsNetworkPrinter(targetPrinter))
+            {
+                try
+                {
+                    var bmp = GenerateDosageLabelBitmap(request, storeName, phone, printWidth);
+                    if (bmp == null)
+                    {
+                        return new PrintResult { Success = false, Message = "فشل توليد صورة ملصق الجرعة للطباعة الشبكية.", PrinterUsed = targetPrinter };
+                    }
+
+                    bool autoCut = GetConfiguredAutoCut();
+                    byte[] escposBytes = RawPrinterHelper.ConvertBitmapToEscPosRaster(bmp, false, autoCut);
+                    bmp.Dispose();
+
+                    for (int c = 0; c < copies; c++)
+                    {
+                        string errMsg;
+                        string docTitle = string.Format("Dosage Label - {0}", request.DrugName);
+                        bool ok = RawPrinterHelper.SendRawBytes(targetPrinter, escposBytes, docTitle, out errMsg);
+                        if (!ok)
+                        {
+                            return new PrintResult { Success = false, Message = "تعذر إرسال ملصق الجرعة لطابعة الشبكة: " + errMsg, PrinterUsed = targetPrinter };
+                        }
+                    }
+
+                    return new PrintResult
+                    {
+                        Success = true,
+                        Message = string.Format("تمت طباعة ملصق الجرعة ({0} نسخة) بنجاح.", copies),
+                        PrinterUsed = targetPrinter
+                    };
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error("خطأ أثناء طباعة ملصق الجرعة على الشبكة: " + ex.Message, ex);
+                    return new PrintResult { Success = false, Message = "فشل أمر طباعة الملصق: " + ex.Message, PrinterUsed = targetPrinter };
+                }
+            }
+
+            // الطباعة على طابعة ويندوز القياسية
+            try
+            {
+                using (var doc = new PrintDocument())
+                {
+                    if (!string.IsNullOrWhiteSpace(targetPrinter))
+                    {
+                        doc.PrinterSettings.PrinterName = targetPrinter;
+                    }
+
+                    if (!doc.PrinterSettings.IsValid)
+                    {
+                        return new PrintResult
+                        {
+                            Success = false,
+                            Message = string.Format("الطابعة '{0}' غير مثبتة أو غير متصلة بالنظام.", targetPrinter),
+                            PrinterUsed = targetPrinter
+                        };
+                    }
+
+                    doc.DocumentName = string.Format("ملصق جرعة - {0}", request.DrugName);
+                    doc.PrintController = new StandardPrintController();
+                    doc.PrinterSettings.Copies = (short)copies;
+
+                    doc.PrintPage += delegate(object sender, PrintPageEventArgs e)
+                    {
+                        e.Graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+                        e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                        e.Graphics.SmoothingMode = SmoothingMode.HighQuality;
+                        e.Graphics.PixelOffsetMode = PixelOffsetMode.Half;
+
+                        RenderDosageLabelPage(e.Graphics, request, storeName, phone, printWidth);
+                        e.HasMorePages = false;
+                    };
+
+                    doc.Print();
+                }
+
+                if (GetConfiguredAutoCut())
+                {
+                    try
+                    {
+                        string cutErr;
+                        RawPrinterHelper.SendPaperCut(targetPrinter, out cutErr);
+                    }
+                    catch { }
+                }
+
+                return new PrintResult
+                {
+                    Success = true,
+                    Message = string.Format("تمت طباعة ملصق الجرعة الدوائي ({0} نسخة) بنجاح.", copies),
+                    PrinterUsed = targetPrinter
+                };
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("فشل طباعة ملصق الجرعة: " + ex.Message, ex);
+                return new PrintResult
+                {
+                    Success = false,
+                    Message = "تعذر إتمام طباعة ملصق الجرعة: " + ex.Message,
+                    PrinterUsed = targetPrinter
+                };
+            }
+        }
+
+        private Bitmap GenerateDosageLabelBitmap(DosageLabelRequest req, string storeName, string phone, int contentWidth)
+        {
+            float scale = 203f / 72f;
+            int pixelWidth = Math.Max(100, (int)Math.Ceiling(contentWidth * scale));
+            int pixelHeight = (int)(240f * scale);
+
+            var bmpTemp = new Bitmap(pixelWidth, pixelHeight);
+            float finalY;
+            using (var g = Graphics.FromImage(bmpTemp))
+            {
+                g.Clear(Color.White);
+                g.ScaleTransform(scale, scale);
+                g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                g.SmoothingMode = SmoothingMode.HighQuality;
+                g.PixelOffsetMode = PixelOffsetMode.Half;
+
+                finalY = RenderDosageLabelPage(g, req, storeName, phone, contentWidth);
+            }
+
+            int finalPixelHeight = Math.Max(50, (int)Math.Ceiling((finalY + 8f) * scale));
+            var bmpFinal = new Bitmap(pixelWidth, finalPixelHeight);
+            using (var gFinal = Graphics.FromImage(bmpFinal))
+            {
+                gFinal.DrawImage(bmpTemp, 0, 0, new Rectangle(0, 0, pixelWidth, finalPixelHeight), GraphicsUnit.Pixel);
+            }
+            bmpTemp.Dispose();
+
+            return bmpFinal;
+        }
+
+        private float RenderDosageLabelPage(
+            Graphics g,
+            DosageLabelRequest req,
+            string storeName,
+            string phone,
+            int contentWidth)
+        {
+            g.Clear(Color.White);
+
+            string fontName = "Arial";
+            using (var testFont = new Font("Cairo", 9f))
+            {
+                if (testFont.Name == "Cairo") fontName = "Cairo";
+                else
+                {
+                    using (var segFont = new Font("Segoe UI", 9f))
+                    {
+                        if (segFont.Name == "Segoe UI") fontName = "Segoe UI";
+                        else
+                        {
+                            using (var tahomaFont = new Font("Tahoma", 9f))
+                            {
+                                if (tahomaFont.Name == "Tahoma") fontName = "Tahoma";
+                            }
+                        }
+                    }
+                }
+            }
+
+            bool isCompact = (contentWidth <= 210);
+            float margin = 6f;
+            float printableWidth = contentWidth - (margin * 2f);
+            float y = margin + 2f;
+
+            using (var fontStore = new Font(fontName, isCompact ? 9.5f : 11f, FontStyle.Bold))
+            using (var fontSub = new Font(fontName, isCompact ? 7f : 8f, FontStyle.Regular))
+            using (var fontPatient = new Font(fontName, isCompact ? 8.5f : 9.5f, FontStyle.Bold))
+            using (var fontDrug = new Font(fontName, isCompact ? 9.5f : 11f, FontStyle.Bold))
+            using (var fontDosage = new Font(fontName, isCompact ? 8.5f : 10f, FontStyle.Bold))
+            using (var fontNotes = new Font(fontName, isCompact ? 7f : 7.5f, FontStyle.Regular))
+            using (var fontFooter = new Font(fontName, isCompact ? 6.5f : 7f, FontStyle.Regular))
+            using (var penSolid = new Pen(Color.Black, 1.2f))
+            using (var penDashed = new Pen(Color.Black, 1f) { DashStyle = DashStyle.Dash })
+            using (var brushBorder = new Pen(Color.FromArgb(50, 50, 50), 1f))
+            {
+                var rtlFormat = new StringFormat
+                {
+                    FormatFlags = StringFormatFlags.DirectionRightToLeft,
+                    Alignment = StringAlignment.Near,
+                    LineAlignment = StringAlignment.Center
+                };
+
+                var centerFormat = new StringFormat
+                {
+                    FormatFlags = StringFormatFlags.DirectionRightToLeft,
+                    Alignment = StringAlignment.Center,
+                    LineAlignment = StringAlignment.Center
+                };
+
+                // Outer border for thermal dosage sticker
+                float labelTop = y;
+
+                // 1. Store header
+                string dispStore = !string.IsNullOrWhiteSpace(storeName) ? storeName : "صيدلية رفيق";
+                g.DrawString(dispStore, fontStore, Brushes.Black, new RectangleF(margin, y, printableWidth, 18f), centerFormat);
+                y += 18f;
+
+                string subTitle = "ملصق إرشادات الجرعة واستخدام العلاج";
+                if (!string.IsNullOrWhiteSpace(phone)) subTitle += " - هاتف: " + phone;
+                g.DrawString(subTitle, fontSub, Brushes.Black, new RectangleF(margin, y, printableWidth, 14f), centerFormat);
+                y += 16f;
+
+                // Solid divider line
+                g.DrawLine(penSolid, margin, y, margin + printableWidth, y);
+                y += 6f;
+
+                // 2. Patient name
+                if (!string.IsNullOrWhiteSpace(req.PatientName))
+                {
+                    string patientText = "المريض: " + req.PatientName.Trim();
+                    g.DrawString(patientText, fontPatient, Brushes.Black, new RectangleF(margin, y, printableWidth, 16f), rtlFormat);
+                    y += 16f;
+                }
+
+                // 3. Drug name
+                if (!string.IsNullOrWhiteSpace(req.DrugName))
+                {
+                    string drugText = "الدواء: " + req.DrugName.Trim();
+                    g.DrawString(drugText, fontDrug, Brushes.Black, new RectangleF(margin, y, printableWidth, 18f), rtlFormat);
+                    y += 20f;
+                }
+
+                // 4. Dosage instructions in a highlighted framed box
+                string dosageText = !string.IsNullOrWhiteSpace(req.DosageInstructions) ? req.DosageInstructions.Trim() : "حسب تعليمات الطبيب المعالج";
+                var dosageSize = g.MeasureString(dosageText, fontDosage, (int)printableWidth - 8, rtlFormat);
+                float boxHeight = Math.Max(26f, dosageSize.Height + 10f);
+
+                RectangleF dosageBox = new RectangleF(margin, y, printableWidth, boxHeight);
+                g.DrawRectangle(brushBorder, dosageBox.X, dosageBox.Y, dosageBox.Width, dosageBox.Height);
+
+                g.DrawString(dosageText, fontDosage, Brushes.Black, new RectangleF(margin + 4f, y + 4f, printableWidth - 8f, boxHeight - 8f), centerFormat);
+                y += boxHeight + 6f;
+
+                // 5. Storage condition & warnings
+                if (!string.IsNullOrWhiteSpace(req.StorageCondition))
+                {
+                    string storageText = "تنبيه الحفظ: " + req.StorageCondition.Trim();
+                    g.DrawString(storageText, fontNotes, Brushes.Black, new RectangleF(margin, y, printableWidth, 14f), rtlFormat);
+                    y += 14f;
+                }
+
+                // 6. Doctor name (if provided)
+                if (!string.IsNullOrWhiteSpace(req.DoctorName))
+                {
+                    string docText = "الطبيب: د/ " + req.DoctorName.Trim();
+                    g.DrawString(docText, fontNotes, Brushes.Black, new RectangleF(margin, y, printableWidth, 14f), rtlFormat);
+                    y += 14f;
+                }
+
+                // Dashed divider
+                g.DrawLine(penDashed, margin, y, margin + printableWidth, y);
+                y += 5f;
+
+                // 7. Footer: Date, Pharmacist & Healing wish
+                string footerText = "تاريخ الصرف: " + req.DispenseDate;
+                if (!string.IsNullOrWhiteSpace(req.PharmacistName))
+                {
+                    footerText += " | الصيدلي: " + req.PharmacistName.Trim();
+                }
+                g.DrawString(footerText, fontFooter, Brushes.Black, new RectangleF(margin, y, printableWidth, 13f), centerFormat);
+                y += 13f;
+
+                g.DrawString("مع تمنياتنا لكم بتمام الصحة والشفاء العاجل", fontFooter, Brushes.Black, new RectangleF(margin, y, printableWidth, 13f), centerFormat);
+                y += 15f;
+
+                // Draw outer bounding box for the entire sticker
+                g.DrawRectangle(brushBorder, margin - 2f, labelTop - 2f, printableWidth + 4f, y - labelTop + 4f);
+            }
+
+            return y;
         }
     }
 }

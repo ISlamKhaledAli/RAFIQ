@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using System.IO;
+using System.IO.Compression;
 using RafiqPOS.Common;
 using RafiqPOS.Repositories;
 
@@ -351,6 +352,31 @@ namespace RafiqPOS.Services
 
                 result.IsVerified = true;
                 result.Success = true;
+
+                // Story 136 / Feature #193: Include prescription media archive if present
+                try
+                {
+                    string baseDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "RafiqPOS", "data");
+#if DEBUG
+                    if (!Directory.Exists(baseDataDir))
+                    {
+                        baseDataDir = AppDomain.CurrentDomain.BaseDirectory;
+                    }
+#endif
+                    string rxDir = Path.Combine(baseDataDir, "prescriptions");
+                    if (Directory.Exists(rxDir) && Directory.GetFiles(rxDir, "*", SearchOption.AllDirectories).Length > 0)
+                    {
+                        string rxZipTemp = Path.Combine(targetFolder, string.Format("rafiq_rx_{0}.zip.tmp", timestamp));
+                        string rxEncPath = Path.Combine(targetFolder, string.Format("rafiq_rx_{0}.db", timestamp));
+                        ZipFile.CreateFromDirectory(rxDir, rxZipTemp, CompressionLevel.Optimal, false);
+                        _encryptionService.EncryptFileDualWrap(rxZipTemp, rxEncPath, recoveryCode);
+                        try { File.Delete(rxZipTemp); } catch { }
+                    }
+                }
+                catch (Exception rxEx)
+                {
+                    Logger.Warn("تعذر إدراج أرشيف صور الروشتات في النسخ الاحتياطي: " + rxEx.Message);
+                }
 
                 // Save status in settings
                 _settingsRepo.Set("backup_last_success_at", DateTime.UtcNow.ToString("o"));
@@ -725,6 +751,12 @@ namespace RafiqPOS.Services
                         if (File.Exists(f))
                         {
                             File.Delete(f);
+                        }
+
+                        string rxCompanion = f.Replace("rafiq_backup_", "rafiq_rx_");
+                        if (File.Exists(rxCompanion))
+                        {
+                            try { File.Delete(rxCompanion); } catch { }
                         }
                     }
                     catch (Exception ex)

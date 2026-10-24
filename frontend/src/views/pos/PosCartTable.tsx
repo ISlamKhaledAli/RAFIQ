@@ -10,7 +10,11 @@ import {
   Tag,
   Calendar,
   AlertTriangle,
-  ArrowLeftRight
+  ArrowLeftRight,
+  Snowflake,
+  Pill,
+  ShieldAlert,
+  Printer,
 } from 'lucide-react';
 import type { CartItem } from './types';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../../utils/money';
@@ -33,6 +37,11 @@ interface PosCartTableProps {
   openWeightEditorForCartItem: (index: number) => void;
   onOpenItemDiscount: (index: number) => void;
   removeItem: (index: number) => void;
+  onOpenBatchSelection?: (index: number) => void;
+  canSelectBatch?: boolean;
+  onOpenAlternatives?: (index: number) => void;
+  onOpenControlledDispense?: (index: number) => void;
+  onPrintDosageLabel?: (index: number) => void;
 }
 
 export const PosCartTable: React.FC<PosCartTableProps> = ({
@@ -48,6 +57,11 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
   openWeightEditorForCartItem,
   onOpenItemDiscount,
   removeItem,
+  onOpenBatchSelection,
+  canSelectBatch = false,
+  onOpenAlternatives,
+  onOpenControlledDispense,
+  onPrintDosageLabel,
 }) => {
   return (
     <>
@@ -149,6 +163,17 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                 <div className="flex-1 min-w-0 pr-1 flex flex-col justify-center overflow-hidden">
                   <div className="flex items-center gap-1.5 truncate">
                     <span className="font-bold text-ink dark:text-ink-dark truncate text-xs sm:text-sm">{item.productName}</span>
+                    {item.locationCode && (
+                      <span className="shrink-0 px-1.5 py-0.2 bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark text-[9px] font-mono font-bold text-ink dark:text-ink-dark rounded" title={`مكان الصنف: ${item.locationCode}`}>
+                        [{item.locationCode}]
+                      </span>
+                    )}
+                    {item.isColdChain && (
+                      <span className="shrink-0 px-1.5 py-0.2 bg-cyan-50 dark:bg-cyan-900/30 border border-cyan-200 dark:border-cyan-800 text-cyan-700 dark:text-cyan-300 text-[9px] font-bold rounded flex items-center gap-0.5" title="سلسلة تبريد: يحفظ في الثلاجة (2-8 مئوية)">
+                        <Snowflake className="w-2.5 h-2.5 text-cyan-600 dark:text-cyan-400" />
+                        <span>ثلاجة</span>
+                      </span>
+                    )}
                     {item.unit === 'kg' && (
                       <span className="shrink-0 px-1 py-0.2 bg-brand-soft dark:bg-surface-dark-3 border border-brand/20 dark:border-line-dark text-brand dark:text-brand-bright text-[9px] font-bold rounded flex items-center gap-0.5" title="يباع بالوزن (ميزان)">
                         <Scale className="w-2.5 h-2.5 text-brand dark:text-brand-bright" />
@@ -165,6 +190,48 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                       >
                         <ArrowLeftRight className="w-3 h-3 text-brand shrink-0" />
                         <span>تبديل</span>
+                      </button>
+                    )}
+                    {onOpenAlternatives && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenAlternatives(index)}
+                        className="h-6 px-2 rounded-md bg-brand-soft/40 dark:bg-brand-soft/20 hover:bg-brand/20 border border-brand/20 flex items-center gap-1 text-[10px] font-bold text-brand dark:text-brand-bright cursor-pointer transition-colors shadow-2xs shrink-0"
+                        title="البحث عن بدائل ومثائل دوائية لهذا الصنف (F8)"
+                      >
+                        <Pill className="w-2.5 h-2.5 shrink-0" />
+                        <span>بدائل (F8)</span>
+                      </button>
+                    )}
+                    {/* Story 131: Controlled Drug Dispense Documentation Button / Badge */}
+                    {item.isControlled && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenControlledDispense?.(index)}
+                        className={`h-6 px-2 rounded-md flex items-center gap-1 text-[10px] font-bold cursor-pointer transition-colors shadow-2xs shrink-0 ${
+                          item.controlledDispense
+                            ? 'bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 text-paid dark:text-paid-bright hover:bg-paid/20'
+                            : 'bg-warn-soft dark:bg-warn-dark-soft border border-warn/30 dark:border-warn-bright/40 text-warn dark:text-warn-bright hover:bg-warn/25 animate-pulse'
+                        }`}
+                        title={
+                          item.controlledDispense
+                            ? `تم توثيق الصرف للمريض: ${item.controlledDispense.patientName} (اضغط لتعديل البيانات)`
+                            : 'دواء جدول ورقابة مشددة - اضغط لتوثيق بيانات المريض والطبيب (إلزامي للبيع)'
+                        }
+                      >
+                        <ShieldAlert className={`w-3 h-3 ${item.controlledDispense ? 'text-paid dark:text-paid-bright' : 'text-warn dark:text-warn-bright'}`} />
+                        <span>{item.controlledDispense ? `توثيق: ${item.controlledDispense.patientName.split(' ')[0]}` : 'توثيق جدول'}</span>
+                      </button>
+                    )}
+                    {onPrintDosageLabel && (
+                      <button
+                        type="button"
+                        onClick={() => onPrintDosageLabel(index)}
+                        className="h-6 px-2 rounded-md bg-surface-2 dark:bg-surface-dark-3 hover:bg-brand-soft hover:text-brand border border-line dark:border-line-dark flex items-center gap-1 text-[10px] font-bold text-ink-muted cursor-pointer transition-colors shadow-2xs shrink-0"
+                        title="طباعة ملصق جرعة حراري (استيكر صيدلي)"
+                      >
+                        <Printer className="w-2.5 h-2.5 text-brand shrink-0" />
+                        <span>ملصق</span>
                       </button>
                     )}
                   </div>
@@ -192,14 +259,27 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                         منتهي (بتخطي إداري){item.expiryDate ? `: ${item.expiryDate}` : ''}
                       </span>
                     )}
-                    {!item.isExpiredBypass && (item.batchNumber || item.expiryDate) && (
-                      <span 
-                        className="text-paid dark:text-paid-bright font-bold bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 px-1 rounded flex items-center gap-0.5 shrink-0 font-mono"
-                        title={`تشغيلة: ${item.batchNumber || 'افتراضية'} - صلاحية: ${item.expiryDate || 'غير محدد'}`}
+                    {!item.isExpiredBypass && (item.batchNumber || item.expiryDate || canSelectBatch) && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (canSelectBatch && onOpenBatchSelection) {
+                            onOpenBatchSelection(index);
+                          }
+                        }}
+                        disabled={!canSelectBatch || !onOpenBatchSelection}
+                        className={`font-bold px-1.5 py-0.2 rounded flex items-center gap-1 shrink-0 font-mono text-[10px] transition-colors ${
+                          canSelectBatch && onOpenBatchSelection
+                            ? 'text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 hover:bg-paid-soft/80 cursor-pointer'
+                            : 'text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30'
+                        }`}
+                        title={canSelectBatch ? 'اضغط لاختيار أو تغيير تشغيلة الصنف' : `تشغيلة: ${item.batchNumber || 'افتراضية'} - صلاحية: ${item.expiryDate || 'غير محدد'}`}
                       >
                         <Calendar className="w-2.5 h-2.5 text-paid dark:text-paid-bright shrink-0" />
-                        {item.batchNumber ? `${item.batchNumber}` : ''}{item.batchNumber && item.expiryDate ? ' | ' : ''}{item.expiryDate ? `${item.expiryDate}` : ''}
-                      </span>
+                        <span>{item.batchNumber ? `تشغيلة ${item.batchNumber}` : 'دفعة الصنف'}</span>
+                        {item.expiryDate && <span className="opacity-75">({item.expiryDate})</span>}
+                      </button>
                     )}
                   </div>
                 </div>

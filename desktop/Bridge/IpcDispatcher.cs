@@ -158,7 +158,11 @@ namespace RafiqPOS.Bridge
                 if (TryDispatchSystem(request, out response)) return response;
                 if (TryDispatchEpay(request, out response)) return response;
                 if (TryDispatchWallets(request, out response)) return response;
-                if (TryDispatchShifts(request, out response)) return response;
+                if (TryDispatchLocations(request, out response)) return response;
+                if (TryDispatchShortages(request, out response)) return response;
+                if (TryDispatchPharma(request, out response)) return response;
+                if (TryDispatchInsurance(request, out response)) return response;
+                if (TryDispatchPatients(request, out response)) return response;
 
                 Logger.Warn("محاولة تنفيذ إجراء غير مسجل: " + request.Action);
                 return BridgeResponse.Fail(request.Id, "ACTION_NOT_FOUND", "الإجراء غير مسجل في النواة: " + request.Action);
@@ -328,6 +332,67 @@ namespace RafiqPOS.Bridge
             { "batch:save", "stock.adjust" },
             { "batch:adjust", "stock.adjust" },
             { "batch:disposeExpired", "stock.adjust" },
+
+            // Storage Locations & Shelves (Feature #185 / Story 128)
+            { "locations:list", "stock.view" },
+            { "locations:get", "stock.view" },
+            { "locations:save", "inventory.locations.manage" },
+            { "locations:delete", "inventory.locations.manage" },
+            { "locations:assignProduct", "products.edit" },
+            { "locations:getDraftInventory", "inventory.locations.manage" },
+            { "locations:getProducts", "stock.view" },
+
+            // Shortages (Feature #186 / Story 129)
+            { "shortages:list", "shortage.view" },
+            { "shortages:get", "shortage.view" },
+            { "shortages:save", "shortage.manage" },
+            { "shortages:updateStatus", "shortage.manage" },
+            { "shortages:delete", "shortage.manage" },
+            { "shortages:convertToPurchase", "shortage.convert_to_purchase" },
+            { "shortages:getAuto", "shortage.view" },
+            { "shortages:getLostSalesReport", "shortage.view" },
+
+            // Pharmacy & Alternatives (Feature #187 / Story 130)
+            { "pharma:getDrugInfo", "products.view" },
+            { "pharma:saveDrugInfo", "pharma.drug_info.edit" },
+            { "pharma:getAlternatives", "pharma.alternatives.view" },
+            { "pharma:searchByIngredient", "products.view" },
+            { "pharma:getDosageForms", "products.view" },
+            { "pharma:saveDosageForm", "pharma.drug_info.edit" },
+            { "pharma:getManufacturers", "products.view" },
+            { "pharma:saveManufacturer", "pharma.drug_info.edit" },
+            { "pharma:getTherapeuticClasses", "products.view" },
+            { "pharma:saveTherapeuticClass", "pharma.drug_info.edit" },
+            { "pharma:getActiveIngredients", "products.view" },
+            { "pharma:saveActiveIngredient", "pharma.drug_info.edit" },
+            { "pharma.getDrugInfo", "products.view" },
+            { "pharma.saveDrugInfo", "pharma.drug_info.edit" },
+            { "pharma.getAlternatives", "pharma.alternatives.view" },
+            { "pharma.searchByIngredient", "products.view" },
+
+            // Expiry Returns & External Drug Reference (Story 134 / Feature #191)
+            { "pharma:getExpiryReturnableBatches", "pharma.expiry_returns.manage" },
+            { "pharma.getExpiryReturnableBatches", "pharma.expiry_returns.manage" },
+            { "pharma:createExpiryReturn", "pharma.expiry_returns.manage" },
+            { "pharma.createExpiryReturn", "pharma.expiry_returns.manage" },
+            { "pharma:getExpiredBatches", "pharma.expiry_returns.manage" },
+            { "pharma.getExpiredBatches", "pharma.expiry_returns.manage" },
+            { "pharma:writeOffExpiredBatches", "pharma.expiry_returns.manage" },
+            { "pharma.writeOffExpiredBatches", "pharma.expiry_returns.manage" },
+            { "pharma:getExpiredWriteOffs", "pharma.expiry_returns.manage" },
+            { "pharma.getExpiredWriteOffs", "pharma.expiry_returns.manage" },
+            { "pharma:downloadDrugReferenceTemplate", "pharma.drug_reference.import" },
+            { "pharma.downloadDrugReferenceTemplate", "pharma.drug_reference.import" },
+            { "pharma:previewDrugReferenceImport", "pharma.drug_reference.import" },
+            { "pharma.previewDrugReferenceImport", "pharma.drug_reference.import" },
+            { "pharma:confirmDrugReferenceImport", "pharma.drug_reference.import" },
+            { "pharma.confirmDrugReferenceImport", "pharma.drug_reference.import" },
+            { "pharma:checkDrugReference", "products.view" },
+            { "pharma.checkDrugReference", "products.view" },
+            { "pharma:searchDrugReference", "products.view" },
+            { "pharma.searchDrugReference", "products.view" },
+            { "pharma:clearDrugReference", REQUIRE_ADMIN },
+            { "pharma.clearDrugReference", REQUIRE_ADMIN },
 
             // Purchases & Suppliers
             { "purchases:getAll", "purchases.view" },
@@ -551,7 +616,18 @@ namespace RafiqPOS.Bridge
             { "updates:runTests", REQUIRE_ADMIN },
             { "inventory:runTests", REQUIRE_ADMIN },
             { "customers:runTests", REQUIRE_ADMIN },
-            { "excel:runExportTests", REQUIRE_ADMIN }
+            { "excel:runExportTests", REQUIRE_ADMIN },
+
+            // Patient Profiles & Chronic Diseases (Story 133 / Feature #190)
+            { "patients:getProfile", "patients.view" },
+            { "patients:saveProfile", "patients.edit" },
+            { "patients:getChronicMeds", "patients.view" },
+            { "patients:saveChronicMed", "patients.edit" },
+            { "patients:deleteChronicMed", "patients.edit" },
+            { "patients:getDueAlerts", "patients.view" },
+            { "patients:recordDispense", "patients.edit" },
+            { "patients:checkAllergies", "patients.view" },
+            { "patients:runTests", REQUIRE_ADMIN }
         };
 
         private static bool IsLicenseBlockedAction(string action)
@@ -594,7 +670,8 @@ namespace RafiqPOS.Bridge
                 action == "products:revertBulkPriceAdjustment" ||
                 action == "products:importBatch" || action == "categories:save" || action == "categories:archive" ||
                 action == "categories:reorder" || action == "productUnits:save" || action == "productUnits:delete" ||
-                action == "productUnits:setBase")
+                action == "productUnits:setBase" ||
+                action == "locations:save" || action == "locations:delete" || action == "locations:assignProduct")
                 return true;
 
             return false;
