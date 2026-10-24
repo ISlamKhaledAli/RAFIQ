@@ -36,6 +36,7 @@ audit_results.json
 .secrets/
 *.pem
 *.DS_Store
+~$*
 
 # Databases & Runtime Data
 data/
