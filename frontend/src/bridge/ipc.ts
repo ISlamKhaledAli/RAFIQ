@@ -2225,6 +2225,310 @@ async function mockHandler(action: string, payload: any): Promise<any> {
       ];
     }
 
+    case 'reports:getVatReport': {
+      return {
+        period: payload?.period || 'month',
+        startDate: payload?.startDate || new Date().toISOString().slice(0, 10),
+        endDate: payload?.endDate || new Date().toISOString().slice(0, 10),
+        grossSalesPiasters: 12500000,
+        totalTaxPiasters: 1750000,
+        netSalesExcludingTaxPiasters: 10750000,
+        taxableSalesPiasters: 12500000,
+        taxExemptSalesPiasters: 0,
+        returnsTaxPiasters: 35000,
+        netVatPayablePiasters: 1715000,
+        taxableInvoicesCount: 142,
+        breakdown: [
+          {
+            ratePercent: 14,
+            taxableSalesPiasters: 12500000,
+            taxCollectedPiasters: 1750000,
+            returnsTaxablePiasters: 250000,
+            returnsTaxPiasters: 35000,
+            netTaxPiasters: 1715000,
+            invoicesCount: 142,
+          },
+        ],
+      };
+    }
+
+    case 'reports:getHourlyIntensity': {
+      const hours = Array.from({ length: 24 }, (_, i) => ({
+        hour: i,
+        hourLabel: `${i.toString().padStart(2, '0')}:00`,
+        salesPiasters: i >= 9 && i <= 22 ? Math.round(50000 + Math.sin((i - 9) / 4) * 150000) : 0,
+        invoicesCount: i >= 9 && i <= 22 ? Math.round(3 + Math.sin((i - 9) / 4) * 12) : 0,
+        returnsPiasters: 0,
+      }));
+      return {
+        period: payload?.period || 'today',
+        peakHour: 19,
+        peakHourLabel: '19:00',
+        peakHourSalesPiasters: 200000,
+        peakHourInvoicesCount: 15,
+        hours,
+      };
+    }
+
+    case 'reports:getDeadStock': {
+      const daysThreshold = payload?.daysThreshold || 90;
+      return {
+        totalDeadItemsCount: 2,
+        totalTiedCapitalPiasters: 145000,
+        daysThreshold,
+        items: [
+          {
+            productId: 'p_dead_1',
+            barcode: '622100999001',
+            name: 'فيتامين سي 1000 مجم فوار',
+            categoryName: 'أدوية وفيتامينات',
+            stockMilli: 25000,
+            unit: 'علبة',
+            unitCostPiasters: 3500,
+            retailPricePiasters: 5500,
+            tiedCapitalPiasters: 87500,
+            daysInactive: 120,
+            lastSoldDate: '2026-06-25',
+          },
+          {
+            productId: 'p_dead_2',
+            barcode: '622100999002',
+            name: 'شامبو أطفال طبي 250 مل',
+            categoryName: 'عناية شخصية',
+            stockMilli: 15000,
+            unit: 'قطعة',
+            unitCostPiasters: 3800,
+            retailPricePiasters: 6000,
+            tiedCapitalPiasters: 57500,
+            daysInactive: 105,
+            lastSoldDate: '2026-07-10',
+          },
+        ],
+      };
+    }
+
+    case 'reports:getCashierPerformance': {
+      return [
+        {
+          cashierId: 'usr_admin_default',
+          cashierName: 'كاشير (1) - محمد علي',
+          role: 'admin',
+          invoicesCount: 86,
+          totalSalesPiasters: 4850000,
+          cashSalesPiasters: 3400000,
+          averageInvoicePiasters: 56395,
+          cancelledCount: 1,
+          returnsCount: 2,
+        },
+        {
+          cashierId: 'usr_cashier_2',
+          cashierName: 'كاشير (2) - أحمد سامي',
+          role: 'cashier',
+          invoicesCount: 56,
+          totalSalesPiasters: 2950000,
+          cashSalesPiasters: 1950000,
+          averageInvoicePiasters: 52678,
+          cancelledCount: 0,
+          returnsCount: 1,
+        },
+      ];
+    }
+
+    case 'reports:getPharmaExpiryHeatmap': {
+      const now = new Date();
+      const monthBuckets = Array.from({ length: 6 }, (_, i) => {
+        const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+        const ym = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+        return {
+          yearMonth: ym,
+          monthNameAr: d.toLocaleString('ar-EG', { month: 'long', year: 'numeric' }),
+          batchesCount: i === 0 ? 3 : i === 1 ? 5 : 8,
+          totalQuantityMilli: (i === 0 ? 12 : i === 1 ? 25 : 40) * 1000,
+          totalCostPiasters: (i === 0 ? 45000 : i === 1 ? 95000 : 160000),
+          totalRetailPiasters: (i === 0 ? 65000 : i === 1 ? 135000 : 220000),
+          isExpired: i === 0,
+          isUrgent: i <= 2,
+          batches: [],
+        };
+      });
+      return {
+        generatedAt: new Date().toISOString(),
+        totalBatchesCount: 45,
+        totalExpiredBatchesCount: 3,
+        totalExpiringSoonBatchesCount: 13,
+        totalCapitalAtRiskPiasters: 300000,
+        totalExpiredCapitalPiasters: 45000,
+        totalInventoryCostPiasters: 12500000,
+        monthBuckets,
+      };
+    }
+
+    case 'reports:getPharmaStagnant': {
+      return {
+        generatedAt: new Date().toISOString(),
+        thresholdDays: payload?.thresholdDays || 60,
+        totalStagnantCount: 1,
+        totalTiedCapitalPiasters: 90000,
+        items: [
+          {
+            productId: 'prod_pharma_stag_1',
+            productName: 'أوجمنتين 1 جم أقراص',
+            barcode: '622100888001',
+            scientificName: 'Amoxicillin + Clavulanic Acid',
+            dosageForm: 'أقراص',
+            manufacturerName: 'GSK',
+            stockQuantityMilli: 20000,
+            mixedStockDisplay: '20 علبة',
+            costPricePiasters: 4500,
+            totalCostPiasters: 90000,
+            sellPricePiasters: 6500,
+            closestExpiryDate: '2027-02-01',
+            closestBatchNumber: 'B-AUG-99',
+            locationCode: 'رف A-3',
+            lastSaleDate: '2026-07-01',
+            daysWithoutSale: 110,
+          },
+        ],
+      };
+    }
+
+    case 'reports:getPharmaProfitability': {
+      return {
+        generatedAt: new Date().toISOString(),
+        period: payload?.period || 'month',
+        totalSalesPiasters: 8500000,
+        totalCostPiasters: 5800000,
+        grossProfitPiasters: 2700000,
+        overallMarginBps: 3176,
+        manufacturers: [
+          {
+            manufacturerId: 'mfg_1',
+            manufacturerName: 'إيبيكو - EIPICO',
+            country: 'مصر',
+            productsCount: 35,
+            invoicesCount: 120,
+            quantitySoldMilli: 450000,
+            totalSalesPiasters: 3500000,
+            totalCostPiasters: 2350000,
+            grossProfitPiasters: 1150000,
+            profitMarginBps: 3285,
+          },
+        ],
+        activeIngredients: [
+          {
+            ingredientId: 'ing_1',
+            ingredientNameEn: 'Paracetamol',
+            ingredientNameAr: 'باراسيتامول',
+            productsCount: 8,
+            invoicesCount: 210,
+            quantitySoldMilli: 800000,
+            totalSalesPiasters: 1800000,
+            totalCostPiasters: 1100000,
+            grossProfitPiasters: 700000,
+            profitMarginBps: 3888,
+          },
+        ],
+      };
+    }
+
+    case 'reports:getDataQuality': {
+      return {
+        totalProductsAudited: 25,
+        healthyProductsCount: 25,
+        healthScorePercent: 100,
+        totalIssuesCount: 0,
+        missingCostCount: 0,
+        missingBarcodeCount: 0,
+        missingCategoryCount: 0,
+        duplicateBarcodeCount: 0,
+        negativeStockCount: 0,
+        priceBelowCostCount: 0,
+        missingPriceCount: 0,
+        orphanProductCount: 0,
+        incompleteInvoicesCount: 0,
+        suspendedTransactionsCount: 0,
+        accountingImbalanceCount: 0,
+        issues: [],
+      };
+    }
+
+    case 'reports:repairDataQuality': {
+      return {
+        success: true,
+        message: 'تم تدقيق وإصلاح كافة قيود وسجلات البيانات بنجاح تام',
+        repairedInvoicesCount: 0,
+        reconciledCustomersCount: 0,
+        reassignedOrphanProductsCount: 0,
+        clearedStaleHeldSalesCount: 0,
+      };
+    }
+
+    case 'closing:checkPreviousDay': {
+      return {
+        hasUnclosedDay: false,
+        unclosedDate: null,
+        unclosedSalesCount: 0,
+        unclosedSalesTotalPiasters: 0,
+      };
+    }
+
+    case 'closing:getPreview': {
+      const bDate = payload?.businessDate || new Date().toISOString().slice(0, 10);
+      return {
+        businessDate: bDate,
+        currentUtc: new Date().toISOString(),
+        totalSalesPiasters: 150000,
+        cashSalesPiasters: 120000,
+        cardSalesPiasters: 0,
+        instapaySalesPiasters: 15000,
+        vodafoneCashSalesPiasters: 15000,
+        creditSalesPiasters: 0,
+        returnsTotalPiasters: 0,
+        returnsCashPiasters: 0,
+        expensesPiasters: 0,
+        expensesCount: 0,
+        cancelledTotalPiasters: 0,
+        debtPaymentsPiasters: 0,
+        expectedCashPiasters: 120000,
+        grossProfitPiasters: 45000,
+        zeroCostItemsCount: 0,
+        invoicesCount: 5,
+        returnsCount: 0,
+        cancelledCount: 0,
+        isAlreadyClosed: false,
+        isDateSuspicious: false,
+      };
+    }
+
+    case 'closing:save': {
+      return {
+        id: 'closing_' + Date.now(),
+        closingNumber: 1,
+        businessDate: payload?.businessDate || new Date().toISOString().slice(0, 10),
+        closedAt: new Date().toISOString(),
+        cashierId: 'usr_admin_default',
+        cashierName: payload?.cashierName || 'كاشير (1)',
+        totalSalesPiasters: 150000,
+        cashSalesPiasters: 120000,
+        expectedCashPiasters: 120000,
+        actualCashPiasters: payload?.actualCashPiasters || 120000,
+        differencePiasters: (payload?.actualCashPiasters || 120000) - 120000,
+        grossProfitPiasters: 45000,
+        invoicesCount: 5,
+        returnsCount: 0,
+        cancelledCount: 0,
+        notes: payload?.notes || '',
+        isSealed: true,
+      };
+    }
+
+    case 'closing:getHistory': {
+      return [];
+    }
+
+    case 'closing:print': {
+      return { success: true, message: 'تم إرسال إشعار التقفيل للطابعة بنجاح' };
+    }
 
     case 'customers:getAll':
       return mockCustomers.filter((c: any) => !c.isArchived);
