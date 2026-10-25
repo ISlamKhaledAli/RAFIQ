@@ -31,7 +31,10 @@ namespace RafiqPOS.Repositories
                         s.created_by, s.created_at, s.updated_at,
                         p.name AS product_name, p.barcode AS product_barcode, p.price_piasters,
                         p.preferred_supplier_id, sup.name AS preferred_supplier_name,
-                        u.display_name AS created_by_name
+                        u.display_name AS created_by_name,
+                        COALESCE(p.stock_quantity_milli, 0) AS current_stock_milli,
+                        COALESCE(p.min_stock_quantity_milli, 0) AS min_stock_milli,
+                        COALESCE(p.unit, 'قطعة') AS product_unit
                     FROM shortage_entries s
                     LEFT JOIN products p ON s.product_id = p.id
                     LEFT JOIN suppliers sup ON p.preferred_supplier_id = sup.id
@@ -42,8 +45,15 @@ namespace RafiqPOS.Repositories
 
                 if (!string.IsNullOrEmpty(status) && status != "all")
                 {
-                    sql += " AND s.status = @status ";
-                    parameters.Add(new SQLiteParameter("@status", status));
+                    if (status == "pending" || status == "open")
+                    {
+                        sql += " AND (s.status = 'open' OR s.status = 'pending') ";
+                    }
+                    else
+                    {
+                        sql += " AND s.status = @status ";
+                        parameters.Add(new SQLiteParameter("@status", status));
+                    }
                 }
 
                 if (!string.IsNullOrEmpty(source) && source != "all")
@@ -100,7 +110,10 @@ namespace RafiqPOS.Repositories
                         s.created_by, s.created_at, s.updated_at,
                         p.name AS product_name, p.barcode AS product_barcode, p.price_piasters,
                         p.preferred_supplier_id, sup.name AS preferred_supplier_name,
-                        u.display_name AS created_by_name
+                        u.display_name AS created_by_name,
+                        COALESCE(p.stock_quantity_milli, 0) AS current_stock_milli,
+                        COALESCE(p.min_stock_quantity_milli, 0) AS min_stock_milli,
+                        COALESCE(p.unit, 'قطعة') AS product_unit
                     FROM shortage_entries s
                     LEFT JOIN products p ON s.product_id = p.id
                     LEFT JOIN suppliers sup ON p.preferred_supplier_id = sup.id
@@ -475,7 +488,8 @@ namespace RafiqPOS.Repositories
             e.CustomerName = reader["customer_name"] != DBNull.Value ? reader["customer_name"].ToString() : null;
             e.CustomerPhone = reader["customer_phone"] != DBNull.Value ? reader["customer_phone"].ToString() : null;
             e.Source = reader["source"] != DBNull.Value ? reader["source"].ToString() : "pos";
-            e.Status = reader["status"] != DBNull.Value ? reader["status"].ToString() : "open";
+            string rawStatus = reader["status"] != DBNull.Value ? reader["status"].ToString() : "pending";
+            e.Status = (rawStatus == "open") ? "pending" : rawStatus;
             e.Priority = reader["priority"] != DBNull.Value ? reader["priority"].ToString() : "normal";
             e.PurchaseId = reader["purchase_id"] != DBNull.Value ? reader["purchase_id"].ToString() : null;
             e.Notes = reader["notes"] != DBNull.Value ? reader["notes"].ToString() : null;
@@ -489,6 +503,9 @@ namespace RafiqPOS.Repositories
             e.PreferredSupplierId = reader["preferred_supplier_id"] != DBNull.Value ? reader["preferred_supplier_id"].ToString() : null;
             e.PreferredSupplierName = reader["preferred_supplier_name"] != DBNull.Value ? reader["preferred_supplier_name"].ToString() : null;
             e.CreatedByName = reader["created_by_name"] != DBNull.Value ? reader["created_by_name"].ToString() : null;
+            e.CurrentStockMilli = reader["current_stock_milli"] != DBNull.Value ? Convert.ToInt32(reader["current_stock_milli"]) : 0;
+            e.MinStockMilli = reader["min_stock_milli"] != DBNull.Value ? Convert.ToInt32(reader["min_stock_milli"]) : 0;
+            e.Unit = reader["product_unit"] != DBNull.Value ? reader["product_unit"].ToString() : "قطعة";
 
             return e;
         }

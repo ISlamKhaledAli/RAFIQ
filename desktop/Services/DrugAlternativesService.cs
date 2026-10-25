@@ -80,6 +80,7 @@ namespace RafiqPOS.Services
                 string candSql = @"
                     SELECT 
                         p.id, p.name, p.barcode, p.price_piasters, p.stock_quantity_milli, p.is_cold_chain,
+                        COALESCE(p.unit, 'عبوة') AS unit,
                         COALESCE(pi.scientific_name, dr.scientific_name, '') AS scientific_name,
                         COALESCE(pi.dosage_form_id, '') AS dosage_form_id,
                         COALESCE(df.name_ar, dr.form, '') AS dosage_form_name,
@@ -110,6 +111,7 @@ namespace RafiqPOS.Services
                                 ProductId = pid,
                                 Name = reader["name"].ToString(),
                                 Barcode = reader["barcode"] != DBNull.Value ? reader["barcode"].ToString() : "",
+                                Unit = reader["unit"] != DBNull.Value ? reader["unit"].ToString() : "عبوة",
                                 PricePiasters = Convert.ToInt64(reader["price_piasters"]),
                                 StockQuantityMilli = Convert.ToInt32(reader["stock_quantity_milli"]),
                                 IsColdChain = Convert.ToInt32(reader["is_cold_chain"]) == 1,
@@ -302,7 +304,8 @@ namespace RafiqPOS.Services
                         TierDescription = tierDesc,
                         NearestExpiryDate = cand.NearestExpiryDate,
                         PriceDifferencePiasters = cand.PricePiasters - targetProduct.PricePiasters,
-                        IsColdChain = cand.IsColdChain
+                        IsColdChain = cand.IsColdChain,
+                        Unit = cand.Unit
                     };
 
                     if (tier == 1) result.ExactGenerics.Add(item);
@@ -424,6 +427,7 @@ namespace RafiqPOS.Services
             public string ProductId { get; set; }
             public string Name { get; set; }
             public string Barcode { get; set; }
+            public string Unit { get; set; }
             public long PricePiasters { get; set; }
             public int StockQuantityMilli { get; set; }
             public bool IsColdChain { get; set; }

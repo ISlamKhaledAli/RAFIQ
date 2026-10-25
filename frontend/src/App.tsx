@@ -45,6 +45,7 @@ import {
   ClipboardList,
   FileSpreadsheet,
   Percent,
+  Keyboard,
 } from 'lucide-react';
 import { 
   NotificationBellButton, 
@@ -88,6 +89,7 @@ import { LicenseExpiredLockScreen } from './components/LicenseExpiredLockScreen'
 import type { LicenseExpiryDetails } from './components/LicenseExpiredLockScreen';
 import { LicenseModal } from './components/LicenseModal';
 import { HelpCenterModal } from './components/HelpCenterModal';
+import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { RecoveryCodeModal } from './components/RecoveryCodeModal';
 import { useFeatures } from './context/useFeatures';
 import { useAuth } from './context/useAuth';
@@ -265,16 +267,25 @@ export default function App() {
     return () => window.removeEventListener('rafiq:open-help', handleHelpEvent);
   }, [openHelpCenterModal, effectiveActiveTab]);
 
+  const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
+
   useEffect(() => {
     const handleGlobalF1 = (e: KeyboardEvent) => {
       if (e.key === 'F1') {
         e.preventDefault();
-        openHelpCenterModal(effectiveActiveTab);
+        setIsShortcutsModalOpen((prev) => !prev);
       }
     };
+    const handleOpenShortcutsEvent = () => setIsShortcutsModalOpen(true);
+
     window.addEventListener('keydown', handleGlobalF1);
-    return () => window.removeEventListener('keydown', handleGlobalF1);
-  }, [openHelpCenterModal, effectiveActiveTab]);
+    window.addEventListener('rafiq:open-shortcuts', handleOpenShortcutsEvent);
+
+    return () => {
+      window.removeEventListener('keydown', handleGlobalF1);
+      window.removeEventListener('rafiq:open-shortcuts', handleOpenShortcutsEvent);
+    };
+  }, []);
   const [isLockScreenOpen, setIsLockScreenOpen] = useState(false);
   const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
   const [isLicenseReadOnlyMode, setIsLicenseReadOnlyMode] = useState(false);
@@ -1198,6 +1209,20 @@ export default function App() {
             )}
           </button>
 
+          {/* Universal Keyboard Shortcuts Guide Button (F1) */}
+          <button
+            type="button"
+            onClick={() => setIsShortcutsModalOpen(true)}
+            className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-lg bg-surface dark:bg-surface-dark-2 hover:bg-brand-soft/70 dark:hover:bg-brand-dark-soft border border-line dark:border-line-dark hover:border-brand/40 text-ink dark:text-ink-dark text-xs font-bold shadow-2xs hover:shadow-xs active:scale-[0.98] transition-all cursor-pointer shrink-0"
+            title="دليل اختصارات الكيبورد الذكي السريع لكافة الشاشات (F1)"
+          >
+            <Keyboard className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
+            <span className="hidden xl:inline text-[11.5px]">الاختصارات</span>
+            <kbd className="hidden sm:inline-flex items-center justify-center px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark text-brand dark:text-brand-bright shadow-2xs">
+              F1
+            </kbd>
+          </button>
+
           {/* Notification Bell Button with live Badge */}
           <NotificationBellButton
             count={systemNotifications.length}
@@ -2079,6 +2104,12 @@ export default function App() {
         isOpen={isHelpCenterOpen}
         onClose={() => setIsHelpCenterOpen(false)}
         initialSection={helpCenterSection}
+      />
+
+      {/* Universal Store-Aware Keyboard Shortcuts Modal (F1) */}
+      <KeyboardShortcutsModal
+        isOpen={isShortcutsModalOpen}
+        onClose={() => setIsShortcutsModalOpen(false)}
       />
 
       {/* Step 0b / F-42: Dual-Wrap Backup Recovery Code Display Modal */}

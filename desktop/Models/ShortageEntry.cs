@@ -39,14 +39,57 @@ namespace RafiqPOS.Models
         [JsonProperty("source")]
         public string Source { get; set; } // "pos", "low_stock", "manual"
 
+        private string _status = "pending";
+
         [JsonProperty("status")]
-        public string Status { get; set; } // "open", "ordered", "received", "cancelled"
+        public string Status
+        {
+            get
+            {
+                if (_status == "open") return "pending";
+                return _status;
+            }
+            set
+            {
+                _status = value;
+            }
+        }
 
         [JsonProperty("priority")]
         public string Priority { get; set; } // "normal", "urgent"
 
+        [JsonProperty("urgency")]
+        public string Urgency
+        {
+            get { return Priority == "urgent" ? "urgent" : (Priority == "critical" ? "critical" : "normal"); }
+            set { Priority = value; }
+        }
+
+        [JsonProperty("requestedQuantityMilli")]
+        public int RequestedQuantityMilli
+        {
+            get { return RequestedQtyMilli; }
+            set { RequestedQtyMilli = value; }
+        }
+
+        [JsonProperty("barcode")]
+        public string Barcode
+        {
+            get { return ProductBarcode; }
+            set { ProductBarcode = value; }
+        }
+
         [JsonProperty("purchaseId")]
         public string PurchaseId { get; set; }
+
+        [JsonProperty("currentStockMilli")]
+        public int CurrentStockMilli { get; set; }
+
+        [JsonProperty("minStockMilli")]
+        public int MinStockMilli { get; set; }
+
+        [JsonProperty("unit")]
+        public string Unit { get; set; }
 
         [JsonProperty("notes")]
         public string Notes { get; set; }
@@ -94,11 +137,25 @@ namespace RafiqPOS.Models
         [JsonProperty("itemName")]
         public string ItemName { get; set; }
 
+        [JsonProperty("productName")]
+        public string ProductName
+        {
+            get { return ItemName; }
+            set { ItemName = value; }
+        }
+
         [JsonProperty("requestCount")]
         public int RequestCount { get; set; }
 
         [JsonProperty("totalRequestedQtyMilli")]
         public int TotalRequestedQtyMilli { get; set; }
+
+        [JsonProperty("totalRequestedQuantityMilli")]
+        public int TotalRequestedQuantityMilli
+        {
+            get { return TotalRequestedQtyMilli; }
+            set { TotalRequestedQtyMilli = value; }
+        }
 
         [JsonProperty("unitPricePiasters")]
         public long UnitPricePiasters { get; set; }
@@ -118,14 +175,35 @@ namespace RafiqPOS.Models
         [JsonProperty("totalRequests")]
         public int TotalRequests { get; set; }
 
+        [JsonProperty("totalUnmetRequestsCount")]
+        public int TotalUnmetRequestsCount
+        {
+            get { return TotalRequests; }
+            set { TotalRequests = value; }
+        }
+
         [JsonProperty("uniqueProductsCount")]
         public int UniqueProductsCount { get; set; }
 
         [JsonProperty("totalLostRevenuePiasters")]
         public long TotalLostRevenuePiasters { get; set; }
 
+        [JsonProperty("totalEstimatedLostRevenuePiasters")]
+        public long TotalEstimatedLostRevenuePiasters
+        {
+            get { return TotalLostRevenuePiasters; }
+            set { TotalLostRevenuePiasters = value; }
+        }
+
         [JsonProperty("items")]
         public List<LostSalesReportItem> Items { get; set; }
+
+        [JsonProperty("topRequestedProducts")]
+        public List<LostSalesReportItem> TopRequestedProducts
+        {
+            get { return Items; }
+            set { Items = value; }
+        }
 
         public LostSalesReportSummary()
         {
@@ -144,11 +222,21 @@ namespace RafiqPOS.Models
         [JsonProperty("supplierName")]
         public string SupplierName { get; set; }
 
+        [JsonProperty("supplierPhone")]
+        public string SupplierPhone { get; set; }
+
         [JsonProperty("shortageIds")]
         public List<string> ShortageIds { get; set; }
 
         [JsonProperty("lines")]
         public List<ShortagePurchaseProposalLine> Lines { get; set; }
+
+        [JsonProperty("items")]
+        public List<ShortagePurchaseProposalLine> Items
+        {
+            get { return Lines; }
+            set { Lines = value; }
+        }
 
         public ShortagePurchaseProposal()
         {
@@ -168,11 +256,34 @@ namespace RafiqPOS.Models
         [JsonProperty("barcode")]
         public string Barcode { get; set; }
 
+        [JsonProperty("unit")]
+        public string Unit { get; set; }
+
         [JsonProperty("suggestedQtyMilli")]
         public int SuggestedQtyMilli { get; set; }
 
+        [JsonProperty("suggestedQuantityMilli")]
+        public int SuggestedQuantityMilli
+        {
+            get { return SuggestedQtyMilli; }
+            set { SuggestedQtyMilli = value; }
+        }
+
         [JsonProperty("costPricePiasters")]
         public long CostPricePiasters { get; set; }
+
+        [JsonProperty("costPiasters")]
+        public long CostPiasters
+        {
+            get { return CostPricePiasters; }
+            set { CostPricePiasters = value; }
+        }
+
+        [JsonProperty("totalEstimatedCostPiasters")]
+        public long TotalEstimatedCostPiasters
+        {
+            get { return (long)Math.Round((double)SuggestedQtyMilli / 1000.0 * CostPricePiasters); }
+        }
 
         [JsonProperty("shortageCount")]
         public int ShortageCount { get; set; }

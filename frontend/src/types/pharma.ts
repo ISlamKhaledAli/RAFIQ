@@ -58,13 +58,16 @@ export interface ProductPharmaInfo {
 
 export interface DrugAlternativeItem {
   productId: string;
+  name?: string;
   productName: string;
+  barcode?: string;
   scientificName?: string | null;
   dosageFormName?: string | null;
   manufacturerName?: string | null;
   pricePiasters: number;
   stockQuantityMilli: number;
-  unit: string;
+  compoundStockDisplay?: string;
+  unit?: string;
   matchTier: number;
   matchReason?: string | null;
   priceDifferencePiasters: number;

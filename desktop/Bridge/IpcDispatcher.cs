@@ -351,6 +351,7 @@ namespace RafiqPOS.Bridge
             { "locations:getProducts", "stock.view" },
 
             // Shortages (Feature #186 / Story 129)
+            { "shortages:getAll", "shortage.view" },
             { "shortages:list", "shortage.view" },
             { "shortages:get", "shortage.view" },
             { "shortages:save", "shortage.manage" },
@@ -358,6 +359,7 @@ namespace RafiqPOS.Bridge
             { "shortages:delete", "shortage.manage" },
             { "shortages:convertToPurchase", "shortage.convert_to_purchase" },
             { "shortages:getAuto", "shortage.view" },
+            { "shortages:getAutoShortages", "shortage.view" },
             { "shortages:getLostSalesReport", "shortage.view" },
 
             // Pharmacy & Alternatives (Feature #187 / Story 130)

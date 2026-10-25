@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   ShoppingCart,
-  Receipt,
-  Building2,
   ArrowRight,
-  ClipboardList,
   RotateCcw,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
@@ -724,7 +721,7 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
             </button>
           )}
 
-          {activeTab === 'new_invoice' ? (
+          {activeTab === 'new_invoice' && (
             <button
               type="button"
               onClick={handleRequestCancelNewPurchase}
@@ -734,27 +731,6 @@ export const PurchasesView: React.FC<PurchasesViewProps> = ({ isActive = true, s
               <ArrowRight className="w-3.5 h-3.5" />
               <span>العودة للفواتير</span>
             </button>
-          ) : (
-            <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark shadow-2xs">
-              {activeTab === 'invoices' && (
-                <>
-                  <Receipt className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-                  <span>فواتير المشتريات</span>
-                </>
-              )}
-              {activeTab === 'suppliers' && (
-                <>
-                  <Building2 className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-                  <span>دليل الموردين</span>
-                </>
-              )}
-              {activeTab === 'shortages' && (
-                <>
-                  <ClipboardList className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
-                  <span>دفتر النواقص والطلبيات</span>
-                </>
-              )}
-            </div>
           )}
         </div>
       </header>

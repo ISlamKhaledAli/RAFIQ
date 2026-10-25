@@ -14,6 +14,7 @@ namespace RafiqPOS.Bridge
             response = null;
             switch (request.Action)
             {
+                case "shortages:getAll":
                 case "shortages:list":
                     string status = null;
                     string source = null;
@@ -157,9 +158,16 @@ namespace RafiqPOS.Bridge
                     return true;
 
                 case "shortages:getAuto":
+                case "shortages:getAutoShortages":
                     try
                     {
-                        var autoList = DatabaseService.Shortages.GetAutoShortages();
+                        int coverDays = 15;
+                        var aObj = request.Payload as JObject;
+                        if (aObj != null && aObj["targetCoverDays"] != null)
+                        {
+                            int.TryParse(aObj["targetCoverDays"].ToString(), out coverDays);
+                        }
+                        var autoList = DatabaseService.Shortages.GetAutoShortages(coverDays);
                         response = BridgeResponse.Ok(request.Id, autoList);
                     }
                     catch (Exception ex)
@@ -178,6 +186,14 @@ namespace RafiqPOS.Bridge
                         {
                             if (rObj["fromDate"] != null) fromDate = rObj["fromDate"].ToString();
                             if (rObj["toDate"] != null) toDate = rObj["toDate"].ToString();
+                            if (rObj["days"] != null)
+                            {
+                                int daysVal = 30;
+                                if (int.TryParse(rObj["days"].ToString(), out daysVal))
+                                {
+                                    fromDate = DateTime.UtcNow.AddDays(-daysVal).ToString("yyyy-MM-dd HH:mm:ss");
+                                }
+                            }
                         }
                         var report = DatabaseService.Shortages.GetLostSalesReport(fromDate, toDate);
                         response = BridgeResponse.Ok(request.Id, report);

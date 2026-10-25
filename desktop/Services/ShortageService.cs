@@ -56,28 +56,44 @@ namespace RafiqPOS.Services
         }
 
         /// <summary>
-        /// محرك كشف وتتبع النواقص التلقائي للأصناف التي بلغت حد الطلب وحساب معدل السحب (Task 186-3)
+        /// محرك كشف وتتبع النواقص التلقائي للأصناف التي بلغت حد الطلب أو قاربت على النفاد بناء على معدل السحب (Task 186-3)
         /// </summary>
-        public List<ShortageEntry> GetAutoShortages()
+        public List<ShortageEntry> GetAutoShortages(int targetCoverDays = 15)
         {
             var list = new List<ShortageEntry>();
+            if (targetCoverDays <= 0) targetCoverDays = 15;
 
             using (var conn = new SQLiteConnection(_connectionString))
             {
                 conn.Open();
 
-                // Select products where stock <= min_stock
+                // استخراج الأصناف المستهدفة:
+                // 1) تحت حد الطلب الأدنى
+                // 2) نفدت تماماً من المخزن (رصيدها صفر أو أقل)
+                // 3) أصناف سريعة البيع في آخر 30 يوماً ورصيدها المتبقي يغطي أقل من 5 أيام استهلاك
                 string sql = @"
                     SELECT 
                         p.id, p.name, p.barcode, p.stock_quantity_milli, p.min_stock_quantity_milli,
                         p.cost_piasters, p.price_piasters, p.preferred_supplier_id,
-                        sup.name AS preferred_supplier_name
+                        sup.name AS preferred_supplier_name,
+                        COALESCE(sales_summary.total_sold_milli, 0) AS total_sold_milli
                     FROM products p
                     LEFT JOIN suppliers sup ON p.preferred_supplier_id = sup.id
-                    WHERE p.is_active = 1 
-                      AND p.stock_quantity_milli <= p.min_stock_quantity_milli
-                      AND p.min_stock_quantity_milli > 0
-                    ORDER BY p.name ASC;";
+                    LEFT JOIN (
+                        SELECT si.product_id, SUM(si.quantity_milli) AS total_sold_milli
+                        FROM sale_items si
+                        JOIN sales s ON si.sale_id = s.id
+                        WHERE s.status = 'completed'
+                          AND s.created_at >= datetime('now', '-30 days')
+                        GROUP BY si.product_id
+                    ) sales_summary ON p.id = sales_summary.product_id
+                    WHERE p.is_active = 1
+                      AND (
+                          (p.min_stock_quantity_milli > 0 AND p.stock_quantity_milli <= p.min_stock_quantity_milli)
+                          OR (p.stock_quantity_milli <= 0)
+                          OR (sales_summary.total_sold_milli > 0 AND p.stock_quantity_milli < (sales_summary.total_sold_milli / 30) * 5)
+                      )
+                    ORDER BY p.stock_quantity_milli ASC, total_sold_milli DESC;";
 
                 var candidates = new List<ProductCandidate>();
 
@@ -95,61 +111,100 @@ namespace RafiqPOS.Services
                             MinStockQuantityMilli = Convert.ToInt32(reader["min_stock_quantity_milli"]),
                             PricePiasters = Convert.ToInt64(reader["price_piasters"]),
                             PreferredSupplierId = reader["preferred_supplier_id"] != DBNull.Value ? reader["preferred_supplier_id"].ToString() : null,
-                            PreferredSupplierName = reader["preferred_supplier_name"] != DBNull.Value ? reader["preferred_supplier_name"].ToString() : null
+                            PreferredSupplierName = reader["preferred_supplier_name"] != DBNull.Value ? reader["preferred_supplier_name"].ToString() : null,
+                            TotalSoldLast30DaysMilli = Convert.ToInt32(reader["total_sold_milli"])
                         });
                     }
                 }
 
-                // For each candidate, calculate average daily consumption in the last 30 days
+                // فحص وحفظ كل صنف في جدول النواقص تلقائياً
                 for (int i = 0; i < candidates.Count; i++)
                 {
                     var c = candidates[i];
-                    int dailyRateMilli = 0;
+                    int dailyRateMilli = (int)Math.Ceiling((double)c.TotalSoldLast30DaysMilli / 30.0);
 
-                    using (var rateCmd = new SQLiteCommand(@"
-                        SELECT COALESCE(SUM(si.quantity_milli), 0)
-                        FROM sale_items si
-                        JOIN sales s ON si.sale_id = s.id
-                        WHERE si.product_id = @pid
-                          AND s.status = 'completed'
-                          AND s.created_at >= datetime('now', '-30 days');", conn))
+                    // حساب الكمية المقترحة لإعادة الطلب
+                    int targetStockMilli = Math.Max(c.MinStockQuantityMilli * 2, dailyRateMilli * targetCoverDays);
+                    if (targetStockMilli <= 0) targetStockMilli = 1000;
+
+                    int suggestedQtyMilli = targetStockMilli - c.StockQuantityMilli;
+                    if (suggestedQtyMilli <= 0)
                     {
-                        rateCmd.Parameters.AddWithValue("@pid", c.Id);
-                        var sumSold = rateCmd.ExecuteScalar();
-                        if (sumSold != null && sumSold != DBNull.Value)
+                        suggestedQtyMilli = c.MinStockQuantityMilli > 0 ? c.MinStockQuantityMilli : 1000;
+                    }
+
+                    // التحقق مما إذا كان هناك قيد نواقص مفتوح مسبقاً لهذا الصنف
+                    string existingId = null;
+                    int existingQtyMilli = 0;
+                    using (var checkCmd = new SQLiteCommand(@"
+                        SELECT id, requested_qty_milli 
+                        FROM shortage_entries 
+                        WHERE product_id = @pid 
+                          AND status IN ('open', 'pending') 
+                        LIMIT 1;", conn))
+                    {
+                        checkCmd.Parameters.AddWithValue("@pid", c.Id);
+                        using (var checkReader = checkCmd.ExecuteReader())
                         {
-                            int totalSoldMilli = Convert.ToInt32(sumSold);
-                            dailyRateMilli = (int)Math.Ceiling((double)totalSoldMilli / 30.0);
+                            if (checkReader.Read())
+                            {
+                                existingId = checkReader["id"].ToString();
+                                existingQtyMilli = Convert.ToInt32(checkReader["requested_qty_milli"]);
+                            }
                         }
                     }
 
-                    // Suggested order quantity:
-                    // If daily demand is available, order for 14 days minus current stock, or at least double min_stock
-                    int targetStockMilli = Math.Max(c.MinStockQuantityMilli * 2, dailyRateMilli * 14);
-                    int suggestedQtyMilli = targetStockMilli - c.StockQuantityMilli;
-                    if (suggestedQtyMilli <= 0) suggestedQtyMilli = c.MinStockQuantityMilli > 0 ? c.MinStockQuantityMilli : 1000;
+                    string urgency = c.StockQuantityMilli <= 0 ? "urgent" : (dailyRateMilli > 0 && c.StockQuantityMilli < dailyRateMilli * 2 ? "urgent" : "normal");
+                    string analysisNote = string.Format("فحص ذكي: رصيد حالي {0}، حد أدنى {1}، معدل سحب يومي {2}، تغطية {3} يوم",
+                        FormatMilli(c.StockQuantityMilli), FormatMilli(c.MinStockQuantityMilli), FormatMilli(dailyRateMilli), targetCoverDays);
 
-                    var entry = new ShortageEntry
+                    if (!string.IsNullOrEmpty(existingId))
                     {
-                        Id = "auto_" + c.Id,
-                        ProductId = c.Id,
-                        ProductName = c.Name,
-                        ProductBarcode = c.Barcode,
-                        FreeText = c.Name,
-                        RequestedQtyMilli = suggestedQtyMilli,
-                        Source = "low_stock",
-                        Status = "open",
-                        Priority = c.StockQuantityMilli <= 0 ? "urgent" : "normal",
-                        UnitPricePiasters = c.PricePiasters,
-                        PreferredSupplierId = c.PreferredSupplierId,
-                        PreferredSupplierName = c.PreferredSupplierName,
-                        Notes = string.Format("حد الطلب التلقائي: الرصيد الحالي {0}، الحد الأدنى {1}، معدل السحب اليومي {2}",
-                            FormatMilli(c.StockQuantityMilli), FormatMilli(c.MinStockQuantityMilli), FormatMilli(dailyRateMilli)),
-                        CreatedBy = "system",
-                        CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")
-                    };
+                        // الصنف مسجل بالفعل، نقوم بتحديث الكمية فقط إذا كانت الكمية المحسوبة حالياً أكبر
+                        if (suggestedQtyMilli > existingQtyMilli)
+                        {
+                            using (var updateCmd = new SQLiteCommand(@"
+                                UPDATE shortage_entries 
+                                SET requested_qty_milli = @qty, notes = @notes, updated_at = @now 
+                                WHERE id = @id;", conn))
+                            {
+                                updateCmd.Parameters.AddWithValue("@qty", suggestedQtyMilli);
+                                updateCmd.Parameters.AddWithValue("@notes", analysisNote);
+                                updateCmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"));
+                                updateCmd.Parameters.AddWithValue("@id", existingId);
+                                updateCmd.ExecuteNonQuery();
+                            }
+                        }
 
-                    list.Add(entry);
+                        var existingEntry = _shortageRepo.GetById(existingId);
+                        if (existingEntry != null) list.Add(existingEntry);
+                    }
+                    else
+                    {
+                        // إنشاء قيد نواقص جديد في قاعدة البيانات
+                        var entry = new ShortageEntry
+                        {
+                            Id = "sht_auto_" + Guid.NewGuid().ToString("N"),
+                            ProductId = c.Id,
+                            ProductName = c.Name,
+                            ProductBarcode = c.Barcode,
+                            FreeText = c.Name,
+                            RequestedQtyMilli = suggestedQtyMilli,
+                            Source = "auto_reorder",
+                            Status = "pending",
+                            Priority = urgency,
+                            UnitPricePiasters = c.PricePiasters,
+                            PreferredSupplierId = c.PreferredSupplierId,
+                            PreferredSupplierName = c.PreferredSupplierName,
+                            Notes = analysisNote,
+                            CreatedBy = "نظام الفحص الذكي",
+                            CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")
+                        };
+
+                        var savedEntry = _shortageRepo.Save(entry, "system");
+                        if (savedEntry != null) list.Add(savedEntry);
+                        else list.Add(entry);
+                    }
                 }
             }
 
@@ -172,6 +227,7 @@ namespace RafiqPOS.Services
             public long PricePiasters { get; set; }
             public string PreferredSupplierId { get; set; }
             public string PreferredSupplierName { get; set; }
+            public int TotalSoldLast30DaysMilli { get; set; }
         }
     }
 }

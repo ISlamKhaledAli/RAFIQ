@@ -13,9 +13,10 @@ import {
   Package,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
-import type { Product } from '../types/models';
+import { extractProducts, type Product } from '../types/models';
 import type { ShortageEntry } from '../types/shortage';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { useAuth } from '../context/useAuth';
 
 interface QuickShortageModalProps {
   isOpen: boolean;
@@ -32,13 +33,14 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
   initialProductId = '',
   onSuccess,
 }) => {
+  const { currentUser } = useAuth();
   const [productName, setProductName] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [quantity, setQuantity] = useState('1');
   const [urgency, setUrgency] = useState<'normal' | 'urgent' | 'critical'>('normal');
-  const [source, setSource] = useState<'manual_pos' | 'customer_request'>('customer_request');
+  const [source, setSource] = useState<'manual_pos' | 'customer_request'>('manual_pos');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [notes, setNotes] = useState('');
@@ -53,12 +55,13 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
       setProductName(initialProductName);
       setQuantity('1');
       setUrgency('normal');
-      setSource('customer_request');
+      setSource('manual_pos');
       setCustomerName('');
       setCustomerPhone('');
       setNotes('');
       setError(null);
       setSearchResults([]);
+      setIsSearching(false);
 
       if (initialProductId) {
         void invoke<Product>('products:getById', { id: initialProductId }).then((prod) => {
@@ -94,20 +97,22 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
     setIsSearching(true);
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        const prods = await invoke<Product[]>('products:search', { query: val.trim(), limit: 5 });
-        setSearchResults(prods || []);
+        const res = await invoke<unknown>('products:search', { query: val.trim(), limit: 8 });
+        const prods = extractProducts(res);
+        setSearchResults(prods);
       } catch {
         setSearchResults([]);
       } finally {
         setIsSearching(false);
       }
-    }, 250);
+    }, 200);
   };
 
   const handleSelectProduct = (prod: Product) => {
     setSelectedProduct(prod);
     setProductName(prod.name);
     setSearchResults([]);
+    setIsSearching(false);
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -136,8 +141,10 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
         requestedQuantityMilli: Math.round(qtyNum * 1000),
         currentStockMilli: selectedProduct?.stockQuantityMilli || 0,
         minStockMilli: selectedProduct?.minStockQuantityMilli || 0,
-        customerName: customerName.trim() || null,
-        customerPhone: customerPhone.trim() || null,
+        customerName: source === 'customer_request' ? (customerName.trim() || null) : null,
+        customerPhone: source === 'customer_request' ? (customerPhone.trim() || null) : null,
+        recordedByUserId: currentUser?.id || null,
+        recordedByUserName: currentUser?.displayName || currentUser?.username || 'الكاشير',
         urgency,
         source,
         notes: notes.trim() || null,
@@ -216,11 +223,11 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
                 value={productName}
                 onChange={(e) => handleNameChange(e.target.value)}
                 placeholder="اكتب اسم الصنف أو ابحث في الكتالوج..."
-                className="w-full h-10 px-3 pr-9 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-semibold text-ink dark:text-ink-dark focus:outline-none focus:border-brand shadow-2xs"
+                className="w-full h-10 px-3 pr-9 pl-24 rounded-xl bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-semibold text-ink dark:text-ink-dark focus:outline-none focus:border-brand shadow-2xs"
               />
               <Search className="w-4 h-4 text-ink-muted absolute right-3 top-3 pointer-events-none" />
               {isSearching && (
-                <div className="absolute left-3 top-3 text-[11px] text-ink-muted animate-pulse">
+                <div className="absolute left-3 top-3 text-[11px] text-brand dark:text-brand-bright font-bold animate-pulse pointer-events-none">
                   جاري البحث...
                 </div>
               )}
@@ -332,20 +339,8 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setSource('customer_request')}
-                className={`flex items-center justify-center gap-2 h-9 px-3 rounded-xl border text-xs font-bold transition-all ${
-                  source === 'customer_request'
-                    ? 'border-brand bg-brand-soft/40 dark:bg-brand-soft/20 text-brand dark:text-brand-bright'
-                    : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink-muted'
-                }`}
-              >
-                <User className="w-3.5 h-3.5" />
-                <span>طلب عميل (زبون بالصيدلية/المحل)</span>
-              </button>
-              <button
-                type="button"
                 onClick={() => setSource('manual_pos')}
-                className={`flex items-center justify-center gap-2 h-9 px-3 rounded-xl border text-xs font-bold transition-all ${
+                className={`flex items-center justify-center gap-2 h-9 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
                   source === 'manual_pos'
                     ? 'border-brand bg-brand-soft/40 dark:bg-brand-soft/20 text-brand dark:text-brand-bright'
                     : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink-muted'
@@ -354,38 +349,64 @@ export const QuickShortageModal: React.FC<QuickShortageModalProps> = ({
                 <ClipboardList className="w-3.5 h-3.5" />
                 <span>ملاحظة كاشير / جرد رف</span>
               </button>
+              <button
+                type="button"
+                onClick={() => setSource('customer_request')}
+                className={`flex items-center justify-center gap-2 h-9 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                  source === 'customer_request'
+                    ? 'border-brand bg-brand-soft/40 dark:bg-brand-soft/20 text-brand dark:text-brand-bright'
+                    : 'border-line dark:border-line-dark bg-surface dark:bg-surface-dark text-ink-muted'
+                }`}
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>طلب عميل (زبون بالصيدلية/المحل)</span>
+              </button>
             </div>
           </div>
 
-          {/* Customer info (if customer request) */}
-          <div className="p-3 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-2.5">
-            <div className="text-[11px] font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5 text-brand" />
-              <span>بيانات العميل للاتصال به عند توافر الصنف (اختياري)</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="relative">
-                <input
-                  type="text"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="اسم العميل"
-                  className="w-full h-8 px-2.5 pr-8 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
-                />
-                <User className="w-3.5 h-3.5 text-ink-muted absolute right-2.5 top-2 pointer-events-none" />
+          {/* Conditional Customer Info vs Cashier Auto-Identity */}
+          {source === 'customer_request' ? (
+            <div className="p-3 rounded-xl bg-surface-2 dark:bg-surface-dark-2 border border-line dark:border-line-dark flex flex-col gap-2.5 animate-in fade-in">
+              <div className="text-[11px] font-bold text-ink dark:text-ink-dark flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-brand dark:text-brand-bright" />
+                <span>بيانات العميل للاتصال به عند توافر الصنف (اختياري)</span>
               </div>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  placeholder="رقم الهاتف"
-                  className="w-full h-8 px-2.5 pr-8 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
-                />
-                <Phone className="w-3.5 h-3.5 text-ink-muted absolute right-2.5 top-2 pointer-events-none" />
+              <div className="grid grid-cols-2 gap-2">
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="اسم العميل"
+                    className="w-full h-8 px-2.5 pr-8 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
+                  />
+                  <User className="w-3.5 h-3.5 text-ink-muted absolute right-2.5 top-2 pointer-events-none" />
+                </div>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    placeholder="رقم الهاتف"
+                    className="w-full h-8 px-2.5 pr-8 rounded-lg bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-xs font-mono text-ink dark:text-ink-dark focus:outline-none focus:border-brand"
+                  />
+                  <Phone className="w-3.5 h-3.5 text-ink-muted absolute right-2.5 top-2 pointer-events-none" />
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="p-3 rounded-xl bg-brand-soft/40 dark:bg-brand-dark-soft border border-brand/20 dark:border-brand-bright/20 flex items-center justify-between text-xs animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <Check className="w-4 h-4 text-brand dark:text-brand-bright shrink-0" />
+                <span className="font-bold text-brand dark:text-brand-bright">
+                  تسجيل كاشير: سيتم توثيق القيد باسم الكاشير المسجل حالياً تلقائياً
+                </span>
+              </div>
+              <span className="font-bold text-ink dark:text-ink-dark bg-surface dark:bg-surface-dark-3 px-2 py-0.5 rounded border border-line dark:border-line-dark shadow-2xs">
+                {currentUser?.displayName || currentUser?.username || 'الكاشير'}
+              </span>
+            </div>
+          )}
 
           {/* Notes */}
           <div>

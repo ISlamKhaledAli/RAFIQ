@@ -348,7 +348,7 @@ export const UserManagerModal: React.FC<UserManagerModalProps> = ({
       if (group.id === 'pharma' && !isEnabled('feature_pharmacy')) return false;
       if (group.id === 'insurance' && !isEnabled('feature_insurance')) return false;
       if (group.id === 'patients' && !isEnabled('feature_patient_profiles')) return false;
-      if (group.id === 'epay' && !isEnabled('feature_epay')) return false;
+      if (group.id === 'epay' && !isEnabled('feature_epay_services')) return false;
       if (group.id === 'wallets' && !isEnabled('feature_digital_wallets')) return false;
       return true;
     });
