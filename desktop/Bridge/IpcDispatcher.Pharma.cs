@@ -15,9 +15,9 @@ namespace RafiqPOS.Bridge
             string action = request.Action;
 
             // Support both colon and dot notation (e.g. pharma.getAlternatives and pharma:getAlternatives)
-            if (action == "pharma.getDrugInfo") action = "pharma:getDrugInfo";
-            else if (action == "pharma.saveDrugInfo") action = "pharma:saveDrugInfo";
-            else if (action == "pharma.getAlternatives") action = "pharma:getAlternatives";
+            if (action == "pharma.getDrugInfo" || action == "pharma:getInfo" || action == "pharma.getInfo") action = "pharma:getDrugInfo";
+            else if (action == "pharma.saveDrugInfo" || action == "pharma:saveInfo" || action == "pharma.saveInfo") action = "pharma:saveDrugInfo";
+            else if (action == "pharma.getAlternatives" || action == "pharma:findAlternatives" || action == "pharma.findAlternatives") action = "pharma:getAlternatives";
             else if (action == "pharma.searchByIngredient") action = "pharma:searchByIngredient";
 
             switch (action)
@@ -583,10 +583,24 @@ namespace RafiqPOS.Bridge
                     {
                         string b64 = null;
                         var importPJObj = request.Payload as JObject;
-                        if (importPJObj != null && importPJObj["fileBase64"] != null) b64 = importPJObj["fileBase64"].ToString();
-                        else b64 = request.Payload.ToString();
+                        if (importPJObj != null)
+                        {
+                            if (importPJObj["fileBase64"] != null) b64 = importPJObj["fileBase64"].ToString();
+                            else if (importPJObj["base64"] != null) b64 = importPJObj["base64"].ToString();
+                        }
+                        if (string.IsNullOrWhiteSpace(b64) && request.Payload != null)
+                        {
+                            b64 = request.Payload.ToString();
+                        }
 
-                        if (b64.Contains(",")) b64 = b64.Substring(b64.IndexOf(",") + 1);
+                        if (!string.IsNullOrWhiteSpace(b64) && b64.Contains(","))
+                        {
+                            b64 = b64.Substring(b64.IndexOf(",") + 1);
+                        }
+                        if (!string.IsNullOrWhiteSpace(b64))
+                        {
+                            b64 = b64.Trim().Replace(" ", "").Replace("\r", "").Replace("\n", "");
+                        }
 
                         var preview = DatabaseService.DrugReference.PreviewImport(b64);
                         response = BridgeResponse.Ok(request.Id, preview);
@@ -616,6 +630,36 @@ namespace RafiqPOS.Bridge
                             {
                                 impItems = JsonConvert.DeserializeObject<List<DrugReference>>(cObj["items"].ToString());
                             }
+                            else if (cObj["base64"] != null || cObj["fileBase64"] != null)
+                            {
+                                string b64 = (cObj["base64"] != null ? cObj["base64"] : cObj["fileBase64"]).ToString();
+                                if (b64.Contains(",")) b64 = b64.Substring(b64.IndexOf(",") + 1);
+                                b64 = b64.Trim().Replace(" ", "").Replace("\r", "").Replace("\n", "");
+                                var preview = DatabaseService.DrugReference.PreviewImport(b64);
+                                if (preview != null && preview.Rows != null)
+                                {
+                                    impItems = new List<DrugReference>();
+                                    for (int i = 0; i < preview.Rows.Count; i++)
+                                    {
+                                        var row = preview.Rows[i];
+                                        if (row != null && row.Status != "ERROR")
+                                        {
+                                            impItems.Add(new DrugReference
+                                            {
+                                                Barcode = row.Barcode,
+                                                TradeName = row.TradeName,
+                                                ScientificName = row.ScientificName,
+                                                Form = row.Form,
+                                                Strength = row.Strength,
+                                                Manufacturer = row.Manufacturer,
+                                                PackDesc = row.PackDesc,
+                                                PublicPricePiasters = row.PublicPricePiasters
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+
                             if (cObj["source"] != null)
                             {
                                 src = cObj["source"].ToString();
@@ -628,7 +672,13 @@ namespace RafiqPOS.Bridge
 
                         string actorId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
                         int importedCount = DatabaseService.DrugReference.ConfirmImport(impItems, src, actorId);
-                        response = BridgeResponse.Ok(request.Id, new { importedCount = importedCount });
+                        response = BridgeResponse.Ok(request.Id, new { 
+                            totalProcessed = impItems != null ? impItems.Count : 0,
+                            createdCount = importedCount,
+                            updatedCount = 0,
+                            failedCount = 0,
+                            importedCount = importedCount
+                        });
                     }
                     catch (Exception ex)
                     {

@@ -26,6 +26,7 @@ import {
   ClipboardCheck,
   BarChart3,
   Printer,
+  Trash2,
 } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
 import { useDataSubscription } from '../utils/eventBus';
@@ -149,11 +150,37 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [bulkPriceUndoBatchId, setBulkPriceUndoBatchId] = useState<string | null>(null);
   const [isRevertingBulkPrice, setIsRevertingBulkPrice] = useState(false);
   const [showVariantMatrixModal, setShowVariantMatrixModal] = useState(false);
+  const [showClearAllConfirm, setShowClearAllConfirm] = useState(false);
   const [matrixParentProduct, setMatrixParentProduct] = useState<Product | null>(null);
   const [selectedParentForVariants, setSelectedParentForVariants] = useState<Product | null>(null);
   const [batchesInitialSearch, setBatchesInitialSearch] = useState<string>('');
   const { isEnabled } = useFeatures();
   const { hasPermission } = useAuth();
+
+  const [storeType, setStoreType] = useState<string>(() => {
+    try {
+      return localStorage.getItem('rafiq_store_type') || localStorage.getItem('rafiq_preferred_store_type') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  useEffect(() => {
+    void invoke<Record<string, string>>('settings:getAll')
+      .then((settings) => {
+        if (settings && settings.store_type) {
+          setStoreType(settings.store_type);
+          try {
+            localStorage.setItem('rafiq_store_type', settings.store_type);
+          } catch {}
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const isPharmacy = storeType === 'pharmacy' || isEnabled('feature_pharmacy');
+  const isClothing = !isPharmacy && (storeType === 'clothing_apparel' || (storeType === '' && isEnabled('feature_matrix_variants')));
+  const isProduceOrButchery = storeType === 'produce_butchery';
 
   // Barcode Label Printing Modal State (Feature #57 / Tasks 57-1 to 57-4)
   const [showBarcodeLabelModal, setShowBarcodeLabelModal] = useState(false);
@@ -761,10 +788,18 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     try {
       setLoading(true);
       await invoke('products:delete', { id: prod.id });
-      void loadProducts(searchQuery);
+      const remainingCount = Math.max(0, totalCount - 1);
+      const maxPage = Math.max(1, Math.ceil(remainingCount / pageSize));
+      const newPage = Math.min(currentPage, maxPage);
+      setCurrentPage(newPage);
+      await loadProducts(searchQuery, newPage, pageSize);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      setFormError(`فشل حذف الصنف: ${msg}`);
+      await rafiqAlert({
+        title: 'فشل حذف الصنف',
+        message: `تعذر حذف الصنف "${prod.name}": ${msg}`,
+        variant: 'error'
+      });
     } finally {
       setLoading(false);
     }
@@ -775,12 +810,42 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setShowBulkDeleteConfirm(false);
     try {
       setLoading(true);
-      await Promise.all(selectedProductIds.map(id => invoke('products:delete', { id })));
+      await invoke('products:bulkDelete', { ids: selectedProductIds });
+      const deletedLen = selectedProductIds.length;
       setSelectedProductIds([]);
-      await loadProducts(searchQuery);
+      const remainingCount = Math.max(0, totalCount - deletedLen);
+      const maxPage = Math.max(1, Math.ceil(remainingCount / pageSize));
+      const newPage = Math.min(currentPage, maxPage);
+      setCurrentPage(newPage);
+      await loadProducts(searchQuery, newPage, pageSize);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      setFormError(`فشل حذف الأصناف المحددة: ${msg}`);
+      await rafiqAlert({
+        title: 'فشل حذف الأصناف',
+        message: `تعذر حذف الأصناف المحددة: ${msg}`,
+        variant: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClearAllProducts = async () => {
+    setShowClearAllConfirm(false);
+    try {
+      setLoading(true);
+      const res = await invoke<{ success: boolean; clearedCount: number }>('products:clearAll');
+      setSelectedProductIds([]);
+      setCurrentPage(1);
+      setImportSuccessAlert(`تم بنجاح تصفير ومسح كافة الأصناف (${res?.clearedCount || 0} صنف).`);
+      await loadProducts('', 1, pageSize, 'all', 'all');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await rafiqAlert({
+        title: 'فشل تصفير الأصناف',
+        message: `تعذر تصفير الأصناف: ${msg}`,
+        variant: 'error'
+      });
     } finally {
       setLoading(false);
     }
@@ -835,6 +900,11 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         return u;
       });
 
+      const baseUnitObj = synchronizedUnits.find(u => u.isBaseUnit);
+      const effectiveProductUnit = (baseUnitObj && baseUnitObj.unitName && baseUnitObj.unitName.trim())
+        ? baseUnitObj.unitName.trim()
+        : (unit === 'kg' ? 'kg' : 'piece');
+
       const productPayload: Partial<Product> & { confirmSimilarName?: boolean; confirmBelowCost?: boolean } = {
         name: name.trim(),
         barcode: primaryBarcode,
@@ -846,7 +916,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         costPiasters,
         stockQuantityMilli,
         minStockQuantityMilli,
-        unit,
+        unit: effectiveProductUnit as any,
         units: synchronizedUnits,
         taxRatePercent,
         isActive: true,
@@ -938,9 +1008,6 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-sm font-black text-ink dark:text-ink-dark leading-tight">دفتر حركة وجرد بضاعة المخزن</h2>
-                  <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-surface-2 dark:bg-surface-dark-2 text-ink dark:text-ink-dark font-bold border border-line dark:border-line-dark tabular-nums">
-                    {allMovements.length} حركة
-                  </span>
                   {discrepancies.length > 0 && (
                     <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 text-warn dark:text-warn-bright animate-pulse">
                       {discrepancies.length} صنف محتاج مطابقة وعدّ في المخزن
@@ -1016,7 +1083,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   title="العمليات المتقدمة، الاستيراد والتصدير، والباركود"
                 >
                   <Tag className="w-4 h-4 text-brand dark:text-brand-bright" />
-                  <span>أدوات وبضاعة المحل</span>
+                  <span>{isPharmacy ? 'أدوات وصيدلية المحل' : 'أدوات وبضاعة المحل'}</span>
                   <ChevronDown className={`w-3.5 h-3.5 text-ink-muted dark:text-ink-dark-muted transition-transform duration-150 ${isToolsDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
@@ -1026,7 +1093,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                       className="fixed inset-0 z-40" 
                       onClick={() => setIsToolsDropdownOpen(false)} 
                     />
-                    <div className="absolute left-0 top-full mt-1.5 w-64 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-card py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100 flex flex-col">
+                    <div className="absolute left-0 top-full mt-1.5 w-72 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl shadow-card py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100 flex flex-col">
+                      {/* Section 1: Excel & Files */}
                       <button
                         type="button"
                         onClick={() => {
@@ -1038,20 +1106,6 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                         <FileSpreadsheet className="w-4 h-4 text-brand dark:text-brand-bright" />
                         <span>استيراد بضاعة من شيت إكسل</span>
                       </button>
-
-                      {isEnabled('feature_drug_reference') && hasPermission('pharma.drug_reference.import') && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsToolsDropdownOpen(false);
-                            setShowDrugReferenceModal(true);
-                          }}
-                          className="w-full px-3 py-2 text-right text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer text-emerald-800 dark:text-emerald-300"
-                        >
-                          <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                          <span>دليل الأدوية المرجعي الخارجي</span>
-                        </button>
-                      )}
 
                       <button
                         type="button"
@@ -1068,6 +1122,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
                       <div className="h-px bg-line dark:bg-line-dark my-1" />
 
+                      {/* Section 2: Barcodes & Bulk Pricing */}
                       <button
                         type="button"
                         onClick={() => {
@@ -1091,7 +1146,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                         className="w-full px-3 py-2 text-right text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer disabled:opacity-50"
                       >
                         <Barcode className="w-4 h-4 text-brand dark:text-brand-bright" />
-                        <span>عمل باركود تلقائي للأصناف اللي من غير كود</span>
+                        <span>عمل باركود تلقائي للأصناف بدون كود</span>
                       </button>
 
                       <button
@@ -1106,104 +1161,142 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                         <span>تعديل أسعار وتكلفة البضاعة بالجملة</span>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsToolsDropdownOpen(false);
-                          setShowVariantMatrixModal(true);
-                        }}
-                        className="w-full px-3 py-2 text-right text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer"
-                      >
-                        <Layers className="w-4 h-4 text-brand dark:text-brand-bright" />
-                        <span>جدول المقاسات والألوان (الأصناف المتفرعة)</span>
-                      </button>
-
-                      {isEnabled('feature_shelf_locations') && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsToolsDropdownOpen(false);
-                            setShowStorageLocationsModal(true);
-                          }}
-                          className="w-full px-3 py-2 text-right text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer"
-                        >
-                          <Layers className="w-4 h-4 text-brand dark:text-brand-bright" />
-                          <span>إدارة مواقع التخزين والرفوف والأدراج</span>
-                        </button>
+                      {/* Section 3: Storage Locations (if enabled and applicable) */}
+                      {isEnabled('feature_shelf_locations') && !isProduceOrButchery && (
+                        <>
+                          <div className="h-px bg-line dark:bg-line-dark my-1" />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsToolsDropdownOpen(false);
+                              setShowStorageLocationsModal(true);
+                            }}
+                            className="w-full px-3 py-2 text-right text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer"
+                          >
+                            <Layers className="w-4 h-4 text-brand dark:text-brand-bright" />
+                            <span>{isPharmacy ? 'أدراج وثلاجة ورفوف الصيدلية' : 'إدارة مواقع التخزين والرفوف والأدراج'}</span>
+                          </button>
+                        </>
                       )}
 
-                      {isEnabled('feature_pharmacy') && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsToolsDropdownOpen(false);
-                            setShowControlledRegisterModal(true);
-                          }}
-                          className="w-full px-3 py-2 text-right text-xs font-bold text-warn hover:bg-warn-soft/20 flex items-center gap-2.5 transition-colors cursor-pointer"
-                        >
-                          <ShieldAlert className="w-4 h-4 text-warn" />
-                          <span>دفتر أدوية الجدول والتفتيش الصيدلي</span>
-                        </button>
+                      {/* Section 4: Clothing & Apparel Matrix (Strictly for Clothing Stores) */}
+                      {isClothing && isEnabled('feature_matrix_variants') && (
+                        <>
+                          <div className="h-px bg-line dark:bg-line-dark my-1" />
+                          <div className="px-3 py-1 text-[10px] font-bold text-ink-muted/80 tracking-wider">
+                            أدوات محلات الملابس والأزياء
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsToolsDropdownOpen(false);
+                              setShowVariantMatrixModal(true);
+                            }}
+                            className="w-full px-3 py-2 text-right text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer"
+                          >
+                            <Layers className="w-4 h-4 text-brand dark:text-brand-bright" />
+                            <span>جدول المقاسات والألوان (الأصناف المتفرعة)</span>
+                          </button>
+                        </>
                       )}
 
-                      {isEnabled('feature_expiry_returns') && hasPermission('pharma.expiry_returns.manage') && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsToolsDropdownOpen(false);
-                            setShowExpiryReturnsModal(true);
-                          }}
-                          className="w-full px-3 py-2 text-right text-xs font-bold text-amber-800 dark:text-amber-300 hover:bg-amber-500/10 flex items-center gap-2.5 transition-colors cursor-pointer"
-                        >
-                          <RotateCcw className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                          <span>مرتجعات الصلاحية ومحاضر الإعدام</span>
-                        </button>
-                      )}
+                      {/* Section 5: Pharmacy Specific Tools (Strictly for Pharmacies) */}
+                      {isPharmacy && (
+                        <>
+                          <div className="h-px bg-line dark:bg-line-dark my-1" />
+                          <div className="px-3 py-1 text-[10px] font-bold text-emerald-800 dark:text-emerald-300 tracking-wider">
+                            أدوات وتقارير الصيدلية
+                          </div>
 
-                      {isEnabled('feature_pharmacy') && hasPermission('pharma.stocktaking.manage') && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsToolsDropdownOpen(false);
-                            setShowPharmaStocktakingModal(true);
-                          }}
-                          className="w-full px-3 py-2 text-right text-xs font-bold text-emerald-800 dark:text-emerald-300 hover:bg-emerald-500/10 flex items-center gap-2.5 transition-colors cursor-pointer"
-                        >
-                          <ClipboardCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                          <span>الجرد الصيدلي المتقدم وحصر الفروقات</span>
-                        </button>
-                      )}
+                          {isEnabled('feature_drug_reference') && hasPermission('pharma.drug_reference.import') && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsToolsDropdownOpen(false);
+                                setShowDrugReferenceModal(true);
+                              }}
+                              className="w-full px-3 py-2 text-right text-xs font-bold text-emerald-800 dark:text-emerald-300 hover:bg-surface-2 dark:hover:bg-surface-dark-2 flex items-center gap-2.5 transition-colors cursor-pointer"
+                            >
+                              <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                              <span>دليل الأدوية المرجعي الخارجي</span>
+                            </button>
+                          )}
 
-                      {isEnabled('feature_pharmacy') && hasPermission('reports.pharma.view') && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsToolsDropdownOpen(false);
-                            setShowPharmaReportsModal(true);
-                          }}
-                          className="w-full px-3 py-2 text-right text-xs font-bold text-brand dark:text-brand-bright hover:bg-brand-soft/30 flex items-center gap-2.5 transition-colors cursor-pointer"
-                        >
-                          <BarChart3 className="w-4 h-4 text-brand dark:text-brand-bright" />
-                          <span>خريطة الصلاحيات والتقارير الصيدلية</span>
-                        </button>
-                      )}
+                          {isEnabled('feature_pharmacy') && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsToolsDropdownOpen(false);
+                                setShowControlledRegisterModal(true);
+                              }}
+                              className="w-full px-3 py-2 text-right text-xs font-bold text-warn hover:bg-warn-soft/20 flex items-center gap-2.5 transition-colors cursor-pointer"
+                            >
+                              <ShieldAlert className="w-4 h-4 text-warn" />
+                              <span>دفتر أدوية الجدول والتفتيش الصيدلي</span>
+                            </button>
+                          )}
 
-                      {isEnabled('feature_pharmacy') && hasPermission('pharma.dosage_labels.print') && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsToolsDropdownOpen(false);
-                            setShowDosageLabelModal(true);
-                          }}
-                          className="w-full px-3 py-2 text-right text-xs font-bold text-teal-800 dark:text-teal-300 hover:bg-teal-500/10 flex items-center gap-2.5 transition-colors cursor-pointer"
-                        >
-                          <Printer className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-                          <span>طباعة ملصق جرعة حراري (استيكر صيدلي)</span>
-                        </button>
+                          {isEnabled('feature_expiry_returns') && hasPermission('pharma.expiry_returns.manage') && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsToolsDropdownOpen(false);
+                                setShowExpiryReturnsModal(true);
+                              }}
+                              className="w-full px-3 py-2 text-right text-xs font-bold text-amber-800 dark:text-amber-300 hover:bg-amber-500/10 flex items-center gap-2.5 transition-colors cursor-pointer"
+                            >
+                              <RotateCcw className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                              <span>مرتجعات الصلاحية ومحاضر الإعدام</span>
+                            </button>
+                          )}
+
+                          {isEnabled('feature_pharmacy') && hasPermission('pharma.stocktaking.manage') && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsToolsDropdownOpen(false);
+                                setShowPharmaStocktakingModal(true);
+                              }}
+                              className="w-full px-3 py-2 text-right text-xs font-bold text-emerald-800 dark:text-emerald-300 hover:bg-emerald-500/10 flex items-center gap-2.5 transition-colors cursor-pointer"
+                            >
+                              <ClipboardCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                              <span>الجرد الصيدلي المتقدم وحصر الفروقات</span>
+                            </button>
+                          )}
+
+                          {isEnabled('feature_pharmacy') && hasPermission('reports.pharma.view') && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsToolsDropdownOpen(false);
+                                setShowPharmaReportsModal(true);
+                              }}
+                              className="w-full px-3 py-2 text-right text-xs font-bold text-brand dark:text-brand-bright hover:bg-brand-soft/30 flex items-center gap-2.5 transition-colors cursor-pointer"
+                            >
+                              <BarChart3 className="w-4 h-4 text-brand dark:text-brand-bright" />
+                              <span>خريطة الصلاحيات والتقارير الصيدلية</span>
+                            </button>
+                          )}
+
+                          {isEnabled('feature_pharmacy') && hasPermission('pharma.dosage_labels.print') && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsToolsDropdownOpen(false);
+                                setShowDosageLabelModal(true);
+                              }}
+                              className="w-full px-3 py-2 text-right text-xs font-bold text-teal-800 dark:text-teal-300 hover:bg-teal-500/10 flex items-center gap-2.5 transition-colors cursor-pointer"
+                            >
+                              <Printer className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                              <span>طباعة ملصق جرعة حراري (استيكر صيدلي)</span>
+                            </button>
+                          )}
+                        </>
                       )}
 
                       <div className="h-px bg-line dark:bg-line-dark my-1" />
 
+                      {/* Section 6: Data Health & Quality Audit */}
                       <button
                         type="button"
                         onClick={() => {
@@ -1215,6 +1308,23 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                         <ShieldCheck className="w-4 h-4 text-paid dark:text-paid-bright" />
                         <span>فحص وتدقيق بيانات وأسعار الأصناف</span>
                       </button>
+
+                      {hasPermission('products.archive') && (
+                        <>
+                          <div className="h-px bg-line dark:bg-line-dark my-1" />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsToolsDropdownOpen(false);
+                              setShowClearAllConfirm(true);
+                            }}
+                            className="w-full px-3 py-2 text-right text-xs font-bold text-danger hover:bg-danger/10 flex items-center gap-2.5 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4 text-danger" />
+                            <span>تصفير ومسح كافة الأصناف الحالية</span>
+                          </button>
+                        </>
+                      )}
                     </div>
                   </>
                 )}
@@ -1229,7 +1339,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 <HelpCircle className="w-4 h-4" />
               </button>
 
-              {isEnabled('feature_matrix_variants') && (
+              {isClothing && isEnabled('feature_matrix_variants') && (
                 <button
                   type="button"
                   onClick={() => setShowVariantMatrixModal(true)}
@@ -1241,7 +1351,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 </button>
               )}
 
-              {isEnabled('feature_shelf_locations') && (
+              {isEnabled('feature_shelf_locations') && !isProduceOrButchery && (
                 <button
                   type="button"
                   onClick={() => setShowStorageLocationsModal(true)}
@@ -1249,7 +1359,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   title="إدارة مواقع التخزين والرفوف والأدراج وسلسلة التبريد"
                 >
                   <Layers className="w-4 h-4 text-brand dark:text-brand-bright" />
-                  <span>الرفوف والمواقع</span>
+                  <span>{isPharmacy ? 'أدراج ورفوف الصيدلية' : 'الرفوف والمواقع'}</span>
                 </button>
               )}
 
@@ -1268,7 +1378,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 className="h-9 px-3.5 bg-brand hover:bg-brand-dark dark:hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-[0.98] shrink-0"
               >
                 <Plus className="w-4 h-4" />
-                <span>صنف جديد</span>
+                <span>{isPharmacy ? 'دواء جديد' : 'صنف جديد'}</span>
               </button>
             </>
           ) : null}
@@ -1615,6 +1725,19 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         onCancel={() => setShowBulkDeleteConfirm(false)}
       />
 
+      {/* Confirm Clear All Products Modal */}
+      <ConfirmModal
+        isOpen={showClearAllConfirm}
+        title="تصفير ومسح كافة الأصناف الحالية"
+        message={`هل أنت متأكد تماماً من رغبتك في مسح وإخفاء كافة الأصناف (${totalCount} صنف) من المحل؟`}
+        consequence="سيتم إخفاء كافة الأصناف الحالية من الكتالوج وشاشة البيع، مع الحفاظ على الفواتير القديمة بأمان تام، ويمكنك استيراد شيت جديد بعد ذلك."
+        confirmText="نعم، قم بتصفير كافة الأصناف"
+        cancelText="إلغاء وتراجع"
+        isDanger={true}
+        onConfirm={() => void handleClearAllProducts()}
+        onCancel={() => setShowClearAllConfirm(false)}
+      />
+
       {/* Category Manager Modal (Feature #16 / Task 16-2) */}
       {showCategoryModal && (
         <CategoryManagerModal
@@ -1651,7 +1774,11 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         onClose={() => setShowExcelImportModal(false)}
         onSuccess={(msg) => {
           setImportSuccessAlert(msg);
-          void loadProducts('');
+          setSearchQuery('');
+          setCurrentPage(1);
+          setStockStatusFilter('all');
+          setSelectedCategoryFilter('all');
+          void loadProducts('', 1, pageSize, 'all', 'all');
         }}
         existingProducts={products}
         categories={categories}

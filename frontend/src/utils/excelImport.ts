@@ -56,15 +56,35 @@ export interface ValidatedImportRow {
 
 // Flexible column name matching for Arabic & English retail & supermarket templates
 const HEADER_ALIASES: Record<string, string[]> = {
-  name: ['اسم الصنف', 'الاسم', 'اسم المنتج', 'السلعة', 'الصنف', 'المادة', 'اسم الماده', 'البيان', 'اسم السلعة', 'وصف الصنف', 'product name', 'name', 'item name', 'description', 'product', 'item', 'title'],
-  barcode: ['الباركود الرئيسي', 'الباركود', 'باركود', 'باركود الصنف', 'كود الباركود', 'الرمز الشريطي', 'رقم الباركود', 'barcode', 'code', 'upc', 'ean', 'bar code'],
+  name: [
+    'اسم الصنف', 'الاسم', 'اسم المنتج', 'السلعة', 'الصنف', 'المادة', 'اسم الماده', 'البيان', 'اسم السلعة', 'وصف الصنف',
+    'الاسم التجاري', 'اسم التجاري', 'اسم الدواء', 'الدواء', 'المستحضر', 'اسم المستحضر', 'صنف الدواء',
+    'product name', 'name', 'item name', 'description', 'product', 'item', 'title', 'trade name', 'drug name', 'trade_name'
+  ],
+  barcode: [
+    'الباركود الرئيسي', 'الباركود', 'باركود', 'باركود الصنف', 'كود الباركود', 'الرمز الشريطي', 'رقم الباركود',
+    'باركود الدواء', 'كود الدواء', 'كود المستحضر', 'كود الصنف',
+    'barcode', 'code', 'upc', 'ean', 'bar code'
+  ],
   additionalBarcodes: ['باركودات إضافية', 'باركودات اضافية', 'اكواد اضافية', 'باركود بديل', 'additional barcodes', 'other barcodes', 'alt barcodes'],
-  category: ['القسم / التصنيف', 'القسم', 'التصنيف', 'الفئة', 'المجموعة', 'التصنيف الرئيسي', 'المجموعة السلعية', 'قسم الصنف', 'category', 'group', 'dept', 'department', 'family'],
-  unit: ['الوحدة', 'نوع البيع', 'نوع الوحدة', 'وحدة القياس', 'وحدة البيع', 'unit', 'type', 'uom', 'measuring unit'],
-  color: ['اللون', 'لون', 'color', 'colour'],
-  size: ['المقاس', 'مقاس', 'الحجم', 'size'],
-  price: ['سعر البيع', 'السعر', 'سعر البيع للجمهور', 'سعر القطعة', 'سعر الكيلو', 'سعر بيع', 'سعر قطاعي', 'قطاعي', 'سعر المستهلك', 'سعر التجزئة', 'selling price', 'price', 'retail price', 'sale price', 'unit price', 'retail'],
-  cost: ['سعر التكلفة', 'التكلفة', 'سعر الشراء', 'سعر الجملة', 'تكلفة الشراء', 'شراء', 'جملة', 'سعر جملة', 'سعر التوريد', 'تكلفة القطعة', 'cost price', 'cost', 'purchase price', 'buy price', 'cost unit'],
+  category: [
+    'القسم / التصنيف', 'القسم', 'التصنيف', 'الفئة', 'المجموعة', 'التصنيف الرئيسي', 'المجموعة السلعية', 'قسم الصنف',
+    'الشكل الدوائي', 'الشركة المصنعة', 'التصنيف الدوائي', 'التصنيف العلاجي', 'الشركة',
+    'category', 'group', 'dept', 'department', 'family'
+  ],
+  unit: ['الوحدة', 'نوع البيع', 'نوع الوحدة', 'وحدة القياس', 'وحدة البيع', 'الشكل', 'unit', 'type', 'uom', 'measuring unit'],
+  color: ['اللون', 'لون', 'color', 'colour', 'النوع', 'نوع', 'النكهة', 'نكهة', 'التحويجة', 'تحويجة', 'الشكل الدوائي'],
+  size: ['المقاس', 'مقاس', 'الحجم', 'حجم', 'التركيز', 'تركيز', 'السعة', 'سعة', 'الوزن', 'وزن', 'العبوة', 'عبوة', 'القطعية', 'درجة القطعية', 'الرام', 'size', 'capacity', 'weight'],
+  price: [
+    'سعر البيع', 'السعر', 'سعر البيع للجمهور', 'سعر القطعة', 'سعر الكيلو', 'سعر بيع', 'سعر قطاعي', 'قطاعي', 'سعر المستهلك', 'سعر التجزئة',
+    'سعر الجمهور الرسمي', 'سعر الجمهور', 'السعر الرسمي', 'السعر الجبري', 'سعر العلبة', 'سعر شريط', 'سعر الشريط',
+    'selling price', 'price', 'retail price', 'sale price', 'unit price', 'retail', 'official price', 'public price', 'official_price'
+  ],
+  cost: [
+    'سعر التكلفة', 'التكلفة', 'سعر الشراء', 'سعر الجملة', 'تكلفة الشراء', 'شراء', 'جملة', 'سعر جملة', 'سعر التوريد', 'تكلفة القطعة',
+    'سعر الصيدلي', 'سعر الشراء من الشركة', 'تكلفة الدواء', 'سعر التوريد للدواء',
+    'cost price', 'cost', 'purchase price', 'buy price', 'cost unit', 'pharmacy price', 'pharmacist price'
+  ],
   stock: ['الرصيد الافتتاحي', 'الرصيد الحالي', 'الرصيد', 'الكمية', 'الكمية الافتتاحية', 'المخزون', 'كمية', 'رصيد', 'كمية المخزون', 'الرصيد بالمخزن', 'المتوفر', 'stock', 'quantity', 'qty', 'on hand', 'inventory', 'balance'],
   minStock: ['حد الطلب الأدنى', 'حد الطلب الادنى', 'حد الطلب', 'الحد الأدنى', 'الحد الادنى', 'تنبيه النقص', 'الحد الحرج', 'min stock', 'reorder point', 'min qty', 'min quantity'],
   tax: ['نسبة الضريبة', 'الضريبة', 'ضريبة', 'نسبة القيمة المضافة', 'tax', 'vat', 'tax rate'],
@@ -75,6 +95,8 @@ const HEADER_ALIASES: Record<string, string[]> = {
 function matchHeader(cellValue: string): string | null {
   if (!cellValue) return null;
   const raw = cellValue.toString().trim().toLowerCase();
+  // Banners, instruction notes, and long titles are not column headers
+  if (raw.length > 45) return null;
   const clean = raw.replace(/[*()（）]/g, '').replace(/\s+/g, ' ').trim();
 
   // Pass 1: Exact Match (Highest Precedence)
@@ -192,8 +214,8 @@ export async function downloadExcelTemplate(): Promise<void> {
     'حالة المخزون التلقائية',
     'نسبة الضريبة (%)',
     'كود الصنف الداخلي (SKU)',
-    'اللون (اختياري / للملابس)',
-    'المقاس (اختياري / للملابس)',
+    'اللون / النوع / النكهة (اختياري)',
+    'المقاس / السعة / التركيز / الحجم (اختياري)',
     'كود التصنيف الضريبي (GS1/EGS)',
   ];
 
@@ -361,8 +383,8 @@ async function exportProductsViaSheetJs(products: Product[], catMap: Map<string,
     'حالة المخزون التلقائية',
     'نسبة الضريبة (%)',
     'كود الصنف الداخلي (SKU)',
-    'اللون (اختياري / للملابس)',
-    'المقاس (اختياري / للملابس)',
+    'اللون / النوع / النكهة (اختياري)',
+    'المقاس / السعة / التركيز / الحجم (اختياري)',
     'كود التصنيف الضريبي (GS1/EGS)',
   ];
 
@@ -729,7 +751,7 @@ export async function parseExcelOrCsvFile(file: File): Promise<RawImportRow[]> {
   // أسماء الشيتات الاسترشادية والملخصات التي يتم تخطيها تلقائياً إذا كانت لا تحوي أصنافاً
   const isIgnoredSheetName = (sheetName: string): boolean => {
     const s = sheetName.trim();
-    return s.startsWith('ملخص') || s.startsWith('لوحة') || s.includes('دليل') || s.includes('تعليمات') || s.includes('تقرير_الأخطاء') || s.toLowerCase() === 'readme';
+    return s.startsWith('ملخص') || s.startsWith('لوحة') || s.includes('دليل الاستخدام') || s.includes('دليل_الاستخدام') || s.includes('دليل المستخدم') || s.includes('تعليمات') || s.includes('تقرير_الأخطاء') || s.toLowerCase() === 'readme' || s.toLowerCase() === 'instructions';
   };
 
   // الشيتات الجامعة التي لا يمثل اسمها قسماً مستقلاً
@@ -749,34 +771,34 @@ export async function parseExcelOrCsvFile(file: File): Promise<RawImportRow[]> {
     const sheetRows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, defval: '', blankrows: false });
     if (!sheetRows || sheetRows.length < 2) continue;
 
-    // البحث عن صف العناوين في أول 10 صفوف
+    // البحث عن صف العناوين في أول 10 صفوف باختيار الصف الأكثر تطابقاً لأعمدة الصنف
     let headerRowIndex = -1;
-    const columnMapping: Record<string, number> = {};
+    let maxMatchedKeysCount = 0;
+    let bestColumnMapping: Record<string, number> = {};
 
     for (let r = 0; r < Math.min(sheetRows.length, 10); r++) {
       const candidateRow = sheetRows[r] as string[];
       if (!candidateRow || !Array.isArray(candidateRow)) continue;
 
-      for (let c = 0; c < candidateRow.length; c++) {
-        const cell = candidateRow[c];
-        if (cell && matchHeader(cell) === 'name') {
-          headerRowIndex = r;
-          break;
-        }
-      }
-
-      if (headerRowIndex !== -1) {
-        candidateRow.forEach((cell, colIndex) => {
-          if (cell) {
-            const matchedKey = matchHeader(cell);
-            if (matchedKey && !(matchedKey in columnMapping)) {
-              columnMapping[matchedKey] = colIndex;
-            }
+      const currentMapping: Record<string, number> = {};
+      candidateRow.forEach((cell, colIndex) => {
+        if (cell) {
+          const matchedKey = matchHeader(cell);
+          if (matchedKey && !(matchedKey in currentMapping)) {
+            currentMapping[matchedKey] = colIndex;
           }
-        });
-        break;
+        }
+      });
+
+      const matchedKeysCount = Object.keys(currentMapping).length;
+      if ('name' in currentMapping && matchedKeysCount > maxMatchedKeysCount) {
+        maxMatchedKeysCount = matchedKeysCount;
+        headerRowIndex = r;
+        bestColumnMapping = currentMapping;
       }
     }
+
+    const columnMapping = bestColumnMapping;
 
     // إذا لم تحتوي ورقة العمل على عمود "اسم الصنف"، نتخطاها بأمان
     if (headerRowIndex === -1 || !('name' in columnMapping)) {

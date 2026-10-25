@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import type { FormEvent } from 'react';
 import { Zap, X, Barcode, Check, AlertCircle, Layers, Calendar } from 'lucide-react';
 import { invoke } from '../bridge/ipc';
@@ -8,6 +8,7 @@ import { CustomSelect } from './CustomSelect';
 import { CustomDatePicker } from './CustomDatePicker';
 import { useFeatures } from '../context/useFeatures';
 import { useModalDismiss } from '../hooks/useModalDismiss';
+import { getStoreTerminology } from '../utils/storeTerminology';
 
 interface QuickAddProductModalProps {
   isOpen: boolean;
@@ -29,6 +30,31 @@ export function QuickAddProductModal({
   onProductCreated,
 }: QuickAddProductModalProps) {
   const { isEnabled } = useFeatures();
+  const [storeType, setStoreType] = useState<string>(() => {
+    try {
+      return localStorage.getItem('rafiq_store_type') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  useEffect(() => {
+    if (isOpen) {
+      void invoke<Record<string, string>>('settings:getAll')
+        .then((settings) => {
+          if (settings && settings.store_type) {
+            setStoreType(settings.store_type);
+            try {
+              localStorage.setItem('rafiq_store_type', settings.store_type);
+            } catch {}
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isOpen]);
+
+  const terminology = useMemo(() => getStoreTerminology(storeType), [storeType]);
+
   const [name, setName] = useState('');
   const [priceEgp, setPriceEgp] = useState('');
   const [costEgp, setCostEgp] = useState('');
@@ -331,7 +357,7 @@ export function QuickAddProductModal({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-ink">
                   <Layers className="w-3.5 h-3.5 text-purple-600" />
-                  <span>المقاس واللون (اختياري)</span>
+                  <span>{terminology.variantsTitle} (اختياري)</span>
                 </div>
                 {!isEnabled('feature_matrix_variants') && !variantSize && !variantColor && showVariants && (
                   <button
@@ -349,7 +375,7 @@ export function QuickAddProductModal({
                     type="text"
                     value={variantSize}
                     onChange={(e) => setVariantSize(e.target.value)}
-                    placeholder="المقاس (مثال: 1.2 متر أو L)"
+                    placeholder={terminology.sizePlaceholder}
                     className="w-full h-8 px-2.5 text-xs bg-surface rounded-lg border border-line text-ink placeholder:text-ink-muted focus:outline-none focus:border-brand"
                   />
                 </div>
@@ -358,7 +384,7 @@ export function QuickAddProductModal({
                     type="text"
                     value={variantColor}
                     onChange={(e) => setVariantColor(e.target.value)}
-                    placeholder="اللون (مثال: أبيض أو أسود)"
+                    placeholder={terminology.colorPlaceholder}
                     className="w-full h-8 px-2.5 text-xs bg-surface rounded-lg border border-line text-ink placeholder:text-ink-muted focus:outline-none focus:border-brand"
                   />
                 </div>
@@ -372,7 +398,7 @@ export function QuickAddProductModal({
                 className="text-[11px] font-bold text-brand hover:underline flex items-center gap-1 cursor-pointer"
               >
                 <Layers className="w-3 h-3 text-purple-600" />
-                <span>+ إضافة مقاس أو لون لهذا الصنف (للإكسسوارات والجرابات)</span>
+                <span>{terminology.quickAddAction}</span>
               </button>
             </div>
           )}

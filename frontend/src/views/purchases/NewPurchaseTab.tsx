@@ -29,6 +29,7 @@ import type { Supplier, Product } from '../../types/models';
 import { formatMoney, type NewPurchaseLineItem } from './types';
 import { normalizeArabicNumerals, formatArabicCurrency } from '../../utils/money';
 import { invoke } from '../../bridge/ipc';
+import { getStoreTerminology } from '../../utils/storeTerminology';
 
 interface NewPurchaseTabProps {
   suppliers: Supplier[];
@@ -90,6 +91,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
   onRequestCancel,
 }) => {
   const { isEnabled } = useFeatures();
+  const terminology = useMemo(() => getStoreTerminology(), []);
   const [liveDrawerCashPiasters, setLiveDrawerCashPiasters] = useState<number | null>(null);
 
   const fetchLiveDrawerCash = useCallback(async () => {
@@ -565,7 +567,7 @@ export const NewPurchaseTab: React.FC<NewPurchaseTabProps> = ({
                       {p.hasVariants && (
                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-brand-soft dark:bg-brand-soft/20 border border-brand/20 dark:border-brand-bright/30 text-brand dark:text-brand-bright text-[10px] font-bold">
                           <Layers className="w-2.5 h-2.5" />
-                          <span>مقاسات وألوان</span>
+                          <span>{terminology.variantsTitle}</span>
                         </span>
                       )}
                       {(p.variantColor || p.variantSize) && (

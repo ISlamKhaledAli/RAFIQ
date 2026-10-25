@@ -115,10 +115,12 @@ namespace RafiqPOS.Repositories
                     INSERT INTO drug_reference (
                         id, barcode, trade_name, scientific_name, form, strength,
                         manufacturer, pack_desc, public_price_piasters, source,
+                        therapeutic_class, category, storage_location, is_refrigerated,
                         imported_at, created_at, updated_at
                     ) VALUES (
                         @id, @barcode, @tradeName, @scientificName, @form, @strength,
                         @manufacturer, @packDesc, @publicPricePiasters, @source,
+                        @therapeuticClass, @category, @storageLocation, @isRefrigerated,
                         @importedAt, @createdAt, @updatedAt
                     )
                     ON CONFLICT(barcode) DO UPDATE SET
@@ -130,6 +132,10 @@ namespace RafiqPOS.Repositories
                         pack_desc = excluded.pack_desc,
                         public_price_piasters = excluded.public_price_piasters,
                         source = excluded.source,
+                        therapeutic_class = excluded.therapeutic_class,
+                        category = excluded.category,
+                        storage_location = excluded.storage_location,
+                        is_refrigerated = excluded.is_refrigerated,
                         updated_at = excluded.updated_at;
                 ";
 
@@ -145,6 +151,10 @@ namespace RafiqPOS.Repositories
                     cmd.Parameters.AddWithValue("@packDesc", (object)item.PackDesc ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@publicPricePiasters", (object)item.PublicPricePiasters ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@source", (object)item.Source ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@therapeuticClass", (object)item.TherapeuticClass ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@category", (object)item.Category ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@storageLocation", (object)item.StorageLocation ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@isRefrigerated", item.IsRefrigerated ? 1 : 0);
                     cmd.Parameters.AddWithValue("@importedAt", item.ImportedAt);
                     cmd.Parameters.AddWithValue("@createdAt", item.CreatedAt);
                     cmd.Parameters.AddWithValue("@updatedAt", item.UpdatedAt);
@@ -171,10 +181,12 @@ namespace RafiqPOS.Repositories
                             INSERT INTO drug_reference (
                                 id, barcode, trade_name, scientific_name, form, strength,
                                 manufacturer, pack_desc, public_price_piasters, source,
+                                therapeutic_class, category, storage_location, is_refrigerated,
                                 imported_at, created_at, updated_at
                             ) VALUES (
                                 @id, @barcode, @tradeName, @scientificName, @form, @strength,
                                 @manufacturer, @packDesc, @publicPricePiasters, @source,
+                                @therapeuticClass, @category, @storageLocation, @isRefrigerated,
                                 @importedAt, @createdAt, @updatedAt
                             )
                             ON CONFLICT(barcode) DO UPDATE SET
@@ -186,6 +198,10 @@ namespace RafiqPOS.Repositories
                                 pack_desc = excluded.pack_desc,
                                 public_price_piasters = excluded.public_price_piasters,
                                 source = excluded.source,
+                                therapeutic_class = excluded.therapeutic_class,
+                                category = excluded.category,
+                                storage_location = excluded.storage_location,
+                                is_refrigerated = excluded.is_refrigerated,
                                 updated_at = excluded.updated_at;
                         ";
 
@@ -201,6 +217,10 @@ namespace RafiqPOS.Repositories
                             var pPack = cmd.Parameters.Add("@packDesc", System.Data.DbType.String);
                             var pPrice = cmd.Parameters.Add("@publicPricePiasters", System.Data.DbType.Int64);
                             var pSource = cmd.Parameters.Add("@source", System.Data.DbType.String);
+                            var pTherapeutic = cmd.Parameters.Add("@therapeuticClass", System.Data.DbType.String);
+                            var pCategory = cmd.Parameters.Add("@category", System.Data.DbType.String);
+                            var pStorageLoc = cmd.Parameters.Add("@storageLocation", System.Data.DbType.String);
+                            var pRefrig = cmd.Parameters.Add("@isRefrigerated", System.Data.DbType.Int32);
                             var pImp = cmd.Parameters.Add("@importedAt", System.Data.DbType.String);
                             var pCreat = cmd.Parameters.Add("@createdAt", System.Data.DbType.String);
                             var pUpd = cmd.Parameters.Add("@updatedAt", System.Data.DbType.String);
@@ -221,6 +241,10 @@ namespace RafiqPOS.Repositories
                                 pPack.Value = (object)itm.PackDesc ?? DBNull.Value;
                                 pPrice.Value = (object)itm.PublicPricePiasters ?? DBNull.Value;
                                 pSource.Value = (object)(source ?? itm.Source) ?? "Excel Import";
+                                pTherapeutic.Value = (object)itm.TherapeuticClass ?? DBNull.Value;
+                                pCategory.Value = (object)itm.Category ?? DBNull.Value;
+                                pStorageLoc.Value = (object)itm.StorageLocation ?? DBNull.Value;
+                                pRefrig.Value = itm.IsRefrigerated ? 1 : 0;
                                 pImp.Value = string.IsNullOrWhiteSpace(itm.ImportedAt) ? now : itm.ImportedAt;
                                 pCreat.Value = string.IsNullOrWhiteSpace(itm.CreatedAt) ? now : itm.CreatedAt;
                                 pUpd.Value = now;
@@ -770,6 +794,16 @@ namespace RafiqPOS.Repositories
             return list;
         }
 
+        private static bool HasColumn(SQLiteDataReader reader, string columnName)
+        {
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                if (reader.GetName(i).Equals(columnName, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
+        }
+
         private static DrugReference MapReaderToDrugReference(SQLiteDataReader reader)
         {
             return new DrugReference
@@ -784,6 +818,10 @@ namespace RafiqPOS.Repositories
                 PackDesc = reader["pack_desc"] != DBNull.Value ? reader["pack_desc"].ToString() : null,
                 PublicPricePiasters = reader["public_price_piasters"] != DBNull.Value ? (long?)Convert.ToInt64(reader["public_price_piasters"]) : null,
                 Source = reader["source"] != DBNull.Value ? reader["source"].ToString() : null,
+                TherapeuticClass = HasColumn(reader, "therapeutic_class") && reader["therapeutic_class"] != DBNull.Value ? reader["therapeutic_class"].ToString() : null,
+                Category = HasColumn(reader, "category") && reader["category"] != DBNull.Value ? reader["category"].ToString() : null,
+                StorageLocation = HasColumn(reader, "storage_location") && reader["storage_location"] != DBNull.Value ? reader["storage_location"].ToString() : null,
+                IsRefrigerated = HasColumn(reader, "is_refrigerated") && reader["is_refrigerated"] != DBNull.Value && Convert.ToInt32(reader["is_refrigerated"]) == 1,
                 ImportedAt = reader["imported_at"].ToString(),
                 CreatedAt = reader["created_at"].ToString(),
                 UpdatedAt = reader["updated_at"] != DBNull.Value ? reader["updated_at"].ToString() : null

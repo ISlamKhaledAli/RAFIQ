@@ -42,17 +42,27 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const res = await invoke<DrugAlternativesResult>('pharma:findAlternatives', { productId: id });
+      let res: DrugAlternativesResult | null = null;
+      try {
+        res = await invoke<DrugAlternativesResult>('pharma:findAlternatives', { productId: id });
+      } catch {
+        res = await invoke<DrugAlternativesResult>('pharma:getAlternatives', { productId: id });
+      }
       setData(res);
       // Auto switch to first tier that has items
       if (res) {
-        if (res.tier1IdenticalGenerics && res.tier1IdenticalGenerics.length > 0) {
+        const t1 = res.tier1IdenticalGenerics || (res as unknown as { exactGenerics?: DrugAlternativeItem[] }).exactGenerics || [];
+        const t2 = res.tier2DifferentForms || (res as unknown as { differentForms?: DrugAlternativeItem[] }).differentForms || [];
+        const t3 = res.tier3DifferentStrengths || (res as unknown as { differentStrengths?: DrugAlternativeItem[] }).differentStrengths || [];
+        const t4 = res.tier4TherapeuticAlternatives || (res as unknown as { therapeuticAlternatives?: DrugAlternativeItem[] }).therapeuticAlternatives || [];
+
+        if (t1.length > 0) {
           setActiveTier(1);
-        } else if (res.tier2DifferentForms && res.tier2DifferentForms.length > 0) {
+        } else if (t2.length > 0) {
           setActiveTier(2);
-        } else if (res.tier3DifferentStrengths && res.tier3DifferentStrengths.length > 0) {
+        } else if (t3.length > 0) {
           setActiveTier(3);
-        } else if (res.tier4TherapeuticAlternatives && res.tier4TherapeuticAlternatives.length > 0) {
+        } else if (t4.length > 0) {
           setActiveTier(4);
         }
       }
@@ -89,19 +99,24 @@ export const DrugAlternativesDrawer: React.FC<DrugAlternativesDrawerProps> = ({
 
   if (!isOpen) return null;
 
-  const tier1Count = data?.tier1IdenticalGenerics?.length || 0;
-  const tier2Count = data?.tier2DifferentForms?.length || 0;
-  const tier3Count = data?.tier3DifferentStrengths?.length || 0;
-  const tier4Count = data?.tier4TherapeuticAlternatives?.length || 0;
+  const tier1List = data?.tier1IdenticalGenerics || (data as unknown as { exactGenerics?: DrugAlternativeItem[] })?.exactGenerics || [];
+  const tier2List = data?.tier2DifferentForms || (data as unknown as { differentForms?: DrugAlternativeItem[] })?.differentForms || [];
+  const tier3List = data?.tier3DifferentStrengths || (data as unknown as { differentStrengths?: DrugAlternativeItem[] })?.differentStrengths || [];
+  const tier4List = data?.tier4TherapeuticAlternatives || (data as unknown as { therapeuticAlternatives?: DrugAlternativeItem[] })?.therapeuticAlternatives || [];
+
+  const tier1Count = tier1List.length;
+  const tier2Count = tier2List.length;
+  const tier3Count = tier3List.length;
+  const tier4Count = tier4List.length;
 
   const currentItems: DrugAlternativeItem[] =
     activeTier === 1
-      ? data?.tier1IdenticalGenerics || []
+      ? tier1List
       : activeTier === 2
-      ? data?.tier2DifferentForms || []
+      ? tier2List
       : activeTier === 3
-      ? data?.tier3DifferentStrengths || []
-      : data?.tier4TherapeuticAlternatives || [];
+      ? tier3List
+      : tier4List;
 
   return (
     <div

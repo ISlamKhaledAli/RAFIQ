@@ -13,13 +13,14 @@ import {
   Check,
   Info,
 } from 'lucide-react';
-import type { Product, ProductUnit, RebaseResult } from '../types/models';
+import type { Product, ProductUnit } from '../types/models';
 import { CustomSelect } from './CustomSelect';
 import { MoneyInput } from './MoneyInput';
 import { ToggleSwitch } from './ToggleSwitch';
 import { formatArabicCurrency, normalizeArabicNumerals } from '../utils/money';
 import { invoke } from '../bridge/ipc';
 import { rafiqAlert, rafiqConfirm } from '../utils/dialogService';
+import { getStoreTerminology } from '../utils/storeTerminology';
 
 export interface PackagingWizardModalProps {
   isOpen: boolean;
@@ -30,12 +31,14 @@ export interface PackagingWizardModalProps {
   currentUnits: ProductUnit[];
   initialIsLooseSellable?: boolean;
   initialDefaultSaleUnitId?: string | null;
+  storeType?: string;
   onApply: (config: {
     units: ProductUnit[];
     defaultSaleUnitId: string | null;
     defaultPurchaseUnitId: string | null;
     displayUnitId: string | null;
     isLooseSellable: boolean;
+    updatedStockQuantityMilli?: number;
   }) => void;
 }
 
@@ -62,8 +65,8 @@ const applyPriceRounding = (piasters: number, roundTo: number, premiumBps: numbe
 const normalizeUnitName = (u?: string | null): string => {
   if (!u) return '';
   const trimmed = u.trim().toLowerCase();
-  if (trimmed === 'piece' || trimmed === 'قطعة') return 'piece';
-  if (trimmed === 'kg' || trimmed === 'كيلو' || trimmed === 'كجم') return 'kg';
+  if (trimmed === 'piece' || trimmed === 'pieces' || trimmed === 'قطعة') return 'piece';
+  if (trimmed === 'kg' || trimmed === 'kilogram' || trimmed === 'كيلو' || trimmed === 'كجم') return 'kg';
   return trimmed;
 };
 
@@ -76,9 +79,13 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
   currentUnits,
   initialIsLooseSellable,
   initialDefaultSaleUnitId,
+  storeType,
   onApply,
 }) => {
-  const [storeCategoryLabel, setStoreCategoryLabel] = useState<string>('تجزئة وجملة');
+  const terminology = getStoreTerminology(storeType);
+  const [storeCategoryLabel, setStoreCategoryLabel] = useState<string>(
+    terminology.packagingSectionTitle.replace(':', '').trim()
+  );
   const [levels, setLevels] = useState<WizardLevelRow[]>([]);
   const [selectedRowIndex, setSelectedRowIndex] = useState<number>(0);
   const [defaultSaleUnitIndex, setDefaultSaleUnitIndex] = useState<number>(0);
@@ -122,11 +129,34 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
   // Robust, synchronous row builder from ProductUnit array with auto-healing of inverted/corrupted base prices
   const buildRowsFromUnits = useCallback((unitsList: ProductUnit[]): WizardLevelRow[] => {
     if (unitsList && unitsList.length > 1) {
-      const sorted = [...unitsList].sort((a, b) => b.conversionFactor - a.conversionFactor);
-      const topUnit = sorted[0];
-      const baseUnit = sorted[sorted.length - 1];
-      // Self-healing: if the base unit piece price was previously clobbered to match or exceed carton price
-      const isCorrupted = topUnit.conversionFactor > 1 && baseUnit.sellPricePiasters >= topUnit.sellPricePiasters;
+      // Clean out phantom 'piece' or 'pieces' unit if real Arabic packaging units exist
+      let cleaned = unitsList.filter(u => u && u.unitName);
+      const hasArabicUnits = cleaned.some(u => {
+        const n = u.unitName.trim().toLowerCase();
+        return n !== 'piece' && n !== 'pieces';
+      });
+      if (hasArabicUnits && cleaned.length > 2) {
+        cleaned = cleaned.filter(u => {
+          const n = u.unitName.trim().toLowerCase();
+          return n !== 'piece' && n !== 'pieces';
+        });
+      }
+
+      const sorted = [...cleaned].sort((a, b) => b.conversionFactor - a.conversionFactor);
+      let topUnit = sorted[0];
+      let baseUnit = sorted[sorted.length - 1];
+
+      // Self-healing: Detect corrupted multiplier (e.g. factor >= 100 or base price collapsed below 25 piasters)
+      const isExtremeCorrupted = topUnit.conversionFactor >= 100 || (topUnit.conversionFactor > 1 && baseUnit.sellPricePiasters < 25 && topUnit.sellPricePiasters >= 500);
+      const isCorrupted = isExtremeCorrupted || (topUnit.conversionFactor > 1 && baseUnit.sellPricePiasters >= topUnit.sellPricePiasters);
+
+      if (isExtremeCorrupted && topUnit.sellPricePiasters > 0) {
+        const recoveredFactor = topUnit.conversionFactor === 400 ? 20 : (topUnit.conversionFactor >= 100 ? 10 : topUnit.conversionFactor);
+        topUnit.conversionFactor = recoveredFactor;
+        baseUnit.conversionFactor = 1;
+        baseUnit.sellPricePiasters = Math.max(25, Math.round(topUnit.sellPricePiasters / recoveredFactor));
+        baseUnit.costPricePiasters = Math.max(20, Math.round(topUnit.costPricePiasters / recoveredFactor));
+      }
 
       return sorted.map((u, i) => {
         const nextFactor = i < sorted.length - 1 ? sorted[i + 1].conversionFactor : 1;
@@ -135,7 +165,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
         let sellPrice = u.sellPricePiasters;
         let costPrice = u.costPricePiasters;
 
-        if (isCorrupted && i > 0) {
+        if (isCorrupted && i > 0 && !isExtremeCorrupted) {
           sellPrice = Math.max(25, Math.round((topUnit.sellPricePiasters * u.conversionFactor) / topUnit.conversionFactor));
           costPrice = Math.max(25, Math.round((topUnit.costPricePiasters * u.conversionFactor) / topUnit.conversionFactor));
         }
@@ -148,7 +178,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
           sellPricePiasters: sellPrice,
           costPricePiasters: costPrice,
           barcode: u.barcode || '',
-          isBase: u.isBaseUnit || u.conversionFactor === 1,
+          isBase: u.isBaseUnit || u.conversionFactor === 1 || i === sorted.length - 1,
         };
       });
     }
@@ -156,17 +186,23 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
     // Default 2 rows if brand new product or 1 unit only
     const baseSell = basePricePiasters > 0 ? basePricePiasters : 1000;
     const baseCost = baseCostPiasters > 0 ? baseCostPiasters : 750;
-    const baseName = (unitsList && unitsList[0]?.unitName) || 'قطعة';
+    const baseName = (unitsList && unitsList[0]?.unitName && unitsList[0].unitName !== 'piece')
+      ? unitsList[0].unitName
+      : (terminology.baseUnitDefaultName || 'قرص');
     const baseBarcode = (unitsList && unitsList[0]?.barcode) || '';
     const topUnitId = generateUniqueUnitId();
     const baseUnitId = (unitsList && unitsList[0]?.id && !unitsList[0].id.startsWith('lvl_')) 
       ? unitsList[0].id 
       : generateUniqueUnitId();
+    let topUnitName = terminology.packagingTopUnitDefault || 'علبة';
+    if (topUnitName.trim() === baseName.trim()) {
+      topUnitName = 'علبة';
+    }
 
     return [
       {
         id: topUnitId,
-        name: 'كرتونة',
+        name: topUnitName,
         ratioToNext: 10,
         conversionFactor: 10,
         sellPricePiasters: baseSell * 10,
@@ -185,7 +221,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
         isBase: true,
       },
     ];
-  }, [basePricePiasters, baseCostPiasters, generateUniqueUnitId]);
+  }, [basePricePiasters, baseCostPiasters, generateUniqueUnitId, terminology]);
 
   // Synchronous & infallible levels initialization on modal open (Run ONCE per open)
   useEffect(() => {
@@ -431,6 +467,10 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
     setLevels(updated);
   };
 
+
+
+
+
   // Pricing warnings check
   const pricingWarnings: string[] = [];
   for (let i = 0; i < levels.length - 1; i++) {
@@ -445,22 +485,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
     }
   }
 
-  // Pre-check for Rebase
-  const newBaseUnit = levels.length > 0 ? levels[levels.length - 1] : null;
-  const currentBaseName = product?.unit || 'قطعة';
-
-  const needsRebase = Boolean(
-    product &&
-    product.id &&
-    product.stockQuantityMilli > 0 &&
-    levels.length > 0 &&
-    newBaseUnit &&
-    normalizeUnitName(newBaseUnit.name) !== normalizeUnitName(currentBaseName) &&
-    levels[0].conversionFactor > 1
-  );
-
-  const rebaseFactor = newBaseUnit ? levels[0].conversionFactor : 1;
-
+  // Pre-check for Rebase:
   const handleSaveAndConfirm = async () => {
     setErrorMsg(null);
 
@@ -480,7 +505,24 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
       }
     }
 
-    if (needsRebase && product && product.id) {
+    const currentBaseUnitNormalized = normalizeUnitName(product?.unit);
+    const newBaseUnitRow = levels.length > 0 ? levels[levels.length - 1] : null;
+    const newBaseUnitNormalized = normalizeUnitName(newBaseUnitRow?.name);
+
+    // Rebase check: ONLY if warehouse base unit ACTUALLY changed!
+    const hasBaseUnitChanged = Boolean(
+      product &&
+      product.id &&
+      product.stockQuantityMilli > 0 &&
+      currentBaseUnitNormalized &&
+      newBaseUnitNormalized &&
+      currentBaseUnitNormalized !== newBaseUnitNormalized
+    );
+
+    let multiplyStockByFactor: number | null = null;
+    let didRebaseStock = false;
+
+    if (hasBaseUnitChanged && product && product.id) {
       if (product.hasVariants || product.parentId) {
         await rafiqAlert({
           title: 'غير مسموح بإعادة التأسيس للأصناف متفرعة المقاسات',
@@ -490,34 +532,48 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
         return;
       }
 
-      const confirmed = await rafiqConfirm({
-        title: 'تأكيد إعادة تأسيس قاعدة رصيد المخزن',
-        message: `سيتم تحويل رصيد المخزن الحالي للصنف من «${currentBaseName}» إلى «${newBaseUnit?.name}» وضربه في (${rebaseFactor}) للحفاظ على دقة الجرد. هل توافق على الترحيل الآن؟`,
-        confirmText: 'نعم، أعد التأسيس',
-        cancelText: 'إلغاء',
-        variant: 'warning',
-      });
+      const topRow = levels[0];
+      const currentStockUnits = Math.round(product.stockQuantityMilli / 1000);
+      const oldUnitName = product.unit || 'وحدة';
+      const newUnitName = newBaseUnitRow?.name || 'وحدة';
 
-      if (!confirmed) return;
+      // 1. Expanding to smaller unit (e.g. from علبة to برشامه):
+      if (levels.length > 1 && topRow && topRow.conversionFactor > 1 && normalizeUnitName(topRow.name) === currentBaseUnitNormalized) {
+        const factor = topRow.conversionFactor;
+        const convertedStock = currentStockUnits * factor;
 
-      setIsRebasing(true);
-      try {
-        const result = await invoke<RebaseResult>('products:rebaseBaseUnit', {
-          productId: product.id,
-          newBaseUnitName: newBaseUnit?.name || 'قطعة',
-          conversionFactor: rebaseFactor,
+        const confirmRebase = await rafiqConfirm({
+          title: 'تأكيد احتساب رصيد المخزن للعبوة الجديدة',
+          message: `الصنف مسجل حالياً بوحدة «${oldUnitName}» وبرصيد (${currentStockUnits} ${oldUnitName}).\n\nهل تريد تحويل الرصيد تلقائياً ليكون بأصغر وحدة «${newUnitName}» (${convertedStock} ${newUnitName}) لمطابقة منظومة التعبئة وتجزئة البيع؟`,
+          confirmText: `نعم، تحويل إلى (${convertedStock} ${newUnitName})`,
+          cancelText: `لا، الإبقاء على (${currentStockUnits} ${newUnitName})`,
+          variant: 'info',
         });
 
-        if (!result || !result.success) {
-          throw new Error(result?.message || 'فشلت عملية إعادة التأسيس الآلي لقاعدة المخزن.');
+        if (confirmRebase) {
+          multiplyStockByFactor = factor;
+          didRebaseStock = true;
         }
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        setErrorMsg(msg);
-        setIsRebasing(false);
-        return;
-      } finally {
-        setIsRebasing(false);
+      }
+      // 2. Collapsing back to larger unit (e.g. from برشامه to علبة):
+      else if (levels.length === 1 && currentUnits && currentUnits.length > 1) {
+        const oldTop = currentUnits.find(u => !u.isBaseUnit && u.conversionFactor > 1);
+        const factor = oldTop ? oldTop.conversionFactor : 1;
+        if (factor > 1) {
+          const convertedStock = Math.floor(currentStockUnits / factor);
+          const confirmCollapse = await rafiqConfirm({
+            title: 'تأكيد دمج رصيد المخزن للعبوة الأكبر',
+            message: `الصنف مسجل حالياً بوحدة «${oldUnitName}» وبرصيد (${currentStockUnits} ${oldUnitName}).\n\nهل تريد تحويل الرصيد للـ «${newUnitName}» (${convertedStock} ${newUnitName})؟`,
+            confirmText: `نعم، تحويل إلى (${convertedStock} ${newUnitName})`,
+            cancelText: `لا، الإبقاء على (${currentStockUnits})`,
+            variant: 'info',
+          });
+
+          if (confirmCollapse) {
+            multiplyStockByFactor = -factor;
+            didRebaseStock = true;
+          }
+        }
       }
     }
 
@@ -539,21 +595,40 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
     const chosenSaleUnit = levels[defaultSaleUnitIndex] || levels[0];
     const defPurchaseUnit = levels[0];
 
+    setIsRebasing(true);
+    let updatedStockQuantityMilli = product?.stockQuantityMilli;
+
     // If product exists in database, immediately persist packaging levels directly to SQLite
     if (product && product.id) {
       try {
-        await invoke('packaging:saveLevels', {
+        const updatedProd = await invoke<Product>('packaging:saveLevels', {
           productId: product.id,
           units: finalUnits,
           defaultSaleUnitId: chosenSaleUnit ? chosenSaleUnit.id : null,
           defaultPurchaseUnitId: defPurchaseUnit ? defPurchaseUnit.id : null,
           displayUnitId: null,
           isLooseSellable,
+          multiplyStockByFactor,
         });
-      } catch (err) {
-        console.warn('Direct packaging save warning:', err);
+        if (updatedProd && typeof updatedProd.stockQuantityMilli === 'number') {
+          updatedStockQuantityMilli = updatedProd.stockQuantityMilli;
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn('Direct packaging save warning:', msg);
+        setErrorMsg(msg);
+        setIsRebasing(false);
+        return;
+      }
+    } else if (didRebaseStock && multiplyStockByFactor && product) {
+      if (multiplyStockByFactor > 1) {
+        updatedStockQuantityMilli = product.stockQuantityMilli * multiplyStockByFactor;
+      } else if (multiplyStockByFactor < -1) {
+        updatedStockQuantityMilli = Math.floor(product.stockQuantityMilli / Math.abs(multiplyStockByFactor));
       }
     }
+
+    setIsRebasing(false);
 
     onApply({
       units: finalUnits,
@@ -561,12 +636,32 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
       defaultPurchaseUnitId: defPurchaseUnit ? defPurchaseUnit.id : null,
       displayUnitId: null,
       isLooseSellable,
+      updatedStockQuantityMilli,
     });
 
     onClose();
   };
 
   if (!isOpen) return null;
+
+  const currentBaseUnitNormalized = normalizeUnitName(product?.unit);
+  const topUnitRow = levels.length > 0 ? levels[0] : null;
+  const baseUnitRow = levels.length > 0 ? levels[levels.length - 1] : null;
+  const newBaseUnitNormalized = normalizeUnitName(baseUnitRow?.name);
+
+  // Show notice ONLY if base unit actually differs between DB and wizard
+  const showStockNotice = Boolean(
+    product &&
+    product.id &&
+    product.stockQuantityMilli > 0 &&
+    currentBaseUnitNormalized &&
+    newBaseUnitNormalized &&
+    currentBaseUnitNormalized !== newBaseUnitNormalized &&
+    levels.length > 1 &&
+    topUnitRow &&
+    topUnitRow.conversionFactor > 1 &&
+    normalizeUnitName(topUnitRow.name) === currentBaseUnitNormalized
+  );
 
   return createPortal(
     <div className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-150">
@@ -610,17 +705,18 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
           )}
 
           {/* Rebase Notice Alert: Clean & Simple Egyptian Phrasing */}
-          {needsRebase && (
+          {showStockNotice && (
             <div className="p-3.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-700/50 rounded-xl text-xs space-y-1">
               <div className="flex items-center gap-2 font-bold text-amber-800 dark:text-amber-200">
                 <RefreshCw className="w-4 h-4 shrink-0 text-amber-600" />
                 <span>تنبيه ضبط رصيد المخزن تلقائياً:</span>
               </div>
               <p className="text-amber-700 dark:text-amber-300 m-0 leading-relaxed">
-                الصنف ده مسجل حالياً في المخزن بـ «{currentBaseName}». عشان تبيعه بوحدات أصغر «{newBaseUnit?.name}»، السيستم هيعدل رصيد المخزن أوتوماتيك ليكون بالـ «{newBaseUnit?.name}» من غير أي لخبطة في الحسابات.
+                الصنف مسجل حالياً برصيد ({Math.round(product!.stockQuantityMilli / 1000)}). عند اعتماد التعبئة والتجزئة، سيسألك النظام لتحويل رصيده تلقائياً ليكون بأصغر وحدة «{baseUnitRow?.name || 'قرص'}» ({Math.round(product!.stockQuantityMilli / 1000) * (topUnitRow?.conversionFactor || 1)} {baseUnitRow?.name}) لتطابق الجرد الفعلي.
               </p>
             </div>
           )}
+
 
           {/* Pricing Automation Controls & Toggle in One Balanced, Spacious Row */}
           <div className="p-3.5 bg-surface-2 dark:bg-surface-dark-2 rounded-xl border border-line dark:border-line-dark flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 shadow-2xs">
@@ -679,7 +775,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
               {/* In-Place Loose Toggle */}
               <div className="flex flex-col justify-center border-r border-line dark:border-line-dark pr-4">
                 <span className="text-[11px] font-bold text-ink-muted dark:text-ink-dark-muted mb-1 whitespace-nowrap">
-                  البيع بالقطعة:
+                  {terminology.looseSellingLabel}
                 </span>
                 <div className="flex items-center gap-2 h-[32px] whitespace-nowrap">
                   <ToggleSwitch
@@ -723,7 +819,7 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-brand/30 hover:bg-brand-soft text-brand text-xs font-bold transition-all disabled:opacity-40 cursor-pointer shadow-2xs"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>إضافة مستوى فرعي (كرتونة / باكت / كارت)</span>
+                <span>{terminology.packagingLevelPlaceholder}</span>
               </button>
             </div>
 
@@ -925,9 +1021,9 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-[11px] leading-relaxed">
               <div className="bg-surface dark:bg-surface-dark p-2.5 rounded-lg border border-line dark:border-line-dark shadow-2xs">
-                <span className="font-bold text-brand dark:text-brand-bright block mb-1">1. رصيد المخزن دايماً بالقطعة:</span>
+                <span className="font-bold text-brand dark:text-brand-bright block mb-1">1. رصيد المخزن دايماً بأصغر وحدة:</span>
                 <span className="text-ink-muted dark:text-ink-dark-muted">
-                  السيستم بيخزن رصيدك بأصغر وحدة (زي القطعة) عشان الجرد والعد ميتلخبطش منك أبداً حتى لو بتشتري كراتين.
+                  السيستم بيخزن رصيدك بأصغر وحدة ({levels[levels.length - 1]?.name || terminology.baseUnitDefaultName}) عشان الجرد والعد ميتلخبطش منك أبداً حتى لو بتشتري عبوات مجمعة.
                 </span>
               </div>
               <div className="bg-surface dark:bg-surface-dark p-2.5 rounded-lg border border-line dark:border-line-dark shadow-2xs">
@@ -937,9 +1033,9 @@ export const PackagingWizardModal: React.FC<PackagingWizardModalProps> = ({
                 </span>
               </div>
               <div className="bg-surface dark:bg-surface-dark p-2.5 rounded-lg border border-line dark:border-line-dark shadow-2xs">
-                <span className="font-bold text-ink dark:text-ink-dark block mb-1">3. البيع بالقطعة (مفكوك):</span>
+                <span className="font-bold text-ink dark:text-ink-dark block mb-1">3. {terminology.looseSellingLabel}:</span>
                 <span className="text-ink-muted dark:text-ink-dark-muted">
-                  لو «مسموح» الكاشير يقدر يفك الكرتونة ويبيع قطاعي، ولو «ممنوع» مش هيعرف يبيع غير العبوة المقفولة بس.
+                  لو «مسموح» الكاشير يقدر يفك العبوة ويبيع بالتجزئة (قطاعي)، ولو «ممنوع» مش هيعرف يبيع غير العبوة المقفولة بس.
                 </span>
               </div>
               <div className="bg-surface dark:bg-surface-dark p-2.5 rounded-lg border border-line dark:border-line-dark shadow-2xs">

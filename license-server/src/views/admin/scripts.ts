@@ -84,19 +84,23 @@ export const adminScripts = `    const DEFAULT_SECRET = '';
       openModal('confirmModal');
     }
 
-    // Main Tab Switching (Separating Licenses & Logs)
+    // Main Tab Switching (Licenses, Logs & Offline Support Code)
     function switchMainTab(tab) {
       activeMainTab = tab;
       const licView = document.getElementById('licensesView');
       const logsView = document.getElementById('logsView');
+      const offlineView = document.getElementById('offlineView');
       const tabBtnLic = document.getElementById('tabBtnLicenses');
       const tabBtnLogs = document.getElementById('tabBtnLogs');
+      const tabBtnOffline = document.getElementById('tabBtnOffline');
 
       if (licView) licView.style.display = tab === 'licenses' ? 'flex' : 'none';
       if (logsView) logsView.style.display = tab === 'logs' ? 'flex' : 'none';
+      if (offlineView) offlineView.style.display = tab === 'offline' ? 'flex' : 'none';
 
       if (tabBtnLic) tabBtnLic.classList.toggle('active', tab === 'licenses');
       if (tabBtnLogs) tabBtnLogs.classList.toggle('active', tab === 'logs');
+      if (tabBtnOffline) tabBtnOffline.classList.toggle('active', tab === 'offline');
 
       if (tab === 'logs' && allLogs.length === 0) {
         loadLogs();
@@ -1343,13 +1347,22 @@ export const adminScripts = `    const DEFAULT_SECRET = '';
         if (event && event.currentTarget) {
           event.currentTarget.classList.add('active');
           const rect = event.currentTarget.getBoundingClientRect();
-          if (window.innerHeight - rect.bottom < 260) {
+          if (window.innerHeight - rect.bottom < 260 && rect.top > 260) {
             currentMenu.style.top = 'auto';
             currentMenu.style.bottom = 'calc(100% + 4px)';
           } else {
             currentMenu.style.top = 'calc(100% + 4px)';
             currentMenu.style.bottom = 'auto';
           }
+        }
+        // Viewport collision protection for mobile screens
+        const mRect = currentMenu.getBoundingClientRect();
+        if (mRect.left < 10) {
+          currentMenu.style.left = '10px';
+          currentMenu.style.right = 'auto';
+        } else if (mRect.right > window.innerWidth - 10) {
+          currentMenu.style.right = '10px';
+          currentMenu.style.left = 'auto';
         }
       }
     }
@@ -1359,6 +1372,8 @@ export const adminScripts = `    const DEFAULT_SECRET = '';
         m.classList.remove('show');
         m.style.top = '';
         m.style.bottom = '';
+        m.style.left = '';
+        m.style.right = '';
       });
       document.querySelectorAll('.btn-actions-menu.active').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.dropdown-actions.open').forEach(d => d.classList.remove('open'));

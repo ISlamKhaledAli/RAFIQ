@@ -36,15 +36,15 @@ export const adminTemplate = `
     <div class="topbar-actions">
       <div class="sys-pill">
         <div class="sys-pill-dot"></div>
-        <span>السيرفر السحابي: متصل</span>
+        <span class="sys-pill-text">السيرفر السحابي: متصل</span>
       </div>
       <button class="btn-top" onclick="refreshCurrentView()">
         <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l6.67-6.67"/></svg>
-        <span>تحديث</span>
+        <span class="btn-top-label">تحديث</span>
       </button>
       <button class="btn-top" onclick="logout()" style="color:#fca5a5;">
         <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        <span>خروج</span>
+        <span class="btn-top-label">خروج</span>
       </button>
     </div>
   </header>
@@ -56,25 +56,31 @@ export const adminTemplate = `
       <div class="tabs-nav">
         <button class="nav-tab active" id="tabBtnLicenses" onclick="switchMainTab('licenses')">
           <svg class="icon" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>
-          <span>قائمة التراخيص الصادرة</span>
+          <span class="tab-text-full">قائمة التراخيص الصادرة</span>
+          <span class="tab-text-short">التراخيص</span>
           <span class="tab-badge" id="badgeLicensesCount">0</span>
         </button>
 
-
-
         <button class="nav-tab" id="tabBtnLogs" onclick="switchMainTab('logs')">
           <svg class="icon" viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>
-          <span>سجل حركات وتدقيق التفعيل (Audit Logs)</span>
+          <span class="tab-text-full">سجل تدقيق التفعيل (Logs)</span>
+          <span class="tab-text-short">سجل التدقيق</span>
           <span class="tab-badge" id="badgeLogsCount">0</span>
+        </button>
+
+        <button class="nav-tab" id="tabBtnOffline" onclick="switchMainTab('offline')">
+          <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          <span class="tab-text-full">توليد كود أوفلاين بالبصمة</span>
+          <span class="tab-text-short">كود أوفلاين</span>
         </button>
       </div>
 
-      <div style="display:flex; align-items:center; gap:12px;">
-        <button type="button" class="nav-tab" style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:6px 14px; border-radius:8px; font-weight:800; cursor:pointer;" onclick="openMasterRootOtpModal()">
+      <div class="tabs-nav-extra">
+        <button type="button" class="nav-tab btn-master-root" onclick="openMasterRootOtpModal()">
           <svg class="icon icon-sm" viewBox="0 0 24 24" style="stroke:#7c3aed;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           <span>رمز Root الماستر (عام لجميع الأجهزة)</span>
         </button>
-        <div style="font-size:11.5px; font-weight:700; color:var(--text-muted);">
+        <div class="tabs-nav-version">
           إصدار النظام: <strong style="color:var(--primary);">v1.0 Production</strong> | SQLite Cloudflare D1
         </div>
       </div>
@@ -358,7 +364,7 @@ export const adminTemplate = `
             <input type="text" id="logsSearchInput" oninput="onLogsFilterChange()" placeholder="بحث برمز الترخيص، عنوان IP، بصمة الجهاز، أو سبب الرفض...">
           </div>
 
-          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <div class="logs-filters-group">
             <!-- Action Filter -->
             <div class="filters">
               <button class="filter-tab active" onclick="setLogsActionFilter('all', this)">كافة الحركات</button>
@@ -444,7 +450,76 @@ export const adminTemplate = `
       </div>
     </div>
 
+    <!-- ========================================== -->
+    <!-- TAB 3: OFFLINE SUPPORT CODE GENERATOR      -->
+    <!-- ========================================== -->
+    <div id="offlineView" style="display:none; flex-direction:column; gap:20px;">
+      <div class="panel panel-form" style="overflow: visible;">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">توليد كود تفعيل أوفلاين للأجهزة بدون إنترنت (RFQ-SUP)</div>
+            <div class="panel-desc">أدخل بصمة جهاز العميل (HWID) الظاهرة في شاشة رفيق لتوليد كود دعم فني مشفر بـ RS256 يعمل أوفلاين بدون نت</div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <form onsubmit="handleGenerateSupportCode(event)">
+            <div class="create-grid">
+              <div class="field">
+                <label>بصمة جهاز العميل (Device Fingerprint / HWID) *</label>
+                <input type="text" id="offlineDeviceFp" required placeholder="مثال: A1B2C3D4E5F6..." dir="ltr" style="text-align:right; font-family:monospace; font-weight:700;">
+              </div>
 
+              <div class="field">
+                <label>اسم المنشأة أو المحل (اختياري)</label>
+                <input type="text" id="offlineShopName" placeholder="مثال: سوبرماركت البركة">
+              </div>
+
+              <div class="field">
+                <label>نوع وصلاحية الترخيص *</label>
+                <select id="offlineDurationSelect" onchange="toggleOfflineCustomDays()">
+                  <option value="lifetime" selected>دائم مدى الحياة (Lifetime)</option>
+                  <option value="365">سنوي (365 يوم)</option>
+                  <option value="180">نصف سنوي (180 يوم)</option>
+                  <option value="90">ربع سنوي (90 يوم)</option>
+                  <option value="30">شهري (30 يوم)</option>
+                  <option value="14">تجريبي (14 يوم)</option>
+                  <option value="7">تجريبي (7 أيام)</option>
+                  <option value="custom">مدة مخصصة (أيام محددة)...</option>
+                </select>
+              </div>
+
+              <div class="field" id="offlineCustomDaysWrapper" style="display:none;">
+                <label>عدد الأيام</label>
+                <input type="number" id="offlineCustomDaysInput" min="1" max="3650" placeholder="مثلاً: 60">
+              </div>
+
+              <button type="submit" class="btn-create" id="btnGenSupport">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>
+                <span>توليد كود الدعم الأوفلاين المشفر</span>
+              </button>
+            </div>
+          </form>
+
+          <!-- Result Box -->
+          <div id="offlineResultBox" style="display:none; margin-top:20px; padding:18px; background:#f0fdf4; border:1.5px solid var(--emerald); border-radius:12px;">
+            <div style="font-weight:900; color:var(--emerald); margin-bottom:6px; font-size:14px; display:flex; align-items:center; gap:8px;">
+              <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+              <span>تم توليد كود التفعيل الأوفلاين بنجاح!</span>
+            </div>
+            <div style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">
+              انسخ هذا الكود وأرسله للعميل ليضعه في خانة (تفعيل بكود الدعم الفني) في شاشة الدخول:
+            </div>
+            <div class="direct-rec-input-group">
+              <input type="text" id="offlineResultCode" readonly style="font-family:monospace; font-size:13px; font-weight:700; padding:10px 12px; background:#0f172a; color:#38bdf8; border:1px solid #1e293b; border-radius:8px; flex:1; direction:ltr;" onclick="this.select()">
+              <button type="button" class="btn-create" onclick="copyOfflineResultCode()" style="height:42px; white-space:nowrap; padding:0 14px;">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                <span>نسخ الكود</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
   </main>
 
@@ -495,7 +570,7 @@ export const adminTemplate = `
       </div>
       <div class="modal-body">
         <!-- License Header Banner -->
-        <div style="background:#f8fafc; border:1px solid var(--border); border-radius:var(--radius-lg); padding:12px 16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <div class="device-modal-banner">
           <div>
             <div style="font-size:11px; font-weight:800; color:var(--text-muted);">المنشأة:</div>
             <div id="devModalShopName" style="font-weight:900; color:var(--primary); font-size:14px;"></div>
@@ -536,8 +611,8 @@ export const adminTemplate = `
           <p style="font-size:11.5px; color:#166534; line-height:1.5; margin-bottom:10px;">
             إذا تلف جهاز العميل أو احترق وأراد استرجاع نسخته الاحتياطية على جهاز جديد، زوده بهذا المفتاح في شاشة الاسترجاع لفك تشفير البيانات فوراً:
           </p>
-          <div style="display:flex; align-items:center; justify-content:space-between; background:#ffffff; border:1px solid #86efac; border-radius:6px; padding:8px 12px;">
-            <span id="devModalRecoveryKeyBox" style="font-family:monospace; font-size:15px; font-weight:900; color:#047857; letter-spacing:0.5px;"></span>
+          <div style="display:flex; align-items:center; justify-content:space-between; background:#ffffff; border:1px solid #86efac; border-radius:6px; padding:8px 12px; gap:8px; flex-wrap:wrap;">
+            <span id="devModalRecoveryKeyBox" style="font-family:monospace; font-size:15px; font-weight:900; color:#047857; letter-spacing:0.5px; word-break:break-all;"></span>
             <button class="btn-row btn-row-share" onclick="copyRecoveryKey()">
               <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               <span>نسخ المفتاح</span>
@@ -545,9 +620,9 @@ export const adminTemplate = `
           </div>
         </div>
       </div>
-      <div class="modal-footer" style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+      <div class="modal-footer modal-footer-split">
         <button class="btn-row" onclick="closeModal('deviceModal')">إغلاق</button>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <div class="modal-footer-actions">
           <button class="btn-row btn-row-share" id="devModalWhatsAppBtn" onclick="openDeviceRecoveryWhatsApp()">
             <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
             <span>إرسال بيانات الاسترجاع للعميل</span>
@@ -695,7 +770,7 @@ export const adminTemplate = `
 
         <div style="margin-bottom:14px;">
           <label style="display:block; font-size:12px; font-weight:700; color:#334155; margin-bottom:6px;">كود فك القفل والاسترجاع (RFQ-SUP):</label>
-          <div style="display:flex; gap:8px;">
+          <div class="direct-rec-input-group">
             <input type="text" id="directRecCodeInput" readonly style="font-family:monospace; font-size:13px; font-weight:700; padding:10px 12px; background:#0f172a; color:#38bdf8; border:1px solid #1e293b; border-radius:8px; flex:1; direction:ltr;" onclick="this.select()">
             <button class="btn-create" type="button" onclick="copyDirectRecCode()" style="height:42px; white-space:nowrap; padding:0 14px;">
               <svg class="icon icon-sm" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>

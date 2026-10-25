@@ -7,7 +7,7 @@ namespace RafiqPOS.Database
 {
     public static class MigrationRunner
     {
-        public const int LATEST_SUPPORTED_VERSION = 50;
+        public const int LATEST_SUPPORTED_VERSION = 51;
 
         public static void ApplyMigrations(string connectionString, string dbPath)
         {
@@ -429,6 +429,13 @@ namespace RafiqPOS.Database
                     ApplyMigration50(conn);
                 }
 
+                // 54. Apply Migration 51: Seed Pharma Manufacturers & Extend Drug Reference (Story 134 Extension)
+                if (currentVersion < 51)
+                {
+                    BackupDatabaseBeforeMigration(dbPath);
+                    ApplyMigration51(conn);
+                }
+
                 // Self-Healing Schema Guard: Automatically repair missing columns or indexes
                 EnsureSchemaHealth(conn);
             }
@@ -683,6 +690,22 @@ namespace RafiqPOS.Database
                                     alter.ExecuteNonQuery();
                                 }
                                 using (var idx = new SQLiteCommand("CREATE INDEX IF NOT EXISTS idx_products_pref_supplier ON products(preferred_supplier_id);", conn, trans))
+                                {
+                                    idx.ExecuteNonQuery();
+                                }
+                            }
+
+                            if (!existingCols.Contains("is_archived"))
+                            {
+                                using (var alter = new SQLiteCommand("ALTER TABLE products ADD COLUMN is_archived INTEGER NOT NULL DEFAULT 0;", conn, trans))
+                                {
+                                    alter.ExecuteNonQuery();
+                                }
+                                using (var syncArchived = new SQLiteCommand("UPDATE products SET is_archived = CASE WHEN is_active = 0 THEN 1 ELSE 0 END;", conn, trans))
+                                {
+                                    syncArchived.ExecuteNonQuery();
+                                }
+                                using (var idx = new SQLiteCommand("CREATE INDEX IF NOT EXISTS idx_products_is_archived ON products(is_archived);", conn, trans))
                                 {
                                     idx.ExecuteNonQuery();
                                 }
@@ -1895,6 +1918,17 @@ namespace RafiqPOS.Database
                             alter.ExecuteNonQuery();
                         }
                     }
+                    if (pbHealthCols.Count > 0 && !pbHealthCols.Contains("location_id"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE product_batches ADD COLUMN location_id TEXT DEFAULT NULL;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                        using (var idx = new SQLiteCommand("CREATE INDEX IF NOT EXISTS idx_product_batches_location ON product_batches(location_id);", conn, trans))
+                        {
+                            idx.ExecuteNonQuery();
+                        }
+                    }
 
                     // Ensure sale_item_batch_allocations table exists
                     using (var allocCmd = new SQLiteCommand(@"
@@ -1914,6 +1948,65 @@ namespace RafiqPOS.Database
                     ", conn, trans))
                     {
                         allocCmd.ExecuteNonQuery();
+                    }
+
+                    // Auto-sync drug_reference to product_pharma_info for any matching products (Story 130 / Feature #187)
+                    using (var checkPharmaSyncCmd = new SQLiteCommand(@"
+                        SELECT name FROM sqlite_master WHERE type='table' AND name IN ('product_pharma_info', 'drug_reference');
+                    ", conn, trans))
+                    {
+                        int tableCount = 0;
+                        using (var rdr = checkPharmaSyncCmd.ExecuteReader())
+                        {
+                            while (rdr.Read()) tableCount++;
+                        }
+                        if (tableCount == 2)
+                        {
+                            string syncPharmaSql = @"
+                                INSERT OR IGNORE INTO product_pharma_info (
+                                    product_id, scientific_name, normalized_scientific_name,
+                                    dosage_form_id, strength_text, manufacturer_id,
+                                    storage_condition, rx_status, created_at, updated_at
+                                )
+                                SELECT 
+                                    p.id,
+                                    dr.scientific_name,
+                                    LOWER(TRIM(dr.scientific_name)),
+                                    CASE 
+                                        WHEN dr.form LIKE '%أقراص%' OR dr.form LIKE '%قرص%' OR dr.form LIKE '%tablet%' THEN 'df_tablets'
+                                        WHEN dr.form LIKE '%كبسول%' OR dr.form LIKE '%capsul%' THEN 'df_capsules'
+                                        WHEN dr.form LIKE '%شراب%' OR dr.form LIKE '%syrup%' THEN 'df_syrup'
+                                        WHEN dr.form LIKE '%معلق%' OR dr.form LIKE '%susp%' THEN 'df_suspension'
+                                        WHEN dr.form LIKE '%حقن%' OR dr.form LIKE '%inject%' OR dr.form LIKE '%amp%' OR dr.form LIKE '%vial%' THEN 'df_injection'
+                                        WHEN dr.form LIKE '%كريم%' OR dr.form LIKE '%مرهم%' OR dr.form LIKE '%cream%' OR dr.form LIKE '%oint%' THEN 'df_cream'
+                                        WHEN dr.form LIKE '%نقط%' OR dr.form LIKE '%قطرة%' OR dr.form LIKE '%drop%' THEN 'df_drops'
+                                        WHEN dr.form LIKE '%فوار%' OR dr.form LIKE '%efferv%' THEN 'df_effervescent'
+                                        WHEN dr.form LIKE '%بخاخ%' OR dr.form LIKE '%inhal%' OR dr.form LIKE '%spray%' THEN 'df_inhaler'
+                                        WHEN dr.form LIKE '%لبوس%' OR dr.form LIKE '%suppos%' THEN 'df_suppository'
+                                        WHEN dr.form LIKE '%أكياس%' OR dr.form LIKE '%sachet%' THEN 'df_sachets'
+                                        WHEN dr.form LIKE '%جل%' OR dr.form LIKE '%gel%' THEN 'df_gel'
+                                        WHEN dr.form LIKE '%لوشن%' OR dr.form LIKE '%lotion%' THEN 'df_lotion'
+                                        ELSE NULL
+                                    END,
+                                    dr.strength,
+                                    NULL,
+                                    CASE WHEN dr.is_refrigerated = 1 THEN 'fridge' ELSE 'room' END,
+                                    'otc',
+                                    datetime('now'),
+                                    datetime('now')
+                                FROM products p
+                                JOIN drug_reference dr ON p.barcode = dr.barcode
+                                WHERE p.is_active = 1 
+                                  AND (dr.scientific_name IS NOT NULL AND dr.scientific_name != '')
+                                  AND NOT EXISTS (
+                                      SELECT 1 FROM product_pharma_info pi WHERE pi.product_id = p.id
+                                  );
+                            ";
+                            using (var syncCmd = new SQLiteCommand(syncPharmaSql, conn, trans))
+                            {
+                                syncCmd.ExecuteNonQuery();
+                            }
+                        }
                     }
 
                     trans.Commit();
@@ -6211,6 +6304,109 @@ namespace RafiqPOS.Database
 
                         INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
                         VALUES (50, 'Pharmacy Distributor Purchases & Public Pricing (Story 136 / Feature #193)', datetime('now'));
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    trans.Commit();
+                }
+                catch
+                {
+                    trans.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Migration 51: Seed Pharma Manufacturers & Extend Drug Reference Schema (Story 134 Extension)
+        // -------------------------------------------------------------
+        private static void ApplyMigration51(SQLiteConnection conn)
+        {
+            using (var trans = conn.BeginTransaction())
+            {
+                try
+                {
+                    // 1. Seed 28 Major Pharmaceutical Companies into pharma_manufacturers
+                    using (var cmd = new SQLiteCommand(@"
+                        INSERT OR IGNORE INTO pharma_manufacturers (id, name_ar, name_en, country, is_active) VALUES
+                        ('mfg_amoun', 'آمون للأدوية', 'Amoun Pharmaceutical Co.', 'مصر', 1),
+                        ('mfg_eipico', 'إيبيكو للأدوية', 'EIPICO', 'مصر', 1),
+                        ('mfg_eva', 'إيفا فارما', 'Eva Pharma', 'مصر', 1),
+                        ('mfg_pharco', 'فاركو للأدوية', 'Pharco Pharmaceuticals', 'مصر', 1),
+                        ('mfg_gsk', 'جلاكسو سميث كلاين (GSK)', 'GlaxoSmithKline (GSK)', 'بريطانيا / مصر', 1),
+                        ('mfg_novartis', 'نوفارتس مصر', 'Novartis Egypt', 'سويسرا / مصر', 1),
+                        ('mfg_sanofi', 'سانوفي مصر', 'Sanofi Egypt', 'فرنسا / مصر', 1),
+                        ('mfg_cid', 'سيد للأدوية', 'CID', 'مصر', 1),
+                        ('mfg_nile', 'النيل للأدوية', 'Nile Pharmaceuticals', 'مصر', 1),
+                        ('mfg_cairo', 'القاهرة للأدوية', 'Cairo Pharmaceuticals', 'مصر', 1),
+                        ('mfg_alex', 'الإسكندرية للأدوية', 'Alexandria Pharmaceuticals', 'مصر', 1),
+                        ('mfg_memphis', 'ممفيس للأدوية', 'Memphis Pharmaceuticals', 'مصر', 1),
+                        ('mfg_mup', 'المهن الطبية للأدوية (MUP)', 'Medical Union Pharmaceuticals (MUP)', 'مصر', 1),
+                        ('mfg_astrazeneca', 'أسترازينيكا مصر', 'AstraZeneca Egypt', 'بريطانيا / مصر', 1),
+                        ('mfg_pfizer', 'فايزر مصر', 'Pfizer Egypt', 'أمريكا / مصر', 1),
+                        ('mfg_sigma', 'سيجما للأدوية', 'SIGMA Pharmaceuticals', 'مصر', 1),
+                        ('mfg_marcyrl', 'ماركيرل للصناعات الدوائية', 'Marcyrl Pharmaceutical Industries', 'مصر', 1),
+                        ('mfg_abbott', 'أبوت للرعاية الصحية', 'Abbott Laboratories', 'أمريكا / مصر', 1),
+                        ('mfg_hikma', 'حكمة فارما', 'Hikma Pharmaceuticals', 'الأردن / مصر', 1),
+                        ('mfg_bayer', 'باير للرعاية الصحية', 'Bayer Healthcare', 'ألمانيا / مصر', 1),
+                        ('mfg_andalous', 'الأندلس للأدوية', 'Andalous Pharma', 'مصر', 1),
+                        ('mfg_utopia', 'يوتوبيا للأدوية', 'Utopia Pharmaceuticals', 'مصر', 1),
+                        ('mfg_global_napi', 'جلوبال نابي للأدوية', 'Global Napi Pharmaceuticals', 'مصر', 1),
+                        ('mfg_tabuk', 'تبوك للصناعات الدوائية', 'Tabuk Pharmaceuticals', 'السعودية / مصر', 1),
+                        ('mfg_rameda', 'العاشر من رمضان (راميدا)', 'Rameda', 'مصر', 1),
+                        ('mfg_sedico', 'سيديكو للأدوية', 'SEDICO Pharmaceuticals', 'مصر', 1),
+                        ('mfg_nerhadou', 'نرهادو إنترناشيونال', 'Nerhadou International', 'مصر', 1),
+                        ('mfg_roche', 'روش للأدوية', 'Roche Egypt', 'سويسرا / مصر', 1);
+                    ", conn, trans))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    // 2. Extend drug_reference columns if not present
+                    var drCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    using (var cmd = new SQLiteCommand("PRAGMA table_info(drug_reference);", conn, trans))
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            drCols.Add(reader["name"].ToString());
+                        }
+                    }
+
+                    if (!drCols.Contains("therapeutic_class"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE drug_reference ADD COLUMN therapeutic_class TEXT NULL;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (!drCols.Contains("category"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE drug_reference ADD COLUMN category TEXT NULL;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (!drCols.Contains("storage_location"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE drug_reference ADD COLUMN storage_location TEXT NULL;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+                    if (!drCols.Contains("is_refrigerated"))
+                    {
+                        using (var alter = new SQLiteCommand("ALTER TABLE drug_reference ADD COLUMN is_refrigerated INTEGER NULL DEFAULT 0;", conn, trans))
+                        {
+                            alter.ExecuteNonQuery();
+                        }
+                    }
+
+                    using (var cmd = new SQLiteCommand(@"
+                        INSERT OR REPLACE INTO schema_migrations (version, name, applied_at)
+                        VALUES (51, 'Seed Pharma Manufacturers & Extend Drug Reference (Story 134 Extension)', datetime('now'));
                     ", conn, trans))
                     {
                         cmd.ExecuteNonQuery();

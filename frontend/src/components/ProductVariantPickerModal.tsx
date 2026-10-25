@@ -14,6 +14,7 @@ import {
 import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import type { Product, ProductVariant } from '../types/models';
+import { getStoreTerminology } from '../utils/storeTerminology';
 
 interface ProductVariantPickerModalProps {
   isOpen: boolean;
@@ -35,6 +36,8 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [recentlyAddedId, setRecentlyAddedId] = useState<string | null>(null);
+
+  const terminology = useMemo(() => getStoreTerminology(), []);
 
   const { requestClose, handleBackdropClick } = useModalDismiss({
     isOpen: Boolean(isOpen && parentProduct),
@@ -175,8 +178,8 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
               </div>
               <p className="text-xs text-ink-muted">
                 {mode === 'purchase'
-                  ? 'اختر المقاس واللون لإضافته إلى فاتورة الشراء وتوريد الكميات'
-                  : 'اختر المقاس واللون المطلوب لإضافته إلى سلة البيع'}
+                  ? `اختر ${terminology.sizeLabel} و ${terminology.colorLabel} لإضافته إلى فاتورة الشراء وتوريد الكميات`
+                  : `اختر ${terminology.sizeLabel} و ${terminology.colorLabel} المطلوب لإضافته إلى سلة البيع`}
               </p>
             </div>
           </div>
@@ -194,7 +197,7 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
           {isLoading ? (
             <div className="py-12 flex flex-col items-center justify-center gap-2 text-ink-muted">
               <Loader2 className="w-6 h-6 animate-spin text-brand" />
-              <span className="text-xs">جاري تحميل المقاسات والألوان...</span>
+              <span className="text-xs">جاري تحميل {terminology.variantsTitle}...</span>
             </div>
           ) : variants.length === 0 ? (
             <div className="py-8 text-center text-ink-muted text-xs flex flex-col items-center gap-2">
@@ -207,7 +210,7 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
               {(selectedColor || selectedSize) && (
                 <div className="flex items-center justify-between bg-surface-2/70 px-3 py-1.5 rounded-xl border border-line text-xs">
                   <span className="text-ink-muted font-medium">
-                    تصفية نشطة: {selectedColor && `لون ${selectedColor}`} {selectedSize && `• مقاس ${selectedSize}`}
+                    تصفية نشطة: {selectedColor && `${terminology.colorLabel}: ${selectedColor}`} {selectedSize && `• ${terminology.sizeLabel}: ${selectedSize}`}
                   </span>
                   <button
                     type="button"
@@ -227,7 +230,7 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
               {allColors.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-bold text-ink-muted">1. تصفية باللون:</label>
+                    <label className="text-xs font-bold text-ink-muted">1. تصفية بـ{terminology.colorLabel}:</label>
                     {selectedColor && (
                       <button
                         type="button"
@@ -270,7 +273,7 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
               {allSizes.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-bold text-ink-muted">2. تصفية بالمقاس:</label>
+                    <label className="text-xs font-bold text-ink-muted">2. {terminology.filterBySizeLabel}</label>
                     {selectedSize && (
                       <button
                         type="button"
@@ -323,7 +326,7 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
                 <div className="space-y-2">
                   {filteredVariants.length === 0 ? (
                     <div className="p-6 text-center text-xs text-ink-muted border border-dashed border-line rounded-xl">
-                      لا توجد تركيبة تطابق هذا المقاس واللون معاً
+                      لا توجد تركيبة تطابق هذه الخيارات معاً
                     </div>
                   ) : (
                     filteredVariants.map((v) => {
@@ -387,7 +390,7 @@ export const ProductVariantPickerModal: React.FC<ProductVariantPickerModalProps>
                                     type="button"
                                     onClick={() => handlePick(v, true)}
                                     className="px-2 py-1 rounded-lg bg-surface-2 border border-line hover:border-brand text-[11px] font-bold text-brand flex items-center gap-1 transition-colors cursor-pointer"
-                                    title="إضافة إلى الفاتورة مع إبقاء النافذة مفتوحة لاختيار باقي المقاسات"
+                                    title="إضافة إلى الفاتورة مع إبقاء النافذة مفتوحة لاختيار باقي الخيارات"
                                   >
                                     <Plus className="w-3 h-3" />
                                     <span>+ متابعة</span>

@@ -206,15 +206,19 @@ namespace RafiqPOS.Services
                 product.Id = Guid.NewGuid().ToString();
             }
 
+            long stockDeltaMilli = 0;
             if (existing != null)
             {
-                // F-29: Product metadata edits MUST NOT overwrite live inventory
                 if (existing.StockQuantityMilli != product.StockQuantityMilli)
                 {
-                    Logger.Warn(string.Format("تم تجاهل تعديل المخزون للصنف '{0}' من شاشة تعديل الصنف (الرصيد الحي: {1:0.###}). استخدم شاشة الجرد لتسوية المخزون.",
-                        product.Name, existing.StockQuantityMilli / 1000.0));
-                    product.StockQuantityMilli = existing.StockQuantityMilli;
+                    stockDeltaMilli = product.StockQuantityMilli - existing.StockQuantityMilli;
+                    Logger.Info(string.Format("تحديث رصيد المخزون للصنف '{0}' من بطاقة الصنف: من {1:0.###} إلى {2:0.###} (الفرق: {3:0.###})",
+                        product.Name, existing.StockQuantityMilli / 1000.0, product.StockQuantityMilli / 1000.0, stockDeltaMilli / 1000.0));
                 }
+            }
+            else if (product.StockQuantityMilli != 0)
+            {
+                stockDeltaMilli = product.StockQuantityMilli;
             }
 
             if (string.IsNullOrWhiteSpace(product.CreatedAt))
@@ -257,6 +261,17 @@ namespace RafiqPOS.Services
                                 DetailsJson = string.Format("{{\"productName\":\"{0}\",\"oldCost\":{1},\"newCost\":{2}}}", product.Name, existing.CostPiasters, product.CostPiasters)
                             });
                         }
+                        if (existing.StockQuantityMilli != product.StockQuantityMilli)
+                        {
+                            _auditRepo.Log(new AuditLog
+                            {
+                                UserId = actorId,
+                                Action = "stock_update",
+                                EntityType = "product",
+                                EntityId = product.Id,
+                                DetailsJson = string.Format("{{\"productName\":\"{0}\",\"oldStock\":{1},\"newStock\":{2}}}", product.Name, existing.StockQuantityMilli, product.StockQuantityMilli)
+                            });
+                        }
                     }
                     else
                     {
@@ -277,11 +292,11 @@ namespace RafiqPOS.Services
             }
 
             // Stock movements ledger recording (Feature #35 / Tasks 35-1 & 35-2)
-            if (_movementRepo != null)
+            if (_movementRepo != null && stockDeltaMilli != 0)
             {
                 try
                 {
-                    if (existing == null && product.StockQuantityMilli != 0)
+                    if (existing == null)
                     {
                         _movementRepo.Add(new StockMovement
                         {
@@ -293,6 +308,22 @@ namespace RafiqPOS.Services
                             ReferenceType = "INITIAL_CREATION",
                             UnitCostPiasters = product.CostPiasters,
                             Note = "رصيد افتتاحي عند تعريف الصنف",
+                            CreatedAt = DateTime.UtcNow.ToString("o")
+                        });
+                    }
+                    else
+                    {
+                        _movementRepo.Add(new StockMovement
+                        {
+                            Id = Guid.NewGuid().ToString(),
+                            ProductId = product.Id,
+                            MovementType = "INVENTORY_ADJUSTMENT",
+                            QuantityMilli = stockDeltaMilli,
+                            ReferenceId = product.Id,
+                            ReferenceType = "PRODUCT_CARD_EDIT",
+                            UnitCostPiasters = product.CostPiasters,
+                            Note = string.Format("تعديل رصيد المخزون من بطاقة الصنف (السابق: {0:0.###}، الجديد: {1:0.###})",
+                                existing.StockQuantityMilli / 1000.0, product.StockQuantityMilli / 1000.0),
                             CreatedAt = DateTime.UtcNow.ToString("o")
                         });
                     }
@@ -383,6 +414,57 @@ namespace RafiqPOS.Services
                 {
                 }
             }
+        }
+
+        public int BulkDeleteProducts(List<string> ids)
+        {
+            if (ids == null || ids.Count == 0) return 0;
+            int count = _repo.BulkSoftDelete(ids);
+
+            if (_auditRepo != null)
+            {
+                try
+                {
+                    string actorId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
+                    _auditRepo.Log(new AuditLog
+                    {
+                        UserId = actorId,
+                        Action = "product_bulk_delete",
+                        EntityType = "product",
+                        EntityId = "bulk",
+                        DetailsJson = string.Format("{{\"count\":{0}}}", count)
+                    });
+                }
+                catch
+                {
+                }
+            }
+            return count;
+        }
+
+        public int ClearAllProducts()
+        {
+            int count = _repo.ClearAllProducts();
+
+            if (_auditRepo != null)
+            {
+                try
+                {
+                    string actorId = SecurityService.CurrentUser != null ? SecurityService.CurrentUser.Id : "usr_admin_default";
+                    _auditRepo.Log(new AuditLog
+                    {
+                        UserId = actorId,
+                        Action = "product_clear_all",
+                        EntityType = "product",
+                        EntityId = "all",
+                        DetailsJson = string.Format("{{\"count\":{0}}}", count)
+                    });
+                }
+                catch
+                {
+                }
+            }
+            return count;
         }
 
         public void BulkUpdateMinStock(List<string> productIds, long minStockMilli)
@@ -637,11 +719,11 @@ namespace RafiqPOS.Services
             }
         }
 
-        public Product SavePackagingLevels(string productId, List<ProductUnit> units, string defaultSaleUnitId, string defaultPurchaseUnitId, string displayUnitId, bool isLooseSellable)
+        public Product SavePackagingLevels(string productId, List<ProductUnit> units, string defaultSaleUnitId, string defaultPurchaseUnitId, string displayUnitId, bool isLooseSellable, int? multiplyStockByFactor = null)
         {
             lock (SaleService.FinancialWriteLock)
             {
-                return _repo.SavePackagingLevels(productId, units, defaultSaleUnitId, defaultPurchaseUnitId, displayUnitId, isLooseSellable);
+                return _repo.SavePackagingLevels(productId, units, defaultSaleUnitId, defaultPurchaseUnitId, displayUnitId, isLooseSellable, multiplyStockByFactor);
             }
         }
 

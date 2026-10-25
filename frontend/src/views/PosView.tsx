@@ -2081,12 +2081,6 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             onOpenHeldSales={() => setIsHeldSalesModalOpen(true)}
             onOpenReturnModal={() => setIsReturnModalOpen(true)}
             onOpenExpenseModal={() => setIsExpenseModalOpen(true)}
-            onOpenInsuranceModal={(isEnabled('feature_insurance') && (hasPermission ? hasPermission('insurance.sell') : false)) ? () => setIsInsuranceModalOpen(true) : undefined}
-            onOpenChronicDispense={
-              isEnabled('feature_patient_profiles') && (isAdmin || hasPermission('patients.view'))
-                ? () => setIsChronicDispenseOpen(true)
-                : undefined
-            }
             activeInsuranceClaim={activeInsuranceClaim}
             onRemoveInsuranceClaim={() => setActiveInsuranceClaim(null)}
             hasInstapayAccount={digitalAccounts.some((a) => a.accountType === 'instapay' && a.isActive)}
@@ -2110,6 +2104,14 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
             onOpenQuickFastItemModal={() => setIsQuickFastItemModalOpen(true)}
             onOpenQuickItemsManager={() => setIsQuickItemsManagerOpen(true)}
             onOpenVariantMatrixModal={() => setShowVariantMatrixModal(true)}
+            onOpenInsuranceModal={(isEnabled('feature_insurance') && (hasPermission ? hasPermission('insurance.sell') : false)) ? () => setIsInsuranceModalOpen(true) : undefined}
+            onOpenChronicDispense={
+              isEnabled('feature_patient_profiles') && (isAdmin || hasPermission('patients.view'))
+                ? () => setIsChronicDispenseOpen(true)
+                : undefined
+            }
+            activeInsuranceClaim={activeInsuranceClaim}
+            isCartEmpty={cart.length === 0}
             totalCatalogProductsCount={catalogProducts.length}
             categories={allPosCategories}
           />

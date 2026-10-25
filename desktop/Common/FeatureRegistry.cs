@@ -231,7 +231,7 @@ namespace RafiqPOS.Common
             Register(new FeatureDefinition
             {
                 Key = "feature_loose_selling",
-                NameAr = "البيع بالتجزئة وفك العبوات (G1)",
+                NameAr = "البيع بالتجزئة وفك العبوات",
                 DescriptionAr = "بيع الأصناف بالوحدات المفكوكة (بالشريط والقرص للأدوية، بالسيجارة للسجائر، بالبيضة) مع معالج التعبئة الذكي.",
                 Category = "المنتجات والمخزون",
                 DefaultValue = false,
@@ -239,6 +239,7 @@ namespace RafiqPOS.Common
                 OwnedCommands = new List<string>
                 {
                     "products:rebaseUnit",
+                    "products:rebaseBaseUnit",
                     "packaging:saveLevels"
                 },
                 OwnedPermissions = new List<string>
@@ -252,7 +253,7 @@ namespace RafiqPOS.Common
             Register(new FeatureDefinition
             {
                 Key = "feature_batch_pricing",
-                NameAr = "ازدواج تسعير التشغيلات على الرف (G2)",
+                NameAr = "ازدواج تسعير التشغيلات على الرف",
                 DescriptionAr = "بيع نفس الصنف بأسعار مختلفة حسب التشغيلة وتقسيم بنود الفاتورة آلياً عند اختلاف الأسعار.",
                 Category = "المبيعات والتشغيلات",
                 DefaultValue = false,
@@ -266,7 +267,7 @@ namespace RafiqPOS.Common
             Register(new FeatureDefinition
             {
                 Key = "feature_shelf_locations",
-                NameAr = "مواقع التخزين والرفوف والأدراج (G3)",
+                NameAr = "مواقع التخزين والرفوف والأدراج",
                 DescriptionAr = "تحديد ومتابعة أماكن تخزين الأصناف في الأدراج والرفوف والثلاجة وتوليد جرد مخصص للمكان.",
                 Category = "المستودعات وإدارة الرفوف",
                 DefaultValue = false,
@@ -284,7 +285,7 @@ namespace RafiqPOS.Common
             Register(new FeatureDefinition
             {
                 Key = "feature_shortage_book",
-                NameAr = "دفتر النواقص وطلب الموزع (G4)",
+                NameAr = "دفتر النواقص وطلب الموزع",
                 DescriptionAr = "تسجيل نواقص الكاشير والأصناف المطلوبة وتحويلها لمسودة فاتورة شراء مقسمة حسب المورد المفضل.",
                 Category = "المشتريات والموردين",
                 DefaultValue = false,
@@ -305,7 +306,7 @@ namespace RafiqPOS.Common
             Register(new FeatureDefinition
             {
                 Key = "feature_pharmacy",
-                NameAr = "موديول الصيدلية المتكامل (P1)",
+                NameAr = "موديول الصيدلية المتكامل",
                 DescriptionAr = "الملف الدوائي الكامل، الأشكال والجرعات الصيدلية، والبحث العلمي في شاشة الكاشير.",
                 Category = "الصيدلية والأدوية",
                 DefaultValue = false,
@@ -337,7 +338,7 @@ namespace RafiqPOS.Common
             Register(new FeatureDefinition
             {
                 Key = "feature_pharma_alternatives",
-                NameAr = "المواد الفعالة والبدائل والمثائل (P2)",
+                NameAr = "المواد الفعالة والبدائل والمثائل",
                 DescriptionAr = "اقتراح المثائل والبدائل العلاجية المتطابقة للأدوية الناقصة مع ترتيب الأقرب في السعر والمخزون.",
                 Category = "الصيدلية والأدوية",
                 DefaultValue = false,
@@ -351,7 +352,7 @@ namespace RafiqPOS.Common
             Register(new FeatureDefinition
             {
                 Key = "feature_controlled_drugs",
-                NameAr = "أدوية الجدول والرقابة الدوائية (P4)",
+                NameAr = "أدوية الجدول والرقابة الدوائية",
                 DescriptionAr = "إدارة وحوكمة صرف أدوية الجدول والمهدئات مع تقارير التفتيش الصيدلي وسجل الوارد والمنصرف.",
                 Category = "الصيدلية والأدوية",
                 DefaultValue = false,
@@ -372,7 +373,7 @@ namespace RafiqPOS.Common
             Register(new FeatureDefinition
             {
                 Key = "feature_prescriptions",
-                NameAr = "إدارة وصرف الروشتات الطبية (P5)",
+                NameAr = "إدارة وصرف الروشتات الطبية",
                 DescriptionAr = "تسجيل بيانات وأرشفة صور الروشتات الطبية ودعم الصرف التلقائي المتكرر.",
                 Category = "الصيدلية والأدوية",
                 DefaultValue = false,
@@ -391,7 +392,7 @@ namespace RafiqPOS.Common
             Register(new FeatureDefinition
             {
                 Key = "feature_patient_profiles",
-                NameAr = "ملف المريض والأمراض المزمنة (P6)",
+                NameAr = "ملف المريض والأمراض المزمنة",
                 DescriptionAr = "متابعة التاريخ العلاجي للمرضى وحساسية المواد الفعالة ومواعيد استحقاق أدوية الأمراض المزمنة.",
                 Category = "الصيدلية والأدوية",
                 DefaultValue = false,
@@ -412,7 +413,7 @@ namespace RafiqPOS.Common
             Register(new FeatureDefinition
             {
                 Key = "feature_insurance",
-                NameAr = "التأمين الطبي والتعاقدات (P7)",
+                NameAr = "التأمين الطبي والتعاقدات",
                 DescriptionAr = "إدارة شركات التأمين والنسب والتحملات والمطالبات الشهرية وتتبع التحصيل.",
                 Category = "الصيدلية والأدوية",
                 DefaultValue = false,
@@ -420,9 +421,12 @@ namespace RafiqPOS.Common
                 OwnedCommands = new List<string>
                 {
                     "insurance:saveCompany",
+                    "insurance:deleteCompany",
                     "insurance:saveContract",
-                    "insurance:createClaimBatch",
-                    "insurance:settleClaimBatch"
+                    "insurance:deleteContract",
+                    "insurance:saveMember",
+                    "insurance:createBatch",
+                    "insurance:settleBatch"
                 },
                 OwnedPermissions = new List<string>
                 {
@@ -436,7 +440,7 @@ namespace RafiqPOS.Common
             Register(new FeatureDefinition
             {
                 Key = "feature_expiry_returns",
-                NameAr = "مرتجع الصلاحية للموزعين والإعدام (P9)",
+                NameAr = "مرتجع الصلاحية للموزعين والإعدام",
                 DescriptionAr = "حساب نوافذ مرتجعات الأدوية للموردين قبل الانتهاء ونسب الاسترداد ومحاضر إعدام البضاعة المنتهية.",
                 Category = "المخزون والتشغيلات",
                 DefaultValue = false,
@@ -455,7 +459,7 @@ namespace RafiqPOS.Common
             Register(new FeatureDefinition
             {
                 Key = "feature_drug_reference",
-                NameAr = "دليل الأدوية المرجعي (P11)",
+                NameAr = "دليل الأدوية المرجعي",
                 DescriptionAr = "قاعدة بيانات مرجعية منفصلة لاستيراد وتحديث أسعار وبيانات الأدوية من الإكسل لسرعة إضافة الأصناف.",
                 Category = "الصيدلية والأدوية",
                 DefaultValue = false,

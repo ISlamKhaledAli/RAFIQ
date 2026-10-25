@@ -9,9 +9,7 @@ import {
   Smartphone,
   Wallet,
   Link2,
-  Building2,
   ShieldCheck,
-  HeartPulse,
   X,
 } from 'lucide-react';
 import type { Customer } from '../../types/models';
@@ -43,8 +41,6 @@ interface PosCartCheckoutBarProps {
   onOpenHeldSales: () => void;
   onOpenReturnModal: () => void;
   onOpenExpenseModal?: () => void;
-  onOpenInsuranceModal?: () => void;
-  onOpenChronicDispense?: () => void;
   activeInsuranceClaim?: InsuranceClaimLine | null;
   onRemoveInsuranceClaim?: () => void;
   hasInstapayAccount?: boolean;
@@ -75,8 +71,6 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
   onOpenHeldSales,
   onOpenReturnModal,
   onOpenExpenseModal,
-  onOpenInsuranceModal,
-  onOpenChronicDispense,
   activeInsuranceClaim,
   onRemoveInsuranceClaim,
   hasInstapayAccount = true,
@@ -113,38 +107,8 @@ export const PosCartCheckoutBar: React.FC<PosCartCheckoutBarProps> = ({
           )}
         </div>
 
-        {/* Support Action Buttons (تأمين, علاج شهري, مصروف, تفريغ, تعليق, معلقة, مرتجع) */}
+        {/* Support Action Buttons (مصروف, تفريغ, تعليق, معلقة, مرتجع) */}
         <div className="flex items-center gap-1 shrink-0">
-          {/* روشتة تأمين */}
-          {onOpenInsuranceModal && isEnabled('feature_insurance') && (
-            <button
-              type="button"
-              onClick={onOpenInsuranceModal}
-              disabled={cart.length === 0}
-              className={`h-6.5 sm:h-7 px-1.5 sm:px-2 border text-[10px] sm:text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50 whitespace-nowrap ${
-                activeInsuranceClaim
-                  ? 'bg-paid-soft dark:bg-paid-dark-soft text-paid dark:text-paid-bright border-paid/30 hover:bg-paid-soft/80'
-                  : 'bg-surface dark:bg-surface-dark-2 hover:bg-brand-soft text-brand dark:text-brand-bright border-line dark:border-line-dark hover:border-brand/30'
-              }`}
-              title={activeInsuranceClaim ? "تعديل روشتة التأمين المطبقة" : "تطبيق روشتة تأمين طبي للشركات والتعاقدات"}
-            >
-              <Building2 className="w-3 h-3 shrink-0" />
-              <span>{activeInsuranceClaim ? 'تأمين (مُفعّل)' : 'تأمين'}</span>
-            </button>
-          )}
-
-          {/* صرف علاج شهري للأمراض المزمنة */}
-          {onOpenChronicDispense && isEnabled('feature_patient_profiles') && (
-            <button
-              type="button"
-              onClick={onOpenChronicDispense}
-              className="h-6.5 sm:h-7 px-1.5 sm:px-2 bg-paid-soft dark:bg-paid-dark-soft hover:bg-paid-soft/80 text-paid dark:text-paid-bright border border-paid/30 text-[10px] sm:text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap"
-              title="صرف أدوية الأمراض المزمنة للمرضى المسجلين بنقرة واحدة"
-            >
-              <HeartPulse className="w-3 h-3 shrink-0 text-paid dark:text-paid-bright" />
-              <span>علاج شهري</span>
-            </button>
-          )}
 
           {/* مصروف درج */}
           {onOpenExpenseModal && (

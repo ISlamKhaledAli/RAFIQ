@@ -233,6 +233,10 @@ export interface DrugReferenceItem {
   packDesc?: string | null;
   publicPricePiasters?: number | null;
   source?: string | null;
+  therapeuticClass?: string | null;
+  category?: string | null;
+  storageLocation?: string | null;
+  isRefrigerated?: boolean;
   importedAt: string;
   createdAt?: string;
   updatedAt?: string | null;
@@ -248,6 +252,10 @@ export interface DrugReferenceImportRow {
   manufacturer?: string | null;
   packDesc?: string | null;
   publicPricePiasters?: number | null;
+  therapeuticClass?: string | null;
+  category?: string | null;
+  storageLocation?: string | null;
+  isRefrigerated?: boolean;
   status: 'NEW' | 'UPDATE' | 'ERROR';
   reason?: string | null;
 }

@@ -15,6 +15,7 @@ import { invoke } from '../bridge/ipc';
 import { useModalDismiss } from '../hooks/useModalDismiss';
 import type { Product, ProductVariant } from '../types/models';
 import { formatArabicCurrency } from '../utils/money';
+import { getStoreTerminology } from '../utils/storeTerminology';
 
 interface ProductVariantsListModalProps {
   isOpen: boolean;
@@ -39,6 +40,8 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
   const [isDeleting, setIsDeleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const terminology = React.useMemo(() => getStoreTerminology(), []);
 
   useEffect(() => {
     if (isOpen && parentProduct?.id) {
@@ -116,11 +119,11 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-bold text-ink">{parentProduct.name}</h3>
                 <span className="px-2 py-0.5 rounded-full bg-brand-soft text-brand text-[11px] font-bold border border-brand/20">
-                  {variants.length} تركيبة (مقاس × لون)
+                  {variants.length} صنف متفرع
                 </span>
               </div>
               <p className="text-xs text-ink-muted">
-                إجمالي رصيد المقاسات: <span className="font-bold text-paid font-mono">{totalStockUnits.toLocaleString('en-US')}</span> قطعة
+                إجمالي الرصيد المتوفر: <span className="font-bold text-paid font-mono">{totalStockUnits.toLocaleString('en-US')}</span> قطعة
               </p>
             </div>
           </div>
@@ -133,10 +136,10 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
                   onOpenMatrixModal();
                 }}
                 className="px-3 py-1.5 bg-brand-soft hover:bg-brand text-brand hover:text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer border border-brand/20"
-                title="تعديل أو إضافة مقاسات وألوان جديدة لهذا الصنف"
+                title="تعديل أو إضافة أصناف متفرعة جديدة"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>تعديل أو إضافة مقاسات</span>
+                <span>تعديل أو إضافة أصناف</span>
               </button>
             )}
             <button
@@ -186,12 +189,12 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
           {isLoading ? (
             <div className="py-16 flex flex-col items-center justify-center gap-2 text-ink-muted">
               <Loader2 className="w-6 h-6 animate-spin text-brand" />
-              <span className="text-xs">جاري تحميل تركيبات المقاسات والألوان...</span>
+              <span className="text-xs">جاري تحميل {terminology.variantsTitle}...</span>
             </div>
           ) : variants.length === 0 ? (
             <div className="py-12 text-center text-ink-muted text-xs flex flex-col items-center gap-3">
               <Package className="w-10 h-10 opacity-40 text-brand" />
-              <span>لا توجد تركيبات مسجلة لهذا الصنف حالياً</span>
+              <span>لا توجد أصناف متفرعة مسجلة لهذا الصنف حالياً</span>
               {onOpenMatrixModal && (
                 <button
                   type="button"
@@ -202,7 +205,7 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
                   className="px-3.5 py-1.5 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>إنشاء مصفوفة المقاسات والألوان الآن</span>
+                  <span>إنشاء الأصناف المتفرعة الآن</span>
                 </button>
               )}
             </div>
@@ -211,8 +214,8 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
               <table className="w-full text-right border-collapse text-xs">
                 <thead>
                   <tr className="bg-surface-2 border-b border-line text-ink font-bold">
-                    <th className="py-2.5 px-3">اللون</th>
-                    <th className="py-2.5 px-3">المقاس</th>
+                    <th className="py-2.5 px-3">{terminology.colorLabel}</th>
+                    <th className="py-2.5 px-3">{terminology.sizeLabel}</th>
                     <th className="py-2.5 px-3">الباركود</th>
                     <th className="py-2.5 px-3 text-center">الرصيد</th>
                     <th className="py-2.5 px-3 text-left">سعر البيع</th>
@@ -258,7 +261,7 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
                                 type="button"
                                 onClick={() => onPrintVariantLabel(v)}
                                 className="p-1.5 rounded-lg text-ink-muted hover:text-brand hover:bg-brand-soft transition-colors cursor-pointer"
-                                title="طباعة ملصق باركود لهذا المقاس"
+                                title="طباعة ملصق باركود لهذا الصنف"
                               >
                                 <Tag className="w-3.5 h-3.5" />
                               </button>
@@ -271,7 +274,7 @@ export const ProductVariantsListModal: React.FC<ProductVariantsListModalProps> =
                                 setVariantToDelete(v);
                               }}
                               className="p-1.5 rounded-lg text-ink-muted hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer"
-                              title="حذف هذا المتغير (المقاس واللون)"
+                              title="حذف هذا الصنف المتفرع"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>

@@ -114,7 +114,8 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
       const reader = new FileReader();
       reader.onload = () => {
         const result = reader.result as string;
-        const base64 = result.includes(',') ? result.split(',')[1] : result;
+        let base64 = result.includes(',') ? result.split(',')[1] : result;
+        base64 = base64.replace(/\s/g, '');
         resolve(base64);
       };
       reader.onerror = (e) => reject(e);
@@ -132,7 +133,10 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
     try {
       const base64 = await readFileAsBase64(file);
       setFileBase64(base64);
-      const preview = await invoke<DrugReferenceImportPreviewResult>('pharma:previewDrugReferenceImport', { base64 });
+      const preview = await invoke<DrugReferenceImportPreviewResult>('pharma:previewDrugReferenceImport', { 
+        fileBase64: base64,
+        base64 
+      });
       setPreviewData(preview);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'فشل فحص ومعاينة ملف الإكسل';
@@ -159,18 +163,37 @@ export const DrugReferenceImportModal: React.FC<DrugReferenceImportModalProps> =
   };
 
   const handleConfirmImport = async () => {
-    if (!fileBase64) return;
+    if (!fileBase64 && (!previewData || !previewData.rows.length)) return;
     setIsImporting(true);
     setErrorMessage(null);
     try {
-      const res = await invoke<{
-        totalProcessed: number;
-        createdCount: number;
-        updatedCount: number;
-        failedCount: number;
-      }>('pharma:confirmDrugReferenceImport', { base64: fileBase64 });
+      const validRows = (previewData?.rows || []).filter((r) => r.status !== 'ERROR');
+      const items = validRows.map((r) => ({
+        barcode: r.barcode,
+        tradeName: r.tradeName,
+        scientificName: r.scientificName,
+        form: r.form,
+        strength: r.strength,
+        manufacturer: r.manufacturer,
+        packDesc: r.packDesc,
+        publicPricePiasters: r.publicPricePiasters,
+      }));
 
-      const msg = `تم استيراد الدليل المرجعي بنجاح: تم إضافة (${res.createdCount}) صنف جديد، وتحديث (${res.updatedCount}) صنف.`;
+      const res = await invoke<{
+        totalProcessed?: number;
+        createdCount?: number;
+        updatedCount?: number;
+        failedCount?: number;
+        importedCount?: number;
+      }>('pharma:confirmDrugReferenceImport', { 
+        items,
+        base64: fileBase64,
+        fileBase64,
+        source: selectedFile?.name || 'Excel Import'
+      });
+
+      const count = res.createdCount ?? res.importedCount ?? items.length;
+      const msg = `تم استيراد الدليل المرجعي بنجاح: تم اعتماد (${count}) دواء في قاعدة بيانات الدليل الاسترشادي.`;
       setSuccessMessage(msg);
       setSelectedFile(null);
       setFileBase64('');

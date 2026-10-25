@@ -244,22 +244,10 @@ namespace RafiqPOS.Services
                     settingsBatch["store_logo_url"] = req.StoreLogoUrl.Trim();
 
                 // Apply template feature flags with strict isolation (guarantee non-template features are turned off)
-                string[] allKnownFlags = new string[]
+                var allDefs = FeatureRegistry.GetAllDefinitions();
+                for (int f = 0; f < allDefs.Count; f++)
                 {
-                    "feature_scale_weight",
-                    "feature_credit_debts",
-                    "feature_fast_buttons",
-                    "feature_taxes",
-                    "feature_expiry_dates",
-                    "feature_multi_units",
-                    "feature_matrix_variants",
-                    "feature_epay_services",
-                    "feature_digital_wallets"
-                };
-
-                for (int f = 0; f < allKnownFlags.Length; f++)
-                {
-                    string flagKey = allKnownFlags[f];
+                    string flagKey = allDefs[f].Key;
                     bool flagVal = false;
                     if (template.FeatureFlags != null && template.FeatureFlags.ContainsKey(flagKey))
                     {

@@ -27,6 +27,18 @@ namespace RafiqPOS.Models
         [JsonProperty("manufacturer")]
         public string Manufacturer { get; set; }
 
+        [JsonProperty("therapeuticClass")]
+        public string TherapeuticClass { get; set; }
+
+        [JsonProperty("category")]
+        public string Category { get; set; }
+
+        [JsonProperty("storageLocation")]
+        public string StorageLocation { get; set; }
+
+        [JsonProperty("isRefrigerated")]
+        public bool IsRefrigerated { get; set; }
+
         [JsonProperty("packDesc")]
         public string PackDesc { get; set; }
 
@@ -68,6 +80,18 @@ namespace RafiqPOS.Models
 
         [JsonProperty("manufacturer")]
         public string Manufacturer { get; set; }
+
+        [JsonProperty("therapeuticClass")]
+        public string TherapeuticClass { get; set; }
+
+        [JsonProperty("category")]
+        public string Category { get; set; }
+
+        [JsonProperty("storageLocation")]
+        public string StorageLocation { get; set; }
+
+        [JsonProperty("isRefrigerated")]
+        public bool IsRefrigerated { get; set; }
 
         [JsonProperty("packDesc")]
         public string PackDesc { get; set; }

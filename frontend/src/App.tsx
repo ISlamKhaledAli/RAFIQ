@@ -574,6 +574,13 @@ export default function App() {
       const s: any = await invoke('settings:getAll');
       if (s) {
         if (s.store_name) setStoreName(s.store_name);
+        if (s.store_type) {
+          try {
+            localStorage.setItem('rafiq_store_type', s.store_type);
+          } catch {
+            // ignore
+          }
+        }
       }
       void refreshUser();
       const sec: any = await invoke('security:getStatus');
