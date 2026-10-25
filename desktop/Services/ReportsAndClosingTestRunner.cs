@@ -524,8 +524,8 @@ namespace RafiqPOS.Services
 
                 Assert(closing18 != null && closing18.ClosingNumber > 0, "تم توليد رقم إقفال رسمي Z-Report لليوم 2026-11-01", result);
                 Assert(closing18.DifferencePiasters == -200, "تسجيل عجز النقدية (-200 قرش) وترحيله في حساب تسويات المتجر", result);
-                Assert(closing18.ExpectedCashPiasters == 3000, "النقد المتوقع لليوم مطابق لمبيعات اليوم النقدية (3000 قرش)", result);
-                Assert(closing18.ActualCashPiasters == 2800, "النقد الفعلي المسجل مطابق للمعدود يدوياً (2800 قرش)", result);
+                Assert(closing18.ExpectedCashPiasters == expectedCash18, string.Format("النقد المتوقع لليوم مطابق لمبيعات اليوم النقدية والعهدة الافتتاحية ({0} قرش)", expectedCash18), result);
+                Assert(closing18.ActualCashPiasters == expectedCash18 - 200, string.Format("النقد الفعلي المسجل مطابق للمعدود يدوياً ({0} قرش)", expectedCash18 - 200), result);
 
                 // Close 2026-11-02 with Surplus of 500 piasters (فائض 5 جنيه)
                 long expectedCash19 = previewDay19.ExpectedCashPiasters;

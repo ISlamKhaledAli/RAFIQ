@@ -189,18 +189,27 @@ namespace RafiqPOS.Services
             // 5. مصروفات الدرج (Expenses from Drawer) — يُخصم من الدرج
             if (TableExists(conn, trans, "expenses"))
             {
+                bool hasBDateCol = ColumnExists(conn, trans, "expenses", "business_date");
                 using (var cmd = conn.CreateCommand())
                 {
                     cmd.Transaction = trans;
-                    cmd.CommandText = @"
-                        SELECT COALESCE(SUM(amount_piasters), 0)
-                        FROM expenses
-                        WHERE (is_cancelled = 0 OR is_cancelled IS NULL)
-                          AND (source = 'drawer' OR source IS NULL OR source = '')
-                          AND (
-                              (@shiftId IS NOT NULL AND (shift_id = @shiftId OR (shift_id IS NULL AND datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end)))
-                              OR (@shiftId IS NULL AND datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end)
-                          );";
+                    cmd.CommandText = hasBDateCol
+                        ? @"SELECT COALESCE(SUM(amount_piasters), 0)
+                            FROM expenses
+                            WHERE (is_cancelled = 0 OR is_cancelled IS NULL)
+                              AND (source = 'drawer' OR source IS NULL OR source = '')
+                              AND (
+                                  (@shiftId IS NOT NULL AND (shift_id = @shiftId OR (shift_id IS NULL AND datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end)))
+                                  OR (@shiftId IS NULL AND (business_date = date(@start) OR (datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end)))
+                              );"
+                        : @"SELECT COALESCE(SUM(amount_piasters), 0)
+                            FROM expenses
+                            WHERE (is_cancelled = 0 OR is_cancelled IS NULL)
+                              AND (source = 'drawer' OR source IS NULL OR source = '')
+                              AND (
+                                  (@shiftId IS NOT NULL AND (shift_id = @shiftId OR (shift_id IS NULL AND datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end)))
+                                  OR (@shiftId IS NULL AND datetime(created_at, 'localtime') >= @start AND datetime(created_at, 'localtime') <= @end)
+                              );";
                     cmd.Parameters.AddWithValue("@shiftId", (object)shiftId ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@start", startStr);
                     cmd.Parameters.AddWithValue("@end", endStr);

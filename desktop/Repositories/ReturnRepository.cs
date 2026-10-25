@@ -388,7 +388,7 @@ namespace RafiqPOS.Repositories
                                             JOIN sale_items si ON a.sale_item_id = si.id
                                             JOIN product_batches pb ON a.batch_id = pb.id
                                             WHERE si.sale_id = @sid AND si.product_id = @prodId
-                                            ORDER BY a.created_at DESC;
+                                            ORDER BY a.created_at DESC, a.rowid DESC;
                                         ";
                                         using (var saCmd = new SQLiteCommand(sAllocSql, conn, trans))
                                         {

@@ -96,10 +96,10 @@ namespace RafiqPOS.Services
                 RunTest24_ReturnCartBatchAndUnitResilienceGuards(report);
                 RunTest25_DigitalAccountDailyAndMonthlyLimitGuards(report);
                 RunTest26_GenericWalletAndCardClosingParity(report);
-                RunTest27_ClosedDayCashDrawerProtections(report);
                 RunTest28_HeldSalesAndQuickItemsSanityGuards(report);
                 RunTest29_CustomerAdvanceCreditReturnSymmetry(report);
                 RunTest30_MultiTenderInstapayWalletCashSplitParity(report);
+                RunTest27_ClosedDayCashDrawerProtections(report);
 
                 report.Success = (report.PassedAssertions == report.TotalAssertions);
                 report.Message = string.Format("اكتمل الفحص الشامل المتقدم بنجاح فائق: {0}/{1} اختبارات ناجحة بنسبة 100%",
@@ -221,10 +221,9 @@ namespace RafiqPOS.Services
                 "صافي حركة الكاشير الناتجة عن معاملات المحفظة (سحب وإيداع) دقيقة (+170.00 ج.م)",
                 "صافي كاش المحفظة غير مطابق: " + preview.WalletsDrawerCashPiasters, report);
 
-            // Expected cash must incorporate + 16,500 - 100,000 = -83,500
-            // Since there were no sales yet, Math.Max(0, -83500) = 0
-            AssertCondition(preview.ExpectedCashPiasters >= 0,
-                "حساب النقدية المتوقعة في الدرج آمن وغير سالب",
+            // Expected cash must incorporate + 17,000 - 100,000 = -83,000 (F-08: No zero clamping, true deficit preserved)
+            AssertCondition(preview.ExpectedCashPiasters == -83000,
+                "حساب النقدية المتوقعة في الدرج يعكس العجز الحقيقي بدقة القروش (-830.00 ج.م)",
                 "النقدية المتوقعة غير صالحة: " + preview.ExpectedCashPiasters, report);
         }
 
@@ -2144,7 +2143,7 @@ namespace RafiqPOS.Services
             }
 
             // 7. Expense from cash drawer: 20 EGP (2,000 piasters)
-            expenseService.CreateExpense(new CreateExpenseRequest
+            var exp = expenseService.CreateExpense(new CreateExpenseRequest
             {
                 Category = "فواتير",
                 AmountPiasters = 2000,
@@ -2152,6 +2151,16 @@ namespace RafiqPOS.Services
                 Notes = "فاتورة كهرباء",
                 CreatedBy = "الكاشير"
             });
+            using (var conn = new SQLiteConnection(_connStr))
+            {
+                conn.Open();
+                using (var cmd = new SQLiteCommand("UPDATE expenses SET created_at = @cat WHERE id = @id;", conn))
+                {
+                    cmd.Parameters.AddWithValue("@cat", bDate + "T13:00:00Z");
+                    cmd.Parameters.AddWithValue("@id", exp.Id);
+                    cmd.ExecuteNonQuery();
+                }
+            }
 
             // 8. Assertions on Closing Preview:
             // Expected Cash:
