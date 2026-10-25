@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   HelpCircle,
   X,
@@ -388,9 +388,16 @@ export const HelpCenterModal = ({
     [isRoot, isAdmin, hasPermission]
   );
 
-  // Sync initialSection on open with permission guard
+  const prevIsOpenRef = useRef(false);
+  const lastInitialSectionRef = useRef<string | undefined>(undefined);
+
+  // Sync initialSection on open with permission guard (only on initial open or explicit external change)
   useEffect(() => {
-    if (isOpen && initialSection) {
+    const isOpening = isOpen && !prevIsOpenRef.current;
+    const isExplicitSectionChange = isOpen && initialSection !== lastInitialSectionRef.current;
+
+    if (isOpening || isExplicitSectionChange) {
+      lastInitialSectionRef.current = initialSection;
       const validSections: HelpSectionId[] = [
         'pos', 'products', 'purchases', 'customers', 'sales', 'backup_security', 'faq', 'support'
       ];
@@ -420,6 +427,8 @@ export const HelpCenterModal = ({
         setActiveSection(fallback);
       }
     }
+
+    prevIsOpenRef.current = isOpen;
   }, [isOpen, initialSection, isSectionAllowed]);
 
   // Load diagnostics and license info on open

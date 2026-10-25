@@ -152,22 +152,23 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
             cart.map((item, index) => (
               <div 
                 key={item.productId || index} 
-                className="min-h-[46px] sm:min-h-[50px] border-b border-line/40 dark:border-line-dark/50 flex items-center px-2 sm:px-3 text-xs hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors w-full gap-1 sm:gap-1.5 lg:gap-2"
+                className="min-h-[50px] sm:min-h-[54px] py-1.5 border-b border-line/40 dark:border-line-dark/50 flex items-center px-2 sm:px-3 text-xs hover:bg-surface-2/60 dark:hover:bg-surface-dark-2/60 transition-colors w-full gap-1 sm:gap-1.5 lg:gap-2"
               >
                 {/* Index */}
                 <div className="w-5 shrink-0 text-center font-mono text-ink-muted dark:text-ink-dark-muted text-xs font-bold">
                   {index + 1}
                 </div>
 
-                {/* Description */}
-                <div className="flex-1 min-w-0 pr-1 flex flex-col justify-center overflow-hidden">
-                  <div className="flex items-center gap-1.5 truncate">
-                    <span className="font-bold text-ink dark:text-ink-dark truncate text-xs sm:text-sm">{item.productName}</span>
-                    {item.locationCode && (
-                      <span className="shrink-0 px-1.5 py-0.2 bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark text-[9px] font-mono font-bold text-ink dark:text-ink-dark rounded" title={`مكان الصنف: ${item.locationCode}`}>
-                        [{item.locationCode}]
-                      </span>
-                    )}
+                {/* Description Column */}
+                <div className="flex-1 min-w-0 pr-1 flex flex-col justify-center">
+                  {/* Line 1: Clear, Uncrowded Product Name */}
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span
+                      className="font-bold text-ink dark:text-ink-dark truncate text-xs sm:text-[13px] leading-snug"
+                      title={item.productName}
+                    >
+                      {item.productName}
+                    </span>
                     {item.isColdChain && (
                       <span className="shrink-0 px-1.5 py-0.2 bg-cyan-50 dark:bg-cyan-900/30 border border-cyan-200 dark:border-cyan-800 text-cyan-700 dark:text-cyan-300 text-[9px] font-bold rounded flex items-center gap-0.5" title="سلسلة تبريد: يحفظ في الثلاجة (2-8 مئوية)">
                         <Snowflake className="w-2.5 h-2.5 text-cyan-600 dark:text-cyan-400" />
@@ -180,85 +181,56 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                         <span>وزن</span>
                       </span>
                     )}
-                    {/* Unit Switch Button if multiple units exist */}
-                    {item.productUnits && item.productUnits.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => cycleCartItemUnit?.(index)}
-                        className="h-6 px-2 rounded-md bg-surface-2 dark:bg-surface-dark-3 hover:bg-brand-soft hover:text-brand border border-line dark:border-line-dark flex items-center gap-1 text-[10px] font-bold text-ink-muted cursor-pointer transition-colors shadow-2xs shrink-0"
-                        title="تبديل وحدة البيع للوحدة التالية (أو اضغط مفتاح / بالكيبورد)"
-                      >
-                        <ArrowLeftRight className="w-3 h-3 text-brand shrink-0" />
-                        <span>تبديل</span>
-                      </button>
-                    )}
-                    {onOpenAlternatives && (
-                      <button
-                        type="button"
-                        onClick={() => onOpenAlternatives(index)}
-                        className="h-6 px-2 rounded-md bg-brand-soft/40 dark:bg-brand-soft/20 hover:bg-brand/20 border border-brand/20 flex items-center gap-1 text-[10px] font-bold text-brand dark:text-brand-bright cursor-pointer transition-colors shadow-2xs shrink-0"
-                        title="البحث عن بدائل ومثائل دوائية لهذا الصنف (F8)"
-                      >
-                        <Pill className="w-2.5 h-2.5 shrink-0" />
-                        <span>بدائل (F8)</span>
-                      </button>
-                    )}
-                    {/* Story 131: Controlled Drug Dispense Documentation Button / Badge */}
-                    {item.isControlled && (
-                      <button
-                        type="button"
-                        onClick={() => onOpenControlledDispense?.(index)}
-                        className={`h-6 px-2 rounded-md flex items-center gap-1 text-[10px] font-bold cursor-pointer transition-colors shadow-2xs shrink-0 ${
-                          item.controlledDispense
-                            ? 'bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 text-paid dark:text-paid-bright hover:bg-paid/20'
-                            : 'bg-warn-soft dark:bg-warn-dark-soft border border-warn/30 dark:border-warn-bright/40 text-warn dark:text-warn-bright hover:bg-warn/25 animate-pulse'
-                        }`}
-                        title={
-                          item.controlledDispense
-                            ? `تم توثيق الصرف للمريض: ${item.controlledDispense.patientName} (اضغط لتعديل البيانات)`
-                            : 'دواء جدول ورقابة مشددة - اضغط لتوثيق بيانات المريض والطبيب (إلزامي للبيع)'
-                        }
-                      >
-                        <ShieldAlert className={`w-3 h-3 ${item.controlledDispense ? 'text-paid dark:text-paid-bright' : 'text-warn dark:text-warn-bright'}`} />
-                        <span>{item.controlledDispense ? `توثيق: ${item.controlledDispense.patientName.split(' ')[0]}` : 'توثيق جدول'}</span>
-                      </button>
-                    )}
-                    {onPrintDosageLabel && (
-                      <button
-                        type="button"
-                        onClick={() => onPrintDosageLabel(index)}
-                        className="h-6 px-2 rounded-md bg-surface-2 dark:bg-surface-dark-3 hover:bg-brand-soft hover:text-brand border border-line dark:border-line-dark flex items-center gap-1 text-[10px] font-bold text-ink-muted cursor-pointer transition-colors shadow-2xs shrink-0"
-                        title="طباعة ملصق جرعة حراري (استيكر صيدلي)"
-                      >
-                        <Printer className="w-2.5 h-2.5 text-brand shrink-0" />
-                        <span>ملصق</span>
-                      </button>
+                    {item.locationCode && (
+                      <span className="shrink-0 px-1.5 py-0.2 bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark text-[9px] font-mono font-bold text-ink dark:text-ink-dark rounded" title={`مكان الصنف: ${item.locationCode}`}>
+                        [{item.locationCode}]
+                      </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-1.5 text-[10px] text-ink-muted dark:text-ink-dark-muted truncate">
-                    <span className="font-mono truncate">
-                      {item.barcode || 'بدون باركود'}
-                    </span>
+
+                  {/* Line 2: Details & Quick Actions Toolbar */}
+                  <div className="flex items-center gap-1.5 text-[10px] text-ink-muted dark:text-ink-dark-muted mt-1 min-w-0 flex-wrap">
+                    {/* Barcode */}
+                    {item.barcode && (
+                      <span className="font-mono text-ink-muted/80 shrink-0">
+                        {item.barcode}
+                      </span>
+                    )}
+
+                    {/* Unit Tag (Translated to Arabic e.g. قطعة / علبة) */}
+                    {item.unitName && (
+                      <span className="font-bold px-1.5 py-0.2 rounded bg-surface-2 dark:bg-surface-dark-3 border border-line dark:border-line-dark text-ink-muted dark:text-ink-dark-muted shrink-0">
+                        {item.unitName.toLowerCase() === 'piece' || item.unitName.toLowerCase() === 'pcs'
+                          ? 'قطعة'
+                          : item.unitName.toLowerCase() === 'box'
+                          ? 'علبة'
+                          : item.unitName.toLowerCase() === 'strip'
+                          ? 'شريط'
+                          : item.unitName}
+                        {item.conversionFactor && item.conversionFactor > 1 ? ` = ${item.conversionFactor}` : ''}
+                      </span>
+                    )}
+
+                    {/* Discount badge if present */}
                     {item.discountPiasters > 0 && (
                       <span className="text-warn dark:text-warn-bright bg-warn-soft dark:bg-warn-dark-soft border border-warn/20 dark:border-warn-bright/30 font-bold px-1 rounded flex items-center gap-0.5 shrink-0">
                         <Tag className="w-2 h-2" />
                         خصم: {formatArabicCurrency(item.discountPiasters)}
                       </span>
                     )}
-                    {item.unitName && (
-                      <span className="text-paid dark:text-paid-bright font-bold bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 px-1.5 py-0.2 rounded shrink-0">
-                        {item.unitName}{item.conversionFactor && item.conversionFactor > 1 ? ` = ${item.conversionFactor} قطعة` : ''}
-                      </span>
-                    )}
+
+                    {/* Expired bypass badge */}
                     {item.isExpiredBypass && (
                       <span 
                         className="text-danger dark:text-danger-bright bg-danger-soft dark:bg-danger-dark-soft border border-danger-border dark:border-danger/30 font-bold px-1 rounded flex items-center gap-0.5 shrink-0"
                         title={`تاريخ الانتهاء: ${item.expiryDate || 'منتهي'} - بيع بتخطي واعتماد إداري`}
                       >
                         <AlertTriangle className="w-2.5 h-2.5 text-danger dark:text-danger-bright shrink-0" />
-                        منتهي (بتخطي إداري){item.expiryDate ? `: ${item.expiryDate}` : ''}
+                        منتهي{item.expiryDate ? `: ${item.expiryDate}` : ''}
                       </span>
                     )}
+
+                    {/* Batch / Expiry Button */}
                     {!item.isExpiredBypass && (item.batchNumber || item.expiryDate || canSelectBatch) && (
                       <button
                         type="button"
@@ -269,7 +241,7 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                           }
                         }}
                         disabled={!canSelectBatch || !onOpenBatchSelection}
-                        className={`font-bold px-1.5 py-0.2 rounded flex items-center gap-1 shrink-0 font-mono text-[10px] transition-colors ${
+                        className={`px-1.5 py-0.2 rounded flex items-center gap-1 shrink-0 font-mono text-[10px] transition-colors ${
                           canSelectBatch && onOpenBatchSelection
                             ? 'text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 hover:bg-paid-soft/80 cursor-pointer'
                             : 'text-paid dark:text-paid-bright bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30'
@@ -277,10 +249,85 @@ export const PosCartTable: React.FC<PosCartTableProps> = ({
                         title={canSelectBatch ? 'اضغط لاختيار أو تغيير تشغيلة الصنف' : `تشغيلة: ${item.batchNumber || 'افتراضية'} - صلاحية: ${item.expiryDate || 'غير محدد'}`}
                       >
                         <Calendar className="w-2.5 h-2.5 text-paid dark:text-paid-bright shrink-0" />
-                        <span>{item.batchNumber ? `تشغيلة ${item.batchNumber}` : 'دفعة الصنف'}</span>
+                        <span>{item.batchNumber ? `تشغيلة ${item.batchNumber}` : 'الدفعة'}</span>
                         {item.expiryDate && <span className="opacity-75">({item.expiryDate})</span>}
                       </button>
                     )}
+
+                    {/* Quick Row Actions Toolbar */}
+                    <div className="flex items-center gap-1 mr-auto shrink-0">
+                      {/* Drug Alternatives (F8) */}
+                      {onOpenAlternatives && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenAlternatives(index);
+                          }}
+                          className="h-5 px-1.5 rounded-md bg-brand-soft/70 dark:bg-brand-soft/20 hover:bg-brand hover:text-white dark:hover:bg-brand border border-brand/25 flex items-center gap-1 text-[10px] font-bold text-brand dark:text-brand-bright cursor-pointer transition-all shadow-2xs hover:scale-105 active:scale-95"
+                          title="البحث عن بدائل ومثائل دوائية لهذا الصنف (F8)"
+                        >
+                          <Pill className="w-2.5 h-2.5 shrink-0" />
+                          <span>بدائل (F8)</span>
+                        </button>
+                      )}
+
+                      {/* Unit Switch Button if multiple units exist */}
+                      {item.productUnits && item.productUnits.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            cycleCartItemUnit?.(index);
+                          }}
+                          className="h-5 px-1.5 rounded-md bg-surface-2 dark:bg-surface-dark-3 hover:bg-brand-soft hover:text-brand border border-line dark:border-line-dark flex items-center gap-1 text-[10px] font-bold text-ink-muted cursor-pointer transition-colors shadow-2xs"
+                          title="تبديل وحدة البيع للوحدة التالية (أو اضغط مفتاح / بالكيبورد)"
+                        >
+                          <ArrowLeftRight className="w-2.5 h-2.5 text-brand shrink-0" />
+                          <span>تبديل</span>
+                        </button>
+                      )}
+
+                      {/* Controlled Drug Dispense Documentation */}
+                      {item.isControlled && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenControlledDispense?.(index);
+                          }}
+                          className={`h-5 px-1.5 rounded-md flex items-center gap-1 text-[10px] font-bold cursor-pointer transition-colors shadow-2xs ${
+                            item.controlledDispense
+                              ? 'bg-paid-soft dark:bg-paid-dark-soft border border-paid-border dark:border-paid/30 text-paid dark:text-paid-bright hover:bg-paid/20'
+                              : 'bg-warn-soft dark:bg-warn-dark-soft border border-warn/30 dark:border-warn-bright/40 text-warn dark:text-warn-bright hover:bg-warn/25 animate-pulse'
+                          }`}
+                          title={
+                            item.controlledDispense
+                              ? `تم توثيق الصرف للمريض: ${item.controlledDispense.patientName}`
+                              : 'دواء جدول ورقابة مشددة - اضغط لتوثيق بيانات المريض والطبيب'
+                          }
+                        >
+                          <ShieldAlert className={`w-2.5 h-2.5 ${item.controlledDispense ? 'text-paid dark:text-paid-bright' : 'text-warn dark:text-warn-bright'}`} />
+                          <span>{item.controlledDispense ? `توثيق: ${item.controlledDispense.patientName.split(' ')[0]}` : 'توثيق جدول'}</span>
+                        </button>
+                      )}
+
+                      {/* Thermal Dosage Label Print */}
+                      {onPrintDosageLabel && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onPrintDosageLabel(index);
+                          }}
+                          className="h-5 px-1.5 rounded-md bg-surface-2 dark:bg-surface-dark-3 hover:bg-brand-soft hover:text-brand border border-line dark:border-line-dark flex items-center gap-1 text-[10px] font-semibold text-ink-muted cursor-pointer transition-colors shadow-2xs"
+                          title="طباعة ملصق جرعة حراري (استيكر صيدلي)"
+                        >
+                          <Printer className="w-2.5 h-2.5 text-brand shrink-0" />
+                          <span>ملصق</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 

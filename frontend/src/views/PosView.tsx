@@ -374,7 +374,14 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
 
     if (!allowNegativeStock) {
       if (availableStockMilli <= 0) {
-        showStatus(`الصنف "${prod.name}" رصيده في المخزن 0 (نفد تماماً وغير متوفر للبيع)!`, 'error');
+        if (isEnabled('feature_pharmacy')) {
+          showStatus(`الصنف "${prod.name}" رصيده في المخزن 0 (نافد)! تم فتح محرك البدائل المتوفرة لاختيار بديل مناسب.`, 'warning');
+          setAlternativesProductId(prod.id);
+          setAlternativesProductName(prod.name);
+          setIsAlternativesDrawerOpen(true);
+        } else {
+          showStatus(`الصنف "${prod.name}" رصيده في المخزن 0 (نفد تماماً وغير متوفر للبيع)!`, 'error');
+        }
         return false;
       }
       if (totalRequestedBaseMilli > availableStockMilli) {
@@ -2110,6 +2117,11 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
                 ? () => setIsChronicDispenseOpen(true)
                 : undefined
             }
+            onOpenQuickShortage={() => {
+              setShortageInitialName(barcodeQuery);
+              setShortageInitialProductId('');
+              setIsQuickShortageOpen(true);
+            }}
             activeInsuranceClaim={activeInsuranceClaim}
             isCartEmpty={cart.length === 0}
             totalCatalogProductsCount={catalogProducts.length}
@@ -2517,6 +2529,11 @@ export const PosView: React.FC<PosViewProps> = ({ isActive = true, onNavigateToE
           if (added) {
             showStatus(`تمت إضافة البديل: ${prod.name}`, 'success');
           }
+        }}
+        onOpenShortageModal={(prodId, prodName) => {
+          setShortageInitialProductId(prodId || '');
+          setShortageInitialName(prodName || '');
+          setIsQuickShortageOpen(true);
         }}
       />
 

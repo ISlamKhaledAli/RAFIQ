@@ -19,6 +19,7 @@ import {
   BarChart3,
   X,
   Package,
+  RotateCcw,
 } from 'lucide-react';
 import { invoke } from '../../bridge/ipc';
 import type {
@@ -51,6 +52,12 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
   const [lostSalesReport, setLostSalesReport] = useState<LostSalesReportSummary | null>(null);
   const [isGeneratingAuto, setIsGeneratingAuto] = useState(false);
 
+  interface PendingAction {
+    type: 'order' | 'cancel' | 'receive' | 'restore' | 'delete';
+    item: ShortageEntry;
+  }
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
@@ -61,11 +68,20 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
   const loadShortages = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await invoke<ShortageEntry[]>('shortages:getAll', {
-        status: statusFilter === 'all' ? undefined : statusFilter,
-        search: searchQuery.trim() || undefined,
-        limit: 200,
-      });
+      let data: ShortageEntry[] = [];
+      try {
+        data = await invoke<ShortageEntry[]>('shortages:list', {
+          status: statusFilter === 'all' ? undefined : statusFilter,
+          search: searchQuery.trim() || undefined,
+          limit: 200,
+        });
+      } catch {
+        data = await invoke<ShortageEntry[]>('shortages:getAll', {
+          status: statusFilter === 'all' ? undefined : statusFilter,
+          search: searchQuery.trim() || undefined,
+          limit: 200,
+        });
+      }
       setShortages(data || []);
       setSelectedIds([]);
     } catch {
@@ -81,8 +97,13 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
 
   const filteredShortages = useMemo(() => {
     return shortages.filter((item) => {
-      if (urgencyFilter !== 'all' && item.urgency !== urgencyFilter) return false;
-      if (sourceFilter !== 'all' && item.source !== sourceFilter) return false;
+      const itemUrgency = item.urgency || (item as unknown as { priority?: string }).priority || 'normal';
+      if (urgencyFilter !== 'all' && itemUrgency !== urgencyFilter) return false;
+      if (sourceFilter !== 'all') {
+        const itemSrc: string = item.source || 'pos';
+        if (sourceFilter === 'manual_pos' && itemSrc !== 'manual_pos' && itemSrc !== 'pos') return false;
+        if (sourceFilter !== 'manual_pos' && itemSrc !== sourceFilter) return false;
+      }
       return true;
     });
   }, [shortages, urgencyFilter, sourceFilter]);
@@ -101,20 +122,32 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
     );
   };
 
-  const handleStatusChange = async (id: string, newStatus: string) => {
+  const handleStatusChange = async (id: string, newStatus: string, productName?: string) => {
     try {
       await invoke('shortages:updateStatus', { id, status: newStatus });
-      showToast('تم تحديث حالة الصنف بنجاح', 'success');
+      const name = productName || 'الصنف';
+      if (newStatus === 'ordered') {
+        showToast(`تم نقل "${name}" إلى قائمة (تم الطلب من المورد). يمكنك استعراضه من تبويب "تم الطلب".`, 'success');
+      } else if (newStatus === 'cancelled') {
+        showToast(`تم نقل "${name}" إلى قائمة (الملغيات).`, 'success');
+      } else if (newStatus === 'received') {
+        showToast(`تم استلام "${name}" وتحديث المخزن بنجاح.`, 'success');
+      } else if (newStatus === 'pending') {
+        showToast(`تمت إعادة تفعيل "${name}" ونقله إلى قائمة (بانتظار الطلب).`, 'success');
+      } else {
+        showToast(`تم تحديث حالة "${name}" بنجاح`, 'success');
+      }
       void loadShortages();
     } catch {
       showToast('تعذر تحديث الحالة', 'error');
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, productName?: string) => {
     try {
       await invoke('shortages:delete', { id });
-      showToast('تم حذف القيد من الدفتر', 'success');
+      const name = productName || 'الصنف';
+      showToast(`تم حذف "${name}" نهائياً من دفتر النواقص`, 'success');
       void loadShortages();
     } catch {
       showToast('تعذر حذف القيد', 'error');
@@ -124,12 +157,19 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
   const handleGenerateAutoShortages = async () => {
     setIsGeneratingAuto(true);
     try {
-      const autoList = await invoke<ShortageEntry[]>('shortages:getAutoShortages', { targetCoverDays: 15 });
-      if (autoList && autoList.length > 0) {
-        showToast(`تم فحص المخزون واكتشاف ${autoList.length} صنف بحاجة لإعادة طلب`, 'success');
-      } else {
-        showToast('لا توجد أصناف تقل عن حد الطلب الأدنى حالياً', 'success');
+      let autoList: ShortageEntry[] = [];
+      try {
+        autoList = await invoke<ShortageEntry[]>('shortages:getAutoShortages', { targetCoverDays: 15 });
+      } catch {
+        autoList = await invoke<ShortageEntry[]>('shortages:getAuto', { targetCoverDays: 15 });
       }
+
+      if (autoList && autoList.length > 0) {
+        showToast(`تم فحص المخزون واكتشاف وإدراج ${autoList.length} صنف في النواقص بنجاح`, 'success');
+      } else {
+        showToast('كافة الأصناف متوفرة وأعلى من حدود الأمان ومعدلات الاستهلاك', 'success');
+      }
+      setStatusFilter('pending');
       void loadShortages();
     } catch {
       showToast('تعذر فحص النواقص التلقائية', 'error');
@@ -145,10 +185,26 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
     }
 
     try {
-      const props = await invoke<ShortagePurchaseProposal[]>('shortages:convertToPurchase', {
+      const rawProps = await invoke<unknown>('shortages:convertToPurchase', {
         shortageIds: selectedIds,
       });
-      setProposals(props || []);
+      const list = Array.isArray(rawProps) ? rawProps : (rawProps ? [rawProps] : []);
+      const normalized: ShortagePurchaseProposal[] = list.map((p: any) => ({
+        supplierId: p.supplierId || '',
+        supplierName: p.supplierName || 'مورد عام',
+        supplierPhone: p.supplierPhone || null,
+        items: ((p.items || p.lines || []) as any[]).map((i: any) => ({
+          shortageId: i.shortageId || i.productId || Math.random().toString(),
+          productId: i.productId || '',
+          productName: i.productName || i.itemName || 'صنف',
+          barcode: i.barcode || null,
+          unit: i.unit || 'وحدة',
+          suggestedQuantityMilli: i.suggestedQuantityMilli ?? i.suggestedQtyMilli ?? 1000,
+          costPiasters: i.costPiasters ?? i.costPricePiasters ?? 0,
+          totalEstimatedCostPiasters: i.totalEstimatedCostPiasters ?? Math.round(((i.suggestedQuantityMilli ?? i.suggestedQtyMilli ?? 1000) / 1000) * (i.costPiasters ?? i.costPricePiasters ?? 0)),
+        })),
+      }));
+      setProposals(normalized);
       setIsProposalsModalOpen(true);
     } catch {
       showToast('تعذر تحويل النواقص لأوامر شراء', 'error');
@@ -157,11 +213,25 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
 
   const handleOpenLostSalesReport = async () => {
     try {
-      const report = await invoke<LostSalesReportSummary>('shortages:getLostSalesReport', { days: 30 });
-      setLostSalesReport(report);
+      const report = await invoke<any>('shortages:getLostSalesReport', { days: 30 });
+      if (report) {
+        const rawItems = (report.topRequestedProducts || report.items || []) as any[];
+        setLostSalesReport({
+          totalUnmetRequestsCount: report.totalUnmetRequestsCount ?? report.totalRequests ?? 0,
+          totalEstimatedLostRevenuePiasters: report.totalEstimatedLostRevenuePiasters ?? report.totalLostRevenuePiasters ?? 0,
+          topRequestedProducts: rawItems.map((p: any) => ({
+            productId: p.productId || '',
+            productName: p.productName || p.itemName || 'صنف غير محدد',
+            barcode: p.barcode || null,
+            requestCount: p.requestCount || 0,
+            totalRequestedQuantityMilli: p.totalRequestedQuantityMilli ?? p.totalRequestedQtyMilli ?? 0,
+            estimatedLostRevenuePiasters: p.estimatedLostRevenuePiasters || 0,
+          })),
+        });
+      }
       setIsLostSalesReportOpen(true);
     } catch {
-      showToast('تعذر جلب تقرير المبيعات المفقودة', 'error');
+      showToast('تعذر جلب تقريب المبيعات المفقودة', 'error');
     }
   };
 
@@ -298,6 +368,73 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
         </div>
       </div>
 
+      {/* Status Workflow Navigation Tabs */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 text-xs select-none">
+        <button
+          type="button"
+          onClick={() => setStatusFilter('pending')}
+          className={`h-8 px-3 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+            statusFilter === 'pending'
+              ? 'bg-warn text-white shadow-xs'
+              : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2'
+          }`}
+        >
+          <Clock className="w-3.5 h-3.5" />
+          <span>بانتظار الطلب (معلق)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStatusFilter('ordered')}
+          className={`h-8 px-3 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+            statusFilter === 'ordered'
+              ? 'bg-brand text-white shadow-xs'
+              : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2'
+          }`}
+        >
+          <Truck className="w-3.5 h-3.5" />
+          <span>تم الطلب من المورد</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStatusFilter('received')}
+          className={`h-8 px-3 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+            statusFilter === 'received'
+              ? 'bg-paid text-white shadow-xs'
+              : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2'
+          }`}
+        >
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          <span>تم الاستلام بالمخزن</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStatusFilter('cancelled')}
+          className={`h-8 px-3 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+            statusFilter === 'cancelled'
+              ? 'bg-ink-muted text-white shadow-xs'
+              : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2'
+          }`}
+        >
+          <XCircle className="w-3.5 h-3.5" />
+          <span>الملغيات</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStatusFilter('all')}
+          className={`h-8 px-3 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+            statusFilter === 'all'
+              ? 'bg-brand-dark text-white shadow-xs'
+              : 'bg-surface dark:bg-surface-dark border border-line dark:border-line-dark text-ink dark:text-ink-dark hover:bg-surface-2'
+          }`}
+        >
+          <span>كافة النواقص</span>
+        </button>
+      </div>
+
       {/* Main Table */}
       <div className="flex-1 bg-surface dark:bg-surface-dark border border-line dark:border-line-dark rounded-xl overflow-hidden flex flex-col shadow-2xs">
         <div className="overflow-x-auto flex-1">
@@ -396,16 +533,29 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                       </td>
 
                       <td className="px-3 py-2.5 text-center font-bold font-mono">
-                        {item.requestedQuantityMilli / 1000} {item.unit || 'قطعة'}
+                        {typeof item.requestedQuantityMilli === 'number' && !isNaN(item.requestedQuantityMilli)
+                          ? item.requestedQuantityMilli / 1000
+                          : 1}{' '}
+                        {item.unit || 'قطعة'}
                       </td>
 
                       <td className="px-3 py-2.5 text-center font-mono text-[11px]">
-                        <span className="text-danger font-bold">
-                          {item.currentStockMilli / 1000}
+                        <span
+                          className={
+                            typeof item.currentStockMilli === 'number' && item.currentStockMilli > 0
+                              ? 'text-warn font-bold'
+                              : 'text-danger font-bold'
+                          }
+                        >
+                          {typeof item.currentStockMilli === 'number' && !isNaN(item.currentStockMilli)
+                            ? item.currentStockMilli / 1000
+                            : 0}
                         </span>
-                        {' / '}
+                        <span className="text-ink-muted mx-1">/</span>
                         <span className="text-ink-muted">
-                          {item.minStockMilli / 1000}
+                          {typeof item.minStockMilli === 'number' && !isNaN(item.minStockMilli)
+                            ? item.minStockMilli / 1000
+                            : 0}
                         </span>
                       </td>
 
@@ -472,9 +622,9 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                           {item.status === 'pending' && (
                             <button
                               type="button"
-                              onClick={() => void handleStatusChange(item.id, 'ordered')}
-                              className="p-1 rounded hover:bg-brand-soft text-brand"
-                              title="تعليم كـ تم الطلب"
+                              onClick={() => setPendingAction({ type: 'order', item })}
+                              className="p-1.5 rounded-lg border border-brand/20 hover:bg-brand-soft text-brand transition-all cursor-pointer shadow-2xs"
+                              title="طلب من المورد (نقل الصنف إلى قائمة تم الطلب)"
                             >
                               <Truck className="w-3.5 h-3.5" />
                             </button>
@@ -482,9 +632,9 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                           {item.status === 'ordered' && (
                             <button
                               type="button"
-                              onClick={() => void handleStatusChange(item.id, 'received')}
-                              className="p-1 rounded hover:bg-paid-soft text-paid"
-                              title="تعليم كـ تم الاستلام بالمخزن"
+                              onClick={() => setPendingAction({ type: 'receive', item })}
+                              className="p-1.5 rounded-lg border border-paid/20 hover:bg-paid-soft text-paid transition-all cursor-pointer shadow-2xs"
+                              title="استلام بالمخزن (تأكيد استلام الشحنة)"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
                             </button>
@@ -492,18 +642,28 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                           {item.status !== 'cancelled' && (
                             <button
                               type="button"
-                              onClick={() => void handleStatusChange(item.id, 'cancelled')}
-                              className="p-1 rounded hover:bg-surface-2 text-ink-muted"
-                              title="إلغاء الطلب"
+                              onClick={() => setPendingAction({ type: 'cancel', item })}
+                              className="p-1.5 rounded-lg border border-line hover:bg-surface-2 text-ink-muted hover:text-ink transition-all cursor-pointer shadow-2xs"
+                              title="إلغاء الطلب (نقل الصنف إلى الملغيات)"
                             >
                               <XCircle className="w-3.5 h-3.5" />
                             </button>
                           )}
+                          {item.status === 'cancelled' && (
+                            <button
+                              type="button"
+                              onClick={() => setPendingAction({ type: 'restore', item })}
+                              className="p-1.5 rounded-lg border border-brand/20 hover:bg-brand-soft text-brand transition-all cursor-pointer shadow-2xs"
+                              title="إعادة تفعيل القيد (نقل الصنف إلى بانتظار الطلب)"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           <button
                             type="button"
-                            onClick={() => void handleDelete(item.id)}
-                            className="p-1 rounded hover:bg-danger-soft text-danger"
-                            title="حذف من الدفتر"
+                            onClick={() => setPendingAction({ type: 'delete', item })}
+                            className="p-1.5 rounded-lg border border-danger/20 hover:bg-danger-soft text-danger transition-all cursor-pointer shadow-2xs"
+                            title="حذف نهائي من الدفتر"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -742,6 +902,174 @@ export const ShortagesTab: React.FC<ShortagesTabProps> = ({ onLoadProposalToNewP
                 className="h-8 px-4 rounded-lg border border-line dark:border-line-dark text-xs font-bold text-ink dark:text-ink-dark hover:bg-surface"
               >
                 إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation & Explanation Modal for Actions */}
+      {pendingAction && (
+        <div
+          className="fixed inset-0 bg-ink/50 dark:bg-black/75 z-50 flex items-center justify-center p-4 backdrop-blur-xs select-none animate-in fade-in duration-150"
+          onClick={() => setPendingAction(null)}
+        >
+          <div
+            className="w-full max-w-md bg-surface dark:bg-surface-dark rounded-2xl border border-line dark:border-line-dark shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-4 border-b border-line dark:border-line-dark flex items-center justify-between bg-surface-2 dark:bg-surface-dark-2">
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                    pendingAction.type === 'order'
+                      ? 'bg-brand-soft text-brand'
+                      : pendingAction.type === 'receive'
+                      ? 'bg-paid-soft text-paid'
+                      : pendingAction.type === 'cancel'
+                      ? 'bg-warn-soft text-warn'
+                      : pendingAction.type === 'restore'
+                      ? 'bg-brand-soft text-brand'
+                      : 'bg-danger-soft text-danger'
+                  }`}
+                >
+                  {pendingAction.type === 'order' && <Truck className="w-4 h-4" />}
+                  {pendingAction.type === 'receive' && <CheckCircle2 className="w-4 h-4" />}
+                  {pendingAction.type === 'cancel' && <XCircle className="w-4 h-4" />}
+                  {pendingAction.type === 'restore' && <RotateCcw className="w-4 h-4" />}
+                  {pendingAction.type === 'delete' && <Trash2 className="w-4 h-4" />}
+                </div>
+                <h4 className="text-sm font-bold text-ink dark:text-ink-dark m-0">
+                  {pendingAction.type === 'order' && 'تأكيد طلب الصنف من المورد'}
+                  {pendingAction.type === 'receive' && 'تأكيد استلام الصنف بالمخزن'}
+                  {pendingAction.type === 'cancel' && 'إلغاء طلب الصنف الناقص'}
+                  {pendingAction.type === 'restore' && 'إعادة تفعيل قيد الصنف'}
+                  {pendingAction.type === 'delete' && 'حذف القيد نهائياً من الدفتر'}
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPendingAction(null)}
+                className="w-7 h-7 rounded-lg border border-line dark:border-line-dark flex items-center justify-center text-ink-muted hover:text-danger cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 flex flex-col gap-3 text-xs">
+              <div className="bg-surface-2 dark:bg-surface-dark-2 rounded-xl p-3 border border-line dark:border-line-dark">
+                <div className="font-bold text-ink dark:text-ink-dark text-sm mb-1">
+                  {pendingAction.item.productName}
+                </div>
+                {pendingAction.item.barcode && (
+                  <div className="text-[11px] text-ink-muted font-mono mb-1">
+                    باركود: {pendingAction.item.barcode}
+                  </div>
+                )}
+                <div className="flex items-center gap-2 text-ink-muted">
+                  <span>
+                    الكمية: {typeof pendingAction.item.requestedQuantityMilli === 'number' && !isNaN(pendingAction.item.requestedQuantityMilli) ? pendingAction.item.requestedQuantityMilli / 1000 : 1} {pendingAction.item.unit || 'قطعة'}
+                  </span>
+                  <span>•</span>
+                  <span>
+                    الحالة الحالية:{' '}
+                    {pendingAction.item.status === 'pending'
+                      ? 'بانتظار الطلب'
+                      : pendingAction.item.status === 'ordered'
+                      ? 'تم الطلب'
+                      : pendingAction.item.status === 'received'
+                      ? 'تم الاستلام'
+                      : 'ملغي'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="text-ink dark:text-ink-dark leading-relaxed">
+                {pendingAction.type === 'order' && (
+                  <div>
+                    هل قمت بالتواصل مع شركة التوريد وطلب هذا الصنف؟
+                    <div className="text-ink-muted text-[11px] mt-1.5 p-2 bg-brand-soft/40 dark:bg-brand-dark-soft/40 rounded-lg border border-brand/20">
+                      سيتم نقل الصنف تلقائياً إلى قائمة <strong>"تم الطلب من المورد"</strong>. يمكنك متابعته واستلامه من تبويب "تم الطلب" بالأعلى.
+                    </div>
+                  </div>
+                )}
+                {pendingAction.type === 'receive' && (
+                  <div>
+                    هل تم توريد الصنف ودخوله إلى المخزن بالفعل؟
+                    <div className="text-ink-muted text-[11px] mt-1.5 p-2 bg-paid-soft/40 dark:bg-paid-dark-soft/40 rounded-lg border border-paid/20">
+                      سيتم تحديث حالة الصنف إلى <strong>"تم الاستلام"</strong> وأرشفته في سجل التوريدات المكتملة.
+                    </div>
+                  </div>
+                )}
+                {pendingAction.type === 'cancel' && (
+                  <div>
+                    هل تود إلغاء طلب هذا الصنف؟
+                    <div className="text-ink-muted text-[11px] mt-1.5 p-2 bg-surface-2 rounded-lg border border-line">
+                      سيتم نقله إلى قائمة <strong>"الملغيات"</strong> ولن يظهر في الطلبيات الحالية. يمكنك إعادة تفعيله في أي وقت.
+                    </div>
+                  </div>
+                )}
+                {pendingAction.type === 'restore' && (
+                  <div>
+                    هل تود إعادة تفعيل هذا القيد؟
+                    <div className="text-ink-muted text-[11px] mt-1.5 p-2 bg-brand-soft/40 dark:bg-brand-dark-soft/40 rounded-lg border border-brand/20">
+                      سيتم إرجاع الصنف إلى قائمة <strong>"بانتظار الطلب (معلق)"</strong> لإدراجه في طلبيات التوريد القادمة.
+                    </div>
+                  </div>
+                )}
+                {pendingAction.type === 'delete' && (
+                  <div className="p-2.5 rounded-lg bg-danger-soft/50 border border-danger/30 text-danger font-medium">
+                    تحذير: سيتم حذف هذا القيد نهائياً من قاعدة البيانات ولا يمكن استرجاعه.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 bg-surface-2 dark:bg-surface-dark-2 border-t border-line dark:border-line-dark flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingAction(null)}
+                className="h-8 px-3 rounded-lg border border-line text-ink dark:text-ink-dark hover:bg-surface text-xs font-bold cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const action = pendingAction;
+                  setPendingAction(null);
+                  if (action.type === 'order') {
+                    await handleStatusChange(action.item.id, 'ordered', action.item.productName);
+                  } else if (action.type === 'receive') {
+                    await handleStatusChange(action.item.id, 'received', action.item.productName);
+                  } else if (action.type === 'cancel') {
+                    await handleStatusChange(action.item.id, 'cancelled', action.item.productName);
+                  } else if (action.type === 'restore') {
+                    await handleStatusChange(action.item.id, 'pending', action.item.productName);
+                  } else if (action.type === 'delete') {
+                    await handleDelete(action.item.id, action.item.productName);
+                  }
+                }}
+                className={`h-8 px-4 rounded-lg text-white text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer ${
+                  pendingAction.type === 'order'
+                    ? 'bg-brand hover:bg-brand-hover'
+                    : pendingAction.type === 'receive'
+                    ? 'bg-paid hover:bg-paid-hover'
+                    : pendingAction.type === 'cancel'
+                    ? 'bg-warn hover:bg-warn-hover'
+                    : pendingAction.type === 'restore'
+                    ? 'bg-brand hover:bg-brand-hover'
+                    : 'bg-danger hover:bg-danger-hover'
+                }`}
+              >
+                {pendingAction.type === 'order' && 'تأكيد ونقل لـ "تم الطلب"'}
+                {pendingAction.type === 'receive' && 'تأكيد الاستلام بالمخزن'}
+                {pendingAction.type === 'cancel' && 'تأكيد الإلغاء'}
+                {pendingAction.type === 'restore' && 'إعادة التفعيل'}
+                {pendingAction.type === 'delete' && 'حذف نهائي'}
               </button>
             </div>
           </div>

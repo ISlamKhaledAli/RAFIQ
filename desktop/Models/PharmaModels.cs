@@ -226,6 +226,12 @@ namespace RafiqPOS.Models
         [JsonProperty("name")]
         public string Name { get; set; }
 
+        [JsonProperty("productName")]
+        public string ProductName { get { return Name; } set { Name = value; } }
+
+        [JsonProperty("unit")]
+        public string Unit { get; set; }
+
         [JsonProperty("barcode")]
         public string Barcode { get; set; }
 

@@ -183,8 +183,8 @@ export const usePosShortcuts = ({
         return;
       }
 
-      // F11 / Ctrl+Q: Quick Shortage Recording (Story 129)
-      if (e.key === 'F11' || (e.ctrlKey && e.key.toLowerCase() === 'q')) {
+      // Ctrl+Q / Alt+N: Quick Shortage Recording (Story 129)
+      if ((e.ctrlKey && e.key.toLowerCase() === 'q') || (e.altKey && (e.key.toLowerCase() === 'n' || e.key === 'ى'))) {
         e.preventDefault();
         onOpenQuickShortage?.();
         return;

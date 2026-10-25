@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   Building2,
   HeartPulse,
+  ClipboardList,
 } from 'lucide-react';
 import type { ProductUnit, Category } from '../../types/models';
 import type { SmartCatalogItem } from './types';
@@ -34,6 +35,7 @@ interface PosCatalogPanelProps {
   onOpenVariantMatrixModal?: () => void;
   onOpenInsuranceModal?: () => void;
   onOpenChronicDispense?: () => void;
+  onOpenQuickShortage?: () => void;
   activeInsuranceClaim?: InsuranceClaimLine | null;
   isCartEmpty?: boolean;
   totalCatalogProductsCount?: number;
@@ -55,6 +57,7 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
   onOpenVariantMatrixModal,
   onOpenInsuranceModal,
   onOpenChronicDispense,
+  onOpenQuickShortage,
   activeInsuranceClaim,
   isCartEmpty = false,
   totalCatalogProductsCount = 0,
@@ -142,6 +145,18 @@ export const PosCatalogPanel: React.FC<PosCatalogPanelProps> = ({
               <span>مقاسات وألوان</span>
             </button>
           )}
+          {onOpenQuickShortage && (
+            <button
+              type="button"
+              onClick={onOpenQuickShortage}
+              className="flex items-center gap-1 text-[11px] font-bold text-warn dark:text-warn-bright bg-warn-soft dark:bg-warn-dark-soft border border-warn-border dark:border-warn-bright/30 hover:bg-warn-border/40 px-2.5 py-1 rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap"
+              title="تسجيل النواقص السريع في كشكول النواقص (Ctrl+Q)"
+            >
+              <ClipboardList className="w-3.5 h-3.5 shrink-0 text-warn dark:text-warn-bright" />
+              <span>تسجيل نواقص</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onOpenQuickFastItemModal}

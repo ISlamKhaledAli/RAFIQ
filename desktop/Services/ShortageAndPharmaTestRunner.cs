@@ -122,6 +122,14 @@ namespace RafiqPOS.Services
                 var lostReport = shortageService.GetLostSalesReport(null, null);
                 Assert(lostReport != null && lostReport.TotalRequests >= 2, "حساب تقرير المبيعات الضائعة وإجمالي الطلبات بنجاح", result);
                 Assert(lostReport.TotalLostRevenuePiasters > 0, "تقدير قيمة المبيعات والأرباح المفقودة بالقرش بدقة", result);
+                Assert(lostReport.TotalUnmetRequestsCount == lostReport.TotalRequests, "تطابق مفاتيح التوافق مع الواجهة totalUnmetRequestsCount", result);
+                Assert(lostReport.TotalEstimatedLostRevenuePiasters == lostReport.TotalLostRevenuePiasters, "تطابق مفاتيح التوافق مع الواجهة totalEstimatedLostRevenuePiasters", result);
+                Assert(lostReport.TopRequestedProducts.Count == lostReport.Items.Count, "تطابق مصفوفة المنتجات topRequestedProducts", result);
+
+                // اختبار محرك فحص النواقص التلقائي
+                var autoShortages = shortageService.GetAutoShortages(15);
+                Assert(autoShortages != null && autoShortages.Count >= 1, "محرك فحص النواقص التلقائي اكتشف الأصناف تحت حد الأمان", result);
+                Assert(autoShortages.Exists(s => s.ProductId == prod1.Id), "إدراج صنف بنادول تلقائياً في كشكول النواقص لتصفير رصيده", result);
 
                 // =========================================================================
                 // اختبارات الملف الدوائي ومحرك البدائل (Story 130 / Feature #187)
